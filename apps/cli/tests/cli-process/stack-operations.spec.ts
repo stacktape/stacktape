@@ -546,9 +546,8 @@ describe('delete', () => {
     });
 
     expect(run.screen).toContain('Operation canceled');
-    // The CLI ends a cancelled operation by signalling its own process tree, so the parent observes SIGTERM (143)
-    // rather than status 0 in this source-run wrapper.
-    expect([0, 143]).toContain(run.exitCode);
+    // A declined confirmation is a cancellation: it must not report shell success.
+    expect(run.exitCode).toBe(130);
     expect(aws.mutations).toEqual([]);
     expect(aws.stack?.status).toBe('CREATE_COMPLETE');
   });
@@ -565,7 +564,7 @@ describe('delete', () => {
       promptText: `Delete stack ${stackName} and all of its resources?`,
       answer: '\x03'
     });
-    expect([0, 130, 143]).toContain(run.exitCode);
+    expect(run.exitCode).toBe(130);
     expect(aws.mutations).toEqual([]);
     expect(aws.stack?.status).toBe('CREATE_COMPLETE');
     expect(await bucket.object(getCfTemplateS3Key('v000002'))).toBe('keep');
@@ -829,7 +828,7 @@ describe('logs', () => {
     return { child, waitFor, exited, output: () => stdout };
   };
 
-  test('--follow without a terminal prints new lines as plain text as they arrive and ends on SIGTERM', async () => {
+  test('--follow without a terminal prints new lines as plain text as they arrive and ends on SIGTERM with 143', async () => {
     const fakes = await startDeployedFunction();
     await fakes.write('backlog-line-r2bb', Date.now() - 60_000);
     const logs = await spawnLogs(fakes, { args: ['--follow'] });
@@ -843,7 +842,8 @@ describe('logs', () => {
     expect(logs.output()).not.toContain(String.fromCharCode(27));
 
     logs.child.kill('SIGTERM');
-    expect(await logs.exited(15)).toBe(0);
+    // Following ends only by a signal, which is an interruption: 128 + SIGTERM.
+    expect(await logs.exited(15)).toBe(143);
     expect(fakes.aws.mutations).toEqual([]);
   });
 
@@ -857,7 +857,8 @@ describe('logs', () => {
     await logs.waitFor('new-line-r2ad', 30);
     expect(logs.child.exitCode).toBeNull();
     logs.child.kill('SIGTERM');
-    expect(await logs.exited(15)).toBe(0);
+    // Following ends only by a signal, which is an interruption: 128 + SIGTERM.
+    expect(await logs.exited(15)).toBe(143);
 
     const records = logs
       .output()

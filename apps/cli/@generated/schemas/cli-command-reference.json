@@ -654,7 +654,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -804,7 +804,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -943,7 +943,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -1208,7 +1208,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -1379,7 +1379,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -1547,7 +1547,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -1767,7 +1767,7 @@
       },
       {
         "name": "autoConfirmOperation",
-        "description": "#### Auto-Confirm Operation\n---\nIf `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step.",
+        "description": "#### Auto-Confirm Operation\n---\nConfirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.\nWithout a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything.",
         "required": false,
         "alias": "y",
         "allowedTypes": [
@@ -1786,7 +1786,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -1916,7 +1916,7 @@
       },
       {
         "name": "autoConfirmOperation",
-        "description": "#### Auto-Confirm Operation\n---\nIf `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step.",
+        "description": "#### Auto-Confirm Operation\n---\nConfirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.\nWithout a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything.",
         "required": false,
         "alias": "y",
         "allowedTypes": [
@@ -1944,7 +1944,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -2170,7 +2170,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -2290,7 +2290,7 @@
       },
       {
         "name": "agent",
-        "description": "#### Agent Mode\n---\nFor coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries.\nThe command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/).",
+        "description": "#### Agent Mode\n---\nFor coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries.\nThe command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. Agent mode does not confirm anything: when the project does not exist yet, creating it fails with `CONFIRMATION_REQUIRED` unless you add `--yes`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/).",
         "required": false,
         "allowedTypes": [
           "boolean"
@@ -2307,6 +2307,16 @@
         "flag": "agent-port"
       },
       {
+        "name": "autoConfirmOperation",
+        "description": "#### Auto-Confirm Operation\n---\nConfirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.\nWithout a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything.",
+        "required": false,
+        "alias": "y",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "yes"
+      },
+      {
         "name": "awsAccount",
         "description": "#### AWS Account\n---\nThe name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts).\n\nWithout it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account.",
         "required": false,
@@ -2317,7 +2327,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -2627,7 +2637,7 @@
       },
       {
         "name": "autoConfirmOperation",
-        "description": "#### Auto-Confirm Operation\n---\nIf `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step.",
+        "description": "#### Auto-Confirm Operation\n---\nConfirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.\nWithout a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything.",
         "required": false,
         "alias": "y",
         "allowedTypes": [
@@ -2759,7 +2769,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -2889,7 +2899,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -4341,7 +4351,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -4531,7 +4541,7 @@
     "args": [
       {
         "name": "autoConfirmOperation",
-        "description": "#### Auto-Confirm Operation\n---\nIf `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step.",
+        "description": "#### Auto-Confirm Operation\n---\nConfirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.\nWithout a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything.",
         "required": false,
         "alias": "y",
         "allowedTypes": [
@@ -4589,7 +4599,7 @@
     "args": [
       {
         "name": "autoConfirmOperation",
-        "description": "#### Auto-Confirm Operation\n---\nIf `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step.",
+        "description": "#### Auto-Confirm Operation\n---\nConfirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.\nWithout a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything.",
         "required": false,
         "alias": "y",
         "allowedTypes": [
@@ -4870,6 +4880,16 @@
     ],
     "args": [
       {
+        "name": "autoConfirmOperation",
+        "description": "#### Auto-Confirm Operation\n---\nConfirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.\nWithout a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything.",
+        "required": false,
+        "alias": "y",
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "yes"
+      },
+      {
         "name": "help",
         "description": "#### Show Help\n---\nIf provided, the command will not execute and will instead print help information.",
         "required": false,
@@ -5002,7 +5022,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -5153,7 +5173,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -5326,7 +5346,7 @@
     "args": [
       {
         "name": "autoConfirmOperation",
-        "description": "#### Auto-Confirm Operation\n---\nIf `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step.",
+        "description": "#### Auto-Confirm Operation\n---\nConfirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.\nWithout a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything.",
         "required": false,
         "alias": "y",
         "allowedTypes": [
@@ -5488,7 +5508,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -5674,7 +5694,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -5869,7 +5889,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -6075,7 +6095,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -6212,7 +6232,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -6366,7 +6386,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -6873,7 +6893,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [
@@ -7072,7 +7092,7 @@
       },
       {
         "name": "configPath",
-        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.",
+        "description": "#### Config File Path\n---\nThe path to your Stacktape configuration file, relative to the current working directory.\nWithout it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option.",
         "required": false,
         "alias": "c",
         "allowedTypes": [

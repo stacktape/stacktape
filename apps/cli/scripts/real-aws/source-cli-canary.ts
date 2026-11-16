@@ -350,7 +350,8 @@ export const createSourceCliRunner = (options: CanaryOptions, ownerVariable: str
         '--profile',
         options.profile,
         '--awsAccount',
-        awsAccountName
+        awsAccountName,
+        '--autoConfirmOperation'
       ],
       ...(fixture && { fixture }),
       invocationId

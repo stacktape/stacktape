@@ -55,7 +55,8 @@ Do these before the v4 release reaches your machines and CI, or right now if it 
 | A TypeScript configuration (`stacktape.ts`) | [TypeScript configurations](#typescript-configurations) |
 | `connectTo: ['aws:ses']` or `AWS_SES` | [Sending email with SES](#sending-email-with-ses) |
 | `afterDeploy` hooks | [After-deploy hooks fail the deployment](#after-deploy-hooks-fail-the-deployment) |
-| Scripts or CI that call the CLI | [CLI changes](#cli-changes) |
+| Scripts or CI that call the CLI, including `--agent` | [CLI changes](#cli-changes) |
+| More than one `stacktape.*` file in a project directory | [Several configuration files in one directory](#several-configuration-files-in-one-directory) |
 | Java, Ruby or Go functions | [Lambda runtimes](#lambda-runtimes) |
 | Container services | [Container services](#container-services) |
 | AWS Batch jobs | [Batch jobs](#batch-jobs) |
@@ -856,6 +857,22 @@ v3 stack commands ignored `--profile` and `AWS_PROFILE` for accounts connected w
 
 Check scripts and CI jobs that set an AWS profile or AWS keys, for example for an S3 upload in an earlier step. Pass `--aws-account <name>` to Stacktape commands in them, or remove the AWS settings. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
 
+### `--agent` no longer confirms operations
+
+In v3, `--agent` also answered every confirmation, as if you had passed `--yes`. In v4 it only selects machine-readable output and turns off prompts. An operation that asks for confirmation needs `--yes`: deleting a stack, a deploy whose update may delete stateful resources such as a database, creating a project that does not exist yet, `project delete`, `org delete` and `dev network delete`. Without `--yes`, such a command run with `--agent`, with `--json` or without a terminal stops before it changes anything and fails with `CONFIRMATION_REQUIRED`. An explicit `--yes=false` is respected.
+
+Add `--yes` where a script or CI job intends the operation, for example `stacktape delete --stage preview --region eu-west-1 --agent --yes`. `stacktape dev --agent` takes `--yes` too, to create a project that does not exist yet.
+
+### Interrupted commands exit with a non-zero code
+
+v3 exited with code 0 when a command was interrupted, so `stacktape deploy && ./next-step.sh` continued after you pressed Ctrl+C or CI cancelled the job. In v4 an interrupted command exits with 130 for Ctrl+C (SIGINT) or a declined confirmation, 143 for SIGTERM, 129 for SIGHUP and 131 for SIGQUIT. The `--json` result stays `ok: false` with code `USER_INTERRUPTION`. This includes long-running commands that you usually end with Ctrl+C, such as `logs --follow`, `bastion tunnel` and `stacktape dev`. Stopping a dev session with `stacktape dev stop` is not an interruption: both the command and the stopped session exit with 0.
+
+If a script treats an interrupted command as success on purpose, check for these codes explicitly.
+
+### Several configuration files in one directory
+
+v3 picked one file by precedence (`stacktape.ts`, then `stacktape.yml`, then the others) and printed a warning when a directory held more than one of `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` and `stacktape.js`. v4 stops with `CONFIG_FILE_AMBIGUOUS` instead, because the files can name different projects, stages or regions. This often happens after converting `stacktape.yml` to `stacktape.ts`, or when a TypeScript build writes `stacktape.js` next to `stacktape.ts`. Delete or rename the file you no longer use, or pass `--config <file>` in every script and CI job. A directory with a single configuration file works as before.
+
 ### Secrets in command output
 
 Every command replaces secret values with `<<OMITTED>>` unless you pass `--show-secrets`. Secret values are database and Redis connection strings, Upstash passwords and tokens, AppSync API keys, user pool client secrets and Convex keys. This changes:
@@ -869,7 +886,7 @@ If a script or CI job reads a secret from one of these commands, add `--show-sec
 
 ### Scripts that read CLI output
 
-The `--json` (JSONL) output keeps its v3 envelope: lines with `event`, `log`, `output` or `result`, and `ok`, `code`, `message` and `data.result`. Error codes are more specific: `result.code` is now a code such as `CONFIG_NAT_REQUIRED` instead of a category such as `CONFIG`. Some renamed commands return different data; for example, `diff` returns `changes`, `resourceChanges` and `changePlan`. Human-readable output is redesigned, so do not match its text. A failed command still exits with code 1.
+The `--json` (JSONL) output keeps its v3 envelope: lines with `event`, `log`, `output` or `result`, and `ok`, `code`, `message` and `data.result`. Error codes are more specific: `result.code` is now a code such as `CONFIG_NAT_REQUIRED` instead of a category such as `CONFIG`. Some renamed commands return different data; for example, `diff` returns `changes`, `resourceChanges` and `changePlan`. Human-readable output is redesigned, so do not match its text. A failed command still exits with code 1; an interrupted one now exits with 130 or 143 (see [Interrupted commands exit with a non-zero code](#interrupted-commands-exit-with-a-non-zero-code)).
 
 ### Environment variables
 

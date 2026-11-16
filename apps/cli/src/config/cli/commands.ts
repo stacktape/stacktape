@@ -168,7 +168,8 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
       agentPort: devAgentPort.optional(),
       agentChild: agentChild.optional(),
       freshDb: freshDb.optional(),
-      takeOver: takeOver.optional()
+      takeOver: takeOver.optional(),
+      autoConfirmOperation: autoConfirmOperation.optional()
     },
     requiredArgs: ['region', 'stage'] as const
   },
@@ -888,14 +889,15 @@ Shows organization name, role, number of connected AWS accounts, and whether it'
   'org:delete': {
     description: `Deletes the organization of your API key.
 
-In interactive mode, you'll confirm the deletion. In agent mode, provide --organization-id with the ID of that organization.
+In interactive mode, you'll confirm the deletion. Without a terminal or with --agent, add --yes; agent mode also needs --organization-id with the ID of that organization.
 
 This operation is allowed only for organization OWNER and only when there are no other non-service users and no active connected AWS accounts. To delete another organization, log in with an API key of that organization first.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
       outputFormat: outputFormat.optional(),
-      organizationId: organizationId.optional()
+      organizationId: organizationId.optional(),
+      autoConfirmOperation: autoConfirmOperation.optional()
     },
     requiredArgs: [] as const
   },

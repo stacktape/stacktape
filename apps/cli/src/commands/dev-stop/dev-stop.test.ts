@@ -174,6 +174,7 @@ const startRealAgent = async (directory: string) => {
     driver,
     `
 import { createServer } from 'node:net';
+import { spawn } from 'node:child_process';
 import { applicationManager } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/app/application-manager/index.ts'))};
 import { existsSync } from 'node:fs';
 import { getAgentTokenFile, registerAgentCleanupHook, startAgentServer, updateAgentState } from ${JSON.stringify(join(CLI_DIRECTORY, 'src/commands/dev/agent-server.ts'))};
@@ -188,13 +189,15 @@ await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
 const port = probe.address().port;
 await new Promise((resolve) => probe.close(resolve));
 await startAgentServer(port, ${JSON.stringify(directory)});
+// A workload the session started, which must not outlive it.
+const workload = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
 // The session finishes starting once the test creates this file.
 const readyTimer = setInterval(() => {
   if (!existsSync(${JSON.stringify(join(directory, 'ready'))})) return;
   updateAgentState({ phase: 'ready' });
   clearInterval(readyTimer);
 }, 50);
-console.log(JSON.stringify({ port, pid: process.pid, tokenFile: getAgentTokenFile() }));
+console.log(JSON.stringify({ port, pid: process.pid, workloadPid: workload.pid, tokenFile: getAgentTokenFile() }));
 `
   );
   const agent = spawn(
@@ -206,21 +209,34 @@ console.log(JSON.stringify({ port, pid: process.pid, tokenFile: getAgentTokenFil
     }
   );
   let output = '';
-  const started = new Promise<{ port: number; pid: number; tokenFile: string }>((resolve, reject) => {
-    agent.stdout.on('data', (data) => {
-      output += data;
-      const line = output.split('\n').find((candidate) => candidate.startsWith('{"port"'));
-      if (line) resolve(JSON.parse(line));
-    });
-    agent.stderr.on('data', (data) => (output += data));
-    agent.once('exit', (code) => reject(new Error(`agent exited early (${code}): ${output}`)));
-  });
-  return { agent, ...(await started), output: () => output };
+  const exited = once(agent, 'exit') as Promise<[number | null, NodeJS.Signals | null]>;
+  const started = new Promise<{ port: number; pid: number; workloadPid: number; tokenFile: string }>(
+    (resolve, reject) => {
+      agent.stdout.on('data', (data) => {
+        output += data;
+        const line = output.split('\n').find((candidate) => candidate.startsWith('{"port"'));
+        if (line) resolve(JSON.parse(line));
+      });
+      agent.stderr.on('data', (data) => (output += data));
+      agent.once('exit', (code) => reject(new Error(`agent exited early (${code}): ${output}`)));
+    }
+  );
+  return { agent, ...(await started), output: () => output, exited };
+};
+
+/** A process that is gone, or a zombie its new parent has not reaped yet; neither runs. */
+const isStopped = async (pid: number) => {
+  for (const deadline = Date.now() + 5_000; Date.now() < deadline; await Bun.sleep(50)) {
+    if (!isRunning(pid)) return true;
+    const stat = await readFile(`/proc/${pid}/stat`, 'utf8').catch(() => '');
+    if (stat.split(') ')[1]?.startsWith('Z ')) return true;
+  }
+  return false;
 };
 
 test('dev:stop ends a real dev agent through its stop route after its cleanup hooks ran', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'stacktape-real-agent-'));
-  const { agent, port, tokenFile, output } = await startRealAgent(directory);
+  const { agent, port, tokenFile, output, exited, workloadPid } = await startRealAgent(directory);
   try {
     // The token is kept per user under the agent's port, not in the directory dev mode was started in.
     expect(tokenFile).toBe(join(directory, '.stacktape', 'dev-agent-tokens', `${port}.token`));
@@ -244,6 +260,10 @@ test('dev:stop ends a real dev agent through its stop route after its cleanup ho
     expect(result.exitCode).toBe(0);
     expect(isRunning(agent.pid!)).toBeFalse();
     expect(output()).toContain('FIXTURE cleanup-hook-ran');
+    // A stop that was asked for is a success, not an interruption: the agent itself exits 0 and stops its workloads.
+    expect(await exited).toEqual([0, null]);
+    expect(output()).toContain('Stopped on request (STOPPED)');
+    expect(await isStopped(workloadPid)).toBeTrue();
     // The agent removes its token when it stops; a later agent on the port gets a new one.
     expect(existsSync(tokenFile)).toBeFalse();
   } finally {
@@ -251,6 +271,32 @@ test('dev:stop ends a real dev agent through its stop route after its cleanup ho
     await rm(directory, { recursive: true, force: true });
   }
 }, 60_000);
+
+// A dev session ended by a signal was interrupted: it cleans up, stops its workloads and exits 128 + the signal number,
+// so a script that ran `stacktape dev ... && next` does not continue. Windows has no POSIX signals to send.
+test.skipIf(process.platform === 'win32').each([
+  ['SIGINT', 130],
+  ['SIGTERM', 143]
+] as const)(
+  'a dev agent ended by %s exits %d after its cleanup and stops its workloads',
+  async (signal, code) => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-real-agent-'));
+    const { agent, output, exited, workloadPid } = await startRealAgent(directory);
+    try {
+      expect(isRunning(workloadPid)).toBeTrue();
+      agent.kill(signal);
+      expect(await exited).toEqual([code, null]);
+      expect(output()).toContain('FIXTURE cleanup-hook-ran');
+      expect(output()).toContain(`Received ${signal}. Exiting.`);
+      expect(output()).not.toContain('STOPPED');
+      expect(await isStopped(workloadPid)).toBeTrue();
+    } finally {
+      stopIfRunning(agent);
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  60_000
+);
 
 // An assistant that runs `dev --agent` again while its agent is running must get the same result as for a new agent:
 // MCP and other JSONL clients take the agent's port and token file from it.

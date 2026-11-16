@@ -784,7 +784,8 @@ export const prepareCliRun = ({
     };
   }
 
-  if (confirm === true && allowedArgs.has('autoConfirmOperation')) {
+  // An explicit autoConfirmOperation (also false) is kept; confirm=true only fills it in.
+  if (confirm === true && allowedArgs.has('autoConfirmOperation') && operationArgs.autoConfirmOperation === undefined) {
     operationArgs.autoConfirmOperation = true;
   }
 

@@ -1,7 +1,7 @@
 import type { RelaySessionInfo } from '../dev/tunnel-manager';
 import type { DevNetworkDeletionProgress } from '@domain-services/dev-network';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
+import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import {
   createDevNetworkAws,
   deleteDevNetwork,
@@ -12,9 +12,9 @@ import {
   readFailedDevNetwork
 } from '@domain-services/dev-network';
 import { getDevNetworkLeaseParameterPrefix } from '@stacktape/naming/shared-stacks';
-import { CliError } from '@utils/errors';
+import { confirmationRequiredError } from '@utils/errors';
 import { loadUserCredentials } from '../_utils/initialization';
-import { isAgentMode } from '../_utils/agent-mode';
+import { canAskForConfirmation, isAgentMode } from '../_utils/agent-mode';
 import { queryDevBoxRelay } from '../dev/dev-box';
 import { listRelaySessions } from '../dev/tunnel-manager';
 import { formatTimeWithZone } from '@utils/formatting';
@@ -199,18 +199,20 @@ export const commandDevNetworkDelete = async () => {
   const aws = createDevNetworkAws();
   const confirm = async (stackName: string) => {
     if (args.autoConfirmOperation) return true;
-    if (!process.stdout.isTTY) {
-      throw new CliError({
-        category: 'CLI',
-        code: 'DEV_NETWORK_DELETE_NOT_CONFIRMED',
+    if (!canAskForConfirmation()) {
+      throw confirmationRequiredError({
         message: `Deleting the dev network ${stackName} needs confirmation.`,
-        hints: 'Run it in a terminal, or add `--yes`.'
+        hints: 'Run it in a terminal, or add `--yes`. `--agent` does not confirm it.'
       });
     }
     const proceed = await tuiManager.promptConfirm({
       message: `Delete the dev network ${stackName}, its dev box and its relay ports?`
     });
-    if (!proceed) tuiManager.info('Operation canceled.');
+    if (!proceed) {
+      tuiManager.info('Operation canceled.');
+      // A cancelled command does not report success (exit code 130).
+      throw new UserCancelledError();
+    }
     return proceed;
   };
   // A network whose creation failed has no box or relay to ask; it is deleted by its stack name.

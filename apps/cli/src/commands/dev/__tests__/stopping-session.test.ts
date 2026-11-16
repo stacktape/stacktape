@@ -105,7 +105,10 @@ capDaemonOutputFiles();
 applicationManager.registerCleanUpHook(() => new Promise((resolve) => setTimeout(resolve, 1500)));
 markOwnAgentLockStopping();
 console.log('stopping');
-await applicationManager.handleExitSignal('SIGINT');
+// What the agent's /stop route does: a stop that was asked for, which ends with exit code 0.
+await applicationManager.init();
+applicationManager.requestStop();
+await new Promise(() => {});
 `;
 
 // Review of #385: the session's cleanup deleted its lock file at once, and later deleted a successor's.

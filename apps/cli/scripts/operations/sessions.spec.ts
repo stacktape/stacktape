@@ -197,7 +197,7 @@ test.skipIf(process.platform === 'win32')(
       expect(child.output()).toContain(`127.0.0.1:${localPort}`);
       child.child.kill('SIGINT');
       const result = await child.finished;
-      expect(result.exitCode).toBe(0);
+      expect(result.exitCode).toBe(130);
       expect(serverTerminated).toBe(true);
       expect(parseCliJsonl(result.stdout, 'bastion:tunnel').result.code).toBe('USER_INTERRUPTION');
       expect(result.stdout + result.stderr).not.toContain(token);
@@ -436,7 +436,8 @@ test.skipIf(process.platform === 'win32')(
       const state = await record(fixture);
       child.write('\x03');
       const result = await child.finished;
-      expect(result.exitCode).toBe(0);
+      // Ctrl+C interrupts the session: 128 + SIGINT.
+      expect(result.exitCode).toBe(130);
       expect(result.stdout + result.stderr).not.toContain(token);
       expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual(['shell']);
       await expectStopped(state.pid);
@@ -540,7 +541,7 @@ test.skipIf(process.platform === 'win32')(
         child.child.kill('SIGINT');
         const result = await child.finished;
         expect(performance.now() - interruptedAt).toBeLessThan(4500);
-        expect(result.exitCode).toBe(0);
+        expect(result.exitCode).toBe(130);
         expect(parseCliJsonl(result.stdout, 'bastion:tunnel').result.code).toBe('USER_INTERRUPTION');
         expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual([mode]);
         await expectStopped(state!.pid);

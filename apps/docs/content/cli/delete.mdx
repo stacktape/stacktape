@@ -2,7 +2,7 @@
 title: 'delete'
 order: 140
 seoTitle: 'Delete a Stack from AWS | Stacktape CLI Reference'
-seoDescription: 'Remove a deployed Stacktape stack and all its AWS resources with the delete command. Supports beforeDelete lifecycle hooks, termination protection, and CI/CD auto-confirm.'
+seoDescription: 'Remove a deployed Stacktape stack and all its AWS resources with the delete command. Supports beforeDelete lifecycle hooks, termination protection, and confirmation with --yes in CI/CD.'
 ---
 
 # delete
@@ -93,7 +93,7 @@ Yes. The config file is optional — you can identify the stack with `--project`
 
 ### How do I delete a stack in a CI/CD pipeline?
 
-Use `--yes` to skip the interactive confirmation prompt in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --yes`. You can also use `--agent` which implies auto-confirm and switches output to JSONL format.
+Add `--yes` to confirm the deletion in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --yes`. Without `--yes`, a run that cannot ask (no terminal, `--agent` or machine-readable output) fails with `CONFIRMATION_REQUIRED` and deletes nothing. `--agent` only switches the output to JSONL; it does not confirm the deletion.
 
 ### How do I delete a stack with termination protection?
 

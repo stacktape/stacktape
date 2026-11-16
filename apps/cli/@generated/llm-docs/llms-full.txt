@@ -2085,7 +2085,7 @@ When you run `bastion shell`, Stacktape initializes stack services, resolves the
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--bastion-resource` | no | `string` | Bastion Resource Name — The name of the bastion resource as defined in your Stacktape configuration. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -2167,7 +2167,7 @@ The command opens one or more local ports, prints the local-to-remote mapping, a
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--bastion-resource` | no | `string` | Bastion Resource Name — The name of the bastion resource as defined in your Stacktape configuration. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--local-tunneling-port` | no | `number` | Local Tunneling Port — Specifies the local port for tunneling when using the `bastion tunnel` command. If not specified, Stacktape automatically selects an available port. | - |
@@ -2320,7 +2320,7 @@ stacktape bucket sync --bucket-id my-app-assets-bucket --source-path ./dist --re
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--bucket-id` | no | `string` | Bucket ID — The identifier of the destination bucket (either the AWS physical resource ID or the bucket name). | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--headers-preset` | no | `string` | Headers Preset — Configures HTTP headers of uploaded files based on a selected preset. • `static-website`: Caches all content on the CDN but never in the browser. • `gatsby-static-website`: Optimized for static websites built with Gatsby. • `single-page-app`: Optimized for Single-Page Applications. `index.html` is never cached, while all other assets are cached indefinitely. • `astro-static-website`: Optimized for Astro static sites. `_astro/**` assets are immutable. • `sveltekit-static-website`: Optimized for SvelteKit static sites. `_app/**` assets are immutable. • `nuxt-static-website`: Optimized for Nuxt static sites. `_nuxt/**` assets are immutable. | `static-website`, `gatsby-static-website`, `single-page-app`, `astro-static-website`, `sveltekit-static-website`, `nuxt-static-website` |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -2505,7 +2505,7 @@ The `stack recover` command accepts the following arguments. Only `--region` is 
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -2669,7 +2669,7 @@ The `output` field contains the command output returned by Stacktape's ECS Exec 
 | `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -2820,7 +2820,7 @@ When the target resource has multiple running tasks (for example, a scaled-out w
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--command` | no | `string` | Command — This argument has different meanings depending on the command: • With `stacktape help`, it specifies a command to show detailed help for. • With `stacktape container shell`, it specifies a command to run inside the container to start the interactive session. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -3080,9 +3080,9 @@ stacktape delete --stage production --region eu-west-1
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -3156,7 +3156,7 @@ Yes. The config file is optional — you can identify the stack with `--project`
 
 ### How do I delete a stack in a CI/CD pipeline?
 
-Use `--yes` to skip the interactive confirmation prompt in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --yes`. You can also use `--agent` which implies auto-confirm and switches output to JSONL format.
+Add `--yes` to confirm the deletion in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --yes`. Without `--yes`, a run that cannot ask (no terminal, `--agent` or machine-readable output) fails with `CONFIRMATION_REQUIRED` and deletes nothing. `--agent` only switches the output to JSONL; it does not confirm the deletion.
 
 ### How do I delete a stack with termination protection?
 
@@ -3229,7 +3229,7 @@ stacktape deploy --stage production --region eu-west-1 --full
 
 ### `--yes`
 
-Skips the interactive confirmation prompt before deploying. Use `--yes` in CI/CD pipelines or other non-interactive environments to avoid blocking on confirmation. The `--agent` flag also confirms operations automatically (along with switching to JSONL output).
+Confirms the deploy when it needs confirmation: an update that may delete stateful resources, or a project that does not exist yet and would be created. Use `--yes` in CI/CD pipelines and other non-interactive runs. Without it, such a deploy fails with `CONFIRMATION_REQUIRED` before it changes anything. `--agent` only switches the output to JSONL; it does not confirm.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --yes
@@ -3278,10 +3278,10 @@ Includes secret values, such as database passwords and connection strings with c
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `--auto-rollback` | no | `boolean` | Auto-Rollback — If `true`, a failed deploy rolls back instead of keeping what it created. Overrides `deploymentConfig.autoRollback` for this deploy. • **Without auto-rollback (default):** A failed deploy keeps what it created or updated. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next deploy continues from there. • **With auto-rollback (`--auto-rollback`):** A failed update rolls back to the last successful deploy, and a failed first deploy deletes the stack. This is the default when `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` is set. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--no-remote-cache` | no | `boolean` | Disable Docker Remote Cache — In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to `true` to build without the ECR cache in CI as well. | - |
 | `--no-layer-optimization` | no | `boolean` | Disable Layer Optimization — If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function. | - |
@@ -3412,7 +3412,7 @@ The deployment script must already exist in your configuration **and** be deploy
 | `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -3537,7 +3537,7 @@ Pass `--yes` to skip the confirmation prompt, for example in a script.
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--force` | no | `boolean` | Force — Deletes the dev network even while `stacktape dev` sessions use it, or when the command cannot check for them. Those sessions lose their connection to deployed functions. Dev functions still in the network block the deletion even with this flag. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -3622,7 +3622,7 @@ All flags accepted by `stacktape dev stop`. None are required — the command di
 | `--all` | no | `boolean` | All — With `--cleanup-containers`, removes the left-behind Stacktape dev containers of every project on this machine, not only of this project directory. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--cleanup-containers` | no | `boolean` | Cleanup Containers — Removes the Docker containers that dev sessions of this project directory left behind: stopped ones, and running ones whose session has ended. With `--stage`, only that stage's. Use this after a crash or improper shutdown. Containers of other projects stay unless you add `--all`. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -3658,10 +3658,11 @@ stacktape dev --stage dev-john --region eu-west-1
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `--agent` | no | `boolean` | Agent Mode — For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries. The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/). | - |
+| `--agent` | no | `boolean` | Agent Mode — For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries. The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. Agent mode does not confirm anything: when the project does not exist yet, creating it fails with `CONFIRMATION_REQUIRED` unless you add `--yes`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/). | - |
 | `--agent-port` | no | `number` | Agent Port — The port of the agent mode HTTP API. Implies `--agent`. By default, the first free port from 7331. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--no-emulation` | no | `boolean` | Disable Emulation — Affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses normal container role credentials and connection variables; this flag does not make it offline or suppress credential injection. | - |
 | `--docker-args` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
@@ -3778,6 +3779,12 @@ The `--agent` flag runs dev mode as a detached daemon and enables the agent HTTP
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --agent
+```
+
+Agent mode does not confirm anything. When the project named with `--project` does not exist yet, `dev --agent` fails with `CONFIRMATION_REQUIRED` before it deploys. Check the name and run it again with `--yes` to create the project:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --agent --yes
 ```
 
 Providing `--agent-port` also enables agent mode, so `--agent` is optional when you pass a port. Use `--agent-port` to specify a custom port for the agent HTTP server:
@@ -3991,7 +3998,7 @@ Meaningful Stacktape resource changes
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -5804,7 +5811,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 | `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--container` | no | `string` | Container Name — The name of the container as defined in your container compute resource configuration. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--until` | no | `number \| string` | End Time — The query end time; accepts JavaScript `Date` inputs and defaults to now. Relative `--since` counts back from it. Metrics, logs and Logs Insights enforce it. When following logs, it bounds the initial backlog, and following then continues beyond it. | - |
@@ -5922,7 +5929,7 @@ With `--yes` or `--agent`, `mcp add` sets up every installed agent. When it find
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `--coding-agents` | no | `array` | Coding Agents — The coding agents to set up (or remove), for example `--coding-agents claude-code,cursor`. Without it, an interactive terminal asks with the agents found on this machine preselected; a non-interactive run uses every agent it finds. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -5972,7 +5979,7 @@ stacktape mcp remove --coding-agents cursor
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `--coding-agents` | no | `array` | Coding Agents — The coding agents to set up (or remove), for example `--coding-agents claude-code,cursor`. Without it, an interactive terminal asks with the agents found on this machine preselected; a non-interactive run uses every agent it finds. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -6311,16 +6318,16 @@ An API key acts in one organization, so the command can delete only that organiz
 
 ## Usage
 
-Run `org delete` without flags for the interactive flow, or pass `--agent` and the organization ID for non-interactive use in CI and agent workflows.
+Run `org delete` without flags for the interactive flow, or pass the organization ID, `--agent` and `--yes` for non-interactive use in CI and agent workflows.
 
 ```bash
 stacktape org delete
 ```
 
-In interactive mode, the command names the organization and asks you to confirm. In agent mode, pass the ID of your API key's organization as confirmation (`org delete <organization-id>`). Any other ID is refused.
+In interactive mode, the command names the organization and asks you to confirm. In agent mode, pass the ID of your API key's organization (`org delete <organization-id>`) and `--yes`. Any other ID is refused, and without `--yes` the command fails with `CONFIRMATION_REQUIRED` and deletes nothing.
 
 ```bash
-stacktape org delete "org_abc123" --agent
+stacktape org delete "org_abc123" --agent --yes
 ```
 
 ## Prerequisites
@@ -6340,13 +6347,14 @@ If any of these conditions are not met, the operation will fail.
 
 ## Flags reference
 
-The `org delete` command accepts the following flags. None are required in interactive mode; agent mode requires the organization ID.
+The `org delete` command accepts the following flags. None are required in interactive mode; agent mode requires the organization ID and `--yes`.
 
 
 ## CLI Options: `stacktape org delete`
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--organization-id (positional 1)` | no | `string` | Organization ID — The ID of the Stacktape organization. | - |
@@ -6355,7 +6363,7 @@ The `org delete` command accepts the following flags. None are required in inter
 
 ## Examples
 
-Check which organization your API key belongs to, then delete it. Without `--agent`, the command still asks for confirmation.
+Check which organization your API key belongs to, then delete it. In a terminal, the command asks for confirmation.
 
 ```bash
 stacktape org list
@@ -6368,7 +6376,7 @@ stacktape org delete
 Non-interactive deletion in CI or agent workflows:
 
 ```bash
-stacktape org delete "org_abc123" --agent
+stacktape org delete "org_abc123" --agent --yes
 ```
 
 ## Related commands
@@ -6518,7 +6526,7 @@ stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -6598,7 +6606,7 @@ If you need a broader overview of all stack outputs and resources at once, use [
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
@@ -6754,8 +6762,9 @@ You need the `projects:delete` permission on the project. Owners and Admins have
 stacktape project delete my-api
 ```
 
-In a terminal, you confirm by typing the project name. Without a terminal, for example in CI, add `--yes`. Agent mode
-(`--agent`) and the Stacktape MCP server confirm the deletion themselves, as they do for `stacktape delete`.
+In a terminal, you confirm by typing the project name. Without a terminal, for example in CI or with `--agent`, add
+`--yes`; otherwise the command fails with `CONFIRMATION_REQUIRED`. The Stacktape MCP server passes `--yes` only after
+you confirm the deletion.
 
 ## CLI reference
 
@@ -6764,7 +6773,7 @@ In a terminal, you confirm by typing the project name. Without a terminal, for e
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — If `true`, automatically confirms prompts during `deploy` or `delete` operations, skipping the manual confirmation step. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--project (positional 1)` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
@@ -6921,7 +6930,7 @@ The resource name argument must match the name of a `DynamoDbTable` resource in 
 | `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--index` | no | `string` | Database Index — Index name. For DynamoDB: secondary index to query. For OpenSearch: index to search. | - |
@@ -7159,7 +7168,7 @@ For automation, prefer `--agent`. The global `--output-format` flag is documente
 | `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--id` | no | `string` | Document ID — ID of the document to retrieve (for OpenSearch get operation). | - |
@@ -7378,7 +7387,7 @@ stacktape query redis myRedis --stage prod --region eu-west-1 --operation get --
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--bastion-resource` | no | `string` | Bastion Resource Name — The name of the bastion resource as defined in your Stacktape configuration. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--key` | no | `string` | Redis Key — The key name to operate on. | - |
@@ -7557,7 +7566,7 @@ In agent mode (`--agent`), the output is a structured JSON object containing:
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `--bastion-resource` | no | `string` | Bastion Resource Name — The name of the bastion resource as defined in your Stacktape configuration. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
@@ -7724,7 +7733,7 @@ If the stack includes static hosting with bucket-synced content, Stacktape attem
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--list-versions` | no | `boolean` | List Versions — Lists available deployment versions that can be rolled back to, then exits without performing a rollback. | - |
@@ -7832,7 +7841,7 @@ stacktape script run myMigration --stage production
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--assume-role-of-resource` | no | `string` | Assume Role of Resource — The name of the deployed resource whose IAM role should be assumed during script execution. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `--env` | no | `array` | Environment Variables — A list of environment variables for the script, in the format `name=value`. To add multiple variables, use this option multiple times. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
@@ -8185,7 +8194,7 @@ stacktape synth --stage dev --region eu-west-1 --out ./infra/template.yaml
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -8534,7 +8543,7 @@ stacktape validate --stage dev --region eu-west-1 --agent
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
 | `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
 | `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
@@ -8943,7 +8952,9 @@ export default defineConfig(({ stage }) => {
 
 ## Config file detection
 
-Stacktape auto-detects configuration files named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root. You can point to a different location with the `--config` option. See the [`deploy`](/cli/deploy) command reference for details.
+Stacktape auto-detects a configuration file named `stacktape.ts`, `stacktape.yml`, `stacktape.yaml`, or `stacktape.js` in your project root (or in `--cwd`). You can point to a different location with the `--config` option. See the [`deploy`](/cli/deploy) command reference for details.
+
+When the directory holds more than one of these files, for example a `stacktape.yml` left next to its `stacktape.ts` rewrite, a command that loads the config stops with `CONFIG_FILE_AMBIGUOUS` instead of guessing. Pass the one to use with `--config`, or delete or rename the file you no longer use. Each file can name another project, stage or region, so Stacktape does not pick one by precedence.
 
 ```bash
 stacktape deploy --stage production --config ./infrastructure/stacktape.ts
@@ -16574,7 +16585,8 @@ npm install --save-exact stacktape@3.7.1
 | A TypeScript configuration (`stacktape.ts`) | [TypeScript configurations](#typescript-configurations) |
 | `connectTo: ['aws:ses']` or `AWS_SES` | [Sending email with SES](#sending-email-with-ses) |
 | `afterDeploy` hooks | [After-deploy hooks fail the deployment](#after-deploy-hooks-fail-the-deployment) |
-| Scripts or CI that call the CLI | [CLI changes](#cli-changes) |
+| Scripts or CI that call the CLI, including `--agent` | [CLI changes](#cli-changes) |
+| More than one `stacktape.*` file in a project directory | [Several configuration files in one directory](#several-configuration-files-in-one-directory) |
 | Java, Ruby or Go functions | [Lambda runtimes](#lambda-runtimes) |
 | Container services | [Container services](#container-services) |
 | AWS Batch jobs | [Batch jobs](#batch-jobs) |
@@ -17359,6 +17371,22 @@ v3 stack commands ignored `--profile` and `AWS_PROFILE` for accounts connected w
 
 Check scripts and CI jobs that set an AWS profile or AWS keys, for example for an S3 upload in an earlier step. Pass `--aws-account <name>` to Stacktape commands in them, or remove the AWS settings. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
 
+### `--agent` no longer confirms operations
+
+In v3, `--agent` also answered every confirmation, as if you had passed `--yes`. In v4 it only selects machine-readable output and turns off prompts. An operation that asks for confirmation needs `--yes`: deleting a stack, a deploy whose update may delete stateful resources such as a database, creating a project that does not exist yet, `project delete`, `org delete` and `dev network delete`. Without `--yes`, such a command run with `--agent`, with `--json` or without a terminal stops before it changes anything and fails with `CONFIRMATION_REQUIRED`. An explicit `--yes=false` is respected.
+
+Add `--yes` where a script or CI job intends the operation, for example `stacktape delete --stage preview --region eu-west-1 --agent --yes`. `stacktape dev --agent` takes `--yes` too, to create a project that does not exist yet.
+
+### Interrupted commands exit with a non-zero code
+
+v3 exited with code 0 when a command was interrupted, so `stacktape deploy && ./next-step.sh` continued after you pressed Ctrl+C or CI cancelled the job. In v4 an interrupted command exits with 130 for Ctrl+C (SIGINT) or a declined confirmation, 143 for SIGTERM, 129 for SIGHUP and 131 for SIGQUIT. The `--json` result stays `ok: false` with code `USER_INTERRUPTION`. This includes long-running commands that you usually end with Ctrl+C, such as `logs --follow`, `bastion tunnel` and `stacktape dev`. Stopping a dev session with `stacktape dev stop` is not an interruption: both the command and the stopped session exit with 0.
+
+If a script treats an interrupted command as success on purpose, check for these codes explicitly.
+
+### Several configuration files in one directory
+
+v3 picked one file by precedence (`stacktape.ts`, then `stacktape.yml`, then the others) and printed a warning when a directory held more than one of `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` and `stacktape.js`. v4 stops with `CONFIG_FILE_AMBIGUOUS` instead, because the files can name different projects, stages or regions. This often happens after converting `stacktape.yml` to `stacktape.ts`, or when a TypeScript build writes `stacktape.js` next to `stacktape.ts`. Delete or rename the file you no longer use, or pass `--config <file>` in every script and CI job. A directory with a single configuration file works as before.
+
 ### Secrets in command output
 
 Every command replaces secret values with `<<OMITTED>>` unless you pass `--show-secrets`. Secret values are database and Redis connection strings, Upstash passwords and tokens, AppSync API keys, user pool client secrets and Convex keys. This changes:
@@ -17372,7 +17400,7 @@ If a script or CI job reads a secret from one of these commands, add `--show-sec
 
 ### Scripts that read CLI output
 
-The `--json` (JSONL) output keeps its v3 envelope: lines with `event`, `log`, `output` or `result`, and `ok`, `code`, `message` and `data.result`. Error codes are more specific: `result.code` is now a code such as `CONFIG_NAT_REQUIRED` instead of a category such as `CONFIG`. Some renamed commands return different data; for example, `diff` returns `changes`, `resourceChanges` and `changePlan`. Human-readable output is redesigned, so do not match its text. A failed command still exits with code 1.
+The `--json` (JSONL) output keeps its v3 envelope: lines with `event`, `log`, `output` or `result`, and `ok`, `code`, `message` and `data.result`. Error codes are more specific: `result.code` is now a code such as `CONFIG_NAT_REQUIRED` instead of a category such as `CONFIG`. Some renamed commands return different data; for example, `diff` returns `changes`, `resourceChanges` and `changePlan`. Human-readable output is redesigned, so do not match its text. A failed command still exits with code 1; an interrupted one now exits with 130 or 143 (see [Interrupted commands exit with a non-zero code](#interrupted-commands-exit-with-a-non-zero-code)).
 
 ### Environment variables
 
@@ -50488,6 +50516,7 @@ stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 | `--region`      | Session AWS region; `/aws/sdk` rejects any different region   |
 | `--resources`   | Which workloads to run (`all` or comma-separated names)                                  |
 | `--fresh-db`     | Reset local database data on startup                                                     |
+| `--yes`         | Confirms creating a project that does not exist yet. `--agent` never confirms it; without `--yes` the start fails with `CONFIRMATION_REQUIRED` |
 
 Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — see [reset scope](/local-development/local-databases#resetting-local-data) before using `--fresh-db`. It resets prepared databases, including relay dependencies, and DynamoDB Local tables share storage.
 

@@ -4,8 +4,7 @@ import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import * as stacktapeAuthoringRuntime from '@stacktape/config-authoring';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
-import { CONFIG_FILE_PRECEDENCE, locateConfigFile } from '@domain-services/config-manager/project-settings';
+import { locateConfigFile } from '@domain-services/config-manager/project-settings';
 import { checkExecutableInPath } from '@utils/bin-executable';
 import {
   dynamicRequire,
@@ -344,11 +343,6 @@ export const getConfigPath = (): string => {
       });
     }
     return located.path;
-  }
-  if (located.candidates.length > 1) {
-    tuiManager.warn(
-      `Found multiple matching config files: ${located.candidates.join(', ')}. Using ${located.path} based on precedence: ${CONFIG_FILE_PRECEDENCE.join(' > ')}.`
-    );
   }
   return located.path;
 };

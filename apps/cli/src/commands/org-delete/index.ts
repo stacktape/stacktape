@@ -1,6 +1,6 @@
-import { tuiManager } from '@application-services/tui-manager';
-import { ExpectedError } from '@utils/errors';
-import { isAgentMode } from '../_utils/agent-mode';
+import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
+import { confirmationRequiredError, ExpectedError } from '@utils/errors';
+import { canAskForConfirmation, isAgentMode } from '../_utils/agent-mode';
 import { captureCommandArgs, initializeControlPlaneOperation } from '../_utils/initialization';
 
 export const commandOrgDelete = async () => {
@@ -31,14 +31,22 @@ export const commandOrgDelete = async () => {
     );
   }
 
-  if (!agentMode) {
+  // Only --yes confirms. Agent mode selects output and interaction; it does not approve the deletion.
+  if (!args.autoConfirmOperation) {
+    if (!canAskForConfirmation()) {
+      throw confirmationRequiredError({
+        message: `Deleting organization ${currentOrganization.name} (${currentOrganization.id}) needs confirmation.`,
+        hints: 'Run it in a terminal, or add --yes. --agent does not confirm it.'
+      });
+    }
     const confirmed = await tuiManager.promptConfirm({
       message: `Delete organization ${tuiManager.makeBold(currentOrganization.name)}? Its API keys stop working.`,
       defaultValue: false
     });
     if (!confirmed) {
       tuiManager.info('Operation cancelled.');
-      return null;
+      // A cancelled command does not report success (exit code 130).
+      throw new UserCancelledError();
     }
   }
 

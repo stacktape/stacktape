@@ -31,6 +31,7 @@ import type { AwsCredentialsProvider } from 'src/aws/context';
 import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
+import { confirmationRequiredError } from '@utils/errors';
 import { propertyFromObjectOrNull } from '@utils/misc';
 import { listAwsProfiles, loadAwsConfigFileContent, profileRegionFromConfig } from '@utils/aws-config';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
@@ -75,6 +76,10 @@ import {
   resolveLocalAwsAccount,
   type LocalAwsAccount
 } from './local-aws-account';
+
+/** A prompt needs a person at a terminal. Agent mode (`--agent`, `--agent-port`) never answers one, and never confirms. */
+const canPromptPerson = (args: StacktapeCliArgs) =>
+  !args.agent && args.agentPort === undefined && tuiManager.isTTY && !!process.stdout.isTTY && !!process.stdin.isTTY;
 
 const CREDENTIAL_REFRESH_LEAD_TIME_MS = 5 * 60 * 1000;
 const CREDENTIAL_REFRESH_RETRY_DELAY_MS = 30 * 1000;
@@ -912,7 +917,7 @@ export class GlobalStateManager {
     };
     const projectName = this.args.projectName || this.persistedState?.cliArgsDefaults.projectName || configProjectName;
     if (!projectName) {
-      if ((this.args as StacktapeCliArgs).autoConfirmOperation || !process.stdout.isTTY) {
+      if ((this.args as StacktapeCliArgs).autoConfirmOperation || !canPromptPerson(this.args as StacktapeCliArgs)) {
         throw stpErrors.e103(null);
       }
       if (this.projects.length) {
@@ -946,8 +951,11 @@ export class GlobalStateManager {
     }
 
     // if we got this far and this is not TTY, throw error
-    if (process.env.CI || !process.stdout.isTTY) {
-      throw stpErrors.e103({ missingProjectName: projectName });
+    if (process.env.CI || !canPromptPerson(this.args as StacktapeCliArgs)) {
+      throw confirmationRequiredError({
+        message: `Project "${projectName}" does not exist, and creating it needs confirmation.`,
+        hints: `Add ${tuiManager.prettyOption('autoConfirmOperation')} to create it, or declare projectName in the config. --agent does not confirm it.`
+      });
     }
 
     // An explicit CLI value may be a typo, so confirm before creating it.

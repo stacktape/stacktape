@@ -353,7 +353,7 @@ const runStackCommand = (options: Options, state: State, command: 'deploy' | 'de
       options.profile,
       '--awsAccount',
       state.awsAccountName,
-      ...(command === 'deploy' ? ['--autoConfirmOperation'] : [])
+      '--autoConfirmOperation'
     ]
   });
 

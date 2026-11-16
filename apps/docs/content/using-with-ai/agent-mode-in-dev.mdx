@@ -43,6 +43,7 @@ stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 | `--region`      | Session AWS region; `/aws/sdk` rejects any different region   |
 | `--resources`   | Which workloads to run (`all` or comma-separated names)                                  |
 | `--fresh-db`     | Reset local database data on startup                                                     |
+| `--yes`         | Confirms creating a project that does not exist yet. `--agent` never confirms it; without `--yes` the start fails with `CONFIRMATION_REQUIRED` |
 
 Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — see [reset scope](/local-development/local-databases#resetting-local-data) before using `--fresh-db`. It resets prepared databases, including relay dependencies, and DynamoDB Local tables share storage.
 
