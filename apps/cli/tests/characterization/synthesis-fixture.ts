@@ -194,7 +194,11 @@ export const synthesizeFixture = async ({
       workingDir: globalStateManager.workingDir,
       ...synthesisContext
     };
-    await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+    // Fixtures synthesize what a deploy with the Console builds; `consoleConnected: false` is the account-free stack.
+    await configManager.init({
+      configRequired: true,
+      context: { ...getConfigManagerContext(stackContext), consoleConnected: true }
+    });
     configManager.setDevNetworkPlacement(devNetwork);
     configManager.setDevSkippedFunctions(devSkippedFunctions ?? []);
     if (compiledConfig) {

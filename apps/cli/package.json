@@ -3,6 +3,7 @@
   "version": "4.0.0-dev.0",
   "private": true,
   "description": "Stacktape CLI: the developer-facing application that packages, synthesizes and deploys Stacktape projects.",
+  "license": "MIT",
   "exports": {
     "./catalogs/aws-prices.json": "./@generated/aws-price/prices.json",
     "./catalogs/cloudformation-resource-types.json": "./@generated/cloudformation-resource-types.json",

@@ -18,6 +18,7 @@ import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
 import { getTimeSinceProcessStart } from '@utils/misc';
 import { canHandOffTelemetry, handOffTelemetryRequest } from '@utils/telemetry-sender';
 import { getStacktapeVersion } from '@utils/versioning';
+import { isCiEnvironment, toAccountFreeTelemetryProperties } from '@utils/telemetry-allowlist';
 
 const explicitProjectToken = process.env.POSTHOG_PROJECT_TOKEN || process.env.STP_POSTHOG_PROJECT_TOKEN;
 const version = (() => {
@@ -88,6 +89,22 @@ const createHandOffClient = () =>
     }
   });
 
+let accountFreeNoticeShown = false;
+
+/** The first-run notice was shown, now or in an earlier run, so telemetry without an account may be sent. */
+export const markTelemetryNoticeShown = () => {
+  accountFreeNoticeShown = true;
+};
+
+/** Whether anything may be sent, and under which rules. Without an API key: the allowlist, never in CI. */
+const telemetryMode = (): 'signed-in' | 'account-free' | 'off' => {
+  if (!globalStateManager.isAccountFree) return 'signed-in';
+  return accountFreeNoticeShown && !isCiEnvironment() ? 'account-free' : 'off';
+};
+
+/** Whether the CLI would report anonymous usage without an account, and so has to show the first-run notice. */
+export const accountFreeTelemetryWouldSend = () => telemetryEnabled && !isCiEnvironment();
+
 /** The identity events are attributed to, exported for feature modules that capture their own. */
 export const getTelemetryIdentity = () => getIdentity();
 
@@ -122,14 +139,18 @@ export const capturePostHogEvent = <TEvent extends keyof ProductAnalyticsEventMa
   properties: ProductAnalyticsEventMap[TEvent],
   options: { processPersonProfile?: boolean } = {}
 ) => {
+  // Feature events carry more than the allowlist; only the command's completion is reported without an account.
+  if (telemetryMode() !== 'signed-in') return;
   posthogClient?.capture(toCaptureMessage(distinctId, event, properties, options));
 };
 
 export const identifyPostHogUser = (distinctId: string, properties: Record<string, any> = {}) => {
+  if (telemetryMode() !== 'signed-in') return;
   posthogClient?.identify({ distinctId, properties: sanitizeTelemetryValue(properties) as Record<string, any> });
 };
 
 export const aliasPostHogUser = (distinctId: string, alias: string) => {
+  if (telemetryMode() !== 'signed-in') return;
   if (distinctId !== alias) posthogClient?.alias({ distinctId, alias });
 };
 
@@ -160,29 +181,33 @@ export const reportTelemetryEvent = async ({
   invocationId: string;
   waitForDelivery?: boolean;
 }) => {
-  if (!posthogClient) return;
+  const mode = telemetryMode();
+  if (!posthogClient || mode === 'off') return;
   const { distinctId, hasIdentifiedUser, groups } = getIdentity();
   const normalizedOutcome =
     outcome === 'SUCCESS' ? 'success' : outcome === 'USER_INTERRUPTION' ? 'user_interruption' : 'error';
 
-  const message = toCaptureMessage(
-    distinctId,
-    ANALYTICS_EVENTS.cliCommandCompleted,
-    {
-      command,
-      args_keys: args ? Object.keys(args).sort() : null,
-      duration_ms: getTimeSinceProcessStart(),
-      outcome: normalizedOutcome,
-      ...(normalizedOutcome === 'error' ? { error_code: outcome } : {}),
-      locale: Intl.DateTimeFormat().resolvedOptions().locale,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      platform: process.platform,
-      invocation_id: invocationId,
-      ...(groups ? { $groups: groups } : {})
-    },
-    // only create person profiles for identified users
-    { processPersonProfile: hasIdentifiedUser }
-  );
+  const message =
+    mode === 'account-free'
+      ? accountFreeCompletionMessage({ distinctId, command, outcome: normalizedOutcome, errorCode: outcome })
+      : toCaptureMessage(
+          distinctId,
+          ANALYTICS_EVENTS.cliCommandCompleted,
+          {
+            command,
+            args_keys: args ? Object.keys(args).sort() : null,
+            duration_ms: getTimeSinceProcessStart(),
+            outcome: normalizedOutcome,
+            ...(normalizedOutcome === 'error' ? { error_code: outcome } : {}),
+            locale: Intl.DateTimeFormat().resolvedOptions().locale,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            platform: process.platform,
+            invocation_id: invocationId,
+            ...(groups ? { $groups: groups } : {})
+          },
+          // only create person profiles for identified users
+          { processPersonProfile: hasIdentifiedUser }
+        );
   if (waitForDelivery || !canHandOffTelemetry()) {
     posthogClient.capture(message);
   } else {
@@ -191,6 +216,36 @@ export const reportTelemetryEvent = async ({
 
   return flushPostHog();
 };
+
+/** The completion event without an account: only allowlisted fields, attributed to the random install ID. */
+const accountFreeCompletionMessage = ({
+  distinctId,
+  command,
+  outcome,
+  errorCode
+}: {
+  distinctId: string;
+  command: StacktapeCommand;
+  outcome: 'success' | 'user_interruption' | 'error';
+  errorCode: string;
+}) => ({
+  distinctId,
+  event: ANALYTICS_EVENTS.cliCommandCompleted,
+  properties: {
+    ...toAccountFreeTelemetryProperties({
+      ...getCommonProperties(),
+      command,
+      outcome,
+      ...(outcome === 'error' ? { error_code: errorCode } : {}),
+      platform: process.platform,
+      arch: process.arch,
+      is_ci: isCiEnvironment()
+    }),
+    $process_person_profile: false,
+    // No location derived from the sender's IP address.
+    $geoip_disable: true
+  }
+});
 
 declare const STACKTAPE_ERROR_TRACKING_CHUNK_ID: string | undefined;
 
@@ -219,7 +274,8 @@ export const reportErrorToPostHog = async ({
   invocationId?: string;
   mechanism: 'command_handler' | 'uncaught_exception' | 'unhandled_rejection';
 }) => {
-  if (!posthogClient) return null;
+  // An exception carries its message and stack, which can name the user's files and resources.
+  if (!posthogClient || telemetryMode() !== 'signed-in') return null;
 
   registerErrorTrackingChunk();
   const errorTrackingId = randomUUID();

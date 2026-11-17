@@ -57,6 +57,8 @@ const getDeployedDefaultDomainsVersion = (template: CloudFormationTemplate | und
 
 export class DomainManager {
   domainStatuses: { [domainName: string]: StpDomainStatus } = {};
+  /** The deployed stack serves URLs on `*.stacktape-app.com` default domains. */
+  deployedStackHasDefaultDomains = false;
   publicHostedZones: HostedZone[] = [];
   dnsResolver: dnsPromises.Resolver;
   // populating with dummy values to make resource resolvers work (in dummy mode) without trpc api
@@ -113,6 +115,7 @@ export class DomainManager {
   }) => {
     this.#stackName = stackName;
     const deployedVersion = getDeployedDefaultDomainsVersion(deployedTemplate);
+    this.deployedStackHasDefaultDomains = deployedVersion !== null;
     const version = deployedVersion ?? NEW_STACK_DEFAULT_DOMAINS_VERSION;
     const stack = {
       stackName,

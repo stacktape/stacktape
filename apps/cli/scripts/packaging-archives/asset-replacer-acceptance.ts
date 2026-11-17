@@ -312,7 +312,8 @@ const helperEnvironment = () => {
     projectName: 'asset-replacer-acceptance',
     stackName: 'asset-replacer-acceptance-test',
     globallyUniqueStackHash: 'acceptx1',
-    stage: 'test'
+    stage: 'test',
+    consoleConnected: true
   }).map(({ name, value }) => {
     // Intrinsics resolve during deployment; these are the values they would take.
     const resolved =

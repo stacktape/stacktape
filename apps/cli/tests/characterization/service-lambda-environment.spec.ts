@@ -21,7 +21,7 @@ test.each(['true', 'false'])(
         compiledConfig: config({ projectName: 'test', stage: 'test', region: 'eu-west-1', cliArgs: {}, command: 'synth', awsProfile: '', user: {} }),
         workingDir: process.cwd()
       });
-      const environment = getStacktapeServiceLambdaEnvironment({ projectName: 'test', stackName: 'test-test', globallyUniqueStackHash: 'test', stage: 'test' });
+      const environment = getStacktapeServiceLambdaEnvironment({ projectName: 'test', stackName: 'test-test', globallyUniqueStackHash: 'test', stage: 'test', consoleConnected: true });
       console.log(JSON.stringify({ template, environment }));
     `
       ],

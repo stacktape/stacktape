@@ -13,7 +13,9 @@ export const SCHEMAS_BUCKET_NAME =
   process.env.SCHEMAS_BUCKET_NAME || 'internal-services-production-schemasbucket-eb6fca19';
 export const DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY = 'stacktape-project';
 
-export const IS_TELEMETRY_DISABLED = process.env.STP_DISABLE_TELEMETRY === '1';
+/** `STP_DISABLE_TELEMETRY=1` or the cross-tool `DO_NOT_TRACK=1` turns anonymous usage telemetry off. */
+export const IS_TELEMETRY_DISABLED =
+  process.env.STP_DISABLE_TELEMETRY === '1' || ['1', 'true'].includes(process.env.DO_NOT_TRACK ?? '');
 /** Disables the desktop notification fired when a long command finishes while the terminal is unfocused. */
 export const ARE_NOTIFICATIONS_DISABLED = process.env.STP_DISABLE_NOTIFICATIONS === '1';
 /** A command must run at least this long before a completion notification fires. */

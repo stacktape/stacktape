@@ -161,7 +161,7 @@ export const getLocalInvokeAwsCredentials = async ({
       credentials = await awsSdkManager.sts.assumeRoleCredentials({
         durationSeconds,
         roleArn,
-        roleSessionName: `local-assume-by-${globalStateManager.userData.id}`
+        roleSessionName: `local-assume-by-${globalStateManager.sessionUserId}`
       });
     } catch (error) {
       if (!isAssumeRoleAccessDenied(error, roleArn)) throw error;

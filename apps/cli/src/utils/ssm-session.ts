@@ -192,7 +192,7 @@ export class SsmPortForwardingTunnel {
         portNumber: [String(this.#remotePort)],
         localPortNumber: [String(this.localPort)]
       },
-      Reason: `tunneling session to ${this.#remoteHost}:${this.#remotePort} (user ${globalStateManager.userData.id})`
+      Reason: `tunneling session to ${this.#remoteHost}:${this.#remotePort} (user ${globalStateManager.sessionUserId})`
     };
     const pluginPath = await sessionManagerPluginPath();
     const startSessionResponse = await pRetry(
@@ -256,7 +256,7 @@ export class SsmPortForwardingTunnel {
 export const runBastionSsmShellSession = async ({ instanceId, region }: { instanceId: string; region: string }) => {
   const startSessionCommandInput: StartSessionCommandInput = {
     Target: instanceId,
-    Reason: `user ${globalStateManager.userData.id} session`
+    Reason: `user ${globalStateManager.sessionUserId} session`
   };
 
   const pluginPath = await sessionManagerPluginPath();

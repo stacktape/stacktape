@@ -50,7 +50,9 @@ const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
   const project = process.env.PROJECT_NAME;
   const stage = process.env.STAGE;
 
-  if (!apiUrl || !region || !project || !stage) {
+  // A stack deployed without the Stacktape Console has no API endpoint: its alarms are delivered in the account only.
+  if (!apiUrl) return;
+  if (!region || !project || !stage) {
     throw new Error('Alarm notification routing is missing required Stacktape environment configuration.');
   }
 
