@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { Fragment } from 'react';
 import type { DocsVersion } from '@/site-config';
-import { V3_BASE, V3_RELEASE, v3EquivalentOf, v4EquivalentOf } from '@/utils/v3-archive-routes';
+import { V3_BASE, v3EquivalentOf, v4EquivalentOf } from '@/utils/v3-archive-routes';
 
 /** Where each version's tab leads from the page at `pathname`: the same topic, or that version's home. */
 const targetsFor = (pathname: string, version: DocsVersion) => {
@@ -16,42 +16,42 @@ const targetsFor = (pathname: string, version: DocsVersion) => {
  */
 export function VersionSwitcher({ version, pathname }: { version: DocsVersion; pathname: string }) {
   const targets = targetsFor(pathname, version);
-  const options: { id: DocsVersion; label: string; hint: string }[] = [
-    { id: 'v4', label: 'v4', hint: 'Current' },
-    { id: 'v3', label: 'v3', hint: V3_RELEASE }
+  const options: { id: DocsVersion; label: string; hint: string; dot: string }[] = [
+    { id: 'v4', label: 'v4', hint: 'Latest', dot: 'bg-[rgb(54,190,190)] shadow-[0_0_6px_rgba(54,190,190,0.7)]' },
+    // The same orange as the v3 archive banner, which names the release (3.7.1); it is no longer maintained.
+    { id: 'v3', label: 'v3', hint: 'Legacy', dot: 'bg-[rgb(237,139,0)] shadow-[0_0_6px_rgba(237,139,0,0.6)]' }
   ];
 
+  // The code-block tab look. Each version is a full page load, so the static pill marks the active one.
   return (
-    <nav aria-label="Documentation version" className="mx-[18px] mb-[16px] max-[795px]:mx-[8px]">
-      <div className="grid grid-cols-2 gap-[4px] rounded-[8px] border border-solid border-border-light bg-[rgba(0,0,0,0.22)] p-[3px]">
+    <nav aria-label="Documentation version" className="mx-[18px] mb-[18px] max-[795px]:mx-[8px]">
+      <div className="stp-tab-container flex w-full flex-nowrap">
         {options.map((option) => {
-          const className =
-            'flex items-baseline justify-center gap-[6px] rounded-[6px] px-[8px] py-[5px] text-[13px] font-semibold no-underline transition-colors';
+          const isActive = option.id === version;
+          const className = clsx(
+            'stp-tab-button flex-1 gap-[7px] py-[8px] no-underline hover:no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[rgb(54,190,190)]',
+            isActive && 'is-active cursor-default'
+          );
           const content = (
             <Fragment>
-              {option.label}
-              <span className="text-[11px] font-medium opacity-[0.7]">{option.hint}</span>
+              <span
+                aria-hidden
+                className={clsx(
+                  'size-[6px] shrink-0 rounded-full',
+                  isActive ? option.dot : 'bg-[rgba(190,190,190,0.35)]'
+                )}
+              />
+              <span>{option.label}</span>
+              <span className="text-[11.5px] font-medium text-[rgba(190,190,190,0.6)]">{option.hint}</span>
             </Fragment>
           );
-          return option.id === version ? (
-            <span
-              key={option.id}
-              aria-current="true"
-              className={clsx(
-                className,
-                'bg-[rgba(54,190,190,0.14)] text-[rgb(54,190,190)] shadow-[inset_0_0_0_1px_rgba(54,190,190,0.36)]'
-              )}
-            >
+          return isActive ? (
+            <span key={option.id} aria-current="true" className={className}>
               {content}
             </span>
           ) : (
             // A full page load: the other version brings its own sidebar.
-            <a
-              key={option.id}
-              href={targets[option.id]}
-              data-astro-reload
-              className={clsx(className, 'text-fc-primary opacity-[0.72] hover:opacity-100')}
-            >
+            <a key={option.id} href={targets[option.id]} data-astro-reload className={className}>
               {content}
             </a>
           );
