@@ -16506,7 +16506,7 @@ You've completed the Getting Started guide. Your stack is deployed, monitored, a
 Source: `apps/docs/content/getting-started/open-source-cli.mdx`
 Route: `/getting-started/open-source-cli`
 
-The Stacktape CLI is open source under the MIT license and works without a Stacktape account. It deploys with your own AWS credentials and talks only to AWS. You can deploy, update, roll back and delete stacks, run dev mode, and read logs and secrets without signing up for anything.
+The Stacktape CLI is open source under the MIT license and works without a Stacktape account. It deploys with your own AWS credentials, straight to AWS. It also sends anonymous usage telemetry, which you can turn off (see [Telemetry](#telemetry)). You can deploy, update, roll back and delete stacks, run dev mode, and read logs and secrets without signing up for anything.
 
 The [Stacktape Console](/stacktape-console/console-overview) adds what a team shares: deploy history, costs, alerts, error tracking and access control. It is free while your organization's managed AWS spend is up to $200 a month. You can connect it later with one command, and your existing stacks appear in it without a redeploy.
 
@@ -49408,7 +49408,7 @@ Stacktape bills based on the AWS costs of the stacks it manages — not per seat
 
 ### Free plan
 
-The Free plan is the whole Console except single sign-on. It costs $0, needs no credit card and has no member limit. It covers managed AWS spend up to $200 a calendar month (UTC). When an organization passes $200, deploys keep working for 7 days the first time, and then pause until it upgrades or the next month starts (see [Free plan cost limit](#free-plan-cost-limit)).
+The Free plan is the whole Console except single sign-on and SCIM provisioning. It costs $0, needs no credit card and has no member limit. It covers managed AWS spend up to $200 a calendar month (UTC). When an organization passes $200, deploys keep working for 7 days the first time, and then pause until it upgrades or the next month starts (see [Free plan cost limit](#free-plan-cost-limit)).
 
 ### Flexible plan
 
