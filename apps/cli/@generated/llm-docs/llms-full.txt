@@ -16535,16 +16535,16 @@ The stack goes to the AWS account those credentials belong to. Resources get AWS
 | Deploy, update, roll back and delete stacks | Works | Runs against AWS with your credentials |
 | Dev mode, scripts, bastion tunnels and container sessions | Works | Runs on your machine and in your AWS account |
 | Logs, metrics, secrets and parameters | Works | Read from your AWS account |
-| Alarms in your configuration | Works | CloudWatch alarms live in your AWS account |
+| Alarms in your configuration, with `slack`, `ms-teams`, `discord`, `email` or `webhook` channels | Works | CloudWatch alarms live in your AWS account, and the stack delivers these notifications itself |
 | Deploy history, costs and team access | Needs the Console | Stored by Stacktape and shared by your team |
-| Alert channels and notifications (Slack, email and others) | Needs the Console | The Console delivers the alerts |
+| Alarm channels of type `console-channel` and `slack-app`, and deploy notifications | Needs the Console | The Console delivers these alerts |
 | Uptime checks and synthetic tests | Needs the Console | Stacktape runs the probes from outside your account |
 | Error tracking, incidents and incident AI | Needs the Console | Stacktape stores and groups the events |
-| Default `*.stacktape-app.com` domains | Needs the Console | Stacktape owns that domain |
+| Default `*.stacktape-app.com` domains, including the one a load balancer without its own domain needs for HTTPS | Needs the Console | Stacktape owns that domain |
 | Git deployments, PR previews and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |
 | Organization-wide guardrails, security reports and the audit log | Needs the Console | They apply to, and are shared by, the whole organization |
 
-Commands that are Console features by nature, such as `stacktape org list`, `stacktape project create`, `stacktape error list`, `stacktape incident list` and `stacktape whoami`, ask you to sign in and say why.
+Commands that are Console features by nature, such as `stacktape org list`, `stacktape project create`, `stacktape error list`, `stacktape incident list`, `stacktape whoami` and `stacktape deploy --runner ec2`, ask you to sign in and say why.
 
 ### When the configuration uses a Console feature
 
@@ -16565,7 +16565,7 @@ stacktape connect
 
 1. If you are not signed in, it starts the browser sign-in that [`stacktape login`](/cli/login) uses. You can create an account there.
 2. It connects the AWS account of your current credentials to your organization. This is the same connection as [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
-3. It prints the Console address and opens it. The Stacktape stacks already in that AWS account appear there as projects and stages.
+3. It prints the Console address. The Stacktape stacks already in that AWS account appear there as projects and stages.
 
 `stacktape connect` never redeploys, renames or replaces anything. From then on, the CLI works with the Console: deploys are recorded, and Console features in your configuration can be used.
 
@@ -16574,6 +16574,8 @@ The Console is free while the organization's managed AWS spend is up to $200 a m
 ### Go back to working without an account
 
 Run [`stacktape logout`](/cli/logout). The CLI returns to working without an account. Nothing you deployed changes. In CI, remove `STACKTAPE_API_KEY` from the pipeline.
+
+A stage that serves on a default `*.stacktape-app.com` domain keeps it, but the CLI refuses to deploy that stage without an account, because the deploy would remove the domain. Add your own domain first, or deploy it signed in.
 
 ## CI/CD without an account
 
@@ -16647,7 +16649,13 @@ No. `stacktape connect` finds the stacks already in your AWS account and shows t
 
 ### Does the CLI contact Stacktape when I'm not signed in?
 
-It does not call the Stacktape API, and it never needs Stacktape to deploy. It sends the anonymous telemetry described above unless you turn it off.
+It does not call the Stacktape API, and a deploy never depends on a Stacktape service. It still makes these requests:
+
+- the anonymous telemetry described above, unless you turn it off
+- a check for a newer CLI version, and short notices such as planned maintenance
+- downloads of Stacktape's public CloudFormation resource types from a public S3 bucket, when a stack uses them. No sign-in is involved.
+
+The first two never stop or slow down a command.
 
 ---
 
