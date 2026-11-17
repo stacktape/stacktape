@@ -17,6 +17,10 @@ Each connected account appears in a table showing its name, AWS account ID, conn
 
 Connecting your account is free. You only pay for the AWS resources that Stacktape deploys into your account. For a detailed breakdown of what permissions the cross-account role includes, see [AWS permissions](/stacktape-console/aws-permissions).
 
+If you already deploy with the CLI without an account, you can connect from the terminal instead: [`stacktape connect`](/getting-started/open-source-cli#connect-the-console-later) signs you in, connects the AWS account of your current AWS credentials, and opens the Console. The Stacktape stacks already in that account appear as projects and stages, without a redeploy.
+
+The Console needs a connected account; the open-source CLI does not. Without a Stacktape account, the CLI deploys with your own AWS credentials. See [Use the CLI without an account](/getting-started/open-source-cli).
+
 ## Walkthrough
 
 You need the `org:manage-aws-accounts` permission in your Stacktape organization to connect an account.

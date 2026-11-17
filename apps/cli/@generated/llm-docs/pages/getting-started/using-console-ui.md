@@ -1,6 +1,8 @@
 # Using Console UI
 
-The Stacktape Console becomes your operations hub the moment you deploy a stack. It gives you a central place to inspect deployments, view costs once reports arrive, manage secrets, and — with minimal setup — monitor alarms, track runtime errors, and receive alerts. The stack you deployed in the previous step is already visible here.
+The Stacktape Console becomes your operations hub the moment you deploy a stack. It gives you a central place to inspect deployments, view costs once reports arrive, manage secrets, and — with minimal setup — monitor alarms, track runtime errors, and receive alerts. The Console is optional and free while your organization's managed AWS spend is up to $200 a month.
+
+If you deployed without an account, run `stacktape connect`. It signs you in, connects the AWS account of your current AWS credentials and opens the Console, where the stacks you already deployed appear without a redeploy. See [Use the CLI without an account](/getting-started/open-source-cli#connect-the-console-later).
 
 
 > **Info:** Already familiar with the Console? Skip ahead to [CI/CD](/getting-started/ci-cd) to set up automated deployments.

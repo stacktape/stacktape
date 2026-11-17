@@ -7,7 +7,9 @@ seoDescription: 'Explore the Stacktape Console after deploying: view deployments
 
 # Using Console UI
 
-The Stacktape Console becomes your operations hub the moment you deploy a stack. It gives you a central place to inspect deployments, view costs once reports arrive, manage secrets, and — with minimal setup — monitor alarms, track runtime errors, and receive alerts. The stack you deployed in the previous step is already visible here.
+The Stacktape Console becomes your operations hub the moment you deploy a stack. It gives you a central place to inspect deployments, view costs once reports arrive, manage secrets, and — with minimal setup — monitor alarms, track runtime errors, and receive alerts. The Console is optional and free while your organization's managed AWS spend is up to $200 a month.
+
+If you deployed without an account, run `stacktape connect`. It signs you in, connects the AWS account of your current AWS credentials and opens the Console, where the stacks you already deployed appear without a redeploy. See [Use the CLI without an account](/getting-started/open-source-cli#connect-the-console-later).
 
 <Info>
 Already familiar with the Console? Skip ahead to [CI/CD](/getting-started/ci-cd) to set up automated deployments.
@@ -75,4 +77,4 @@ A deploy gives the Console enough stack metadata to show deployments, costs (whe
 
 Your stack is deployed and observable. The next step is automating deployments so every push to your main branch triggers a redeploy — and pull requests get their own preview stages.
 
-<PreviousNext left={{ title: 'Deploy Your First Stage', url: '/getting-started/deploy-your-first-stage' }} right={{ title: 'CI/CD', url: '/getting-started/ci-cd' }} />
+<PreviousNext left={{ title: 'Use the CLI Without an Account', url: '/getting-started/open-source-cli' }} right={{ title: 'CI/CD', url: '/getting-started/ci-cd' }} />

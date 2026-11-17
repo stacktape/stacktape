@@ -15668,6 +15668,8 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#when-to-use-custom-ci-cd",
         "page:/ci-cd-and-gitops/custom-ci-cd#when-not-to-use-custom-ci-cd",
         "page:/ci-cd-and-gitops/custom-ci-cd#authentication",
+        "page:/ci-cd-and-gitops/custom-ci-cd#without-a-stacktape-account",
+        "page:/ci-cd-and-gitops/custom-ci-cd#with-the-console",
         "page:/ci-cd-and-gitops/custom-ci-cd#essential-cli-flags-for-ci",
         "page:/ci-cd-and-gitops/custom-ci-cd#yes",
         "page:/ci-cd-and-gitops/custom-ci-cd#stage-and-region",
@@ -16905,6 +16907,7 @@
         "page:/cli/login#what-happens-if-i-log-in-with-an-invalid-api-key",
         "page:/cli/login#how-do-i-switch-between-organizations",
         "page:/cli/login#does-login-expire",
+        "page:/cli/login#do-i-need-to-log-in-to-deploy",
         "page:/cli/login#does-login-connect-my-aws-account",
         "page:/cli/login#should-team-members-share-one-api-key"
       ]
@@ -18547,7 +18550,7 @@
         "page:/getting-started/ci-cd#pr-preview-environments",
         "page:/getting-started/ci-cd#connecting-your-repository",
         "page:/getting-started/ci-cd#custom-ci-cd-integration",
-        "page:/getting-started/ci-cd#required-environment-variables",
+        "page:/getting-started/ci-cd#credentials",
         "page:/getting-started/ci-cd#github-actions-example",
         "page:/getting-started/ci-cd#gitlab-ci-example",
         "page:/getting-started/ci-cd#pr-previews-in-custom-ci",
@@ -18594,19 +18597,19 @@
       "chunks": [
         "page:/getting-started/deploy-your-first-stage#deploy-your-first-stage",
         "page:/getting-started/deploy-your-first-stage#prerequisites",
-        "page:/getting-started/deploy-your-first-stage#step-1-log-in-to-stacktape",
-        "page:/getting-started/deploy-your-first-stage#step-2-connect-your-aws-account",
-        "page:/getting-started/deploy-your-first-stage#what-the-connection-creates",
-        "page:/getting-started/deploy-your-first-stage#step-3-deploy",
+        "page:/getting-started/deploy-your-first-stage#step-1-set-up-aws-credentials",
+        "page:/getting-started/deploy-your-first-stage#step-2-deploy",
         "page:/getting-started/deploy-your-first-stage#what-happens-during-deploy",
         "page:/getting-started/deploy-your-first-stage#flow",
         "page:/getting-started/deploy-your-first-stage#deploy-output",
+        "page:/getting-started/deploy-your-first-stage#add-the-console-optional",
         "page:/getting-started/deploy-your-first-stage#what-gets-created-in-aws",
         "page:/getting-started/deploy-your-first-stage#verifying-the-deploy",
         "page:/getting-started/deploy-your-first-stage#redeploying-after-changes",
         "page:/getting-started/deploy-your-first-stage#code-only-changes-deploy-in-seconds",
         "page:/getting-started/deploy-your-first-stage#deploying-multiple-stages",
         "page:/getting-started/deploy-your-first-stage#troubleshooting",
+        "page:/getting-started/deploy-your-first-stage#no-aws-credentials-found",
         "page:/getting-started/deploy-your-first-stage#no-connected-aws-accounts",
         "page:/getting-started/deploy-your-first-stage#belongs-to-aws-account-which-is-not-connected",
         "page:/getting-started/deploy-your-first-stage#deploy-takes-longer-than-expected",
@@ -18616,7 +18619,7 @@
         "page:/getting-started/deploy-your-first-stage#how-long-does-a-first-deploy-take",
         "page:/getting-started/deploy-your-first-stage#does-stacktape-cost-money-to-use-with-aws",
         "page:/getting-started/deploy-your-first-stage#can-i-deploy-to-any-aws-region",
-        "page:/getting-started/deploy-your-first-stage#is-the-connection-between-stacktape-and-my-aws-account-secure",
+        "page:/getting-started/deploy-your-first-stage#is-the-connection-between-the-stacktape-console-and-my-aws-account-secure",
         "page:/getting-started/deploy-your-first-stage#what-happens-if-i-lose-internet-during-a-deploy",
         "page:/getting-started/deploy-your-first-stage#what-s-the-difference-between-stages-and-aws-accounts",
         "page:/getting-started/deploy-your-first-stage#can-i-preview-what-a-deploy-will-change-before-running-it",
@@ -18647,6 +18650,36 @@
         "page:/getting-started/going-to-production#guardrails",
         "page:/getting-started/going-to-production#verify-before-go-live",
         "page:/getting-started/going-to-production#what-s-next"
+      ]
+    },
+    {
+      "id": "page:/getting-started/open-source-cli",
+      "title": "Use the CLI Without an Account",
+      "route": "/getting-started/open-source-cli",
+      "sourcePath": "apps/docs/content/getting-started/open-source-cli.mdx",
+      "outputPath": "pages/getting-started/open-source-cli.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "open-source-cli"
+      ],
+      "chunks": [
+        "page:/getting-started/open-source-cli#use-the-cli-without-an-account",
+        "page:/getting-started/open-source-cli#how-the-cli-chooses-its-mode",
+        "page:/getting-started/open-source-cli#deploy-without-an-account",
+        "page:/getting-started/open-source-cli#what-works-without-an-account",
+        "page:/getting-started/open-source-cli#when-the-configuration-uses-a-console-feature",
+        "page:/getting-started/open-source-cli#connect-the-console-later",
+        "page:/getting-started/open-source-cli#go-back-to-working-without-an-account",
+        "page:/getting-started/open-source-cli#ci-cd-without-an-account",
+        "page:/getting-started/open-source-cli#hints-about-the-console",
+        "page:/getting-started/open-source-cli#telemetry",
+        "page:/getting-started/open-source-cli#license",
+        "page:/getting-started/open-source-cli#faq",
+        "page:/getting-started/open-source-cli#do-i-need-a-stacktape-account-to-deploy",
+        "page:/getting-started/open-source-cli#will-connecting-the-console-change-my-stacks",
+        "page:/getting-started/open-source-cli#does-the-cli-contact-stacktape-when-i-m-not-signed-in"
       ]
     },
     {
@@ -18983,7 +19016,7 @@
         "page:/#scripts-migrations",
         "page:/#private-networking",
         "page:/#override-extend",
-        "page:/#open-source-core-paid-console",
+        "page:/#open-source-cli-optional-console",
         "page:/#loved-by-teams-shipping-on-aws",
         "page:/#ready-to-simplify-your-aws-deployments"
       ]
@@ -23032,7 +23065,7 @@
         "page:/stacktape-console/billing-and-subscription#how-does-stacktape-pricing-work",
         "page:/stacktape-console/billing-and-subscription#what-counts-as-managed-aws-costs",
         "page:/stacktape-console/billing-and-subscription#who-can-manage-billing-in-my-organization",
-        "page:/stacktape-console/billing-and-subscription#what-happens-if-i-exceed-the-free-plan-s-100-month-limit",
+        "page:/stacktape-console/billing-and-subscription#what-happens-if-i-exceed-the-free-plan-s-200-month-limit",
         "page:/stacktape-console/billing-and-subscription#can-i-downgrade-from-flexible-to-free",
         "page:/stacktape-console/billing-and-subscription#how-do-i-get-enterprise-pricing",
         "page:/stacktape-console/billing-and-subscription#where-can-i-find-my-invoices"

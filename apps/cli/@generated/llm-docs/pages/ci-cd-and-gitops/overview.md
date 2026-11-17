@@ -60,7 +60,7 @@ jobs:
         run: npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
-The CLI authenticates via the `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. The `--yes` flag skips the interactive confirmation prompt that would block a CI runner. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
+This example uses the Console: the CLI authenticates via the `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. Without a Stacktape account, give the job AWS credentials instead and leave out the API key. The `--yes` flag skips the interactive confirmation prompt that would block a CI runner. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
 
 ## When to use custom CI/CD
 
@@ -134,7 +134,7 @@ There is no conflict between the approaches. GitOps and custom CI/CD operate ind
 
 ### Do I need AWS credentials in my CI pipeline?
 
-No. The CLI authenticates with a `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
+Only without a Stacktape account: then the CLI deploys with the AWS credentials the job has. With the Console, no. The CLI authenticates with a `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
 
 ### What stage does a GitOps PR preview deploy to?
 

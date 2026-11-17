@@ -1,6 +1,6 @@
 # Custom CI/CD
 
-Stacktape integrates with any CI/CD system that can run shell commands — GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Jenkins, or custom scripts. Authenticate with an API key, then run [`deploy`](/cli/deploy) or [`delete`](/cli/delete) as a pipeline step to deploy and manage your AWS infrastructure from existing workflows.
+Stacktape integrates with any CI/CD system that can run shell commands — GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Jenkins, or custom scripts. Give the pipeline AWS credentials, or a Stacktape API key if you use the Console, then run [`deploy`](/cli/deploy) or [`delete`](/cli/delete) as a pipeline step to deploy and manage your AWS infrastructure from existing workflows.
 
 ## When to use custom CI/CD
 
@@ -21,6 +21,12 @@ If you want push-to-deploy with zero pipeline code, use [GitOps with Console](/c
 You can combine both: GitOps for staging and PR previews, custom CI for production where you need test gates.
 
 ## Authentication
+
+### Without a Stacktape account
+
+The open-source CLI deploys with the AWS credentials the job has. Set them before running Stacktape, for example with `aws-actions/configure-aws-credentials` and an IAM role that trusts GitHub's OIDC provider, and don't set `STACKTAPE_API_KEY`. Deploys go to the AWS account the credentials belong to. Console features such as deploy history and alert channels are not available in this mode. See [CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account) for an example workflow.
+
+### With the Console
 
 Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. You can authenticate the CLI in two ways:
 
@@ -350,7 +356,9 @@ Add `--yes` to your [`deploy`](/cli/deploy) or [`delete`](/cli/delete) command. 
 
 ### Authentication fails
 
-Verify that you have authenticated — either by setting the `STACKTAPE_API_KEY` environment variable (case-sensitive) or by running [`stacktape login --api-key <key>`](/cli/login) before the deploy step. Check that the API key hasn't been revoked in the Console under [API keys](/stacktape-console/api-keys), and rotate it if necessary.
+Without a Stacktape account, check that the job has AWS credentials before the Stacktape step runs and that they have not expired.
+
+With the Console, verify that you have authenticated — either by setting the `STACKTAPE_API_KEY` environment variable (case-sensitive) or by running [`stacktape login --api-key <key>`](/cli/login) before the deploy step. Check that the API key hasn't been revoked in the Console under [API keys](/stacktape-console/api-keys), and rotate it if necessary.
 
 ### Stack name too long or resource names obfuscated
 
@@ -366,7 +374,7 @@ The first deploy of a new stage is the exception: until the stage exists, it has
 
 ### How do I authenticate Stacktape in a CI pipeline?
 
-Run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
+Without a Stacktape account, give the job AWS credentials; nothing else is needed. With the Console, run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
 
 ### When should I use custom CI/CD vs GitOps?
 
