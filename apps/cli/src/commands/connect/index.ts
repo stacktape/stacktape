@@ -45,6 +45,9 @@ export const commandConnect = async () => {
   const { organization } = organizationData;
 
   // The account of the local credentials: `--profile`, `AWS_PROFILE` or the standard AWS credential chain.
+  // Identifying the account and creating the connection need a region, and a fresh machine may not have one
+  // configured. The connection itself (an IAM role) is global, so any region does.
+  if (!globalStateManager.region) globalStateManager.args.region = 'us-east-1';
   const localCredentials = await globalStateManager.prepareLocalAwsCredentials();
   await globalStateManager.resolveLocalAwsAccount();
   const { awsAccountId } = globalStateManager.targetAwsAccount;

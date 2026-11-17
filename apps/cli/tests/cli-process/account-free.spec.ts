@@ -364,7 +364,8 @@ test('connect on an account already connected finds the stacks deployed since an
     output: [],
     apiEndpoint: api.endpoint,
     awsEndpoint: aws.endpoint,
-    environment: { STACKTAPE_API_KEY: 'stp-cli-process-connect', AWS_REGION: 'eu-west-1' }
+    // No region configured anywhere, as on a fresh machine: connect must not need one.
+    environment: { STACKTAPE_API_KEY: 'stp-cli-process-connect' }
   });
   expect(connect.exitCode, connect.output).toBe(0);
   // The account is already connected: no new connection, one search for its stacks through that connection.
