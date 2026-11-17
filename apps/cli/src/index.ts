@@ -11,6 +11,7 @@ import { commandsWithDisabledAnnouncements } from './config/cli/commands';
 import { CliError } from '@utils/errors';
 import { deleteTempFolder } from '@utils/temp-files';
 import { markTiming, startTiming } from '@utils/timings';
+import { showTelemetryNoticeOnce } from '@utils/telemetry-notice';
 
 /**
  * How each command presents itself in an interactive terminal.
@@ -50,6 +51,7 @@ const commandUi: Record<StacktapeCommand, CommandUi> = {
   version: { ui: 'none' },
   login: { ui: 'none' },
   logout: { ui: 'none' },
+  connect: { ui: 'none' },
   upgrade: { ui: 'none' },
   init: { ui: 'none' },
   'defaults:configure': { ui: 'none' },
@@ -139,6 +141,7 @@ export const runCommand = async (opts: RunCommandOptions, bootstrapError?: unkno
     const endGlobalState = startTiming('command:init-global-state');
     await globalStateManager.init(opts);
     endGlobalState();
+    await showTelemetryNoticeOnce();
     await commandLifecycle.init();
     const command = globalStateManager.command;
     if (['deploy', 'delete', 'rollback', 'package', 'synth', 'diff', 'validate'].includes(command)) {
@@ -333,6 +336,7 @@ const commandLoaders = {
   version: async () => (await import('./commands/version')).commandVersion,
   login: async () => (await import('./commands/login')).commandLogin,
   logout: async () => (await import('./commands/logout')).commandLogout,
+  connect: async () => (await import('./commands/connect')).commandConnect,
   'org:create': async () => (await import('./commands/org-create')).commandOrgCreate,
   'org:list': async () => (await import('./commands/org-list')).commandOrgList,
   'org:delete': async () => (await import('./commands/org-delete')).commandOrgDelete,

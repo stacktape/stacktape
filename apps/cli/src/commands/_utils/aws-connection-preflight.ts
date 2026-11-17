@@ -8,12 +8,14 @@ import {
   StackStatus
 } from '@aws-sdk/client-cloudformation';
 import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
+import type { AwsCredentialsProvider } from 'src/aws/context';
 import { createFetchHandler } from 'src/aws/fetch-handler';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
+import { CliError } from '@utils/errors';
 import { openBrowser } from './browser';
 
 const detectLocalAwsCredentials = async (): Promise<{
@@ -59,7 +61,7 @@ const detectLocalAwsCredentials = async (): Promise<{
  */
 const runAutoAwsConnection = async (
   organizationId: string,
-  localCreds: { profile?: string }
+  credentials: AwsCredentialsProvider
 ): Promise<{ success: boolean; awsAccountId?: string; connectionName?: string; error?: string }> => {
   try {
     // 1. Initialize connection on server, get CF stack parameters
@@ -76,13 +78,10 @@ const runAutoAwsConnection = async (
     });
 
     // 2. Create CloudFormation client with local credentials
-    const credentials =
-      localCreds.profile && localCreds.profile !== 'environment' ? fromIni({ profile: localCreds.profile }) : fromEnv();
-
     // Stack must be deployed in eu-west-1 (where the Stacktape lambdas are)
     const cfClient = new CloudFormationClient({
       region: 'eu-west-1',
-      credentials,
+      credentials: async () => credentials(),
       requestHandler: createFetchHandler()
     });
 
@@ -303,13 +302,42 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     })) as 'auto' | 'browser';
   }
 
-  if (connectionMethod === 'auto') {
+  await connectAwsAccount({
+    organizationId: currentUserAndOrgData.organization.id,
+    organizationName: currentUserAndOrgData.organization.name,
+    localCredentials:
+      connectionMethod === 'auto'
+        ? localCreds.profile && localCreds.profile !== 'environment'
+          ? fromIni({ profile: localCreds.profile })
+          : fromEnv()
+        : undefined
+  });
+};
+
+/**
+ * Connects an AWS account to the organization. With local credentials it creates the connection stack itself, and falls
+ * back to the browser when that fails; without them the person creates the stack in the AWS console. Runs inside the
+ * started `CONNECT_AWS_ACCOUNT` event, finishes it, and refreshes the organization data.
+ */
+export const connectAwsAccount = async ({
+  organizationId,
+  organizationName,
+  localCredentials,
+  browserFallback = true
+}: {
+  organizationId: string;
+  organizationName: string;
+  localCredentials?: AwsCredentialsProvider;
+  /** False for a caller that cannot open a browser or wait for a person, such as agent mode. */
+  browserFallback?: boolean;
+}): Promise<{ awsAccountId?: string }> => {
+  if (localCredentials) {
     await operationReporter.updateEvent({
       eventType: 'CONNECT_AWS_ACCOUNT',
       additionalMessage: 'Setting up connection using local credentials'
     });
 
-    const result = await runAutoAwsConnection(currentUserAndOrgData.organization.id, localCreds);
+    const result = await runAutoAwsConnection(organizationId, localCredentials);
 
     if (result.success) {
       await operationReporter.finishEvent({
@@ -320,9 +348,22 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
       // Refresh user data to get the new account and update globalStateManager
       const refreshedData = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
       globalStateManager.setCurrentUserAndOrgData(refreshedData);
-      return;
+      return { awsAccountId: result.awsAccountId };
     }
 
+    if (!browserFallback) {
+      await operationReporter.finishEvent({
+        eventType: 'CONNECT_AWS_ACCOUNT',
+        status: 'error',
+        finalMessage: 'AWS account connection failed'
+      });
+      throw new CliError({
+        category: 'API_KEY',
+        code: 'AWS_ACCOUNT_CONNECTION_FAILED',
+        message: `Connecting the AWS account with the local credentials failed: ${result.error}`,
+        hints: 'Run `stacktape connect` in a terminal to connect it through the AWS console instead.'
+      });
+    }
     // Auto-connection failed, fall back to browser
     tuiManager.warn(`Auto-connection failed: ${result.error}`);
     tuiManager.info('Falling back to browser-based connection...');
@@ -335,7 +376,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
   });
 
   const { connectionId, quickCreateUrl } = await stacktapeTrpcApiManager.apiClient.createAwsConnectionPending({
-    organizationId: currentUserAndOrgData.organization.id,
+    organizationId,
     connectionName: 'aws-account',
     connectionMode: 'PRIVILEGED'
   });
@@ -370,7 +411,7 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     // Refresh user data to get the new account and update globalStateManager
     const refreshedData = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
     globalStateManager.setCurrentUserAndOrgData(refreshedData);
-    return;
+    return { awsAccountId: pollResult.awsAccountId };
   }
 
   await operationReporter.finishEvent({
@@ -379,5 +420,5 @@ export const ensureAwsAccountConnected = async (): Promise<void> => {
     finalMessage: 'AWS connection timed out or was cancelled'
   });
 
-  throw stpErrors.e66({ organizationName: currentUserAndOrgData.organization.name });
+  throw stpErrors.e66({ organizationName });
 };

@@ -1298,6 +1298,64 @@
       }
     ]
   },
+  "connect": {
+    "publicName": "connect",
+    "positionals": [],
+    "args": [
+      {
+        "name": "help",
+        "description": "#### Show Help\n---\nIf provided, the command will not execute and will instead print help information.",
+        "required": false,
+        "alias": "h",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "help"
+      },
+      {
+        "name": "logLevel",
+        "description": "#### Log Level\n---\nThe level of logs to print to the console.\n- `info`: Basic information about the operation.\n- `error`: Only errors.\n- `debug`: Detailed information for debugging.",
+        "required": false,
+        "allowedTypes": [
+          "string"
+        ],
+        "allowedValues": [
+          "info",
+          "debug",
+          "error"
+        ],
+        "flag": "log-level"
+      },
+      {
+        "name": "noBrowser",
+        "description": "#### No Browser\n---\nIf `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "no-browser"
+      },
+      {
+        "name": "profile",
+        "description": "#### AWS Profile\n---\nThe AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`.\n\nFor commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected.",
+        "required": false,
+        "alias": "p",
+        "allowedTypes": [
+          "string"
+        ],
+        "flag": "profile"
+      },
+      {
+        "name": "quiet",
+        "description": "#### Quiet\n---\nHide progress, banners, success messages and hints. Command output, warnings and errors are still printed.",
+        "required": false,
+        "allowedTypes": [
+          "boolean"
+        ],
+        "flag": "quiet"
+      }
+    ]
+  },
   "container:exec": {
     "publicName": "container exec",
     "positionals": [
