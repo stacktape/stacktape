@@ -214,8 +214,12 @@ existing version. Verify a preview with:
 ```sh
 npm view stacktape@4.0.0-preview.1 version
 npm view stacktape dist-tags.preview
-pnpm dlx stacktape@preview version
+pnpm dlx stacktape@4.0.0-preview.1 version
 ```
+
+Name the exact version in `pnpm dlx`. pnpm 11 skips versions younger than its minimum release age (one day by default),
+so `pnpm dlx stacktape@preview` and `pnpm add --global stacktape@latest` keep resolving to the previous release for
+about a day after publication. npm and the installers are not affected.
 
 The installer upload is a separate dependent job. If only that job fails, use GitHub's **Re-run failed jobs** action;
 the already successful npm publication is not repeated.
@@ -299,13 +303,21 @@ are uploaded from the run's artifacts, which are kept for one day.
 
 The GitHub environment `error-tracking` must allow only `main` and hold:
 
-- secret `POSTHOG_CLI_API_KEY`: a PostHog personal API key limited to the production project with the scopes
-  `error_tracking:write` and `organization:read`, and nothing else;
+- secret `POSTHOG_CLI_API_KEY`: a PostHog personal API key scoped to the production project with the single scope
+  `error_tracking:write`. `posthog-cli sourcemap upload` needs nothing else (`@posthog/cli` README, "Personal API key
+  scopes"); a project-scoped key cannot use organization endpoints, and the upload does not call them;
 - variable `POSTHOG_CLI_PROJECT_ID`: the production project's numeric ID (Project settings in PostHog).
 
 To check a release, trigger an unexpected error with the released binary (for example, make `~/.stacktape` a file and
 run `stacktape defaults:list`) and find its printed error ID in PostHog error tracking. The stack frames should name
 `.ts` files under `src/`.
+
+A preview release cannot exercise this path: preview builds carry no chunk ID, the workflow uploads no maps for them,
+and prerelease versions send no telemetry to production. To check the key and the upload before a stable release, build
+one platform locally with
+`bun scripts/build-dist-package.ts --platform linux --version <version> --error-tracking-source-map-directory <directory>/linux`,
+upload `<directory>` with the job's `posthog-cli` command, and run the extracted binary with
+`STP_POSTHOG_ENVIRONMENT=production` through the check above.
 
 ## Other mutable publications
 
