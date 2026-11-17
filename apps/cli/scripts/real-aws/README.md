@@ -319,24 +319,28 @@ pnpm test:aws --aws-scenario=batch-job-sqs-run
 
 ## v3 upgrade canary
 
-`test:real-aws-v3-upgrade` (scenario `v3-upgrade-customer-shapes`) proves that stacks created by the released 3.7.1 CLI
-upgrade to the current CLI as the [upgrade guide](../../../docs/content/getting-started/upgrading-from-v3.mdx) says. It
-runs two fixtures from `_test-stacks/v3-upgrade` in parallel, shaped like the paying customers' stacks: `agency` (YAML,
-eu-central-1: a PHP container on EC2 behind a CDN with a firewall and an edge function, MySQL, a Nixpacks site,
-DynamoDB, a function with an alarm, an afterDeploy migration) and `saas` (TypeScript with the `stacktape` npm package,
-us-east-1: a container workload behind a load balancer, a CDN-routed single-page app, functions with webhook alarms, a
-raw-CloudFormation Aurora cluster, an afterDeploy migration).
+`test:real-aws-v3-upgrade` (scenario `v3-upgrade-customer-shapes`) proves that stacks created by the released 3.x CLIs
+the customers run upgrade to the current CLI as the
+[upgrade guide](../../../docs/content/getting-started/upgrading-from-v3.mdx) says. It runs two fixtures from
+`_test-stacks/v3-upgrade` in parallel, shaped like the paying customers' stacks: `agency` (YAML, eu-central-1: a PHP
+container on EC2 behind a CDN with a firewall and an edge function, MySQL, a Nixpacks site, DynamoDB, a function with an
+alarm, an afterDeploy migration) and `saas` (TypeScript with the `stacktape` npm package, us-east-1: a container
+workload behind a load balancer, a CDN-routed single-page app, functions with webhook alarms, a raw-CloudFormation
+Aurora cluster, an afterDeploy migration).
 
-For each fixture it downloads 3.7.1 (the release binary for `agency`, the npm package for `saas`) and deploys twice
-against the dev Stacktape API, the second time a code-only change (`--hotSwap` for `agency`). It then applies the
-documented migration (`stacktape.v3.*` → `stacktape.yml`/`.ts`, and for `saas` the package built from this checkout),
-deploys with the source CLI using the customers' v3 command lines, and fails if a stateful resource was replaced or
-deleted, a site stopped serving, a database row an earlier deploy wrote is missing, or a function, the batch job or the
-alarm webhook stopped working. A code-only change must then take the fast path. Deletion is verified for the stacks, the
-secrets, the final Aurora snapshots and the Console projects; edge function replicas that AWS has not released are left
-for `--cleanup-only`. The batch jobs exist only in the migrated `saas` config: AWS Batch no longer creates the Amazon
-Linux 2 compute environments 3.7.1 asks for. A run takes about 70 minutes, needs Docker and costs a few dollars (RDS,
-Aurora, an EC2 instance, two load balancers, CloudFront).
+For each fixture it installs the customer's 3.x CLI (the 3.7.1 release binary for `agency`, the `stacktape@3.5.7` npm
+package for `saas`) and deploys twice against the dev Stacktape API, which runs the v4 Console, the second time a
+code-only change (`--hotSwap` for `agency`). `STP_AWS_V3_UPGRADE_SAAS_V3_VERSION=3.7.1` starts `saas` from 3.7.1
+instead. 3.7.1 runs in agent mode; 3.5.7 has no agent result record, so it runs as a CI script and its exit code
+decides. 3.5.7 has no webhook alarm channel, so a 3.5.7 run gives the `saas` alarms an MS Teams channel pointed at the
+same sink, in both configs. It then applies the documented migration (`stacktape.v3.*` → `stacktape.yml`/`.ts`, and for
+`saas` the package built from this checkout), deploys with the source CLI using the customers' v3 command lines, and
+fails if a stateful resource was replaced or deleted, a site stopped serving, a database row an earlier deploy wrote is
+missing, or a function, the batch job or the alarm webhook stopped working. A code-only change must then take the fast
+path. Deletion is verified for the stacks, the secrets, the final Aurora snapshots and the Console projects; edge
+function replicas that AWS has not released are left for `--cleanup-only`. The batch jobs exist only in the migrated
+`saas` config: AWS Batch no longer creates the Amazon Linux 2 compute environments 3.x asks for. A run takes about 70
+minutes, needs Docker and costs a few dollars (RDS, Aurora, an EC2 instance, two load balancers, CloudFront).
 
 ```sh
 export STP_AWS_V3_UPGRADE_DEPLOY=1

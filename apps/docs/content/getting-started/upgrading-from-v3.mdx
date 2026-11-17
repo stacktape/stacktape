@@ -370,6 +370,7 @@ v4 checks some values that v3 accepted:
 - **State machine definitions with Stacktape metadata.** `Parallel` branches and `Map` item workflows must be Amazon States Language workflows with `StartAt` and `States`, and each state needs a valid `Type`. Other ASL fields, such as `QueryLanguage` or `ItemProcessor`, and `null` paths are passed to AWS unchanged.
 - **SQS triggers with a function timeout longer than the queue's visibility timeout.** AWS rejects this combination; raise the queue's `visibilityTimeoutSeconds` or lower the function's `timeout`.
 - **`Condition` and `DependsOn` in `cloudformationResources`** must be a condition name and a resource name (or a list of names), as CloudFormation requires.
+- **`budgetControl`**, from Stacktape 3.5 and earlier (3.6 removed it). Delete it and set the budget in the Stacktape Console under Budgets. The next deploy deletes the AWS budget it created.
 
 ### Scripts
 
