@@ -2,6 +2,7 @@
   "name": "@stacktape/console-api",
   "version": "4.0.0-dev.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./anonymous": "./src/anonymous.ts",

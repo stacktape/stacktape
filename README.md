@@ -381,7 +381,9 @@ generated-file ownership and releases.
 
 ## License
 
-Stacktape is released under the [MIT License](LICENSE).
+The Stacktape CLI and the packages it ships are released under the [MIT License](LICENSE). The CLI works without a
+Stacktape account. The Stacktape Console (`apps/console`, a private submodule) is proprietary and not covered by this
+license.
 
 ## Testimonials
 

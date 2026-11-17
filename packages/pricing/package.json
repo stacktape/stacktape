@@ -3,6 +3,7 @@
   "version": "4.0.0-dev.0",
   "private": true,
   "description": "Stacktape's AWS pricing catalog ingestion and resource cost estimation.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./catalog": "./src/catalog.ts",
