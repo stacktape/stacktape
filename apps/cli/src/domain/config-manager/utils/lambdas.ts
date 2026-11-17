@@ -73,12 +73,15 @@ export const getStacktapeServiceLambdaEnvironment = ({
   projectName,
   stackName,
   globallyUniqueStackHash,
-  stage
+  stage,
+  consoleConnected
 }: {
   stackName: string;
   projectName: string;
   globallyUniqueStackHash: string;
   stage: string;
+  /** Without the Console the service Lambda gets no Stacktape API endpoint, so it never calls the API. */
+  consoleConnected: boolean;
 }) => {
   return [
     {
@@ -105,10 +108,7 @@ export const getStacktapeServiceLambdaEnvironment = ({
       name: 'GLOBALLY_UNIQUE_STACK_HASH',
       value: globallyUniqueStackHash
     },
-    {
-      name: 'STACKTAPE_TRPC_API_ENDPOINT',
-      value: STACKTAPE_TRPC_API_ENDPOINT
-    },
+    ...(consoleConnected ? [{ name: 'STACKTAPE_TRPC_API_ENDPOINT', value: STACKTAPE_TRPC_API_ENDPOINT }] : []),
     {
       name: 'NODE_OPTIONS',
       value: '--enable-source-maps'

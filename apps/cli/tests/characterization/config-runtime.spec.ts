@@ -666,7 +666,10 @@ describe('configuration runtime contract', () => {
         configProjectName: configManager.configResolver.rawConfig.projectName
       });
       const stackContext = getStackContext();
-      await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+      await configManager.init({
+        configRequired: true,
+        context: { ...getConfigManagerContext(stackContext), consoleConnected: true }
+      });
 
       const getExecutionCounts = getTypescriptExport({
         filePath: executionFixturePath,

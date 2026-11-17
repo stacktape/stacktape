@@ -3,6 +3,7 @@
   "version": "4.0.0-dev.0",
   "private": true,
   "description": "Turns a repository into a Stacktape configuration: file-access policy, deterministic project probes, the evidence contract an agent submits, citation verification, and the composer. Contains no AI.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./compose": "./src/compose/compose.ts",

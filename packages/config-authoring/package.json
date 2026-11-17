@@ -3,6 +3,7 @@
   "version": "4.0.0-dev.0",
   "private": true,
   "description": "Runtime classes, directives and conversion tools for authoring Stacktape TypeScript configurations.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

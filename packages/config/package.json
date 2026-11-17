@@ -3,6 +3,7 @@
   "version": "4.0.0-dev.0",
   "private": true,
   "description": "The user-authored Stacktape configuration language: the resource model, its CloudFormation escape hatch and the primitives the published config schema is generated from.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     ".": "./src/config.ts",

@@ -3,6 +3,7 @@
   "version": "4.0.0-dev.0",
   "private": true,
   "description": "Typed, plain-object CloudFormation resources and intrinsic functions used by Stacktape synthesis and configuration authoring.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./intrinsics": "./src/intrinsics.ts",

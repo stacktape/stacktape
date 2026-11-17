@@ -859,6 +859,22 @@ Revokes the CLI login session on the Stacktape API and removes it from this syst
     requiredArgs: [] as const
   },
 
+  connect: {
+    description: `Connects this machine's AWS account to the Stacktape Console, without redeploying anything.
+
+Signs you in first if needed (the same browser sign-in as \`stacktape login\`). Then it connects the AWS account of your current local AWS credentials (\`--profile\`, \`AWS_PROFILE\` or the standard AWS credential chain) to your organization and prints the Console address where the account's stacks appear. Your stacks keep their names, resources and URLs. The Console is free up to $200 a month of AWS spend it manages.
+
+To return the CLI to working without the Console, run \`stacktape logout\`. Nothing deployed changes.`,
+    args: {
+      profile: universalArgs.profile,
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      noBrowser: noBrowser.optional()
+    },
+    requiredArgs: [] as const
+  },
+
   'org:create': {
     description: `Creates a new organization in your Stacktape account.
 
@@ -1205,26 +1221,30 @@ export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
   'info:stack'
 ];
 
-// Commands that don't require API key
-export const commandsNotRequiringApiKey: StacktapeCommand[] = [
-  'login',
-  'logout',
-  'mcp',
-  'mcp:add',
-  'mcp:remove',
-  'version',
-  'help',
-  'defaults:list',
-  'defaults:configure',
-  'aws-profile:list',
-  'aws-profile:create',
-  'aws-profile:update',
-  'aws-profile:delete',
-  // Stops a local dev agent and removes local containers; it never calls the Stacktape API.
-  'dev:stop',
-  'upgrade',
-  'init',
-  'package',
-  'synth',
-  'validate'
-];
+/**
+ * Commands that are Console features by nature, with the reason shown when they run without a Stacktape API key.
+ * Every other command works without an account: stack commands run on local AWS credentials.
+ */
+export const consoleOnlyCommands: Partial<Record<StacktapeCommand, string>> = {
+  'org:create': 'organizations are kept in the Stacktape Console',
+  'org:list': 'organizations are kept in the Stacktape Console',
+  'org:delete': 'organizations are kept in the Stacktape Console',
+  'project:create': 'projects are kept in the Stacktape Console',
+  'project:list': 'projects are kept in the Stacktape Console',
+  'project:delete': 'projects are kept in the Stacktape Console',
+  'errors:list': 'error tracking runs in the Stacktape Console',
+  'errors:resolve': 'error tracking runs in the Stacktape Console',
+  'errors:ignore': 'error tracking runs in the Stacktape Console',
+  'errors:reopen': 'error tracking runs in the Stacktape Console',
+  incidents: 'incidents are kept in the Stacktape Console',
+  'incidents:show': 'incidents are kept in the Stacktape Console',
+  'incidents:watch': 'incidents are kept in the Stacktape Console',
+  'incidents:ack': 'incidents are kept in the Stacktape Console',
+  'incidents:resolve': 'incidents are kept in the Stacktape Console',
+  'ai:connect': 'hosted AI runs use the Stacktape Console',
+  'ai:disconnect': 'hosted AI runs use the Stacktape Console',
+  'info:whoami': 'it shows your Stacktape Console user and organization',
+  'info:operations': 'the deploy history is kept in the Stacktape Console',
+  'info:stack': 'it reads the stack record kept in the Stacktape Console',
+  'alarms:export': 'it exports alarms defined in the Stacktape Console'
+};

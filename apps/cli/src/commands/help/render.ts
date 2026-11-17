@@ -20,6 +20,7 @@ const groups: Record<string, readonly string[]> = {
   Account: [
     'login',
     'logout',
+    'connect',
     'whoami',
     'org',
     'project',
