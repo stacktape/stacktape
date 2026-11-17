@@ -20,6 +20,8 @@ export type PersistedState = {
     /** API keys are scoped to the control-plane endpoint that issued them. */
     apiKeysByEndpoint?: Record<string, string>;
   };
+  /** The one-time notice about anonymous usage telemetry was shown on this machine. */
+  telemetryNoticeShown?: boolean;
 };
 
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
