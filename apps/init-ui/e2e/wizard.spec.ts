@@ -74,6 +74,12 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('link', { name: /stacktape-app\.com/ })).toBeVisible();
   await expect(page.locator('.wizard-command code').first()).toContainText('--region us-east-1');
+  // Deployed signed in: the stage is already in the Console, so the page links there and offers nothing.
+  await expect(page.getByRole('region', { name: 'Stacktape Console' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Open the Console' })).toHaveAttribute(
+    'href',
+    /\/projects\/saas-starter\/dev\/overview$/
+  );
 });
 
 test('a failed deploy, a link opened twice and a stopped CLI each say what to do next', async ({
@@ -168,7 +174,7 @@ test('a stack left behind by a failed first deploy says how to clear it, and can
   await expect(page.getByRole('button', { name: 'Check again' })).toBeEnabled();
 });
 
-test('a deploy button that cannot be pressed says why, and success leads with each public address', async ({
+test('signed out, it deploys without an account, then offers the Console and connects from the card', async ({
   page,
   startWizard
 }) => {
@@ -178,6 +184,7 @@ test('a deploy button that cannot be pressed says why, and success leads with ea
   // title is the only title: the band carries no label of its own.
   await expect(page.locator('.wizard-rail a')).toHaveCount(1);
   await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
+  await expect(page.getByText('No Stacktape account is needed for any of it.')).toBeVisible();
   await analyzeAndReview(page);
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
   // Finished bands are checked recap lines; the one action sits in the plan panel, above the optional rows.
@@ -185,27 +192,30 @@ test('a deploy button that cannot be pressed says why, and success leads with ea
   const action = page.getByRole('button', { name: 'Check exact AWS target' });
   const tryOut = page.getByRole('button', { name: 'Build and start it here' });
   expect((await action.boundingBox())!.y).toBeLessThan((await tryOut.boundingBox())!.y);
+
+  // Nothing about a Stacktape account before the deploy: it goes to the AWS account of this machine's profile.
+  const target = page.getByRole('region', { name: 'Where it deploys' });
+  await expect(target).toContainText('481516234200');
+  await expect(target).toContainText('AWS profile');
+  await expect(target).not.toContainText('Stacktape account');
+  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Sign in/)).toHaveCount(0);
+
+  // A button that cannot be pressed says why, beside it and on hover.
+  await page.getByRole('textbox', { name: 'Stage' }).fill('');
   await expect(action).toBeDisabled();
-  await expect(action).toHaveAccessibleDescription('Sign in to Stacktape above before deploying.');
+  await expect(action).toHaveAccessibleDescription('Name a stage above before deploying.');
   // The band scrolls itself into view when it arrives; hover again if that moved the pointer off the button.
   await expect(async () => {
     await action.hover({ force: true });
-    await expect(page.locator('.stp-ui-tooltip')).toHaveText('Sign in to Stacktape above before deploying.', {
+    await expect(page.locator('.stp-ui-tooltip')).toHaveText('Name a stage above before deploying.', {
       timeout: 1_000
     });
   }).toPass();
+  await page.getByRole('textbox', { name: 'Stage' }).fill('dev');
 
-  // "Sign in" opens the Console's device page in a new tab with the code filled in; the page shows the same code and
-  // continues by itself once it is approved there.
-  const consoleTab = page.waitForEvent('popup');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  const approval = await consoleTab;
-  await expect(page.getByRole('status', { name: 'Sign-in code' })).toHaveText('WDJB-MJHT');
-  await expect(approval).toHaveURL(/\/device\?user_code=WDJB-MJHT$/);
-  await approval.getByRole('button', { name: 'Approve' }).click();
-  await expect(approval.getByText('Approved. Return to the wizard.')).toBeVisible();
-  await expect(action).toBeEnabled({ timeout: 10_000 });
   await action.click();
+  await expect(page.getByText(/has never been deployed to account 481516234200, region eu-west-1/)).toBeVisible();
   await page.getByRole('button', { name: 'Create new stack' }).click();
   await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
 
@@ -213,8 +223,53 @@ test('a deploy button that cannot be pressed says why, and success leads with ea
   await expect(live).toContainText('fastapiBackend');
   await expect(live).toContainText('fastapiFrontend');
   await expect(live.getByRole('link', { name: 'Open' })).toHaveCount(2);
+  await expect(live.getByRole('link', { name: /cloudfront\.net/ }).first()).toBeVisible();
   // The finished steps are one line; the live addresses lead.
   await expect(page.locator('.wizard-phase')).toHaveCount(0);
   await page.getByRole('button', { name: /^Show the \d deploy steps$/ }).click();
   await expect(page.locator('.wizard-phase.is-done')).toHaveCount(5);
+
+  // The Console comes right under the live addresses, as a card with one action, and only now.
+  const offer = page.getByRole('region', { name: 'Stacktape Console' });
+  await expect(offer).toContainText('Deploy history, costs, alerts and team access for this stage.');
+  await expect(offer).toContainText('Free up to $200/month of AWS spend.');
+  expect((await live.boundingBox())!.y).toBeLessThan((await offer.boundingBox())!.y);
+  await expect(page.getByRole('link', { name: 'Open the Console' })).toHaveCount(0);
+
+  // One click opens the Console's device page in a new tab with the code filled in; the card shows the same code
+  // and continues by itself once it is approved there, then connects the AWS account.
+  const consoleTab = page.waitForEvent('popup');
+  await offer.getByRole('button', { name: 'Connect to the Console' }).click();
+  const approval = await consoleTab;
+  await expect(offer.getByRole('status', { name: 'Sign-in code' })).toHaveText('WDJB-MJHT');
+  await expect(approval).toHaveURL(/\/device\?user_code=WDJB-MJHT$/);
+  await approval.getByRole('button', { name: 'Approve' }).click();
+  await expect(approval.getByText('Approved. Return to the wizard.')).toBeVisible();
+  await expect(offer).toContainText('Connected to the Stacktape Console', { timeout: 10_000 });
+  await expect(offer.getByRole('link', { name: 'Open dev in the Console' })).toHaveAttribute(
+    'href',
+    /\/projects\/full-stack-fastapi\/dev\/overview$/
+  );
+});
+
+test('a Console connection that fails says why, and "Not now" leaves one quiet line', async ({ page, startWizard }) => {
+  const wizard = await startWizard({ project: 'saas-starter', account: 'signed-out', connect: 'fail' });
+  await page.goto(wizard.url);
+  await analyzeAndReview(page);
+  await saveAndCheckTarget(page);
+  await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
+
+  const offer = page.getByRole('region', { name: 'Stacktape Console' });
+  const consoleTab = page.waitForEvent('popup');
+  await offer.getByRole('button', { name: 'Connect to the Console' }).click();
+  const approval = await consoleTab;
+  await approval.getByRole('button', { name: 'Approve' }).click();
+  await expect(offer.getByText('The AWS account was not connected')).toBeVisible({ timeout: 10_000 });
+  await expect(offer).toContainText('not authorized to perform: cloudformation:CreateStack');
+  await expect(offer.getByText('stacktape connect', { exact: true })).toBeVisible();
+  await expect(offer.getByRole('button', { name: 'Try again' })).toBeEnabled();
+
+  await offer.getByRole('button', { name: 'Not now' }).click();
+  await expect(offer).toHaveCount(0);
+  await expect(page.getByText(/To add this stage to the Stacktape Console later, run stacktape connect/)).toBeVisible();
 });

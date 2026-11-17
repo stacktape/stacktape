@@ -14,7 +14,7 @@ import { GapList } from '../components/GapList';
 import { PipelineCard } from '../components/PipelineCard';
 import { RegionPicker } from '../components/RegionPicker';
 import { Row, RowList } from '../components/RowList';
-import { SignInPanel } from '../components/SignInPanel';
+import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
 import { secretCommand, stackCommand } from '../deploy-commands';
 import type { SignInRequest, WizardState } from '../session';
 import { gapsToList } from '../gaps';
@@ -28,10 +28,12 @@ import { blockedTargetCopy, stackStatusWords } from '../target-copy';
  * Three things have to be true before the button appears, and each is shown rather than assumed:
  * the configuration is on disk, this machine has AWS credentials, and the user knows which account
  * those credentials belong to. The third is the one tools usually skip, and it is the one that
- * turns "it deployed" into "it deployed *where*".
+ * turns "it deployed" into "it deployed *where*". A Stacktape account is not one of them: signed
+ * out, the deploy runs on this machine's AWS credentials alone.
  *
  * And after it works, the page does not stop. "It's live" is where the daily product begins — the
- * next deploy, the logs, the pipeline — so the end of the wizard hands those over instead of ending.
+ * next deploy, the logs, the pipeline, and the Console for someone who deployed without it — so the
+ * end of the wizard hands those over instead of ending.
  */
 
 /** Resource types that end up reachable from the internet. Everything else stays private. */
@@ -61,6 +63,7 @@ export function DeployStep({
   onConnectCodingAgent,
   onRecheck,
   onSignIn,
+  onConsoleConnection,
   onVerify,
   onDismissVerification,
   isBusy
@@ -77,6 +80,8 @@ export function DeployStep({
   onRecheck: () => void;
   /** Takes one step of signing in to Stacktape from this page. Resolves with the state it led to. */
   onSignIn: (request: SignInRequest) => Promise<WizardState>;
+  /** Accepts or sets aside the Console after an account-free deploy. Resolves with the state it led to. */
+  onConsoleConnection: (action: 'connect' | 'dismiss') => Promise<WizardState | undefined>;
   /** Consents to trying the composed services on this machine. The click is the consent. */
   onVerify: () => void;
   /** Sets a failed try-out aside: results stay visible, the deploy button comes back. */
@@ -101,7 +106,6 @@ export function DeployStep({
   );
   const compositionBlocks = state.composition?.deployable !== true;
   const account = state.stacktapeAccount;
-  const signInBlocks = account?.signedIn !== true;
   const [stage, setStage] = useState('dev');
   const [showRemoval, setShowRemoval] = useState(false);
   const [chosenRegion, setRegion] = useState(
@@ -151,6 +155,7 @@ export function DeployStep({
     const startedAt = deployment.startedAt ?? events[0]?.ts;
     const endedAt = events.at(-1)?.ts;
     const deleteCommand = stackCommand('delete', target);
+    const stageUrl = `${consoleUrlOf(state)}/projects/${state.projectName}/${deployment.stage}/overview`;
     const retryTarget =
       state.deployTarget?.stage === deployment.stage && state.deployTarget.region === deployment.region
         ? state.deployTarget
@@ -234,21 +239,29 @@ export function DeployStep({
 
         {deployment.status === 'succeeded' && (
           <>
+            {/* Right under the live address, and only after it: the app is live either way. */}
+            <ConsoleOfferCard
+              isRechecking={isBusy === 'recheck'}
+              onConnect={() => onConsoleConnection('connect')}
+              onDismiss={() => void onConsoleConnection('dismiss')}
+              onRecheck={onRecheck}
+              onSignIn={onSignIn}
+              stage={deployment.stage}
+              stageUrl={stageUrl}
+              state={state}
+            />
             <RowList label="Next">
-              <Row
-                action={
-                  <ButtonLink
-                    href={`${consoleUrlOf(state)}/projects/${state.projectName}/${deployment.stage}/overview`}
-                    rel="noreferrer"
-                    target="_blank"
-                    variant="secondary"
-                  >
-                    Open the Console
-                  </ButtonLink>
-                }
-                description="Logs, metrics, alerts and every deploy of this stage, in the Stacktape Console."
-                title="Watch it run"
-              />
+              {(state.consoleConnection === undefined || state.consoleConnection.status === 'linked') && (
+                <Row
+                  action={
+                    <ButtonLink href={stageUrl} rel="noreferrer" target="_blank" variant="secondary">
+                      Open the Console
+                    </ButtonLink>
+                  }
+                  description="Logs, metrics, alerts and every deploy of this stage, in the Stacktape Console."
+                  title="Watch it run"
+                />
+              )}
               <Row
                 description="Edit your code, then run the same deploy. It updates the stack in place."
                 title="Ship a change"
@@ -318,22 +331,20 @@ export function DeployStep({
       : 'The local try-out found a problem. Fix it below, or set the result aside.'
     : compositionBlocks
       ? 'Resolve every gap above before deploying.'
-      : signInBlocks
-        ? 'Sign in to Stacktape above before deploying.'
-        : stage === ''
-          ? 'Name a stage above before deploying.'
-          : targetBlocked
-            ? 'Read-only. Nothing is deployed to this stack until the check passes.'
-            : checkedTarget === undefined
-              ? 'Read-only: nothing is created until you confirm the next step.'
-              : checkedTarget.status === 'updateable'
-                ? 'Updates usually take a few minutes.'
-                : hasDatabase
-                  ? 'First deploys with a new database take 10–15 minutes.'
-                  : hasUnverifiedServices
-                    ? 'Some services were not checked locally; AWS will be their first full run.'
-                    : 'Usually a few minutes.';
-  const actionDisabled = stage === '' || verificationBlocks || compositionBlocks || signInBlocks;
+      : stage === ''
+        ? 'Name a stage above before deploying.'
+        : targetBlocked
+          ? 'Read-only. Nothing is deployed to this stack until the check passes.'
+          : checkedTarget === undefined
+            ? 'Read-only: nothing is created until you confirm the next step.'
+            : checkedTarget.status === 'updateable'
+              ? 'Updates usually take a few minutes.'
+              : hasDatabase
+                ? 'First deploys with a new database take 10–15 minutes.'
+                : hasUnverifiedServices
+                  ? 'Some services were not checked locally; AWS will be their first full run.'
+                  : 'Usually a few minutes.';
+  const actionDisabled = stage === '' || verificationBlocks || compositionBlocks;
   const actionButton = (
     <Button
       aria-describedby="deploy-action-hint"
@@ -414,23 +425,28 @@ export function DeployStep({
                 </dd>
               </div>
             )}
-            <div className="min-w-0">
-              <dt>Stacktape account</dt>
-              <dd>
-                {account === undefined ? (
-                  <span className="text-[var(--stp-text-muted)]">Checking…</span>
-                ) : account.signedIn ? (
+            {identity !== undefined && (
+              <div className="min-w-0">
+                <dt>{identity.profile === undefined ? 'Credentials' : 'AWS profile'}</dt>
+                <dd className={identity.profile === undefined ? undefined : 'wizard-code [overflow-wrap:anywhere]'}>
+                  {identity.profile ?? 'Environment variables'}
+                </dd>
+              </div>
+            )}
+            {/* Only when there is one: signed out is the ordinary case and needs no mention before the deploy. */}
+            {account?.signedIn === true && (
+              <div className="min-w-0">
+                <dt>Stacktape account</dt>
+                <dd>
                   <span className="[overflow-wrap:anywhere]">
                     {account.email ?? 'Signed in'}
                     {account.organization !== undefined && (
                       <span className="text-[var(--stp-text-muted)]"> · {organizationLabel(account.organization)}</span>
                     )}
                   </span>
-                ) : (
-                  <span className="text-[var(--stp-text-muted)]">Not signed in</span>
-                )}
-              </dd>
-            </div>
+                </dd>
+              </div>
+            )}
           </dl>
           {identity !== undefined && !identity.available && (
             <Alert
@@ -442,7 +458,14 @@ export function DeployStep({
               }
             >
               <p className="m-0 mb-3">
-                {identity.reason === 'no-credentials' ? (
+                {identity.reason === 'no-credentials' && account?.signedIn !== true ? (
+                  <>
+                    Deploying needs access to an AWS account from this machine. Set up credentials with{' '}
+                    <span className="wizard-code">aws configure</span> (or{' '}
+                    <span className="wizard-code">aws configure sso</span>), then check again; nothing on this page is
+                    lost.
+                  </>
+                ) : identity.reason === 'no-credentials' ? (
                   <>
                     Deploying needs access to an AWS account. Either connect one in the{' '}
                     <a
@@ -507,22 +530,6 @@ export function DeployStep({
           Your existing <span className="wizard-code">{file.existingPath}</span> was not touched. The deploy uses{' '}
           <span className="wizard-code">{file.filename}</span>.
         </p>
-      )}
-
-      {account?.signedIn === false && (
-        <section>
-          <h3 className="wizard-section-heading">Sign in or create an account to deploy</h3>
-          <p className="wizard-lede mb-4">
-            Deploying goes through Stacktape, so it needs an account. A free one is enough. The file you saved stays as
-            it is either way.
-          </p>
-          <SignInPanel
-            isRechecking={isBusy === 'recheck'}
-            onRecheck={onRecheck}
-            onSignIn={onSignIn}
-            signIn={state.signIn}
-          />
-        </section>
       )}
 
       {(secrets.length > 0 || gaps.length > 0 || unsetNames.length > 0) && (

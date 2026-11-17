@@ -901,6 +901,24 @@
     overflow-wrap: anywhere;
   }
 
+  /* The Console, offered under the live addresses. The same surface as the result above it, never louder. */
+  .wizard-console {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 20px 18px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-console-note {
+    margin: -4px 0 0;
+    max-width: var(--wizard-measure);
+    color: var(--stp-text-subtle);
+    font-size: 0.82rem;
+  }
+
   /* One block per checked service: a mark and its name on one line, what happened under them. */
   .wizard-check {
     display: flex;
@@ -956,6 +974,11 @@
     width: 100%;
     max-width: 420px;
     padding: 20px;
+  }
+
+  /* Inside a card that is already a panel: no second frame. */
+  .wizard-signin.is-bare {
+    padding: 0;
   }
 
   /* The code the person compares with the Console page: large enough to read at a glance. */
