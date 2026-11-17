@@ -50,6 +50,7 @@ import { initializeDeployOperation } from '../_utils/initialization';
 import { hintCodingAgentSetupAfterFirstDeploy } from '../_utils/coding-agent-hint';
 import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
 import { showConsoleHintsAfterDeploy } from '../_utils/console-hints';
+import { showFreePlanNoticeAfterDeploy } from '../_utils/free-plan-notice';
 import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { resolveSlackAppChannels } from '@domain-services/config-manager/utils/slack-app-channels';
 import { buildUptimeChecksSyncPayload, withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
@@ -709,6 +710,8 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   }
   if (globalStateManager.isAccountFree) {
     lifecycle.addFinalAction(() => showConsoleHintsAfterDeploy({ projectName: stackContext.projectName }));
+  } else {
+    lifecycle.addFinalAction(() => showFreePlanNoticeAfterDeploy());
   }
 
   const reportSecurityFindings = async () => {

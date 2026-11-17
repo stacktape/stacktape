@@ -38,6 +38,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { createAwsErrorHandler, createAwsLoggingPlugin } from 'src/aws/client-instrumentation';
 import { logCollectorStream } from '@utils/log-collector';
 import { ensureAwsAccountConnected } from './aws-connection-preflight';
+import { rememberFreePlanNotice } from './free-plan-notice';
 import { consoleSignInRequiredError } from '@application-services/global-state-manager/account-mode';
 import { publicCommandName } from 'src/config/cli/public-names';
 import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
@@ -351,6 +352,7 @@ export const initializeStackOperationLifecycle = async ({
     if (subscription && !subscription.canDeploy) {
       throw stpErrors.e502(subscription);
     }
+    rememberFreePlanNotice(subscription?.notice);
     await loadTargetStackContext({ skipRawConfig: skipRawConfigForTarget });
     assertCommandPermissions({
       command: globalStateManager.command,
