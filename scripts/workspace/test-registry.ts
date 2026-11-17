@@ -1005,7 +1005,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network', 'docker'],
     release: 'every-candidate',
     proves:
-      "Stacks shaped like the paying customers' and created by the released 3.7.1 CLI upgrade through the documented migration without replacing or deleting a stateful resource; the sites, functions, a batch job, an alarm webhook and the database rows the v3 deploys wrote all survive; a code-only change then takes the fast path; and deletion leaves nothing but deferred edge replicas."
+      "Stacks shaped like the paying customers' and created by the released 3.x CLIs they run (3.7.1 binary, 3.5.7 npm package) upgrade through the documented migration without replacing or deleting a stateful resource; the sites, functions, a batch job, an alarm notification and the database rows the v3 deploys wrote all survive; a code-only change then takes the fast path; and deletion leaves nothing but deferred edge replicas."
   },
   {
     id: 'container-fast-deploy-live',
