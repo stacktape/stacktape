@@ -18,7 +18,7 @@ import { ApiKeyProtectedClient } from '@stacktape-api/api-key-protected';
 import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { commandsNotRequiringApiKey } from '../../config/cli/commands';
+import { consoleOnlyInvocation, consoleOnlyReason, consoleSignInRequiredError } from './account-mode';
 import { getRequiredArgs } from '../../config/cli/utils';
 import {
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_NAME,
@@ -156,7 +156,7 @@ export class GlobalStateManager {
     if (
       !runnerCredentials.apiKey &&
       runnerCredentials.githubActionsToken &&
-      !['version', 'help', 'login', 'logout', 'upgrade', 'mcp:add', 'mcp:remove'].includes(this.command)
+      !['version', 'help', 'login', 'logout', 'connect', 'upgrade', 'mcp:add', 'mcp:remove'].includes(this.command)
     ) {
       const client = new ApiKeyProtectedClient();
       await client.init({ apiKey: runnerCredentials.githubActionsToken });
@@ -241,22 +241,32 @@ export class GlobalStateManager {
     }
     rememberEnvironmentApiKey(runnerCredentials.apiKey);
     this.apiKey = runnerCredentials.apiKey || (await this.loadStoredApiKey());
-    if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command)) {
-      if (process.stdout.isTTY) {
-        // Interactive sign-in: the browser (device code) or a pasted API key.
-        const { runAuthFlow } = await import('../../commands/_utils/auth');
-        const authResult = await runAuthFlow({ command: this.command });
-        if (!authResult.success || !authResult.apiKey) {
-          throw stpErrors.e501({ operation: this.command });
-        }
-        this.apiKey = authResult.apiKey;
-        await this.saveApiKey({ apiKey: authResult.apiKey });
-      } else {
-        throw stpErrors.e501({ operation: this.command });
-      }
+    // Without an API key, every command except the Console features runs account-free, on local AWS credentials.
+    const consoleReason = this.apiKey ? undefined : consoleOnlyReason({ command: this.command, args: this.rawArgs });
+    if (consoleReason) {
+      const signInRequired = consoleSignInRequiredError({
+        invocation: consoleOnlyInvocation(this.command),
+        reason: consoleReason
+      });
+      if (!canPromptPerson(this.rawArgs as StacktapeCliArgs)) throw signInRequired;
+      tuiManager.info(signInRequired.message);
+      // Interactive sign-in: the browser (device code) or a pasted API key.
+      const { runAuthFlow } = await import('../../commands/_utils/auth');
+      const authResult = await runAuthFlow({ command: this.command });
+      if (!authResult.success || !authResult.apiKey) throw signInRequired;
+      this.apiKey = authResult.apiKey;
+      await this.saveApiKey({ apiKey: authResult.apiKey });
     }
     this.isInitialized = true;
   };
+
+  /**
+   * No Stacktape API key: the CLI works without the Console. Stack commands use local AWS credentials, and nothing is
+   * sent to the Stacktape API.
+   */
+  get isAccountFree() {
+    return !this.apiKey;
+  }
 
   get args(): StacktapeArgs {
     if (!this.rawArgs) {
@@ -399,6 +409,11 @@ export class GlobalStateManager {
       await savePersistedState(this.persistedState);
     }
     return apiKey;
+  };
+
+  markTelemetryNoticeShown = async () => {
+    this.persistedState.telemetryNoticeShown = true;
+    await savePersistedState(this.persistedState);
   };
 
   saveApiKey = async ({ apiKey }: { apiKey: string | null }) => {

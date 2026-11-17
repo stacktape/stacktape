@@ -107,6 +107,7 @@ import { MAX_UPTIME_CHECKS_PER_STACK, resolveUptimeCheckRegions, validateUptimeC
 import { buildNextjsWebNestedResources } from './utils/nextjs-webs';
 import { buildSsrWebNestedResources } from './utils/ssr-webs';
 import { runInitialValidations, validateConfigStructure, validateGuardrails } from './utils/validation';
+import { consoleOnlyFeaturesError, findConsoleOnlyFeatures } from './utils/console-features';
 import {
   isResourceTypeExcludedInDevMode,
   selectWorkloadsDeployedInDevMode,
@@ -178,6 +179,7 @@ export class ConfigManager {
   #helperLambdaDetails: HelperLambdaDetails | undefined;
   #securityScanning: SecurityScanningContext = {};
   #consoleStageType: ConfigManagerInitContext['consoleStageType'];
+  #consoleConnected = true;
   #discoveredConfig: DiscoveredConfig | undefined;
   #cliRemoteResourceNames: readonly string[] = [];
   #devAutoRemoteResourceNames: readonly string[] = [];
@@ -261,6 +263,7 @@ export class ConfigManager {
     candidate.#cliRemoteResourceNames = [...(context.resolver.builtInDirectives.cliArgs.remoteResources ?? [])];
     candidate.#securityScanning = context.securityScanning ?? {};
     candidate.#consoleStageType = context.consoleStageType;
+    candidate.#consoleConnected = context.consoleConnected ?? true;
     // Reuse what discovery loaded rather than loading the configuration again, so a TypeScript config and its
     // transform side channel are produced by exactly one execution of the user's module.
     const discoveredConfig = this.#getDiscoveredConfigFor(context.resolver);
@@ -287,6 +290,10 @@ export class ConfigManager {
       const endValidate = startTiming('config:validate');
       await validateConfigStructure({ config: candidate.config, configPath });
       runInitialValidations({ configManager: candidate, stackContext: candidate.stackContext });
+      if (!candidate.#consoleConnected) {
+        const consoleOnlyFeatures = findConsoleOnlyFeatures(candidate);
+        if (consoleOnlyFeatures.length) throw consoleOnlyFeaturesError(consoleOnlyFeatures);
+      }
       endValidate();
     }
 
@@ -325,8 +332,17 @@ export class ConfigManager {
     this.#stackContext = candidate.#stackContext;
     this.#helperLambdaDetails = candidate.#helperLambdaDetails;
     this.#securityScanning = candidate.#securityScanning;
+    this.#consoleConnected = candidate.#consoleConnected;
     this.#cliRemoteResourceNames = candidate.#cliRemoteResourceNames;
   };
+
+  /**
+   * Whether this command uses the Stacktape Console. Without it the stack gets no `*.stacktape-app.com` default domains
+   * (HTTP APIs and CDNs use their AWS URLs) and no Console reporting.
+   */
+  get consoleConnected() {
+    return this.#consoleConnected;
+  }
 
   reset = () => {
     this.configResolver.reset();
@@ -342,6 +358,7 @@ export class ConfigManager {
     this.#stackContext = undefined;
     this.#helperLambdaDetails = undefined;
     this.#securityScanning = {};
+    this.#consoleConnected = true;
     this.#cliRemoteResourceNames = [];
     this.#devAutoRemoteResourceNames = [];
     this.#devSkippedFunctionNames = new Set();
@@ -402,7 +419,9 @@ export class ConfigManager {
       stackContext: this.stackContext
     });
 
+  /** The organization's alarms, notifications and guardrails; there are none without the Console. */
   loadGlobalConfig = async () => {
+    if (!this.#consoleConnected) return;
     this.applyGlobalConfig(await stacktapeTrpcApiManager.apiClient.globalConfig());
   };
 
@@ -1704,6 +1723,9 @@ export class ConfigManager {
   get issueDetectionPolicy(): { enabled: boolean; reason: string } {
     const errorTracking = this.config?.deploymentConfig?.errorTracking;
     const stage = this.stackContext.stage;
+    if (!this.#consoleConnected) {
+      return { enabled: false, reason: 'error tracking needs the Stacktape Console' };
+    }
     if (errorTracking?.enabled === false) {
       return { enabled: false, reason: 'turned off by deploymentConfig.errorTracking.enabled' };
     }
@@ -2634,7 +2656,8 @@ export class ConfigManager {
       projectName: this.stackContext.projectName,
       globallyUniqueStackHash: this.globallyUniqueStackHash,
       stackName: this.stackContext.stackName,
-      stage: this.stackContext.stage
+      stage: this.stackContext.stage,
+      consoleConnected: this.#consoleConnected
     });
   }
 
@@ -2840,6 +2863,8 @@ export class ConfigManager {
   }
 
   get defaultDomainsAreRequired() {
+    // Without the Console nothing gets a default domain: validation rejects what cannot fall back to an AWS URL.
+    if (!this.#consoleConnected) return false;
     return (
       this.allApplicationLoadBalancers.some(({ listeners, customDomains, cdn }) => {
         // note: alb with NO specified listeners will automatically get HTTPS listener (without custom cert)
