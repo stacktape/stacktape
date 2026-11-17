@@ -76,7 +76,8 @@ export function StartStep({
         </li>
         <li>
           <strong>Nothing is created on AWS and nothing is billed.</strong> The result is one file in your project. AWS
-          only comes into it if you confirm a deploy at the end, and that step says so before it does anything.
+          only comes into it if you confirm a deploy at the end, and that step says so before it does anything. No
+          Stacktape account is needed for any of it.
         </li>
         <li>
           <strong>You will see everything before you commit to it.</strong> Every piece of infrastructure comes with the

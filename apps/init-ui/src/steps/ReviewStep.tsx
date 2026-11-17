@@ -209,15 +209,10 @@ const plainList = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 
 /** Says what deploying will still need, when something is missing; silent when everything is set up. */
-const saveFootnote = (state: WizardState): string | undefined => {
-  const missing = [
-    ...(state.awsIdentity !== undefined && state.awsIdentity.available !== true ? ['AWS credentials'] : []),
-    ...(state.stacktapeAccount !== undefined && state.stacktapeAccount.signedIn !== true ? ['a Stacktape sign-in'] : [])
-  ];
-  return missing.length === 0
-    ? undefined
-    : `Saving needs no account. Deploying needs ${missing.join(' and ')}; the next step helps with that.`;
-};
+const saveFootnote = (state: WizardState): string | undefined =>
+  state.awsIdentity !== undefined && state.awsIdentity.available !== true
+    ? 'Saving needs nothing else. Deploying needs AWS credentials on this machine; the next step helps with that.'
+    : undefined;
 
 /** What the file will be called, given the format and whether the project already has one. */
 const filenameFor = (format: 'yaml' | 'typescript', hasExisting: boolean): string =>
@@ -658,8 +653,8 @@ export function ReviewStep({
             <Row
               description={
                 automaticAlarms.length === 1
-                  ? `It fires when the ${lowerFirst(automaticAlarms[0]!)}, ignoring a single noisy sample. Alerts are listed in the Stacktape Console; connect a Slack or email channel there to get notified.`
-                  : 'Each ignores a single noisy sample. Alerts are listed in the Stacktape Console; connect a Slack or email channel there to get notified.'
+                  ? `It fires when the ${lowerFirst(automaticAlarms[0]!)}, ignoring a single noisy sample. It is a CloudWatch alarm in your AWS account; the Stacktape Console can send it to Slack or email.`
+                  : 'Each ignores a single noisy sample. They are CloudWatch alarms in your AWS account; the Stacktape Console can send them to Slack or email.'
               }
               title={
                 automaticAlarms.length === 1

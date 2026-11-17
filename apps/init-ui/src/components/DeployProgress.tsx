@@ -125,9 +125,7 @@ export function DeployProgress({
               ))}
             </ul>
           ) : (
-            <p className="m-0 text-[var(--stp-text-muted)]">
-              Everything was created. No public address was found for it; the Console lists its resources.
-            </p>
+            <p className="m-0 text-[var(--stp-text-muted)]">Everything was created. None of it has a public address.</p>
           )}
           {anyRepairApplied && (
             <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">

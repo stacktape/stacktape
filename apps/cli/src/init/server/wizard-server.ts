@@ -57,8 +57,26 @@ export type WizardAgentOption = {
  * involved: this is the identity, never the credentials behind it.
  */
 export type WizardAwsIdentity =
-  | { available: true; accountId: string; arn: string; region?: string }
-  | { available: false; reason: 'no-credentials' | 'rejected'; detail: string };
+  | {
+      available: true;
+      accountId: string;
+      arn: string;
+      region?: string;
+      /** The AWS profile these credentials came from, when one was selected rather than environment variables. */
+      profile?: string;
+    }
+  | { available: false; reason: 'no-credentials' | 'rejected'; detail: string; profile?: string };
+
+/**
+ * The Stacktape Console, after a successful deploy.
+ *
+ * `linked`: the deploy ran signed in, so the stage is already in the Console. Every other status belongs to a deploy
+ * that ran on this machine's AWS credentials alone, and says how far connecting it to the Console has got. Connecting
+ * signs in when needed, then connects the AWS account; nothing deployed changes.
+ */
+export type WizardConsoleConnection =
+  | { status: 'linked' | 'offered' | 'dismissed' | 'signing-in' | 'connecting' | 'connected' }
+  | { status: 'failed'; detail: string };
 
 /**
  * A deploy in progress or finished.
@@ -165,7 +183,8 @@ export type WizardState = {
   /** Who this machine is to AWS, resolved before the deploy step offers a button. */
   awsIdentity?: WizardAwsIdentity;
   /**
-   * Deploying needs a signed-in Stacktape account; generating never does. Absent while checking.
+   * Whether this machine is signed in to Stacktape. Neither generating nor deploying needs it: signed out, the deploy
+   * runs on this machine's AWS credentials alone. Absent while checking.
    *
    * `email` and `organization` are who the account check found, when it said: enough for the page
    * to confirm which account a deploy will run as.
@@ -188,6 +207,8 @@ export type WizardState = {
   };
   /** The deploy, once one has been asked for. */
   deployment?: WizardDeployment;
+  /** The Console, offered or linked once a deploy has succeeded. Absent before that. */
+  consoleConnection?: WizardConsoleConnection;
   /**
    * Connecting the coding agent picked on the Start step to Stacktape, offered once a deploy has succeeded. Absent
    * when no coding agent was picked. It changes that agent's user-level configuration, outside the repository, so it
@@ -281,6 +302,11 @@ export type WizardServerHooks = {
   onSignIn: (action: WizardSignInAction) => Promise<void> | void;
   /** Called when the user asks to connect their coding agent to Stacktape. Publishes for itself, like `onDeploy`. */
   onCodingAgentSetup: () => Promise<void> | void;
+  /**
+   * Called when the user accepts or sets aside the Console offer after a deploy. Publishes for itself, like
+   * `onSignIn`: signing in and connecting finish minutes after the click.
+   */
+  onConsoleConnection: (action: 'connect' | 'dismiss') => Promise<void> | void;
 };
 
 const json = (response: ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) => {
@@ -817,6 +843,26 @@ export const startWizardServer = async ({
         }
         try {
           await hooks.onCodingAgentSetup();
+          json(response, 200, state);
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      // Accepts or sets aside the Console offer. The action is in the path; there is no body.
+      if (url.pathname.startsWith('/api/console-connection/') && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        const action = url.pathname.slice('/api/console-connection/'.length);
+        if (action !== 'connect' && action !== 'dismiss') {
+          json(response, 404, { error: 'Not found.' });
+          return;
+        }
+        try {
+          await hooks.onConsoleConnection(action);
           json(response, 200, state);
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });

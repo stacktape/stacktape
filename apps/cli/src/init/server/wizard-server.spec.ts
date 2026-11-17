@@ -19,11 +19,13 @@ let deployed: Array<{
   expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
 }> = [];
 let signInActions: WizardSignInAction[] = [];
+let consoleActions: Array<'connect' | 'dismiss'> = [];
 
 const start = async (overrides: Partial<Parameters<typeof startWizardServer>[0]> = {}) => {
   started = [];
   deployed = [];
   signInActions = [];
+  consoleActions = [];
   server = await startWizardServer({
     initialState: baseState,
     hooks: {
@@ -52,6 +54,9 @@ const start = async (overrides: Partial<Parameters<typeof startWizardServer>[0]>
       onRecheck: () => baseState,
       onSignIn: (action) => {
         signInActions.push(action);
+      },
+      onConsoleConnection: (action) => {
+        consoleActions.push(action);
       }
     },
     ...overrides
@@ -468,6 +473,26 @@ describe('signing in from the page', () => {
 
     expect(statuses).toEqual(rejected.map(() => 400));
     expect(signInActions).toEqual([]);
+  });
+});
+
+describe('the Console offer after a deploy', () => {
+  it('passes connect and dismiss through, and nothing without the CSRF token', async () => {
+    const { origin, token } = await start();
+    const { cookie, body } = await handshake(origin, token);
+    const post = (action: string, withCsrf = true) =>
+      fetch(`${origin}/api/console-connection/${action}`, {
+        method: 'POST',
+        headers: { Origin: origin, Cookie: cookie, ...(withCsrf ? { 'x-csrf-token': body.csrfToken ?? '' } : {}) }
+      });
+
+    expect((await post('connect', false)).status).toBe(403);
+    expect((await post('disconnect')).status).toBe(404);
+    expect(consoleActions).toEqual([]);
+
+    expect((await post('connect')).status).toBe(200);
+    expect((await post('dismiss')).status).toBe(200);
+    expect(consoleActions).toEqual(['connect', 'dismiss']);
   });
 });
 

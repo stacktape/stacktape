@@ -515,12 +515,13 @@ Supported metrics by resource type:
   init: {
     description: `Initializes a new Stacktape project and guides you through deployment.
 
-By default, runs an interactive wizard that:
-1. Analyzes your project with AI and generates a configuration
-2. Helps you sign up or log in to Stacktape
-3. Connects your AWS account
-4. Creates a project and optionally sets up CI/CD
-5. Offers to deploy immediately
+By default, opens a wizard in your browser that:
+1. Reads your project (with your own coding agent, or files only) and proposes a configuration
+2. Writes the configuration file once you have reviewed it
+3. Deploys it to the AWS account of the credentials on this machine, after showing the exact account and stack
+
+No Stacktape account is needed. After a successful deploy, the wizard offers the Stacktape Console (deploy history,
+costs, alerts and team access) and a CI/CD pipeline.
 
 Alternative modes:
 - **Starter project:** Use \`--starter-project\` or \`--starter-id\` to initialize from a pre-configured template.`,

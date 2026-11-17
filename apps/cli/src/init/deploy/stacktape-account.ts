@@ -14,6 +14,7 @@
 
 import { spawn } from 'node:child_process';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
+import { childCliCredentialEnvironment } from '@application-services/global-state-manager/runner-credentials';
 import { resolveSelfCommand } from './run-deploy';
 
 export type StacktapeAccount =
@@ -50,34 +51,44 @@ export const identityFrom = (data: unknown): { email?: string; organization?: st
   };
 };
 
-export const resolveStacktapeAccount = async ({
-  timeoutMs = 25_000
-}: { timeoutMs?: number } = {}): Promise<StacktapeAccount> => {
+/** The one terminal result a child CLI command reported, or why there was none. */
+type ChildResult = { ok: true; message: string; data: unknown } | { ok: false; message: string };
+
+/**
+ * Runs this CLI's own command as a child in agent mode and resolves with its single `result` event.
+ *
+ * The child is never killed, deliberately. On a Windows console, killing it can raise CTRL_C for the whole console
+ * process group — the wizard included — and the session then shuts itself down cleanly, silently, mid-use. The child
+ * prints its result and exits on its own a moment later; `unref` keeps it from holding the parent open.
+ */
+export const runCliForResult = ({
+  args,
+  timeoutMs,
+  timeoutMessage
+}: {
+  args: string[];
+  timeoutMs: number;
+  timeoutMessage: string;
+}): Promise<ChildResult> => {
   const self = resolveSelfCommand();
 
   return new Promise((resolvePromise) => {
-    const child = spawn(self.command, [...self.args, 'info:whoami', '--agent'], {
+    const child = spawn(self.command, [...self.args, ...args, '--agent'], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, FORCE_COLOR: '0' },
+      env: { ...process.env, ...childCliCredentialEnvironment(), FORCE_COLOR: '0' },
       ...(process.platform === 'win32' && !self.command.includes('\\') ? { shell: true } : {})
     });
     // A background check must never be the thing keeping the CLI alive.
     child.unref();
 
     let settled = false;
-    const settle = (result: StacktapeAccount) => {
+    const settle = (result: ChildResult) => {
       if (settled) return;
       settled = true;
       resolvePromise(result);
-      // The child is NOT killed, deliberately. On a Windows console, killing it can raise CTRL_C
-      // for the whole console process group — the wizard included — and the session then shuts
-      // itself down cleanly, silently, mid-use. The child prints its result and exits on its own a
-      // moment later; `unref` below already keeps it from holding the parent open.
     };
 
-    const timer = setTimeout(() => {
-      settle({ signedIn: false, detail: 'Could not check the Stacktape account in time.' });
-    }, timeoutMs);
+    const timer = setTimeout(() => settle({ ok: false, message: timeoutMessage }), timeoutMs);
     timer.unref?.();
 
     let buffered = '';
@@ -89,9 +100,7 @@ export const resolveStacktapeAccount = async ({
           const event = JSON.parse(line) as JsonlEvent;
           if (event.type !== 'result') continue;
           settle(
-            event.ok
-              ? { signedIn: true, detail: event.message, ...identityFrom(event.data) }
-              : { signedIn: false, detail: event.message }
+            event.ok ? { ok: true, message: event.message, data: event.data } : { ok: false, message: event.message }
           );
         } catch {
           // Not part of the protocol; ignore.
@@ -100,7 +109,39 @@ export const resolveStacktapeAccount = async ({
       buffered = buffered.slice(buffered.lastIndexOf('\n') + 1);
     });
 
-    child.on('error', (error) => settle({ signedIn: false, detail: error.message }));
-    child.on('close', () => settle({ signedIn: false, detail: 'The account check ended without an answer.' }));
+    child.on('error', (error) => settle({ ok: false, message: error.message }));
+    child.on('close', () => settle({ ok: false, message: 'The command ended without an answer.' }));
   });
+};
+
+export const resolveStacktapeAccount = async ({
+  timeoutMs = 25_000
+}: { timeoutMs?: number } = {}): Promise<StacktapeAccount> => {
+  const result = await runCliForResult({
+    args: ['info:whoami'],
+    timeoutMs,
+    timeoutMessage: 'Could not check the Stacktape account in time.'
+  });
+  return result.ok
+    ? { signedIn: true, detail: result.message, ...identityFrom(result.data) }
+    : { signedIn: false, detail: result.message };
+};
+
+/**
+ * Connects the AWS account of this machine's credentials to the signed-in organization, the way `stacktape connect`
+ * does in a terminal, so stacks deployed without an account appear in the Console. Nothing deployed changes.
+ *
+ * It creates the connection's CloudFormation stack and waits for the Console to activate it, which takes a minute or
+ * two, hence the long timeout.
+ */
+export const connectConsole = async ({ timeoutMs = 10 * 60_000 }: { timeoutMs?: number } = {}): Promise<{
+  ok: boolean;
+  detail: string;
+}> => {
+  const result = await runCliForResult({
+    args: ['connect'],
+    timeoutMs,
+    timeoutMessage: 'Connecting took too long. Run stacktape connect in a terminal to finish.'
+  });
+  return { ok: result.ok, detail: result.message };
 };
