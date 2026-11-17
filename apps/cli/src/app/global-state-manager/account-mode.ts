@@ -20,6 +20,13 @@ export const consoleOnlyReason = ({
   return consoleOnlyCommands[command];
 };
 
+/**
+ * Who a session started from this machine belongs to, in AWS role session names and SSM session reasons: the Console
+ * user, or without the Console the random install ID. Both fit the role session name alphabet.
+ */
+export const localSessionUserId = ({ userId, installId }: { userId?: string; installId: string }) =>
+  userId ?? `install-${installId}`;
+
 /** The command as it is typed: `deploy --runner ec2` for the remote runner. */
 export const consoleOnlyInvocation = (command: StacktapeCommand) =>
   command === 'deploy' ? 'deploy --runner ec2' : publicCommandName(command);

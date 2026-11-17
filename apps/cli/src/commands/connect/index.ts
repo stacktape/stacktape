@@ -6,6 +6,7 @@ import { CliError } from '@utils/errors';
 import { stacktapeConsoleUrl } from 'src/config/params';
 import { runAuthFlow } from '../_utils/auth';
 import { connectAwsAccount } from '../_utils/aws-connection-preflight';
+import { connectionNameFor, earlierAttemptsFor } from './connection-name';
 
 /**
  * Moves a CLI that works without an account to the Console: signs in when needed, then connects the AWS account of the
@@ -48,9 +49,22 @@ export const commandConnect = async () => {
   await globalStateManager.resolveLocalAwsAccount();
   const { awsAccountId } = globalStateManager.targetAwsAccount;
 
-  const existingConnection = organizationData.connectedAwsAccounts.find(
-    (account) => account.awsAccountId === awsAccountId
-  );
+  // An earlier attempt may have activated after the CLI stopped waiting for it.
+  const earlierAttempts = earlierAttemptsFor({ awsAccountId, connections: organizationData.connectedAwsAccounts });
+  const activatedLater = (
+    await Promise.all(
+      earlierAttempts.map((attempt) =>
+        stacktapeTrpcApiManager.apiClient
+          .getAwsConnectionStatus({ connectionId: attempt.id })
+          .then((status) => (status.state === 'ACTIVE' && status.awsAccountId === awsAccountId ? attempt : undefined))
+          .catch(() => undefined)
+      )
+    )
+  ).find(Boolean);
+  const existingConnection =
+    organizationData.connectedAwsAccounts.find(
+      (account) => account.awsAccountId === awsAccountId && account.state === 'ACTIVE'
+    ) ?? activatedLater;
   if (existingConnection) {
     tuiManager.info(
       `AWS account ${awsAccountId} is already connected to ${organization.name} as ${existingConnection.name}.`
@@ -69,7 +83,11 @@ export const commandConnect = async () => {
       organizationId: organization.id,
       organizationName: organization.name,
       localCredentials,
-      browserFallback: !agentMode
+      browserFallback: !agentMode,
+      connectionName: connectionNameFor({
+        awsAccountId,
+        takenNames: organizationData.connectedAwsAccounts.map(({ name }) => name)
+      })
     });
   }
 

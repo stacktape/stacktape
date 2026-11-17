@@ -4739,6 +4739,8 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/cli-process/login.spec.ts',
       'apps/cli/tests/cli-process/account-free.spec.ts',
       'apps/cli/src/app/global-state-manager/account-mode.spec.ts',
+      'apps/cli/src/app/global-state-manager/local-caller-identity.spec.ts',
+      'apps/cli/src/commands/connect/connection-name.spec.ts',
       'apps/cli/src/commands/_utils/console-hints.spec.ts',
       'apps/cli/tests/cli-process/logout.spec.ts',
       'apps/cli/tests/cli-process/package-without-aws.spec.ts',

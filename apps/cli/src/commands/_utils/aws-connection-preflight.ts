@@ -61,14 +61,15 @@ const detectLocalAwsCredentials = async (): Promise<{
  */
 const runAutoAwsConnection = async (
   organizationId: string,
-  credentials: AwsCredentialsProvider
+  credentials: AwsCredentialsProvider,
+  connectionName: string
 ): Promise<{ success: boolean; awsAccountId?: string; connectionName?: string; error?: string }> => {
   try {
     // 1. Initialize connection on server, get CF stack parameters
     const { connectionId, stackName, templateUrl, parameters } =
       await stacktapeTrpcApiManager.apiClient.initAwsConnectionForCli({
         organizationId,
-        connectionName: 'aws-account',
+        connectionName,
         connectionMode: 'PRIVILEGED'
       });
 
@@ -323,11 +324,14 @@ export const connectAwsAccount = async ({
   organizationId,
   organizationName,
   localCredentials,
-  browserFallback = true
+  browserFallback = true,
+  connectionName = 'aws-account'
 }: {
   organizationId: string;
   organizationName: string;
   localCredentials?: AwsCredentialsProvider;
+  /** Unique in the organization. */
+  connectionName?: string;
   /** False for a caller that cannot open a browser or wait for a person, such as agent mode. */
   browserFallback?: boolean;
 }): Promise<{ awsAccountId?: string }> => {
@@ -337,7 +341,7 @@ export const connectAwsAccount = async ({
       additionalMessage: 'Setting up connection using local credentials'
     });
 
-    const result = await runAutoAwsConnection(organizationId, localCredentials);
+    const result = await runAutoAwsConnection(organizationId, localCredentials, connectionName);
 
     if (result.success) {
       await operationReporter.finishEvent({
@@ -377,7 +381,7 @@ export const connectAwsAccount = async ({
 
   const { connectionId, quickCreateUrl } = await stacktapeTrpcApiManager.apiClient.createAwsConnectionPending({
     organizationId,
-    connectionName: 'aws-account',
+    connectionName,
     connectionMode: 'PRIVILEGED'
   });
 

@@ -189,14 +189,32 @@ const loadLocalTargetStackContext = async () => {
  * Local AWS credentials without the Console. `package` passes `lookUpAccount: false`: it looks the account up only when
  * something needs it. Commands that read the stack, such as `synth` and `validate`, look it up now.
  */
-const loadLocalAwsContext = async ({ lookUpAccount }: { lookUpAccount: boolean }) => {
-  await loadLocalAwsCredentials({ lookUpAccount });
+const loadLocalAwsContext = async ({
+  lookUpAccount,
+  callerIdentity = false
+}: {
+  lookUpAccount: boolean;
+  callerIdentity?: boolean;
+}) => {
+  await loadLocalAwsCredentials({ lookUpAccount, callerIdentity });
   await loadLocalTargetStackContext();
 };
 
-const loadLocalAwsCredentials = async ({ lookUpAccount }: { lookUpAccount: boolean }) => {
+/**
+ * `callerIdentity` also looks up who the credentials belong to when the profile already named the account: commands
+ * that change or use the stack assume roles and write the developer into trust policies.
+ */
+const loadLocalAwsCredentials = async ({
+  lookUpAccount,
+  callerIdentity = false
+}: {
+  lookUpAccount: boolean;
+  callerIdentity?: boolean;
+}) => {
   const credentialsProvider = await globalStateManager.prepareLocalAwsCredentials();
-  if (lookUpAccount) {
+  if (callerIdentity) {
+    await globalStateManager.resolveLocalCallerIdentity();
+  } else if (lookUpAccount) {
     await globalStateManager.resolveLocalAwsAccount();
   }
   const endSdkInit = startTiming('context:aws-sdk-init');
@@ -349,7 +367,8 @@ export const initializeStackOperationLifecycle = async ({
     await loadUserCredentials();
     await loadLocalTargetStackContext();
   } else {
-    await loadLocalAwsContext({ lookUpAccount: true });
+    // `synth` and `validate` need only the account; a command that uses the stack needs the caller too.
+    await loadLocalAwsContext({ lookUpAccount: true, callerIdentity: requiresControlPlane });
   }
   const stackContext = getStackContext();
   await beforeConfigInit?.(stackContext);
@@ -696,7 +715,7 @@ export const initializeStackServicesForDevPhase1 = async () => {
 
   if (globalStateManager.isAccountFree) {
     assertNoConsoleAwsAccount();
-    await loadLocalAwsCredentials({ lookUpAccount: true });
+    await loadLocalAwsCredentials({ lookUpAccount: true, callerIdentity: true });
   } else {
     await globalStateManager.loadUserCredentials();
     // Dev mode deploys and updates a dev stack, so it follows the deploy rules: a Free organization over its monthly
@@ -916,7 +935,7 @@ export const initializeCloudFormationRollbackOperation = async () => ({
 export const loadUserCredentials = async () => {
   if (globalStateManager.isAccountFree) {
     assertNoConsoleAwsAccount();
-    await loadLocalAwsCredentials({ lookUpAccount: true });
+    await loadLocalAwsCredentials({ lookUpAccount: true, callerIdentity: true });
     return Object.freeze({
       args: captureCommandArgs(),
       region: globalStateManager.region,

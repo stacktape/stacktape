@@ -18,7 +18,12 @@ import { ApiKeyProtectedClient } from '@stacktape-api/api-key-protected';
 import { operationReporter } from '@application-services/operation-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { consoleOnlyInvocation, consoleOnlyReason, consoleSignInRequiredError } from './account-mode';
+import {
+  consoleOnlyInvocation,
+  consoleOnlyReason,
+  consoleSignInRequiredError,
+  localSessionUserId
+} from './account-mode';
 import { getRequiredArgs } from '../../config/cli/utils';
 import {
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_NAME,
@@ -266,6 +271,11 @@ export class GlobalStateManager {
    */
   get isAccountFree() {
     return !this.apiKey;
+  }
+
+  /** The Console user, or without the Console this machine's install ID: for AWS session names and reasons. */
+  get sessionUserId() {
+    return localSessionUserId({ userId: this.userData?.id, installId: this.systemId });
   }
 
   get args(): StacktapeArgs {
@@ -582,6 +592,17 @@ export class GlobalStateManager {
    */
   resolveLocalAwsAccount = async () => {
     if (this.localTargetAwsAccount || !this.localCredentialsProvider) return;
+    this.#localAwsAccountLookup ??= this.#lookUpLocalAwsAccount();
+    return this.#localAwsAccountLookup;
+  };
+
+  /**
+   * The caller identity of the local credentials, looked up with STS. A profile that names its account skips the account
+   * lookup, but commands that assume roles or write the developer into trust policies need the real caller, not the
+   * placeholder identity. Does nothing when the identity is already known.
+   */
+  resolveLocalCallerIdentity = async () => {
+    if (!this.localCredentialsProvider || this.credentials.source === 'providerChain') return;
     this.#localAwsAccountLookup ??= this.#lookUpLocalAwsAccount();
     return this.#localAwsAccountLookup;
   };
