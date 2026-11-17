@@ -135,9 +135,13 @@ For local development, run `stacktape login` again and choose the desired accoun
 
 Yes. A CLI session from an interactive login ends 90 days after login, or after 30 days without use, whichever comes first. Manual API keys used in CI expire according to the key's expiration setting. Use [`logout`](/cli/logout) to end the CLI session and remove local auth state.
 
+### Do I need to log in to deploy?
+
+No. Without a login, the CLI deploys with your local AWS credentials and does not use the Stacktape Console. Log in to use the Console. See [Use the CLI without an account](/getting-started/open-source-cli).
+
 ### Does `login` connect my AWS account?
 
-No. The `login` command only authenticates the Stacktape CLI with Stacktape. AWS account connection is separate from login; see [connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details. Deploying is handled by [`deploy`](/cli/deploy).
+No. The `login` command only authenticates the Stacktape CLI with Stacktape. AWS account connection is separate from login; see [connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details. `stacktape connect` does both: it signs you in if needed and connects the AWS account of your current AWS credentials. Deploying is handled by [`deploy`](/cli/deploy).
 
 ### Should team members share one API key?
 

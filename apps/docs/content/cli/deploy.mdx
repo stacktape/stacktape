@@ -117,13 +117,15 @@ stacktape deploy --stage production --region us-east-1
 
 ### Deploy to the account of an AWS profile
 
-The deploy goes to the connected AWS account that `my-aws-profile` belongs to. It fails if that account is not connected to your organization.
+The deploy goes to the AWS account that `my-aws-profile` belongs to. When the CLI is signed in to the Console, that account must be connected to your organization, or the deploy fails.
 
 ```bash
 stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --project my-app
 ```
 
 ### Deploy to a named connected account
+
+With the Console, choose one of the organization's connected AWS accounts by name.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --aws-account production

@@ -72,7 +72,7 @@ Delete with hooks enabled by providing the config file.
 stacktape delete --stage production --region eu-west-1 --config ./stacktape.ts
 ```
 
-Delete from the connected AWS account that an AWS profile belongs to.
+Delete from the AWS account that an AWS profile belongs to. When the CLI is signed in to the Console, that account must be connected to your organization.
 
 ```bash
 stacktape delete --stage dev-john --region us-east-1 --profile my-aws-profile

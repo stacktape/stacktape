@@ -12,7 +12,7 @@ GitOps is the recommended path for most teams. You connect your repository once,
 
 ### CLI prompt after first deploy
 
-After a successful CLI deploy that creates a new stack, the CLI asks whether to deploy automatically on pushes to your current branch (only in an interactive terminal). If you accept, it opens the browser to connect GitHub, GitLab or Bitbucket when needed, and creates a Git deployment for the stage you just deployed. If you skip the prompt, you can set up Git deployments at any time in the Stacktape Console.
+When the CLI is signed in to the Console, after a successful deploy that creates a new stack, it asks whether to deploy automatically on pushes to your current branch (only in an interactive terminal). If you accept, it opens the browser to connect GitHub, GitLab or Bitbucket when needed, and creates a Git deployment for the stage you just deployed. If you skip the prompt, you can set up Git deployments at any time in the Stacktape Console.
 
 ### What you can configure
 
@@ -41,13 +41,16 @@ Git deployments work with GitHub (through the Stacktape GitHub App), GitLab (git
 
 If you prefer managing your own pipeline — or need pre-deploy steps like tests and lint — use the Stacktape CLI directly. Any CI system that can run shell commands works: GitHub Actions, GitLab CI, CircleCI, and others.
 
-### Required environment variables
+### Credentials
 
-| Variable | Purpose |
+The pipeline needs one of these:
+
+| Credentials | When to use |
 |----------|---------|
-| `STACKTAPE_API_KEY` | Authenticates the CLI against the Stacktape API. Create one in the Console under [API keys](/stacktape-console/api-keys). |
+| AWS credentials only | Without a Stacktape account. Set AWS credentials in the job, for example with an IAM role your CI provider assumes through OIDC. The CLI deploys to the AWS account they belong to. See [CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account). |
+| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Create a key in the Console under [API keys](/stacktape-console/api-keys). The CLI deploys into the AWS account you connected to your Stacktape organization. |
 
-Store this key in your CI provider's secret store and expose it to the CLI as an environment variable. The CLI deploys into the AWS account you connected to your Stacktape organization.
+Store credentials in your CI provider's secret store and expose them to the CLI as environment variables. The examples below use an API key.
 
 ### GitHub Actions example
 

@@ -1,6 +1,6 @@
 # From scratch to production-grade AWS infra in a day. No DevOps knowledge required.
 
-Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and run it in the AWS account you control. Your infrastructure and application data stay in that account; operational data such as error events, check results and security findings goes to the Stacktape Console.
+Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and run it in the AWS account you control. The CLI is open source and needs no Stacktape account. Your infrastructure and application data stay in your AWS account; if you add the Stacktape Console, operational data such as error events, check results and security findings goes to it.
 
 
 - [Get started](/getting-started/configure-your-stack/)
@@ -159,7 +159,8 @@ stacktape init
 ### Deploy to AWS
 
 
-    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account.
+    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
+    local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
 
 
 Example (bash):
@@ -381,9 +382,9 @@ export default defineConfig(() => {
 ```
 
 
-## Open-source core, paid Console
+## Open-source CLI, optional Console
 
-Use Stacktape core completely free, or add the hosted Console when you want CI/CD, GitOps and observability.
+The CLI is open source (MIT) and works without an account. Add the hosted Console when your team wants deploy history, costs, alerts and Git deployments; it is free up to $200 a month of managed AWS spend. See [Billing and subscription](/stacktape-console/billing-and-subscription).
 
 
 See current pricing at https://stacktape.com/pricing.

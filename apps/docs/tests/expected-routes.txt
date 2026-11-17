@@ -97,6 +97,7 @@
 /getting-started/configure-your-stack
 /getting-started/deploy-your-first-stage
 /getting-started/going-to-production
+/getting-started/open-source-cli
 /getting-started/starter-projects
 /getting-started/upgrading-from-v3
 /getting-started/use-the-dev-mode

@@ -224,7 +224,7 @@ This allows you to test changes without redeploying every time.
 
 ### Access Logs & Metrics
 
-Logs and metrics are available in [stacktape console](https://console.stacktape.com)
+Read logs from the CLI, or in the [Stacktape Console](https://console.stacktape.com)
 
 ```bash
 stacktape logs:tail --resource myFunction
@@ -343,13 +343,15 @@ export default defineConfig(() => {
 });
 ```
 
-## Console and local CLI commands
+## The CLI without an account, and the Console
 
-The Console manages connected AWS accounts, projects, deployments, logs, costs and CI/CD integrations. See the
-[available plans](https://stacktape.com/pricing).
+The CLI works without a Stacktape account. Deploying, updating, rolling back and deleting stacks, dev mode, logs and
+secrets use the standard AWS credential chain and talk only to AWS. See
+[Use the CLI without an account](https://docs.stacktape.com/getting-started/open-source-cli).
 
-Local `package`, `synth` and `validate` commands use the standard AWS credential chain and do not require a Console
-login. Deployment and other control-plane workflows authenticate through Stacktape.
+The Console adds what a team shares: deploy history, costs, alerts, error tracking, Git deployments and access control.
+It is free up to $200 a month of managed AWS spend. `stacktape connect` adds your existing stacks to it without a
+redeploy. See the [available plans](https://stacktape.com/pricing).
 
 ## VS Code Extension
 
@@ -381,7 +383,8 @@ generated-file ownership and releases.
 
 ## License
 
-Stacktape is released under the [MIT License](LICENSE).
+The Stacktape CLI and the other code in this repository are released under the [MIT License](LICENSE). The Stacktape
+Console (the private `apps/console` submodule and the hosted service) is proprietary.
 
 ## Testimonials
 
