@@ -299,13 +299,21 @@ are uploaded from the run's artifacts, which are kept for one day.
 
 The GitHub environment `error-tracking` must allow only `main` and hold:
 
-- secret `POSTHOG_CLI_API_KEY`: a PostHog personal API key limited to the production project with the scopes
-  `error_tracking:write` and `organization:read`, and nothing else;
+- secret `POSTHOG_CLI_API_KEY`: a PostHog personal API key scoped to the production project with the single scope
+  `error_tracking:write`. `posthog-cli sourcemap upload` needs nothing else (`@posthog/cli` README, "Personal API key
+  scopes"); a project-scoped key cannot use organization endpoints, and the upload does not call them;
 - variable `POSTHOG_CLI_PROJECT_ID`: the production project's numeric ID (Project settings in PostHog).
 
 To check a release, trigger an unexpected error with the released binary (for example, make `~/.stacktape` a file and
 run `stacktape defaults:list`) and find its printed error ID in PostHog error tracking. The stack frames should name
 `.ts` files under `src/`.
+
+A preview release cannot exercise this path: preview builds carry no chunk ID, the workflow uploads no maps for them,
+and prerelease versions send no telemetry to production. To check the key and the upload before a stable release, build
+one platform locally with
+`bun scripts/build-dist-package.ts --platform linux --version <version> --error-tracking-source-map-directory <directory>/linux`,
+upload `<directory>` with the job's `posthog-cli` command, and run the extracted binary with
+`STP_POSTHOG_ENVIRONMENT=production` through the check above.
 
 ## Other mutable publications
 
