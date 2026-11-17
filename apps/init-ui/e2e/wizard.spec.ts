@@ -15,6 +15,7 @@ const saveAndCheckTarget = async (page: Page) => {
 
 test('a first deploy goes from analysis to a live URL, and a reload keeps the session', async ({
   page,
+  context,
   startWizard
 }) => {
   const wizard = await startWizard({ project: 'saas-starter', deploy: 'held' });
@@ -59,10 +60,10 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   await page.getByRole('button', { name: 'Create new stack' }).click();
   await expect(page.getByRole('heading', { name: 'Deploying' })).toBeVisible();
   await expect(page.getByText(/^\d+ of \d+$/)).toBeVisible();
-  // Finished steps are one line each, and the rail follows the deploy rather than the top line.
+  // A finished step leaves its result on its station and its content off the page; the path marks the deploy.
   await expect(page.getByText(/^Saved stacktape\.yml with 3 resources/)).toBeVisible();
   await expect(page.getByRole('radio', { name: /Only this private network/ })).toHaveCount(0);
-  await expect(page.locator('.wizard-rail [aria-current="step"]')).toContainText('Deploy');
+  await expect(page.getByRole('list', { name: 'Progress' }).locator('[aria-current="step"]')).toContainText('Deploy');
   // Where the run is and how long it has taken sit on the progress panel, with the phases.
   await expect(page.getByText(/^Deploying · dev, us-east-1 · \d+s$/)).toBeVisible();
   // Opened again during the deploy, the review reads but does not change the file the deploy uses.
@@ -74,6 +75,12 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('link', { name: /stacktape-app\.com/ })).toBeVisible();
   await expect(page.locator('.wizard-command code').first()).toContainText('--region us-east-1');
+  // A command copies as the command alone, without its prompt, and the button turns into a check mark.
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: wizard.origin });
+  const copy = page.getByRole('button', { name: 'Copy command' }).first();
+  await copy.click();
+  await expect(copy).toHaveAttribute('data-copy-state', 'copied');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^stacktape deploy .*--region us-east-1$/);
 });
 
 test('a failed deploy, a link opened twice and a stopped CLI each say what to do next', async ({
@@ -139,7 +146,7 @@ test('secrets the deploy needs are listed with their commands, and an empty repo
       /^A Fiber app, using a Postgres database\. It also needs a RabbitMQ broker and a NATS server, which Stacktape does not create\./
     )
   ).toBeVisible();
-  await expect(page.getByText('2 more things')).toBeVisible();
+  await expect(page.getByText('3 more things')).toBeVisible();
   await expect(page.getByText(/through the rmq_url secret, which you create before deploying/)).toBeVisible();
   await expect(page.getByText(/points at something we are not creating/)).toHaveCount(0);
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
@@ -174,14 +181,16 @@ test('a deploy button that cannot be pressed says why, and success leads with ea
 }) => {
   const wizard = await startWizard({ project: 'full-stack-fastapi', account: 'signed-out' });
   await page.goto(wizard.url);
-  // The rail names the steps; ones not reached yet are not links to sections that do not exist. The page
-  // title is the only title: the band carries no label of its own.
-  await expect(page.locator('.wizard-rail a')).toHaveCount(1);
+  // Before anything runs, the path says what each step will do, including that a deploy costs nothing until
+  // confirmed. The page title is the only title.
+  const path = page.getByRole('list', { name: 'Progress' });
+  await expect(path.getByRole('listitem')).toHaveCount(4);
+  await expect(path).toContainText('Optional. Nothing is created or billed before you confirm.');
   await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
   await analyzeAndReview(page);
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
-  // Finished bands are checked recap lines; the one action sits in the plan panel, above the optional rows.
-  await expect(page.locator('.wizard-section-check')).toHaveCount(3);
+  // Finished steps are checked stations; the one action sits in the plan panel, above the optional rows.
+  await expect(path.locator('.wizard-station.is-done')).toHaveCount(2);
   const action = page.getByRole('button', { name: 'Check exact AWS target' });
   const tryOut = page.getByRole('button', { name: 'Build and start it here' });
   expect((await action.boundingBox())!.y).toBeLessThan((await tryOut.boundingBox())!.y);
