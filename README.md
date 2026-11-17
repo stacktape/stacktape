@@ -346,8 +346,8 @@ export default defineConfig(() => {
 ## The CLI without an account, and the Console
 
 The CLI works without a Stacktape account. Deploying, updating, rolling back and deleting stacks, dev mode, logs and
-secrets use the standard AWS credential chain and talk only to AWS. See
-[Use the CLI without an account](https://docs.stacktape.com/getting-started/open-source-cli).
+secrets use the standard AWS credential chain and go directly to AWS. The CLI sends anonymous usage telemetry, which you
+can turn off. See [Use the CLI without an account](https://docs.stacktape.com/getting-started/open-source-cli).
 
 The Console adds what a team shares: deploy history, costs, alerts, error tracking, Git deployments and access control.
 It is free up to $200 a month of managed AWS spend. `stacktape connect` adds your existing stacks to it without a
