@@ -214,8 +214,12 @@ existing version. Verify a preview with:
 ```sh
 npm view stacktape@4.0.0-preview.1 version
 npm view stacktape dist-tags.preview
-pnpm dlx stacktape@preview version
+pnpm dlx stacktape@4.0.0-preview.1 version
 ```
+
+Name the exact version in `pnpm dlx`. pnpm 11 skips versions younger than its minimum release age (one day by default),
+so `pnpm dlx stacktape@preview` and `pnpm add --global stacktape@latest` keep resolving to the previous release for
+about a day after publication. npm and the installers are not affected.
 
 The installer upload is a separate dependent job. If only that job fails, use GitHub's **Re-run failed jobs** action;
 the already successful npm publication is not repeated.

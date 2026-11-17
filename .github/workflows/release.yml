@@ -432,7 +432,9 @@ jobs:
     name: Install candidate on ${{ matrix.platform }}
     needs: assemble
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 9
+    # `pnpm install` alone took 3.6 min on macos-15-intel and 5.1 min on windows-11-arm for 4.0.0-preview.12; both jobs
+    # finished within 90 s of the old 9-minute limit.
+    timeout-minutes: 15
     defaults:
       run:
         shell: bash
