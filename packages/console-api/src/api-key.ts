@@ -672,6 +672,12 @@ export type CanDeployResponse = {
     month: string;
     upgradeUrl: string;
   };
+  /**
+   * One plain sentence the CLI prints after a successful deploy: the Free plan's grace countdown with the estimated
+   * Flexible fee, or how close the organization is to the Free limit. Absent when there is nothing to say; paid plans
+   * never get one.
+   */
+  notice?: string;
 };
 
 export type DefaultDomainsInfoResponse = {

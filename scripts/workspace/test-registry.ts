@@ -2163,6 +2163,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/DomainsPage/domains.test.ts',
       'apps/console/ui/src/pages/DomainsPage/domain-readiness.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
+      'apps/console/ui/src/components/FreePlan/free-plan-format.test.ts',
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
@@ -2308,6 +2309,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/console/ui/e2e/isolated-budgets.test.ts',
       'apps/console/ui/e2e/isolated-free-plan.test.ts',
+      'apps/console/ui/e2e/isolated-existing-stacks.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
@@ -2791,6 +2793,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/services/secret-usage.test.ts',
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
+      'apps/console/api/src/billing/free-plan-limit.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/config.test.ts',
       'apps/console/api/src/controllers/bitbucket-pull-request-commit.test.ts',
@@ -2887,6 +2890,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-integrations.test.ts',
       'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/console/ui/e2e/isolated-free-plan.test.ts',
+      'apps/console/ui/e2e/isolated-existing-stacks.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
@@ -2949,6 +2953,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
+      'apps/console/ui/src/components/FreePlan/free-plan-format.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
@@ -2998,6 +3003,7 @@ export const lanes: readonly Lane[] = [
       'packages/config/tests/config-import.test.ts',
       'packages/config/tests/leaf-capabilities.test.ts',
       'packages/console-api/src/api-key.test.ts',
+      'packages/console-api/src/billing.test.ts',
       'packages/console-api/src/failure-explanations.test.ts',
       'packages/console-api/src/guardrails.test.ts',
       'packages/console-api/src/permissions.test.ts',
@@ -3797,6 +3803,7 @@ export const lanes: readonly Lane[] = [
     tier: 'pr',
     tests: [
       'apps/console/api/src/billing/fees.test.ts',
+      'apps/console/api/src/billing/free-plan-limit.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts'
@@ -4747,6 +4754,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/tests/characterization/trpc-auth-surfaces.spec.ts',
       'packages/console-api/src/api-key.test.ts',
+      'packages/console-api/src/billing.test.ts',
       'packages/console-api/src/failure-explanations.test.ts',
       'packages/console-api/src/guardrails.test.ts',
       'packages/console-api/src/permissions.test.ts',
@@ -5937,6 +5945,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/billing-database.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
+      'apps/console/api/src/billing/free-plan-limit.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/services/customer-announcements.test.ts'
     ],
@@ -6280,6 +6289,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
+      'apps/console/ui/src/components/FreePlan/free-plan-format.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
@@ -6371,6 +6381,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/console/ui/e2e/isolated-budgets.test.ts',
       'apps/console/ui/e2e/isolated-free-plan.test.ts',
+      'apps/console/ui/e2e/isolated-existing-stacks.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
     lanes: [
