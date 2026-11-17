@@ -45,6 +45,9 @@ export const commandConnect = async () => {
   const { organization } = organizationData;
 
   // The account of the local credentials: `--profile`, `AWS_PROFILE` or the standard AWS credential chain.
+  // Identifying the account and creating the connection need a region, and a fresh machine may not have one
+  // configured. The connection itself (an IAM role) is global, so any region does.
+  if (!globalStateManager.region) globalStateManager.args.region = 'us-east-1';
   const localCredentials = await globalStateManager.prepareLocalAwsCredentials();
   await globalStateManager.resolveLocalAwsAccount();
   const { awsAccountId } = globalStateManager.targetAwsAccount;
@@ -91,11 +94,52 @@ export const commandConnect = async () => {
     });
   }
 
+  const connection =
+    existingConnection ??
+    globalStateManager.connectedAwsAccounts?.find(
+      (account) => account.awsAccountId === awsAccountId && account.state === 'ACTIVE'
+    );
+  const existingStacks = connection ? await findStacksOfAccount({ connectionId: connection.id }) : undefined;
+
   const consoleUrl = stacktapeConsoleUrl('/projects');
-  tuiManager.info(
-    'The Console adds the Stacktape stacks of this account as projects and stages. Nothing was redeployed or changed.'
-  );
+  tuiManager.info('Nothing was redeployed or changed.');
   tuiManager.info(`Open your projects: ${tuiManager.colorize('cyan', consoleUrl)}`);
   tuiManager.outro('Connected.');
-  return { organizationName: organization.name, awsAccountId, consoleUrl };
+  return { organizationName: organization.name, awsAccountId, consoleUrl, ...(existingStacks && { existingStacks }) };
+};
+
+const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
+
+/**
+ * Asks the Console to look for the account's Stacktape stacks now, so the ones deployed without an account since the
+ * last connect appear as projects and stages. A new connection already does this when it activates; asking again finds
+ * the same stacks and changes nothing. A failure leaves the connection as it is and only says so.
+ */
+const findStacksOfAccount = async ({ connectionId }: { connectionId: string }) => {
+  try {
+    const { projects, skippedRegions } = await stacktapeTrpcApiManager.apiClient.findExistingStacksFromCli({
+      connectionId
+    });
+    const stages = projects.flatMap((project) =>
+      project.stages.map(({ stage, region }) => ({ projectName: project.name, stage, region }))
+    );
+    const newProjects = projects.filter((project) => project.created).map((project) => project.name);
+    tuiManager.info(
+      stages.length === 0
+        ? 'No Stacktape stacks found in this account yet.'
+        : `Found ${plural(stages.length, 'stage')} of ${plural(projects.length, 'project')} in this account${
+            newProjects.length > 0 ? `; ${plural(newProjects.length, 'project')} added to the Console` : ''
+          }.`
+    );
+    if (skippedRegions.length > 0) {
+      tuiManager.warn(`Could not read stacks in ${skippedRegions.join(', ')}; stacks there are not listed yet.`);
+    }
+    return { stages, newProjects, skippedRegions };
+  } catch (error) {
+    tuiManager.warn(
+      `The account is connected, but looking for its existing stacks failed: ${(error as Error).message} ` +
+        'An Owner or Admin can run "Find existing stacks" on the AWS accounts page of the Console.'
+    );
+    return undefined;
+  }
 };
