@@ -3,6 +3,7 @@
  * uses. It answers the few procedures a stack operation needs, records every call, and refuses anything else with a
  * tRPC `NOT_FOUND` error so an unexpected dependency on the Console shows up in the test instead of hanging.
  */
+import type { FindExistingStacksFromCliResponse } from '@stacktape/console-api/api-key';
 import type { SecurityScanningLevel } from '@stacktape/console-api/security';
 import type { Server } from 'node:http';
 import { createServer } from 'node:http';
@@ -55,7 +56,8 @@ export const startControlPlaneFake = async ({
   securityScanning = 'OFF',
   connectedAwsAccounts,
   awsAccountCredentials,
-  freePlanLimit
+  freePlanLimit,
+  existingStacks
 }: {
   projectName: string;
   permissions?: string[];
@@ -69,6 +71,8 @@ export const startControlPlaneFake = async ({
   awsAccountCredentials?: Record<string, { accessKeyId: string; secretAccessKey: string }>;
   /** A Free organization over its cost limit: `canDeploy` refuses, and so does recording a deploy, as the API does. */
   freePlanLimit?: { monthToDateCostsUsd: number; limitUsd: number; month: string; upgradeUrl: string };
+  /** What `findExistingStacksFromCli` answers: the Stacktape stacks the Console finds in a connected account. */
+  existingStacks?: FindExistingStacksFromCliResponse;
 }): Promise<ControlPlaneFake> => {
   const calls: ControlPlaneCall[] = [];
   const unexpectedProcedures: string[] = [];
@@ -124,6 +128,7 @@ export const startControlPlaneFake = async ({
         ? { canDeploy: false, message: 'Deploys are paused for this organization.', freePlanLimit }
         : { canDeploy: true },
     reportEvent: () => ({ accepted: true }),
+    ...(existingStacks ? { findExistingStacksFromCli: () => existingStacks } : {}),
     deleteUndeployedStageFromCli: () => ({ deleted: true }),
     // The AWS-identity procedures a stack's default-domain custom resource calls from inside the deployment.
     upsertDefaultDomainDnsRecord: () => null,

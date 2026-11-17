@@ -336,6 +336,66 @@ const startPostHogFake = async () => {
   return { host: `http://127.0.0.1:${address.port}`, events };
 };
 
+test('connect on an account already connected finds the stacks deployed since and reports them', async () => {
+  const aws = await startAwsFake();
+  const { home, project } = await createProject();
+  const api = await startControlPlaneFake({
+    projectName: 'starter',
+    awsAccountId: ACCOUNT,
+    existingStacks: {
+      projects: [
+        {
+          name: 'starter',
+          created: true,
+          stages: [
+            { stage: 'test', region: 'eu-west-1' },
+            { stage: 'production', region: 'eu-west-1' }
+          ]
+        }
+      ],
+      skippedRegions: ['us-east-1']
+    }
+  });
+  cleanups.push(api.close);
+  const connect = await runCli({
+    home,
+    cwd: project,
+    args: ['connect', '--agent'],
+    output: [],
+    apiEndpoint: api.endpoint,
+    awsEndpoint: aws.endpoint,
+    environment: { STACKTAPE_API_KEY: 'stp-cli-process-connect', AWS_REGION: 'eu-west-1' }
+  });
+  expect(connect.exitCode, connect.output).toBe(0);
+  // The account is already connected: no new connection, one search for its stacks through that connection.
+  expect(api.calls.filter(({ procedure }) => procedure === 'findExistingStacksFromCli')).toEqual([
+    {
+      procedure: 'findExistingStacksFromCli',
+      input: { connectionId: 'aws-connection-cli-process-account' },
+      apiKey: 'stp-cli-process-connect'
+    }
+  ]);
+  expect(api.unexpectedProcedures).toEqual([]);
+  expect(connect.output).toContain('Found 2 stages of 1 project in this account; 1 project added to the Console.');
+  expect(connect.output).toContain('Could not read stacks in us-east-1; stacks there are not listed yet.');
+  expect(connect.results.at(-1)).toMatchObject({
+    ok: true,
+    data: {
+      result: {
+        awsAccountId: ACCOUNT,
+        existingStacks: {
+          stages: [
+            { projectName: 'starter', stage: 'test', region: 'eu-west-1' },
+            { projectName: 'starter', stage: 'production', region: 'eu-west-1' }
+          ],
+          newProjects: ['starter'],
+          skippedRegions: ['us-east-1']
+        }
+      }
+    }
+  });
+});
+
 test('account-free telemetry shows its notice first, sends only allowlisted fields, and stays off in CI', async () => {
   const aws = await startAwsFake();
   const api = await startApiListener();

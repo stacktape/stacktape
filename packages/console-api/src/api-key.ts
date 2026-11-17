@@ -178,6 +178,11 @@ export const getAwsConnectionStatusInputSchema = z.object({
   connectionId: z.string()
 });
 
+/** `stacktape connect` on an account that is already connected: look for its Stacktape stacks again. */
+export const findExistingStacksFromCliInputSchema = z.object({
+  connectionId: z.string()
+});
+
 export const getGitProviderConnectionStatusInputSchema = z
   .object({
     organizationId: z.string(),
@@ -463,6 +468,7 @@ export type DeleteOrganizationParams = z.input<typeof deleteOrganizationFromCliI
 export type CreateAwsConnectionPendingInput = z.input<typeof awsConnectionInputSchema>;
 export type InitAwsConnectionForCliInput = z.input<typeof awsConnectionInputSchema>;
 export type GetAwsConnectionStatusInput = z.input<typeof getAwsConnectionStatusInputSchema>;
+export type FindExistingStacksFromCliInput = z.input<typeof findExistingStacksFromCliInputSchema>;
 export type GetGitProviderConnectionStatusInput = z.input<typeof getGitProviderConnectionStatusInputSchema>;
 export type CreateGitDeploymentConfigFromCliInput = z.input<typeof createGitDeploymentConfigFromCliInputSchema>;
 export type ReportEventParams = z.input<typeof reportEventInputSchema>;
@@ -764,6 +770,16 @@ export type GetAwsConnectionStatusResponse = {
   name?: string;
 };
 
+/**
+ * The Stacktape stacks found in a connected AWS account. Each project is reused by name or created; its stages then
+ * appear in the Console without a deploy. Running it again changes nothing.
+ */
+export type FindExistingStacksFromCliResponse = {
+  projects: Array<{ name: string; created: boolean; stages: Array<{ stage: string; region: string }> }>;
+  /** Regions whose stacks could not be read (for example, CloudFormation denied there); stacks there are not found. */
+  skippedRegions: string[];
+};
+
 export type GetGitProviderConnectionStatusResponse = {
   isConnected: boolean;
   installationId?: string;
@@ -922,6 +938,9 @@ export type ApiKeyTrpcClient = {
   };
   getAwsConnectionStatus: {
     query: (args: GetAwsConnectionStatusInput) => Promise<GetAwsConnectionStatusResponse>;
+  };
+  findExistingStacksFromCli: {
+    mutate: (args: FindExistingStacksFromCliInput) => Promise<FindExistingStacksFromCliResponse>;
   };
   getGitProviderConnectionStatus: {
     query: (args: GetGitProviderConnectionStatusInput) => Promise<GetGitProviderConnectionStatusResponse>;
