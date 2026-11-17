@@ -1,20 +1,38 @@
 ---
 /**
- * Pricing, as the Console documents it. A stub: the plan facts are real, the page's design is not
- * final. Replace with the designed page when there is one.
+ * Pricing. A plain page, not a designed one: the open-source CLI first, then the three Console
+ * plans, then the Flexible fee spelled out in dollars. The fee examples are computed from the band
+ * table below, so the two cannot disagree.
  */
 import PlainPage from '../components/PlainPage.astro';
 
-type Plan = { name: string; price: string; lines: string[]; action?: { label: string; href: string } };
+type Plan = { name: string; price: string; note: string; lines: string[]; action?: { label: string; href: string } };
+
+/** Flexible: one rate for the whole month's managed AWS spend, picked by how large that spend is. */
+const FLEXIBLE_BANDS = [
+  { label: 'Up to $2,000', upTo: 2_000, rate: 25 },
+  { label: '$2,000 to $5,000', upTo: 5_000, rate: 23 },
+  { label: '$5,000 to $10,000', upTo: 10_000, rate: 21 },
+  { label: '$10,000 to $25,000', upTo: 25_000, rate: 20 },
+  { label: 'Above $25,000', upTo: Number.POSITIVE_INFINITY, rate: 19 }
+] as const;
+
+const flexibleRate = (spend: number) => FLEXIBLE_BANDS.find((band) => spend <= band.upTo)!.rate;
+const dollars = (amount: number) => `$${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+
+const FLEXIBLE_EXAMPLES = [500, 1_000, 3_000, 8_000].map((spend) => {
+  const rate = flexibleRate(spend);
+  return { spend: dollars(spend), rate, fee: dollars((spend * rate) / 100) };
+});
 
 const PLANS: Plan[] = [
   {
     name: 'Free',
     price: '$0',
+    note: 'While managed AWS spend is up to $200 a month',
     lines: [
-      'Unlimited team members',
-      'Up to $100 a month of managed AWS spend',
-      'Unlimited deployments and stacks',
+      'Every Console feature except single sign-on',
+      'Unlimited team members, deployments and stacks',
       'No credit card'
     ],
     action: {
@@ -24,40 +42,59 @@ const PLANS: Plan[] = [
   },
   {
     name: 'Flexible',
-    price: 'A percentage of managed AWS costs',
+    price: '19–25% of managed AWS spend',
+    note: 'No spend limit',
     lines: [
-      'Unlimited team members',
-      'Unlimited deployments and stacks',
+      'Everything in Free',
       'Single sign-on (SAML or OIDC) and SCIM provisioning',
-      'Hands-on support',
-      'Rate tiers shown in the Console'
+      'A shared Slack channel with the founders',
+      'Your feature requests come first'
     ]
   },
   {
     name: 'Enterprise',
     price: 'Custom',
+    note: 'For data residency',
     lines: [
-      'Unlimited team members',
-      'Single-tenant Console deployed into your own AWS account and region, for data residency',
+      'A single-tenant Console in your own AWS account and region',
       'Single sign-on and SCIM provisioning',
-      'SOC 2 compliance',
       'Up to 24×7 premium support'
-    ]
+    ],
+    action: { label: 'Book a call', href: 'https://cal.com/stacktape/30min' }
   }
 ];
 ---
 
 <PlainPage
   title="Pricing"
-  description="Stacktape is billed on the AWS costs your stacks generate, never per seat, per deployment or per request."
-  lead="Stacktape is billed on the AWS costs your stacks generate, never per seat, per deployment or per request. AWS bills you directly for the infrastructure; Stacktape's fee is a separate line and starts at zero."
+  description="The Stacktape CLI is open source and free. The Console is free up to $200 a month of managed AWS spend, then a share of that spend. Never per seat."
+  lead="The CLI is free. The Console is priced on the AWS spend of the stacks Stacktape manages, never per seat, per deployment or per request. AWS bills you for the infrastructure; Stacktape's fee is a separate line."
 >
+  <section class="band" aria-labelledby="open-source">
+    <h2 id="open-source" class="band__title">The Stacktape CLI is open source (MIT) and works without an account</h2>
+    <p>
+      Deploy, update, roll back and delete stacks, run dev mode, and read logs and secrets in your own AWS account with
+      your own AWS credentials. No Stacktape service sits in the path of your deploys.
+    </p>
+    <p class="band__action">
+      <a href="https://docs.stacktape.com/getting-started/open-source-cli">Use the CLI without an account</a>
+    </p>
+  </section>
+
+  <h2 class="plans__title">The Console</h2>
+  <p>
+    The Console adds what a team shares: deploy history, costs, alerts, error tracking, uptime checks, Git
+    deployments and access control. Connect your existing stacks with <code>stacktape connect</code>; nothing is
+    redeployed.
+  </p>
+
   <div class="plans">
     {
       PLANS.map((plan) => (
         <section class="plan">
-          <h2>{plan.name}</h2>
+          <h3>{plan.name}</h3>
           <p class="plan__price">{plan.price}</p>
+          <p class="plan__note">{plan.note}</p>
           <ul>
             {plan.lines.map((line) => (
               <li>{line}</li>
@@ -72,40 +109,134 @@ const PLANS: Plan[] = [
       ))
     }
   </div>
+
+  <h2 id="flexible">What Flexible costs</h2>
   <p>
-    Stacktape does not charge for resources in your AWS account that exist outside Stacktape-managed stacks.
-    Plans are chosen and changed in the <a href="https://console.stacktape.com">Console</a>. For Enterprise, <a
-      href="https://cal.com/stacktape/30min"
-    >
-      book a call
-    </a>.
+    Take the month's managed AWS spend and multiply it by one rate. The rate depends on how large the spend is, and it
+    applies to the whole amount.
+  </p>
+
+  <div class="tables">
+    <table>
+      <caption>Rate</caption>
+      <thead>
+        <tr><th scope="col">Monthly managed AWS spend</th><th scope="col">Rate</th></tr>
+      </thead>
+      <tbody>
+        {
+          FLEXIBLE_BANDS.map((band) => (
+            <tr>
+              <td>{band.label}</td>
+              <td>{band.rate}%</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+
+    <table>
+      <caption>Examples</caption>
+      <thead>
+        <tr><th scope="col">AWS spend</th><th scope="col">Stacktape fee</th></tr>
+      </thead>
+      <tbody>
+        {
+          FLEXIBLE_EXAMPLES.map((example) => (
+            <tr>
+              <td>{example.spend}</td>
+              <td>
+                {example.fee} <span class="muted">({example.rate}%)</span>
+              </td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <p>
+    The Console shows what Flexible would cost you, in dollars, from your own costs. Large or unusual setups can ask
+    for a custom price.
+  </p>
+
+  <h2 id="free-limit">When a Free organization passes $200</h2>
+  <p>
+    The first time an organization goes over the limit, deploys keep working for 7 days and Owners and Admins are told
+    by email and in the Console. After those 7 days, new deploys pause until you upgrade or the next calendar month
+    starts. This grace period happens once per organization; in a later month, deploys pause as soon as the limit is
+    passed.
+  </p>
+  <p>
+    A pause never touches running infrastructure. Deleting and rolling back stacks and the rest of the Console keep
+    working, and upgrading lifts the pause at once.
+  </p>
+
+  <h2 id="managed-spend">What counts as managed AWS spend</h2>
+  <p>
+    The AWS costs of the resources in Stacktape-managed stacks, summed over the AWS accounts connected to your
+    organization. Other resources in those accounts don't count. Plans are chosen and changed in the <a
+      href="https://console.stacktape.com">Console</a
+    >. See the <a href="https://docs.stacktape.com/stacktape-console/billing-and-subscription">billing documentation</a
+    > for the details.
   </p>
 </PlainPage>
 
 <style>
+  .band {
+    margin: 0 0 40px;
+    padding: 20px 24px;
+    border: 1px solid var(--stp-border-strong);
+    border-radius: 12px;
+    background: var(--stp-surface-element);
+  }
+
+  .band .band__title {
+    margin: 0 0 8px;
+    font-size: 20px;
+  }
+
+  .band :global(p) {
+    margin: 0 0 8px;
+  }
+
+  .band__action {
+    font-weight: 600;
+  }
+
+  .plans__title {
+    margin-top: 0 !important;
+  }
+
   .plans {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
-    margin: 0 0 32px;
+    margin: 24px 0 8px;
   }
 
   .plan {
+    display: flex;
+    flex-direction: column;
     padding: 20px;
     border: 1px solid var(--stp-border-subtle);
     border-radius: 12px;
     background: var(--stp-surface-element);
   }
 
-  .plan :global(h2) {
+  .plan :global(h3) {
     margin: 0 0 4px;
     font-size: 18px;
   }
 
   .plan__price {
-    margin: 0 0 12px;
+    margin: 0 0 2px !important;
     font-weight: 600;
-    color: var(--stp-text-primary);
+    color: var(--stp-text-primary) !important;
+  }
+
+  .plan__note {
+    margin: 0 0 12px !important;
+    font-size: 14px;
   }
 
   .plan :global(ul) {
@@ -115,13 +246,66 @@ const PLANS: Plan[] = [
   }
 
   .plan__action {
-    margin: 14px 0 0;
+    margin: auto 0 0 !important;
+    padding-top: 14px;
     font-size: 15px;
     font-weight: 600;
   }
 
+  .tables {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin: 8px 0 24px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+    color: #b7c0c2;
+  }
+
+  caption {
+    padding-bottom: 6px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--stp-text-muted);
+  }
+
+  th,
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--stp-border-subtle);
+    text-align: left;
+  }
+
+  th {
+    font-weight: 600;
+    color: var(--stp-text-primary);
+  }
+
+  td:last-child,
+  th:last-child {
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .muted {
+    color: var(--stp-text-muted);
+  }
+
+  code {
+    font-size: 0.92em;
+    color: var(--stp-text-primary);
+  }
+
   @media (max-width: 720px) {
-    .plans {
+    .plans,
+    .tables {
       grid-template-columns: minmax(0, 1fr);
     }
   }
