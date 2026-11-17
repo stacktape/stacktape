@@ -184,7 +184,7 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
       'cleanup'
     ],
     reason:
-      'Only a real update of stacks that the released 3.7.1 CLI created shows what the first v4 deploy replaces and whether the applications and their data survive it.'
+      'Only a real update of stacks that the released 3.x CLIs created shows what the first v4 deploy replaces and whether the applications and their data survive it.'
   },
   {
     id: 'init-static-site',

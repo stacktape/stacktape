@@ -22,7 +22,10 @@ const V3_PROPERTIES: Record<string, string> = {
     'For `js-bundle`, move its options up one level, into the packaging `properties`. For a Lambda `buildpack`, rename it to `python`, `java` or `dotnet`',
   disableAutoRollback: 'Delete it: v4 does not roll back a failed deployment unless `autoRollback: true` is set',
   serviceName: 'Rename it to `projectName`, keeping the value, so the config still targets the deployed stacks',
-  startCmd: 'Rename it to `startCommand`'
+  startCmd: 'Rename it to `startCommand`',
+  // Stacktape 3.6 removed config budgets; projects still on 3.5 have them.
+  budgetControl:
+    'Delete it, and set the budget in the Stacktape Console under Budgets instead. The next deploy deletes the AWS budget it created'
 };
 
 /** v3 exports of the `stacktape` npm package that v4 no longer has. */

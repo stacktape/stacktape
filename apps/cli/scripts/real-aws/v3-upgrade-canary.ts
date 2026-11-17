@@ -1,5 +1,5 @@
 /**
- * Real-AWS check that stacks deployed with the released Stacktape 3.7.1 upgrade to the current CLI the way the v3
+ * Real-AWS check that stacks deployed with a released Stacktape 3 CLI upgrade to the current CLI the way the v3
  * upgrade guide promises. Static baselines compare templates; only a real update shows what CloudFormation replaces,
  * whether the applications keep serving and whether the data in the databases survives.
  *
@@ -7,14 +7,16 @@
  * parallel:
  * - `agency` (YAML, eu-central-1, stage `production`): a PHP site on EC2 behind a CDN with a firewall and an edge
  *   function, a MySQL database, a Nixpacks site, a DynamoDB table, a scheduled function with an alarm and an
- *   afterDeploy migration. 3.7.1 runs as the released standalone binary.
+ *   afterDeploy migration. 3.7.1 runs as the released standalone binary, as the customer installs it.
  * - `saas` (TypeScript, us-east-1, stage `staging`): a container workload with a sidecar behind a load balancer with
  *   custom listeners, a single-page app whose CDN routes to it, functions with alarms that notify a webhook, an Aurora
- *   cluster in raw CloudFormation and an afterDeploy migration against it. 3.7.1 runs from the project's `stacktape`
- *   npm package, as `npx stacktape`. The migrated config adds two batch jobs, which 3.7.1 can no longer create.
+ *   cluster in raw CloudFormation and an afterDeploy migration against it. 3.5.7, the version that customer pins, runs
+ *   from the project's `stacktape` npm package, as `npx stacktape` (`STP_AWS_V3_UPGRADE_SAAS_V3_VERSION=3.7.1` starts
+ *   from 3.7.1 instead). The migrated config adds two batch jobs, which 3.x can no longer create.
  *
  * For each fixture it:
- * 1. deploys `stacktape.v3.*` with 3.7.1 against the dev Stacktape API, then a code-only change (with `--hotSwap` for
+ * 1. deploys `stacktape.v3.*` with that 3.x CLI against the dev Stacktape API, which runs the v4 Console, then a
+ *    code-only change (with `--hotSwap` for
  *    `agency`, as its CI does), and checks that it serves;
  * 2. records every resource's physical id, applies the documented migration (the fixture's `stacktape.yml`/`.ts`, and
  *    for `saas` the `stacktape` package built from this checkout) and deploys with the source-built CLI;
@@ -30,7 +32,7 @@
  *   STP_AWS_V3_UPGRADE_DEPLOY=1 STP_AWS_V3_UPGRADE_EXPECTED_ACCOUNT_ID=<12 digits>
  *   STP_AWS_V3_UPGRADE_PROFILE=<name> STP_AWS_V3_UPGRADE_OWNER=<1-12 lowercase letters or digits>
  *   STP_AWS_V3_UPGRADE_STATE_FILE=<absolute path> [STP_AWS_V3_UPGRADE_REPORT=<absolute path>]
- *   [STP_AWS_V3_UPGRADE_FIXTURES=agency,saas]
+ *   [STP_AWS_V3_UPGRADE_FIXTURES=agency,saas] [STP_AWS_V3_UPGRADE_SAAS_V3_VERSION=3.5.7|3.7.1]
  *   pnpm --filter @stacktape/cli run test:real-aws-v3-upgrade [-- --cleanup-only]
  */
 import {
@@ -78,7 +80,18 @@ import { cleanupEdgeFunctions, type EdgeFunction, readEdgeFunctions } from './st
 
 const PREFIX = 'STP_AWS_V3_UPGRADE_';
 const SCRIPT = 'test:real-aws-v3-upgrade';
-const V3_VERSION = '3.7.1';
+/**
+ * The released 3.x CLIs a fixture can start from. 3.7.1 prints one agent-mode result record per command; 3.5.7 has no
+ * such record, so it runs as a CI script runs it and its exit code decides.
+ */
+const V3_RELEASES = {
+  '3.5.7': { agentResult: false, webhookChannels: false },
+  '3.7.1': { agentResult: true, webhookChannels: true }
+} as const;
+/** The saas alarms' channel in both configs. Before 3.7, alarms notify only Slack, MS Teams or email. */
+const WEBHOOK_ALARM_CHANNEL = "{ type: 'webhook', properties: { url: $ResourceParam('alarmSink', 'url') } }";
+const MS_TEAMS_ALARM_CHANNEL = "{ type: 'ms-teams', properties: { webhookUrl: $ResourceParam('alarmSink', 'url') } }";
+type V3Version = keyof typeof V3_RELEASES;
 const DEV_API = 'https://dev-api.stacktape.com';
 const FIXTURE_ROOT = join(CLI_DIRECTORY, '_test-stacks', 'v3-upgrade');
 const COMMAND_TIMEOUT_MS = 60 * 60 * 1000;
@@ -92,8 +105,10 @@ type FixtureSpec = {
   v4Config: string;
   /** The keys of the fixture's JSON secret; each gets a random value that is never written or printed. */
   secretKeys: string[];
-  /** 3.7.1 runs from the project's `stacktape` npm package instead of the released binary. */
+  /** The 3.x CLI runs from the project's `stacktape` npm package instead of the released binary. */
   npmPackage: boolean;
+  /** The 3.x release the customer runs; `saas` can be switched with `STP_AWS_V3_UPGRADE_SAAS_V3_VERSION`. */
+  v3Version: V3Version;
   /** The file a code-only change edits, and its content for a given mark. */
   codeChange: { file: string; content: (mark: string) => string };
   /** The variables `scripts/marks.mjs` reads, from the stack's database endpoint and the secret. */
@@ -115,6 +130,7 @@ const FIXTURES: Record<FixtureName, FixtureSpec> = {
     v4Config: 'stacktape.yml',
     secretKeys: ['ORIGIN_VERIFY_KEY', 'db_password'],
     npmPackage: false,
+    v3Version: '3.7.1',
     codeChange: { file: 'site/build-mark.txt', content: (mark) => `${mark}\n` },
     marksEnvironment: async (secret, _resources, infoMap) => ({
       DATABASE_HOST: param(infoMap, 'mainDatabase', 'host'),
@@ -129,6 +145,7 @@ const FIXTURES: Record<FixtureName, FixtureSpec> = {
     v4Config: 'stacktape.ts',
     secretKeys: ['dbPassword', 'partnerApiKey'],
     npmPackage: true,
+    v3Version: '3.5.7',
     codeChange: { file: 'src/api/build-mark.ts', content: (mark) => `export const BUILD_MARK = '${mark}';\n` },
     marksEnvironment: async (secret, _resources, _infoMap, outputs) => ({
       // The config's `$CfResourceParam` of the cluster endpoint makes the stack output it.
@@ -145,6 +162,7 @@ type Options = {
   stateFile: string;
   reportFile?: string;
   fixtures: FixtureName[];
+  v3Versions: Record<FixtureName, V3Version>;
   workDir: string;
 };
 type FixtureState = {
@@ -198,6 +216,11 @@ export const resolveOptions = (env: Env = process.env): Options => {
     fixtures.length > 0 && fixtures.every((name): name is FixtureName => name in FIXTURES),
     `${PREFIX}FIXTURES must list agency and/or saas.`
   );
+  const saasV3Version = env[`${PREFIX}SAAS_V3_VERSION`]?.trim() || FIXTURES.saas.v3Version;
+  assert(
+    saasV3Version in V3_RELEASES,
+    `${PREFIX}SAAS_V3_VERSION must be one of ${Object.keys(V3_RELEASES).join(', ')}.`
+  );
   return {
     expectedAccountId,
     profile,
@@ -205,6 +228,7 @@ export const resolveOptions = (env: Env = process.env): Options => {
     stateFile,
     ...(reportFile && { reportFile }),
     fixtures: fixtures as FixtureName[],
+    v3Versions: { agency: FIXTURES.agency.v3Version, saas: saasV3Version as V3Version },
     workDir: join(dirname(stateFile), `v3-upgrade-${owner}`)
   };
 };
@@ -312,18 +336,18 @@ const devApiKey = async () => {
   return value;
 };
 
-/** Downloads and extracts the released 3.7.1 CLI for this platform once per run. */
-const ensureV3Release = async (options: Options) => {
-  const directory = join(options.workDir, 'v3-release');
+/** Downloads and extracts a released 3.x CLI for this platform once per run. */
+const ensureV3Release = async (options: Options, version: V3Version) => {
+  const directory = join(options.workDir, `v3-release-${version}`);
   const binary = join(directory, 'stacktape');
   if (await Bun.file(binary).exists()) return binary;
   const asset = { linux: 'linux.tar.gz', darwin: process.arch === 'arm64' ? 'macos-arm.tar.gz' : 'macos.tar.gz' }[
     process.platform as 'linux' | 'darwin'
   ];
-  assert(asset, `The ${V3_VERSION} release canary runs on Linux or macOS, not ${process.platform}.`);
+  assert(asset, `The ${version} release canary runs on Linux or macOS, not ${process.platform}.`);
   await mkdir(directory, { recursive: true });
-  const response = await fetch(`https://github.com/stacktape/stacktape/releases/download/${V3_VERSION}/${asset}`);
-  assert(response.ok, `Downloading the ${V3_VERSION} release failed with ${response.status}.`);
+  const response = await fetch(`https://github.com/stacktape/stacktape/releases/download/${version}/${asset}`);
+  assert(response.ok, `Downloading the ${version} release failed with ${response.status}.`);
   const archive = join(directory, asset);
   await Bun.write(archive, response);
   const extracted = await runProcess({
@@ -331,17 +355,18 @@ const ensureV3Release = async (options: Options) => {
     cwd: directory,
     env: process.env
   });
-  assert(extracted.exitCode === 0, `Extracting the ${V3_VERSION} release failed: ${extracted.stderr.slice(-500)}`);
+  assert(extracted.exitCode === 0, `Extracting the ${version} release failed: ${extracted.stderr.slice(-500)}`);
   await rm(archive);
   return binary;
 };
 
 /**
- * Runs 3.7.1 in agent mode against the dev Stacktape API with the profile's credentials only and its own HOME, so no
- * saved v3 defaults (such as a production API key) apply. `CI=true` reproduces how the customers' pipelines run it, except
- * for the npm package: with `CI=true`, 3.7.1 installs the project's dependencies with `npm ci`, which deletes the release
- * its npm launcher extracted into `node_modules/stacktape/bin`, so the deploy fails reading its helper Lambdas. That is
- * a 3.7.1 defect the upgrade does not change, so the npm fixture runs 3.7.1 without it.
+ * Runs the fixture's 3.x CLI against the dev Stacktape API with the profile's credentials only and its own HOME, so no
+ * saved v3 defaults (such as a production API key) apply. 3.7.1 runs in agent mode and reports its result record; 3.5.7
+ * has none and runs as a CI script runs it. `CI=true` reproduces how the customers' pipelines run it, except for the
+ * npm package: with `CI=true`, 3.x installs the project's dependencies with `npm ci`, which deletes the release its npm
+ * launcher extracted into `node_modules/stacktape/bin`, so the deploy fails reading its helper Lambdas. That is a 3.x
+ * defect the upgrade does not change, so the npm fixture runs without it.
  */
 const runV3 = async ({
   options,
@@ -357,10 +382,11 @@ const runV3 = async ({
   apiKey: string;
 }) => {
   const projectDirectory = join(options.workDir, name);
+  const version = options.v3Versions[name];
   const binary = FIXTURES[name].npmPackage
     ? join(projectDirectory, 'node_modules', '.bin', 'stacktape')
-    : await ensureV3Release(options);
-  const home = join(options.workDir, 'home-v3');
+    : await ensureV3Release(options, version);
+  const home = join(options.workDir, `home-v3-${version}`);
   await mkdir(home, { recursive: true });
   const env: Env = {
     PATH: process.env.PATH,
@@ -376,6 +402,15 @@ const runV3 = async ({
     STP_DISABLE_TELEMETRY: '1',
     DEPLOY_MARK: mark
   };
+  if (!V3_RELEASES[version].agentResult) {
+    const result = await runProcess({ cmd: [binary, ...args], cwd: projectDirectory, env });
+    return {
+      ok: result.exitCode === 0,
+      code: result.exitCode === 0 ? undefined : `exit ${result.exitCode}`,
+      message: `${result.stdout}\n${result.stderr}`.trim().slice(-2000),
+      durationMs: result.durationMs
+    };
+  }
   const result = await runProcess({ cmd: [binary, ...args, '--agent'], cwd: projectDirectory, env });
   const record = agentResult(result.stdout);
   return {
@@ -632,7 +667,7 @@ const runBatchJob = async (clients: Clients, stackName: string) => {
 };
 
 /** Forces one function's error-rate alarm into ALARM and waits until the webhook sink logs the notification. */
-const awaitAlarmNotification = async (clients: Clients, stackName: string) => {
+const awaitAlarmNotification = async (clients: Clients, stackName: string, channel: 'webhook' | 'ms-teams') => {
   const resources = await listStackResources(clients, stackName);
   const alarm = resources.find(
     ({ LogicalResourceId, ResourceType }) =>
@@ -658,8 +693,11 @@ const awaitAlarmNotification = async (clients: Clients, stackName: string) => {
           // The forced alarm's own firing: every alarmed function notifies the same sink. A webhook channel on an alarm
           // receives the alert event (`ALARM_TRIGGERED`, `details.alarmName`), whether the service Lambda delivers it in
           // the account or, for an older helper Lambda, the Console does. `INCIDENT_OPENED` goes only to channels of the
-          // Console's own alert rules.
-          filterPattern: `"ALARM_NOTIFICATION" "ALARM_TRIGGERED" "${alarmName}"`
+          // Console's own alert rules. An MS Teams channel receives the message text `Alarm "<name>" triggered`.
+          filterPattern:
+            channel === 'webhook'
+              ? `"ALARM_NOTIFICATION" "ALARM_TRIGGERED" "${alarmName}"`
+              : `"ALARM_NOTIFICATION" "triggered" "${alarmName}"`
         })
       )
       .catch(() => ({ events: [] }));
@@ -673,16 +711,22 @@ const prepareFixture = async (options: Options, name: FixtureName, secretName: s
   const directory = join(options.workDir, name);
   await rm(directory, { recursive: true, force: true });
   await cp(join(FIXTURE_ROOT, name), directory, { recursive: true });
+  const msTeamsAlarms = name === 'saas' && !V3_RELEASES[options.v3Versions[name]].webhookChannels;
   for (const config of [FIXTURES[name].v3Config, FIXTURES[name].v4Config]) {
     const path = join(directory, config);
-    const content = (await readFile(path, 'utf8'))
+    let content = (await readFile(path, 'utf8'))
       .replaceAll('__OWNER__', options.owner)
       .replaceAll('__RUNNER_IP__', runnerIp)
       .replaceAll('__SECRET_NAME__', secretName);
+    if (msTeamsAlarms) {
+      // The customer keeps its channel type through the upgrade, so both configs use an MS Teams channel.
+      assert(content.includes(WEBHOOK_ALARM_CHANNEL), `${config} no longer declares the alarm webhook channel.`);
+      content = content.replaceAll(WEBHOOK_ALARM_CHANNEL, MS_TEAMS_ALARM_CHANNEL);
+    }
     await writeFile(path, content);
   }
   const install = FIXTURES[name].npmPackage
-    ? ['npm', 'install', '--no-audit', '--no-fund', '--save-exact', `stacktape@${V3_VERSION}`]
+    ? ['npm', 'install', '--no-audit', '--no-fund', '--save-exact', `stacktape@${options.v3Versions[name]}`]
     : ['npm', 'install', '--no-audit', '--no-fund'];
   const installed = await runProcess({ cmd: install, cwd: directory, env: process.env });
   assert(installed.exitCode === 0, `npm install in ${name} failed: ${installed.stderr.slice(-800)}`);
@@ -722,7 +766,8 @@ const runFixture = async ({
   const spec = FIXTURES[name];
   const fixture = state.fixtures[name]!;
   const clients = createClients(options.profile, fixture.region);
-  const result: Record<string, unknown> = {};
+  const v3Version = options.v3Versions[name];
+  const result: Record<string, unknown> = { v3Version };
   report[name] = result;
   const run = options.owner;
   const v3Args = (config: string, ...extra: string[]) => [
@@ -762,13 +807,22 @@ const runFixture = async ({
   fixture.secretArn = created.ARN;
   await persist();
 
-  // 1. Two v3 deploys: the stack as 3.7.1 creates it, then a code-only change as the customer's CI deploys one.
+  // 1. Two v3 deploys: the stack as the 3.x CLI creates it, then a code-only change as the customer's CI deploys one.
   fixture.deployAttempted = true;
   await persist();
   const marks = ['v3-initial', 'v3-code'];
-  const v3First = await runV3({ options, name, args: v3Args(spec.v3Config), mark: marks[0]!, apiKey });
+  // Outside agent mode, 3.5.7 refuses to create a missing Console project in CI unless the operation is confirmed.
+  // The customer's projects exist already; the run's project is new, so its first deploy confirms it.
+  const firstDeployExtra = V3_RELEASES[v3Version].agentResult ? [] : ['--autoConfirmOperation'];
+  const v3First = await runV3({
+    options,
+    name,
+    args: v3Args(spec.v3Config, ...firstDeployExtra),
+    mark: marks[0]!,
+    apiKey
+  });
   result.v3FirstDeploy = v3First;
-  assert(v3First.ok, `The first 3.7.1 deploy failed: ${v3First.code}: ${v3First.message}`);
+  assert(v3First.ok, `The first ${v3Version} deploy failed: ${v3First.code}: ${v3First.message}`);
   const stack = await describeStack(clients.cloudFormation, fixture.stackName);
   assert(
     stack?.Tags?.some(({ Key, Value }) => Key === OWNER_TAG && Value === options.owner),
@@ -786,12 +840,12 @@ const runFixture = async ({
     apiKey
   });
   result.v3CodeDeploy = v3Second;
-  assert(v3Second.ok, `The 3.7.1 code-only deploy failed: ${v3Second.code}: ${v3Second.message}`);
+  assert(v3Second.ok, `The ${v3Version} code-only deploy failed: ${v3Second.code}: ${v3Second.message}`);
   result.v3Probe = await probe({ name, clients, stackName: fixture.stackName, build: marks[1]! });
   const v3Marks = await readMarks({ options, name, clients, stackName: fixture.stackName, secret });
   assert(
     marks.every((mark) => v3Marks.includes(mark)),
-    `The 3.7.1 afterDeploy migrations did not record ${marks.join(', ')}: ${JSON.stringify(v3Marks)}.`
+    `The ${v3Version} afterDeploy migrations did not record ${marks.join(', ')}: ${JSON.stringify(v3Marks)}.`
   );
   const before = await snapshot(clients, fixture.stackName);
 
@@ -876,7 +930,11 @@ const runFixture = async ({
       result.batchJob = await runBatchJob(clients, fixture.stackName);
       // The Console holds the pages of incidents that open during a deploy or within 5 minutes after it.
       await sleep(Math.max(0, deployedAt + 6 * 60 * 1000 - Date.now()));
-      result.alarmNotification = await awaitAlarmNotification(clients, fixture.stackName);
+      result.alarmNotification = await awaitAlarmNotification(
+        clients,
+        fixture.stackName,
+        V3_RELEASES[v3Version].webhookChannels ? 'webhook' : 'ms-teams'
+      );
     }
 
     // 4. A code-only change takes the fast path.

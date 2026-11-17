@@ -1532,6 +1532,7 @@ describe('Redis family', () => {
     const message = await validateConfigStructure({
       configPath: 'stacktape.yml',
       config: {
+        budgetControl: { limit: 100, notifications: [{ emails: ['ops@example.com'] }] },
         resources: {
           site: {
             type: 'web-service',
@@ -1568,6 +1569,7 @@ describe('Redis family', () => {
     expect(message).toContain('`custom-dockerfile` is a Stacktape v3 packaging type: use `dockerfile`');
     expect(message).toContain('`nixpacks` is a Stacktape v3 packaging type: use `buildpack`');
     expect(message).toContain('Rename it to `notificationChannels`');
+    expect(message).toContain('`budgetControl` is a Stacktape v3 property. Delete it');
     expect(message).toContain('https://docs.stacktape.com/getting-started/upgrading-from-v3/');
   });
 
