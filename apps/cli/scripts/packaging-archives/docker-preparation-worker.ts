@@ -245,7 +245,10 @@ const main = async () => {
     workingDir: project
   };
 
-  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await configManager.init({
+    configRequired: true,
+    context: { ...getConfigManagerContext(stackContext), consoleConnected: true }
+  });
   if (request.command === 'deploy') {
     await stackManager.init({ stackName: STACK_NAME, commandModifiesStack: true, commandRequiresDeployedStack: false });
     await ec2Manager.init({

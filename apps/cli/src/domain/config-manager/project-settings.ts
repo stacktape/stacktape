@@ -35,6 +35,7 @@ const COMMANDS_WITHOUT_PROJECT_SETTINGS = new Set<string>([
   'version',
   'login',
   'logout',
+  'connect',
   'upgrade',
   'init',
   'mcp',

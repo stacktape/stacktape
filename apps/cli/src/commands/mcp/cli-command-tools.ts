@@ -179,6 +179,7 @@ const commandPolicies: Record<StacktapeCommand, Omit<CliCommandPolicy, 'requires
   'aws-profile:list': { category: 'account', safety: 'readOnly' },
   login: { category: 'account', safety: 'interactive' },
   logout: { category: 'account', safety: 'mutating' },
+  connect: { category: 'account', safety: 'interactive' },
   'org:create': { category: 'account', safety: 'mutating' },
   'org:list': { category: 'account', safety: 'readOnly' },
   'org:delete': { category: 'account', safety: 'destructive' },

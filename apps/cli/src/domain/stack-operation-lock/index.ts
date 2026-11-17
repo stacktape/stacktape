@@ -1,3 +1,4 @@
+import { hostname, userInfo } from 'node:os';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -68,6 +69,19 @@ export const abandonHeldStackLock = () => {
 export const STACK_LOCK_HOLDERS_ENV = 'STP_STACK_LOCK_HOLDERS';
 
 let commandSucceeded = false;
+let waitedForAnotherMachine = false;
+
+/** This command waited for the lock of an operation that another machine runs. */
+export const waitedForStackLockOfAnotherMachine = () => waitedForAnotherMachine;
+
+/** `user@host`, so whoever waits for this operation knows whom to ask. Never sent anywhere but the stack's own bucket. */
+const lockHolderName = () => {
+  try {
+    return `${userInfo().username}@${hostname()}`;
+  } catch {
+    return hostname();
+  }
+};
 
 /** A previous holder that released the lock this recently may have changed the stack after the command read it. */
 const RECENT_RELEASE_MS = 30_000;
@@ -77,12 +91,13 @@ const utcTime = (ms: number) => `${new Date(ms).toISOString().slice(11, 19)} UTC
 
 const describeWait = ({ holder }: StackLockedError, nowMs: number) => {
   const operation = holder.operation === 'unknown' ? 'operation' : holder.operation;
+  const by = holder.heldBy ? `by ${holder.heldBy}, ` : '';
   // A running holder renews every 30 seconds, so twice that without a renewal means it stopped.
   if (nowMs - holder.renewedAtMs > 2 * STACK_LOCK_RENEW_INTERVAL_MS) {
-    return `The ${operation} that holds this stack's lock (invocation ${holder.invocationId}) stopped without releasing it, probably because it was killed. Its lock expires at ${utcTime(holder.renewedAtMs + STACK_LOCK_LEASE_MS)}.`;
+    return `The ${operation} that holds this stack's lock (${by}invocation ${holder.invocationId}) stopped without releasing it, probably because it was killed. Its lock expires at ${utcTime(holder.renewedAtMs + STACK_LOCK_LEASE_MS)}.`;
   }
   const since = holder.startedAtMs === undefined ? '' : `, started at ${utcTime(holder.startedAtMs)}`;
-  return `Waiting for another ${operation} of this stack to finish (invocation ${holder.invocationId}${since}).`;
+  return `Waiting for another ${operation} of this stack to finish (${by}invocation ${holder.invocationId}${since}).`;
 };
 
 /**
@@ -126,6 +141,8 @@ export const holdStackLock = async ({
         store: s3Store(bucketName),
         invocationId: globalStateManager.invocationId,
         operation,
+        heldBy: lockHolderName(),
+        installId: globalStateManager.systemId,
         now,
         onLost: () =>
           tuiManager.warn(
@@ -139,6 +156,9 @@ export const holdStackLock = async ({
           `This ${operation} runs from a hook of the ${busy.holder.operation} that holds this stack's lock, so it cannot wait for that ${busy.holder.operation} to finish.`,
           `Run it after the ${busy.holder.operation} finishes, for example as a separate CI step.`
         );
+      }
+      if (busy.holder.installId && busy.holder.installId !== globalStateManager.systemId) {
+        waitedForAnotherMachine = true;
       }
       const message = describeWait(busy, now());
       onWaiting?.(message);

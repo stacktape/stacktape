@@ -49,6 +49,7 @@ import {
 import { initializeDeployOperation } from '../_utils/initialization';
 import { hintCodingAgentSetupAfterFirstDeploy } from '../_utils/coding-agent-hint';
 import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
+import { showConsoleHintsAfterDeploy } from '../_utils/console-hints';
 import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { resolveSlackAppChannels } from '@domain-services/config-manager/utils/slack-app-channels';
 import { buildUptimeChecksSyncPayload, withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
@@ -309,7 +310,10 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   // `slack-app` notification channels name a Slack channel; the deploy turns the names into the stable IDs the
   // Console delivers to, before the template is built. Fails with every unresolvable name at once.
-  await resolveSlackAppChannels({ rawConfig: config.config, apiClient: stacktapeApi.apiClient });
+  // Without the Console, validation already rejected `slack-app` channels.
+  if (!globalStateManager.isAccountFree) {
+    await resolveSlackAppChannels({ rawConfig: config.config, apiClient: stacktapeApi.apiClient });
+  }
 
   // Both are derived from the current stack details, which the post-deploy refetch replaces. A stack an earlier first
   // deploy left with only its artifact resources is updated, but this is still the stage's first deploy.
@@ -492,9 +496,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
 
   // The dependency inventory (lockfiles plus the packages inside every image this deployment rebuilt) is read while
   // CloudFormation works; it is uploaded and reported only after the deployment succeeds. The AWS account's Console
-  // setting can limit scanning to the configuration checks.
+  // setting can limit scanning to the configuration checks. Only the Console checks it.
   const securityInventoryPromise =
-    securityAssessment && config.securityScanningPolicy.dependencies
+    securityAssessment && config.securityScanningPolicy.dependencies && !globalStateManager.isAccountFree
       ? startSecurityInventory({ deploymentArtifacts, stackContext, version: releaseVersion, tui })
       : null;
 
@@ -591,7 +595,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     await Promise.all([
       stack.refetchStackDetails(stackContext.stackName),
       budget.loadBudgets(),
-      deleteUndeployedStage()
+      globalStateManager.isAccountFree ? undefined : deleteUndeployedStage()
     ]);
     obsoleteArtifactDeletion = deleteObsoleteArtifacts({ deploymentArtifacts, fixedFailedUpdate });
     obsoleteArtifactDeletion.catch(() => {});
@@ -658,7 +662,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // force a full deploy, so a fast deployment could only re-announce unchanged definitions —
   // and must never announce anything the manifests (untouched by it) do not carry.
   const syncUptimeChecks = async () => {
-    if (fastDeployPlan) return;
+    if (fastDeployPlan || globalStateManager.isAccountFree) return;
     try {
       // The revision hashes the authored (unresolved) definition, so it is computed BEFORE resolving
       // directives — it must stay byte-identical to the revision the prober manifests carry. The
@@ -684,7 +688,9 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     }
   };
 
-  const consoleUrl = stageConsoleUrl({ projectName: stackContext.projectName, stage: stackContext.stage });
+  const consoleUrl = globalStateManager.isAccountFree
+    ? undefined
+    : stageConsoleUrl({ projectName: stackContext.projectName, stage: stackContext.stage });
   const resourceLinks = deployedStackOverview.getResourceLinks();
 
   // Store completion info - setComplete will be called after afterDeploy hooks finish
@@ -695,14 +701,19 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
     consoleUrl
   });
 
-  // Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode)
+  // Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode). Git deployments are a Console
+  // feature.
   if (isFirstDeployment) {
-    lifecycle.addFinalAction(() => promptCiCdSetupAfterDeploy());
+    if (!globalStateManager.isAccountFree) lifecycle.addFinalAction(() => promptCiCdSetupAfterDeploy());
     lifecycle.addFinalAction(() => hintCodingAgentSetupAfterFirstDeploy());
+  }
+  if (globalStateManager.isAccountFree) {
+    lifecycle.addFinalAction(() => showConsoleHintsAfterDeploy({ projectName: stackContext.projectName }));
   }
 
   const reportSecurityFindings = async () => {
-    if (!securityAssessment) return;
+    // The findings were printed before the build; only the Console stores them and the dependency inventory.
+    if (!securityAssessment || globalStateManager.isAccountFree) return;
     const securityInventory = await uploadSecurityInventory({
       inventory: securityInventoryPromise ? await securityInventoryPromise : null,
       deploymentArtifacts,

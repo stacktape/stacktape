@@ -19,13 +19,18 @@ const collector = (status = 200) => {
     }
   });
 
-  const run = async (mode: 'completion' | 'failure' | 'init' | 'exception', disabled = false) => {
+  const run = async (
+    mode: 'completion' | 'failure' | 'init' | 'exception',
+    disabled = false,
+    { signedIn = true }: { signedIn?: boolean } = {}
+  ) => {
     const child = Bun.spawn(
       [
         process.execPath,
         '--no-env-file',
         '--preload',
         join(import.meta.dir, '../../scripts/test-preload.ts'),
+        ...(signedIn ? ['--preload', join(import.meta.dir, 'telemetry-signed-in.fixture.ts')] : []),
         mode === 'init'
           ? join(import.meta.dir, '../init/telemetry-init.fixture.ts')
           : join(import.meta.dir, 'telemetry-completion.fixture.ts'),
@@ -194,6 +199,19 @@ test('rejected analytics does not fail command completion, init or error reporti
       'init_completed',
       '$exception'
     ]);
+  } finally {
+    stop();
+  }
+});
+
+test('without an account only the allowlisted completion is sent: no exception, init or argument data', async () => {
+  const { requests, run, stop } = collector();
+  try {
+    // The notice was not shown in these processes, so nothing at all is sent; the CLI-process spec covers the notice.
+    expect(await run('completion', false, { signedIn: false })).toBe('command-completed');
+    expect(await run('init', false, { signedIn: false })).toBe('init-completed');
+    expect(JSON.parse(await run('exception', false, { signedIn: false }))).toEqual({ id: null });
+    expect(requests).toEqual([]);
   } finally {
     stop();
   }

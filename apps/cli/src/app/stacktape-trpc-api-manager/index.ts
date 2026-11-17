@@ -83,8 +83,13 @@ export class StacktapeTrpcApiManager {
     this.apiClient = new ApiKeyProtectedClient({ executeRequest });
   }
 
-  init = async ({ apiKey }: { apiKey: string }) => {
+  /**
+   * Without an API key the client stays uninitialized, so a request made in account-free mode fails in the CLI instead
+   * of reaching the Stacktape API.
+   */
+  init = async ({ apiKey }: { apiKey: string | undefined }) => {
     this.#hasApiKey = Boolean(apiKey);
+    if (!apiKey) return;
     await this.apiClient.init({ apiKey });
   };
 }

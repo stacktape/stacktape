@@ -12,7 +12,8 @@ import { getHomeDir } from '@utils/misc';
  *   the Session Manager plugin) in `toolsDirectory` (one directory per tool and version, so an upgrade never
  *   overwrites a binary in use; old versions may be deleted);
  *   the last fetched update notice and announcements in `noticesCacheFile`, replaced by a newer fetch and safe to
- *   delete at any time; the caller identity STS returned for each access key in `awsIdentityCacheFile`, kept a
+ *   delete at any time; the Console hints each project has shown in `consoleHintsFile`, kept until deleted and safe
+ *   to delete at any time; the caller identity STS returned for each access key in `awsIdentityCacheFile`, kept a
  *   day and safe to delete at any time; and when each base image of Stacktape's generated Dockerfiles was last
  *   pulled in `baseImagePullsFile`, kept a day and safe to delete at any time.
  * - User-runtime: the session token of each running dev agent in `devAgentTokenFile`, keyed by the agent's port so
@@ -48,6 +49,10 @@ export const localStatePaths = {
   },
   noticesCacheFile() {
     return join(localStatePaths.userDataDirectory(), 'notices.json');
+  },
+  /** Which Console hints each project has already shown; deleting it only shows each hint once more. */
+  consoleHintsFile() {
+    return join(localStatePaths.userDataDirectory(), 'console-hints.json');
   },
   awsIdentityCacheFile() {
     return join(localStatePaths.userDataDirectory(), 'aws-identity-cache.json');

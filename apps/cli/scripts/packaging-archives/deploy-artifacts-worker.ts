@@ -247,7 +247,10 @@ const main = async () => {
   };
 
   // The deploy command's initialization, limited to the managers packaging and artifact upload use.
-  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await configManager.init({
+    configRequired: true,
+    context: { ...getConfigManagerContext(stackContext), consoleConnected: true }
+  });
   await stackManager.init({ stackName: STACK_NAME, commandModifiesStack: true, commandRequiresDeployedStack: false });
   await ec2Manager.init({
     instanceTypes: configManager.allUsedEc2InstanceTypes,

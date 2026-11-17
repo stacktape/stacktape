@@ -29,6 +29,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
+import { CliError } from '@utils/errors';
 import { redirectPlugin, retryPlugin } from 'src/aws/client-middleware';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
@@ -37,6 +38,8 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { createAwsErrorHandler, createAwsLoggingPlugin } from 'src/aws/client-instrumentation';
 import { logCollectorStream } from '@utils/log-collector';
 import { ensureAwsAccountConnected } from './aws-connection-preflight';
+import { consoleSignInRequiredError } from '@application-services/global-state-manager/account-mode';
+import { publicCommandName } from 'src/config/cli/public-names';
 import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
 import type { StackContext } from '@domain-services/stack-context';
 import type { ConfigResolverContext } from '@domain-services/config-manager/config-resolver';
@@ -149,7 +152,8 @@ export const getConfigManagerContext = (stackContext: StackContext): ConfigManag
       }
     },
     resolver: getConfigResolverContext(stackContext),
-    stack: stackContext
+    stack: stackContext,
+    consoleConnected: !globalStateManager.isAccountFree
   };
 };
 
@@ -158,6 +162,8 @@ const detectConfigPath = () => {
 };
 
 export const loadTargetStackContext = async ({ skipRawConfig = false }: { skipRawConfig?: boolean } = {}) => {
+  // Without the Console there is no project to create or choose: the stack is resolved from the arguments and config.
+  if (globalStateManager.isAccountFree) return loadLocalTargetStackContext();
   detectConfigPath();
   if (!skipRawConfig) {
     await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
@@ -183,9 +189,32 @@ const loadLocalTargetStackContext = async () => {
  * Local AWS credentials without the Console. `package` passes `lookUpAccount: false`: it looks the account up only when
  * something needs it. Commands that read the stack, such as `synth` and `validate`, look it up now.
  */
-const loadLocalAwsContext = async ({ lookUpAccount }: { lookUpAccount: boolean }) => {
+const loadLocalAwsContext = async ({
+  lookUpAccount,
+  callerIdentity = false
+}: {
+  lookUpAccount: boolean;
+  callerIdentity?: boolean;
+}) => {
+  await loadLocalAwsCredentials({ lookUpAccount, callerIdentity });
+  await loadLocalTargetStackContext();
+};
+
+/**
+ * `callerIdentity` also looks up who the credentials belong to when the profile already named the account: commands
+ * that change or use the stack assume roles and write the developer into trust policies.
+ */
+const loadLocalAwsCredentials = async ({
+  lookUpAccount,
+  callerIdentity = false
+}: {
+  lookUpAccount: boolean;
+  callerIdentity?: boolean;
+}) => {
   const credentialsProvider = await globalStateManager.prepareLocalAwsCredentials();
-  if (lookUpAccount) {
+  if (callerIdentity) {
+    await globalStateManager.resolveLocalCallerIdentity();
+  } else if (lookUpAccount) {
     await globalStateManager.resolveLocalAwsAccount();
   }
   const endSdkInit = startTiming('context:aws-sdk-init');
@@ -197,7 +226,16 @@ const loadLocalAwsContext = async ({ lookUpAccount }: { lookUpAccount: boolean }
     printer: tuiManager
   });
   endSdkInit();
-  await loadLocalTargetStackContext();
+};
+
+/** `--aws-account` names an AWS account connected in the Console, which supplies its credentials. */
+const assertNoConsoleAwsAccount = () => {
+  if (globalStateManager.isAccountFree && globalStateManager.args.awsAccount) {
+    throw consoleSignInRequiredError({
+      invocation: `${publicCommandName(globalStateManager.command)} --aws-account`,
+      reason: 'it names an AWS account connected in the Stacktape Console'
+    });
+  }
 };
 
 export const captureCommandArgs = (): Readonly<StacktapeCliArgs> => Object.freeze({ ...globalStateManager.args });
@@ -284,7 +322,9 @@ export const initializeStackOperationLifecycle = async ({
   operationReporter.setPhase('INITIALIZE');
 
   let globalConfig: GlobalConfigResponse | undefined;
-  if (requiresControlPlane) {
+  // Without an API key, every stack command runs account-free: local AWS credentials and nothing sent to Stacktape.
+  const usesConsole = requiresControlPlane && !globalStateManager.isAccountFree;
+  if (usesConsole) {
     await loadUserCredentials();
     const subscriptionCheck = requiresSubscription ? stacktapeTrpcApiManager.apiClient.canDeploy() : undefined;
     const [, subscription, fetchedGlobalConfig] = await settleAllBeforeThrowing([
@@ -323,11 +363,12 @@ export const initializeStackOperationLifecycle = async ({
   } else if (globalStateManager.args.awsAccount) {
     // `--aws-account` names an account connected in the Console, which supplies its credentials. The stack is still
     // resolved locally: a command without the Console must not create a Console project.
-    if (!globalStateManager.apiKey) throw stpErrors.e501({ operation: `${globalStateManager.command} --aws-account` });
+    assertNoConsoleAwsAccount();
     await loadUserCredentials();
     await loadLocalTargetStackContext();
   } else {
-    await loadLocalAwsContext({ lookUpAccount: true });
+    // `synth` and `validate` need only the account; a command that uses the stack needs the caller too.
+    await loadLocalAwsContext({ lookUpAccount: true, callerIdentity: requiresControlPlane });
   }
   const stackContext = getStackContext();
   await beforeConfigInit?.(stackContext);
@@ -360,7 +401,7 @@ export const initializeStackOperationLifecycle = async ({
               domainManager.loadDefaultDomainsInfo({
                 stackName: stackContext.stackName,
                 deployedTemplate: stackManager.existingStackDetails ? templateManager.oldTemplate : undefined,
-                fromControlPlane: requiresControlPlane
+                fromControlPlane: usesConsole
               })
             ),
           deploymentArtifactManager.init({
@@ -386,7 +427,7 @@ export const initializeStackOperationLifecycle = async ({
       fromParameterStore: true,
       parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
-    ...(requiresControlPlane
+    ...(usesConsole
       ? [
           startStackOperationRecording({
             stackName: globalStateManager.targetStack.stackName,
@@ -399,7 +440,7 @@ export const initializeStackOperationLifecycle = async ({
       requireAtlasCredentialsParameter: configManager.requireAtlasCredentialsParameter,
       requireUpstashCredentialsParameter: configManager.requireUpstashCredentialsParameter
     }),
-    notificationManager.init({ consoleApiAccess: requiresControlPlane })
+    notificationManager.init({ consoleApiAccess: usesConsole })
   ]);
   await Promise.all([
     deployedStackOverviewManager.init({
@@ -415,6 +456,18 @@ export const initializeStackOperationLifecycle = async ({
 
   // Finish the parent event for loading AWS metadata
   await operationReporter.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS', finalMessage: 'AWS metadata loaded' });
+  // A deploy without the Console builds no default domains, so it would remove the ones the stack serves its URLs on.
+  if (commandModifiesStack && globalStateManager.isAccountFree && domainManager.deployedStackHasDefaultDomains) {
+    throw new CliError({
+      category: 'API_KEY',
+      code: 'CONSOLE_DEFAULT_DOMAINS_IN_USE',
+      message: `${stackContext.stackName} serves its URLs on *.stacktape-app.com default domains, which need the Stacktape Console. Deploying it without the Console would remove them and change those URLs.`,
+      hints: [
+        'Sign in with `stacktape login`, or run `stacktape connect` to add your stacks to the Console. Nothing is redeployed.',
+        'Or add customDomains with your own domain to the resources that use the default domains.'
+      ]
+    });
+  }
 
   await commandLifecycle.registerHooks(configManager.hooks);
   if (!isRemoteRunnerDeployInvocation() && configManager.hostNodeDependenciesRequired) {
@@ -569,7 +622,7 @@ export const initializeStackServicesForLocalResolve = async () => {
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     })
   ]);
-  await notificationManager.init();
+  await notificationManager.init({ consoleApiAccess: !globalStateManager.isAccountFree });
   await Promise.all([
     templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
     deployedStackOverviewManager.init({
@@ -615,7 +668,7 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     })
   ]);
-  await notificationManager.init();
+  await notificationManager.init({ consoleApiAccess: !globalStateManager.isAccountFree });
   await Promise.all([
     deployedStackOverviewManager.init({
       stackDetails: stackManager.existingStackDetails,
@@ -660,18 +713,23 @@ export const initializeStackServicesForDevPhase1 = async () => {
     }
   }
 
-  await globalStateManager.loadUserCredentials();
-  // Dev mode deploys and updates a dev stack, so it follows the deploy rules: a Free organization over its monthly
-  // limit cannot start it. This runs before anything is prompted, created or deployed; `dev:stop` stays available.
-  const subscription = await stacktapeTrpcApiManager.apiClient.canDeploy();
-  if (!subscription.canDeploy) throw stpErrors.e502(subscription);
-  awsSdkManager.init({
-    credentials: () => globalStateManager.credentials,
-    region: globalStateManager.region,
-    getErrorHandlerFn: getErrorHandler,
-    plugins: [loggingPlugin, retryPlugin, redirectPlugin],
-    printer: tuiManager
-  });
+  if (globalStateManager.isAccountFree) {
+    assertNoConsoleAwsAccount();
+    await loadLocalAwsCredentials({ lookUpAccount: true, callerIdentity: true });
+  } else {
+    await globalStateManager.loadUserCredentials();
+    // Dev mode deploys and updates a dev stack, so it follows the deploy rules: a Free organization over its monthly
+    // limit cannot start it. This runs before anything is prompted, created or deployed; `dev:stop` stays available.
+    const subscription = await stacktapeTrpcApiManager.apiClient.canDeploy();
+    if (!subscription.canDeploy) throw stpErrors.e502(subscription);
+    awsSdkManager.init({
+      credentials: () => globalStateManager.credentials,
+      region: globalStateManager.region,
+      getErrorHandlerFn: getErrorHandler,
+      plugins: [loggingPlugin, retryPlugin, redirectPlugin],
+      printer: tuiManager
+    });
+  }
 
   await loadTargetStackContext();
   const stackContext = getStackContext();
@@ -717,7 +775,7 @@ export const initializeStackServicesForDevPhase2 = async (stackContext: StackCon
     stackName: stackContext.stackName,
     deployedTemplate:
       deployedStack && deployedStack.StackStatus !== 'DELETE_COMPLETE' ? templateManager.oldTemplate : undefined,
-    fromControlPlane: true
+    fromControlPlane: !globalStateManager.isAccountFree
   });
 
   await Promise.all([
@@ -748,14 +806,16 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   await recordStackOperationStart();
 
   await loadTargetStackContext();
-  assertCommandPermissions({
-    command: globalStateManager.command,
-    stage: globalStateManager.stage,
-    projectName: globalStateManager.targetStack?.projectName,
-    role: globalStateManager.organizationData?.role,
-    permissions: globalStateManager.permissions,
-    projects: globalStateManager.projects
-  });
+  if (!globalStateManager.isAccountFree) {
+    assertCommandPermissions({
+      command: globalStateManager.command,
+      stage: globalStateManager.stage,
+      projectName: globalStateManager.targetStack?.projectName,
+      role: globalStateManager.organizationData?.role,
+      permissions: globalStateManager.permissions,
+      projects: globalStateManager.projects
+    });
+  }
   await startStackOperationRecording({
     stackName: globalStateManager.targetStack.stackName,
     projectName: globalStateManager.targetStack.projectName
@@ -868,7 +928,20 @@ export const initializeCloudFormationRollbackOperation = async () => ({
   tui: tuiManager
 });
 
+/**
+ * The AWS credentials of a command. With an API key they come from the Console's connected account; without one they are
+ * the local AWS credentials, and the command runs account-free.
+ */
 export const loadUserCredentials = async () => {
+  if (globalStateManager.isAccountFree) {
+    assertNoConsoleAwsAccount();
+    await loadLocalAwsCredentials({ lookUpAccount: true, callerIdentity: true });
+    return Object.freeze({
+      args: captureCommandArgs(),
+      region: globalStateManager.region,
+      workingDir: globalStateManager.workingDir
+    });
+  }
   await operationReporter.startEvent({ eventType: 'LOAD_USER_DATA', description: 'Loading user data' });
 
   // First, ensure AWS account is connected (may prompt user to connect if no accounts)
@@ -897,6 +970,7 @@ export const loadUserCredentials = async () => {
 };
 
 const recordStackOperationStart = async () => {
+  if (globalStateManager.isAccountFree) return;
   const command = globalStateManager.command;
   const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
   if (isCommandToBeRecorded) {
@@ -920,6 +994,8 @@ const recordStackOperationStart = async () => {
 };
 
 const startStackOperationRecording = async ({ stackName, projectName }: { stackName: string; projectName: string }) => {
+  // The operation record and its log stream belong to the Console's deploy history.
+  if (globalStateManager.isAccountFree) return;
   // for recorded stacktape commands we are sending logs into cloudwatch
   // we are also recording the start and end of operation through Stacktape API
   const command = globalStateManager.command;
