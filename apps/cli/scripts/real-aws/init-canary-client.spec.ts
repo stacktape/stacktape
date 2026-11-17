@@ -41,7 +41,8 @@ describe('init canary wizard client', () => {
         onPipeline: () => undefined,
         onCodingAgentSetup: () => {},
         onRecheck: () => initialState(),
-        onSignIn: () => undefined
+        onSignIn: () => undefined,
+        onConsoleConnection: () => undefined
       }
     });
 
@@ -76,7 +77,8 @@ describe('init canary wizard client', () => {
         onPipeline: () => undefined,
         onCodingAgentSetup: () => {},
         onRecheck: () => initialState(),
-        onSignIn: () => undefined
+        onSignIn: () => undefined,
+        onConsoleConnection: () => undefined
       }
     });
     const controller = new AbortController();

@@ -1,6 +1,7 @@
 import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { selectAwsCredentialProfile } from '@application-services/global-state-manager/credential-source';
 import { resolveRegionValue } from '@application-services/global-state-manager/invocation-target';
 import { describeRegionChoice, regionForNewConfig, runInit, type MachineRegionSource } from 'src/init/run-init';
 import { openBrowser } from '../_utils/browser';
@@ -43,6 +44,14 @@ export const commandInit = async () => {
       : join(process.cwd(), projectDirectory)
     : process.cwd();
 
+  // The profile a deploy on this machine would use, selected as the deploy selects it, so the wizard names the AWS
+  // account the deploy goes to rather than whichever one the SDK's default chain finds.
+  const awsProfile = selectAwsCredentialProfile({
+    environmentProfile: process.env.AWS_PROFILE,
+    persistedProfile: globalStateManager.persistedState?.cliArgsDefaults?.profile,
+    environment: process.env
+  });
+
   // Agent mode speaks JSONL to another program, so a browser would be pointless there whatever the
   // user asked for.
   const headless = args.headless === true || isAgentMode();
@@ -54,6 +63,7 @@ export const commandInit = async () => {
     ...(args.configFormat === undefined ? {} : { configFormat: args.configFormat }),
     ...(args.infrastructureType === undefined ? {} : { mode: args.infrastructureType }),
     ...(args.awsAccount === undefined ? {} : { awsAccount: args.awsAccount }),
+    ...(awsProfile === undefined ? {} : { awsProfile }),
     ...(machineRegion === undefined ? {} : { machineRegion }),
     ...(machineRegionSource === undefined ? {} : { machineRegionSource }),
     // `--noBrowser` still starts the wizard and still prints its address; it only stops us from

@@ -1052,7 +1052,7 @@ describe('startWizardSession', () => {
       expect(deployed).toEqual([]);
     });
 
-    it('enforces composition, AWS identity, and Stacktape sign-in gates on the server', async () => {
+    it('enforces composition and AWS identity gates on the server', async () => {
       type GateState = {
         composition?: { deployable: boolean };
         awsIdentity?: { available: boolean };
@@ -1079,16 +1079,6 @@ describe('startWizardSession', () => {
           }),
           stacktapeAccount: async () => ({ signedIn: true, detail: 'Signed in.' }),
           ready: (state) => state.awsIdentity?.available === false && state.stacktapeAccount?.signedIn === true
-        },
-        {
-          result: ordinary,
-          awsIdentity: async () => ({
-            available: true,
-            accountId: '123456789012',
-            arn: 'arn:aws:iam::123456789012:user/test'
-          }),
-          stacktapeAccount: async () => ({ signedIn: false, detail: 'Not signed in.' }),
-          ready: (state) => state.awsIdentity?.available === true && state.stacktapeAccount?.signedIn === false
         }
       ];
 
@@ -1453,7 +1443,10 @@ describe('signing in to Stacktape from the page', () => {
     for (const stop of stopApi.splice(0)) await stop();
   });
 
-  const open = async (fake: Pick<Awaited<ReturnType<typeof fakeStacktape>>, 'dependencies' | 'stacktapeAccount'>) => {
+  const open = async (
+    fake: Pick<Awaited<ReturnType<typeof fakeStacktape>>, 'dependencies' | 'stacktapeAccount'>,
+    { connectConsole }: { connectConsole?: () => Promise<{ ok: boolean; detail: string }> } = {}
+  ) => {
     let deployCalls = 0;
     session = await startWizardSession({
       projectName: 'demo',
@@ -1469,7 +1462,8 @@ describe('signing in to Stacktape from the page', () => {
         return { ok: true, code: 'OK', message: 'Deployed.' };
       },
       stacktapeAccount: fake.stacktapeAccount,
-      signIn: fake.dependencies
+      signIn: fake.dependencies,
+      ...(connectConsole === undefined ? {} : { connectConsole })
     });
     const origin = `http://127.0.0.1:${session.server.port}`;
     const token = new URL(session.server.url).hash.replace('#token=', '');
@@ -1538,34 +1532,113 @@ describe('signing in to Stacktape from the page', () => {
 
   const errorOf = (state: WizardState) => (state.signIn as { error?: { code: string; message: string } }).error;
 
-  it('signs in through the Console tab, and only then lets the deploy through', async () => {
+  it('deploys signed out, then signs in and connects from the Console offer', async () => {
     const fake = await fakeStacktape({ answers: ['authorization_pending', 'authorization_pending', 'approve'] });
-    const page = await open(fake);
+    const connected: string[] = [];
+    let finishConnecting: (outcome: { ok: boolean; detail: string }) => void = () => {};
+    const page = await open(fake, {
+      connectConsole: () => {
+        // Connecting runs as the account the page just signed in to.
+        connected.push(fake.savedKeys.at(-1) ?? 'no key');
+        return new Promise((resolve) => {
+          finishConnecting = resolve;
+        });
+      }
+    });
     await page.post('/api/write', { format: 'yaml' });
-    const deploy = () => page.post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
 
-    expect((await page.state()).signIn).toEqual({ step: 'signed-out' });
-    await deploy();
-    expect(page.deployCalls()).toBe(0);
+    // No sign-in before the deploy: signed out, it runs on this machine's AWS credentials.
+    expect((await page.state()).stacktapeAccount?.signedIn).toBe(false);
+    expect((await page.post('/api/console-connection/connect')).state.consoleConnection).toBeUndefined();
+    await page.post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
+    const deployed = await page.until((candidate) => candidate.deployment?.status === 'succeeded');
+    expect(page.deployCalls()).toBe(1);
+    expect(deployed.consoleConnection).toEqual({ status: 'offered' });
 
-    const started = await page.signIn('start');
-    // The page opens the Console with the code filled in, and shows the code to compare.
-    expect(started.state.signIn).toMatchObject({
+    // One click accepts the offer and starts the sign-in: the page opens the Console with the code filled in.
+    const accepted = await page.post('/api/console-connection/connect');
+    expect(accepted.state.consoleConnection).toEqual({ status: 'signing-in' });
+    expect(accepted.state.signIn).toMatchObject({
       step: 'waiting',
       userCode: LOOPBACK_USER_CODE,
-      verificationUri: LOOPBACK_VERIFICATION_URI,
       verificationUriComplete: `${LOOPBACK_VERIFICATION_URI}?user_code=${LOOPBACK_USER_CODE}`
     });
-    expect((started.state.signIn as { expiresAt: number }).expiresAt).toBeGreaterThan(Date.now());
 
-    // Nobody is holding a request open for the approval; the page learns it from the pushed state.
-    const signedIn = await page.until((candidate) => candidate.stacktapeAccount?.signedIn === true);
-    expect(signedIn.signIn).toBeUndefined();
-    expect(fake.device.polls).toHaveLength(3);
-    expect(fake.savedKeys).toEqual([fake.apiKeyFor('org_1')]);
+    // Approved in the Console tab: the account check passes and connecting follows by itself.
+    const connecting = await page.until((candidate) => candidate.consoleConnection?.status === 'connecting');
+    expect(connecting.stacktapeAccount?.signedIn).toBe(true);
+    expect(connecting.signIn).toBeUndefined();
+    expect(connected).toEqual([fake.apiKeyFor('org_1')]);
 
-    await deploy();
+    // A second click while it runs does not connect twice.
+    await page.post('/api/console-connection/connect');
+    expect(connected).toHaveLength(1);
+
+    finishConnecting({ ok: true, detail: 'Connected AWS account 123456789012 to Acme.' });
+    expect(
+      (await page.until((candidate) => candidate.consoleConnection?.status === 'connected')).deployment?.status
+    ).toBe('succeeded');
+    // Nothing was deployed again.
     expect(page.deployCalls()).toBe(1);
+  });
+
+  it('links to the Console instead of offering it after a deploy that ran signed in', async () => {
+    const fake = await fakeStacktape();
+    fake.savedKeys.push('api-key-secret:org_1');
+    let connectCalls = 0;
+    const page = await open(fake, {
+      connectConsole: async () => {
+        connectCalls += 1;
+        return { ok: true, detail: 'Connected.' };
+      }
+    });
+    await page.post('/api/write', { format: 'yaml' });
+    await page.post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
+
+    const deployed = await page.until((candidate) => candidate.deployment?.status === 'succeeded');
+    expect(deployed.consoleConnection).toEqual({ status: 'linked' });
+    await page.post('/api/console-connection/connect');
+    expect(connectCalls).toBe(0);
+  });
+
+  it('says why connecting failed, and "Not now" sets the offer aside', async () => {
+    const fake = await fakeStacktape();
+    const page = await open(fake, {
+      connectConsole: async () => ({ ok: false, detail: 'Not authorized to perform cloudformation:CreateStack.' })
+    });
+    await page.post('/api/write', { format: 'yaml' });
+    await page.post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
+    await page.until((candidate) => candidate.deployment?.status === 'succeeded');
+
+    // Signed in meanwhile in a terminal: accepting connects straight away.
+    fake.savedKeys.push('api-key-secret:elsewhere');
+    await page.post('/api/recheck');
+    await page.until((candidate) => candidate.stacktapeAccount?.signedIn === true);
+    await page.post('/api/console-connection/connect');
+    const failed = await page.until((candidate) => candidate.consoleConnection?.status === 'failed');
+    expect(failed.consoleConnection).toEqual({
+      status: 'failed',
+      detail: 'Not authorized to perform cloudformation:CreateStack.'
+    });
+
+    const dismissed = await page.post('/api/console-connection/dismiss');
+    expect(dismissed.state.consoleConnection).toEqual({ status: 'dismissed' });
+  });
+
+  it('ends a sign-in started from the offer when it is set aside', async () => {
+    const fake = await fakeStacktape({ answers: ['authorization_pending'] });
+    const page = await open(fake, { connectConsole: async () => ({ ok: true, detail: 'Connected.' }) });
+    await page.post('/api/write', { format: 'yaml' });
+    await page.post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
+    await page.until((candidate) => candidate.deployment?.status === 'succeeded');
+
+    await page.post('/api/console-connection/connect');
+    const dismissed = await page.post('/api/console-connection/dismiss');
+    expect(dismissed.state.consoleConnection).toEqual({ status: 'dismissed' });
+    expect(dismissed.state.signIn).toEqual({ step: 'signed-out' });
+    const pollsAtDismiss = fake.device.polls.length;
+    await Bun.sleep(300);
+    expect(fake.device.polls).toHaveLength(pollsAtDismiss);
   });
 
   it('keeps the device code, the session token and the API key out of everything the page is sent', async () => {

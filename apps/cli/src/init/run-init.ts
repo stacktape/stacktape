@@ -21,7 +21,7 @@ import { writePipeline } from './cicd/write-pipeline';
 import { CODING_AGENT_IDS, getCodingAgent, type CodingAgentId } from '@domain-services/coding-agent-setup/agents';
 import { setUpCodingAgents } from '@domain-services/coding-agent-setup/setup';
 import { resolveAwsIdentity } from './deploy/credentials';
-import { resolveStacktapeAccount } from './deploy/stacktape-account';
+import { connectConsole, resolveStacktapeAccount } from './deploy/stacktape-account';
 import {
   deployCommandLine,
   inspectDeployTarget,
@@ -62,6 +62,11 @@ export type InitOptions = {
   projectName?: string;
   /** Connected Stacktape AWS account name, required when no default disambiguates multiple accounts. */
   awsAccount?: string;
+  /**
+   * The AWS profile a deploy on this machine uses when not signed in: `AWS_PROFILE`, else the profile saved with
+   * `stacktape defaults`. The wizard names the account it belongs to before deploying.
+   */
+  awsProfile?: string;
   /**
    * The region the CLI would deploy to on this machine: `AWS_DEFAULT_REGION`, `AWS_REGION`, the machine-wide default
    * (`stacktape defaults`), then the AWS profile's region. The new config declares it unless the user picks another.
@@ -522,10 +527,14 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             return repaired;
           }
         }),
-    awsIdentity: () => resolveAwsIdentity({ region: regionForNewConfig(options.machineRegion) }),
+    awsIdentity: () =>
+      resolveAwsIdentity({
+        region: regionForNewConfig(options.machineRegion),
+        ...(options.awsProfile === undefined ? {} : { profile: options.awsProfile })
+      }),
     machineRegion: regionForNewConfig(options.machineRegion),
     stacktapeAccount: () => resolveStacktapeAccount(),
-    ...(options.signIn === undefined ? {} : { signIn: options.signIn }),
+    ...(options.signIn === undefined ? {} : { signIn: options.signIn, connectConsole: () => connectConsole() }),
     ...(repository === undefined ? {} : { gitHost: repository.host }),
     ...(repository === undefined
       ? {}
