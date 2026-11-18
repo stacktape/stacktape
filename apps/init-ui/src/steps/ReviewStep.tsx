@@ -52,7 +52,7 @@ const PREFERENCES: Record<DeploymentPreferenceKey, PreferenceCopy> = {
       {
         value: 'balanced',
         label: 'Standard',
-        help: 'Middle sizes; always-on apps add copies when they get busy. Resize any time.'
+        help: 'Middle sizes for the app and database; always-on apps add copies when busy. Resize any time.'
       },
       { value: 'performance', label: 'Large', help: 'Larger app and database sizes for steady, heavy traffic.' }
     ]
@@ -98,7 +98,7 @@ const PREFERENCES: Record<DeploymentPreferenceKey, PreferenceCopy> = {
 
 /** "+$31/mo" as the segmented control shows it: "+$31". */
 const shortDelta = (delta: string | undefined): string | undefined =>
-  delta === undefined ? undefined : delta === 'Same price' ? 'same' : delta.replace('/mo', '').replace(/^-/, '−');
+  delta === undefined ? undefined : delta === 'Same price' ? 'same price' : delta.replace(/^-/, '−');
 
 export function ReviewStep({
   state,
@@ -139,6 +139,7 @@ export function ReviewStep({
     sendTimer.current = setTimeout(() => onConfigText(next === generated?.yaml ? null : next), 500);
   };
   const resetText = () => {
+    if (!window.confirm('Discard your edits and go back to the generated file?')) return;
     clearTimeout(sendTimer.current);
     setDraft(undefined);
     onConfigText(null);
@@ -345,7 +346,7 @@ export function ReviewStep({
                     {parseError !== undefined
                       ? `This YAML does not parse: ${parseError}`
                       : isEdited
-                        ? 'Edited by hand. This text is what gets saved and deployed, so the settings are off.'
+                        ? 'Edited by hand. This text is what gets saved and deployed, and the price is estimated from it.'
                         : format === 'typescript'
                           ? 'Generated. Saved as stacktape.ts; TypeScript is not editable in this page.'
                           : 'Generated from your code and the settings. Changing a setting rewrites it.'}
@@ -583,6 +584,14 @@ function Settings({
         <h2 className="w-card-title">Settings</h2>
         <p className="w-card-note">Only what applies to this app</p>
       </div>
+      {isEdited && (
+        <div className="w-settings-locked">
+          <p>Paused while your edited file is in use: changing one would rewrite the file.</p>
+          <button className="w-link w-textbutton" onClick={onReset} type="button">
+            Discard my edits
+          </button>
+        </div>
+      )}
       <div className="w-setting">
         <RegionPicker isDisabled={disabled} onChange={onRegion} value={state.region ?? 'eu-west-1'} />
         <p className="w-setting-help">Pick the one closest to your users.</p>
@@ -642,14 +651,6 @@ function Settings({
           </div>
         );
       })}
-      {isEdited && (
-        <div className="w-settings-locked">
-          <p>You edited the file by hand, so these settings would overwrite your changes.</p>
-          <button className="w-link w-textbutton" onClick={onReset} type="button">
-            Reset to generated
-          </button>
-        </div>
-      )}
     </section>
   );
 }

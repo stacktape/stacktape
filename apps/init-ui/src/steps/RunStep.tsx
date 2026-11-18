@@ -185,7 +185,7 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
               )}
             </div>
           </section>
-          {database !== undefined && (
+          {database !== undefined && progress[database] !== 'ready' && (
             <p className="w-note">
               <BiInfoCircle size={15} />
               <span>

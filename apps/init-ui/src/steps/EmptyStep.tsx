@@ -30,7 +30,7 @@ export function EmptyStep({
     <div className="w-enter mx-auto max-w-[880px]">
       <header className="w-hero">
         <p className="w-eyebrow">Review</p>
-        <h1 className="w-title">No app in this folder</h1>
+        <h1 className="w-title">No app at this folder's root</h1>
         <p className="w-lede">
           Nothing here runs as a server, worker or website
           {state.repositoryPath === undefined ? '' : ` (${state.repositoryPath})`}, so there is nothing to deploy yet.

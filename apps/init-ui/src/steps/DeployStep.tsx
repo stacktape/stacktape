@@ -84,6 +84,8 @@ export function DeployStep({
   const [checking, setChecking] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [editingRegion, setEditingRegion] = useState(false);
+  /** The user runs the migration some other way, and said so. */
+  const [skipMigration, setSkipMigration] = useState(false);
 
   // The read-only target check runs by itself once there is a file and an AWS identity, and again after the stage
   // changes (after a pause, so typing a stage name does not fire a check per letter).
@@ -143,6 +145,9 @@ export function DeployStep({
     ...(identity?.available !== true ? ['an AWS account'] : []),
     ...(identity?.available === true && awsStatus !== 'ok' ? ['the stack check'] : []),
     ...(secretsDone ? [] : ['the secrets']),
+    ...(migration !== undefined && migrationDecision?.chosen !== 'deploy-hook' && !skipMigration
+      ? ['the database migration']
+      : []),
     ...(verificationBlocks ? ['the local try-out'] : []),
     ...(state.composition?.deployable === true ? [] : ['a gap in the configuration']),
     ...(stage === '' ? ['a stage name'] : [])
@@ -296,7 +301,7 @@ export function DeployStep({
                         : `Create them in ${region} from a terminal; each command asks for the value.`}
                   </p>
                   <div className="w-check-body">
-                    {secretsAvailable ? (
+                    {secretsAvailable && identity?.available !== true ? null : secretsAvailable ? (
                       secretNames.map((name) => (
                         <SecretRow
                           isDisabled={identity?.available !== true}
@@ -320,7 +325,13 @@ export function DeployStep({
             {(migration !== undefined || migrationDecision !== undefined) && (
               <li className="w-check">
                 <StatusIcon
-                  status={migrationDecision?.chosen === 'deploy-hook' ? 'ok' : migration !== undefined ? 'warn' : 'ok'}
+                  status={
+                    migrationDecision?.chosen === 'deploy-hook' || skipMigration
+                      ? 'ok'
+                      : migration !== undefined
+                        ? 'todo'
+                        : 'ok'
+                  }
                 />
                 <div className="min-w-0">
                   <div className="w-check-head">
@@ -349,7 +360,7 @@ export function DeployStep({
                         Without it the new database starts empty.
                       </p>
                       <div className="w-check-body">
-                        <div>
+                        <div className="flex flex-wrap items-center gap-4">
                           <Button
                             disabled={isLocked || state.configEdit !== undefined}
                             isLoading={busy === `migration-timing:${migration.service}`}
@@ -358,6 +369,11 @@ export function DeployStep({
                           >
                             Run it after each deploy
                           </Button>
+                          {!skipMigration && (
+                            <button className="w-textbutton" onClick={() => setSkipMigration(true)} type="button">
+                              Skip, I run it myself
+                            </button>
+                          )}
                         </div>
                         {state.configEdit !== undefined && (
                           <p className="w-setting-help">Your file is edited by hand: add the hook there instead.</p>

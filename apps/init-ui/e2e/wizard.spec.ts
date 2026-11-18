@@ -127,11 +127,12 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
   await page.keyboard.type('\n# tuned by hand\n');
   await expect(page.getByText(/Edited by hand\. This text is what gets saved and deployed/)).toBeVisible();
   const settings = page.getByRole('region', { name: 'Settings' });
-  await expect(settings.getByText('You edited the file by hand')).toBeVisible();
+  await expect(settings.getByText('Paused while your edited file is in use')).toBeVisible();
   await expect(settings.getByRole('radio', { name: /Stay online/ })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'TypeScript' })).toBeDisabled();
 
-  await page.getByRole('button', { name: 'Reset to generated' }).first().click();
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Discard my edits' }).first().click();
   await expect(page.getByText('Generated from your code and the settings.')).toBeVisible();
   await expect(settings.getByRole('radio', { name: /Stay online/ })).toBeEnabled();
 });
@@ -155,6 +156,9 @@ test('a failed deploy names the fix in this project, keeps the retry, and a stop
   await analyzeAndReview(page);
   await continueToDeploy(page);
   await page.getByRole('button', { name: 'I already saved these in AWS' }).click();
+  // A migration nothing runs holds the deploy until it is turned on or deliberately skipped.
+  await expect(deployButton(page)).toBeDisabled();
+  await page.getByRole('button', { name: 'Skip, I run it myself' }).click();
   await waitForTarget(page);
   await deployButton(page).click();
   await expect(page.getByRole('heading', { name: 'The deploy to dev stopped' })).toBeVisible({ timeout: 15_000 });
@@ -183,7 +187,8 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await expect(page.getByRole('heading', { name: 'Connect an AWS account' })).toBeVisible();
   const paths = page.getByRole('group', { name: 'How you sign in to AWS' });
   // Secrets are saved in the AWS account, so they wait for it.
-  await expect(page.getByRole('textbox', { name: 'Value for auth_secret' })).toBeDisabled();
+  await expect(page.getByText('Connect an AWS account first: secrets are saved there.')).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Value for auth_secret' })).toHaveCount(0);
   await paths.getByRole('button', { name: 'My company uses AWS SSO' }).click();
   await expect(page.getByText('aws configure sso', { exact: true })).toBeVisible();
   await paths.getByRole('button', { name: "I don't have an AWS account" }).click();
@@ -225,7 +230,7 @@ test('an empty folder offers app folders below it and starter projects; a failed
   const empty = await startWizard({ project: 'empty', agents: [] });
   await page.goto(empty.url);
   await page.getByRole('button', { name: 'Analyze my project' }).click();
-  await expect(page.getByRole('heading', { name: 'No app in this folder' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: "No app at this folder's root" })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText('cd services/api && stacktape init')).toBeVisible();
   await expect(page.getByText('stacktape init --starterId fullstack-nextjs-drizzle')).toBeVisible();
 
@@ -278,6 +283,7 @@ test('a Console connection that fails says why, and "Not now" leaves one quiet l
   await analyzeAndReview(page);
   await continueToDeploy(page);
   await page.getByRole('button', { name: 'I already saved these in AWS' }).click();
+  await page.getByRole('button', { name: 'Skip, I run it myself' }).click();
   await waitForTarget(page);
   await deployButton(page).click();
   await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });

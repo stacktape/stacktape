@@ -155,7 +155,7 @@ export const describeEntry = (label: string): { text: string; subject: string } 
         ? { text: 'Finding the settings your code reads', subject }
         : { text: 'Searching the code', subject };
     case 'get_project_brief':
-      return { text: 'Checking what the quick scan found', subject: '' };
+      return { text: 'Identifying frameworks and services', subject: '' };
     case 'submit_facts':
       return { text: 'Putting together the setup', subject: '' };
     default:
