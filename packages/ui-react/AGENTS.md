@@ -23,7 +23,11 @@ feature styles with large lazy dependencies may ship a separate stylesheet besid
 - `isometric-diagram` is an independent component that accepts a parsed `StacktapeConfig`. It does not belong to or
   import ConfigEditor. Keep its entry point lazy in applications.
 - `monaco-editor` is the small lifecycle-safe base for Monaco models and editor instances. It has no Stacktape language
-  services or toolbar. Console adds those in `components/StacktapeEditor`.
+  services or toolbar.
+- `monaco-yaml` is the Stacktape YAML language setup (schema associations, directive-aware diagnostics and the Monaco
+  0.56 worker adapter for `monaco-yaml`). The host passes its Monaco namespace, serves the config schema and registers
+  the `yaml` worker; the init wizard does so from the CLI. Console still carries its own copy in
+  `components/StacktapeEditor` until it switches to this subpath.
 
 Do not move a private API call, router, global store, account context, or navigation behavior into this package. Give an
 application a thin adapter when those concerns must surround shared presentation. Conversely, do not rebuild shared

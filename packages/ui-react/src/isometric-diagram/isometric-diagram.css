@@ -40,6 +40,33 @@
     transition: opacity var(--stp-motion-duration-fast) var(--stp-motion-easing);
   }
 
+  /* A deploy in progress: what AWS has not created yet is drawn faint, and what it is creating breathes. */
+  .stp-diagram__node[data-progress] {
+    transition:
+      opacity 600ms var(--stp-motion-easing),
+      filter 600ms var(--stp-motion-easing);
+  }
+
+  .stp-diagram__node[data-progress='pending'] {
+    filter: grayscale(1) brightness(0.8);
+    opacity: 0.32;
+  }
+
+  .stp-diagram__node[data-progress='creating'] {
+    filter: grayscale(0.4);
+    animation: stp-diagram-creating 1.8s ease-in-out infinite;
+  }
+
+  @keyframes stp-diagram-creating {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
   .stp-diagram__zone {
     transition:
       stroke-width var(--stp-motion-duration-fast) var(--stp-motion-easing),
@@ -917,8 +944,14 @@
 
   @media (prefers-reduced-motion: reduce) {
     .stp-diagram__fade,
-    .stp-diagram__zone {
+    .stp-diagram__zone,
+    .stp-diagram__node[data-progress] {
       transition: none;
+    }
+
+    .stp-diagram__node[data-progress='creating'] {
+      animation: none;
+      opacity: 0.75;
     }
 
     .stp-diagram__motion {

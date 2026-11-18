@@ -23,7 +23,8 @@ export function ConsoleOfferCard({
   onDismiss,
   onSignIn,
   onRecheck,
-  isRechecking
+  isRechecking,
+  monthly
 }: {
   state: WizardState;
   stage: string;
@@ -35,6 +36,8 @@ export function ConsoleOfferCard({
   onSignIn: (request: SignInRequest) => Promise<WizardState>;
   onRecheck: () => void;
   isRechecking: boolean;
+  /** The stage's fixed monthly price, to say plainly where it sits against the Free plan's limit. */
+  monthly?: string | undefined;
 }) {
   const offer = state.consoleConnection;
   const [isStarting, setIsStarting] = useState(false);
@@ -81,9 +84,10 @@ export function ConsoleOfferCard({
 
   const heading = (
     <div>
-      <h3 className="wizard-row-title">Add {stage} to the Stacktape Console</h3>
+      <h3 className="wizard-row-title">See {stage} in the Stacktape Console</h3>
       <p className="wizard-row-text">
-        Deploy history, costs, alerts and team access for this stage. Free up to $200/month of AWS spend.
+        Logs, costs and alerts for this stage, and your team on it. Free while your AWS spend stays under $200/month
+        {monthly === undefined ? '' : `; this stage is about ${monthly}`}.
       </p>
     </div>
   );

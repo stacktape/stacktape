@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { WizardState } from '../session';
-import { deploymentPreferenceKeysFor, summarise } from './ReviewStep';
+import { deploymentPreferenceKeysFor, summarise } from './review-model';
 
 const state = ({
   services,

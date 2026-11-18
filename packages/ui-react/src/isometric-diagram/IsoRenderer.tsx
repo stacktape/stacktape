@@ -615,6 +615,21 @@ export type DiagramViewProps = {
    * going away never resizes the drawing.
    */
   notices?: readonly DiagramNotice[] | undefined;
+  /**
+   * Hands selection to the host. With it, clicking a resource reports its name here instead of opening the side
+   * panel, for a host that explains resources beside the diagram. `selectedResource` rings that resource, so a
+   * selection made outside the diagram shows in it too.
+   */
+  onSelectResource?: ((resourceName: string) => void) | undefined;
+  selectedResource?: string | null | undefined;
+  /**
+   * How far a deploy has got with each declared resource. A `pending` resource is drawn faint, a `creating` one
+   * breathes, and a `ready` one is drawn as usual, so the picture fills in as the deploy creates it. Omit it outside a
+   * deploy.
+   */
+  resourceProgress?: Readonly<Record<string, 'pending' | 'creating' | 'ready'>> | undefined;
+  /** Replaces the usage hint at the bottom of the frame. */
+  hint?: string | undefined;
 };
 
 export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
@@ -664,6 +679,10 @@ export function IsoRenderer({
   statuses,
   onNavigate,
   notices,
+  onSelectResource,
+  selectedResource,
+  resourceProgress,
+  hint = 'Hover to learn what something does · click a resource for its connections',
   onToggleGroup,
   toolbar,
   viewNote
@@ -892,11 +911,18 @@ export function IsoRenderer({
     setIsDragging(false);
   }, []);
 
-  const selectNode = useCallback((nodeId: string) => {
-    if (typeof document !== 'undefined') panelOpenerRef.current = document.activeElement;
-    setSelectedId(nodeId);
-    setTooltip(null);
-  }, []);
+  const selectNode = useCallback(
+    (nodeId: string) => {
+      setTooltip(null);
+      if (onSelectResource) {
+        onSelectResource(nodeId);
+        return;
+      }
+      if (typeof document !== 'undefined') panelOpenerRef.current = document.activeElement;
+      setSelectedId(nodeId);
+    },
+    [onSelectResource]
+  );
 
   const closePanel = useCallback(() => {
     setSelectedId(null);
@@ -1088,7 +1114,7 @@ export function IsoRenderer({
         ? getResourceStatus({ resourceName: selectedNode.id, statuses: statusMap })
         : undefined;
   const ringOf = (nodeId: string): 'strong' | 'soft' | null => {
-    if (nodeId === selectedId) return 'strong';
+    if (nodeId === selectedId || nodeId === selectedResource) return 'strong';
     if (nodeId === focusedNodeId || (isSearching && matches.has(nodeId))) return 'soft';
     return null;
   };
@@ -1269,6 +1295,7 @@ export function IsoRenderer({
                   : 1
               }
               className="stp-diagram__fade stp-diagram__node"
+              data-progress={resourceProgress?.[n.id]}
               onPointerEnter={() => {
                 if (!isDragging) setHoveredNodeId(n.id);
               }}
@@ -1365,13 +1392,7 @@ export function IsoRenderer({
         )}
       {viewNote
         ? !tooltip && <div className="stp-diagram__view-note">{viewNote}</div>
-        : !tooltip &&
-          !selectedNode &&
-          !selectedGroup && (
-            <p className="stp-diagram__hint">
-              Hover to learn what something does · click a resource for its connections
-            </p>
-          )}
+        : !tooltip && !selectedNode && !selectedGroup && <p className="stp-diagram__hint">{hint}</p>}
       <div className="stp-diagram__toolbar stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
         {toolbar}
         <label className="stp-diagram__find">

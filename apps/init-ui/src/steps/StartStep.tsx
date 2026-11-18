@@ -1,31 +1,25 @@
-import { useState } from 'react';
 import { Button } from '@stacktape/ui-react/button';
-import { SelectionCard, SelectionCardGroup } from '@stacktape/ui-react/selection-card';
+import { useState } from 'react';
+import { BiCloudUpload, BiFileBlank, BiFolder, BiSearchAlt } from 'react-icons/bi';
+import { TbStack2, TbWorld } from 'react-icons/tb';
+import { Segmented } from '../components/Segmented';
 import type { WizardAgentOption, WizardState } from '../session';
 
 /**
- * The first screen, rebuilt around what a first-time user actually needs to know.
+ * The first screen: what is about to happen, in three facts, and one button.
  *
- * Which is three things, in their words: nothing leaves my machine, nothing is created or billed
- * yet, and I get a file I can read. Then one button.
- *
- * Everything else that used to live here moved out or under. The size question moved to the Review
- * step — before seeing what exists and what it costs there is nothing to size. The agent choice is
- * an implementation detail with a good default, so it sits behind a disclosure: someone who has
- * never seen this tool should not have to hold "which AI reads my code, with which model" before
- * pressing the only button on the page.
+ * The three facts answer what a first-time user worries about, in this order: who reads my code, what changes in my
+ * project, when does AWS start costing money. Which agent and model read the project is a good default shown in one
+ * line, with the choice behind it.
  */
 export function StartStep({
   state,
   onStart,
-  isBusy,
-  isDone
+  isBusy
 }: {
   state: WizardState;
   onStart: (agentId: string, modelId: string) => void;
   isBusy: boolean;
-  /** Behind the user: the choice is made and the section is a record of it. */
-  isDone: boolean;
 }) {
   const agents = state.agents ?? [];
   const [showOptions, setShowOptions] = useState(false);
@@ -33,140 +27,174 @@ export function StartStep({
     agents.find((agent) => agent.recommended)?.id ?? agents[0]?.id ?? 'none'
   );
   const [modelId, setModelId] = useState<string>('default');
-
   const agent: WizardAgentOption | undefined = agents.find((option) => option.id === agentId);
   const models = agent?.models ?? [];
   const chosenModel = models.some((model) => model.id === modelId) ? modelId : 'default';
-
-  if (isDone) {
-    const chosen = state.agents?.find((option) => option.id === state.choice?.agentId);
-    return (
-      <p className="wizard-recap">
-        {state.phase === 'analysing' ? 'Analyzing' : state.phase === 'failed' ? 'Started' : 'Analyzed'} with{' '}
-        <strong>{chosen?.label ?? 'the built-in scanner'}</strong>.
-      </p>
-    );
-  }
+  const usesAi = agent !== undefined && agent.id !== 'none';
+  const modelLabel =
+    chosenModel === 'default'
+      ? 'default model'
+      : (models.find((model) => model.id === chosenModel)?.label ?? chosenModel);
 
   return (
-    <div className="flex flex-col gap-7">
-      {state.repositoryPath !== undefined && (
-        <dl className="wizard-facts">
-          <div className="min-w-0">
-            <dt>Project</dt>
-            <dd className="wizard-code [overflow-wrap:anywhere]">{state.repositoryPath}</dd>
+    <div className="w-start w-enter">
+      <div>
+        {state.repositoryPath !== undefined && (
+          <p className="w-path-chip" title={state.repositoryPath}>
+            <BiFolder size={14} />
+            <span>{state.repositoryPath}</span>
+          </p>
+        )}
+        <h1 className="w-title">Put {state.projectName} on AWS</h1>
+        <p className="w-lede">
+          Stacktape reads your code, shows the AWS setup it needs with its monthly price, and writes one file. Deploying
+          is a separate click at the end.
+        </p>
+
+        <ul className="w-facts">
+          <li className="w-fact">
+            <span className="w-fact-icon">
+              <BiSearchAlt size={17} />
+            </span>
+            <div>
+              <p className="w-fact-title">
+                {usesAi ? `Your ${agent.label} reads the code` : 'Read on this machine, without AI'}
+              </p>
+              <p className="w-fact-text">
+                {usesAi
+                  ? `Read-only, under your own ${agent.label} plan. Stacktape receives none of it.`
+                  : 'Manifests and config files only. Nothing leaves this machine.'}
+              </p>
+            </div>
+          </li>
+          <li className="w-fact">
+            <span className="w-fact-icon">
+              <BiFileBlank size={17} />
+            </span>
+            <div>
+              <p className="w-fact-title">One file is written</p>
+              <p className="w-fact-text">
+                {state.existingConfig === undefined
+                  ? 'stacktape.yml in this folder, after you review it. Nothing else changes.'
+                  : `A new file beside your ${state.existingConfig}, which stays as it is.`}
+              </p>
+            </div>
+          </li>
+          <li className="w-fact">
+            <span className="w-fact-icon">
+              <BiCloudUpload size={17} />
+            </span>
+            <div>
+              <p className="w-fact-title">AWS only when you click Deploy</p>
+              <p className="w-fact-text">Nothing is created or billed before that. No Stacktape account needed.</p>
+            </div>
+          </li>
+        </ul>
+
+        <div className="w-start-actions">
+          <Button className="w-big" isLoading={isBusy} onClick={() => onStart(agentId, chosenModel)} variant="primary">
+            Analyze my project
+          </Button>
+          <span className="w-subtle w-small">{usesAi ? 'Usually under a minute' : 'Takes a few seconds'}</span>
+        </div>
+
+        {agents.length > 1 && (
+          <div>
+            <p className="w-reader">
+              <span>
+                {usesAi ? `${agent.label}, ${modelLabel}` : 'No AI: files only'}
+                {agent?.version === undefined ? '' : ` · ${versionLabel(agent.version)}`}
+              </span>
+              <button
+                aria-expanded={showOptions}
+                className="w-link w-textbutton text-[12.5px]"
+                onClick={() => setShowOptions(!showOptions)}
+                type="button"
+              >
+                {showOptions ? 'Done' : 'Change'}
+              </button>
+            </p>
+            {showOptions && (
+              <div className="w-reader-options w-enter">
+                <div className="flex flex-col gap-2">
+                  <p className="w-setting-label">What reads the project</p>
+                  <Segmented
+                    label="What reads the project"
+                    onChange={(value) => {
+                      setAgentId(value);
+                      setModelId('default');
+                    }}
+                    options={agents.map((option) => ({
+                      value: option.id,
+                      label: option.id === 'none' ? 'No AI' : option.label
+                    }))}
+                    value={agentId}
+                  />
+                  <p className="w-setting-help">{agent?.description}</p>
+                </div>
+                {models.length > 1 && (
+                  <div className="flex flex-col gap-2">
+                    <p className="w-setting-label">Model</p>
+                    <Segmented
+                      label="Model"
+                      onChange={setModelId}
+                      options={models.map((model) => ({ value: model.id, label: model.label }))}
+                      value={chosenModel}
+                    />
+                    <p className="w-setting-help">{models.find((model) => model.id === chosenModel)?.description}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </dl>
-      )}
+        )}
 
-      <ol className="wizard-promises">
-        <li>
-          {agent !== undefined && agent.id !== 'none' ? (
-            <>
-              <strong>No code is sent to Stacktape.</strong> Your own {agent.label} reads the project right here, under
-              the account you already have with it, with read-only tools. It cannot run scripts or install anything.
-              Prefer that no AI provider receives code? Pick “Files only” under Options.
-            </>
-          ) : (
-            <>
-              <strong>Your code stays on this machine.</strong> The built-in scanner reads your manifests and config
-              files right here. Nothing goes to Stacktape or to any AI provider, and no account is needed.
-            </>
-          )}
-        </li>
-        <li>
-          <strong>Nothing is created on AWS and nothing is billed.</strong> The result is one file in your project. AWS
-          only comes into it if you confirm a deploy at the end, and that step says so before it does anything. No
-          Stacktape account is needed for any of it.
-        </li>
-        <li>
-          <strong>You will see everything before you commit to it.</strong> Every piece of infrastructure comes with the
-          place in your own code that made us propose it, what it costs per month, and a way to change it.
-        </li>
-      </ol>
-
-      <div className="flex items-center gap-4">
-        <Button isLoading={isBusy} onClick={() => onStart(agentId, chosenModel)} variant="primary">
-          Analyze my project
-        </Button>
-        <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
-          {agent === undefined || agent.id === 'none'
-            ? 'Takes a second.'
-            : `Usually under a minute, on your own ${agent.label} plan.`}
-        </span>
+        <p className="w-footnote">
+          Anonymous usage statistics (frameworks found, whether the deploy worked), never code or names.{' '}
+          <span className="w-code">STP_DISABLE_TELEMETRY=1</span> turns them off.
+        </p>
       </div>
 
-      {agents.length > 1 && (
-        <div>
-          <button className="wizard-disclosure" onClick={() => setShowOptions(!showOptions)} type="button">
-            {showOptions ? 'Hide options' : `Options: analyzing with ${agent?.label ?? 'the built-in scanner'}`}
-          </button>
+      <JourneyPreview />
+    </div>
+  );
+}
 
-          {showOptions && (
-            <div className="mt-4 flex flex-col gap-5">
-              <div>
-                <p className="wizard-group-label">Which agent reads the project</p>
-                <SelectionCardGroup
-                  ariaLabel="Which agent reads the project"
-                  direction="column"
-                  onValueChange={(value) => {
-                    setAgentId(value);
-                    setModelId('default');
-                  }}
-                  value={agentId}
-                  values={agents.map((option) => option.id)}
-                >
-                  {agents.map((option) => (
-                    <SelectionCard
-                      description={option.description}
-                      isRecommended={option.recommended === true}
-                      isSelected={option.id === agentId}
-                      key={option.id}
-                      onSelect={(value) => {
-                        setAgentId(value);
-                        setModelId('default');
-                      }}
-                      title={option.label}
-                      value={option.id}
-                      {...(option.version === undefined ? {} : { meta: versionLabel(option.version) })}
-                    />
-                  ))}
-                </SelectionCardGroup>
-              </div>
-
-              {models.length > 1 && (
-                <div>
-                  <p className="wizard-group-label">Which model it uses</p>
-                  <SelectionCardGroup
-                    ariaLabel="Which model the agent uses"
-                    className="wizard-model-cards"
-                    direction="row"
-                    onValueChange={setModelId}
-                    value={chosenModel}
-                    values={models.map((model) => model.id)}
-                  >
-                    {models.map((model) => (
-                      <SelectionCard
-                        description={model.description}
-                        isSelected={model.id === chosenModel}
-                        key={model.id}
-                        onSelect={setModelId}
-                        title={model.label}
-                        value={model.id}
-                      />
-                    ))}
-                  </SelectionCardGroup>
-                </div>
-              )}
-            </div>
-          )}
+/** The four steps ahead, drawn small: the whole journey before it starts. */
+function JourneyPreview() {
+  const rows = [
+    {
+      icon: <BiSearchAlt size={18} />,
+      title: 'Analyze',
+      text: 'Frameworks, databases, settings your code reads',
+      tag: '~1 min'
+    },
+    {
+      icon: <TbStack2 size={18} />,
+      title: 'Review',
+      text: 'Diagram, monthly price, the file. Change anything.',
+      tag: 'you decide'
+    },
+    {
+      icon: <BiCloudUpload size={18} />,
+      title: 'Deploy',
+      text: 'To your own AWS account, after a read-only check',
+      tag: 'optional'
+    },
+    { icon: <TbWorld size={18} />, title: 'Live', text: 'A public HTTPS address for your app', tag: '' }
+  ];
+  return (
+    <div aria-hidden className="w-card w-preview">
+      {rows.map((row, index) => (
+        <div className="w-preview-row" key={row.title} style={{ '--i': index } as React.CSSProperties}>
+          <span className="w-preview-icon">{row.icon}</span>
+          <div className="min-w-0">
+            <p className="w-preview-title">{row.title}</p>
+            <p className="w-preview-text">{row.text}</p>
+          </div>
+          <span className="w-preview-tag">{row.tag}</span>
         </div>
-      )}
-
-      <p className="m-0 max-w-[var(--wizard-measure)] text-[0.82rem] text-[var(--stp-text-subtle)]">
-        Anonymous outcome statistics are recorded (which frameworks were found, whether the deploy worked), never your
-        code, names or files. <span className="wizard-code">STP_DISABLE_TELEMETRY=1</span> turns that off.
-      </p>
+      ))}
     </div>
   );
 }

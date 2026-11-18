@@ -12,6 +12,7 @@
  * explainable, which is the whole point of carrying provenance around.
  */
 
+import { parse as parseYaml } from 'yaml';
 import { composeConfig, type CompositionResult } from '@stacktape/config-inference/compose';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
@@ -128,7 +129,11 @@ export const startWizardSession = async ({
   preferences: initialPreferences,
   timeline = [],
   staticRoot,
-  watchStatic
+  watchStatic,
+  configSchemaPath,
+  setSecret,
+  createAwsProfile,
+  nearbyApps
 }: {
   projectName: string;
   /** Shown on the first screen so the user can see exactly which directory will be read. */
@@ -164,6 +169,10 @@ export const startWizardSession = async ({
     format: 'yaml' | 'typescript';
     /** Region the file declares. The Deploy step then deploys there; changing it means editing the file. */
     region?: string;
+    /** The user's hand-edited YAML, written as it is instead of rendering the composition. */
+    contents?: string;
+    /** The file this session wrote before, replaced rather than kept as the user's own configuration. */
+    replaces?: string;
   }) => Promise<{ path: string; filename: string; existingPath?: string; region?: string }>;
   /**
    * Deploys the written configuration, reporting the CLI's own event stream as it goes.
@@ -273,9 +282,35 @@ export const startWizardSession = async ({
   staticRoot?: string;
   /** Reload connected pages when that bundle changes. For working on the wizard itself. */
   watchStatic?: boolean;
+  /** The Stacktape config JSON schema the page's YAML editor uses for hover docs, completion and validation. */
+  configSchemaPath?: string;
+  /**
+   * Stores one secret in the user's AWS account the way `stacktape secret set` does. The value goes to that command
+   * and nowhere else: not to the state, not to a log, not to Stacktape. Absent, the page shows the commands instead.
+   */
+  setSecret?: (input: { name: string; value: string; region: string }) => Promise<{ ok: boolean; detail: string }>;
+  /**
+   * Saves pasted AWS access keys as a profile on this machine, like `stacktape aws-profile:create`, and says which
+   * profile it wrote. The identity is checked again afterwards. Absent, the page explains the terminal way only.
+   */
+  createAwsProfile?: (input: {
+    accessKeyId: string;
+    secretAccessKey: string;
+  }) => Promise<{ ok: boolean; detail: string; profile?: string }>;
+  /** Folders below the project that look like apps of their own, offered when the analysis finds nothing to run. */
+  nearbyApps?: string[];
 }): Promise<WizardSession> => {
   let facts = result?.facts;
   let composition = result?.composition;
+  /** The configuration as edited by hand. While set, it is the file that is written and deployed. */
+  let configEdit: { yaml: string; error?: string } | undefined;
+  /** Secrets set from the page this session; the values themselves are never kept. */
+  const secretsSet = new Set<string>();
+  let secretsConfirmed = false;
+  /** The file this session last wrote, which a later save replaces. */
+  let ownFile: string | undefined;
+  let secretFailure: { name: string; detail: string } | undefined;
+  let awsKeys: WizardState['awsKeys'];
   let price: PriceEstimate | undefined;
   /** The last price request came back empty, so the page says so instead of waiting for it. */
   let priceUnavailable = false;
@@ -297,6 +332,18 @@ export const startWizardSession = async ({
     const region = declaredRegion();
     price = undefined;
     priceUnavailable = false;
+    if (configEdit !== undefined) {
+      // The edited text is what deploys, so it is what gets priced. Its choices have no alternatives to compare.
+      const edit = configEdit;
+      if (edit.error !== undefined) return;
+      void estimateMonthlyCost(edit.yaml, regionOfText(edit.yaml) ?? region).then((estimate) => {
+        if (configEdit !== edit) return;
+        price = estimate;
+        priceUnavailable = estimate === undefined;
+        publish(buildState());
+      });
+      return;
+    }
     void priceWithOptions(current, region).then((estimate) => {
       // Another recomposition or region may have come in while this was in flight. Its own call publishes.
       if (composition !== current || declaredRegion() !== region) return;
@@ -401,6 +448,7 @@ export const startWizardSession = async ({
     verification = undefined;
     deployTarget = undefined;
     configFile = undefined;
+    configEdit = undefined;
     renderConfigText(next);
     // The request that caused this change gets the new state in its response, but other connected
     // tabs only hear broadcasts. Publish the synchronous YAML state now rather than making them
@@ -655,6 +703,18 @@ export const startWizardSession = async ({
           recommendedPreferences: composition.recommendedPreferences
         }),
     ...(pipeline === undefined ? {} : { pipeline }),
+    ...(configEdit === undefined ? {} : { configEdit }),
+    ...(setSecret === undefined
+      ? {}
+      : {
+          secrets: {
+            set: [...secretsSet],
+            confirmed: secretsConfirmed,
+            ...(secretFailure === undefined ? {} : { failure: secretFailure })
+          }
+        }),
+    ...(awsKeys === undefined ? {} : { awsKeys }),
+    ...(nearbyApps === undefined || nearbyApps.length === 0 ? {} : { nearbyApps }),
     ...codingAgentSetupState(),
     ...consoleConnectionState(),
     timeline,
@@ -692,6 +752,16 @@ export const startWizardSession = async ({
     answers,
     ...(failure === undefined ? {} : { error: failure })
   });
+
+  /**
+   * Publishes the current state and returns it as published, with its revision. The page drops a reply older than
+   * what it holds, so a reply without a revision would be ignored.
+   */
+  const publishNow = (): WizardState => {
+    publish(buildState());
+    return currentPublished();
+  };
+  let currentPublished: () => WizardState = buildState;
 
   const deploymentInFlight = (): boolean => deployment?.status === 'running' || deployment?.status === 'repairing';
 
@@ -777,6 +847,7 @@ export const startWizardSession = async ({
     initialState: buildState(),
     ...(staticRoot === undefined ? {} : { staticRoot }),
     ...(watchStatic === undefined ? {} : { watchStatic }),
+    ...(configSchemaPath === undefined ? {} : { configSchemaPath }),
     hooks: {
       onRecheck: async () => {
         // Cleared first, so the page shows "checking…" rather than yesterday's answer while it waits.
@@ -1071,6 +1142,8 @@ export const startWizardSession = async ({
               failed?.worthRetrying === true &&
               attempt < MAX_DEPLOY_ATTEMPTS &&
               repair !== undefined &&
+              // A repair rewrites the file from the composition, which would throw away the user's own edits.
+              configEdit === undefined &&
               facts !== undefined &&
               write !== undefined &&
               // "Files only" was an explicit decision that no agent reads this code. A failed
@@ -1213,15 +1286,27 @@ export const startWizardSession = async ({
       onRegion: (region) => {
         // A written file declares its region; it is picked before writing. Only a region the CLI deploys to can be
         // written into the file.
-        if (configFile !== undefined || !(SUPPORTED_AWS_REGIONS as readonly string[]).includes(region)) {
+        // An edited file declares its own region, and a deploy reads the file on disk; neither is changed under them.
+        if (
+          configEdit !== undefined ||
+          deploymentInFlight() ||
+          !(SUPPORTED_AWS_REGIONS as readonly string[]).includes(region)
+        ) {
           return buildState();
         }
         chosenRegion = region;
+        // A written file declares the old region. Dropping its handle makes the page write it again before a deploy.
+        if (configFile !== undefined && configFile.region !== region) {
+          configFile = undefined;
+          deployTarget = undefined;
+        }
         followDeclaredRegion();
         return buildState();
       },
       onPreference: (change: DeploymentPreferenceChange) => {
-        if (facts === undefined || composition === undefined || deploymentInFlight()) return buildState();
+        if (facts === undefined || composition === undefined || deploymentInFlight() || configEdit !== undefined) {
+          return buildState();
+        }
         mode = undefined;
         const preferences = { ...composition.preferences, [change.key]: change.value } as DeploymentPreferences;
         adoptComposition(
@@ -1235,10 +1320,23 @@ export const startWizardSession = async ({
         if (write === undefined || composition === undefined || deploymentInFlight()) return;
         // Decided now, not when the preview was rendered: the identity check may have answered since.
         const region = declaredRegion();
-        const written = await write({ composition, format, region });
+        const edit = configEdit;
+        if (edit?.error !== undefined) return;
+        const replaces = ownFile === undefined ? {} : { replaces: ownFile };
+        const written =
+          edit === undefined
+            ? await write({ composition, format, region, ...replaces })
+            : await write({
+                composition,
+                format: 'yaml',
+                region: regionOfText(edit.yaml) ?? region,
+                contents: edit.yaml,
+                ...replaces
+              });
+        ownFile = written.path;
         // A later change of decisions rewrites the file to the region the user has already seen in it.
         chosenRegion = written.region ?? region;
-        configFile = { ...written, format };
+        configFile = { ...written, format: edit === undefined ? format : 'yaml' };
         deployTarget = undefined;
         publish(buildState());
       },
@@ -1258,11 +1356,91 @@ export const startWizardSession = async ({
         }
         return buildState();
       },
+      onConfigText: (yaml) => {
+        if (composition === undefined || deploymentInFlight()) return buildState();
+        // Back to generated, or an edit that changed nothing: the composition is the file again.
+        if (yaml === null || yaml === configText?.yaml) {
+          if (configEdit === undefined) return buildState();
+          configEdit = undefined;
+        } else {
+          configEdit = { yaml, ...yamlError(yaml) };
+        }
+        configFile = undefined;
+        deployTarget = undefined;
+        verification = undefined;
+        repriceInBackground();
+        return publishNow();
+      },
+      onSecret: async ({ name, value }) => {
+        if (setSecret === undefined) return buildState();
+        const outcome = await setSecret({ name, value, region: declaredRegion() }).catch((error: unknown) => ({
+          ok: false,
+          detail: error instanceof Error ? error.message : 'The secret could not be saved.'
+        }));
+        if (outcome.ok) {
+          secretsSet.add(name);
+          if (secretFailure?.name === name) secretFailure = undefined;
+        } else {
+          secretFailure = { name, detail: outcome.detail };
+        }
+        return publishNow();
+      },
+      onSecretsConfirmed: () => {
+        secretsConfirmed = true;
+        return publishNow();
+      },
+      onAwsKeys: async (keys) => {
+        if (createAwsProfile === undefined) return buildState();
+        awsKeys = { status: 'saving' };
+        publish(buildState());
+        const outcome = await createAwsProfile(keys).catch((error: unknown) => ({
+          ok: false,
+          detail: error instanceof Error ? error.message : 'The keys could not be saved.',
+          profile: undefined
+        }));
+        awsKeys = {
+          status: outcome.ok ? 'saved' : 'failed',
+          detail: outcome.detail,
+          ...(outcome.profile === undefined ? {} : { profile: outcome.profile })
+        };
+        if (outcome.ok) {
+          identity = undefined;
+          deployTarget = undefined;
+          publish(buildState());
+          await resolveIdentity();
+        }
+        return publishNow();
+      },
       onAnswer: (decisionId, value) => {
         // Nothing to change before the mission has produced anything. During a deploy, a new
         // composition would drop the file the deploy is reading; the page locks these controls too.
-        if (facts === undefined || composition === undefined || deploymentInFlight()) {
+        if (facts === undefined || composition === undefined || deploymentInFlight() || configEdit !== undefined) {
           return buildState();
+        }
+        // "Run the migration on each deploy" for a migration nothing runs yet: the same decision an agent raises when it
+        // is unsure, raised here by the user's click, so the composer emits the hook from the reviewed command.
+        const migrationService = /^migration-timing:(.+)$/.exec(decisionId)?.[1];
+        if (migrationService !== undefined && !facts.uncertainties.some((entry) => entry.id === decisionId)) {
+          const migration = facts.migrations.find((entry) => entry.serviceName === migrationService);
+          if (migration === undefined || !['deploy-hook', 'service-startup', 'manual'].includes(value)) {
+            return buildState();
+          }
+          facts = {
+            ...facts,
+            uncertainties: [
+              ...facts.uncertainties,
+              {
+                id: decisionId,
+                kind: 'migration-timing-unknown',
+                serviceName: migrationService,
+                command: migration.command,
+                recommended: 'deploy-hook',
+                blocksDeploy: false,
+                evidence: migration.evidence,
+                source: 'probe'
+              }
+            ]
+          };
         }
         answers[decisionId] = value;
         // Recomposed from the original facts plus the user's decisions. Nothing is edited in place,
@@ -1282,6 +1460,7 @@ export const startWizardSession = async ({
   });
 
   publish = server.publish;
+  currentPublished = server.current;
 
   // Resolved in the background: asking AWS who we are takes a round trip, and the first screen has
   // nothing to do with AWS. By the time anyone reaches the deploy step the answer is already here.
@@ -1319,4 +1498,31 @@ export const startWizardSession = async ({
 export const toTimelineEntry = (event: AgentEvent): { kind: string; label: string } | undefined => {
   if (event.type === 'tool-call') return { kind: 'tool', label: `${event.name} ${event.summary}`.trim() };
   return undefined;
+};
+
+/** The `region` an edited configuration declares at its top level, when it declares one the CLI deploys to. */
+const regionOfText = (yaml: string): string | undefined => {
+  try {
+    const parsed = parseYaml(yaml) as { region?: unknown } | null;
+    const region = parsed?.region;
+    return typeof region === 'string' && (SUPPORTED_AWS_REGIONS as readonly string[]).includes(region)
+      ? region
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** The parser's complaint about edited text, short enough for one line on the page. */
+const yamlError = (yaml: string): { error?: string } => {
+  try {
+    const parsed = parseYaml(yaml) as unknown;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { error: 'The file must be a YAML mapping with a resources section.' };
+    }
+    return {};
+  } catch (error) {
+    const message = error instanceof Error ? error.message.split('\n')[0]! : 'The YAML does not parse.';
+    return { error: message.slice(0, 240) };
+  }
 };

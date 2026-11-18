@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -17,8 +18,18 @@ export default defineConfig({
     // `@stacktape/ui-react` is consumed as source and declares React as a peer, so without this the
     // bundle can end up with two copies — and a hook called against the second one finds a null
     // dispatcher, which surfaces as "Cannot read properties of null (reading 'useRef')".
-    dedupe: ['react', 'react-dom']
+    dedupe: ['react', 'react-dom'],
+    alias: {
+      // Monaco's files by their path inside the package, for the lean entry in `src/editor/monaco-lean.ts`. The
+      // package's export map cannot reach its stylesheets.
+      'monaco-esm': fileURLToPath(new URL('./node_modules/monaco-editor/esm/vs', import.meta.url)),
+      // monaco-worker-manager (under monaco-yaml) still imports Monaco's pre-0.56 worker path; 0.56 exports the same
+      // worker under this shorter subpath. The Console's build has the same alias.
+      'monaco-editor/esm/vs/editor/editor.worker.js': 'monaco-editor/editor/editor.worker.js'
+    }
   },
+  // Monaco's workers are ES modules; they are files in the bundle, served by the CLI like the page.
+  worker: { format: 'es' },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

@@ -1,565 +1,216 @@
 import type { StacktapeConfig } from '@stacktape/config';
-import { DEPLOYMENT_TOOL_LABELS } from '@stacktape/config-inference/facts/existing-deployment';
-import { lazy, Suspense, useState } from 'react';
-import { Alert } from '@stacktape/ui-react/alert';
-import { Button } from '@stacktape/ui-react/button';
-import { ConfigEditor, type ConfigEditorViewId } from '@stacktape/ui-react/config-editor';
-import '@stacktape/ui-react/config-editor.css';
 import type {
   DeploymentPreferenceChange,
   DeploymentPreferenceKey,
   DeploymentPreferences
 } from '@stacktape/config-inference/compose/preferences';
+import { DEPLOYMENT_TOOL_LABELS } from '@stacktape/config-inference/facts/existing-deployment';
+import { Button } from '@stacktape/ui-react/button';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
-import { SelectionCard, SelectionCardGroup } from '@stacktape/ui-react/selection-card';
 import { Spinner } from '@stacktape/ui-react/spinner';
-import type { WizardState } from '../session';
-import { DecisionRow } from '../components/DecisionRow';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BiBell, BiChevronRight, BiCodeAlt, BiInfoCircle, BiLockAlt } from 'react-icons/bi';
+import { parse as parseYaml } from 'yaml';
+import { AnimatedPrice } from '../components/AnimatedPrice';
 import { RegionPicker } from '../components/RegionPicker';
-import { Row, RowList } from '../components/RowList';
-import { Evidence } from '../components/Evidence';
-import { GapList } from '../components/GapList';
-import { gapsToList } from '../gaps';
-import { requiredSecretVariables } from '@stacktape/config-inference/compose/required-secrets';
+import { Segmented } from '../components/Segmented';
+import { DECISION_COPY } from '../decisions';
+import type { EditorProblems } from '../editor/ConfigFileEditor';
+import type { WizardState } from '../session';
+import {
+  alarmsOf,
+  deploymentPreferenceKeysFor,
+  filenameFor,
+  plainList,
+  plainResourceName,
+  splitMonthly,
+  summarise,
+  technologyOf
+} from './review-model';
 
-/** Heavy on purpose, light on arrival: the diagram and its icon catalogue load after the page. */
+/** Heavy on purpose, light on arrival: the diagram and the editor load after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));
+const ConfigFileEditor = lazy(() => import('../editor/ConfigFileEditor'));
 
-type PreferenceOption<Key extends DeploymentPreferenceKey> = {
-  value: DeploymentPreferences[Key];
-  title: string;
-  description: string;
-  meta: string;
+type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
+
+type PreferenceCopy = {
+  label: string;
+  options: Array<{ value: string; label: string; help: string }>;
 };
 
-const PREFERENCE_COPY: {
-  [Key in DeploymentPreferenceKey]: {
-    title: string;
-    description: string;
-    options: PreferenceOption<Key>[];
-  };
-} = {
+/** The settings, in a developer's words. One line of help for the option that is picked. */
+const PREFERENCES: Record<DeploymentPreferenceKey, PreferenceCopy> = {
   capacity: {
-    title: 'How much traffic should it be ready for?',
-    description: 'Sets starting sizes for always-on apps, databases, and caches. You can resize them later.',
+    label: 'Size',
     options: [
       {
         value: 'economical',
-        title: 'Start small',
-        description: 'The smallest useful sizes. Best for a trial, side project, or development environment.',
-        meta: 'Lowest fixed cost'
+        label: 'Small',
+        help: 'The smallest useful sizes. Good for trying it out and dev stages.'
       },
       {
         value: 'balanced',
-        title: 'Ready for traffic',
-        description: 'Middle starting sizes, with space for always-on apps to add copies when they get busy.',
-        meta: 'Balanced'
+        label: 'Standard',
+        help: 'Middle sizes; always-on apps add copies when they get busy. Resize any time.'
       },
-      {
-        value: 'performance',
-        title: 'More headroom',
-        description: 'Larger always-on app, database, and cache sizes for workloads expecting sustained traffic.',
-        meta: 'Highest fixed cost'
-      }
+      { value: 'performance', label: 'Large', help: 'Larger app and database sizes for steady, heavy traffic.' }
     ]
   },
   availability: {
-    title: 'What should happen when one machine fails?',
-    description: 'Redundancy costs more because AWS keeps another copy ready.',
+    label: 'If a server fails',
     options: [
-      {
-        value: 'single',
-        title: 'Restart it',
-        description: 'One app copy and one database location. A failure can cause a short interruption.',
-        meta: 'Lower cost'
-      },
+      { value: 'single', label: 'Restart it', help: 'One copy. A failure means a short outage while it restarts.' },
       {
         value: 'redundant',
-        title: 'Stay online',
-        description: 'Two copies of container apps and a standby SQL database in another location, when those exist.',
-        meta: 'About twice the app and database cost'
+        label: 'Stay online',
+        help: 'A second copy in another data center takes over. Roughly doubles the app and database cost.'
       }
     ]
   },
   dataProtection: {
-    title: 'How much history should your data keep?',
-    description: 'Accidental database deletion is blocked either way. This controls backup and file-version history.',
+    label: 'Backups',
     options: [
-      {
-        value: 'lean',
-        title: 'Short history',
-        description: 'One day of database backups and no old file versions. Good for data you can recreate.',
-        meta: 'Less storage'
-      },
+      { value: 'lean', label: '1 day', help: 'One day of database backups. For data you can recreate.' },
       {
         value: 'protected',
-        title: 'Keep recovery copies',
-        description: 'A week of database backups, and old versions of files in managed storage.',
-        meta: 'More recovery history'
+        label: '7 days',
+        help: 'A week of database backups and old file versions. Deleting the database is blocked either way.'
       }
     ]
   },
   databaseAccess: {
-    title: 'Who should be able to reach the SQL database?',
-    description:
-      'A database without a public address is safer. Some app types then need extra setup to reach other services.',
+    label: 'Database reachable from',
     options: [
       {
         value: 'private',
-        title: 'Only this private network',
-        description:
-          'No public address. Adds one small server (a bastion) that your local tools and migrations connect through.',
-        meta: 'Adds a small server'
+        label: 'Private network',
+        help: 'No public address. Adds a small access server your laptop and migrations connect through.'
       },
       {
         value: 'public',
-        title: 'Internet reachable',
-        description:
-          'Reachable from the internet, protected by a generated password. The simplest setup for serverless apps.',
-        meta: 'No extra server'
+        label: 'Internet',
+        help: 'Protected by a generated 32-character password and TLS. Your laptop and migrations connect directly.'
       }
     ]
   }
 };
 
-function PreferenceCards<Key extends DeploymentPreferenceKey>({
-  preference,
-  value,
-  recommended,
-  isBusy,
-  isLocked,
-  priceDeltas,
-  onChange
-}: {
-  preference: Key;
-  value: DeploymentPreferences[Key];
-  recommended: DeploymentPreferences[Key];
-  isBusy: boolean;
-  isLocked: boolean;
-  /** What switching to each other option changes the monthly price by, once priced. */
-  priceDeltas: Record<string, string> | undefined;
-  onChange: (change: DeploymentPreferenceChange) => void;
-}) {
-  const copy = PREFERENCE_COPY[preference];
-  const values = copy.options.map((option) => option.value);
-  const choose = (next: string) => {
-    if (isBusy || isLocked) return;
-    onChange({ key: preference, value: next as DeploymentPreferences[Key] } as DeploymentPreferenceChange);
-  };
-  return (
-    <div className="flex flex-col gap-2">
-      <div>
-        <h4 className="wizard-question">{copy.title}</h4>
-        <p className="wizard-question-lede">{copy.description}</p>
-      </div>
-      {/* One row per option: the title and the flag on one line, the consequence under it, the price
-          difference at the right where it can be compared down the column. The selected row says so
-          with its ring; a label repeating that was the third statement of one fact. */}
-      <SelectionCardGroup
-        ariaLabel={copy.title}
-        className="wizard-choice-rows"
-        direction="column"
-        onValueChange={choose}
-        value={value}
-        values={values}
-      >
-        {copy.options.map((option) => (
-          <SelectionCard
-            description={option.description}
-            isDisabled={isBusy || (isLocked && option.value !== value)}
-            isRecommended={option.value === recommended}
-            isSelected={option.value === value}
-            key={option.value}
-            onSelect={choose}
-            title={option.title}
-            value={option.value}
-            {...(option.value === value
-              ? {}
-              : { meta: priceDeltas === undefined ? option.meta : (priceDeltas[option.value] ?? option.meta) })}
-          />
-        ))}
-      </SelectionCardGroup>
-    </div>
-  );
-}
+/** "+$31/mo" as the segmented control shows it: "+$31". */
+const shortDelta = (delta: string | undefined): string | undefined =>
+  delta === undefined ? undefined : delta === 'Same price' ? 'same' : delta.replace('/mo', '').replace(/^-/, '−');
 
-/** The product rule: never ask about a setting that changes none of this app's resources. */
-export const deploymentPreferenceKeysFor = (types: Iterable<string>): DeploymentPreferenceKey[] => {
-  const resourceTypes = new Set(types);
-  return [
-    ...(['web-service', 'worker-service', 'private-service', 'batch-job', 'relational-database', 'redis'].some((type) =>
-      resourceTypes.has(type)
-    )
-      ? (['capacity'] as const)
-      : []),
-    ...(['web-service', 'worker-service', 'private-service', 'relational-database'].some((type) =>
-      resourceTypes.has(type)
-    )
-      ? (['availability'] as const)
-      : []),
-    ...(['relational-database', 'bucket'].some((type) => resourceTypes.has(type)) ? (['dataProtection'] as const) : []),
-    ...(resourceTypes.has('relational-database') ? (['databaseAccess'] as const) : [])
-  ];
-};
-
-/** "Database has less..." inside a sentence: "the database has less...". */
-const lowerFirst = (sentence: string): string => sentence.charAt(0).toLowerCase() + sentence.slice(1);
-
-const plainList = (items: readonly string[]): string =>
-  items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
-
-/** Says what deploying will still need, when something is missing; silent when everything is set up. */
-const saveFootnote = (state: WizardState): string | undefined =>
-  state.awsIdentity !== undefined && state.awsIdentity.available !== true
-    ? 'Saving needs nothing else. Deploying needs AWS credentials on this machine; the next step helps with that.'
-    : undefined;
-
-/** What the file will be called, given the format and whether the project already has one. */
-const filenameFor = (format: 'yaml' | 'typescript', hasExisting: boolean): string =>
-  `stacktape${hasExisting ? '.generated' : ''}.${format === 'typescript' ? 'ts' : 'yml'}`;
-
-/**
- * One plain sentence saying what was found, before any panel or tab.
- *
- * This is the answer to the question the user actually arrived with — "what did it find?" — and it
- * has to survive being the only thing they read.
- */
-const TECHNOLOGY_LABELS: Readonly<Record<string, string>> = {
-  astro: 'Astro',
-  django: 'Django',
-  fiber: 'Fiber',
-  flask: 'Flask',
-  gin: 'Gin',
-  go: 'Go',
-  hono: 'Hono',
-  laravel: 'Laravel',
-  nuxt: 'Nuxt',
-  php: 'PHP',
-  python: 'Python',
-  rails: 'Rails',
-  ruby: 'Ruby',
-  rust: 'Rust',
-  sveltekit: 'SvelteKit',
-  vue: 'Vue',
-  fastify: 'Fastify',
-  fastapi: 'FastAPI',
-  nextjs: 'Next.js',
-  nestjs: 'NestJS',
-  express: 'Express',
-  react: 'React',
-  remix: 'Remix',
-  javascript: 'JavaScript',
-  typescript: 'TypeScript'
-};
-
-const technologyOf = (service: { framework?: string; language?: string } | undefined): string | undefined => {
-  const raw = service?.framework ?? service?.language;
-  return raw === undefined || raw === 'unknown' ? undefined : (TECHNOLOGY_LABELS[raw.toLowerCase()] ?? raw);
-};
-
-const named = (
-  service: { framework?: string; language?: string } | undefined,
-  noun: 'app' | 'site' = 'app'
-): string => {
-  const technology = technologyOf(service);
-  if (technology === undefined) return `an ${noun}`;
-  const article = /^[aeiou]/i.test(technology) ? 'an' : 'a';
-  return `${article} ${technology} ${noun}`;
-};
-
-/** Exported only so the sentence users rely on can be tested without mounting the diagram. */
-export const summarise = (state: WizardState): string => {
-  const services = state.facts?.services ?? [];
-  const dependencies = state.facts?.dependencies ?? [];
-
-  const web = services.find((service) => service.exposesHttp);
-  const nonWeb = services.filter((service) => !service.exposesHttp);
-  const staticSites = nonWeb.filter((service) => service.servesStaticAssets !== undefined);
-  const workers = nonWeb.filter(
-    (service) => service.servesStaticAssets === undefined && service.executionModel === 'long-running'
-  );
-  const functions = nonWeb.filter((service) => service.executionModel === 'per-request');
-  const scheduled = nonWeb.filter((service) => service.executionModel === 'scheduled');
-
-  const companionPhrases = [
-    ...(staticSites.length === 0
-      ? []
-      : [staticSites.length === 1 ? named(staticSites[0], 'site') : `${staticSites.length} static sites`]),
-    ...(workers.length === 0
-      ? []
-      : [workers.length === 1 ? 'a background worker' : `${workers.length} background workers`]),
-    ...(functions.length === 0
-      ? []
-      : [functions.length === 1 ? 'a serverless function' : `${functions.length} serverless functions`]),
-    ...(scheduled.length === 0
-      ? []
-      : [scheduled.length === 1 ? 'a scheduled job' : `${scheduled.length} scheduled jobs`])
-  ];
-
-  const appPhrase =
-    services.length === 0
-      ? 'nothing that runs'
-      : services.length === 1
-        ? staticSites.length === 1
-          ? named(services[0], 'site')
-          : functions.length === 1
-            ? 'a serverless function'
-            : scheduled.length === 1
-              ? 'a scheduled job'
-              : named(services[0])
-        : web !== undefined &&
-            nonWeb.length === staticSites.length + workers.length + functions.length + scheduled.length
-          ? `${named(web)} with ${plainList(companionPhrases)}`
-          : functions.length === services.length
-            ? `${functions.length} serverless functions`
-            : `${services.length} services`;
-  const opening = appPhrase.charAt(0).toUpperCase() + appPhrase.slice(1);
-
-  const DEPENDENCY_PHRASES: Record<string, string> = {
-    postgres: 'a Postgres database',
-    mysql: 'a MySQL database',
-    mssql: 'a SQL Server database',
-    mongodb: 'a MongoDB database',
-    redis: 'a Redis cache',
-    'object-storage': 'file storage',
-    dynamodb: 'a DynamoDB table',
-    queue: 'a queue',
-    search: 'a search index',
-    email: 'email sending',
-    kafka: 'an event stream',
-    sqlite: 'a SQLite database',
-    amqp: 'a RabbitMQ broker',
-    nats: 'a NATS server',
-    topic: 'a notification topic',
-    'event-bus': 'an event bus',
-    'websocket-api': 'a WebSocket API',
-    'state-machine': 'a Step Functions workflow',
-    'user-pool': 'a Cognito user pool'
-  };
-  // Composition creates nothing for these kinds (see composeDependency), so the sentence that says
-  // what will exist on AWS cannot list them as part of it; they get their own sentence instead.
-  const created = dependencies.filter((entry) => !NOT_CREATED_KINDS.has(entry.kind));
-  const external = dependencies.filter((entry) => NOT_CREATED_KINDS.has(entry.kind));
-  const phrase = (entries: typeof dependencies) => entries.map((entry) => DEPENDENCY_PHRASES[entry.kind] ?? entry.kind);
-  const list = created.length === 0 ? '' : `, using ${plainList(phrase(created))}`;
-  const elsewhere =
-    external.length === 0 ? '' : ` It also needs ${plainList(phrase(external))}, which Stacktape does not create.`;
-
-  return `${opening}${list}.${elsewhere}`;
-};
-
-/** Dependency kinds `composeDependency` answers with `unsupported`. */
-const NOT_CREATED_KINDS = new Set(['email', 'kafka', 'nats', 'amqp']);
-
-/**
- * The Review step: here is your app on AWS — look at it, adjust it, take it.
- *
- * Rebuilt around showing rather than describing. The centrepiece is the shared config editor frame
- * with three ways of looking at the same thing: a picture (the isometric diagram Console uses), the
- * list of what will exist and why, and the actual file that will be written. The format choice is
- * no longer its own section of cards — it is a toggle on the file view, decided by looking at the
- * file, which is the only place the choice means anything.
- */
 export function ReviewStep({
   state,
-  onWrite,
-  onChangeDecision,
-  onChangePreference,
-  onRestart,
-  onRegionChange,
   busy,
-  lock
+  isLocked,
+  format,
+  onFormatChange,
+  onPreference,
+  onDecision,
+  onRegion,
+  onConfigText,
+  onContinue
 }: {
   state: WizardState;
-  onWrite: (format: 'yaml' | 'typescript') => void;
-  /** Picks the region the file declares. The file preview and the price follow it. */
-  onRegionChange: (region: string) => void;
-  onChangeDecision: (id: string, value: string) => void;
-  onChangePreference: (change: DeploymentPreferenceChange) => void;
-  /** Reads the project again with the given agent, for when nothing was found without one. */
-  onRestart: (agentId: string) => void;
-  /** Which action is in flight. Decisions use their own id, so only the row being changed spins. */
   busy: string | undefined;
-  /**
-   * Why the review can be read but not changed: a deploy is reading the saved file, or the page has
-   * lost the CLI that would apply a change.
-   */
-  lock?: 'deploying' | 'disconnected' | undefined;
+  /** Disconnected from the CLI: nothing can be changed until it is back. */
+  isLocked: boolean;
+  format: 'yaml' | 'typescript';
+  onFormatChange: (format: 'yaml' | 'typescript') => void;
+  onPreference: (change: DeploymentPreferenceChange) => void;
+  onDecision: (id: string, value: string) => void;
+  onRegion: (region: string) => void;
+  onConfigText: (yaml: string | null) => void;
+  onContinue: () => void;
 }) {
-  const isLocked = lock !== undefined;
-  const [view, setView] = useState<ConfigEditorViewId>('diagram');
-  const [format, setFormat] = useState<'yaml' | 'typescript'>('yaml');
-  const [showAll, setShowAll] = useState(false);
+  const composition = state.composition;
+  const generated = composition?.configText;
+  const edit = state.configEdit;
 
-  const resources = Object.entries(state.composition?.resources ?? {});
-  const existingDeployments = state.facts?.existingDeployments ?? [];
-  // The alert about another platform already says this; repeating it under "Before you deploy" made
-  // one fact look like two things to do.
-  const gaps = gapsToList(state.composition?.gaps ?? [], existingDeployments);
-  const secretVariables = requiredSecretVariables(state.composition?.resources ?? {});
-  const unsetSettings = state.composition?.unsetSettings ?? [];
-  const severalServices = new Set(unsetSettings.map((setting) => setting.resourceName)).size > 1;
-  const decisions = state.facts?.decisions ?? [];
-  // With nothing notable, a "Show 1 smaller one" link under an empty list hides the only content.
-  const notable = decisions.some((decision) => decision.notable)
-    ? decisions.filter((decision) => decision.notable)
-    : decisions;
-  const rest = decisions.filter((decision) => !notable.includes(decision));
-  const price = state.composition?.price;
-  const configText = state.composition?.configText;
-  const filename = filenameFor(format, state.existingConfig !== undefined);
-  const written = state.configFile !== undefined;
-  const preferences = state.preferences;
-  const recommendedPreferences = state.recommendedPreferences ?? preferences;
-  const inertChoices = new Set(state.composition?.inertChoices ?? []);
-  const preferenceKeys = deploymentPreferenceKeysFor(resources.map(([, resource]) => resource.type)).filter(
-    (key) => !inertChoices.has(key)
+  // What the user is typing, ahead of the server: sent after a pause, and shown until the server has caught up.
+  const [draft, setDraft] = useState<string | undefined>(undefined);
+  const sendTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const editorText = draft ?? edit?.yaml ?? generated?.yaml;
+  const isEdited = edit !== undefined || (draft !== undefined && draft !== generated?.yaml);
+  const changeText = (next: string) => {
+    setDraft(next);
+    clearTimeout(sendTimer.current);
+    sendTimer.current = setTimeout(() => onConfigText(next === generated?.yaml ? null : next), 500);
+  };
+  const resetText = () => {
+    clearTimeout(sendTimer.current);
+    setDraft(undefined);
+    onConfigText(null);
+  };
+  useEffect(() => () => clearTimeout(sendTimer.current), []);
+  useEffect(() => {
+    // The server has the same text now; the draft has done its job.
+    if (draft !== undefined && (draft === edit?.yaml || (edit === undefined && draft === generated?.yaml))) {
+      setDraft(undefined);
+    }
+  }, [draft, edit, generated?.yaml]);
+
+  // The diagram and the list follow the edited file when it parses, so an edit is seen where it lands.
+  const resources: Resources = useMemo(() => {
+    const text = draft ?? edit?.yaml;
+    if (text !== undefined) {
+      try {
+        const parsed = parseYaml(text) as { resources?: unknown } | null;
+        if (parsed !== null && typeof parsed === 'object' && typeof parsed.resources === 'object') {
+          return (parsed.resources ?? {}) as Resources;
+        }
+      } catch {
+        // Keeps the last good picture while the text does not parse.
+      }
+    }
+    return composition?.resources ?? {};
+  }, [draft, edit?.yaml, composition?.resources]);
+
+  const [selected, setSelected] = useState<string | undefined>(undefined);
+  const select = useCallback(
+    (name: string) => {
+      if (resources[name] === undefined) return;
+      setSelected((current) => (current === name ? undefined : name));
+      document.getElementById(`resource-${name}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    },
+    [resources]
   );
-  // What each alarm watches, in the words the file gives it, so "monitoring" is not read as more than it is.
-  const automaticAlarms = resources.flatMap(([, resource]) => {
-    const alarms = resource.properties.alarms;
-    return Array.isArray(alarms)
-      ? alarms.map((alarm: { description?: unknown }) =>
-          typeof alarm.description === 'string' ? alarm.description : 'A production problem'
-        )
-      : [];
-  });
 
-  if (resources.length === 0) {
-    const usedAgent = state.choice !== undefined && state.choice.agentId !== 'none';
-    const agent = (state.agents ?? []).find((option) => option.id !== 'none');
-    return (
-      <div className="flex flex-col gap-5">
-        <p className="wizard-summary">
-          No server, worker or website was found
-          {state.repositoryPath === undefined ? (
-            ''
-          ) : (
-            <>
-              {' '}
-              in <span className="wizard-code">{state.repositoryPath}</span>
-            </>
-          )}
-          , so there is no configuration to save.
-        </p>
-        <p className="m-0 max-w-[var(--wizard-measure)] text-[var(--stp-text-muted)]">
-          If your app lives in a subdirectory, run <span className="wizard-code">stacktape init</span> there.
-          {usedAgent
-            ? ''
-            : agent !== undefined
-              ? ` If it is here, read it again with ${agent.label}: an agent reads source code, not only manifests and Dockerfiles.`
-              : ' If it is here, install a coding agent such as Claude Code or Codex and run it again: an agent reads source code, not only manifests and Dockerfiles.'}
-        </p>
-        {!usedAgent && agent !== undefined && (
-          <div>
-            <Button isLoading={busy === 'start'} onClick={() => onRestart(agent.id)} variant="primary">
-              Analyze again with {agent.label}
-            </Button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  const sourceText = format === 'typescript' ? configText?.typescript : configText?.yaml;
-  const decidedRows = notable.length + (showAll ? rest.length : 0) + automaticAlarms.length;
+  const [problems, setProblems] = useState<EditorProblems>({ count: 0 });
+  const filename = filenameFor(isEdited ? 'yaml' : format, state.existingConfig !== undefined);
+  const parseError = draft === undefined ? edit?.error : undefined;
+  const price = composition?.price;
+  const existingDeployments = state.facts?.existingDeployments ?? [];
+  const services = state.facts?.services ?? [];
 
   return (
-    <div className="flex flex-col gap-8">
-      {isLocked && (
-        <p className="wizard-locked-note">
-          {lock === 'disconnected'
-            ? 'These choices are locked until the page reconnects.'
-            : 'The deploy is using the saved file, so these choices are locked until it finishes.'}
-        </p>
-      )}
-
-      {/* The one sentence, with the price, then the price's terms in one line under it. */}
-      <div className="flex flex-col gap-2">
-        <p className="wizard-summary">
-          {summarise(state)}
-          {price !== undefined && (
-            <>
-              {' '}
-              About <strong className="whitespace-nowrap">{price.monthly}</strong> to run.
-            </>
-          )}
-        </p>
-        {price === undefined && state.composition?.priceUnavailable === true && (
-          <p className="wizard-total-cost">
-            The monthly price could not be estimated right now. Nothing else depends on it: the file and the deploy work
-            the same.
-          </p>
-        )}
-        {price !== undefined && (
-          <p className="wizard-total-cost">
-            At AWS list prices in <span className="whitespace-nowrap">{price.region}</span>. The fixed part is what
-            always-on resources cost; traffic, storage and requests are billed by use on top.
-          </p>
-        )}
-      </div>
+    <div className="w-enter">
+      <header className="w-hero">
+        <p className="w-eyebrow">Review</p>
+        <h1 className="w-title">Your app on AWS</h1>
+        <p className="w-lede">{summarise(state)}</p>
+        <AnalysisReceipt state={state} />
+      </header>
 
       {existingDeployments.length > 0 && (
-        <Alert
-          tone="info"
-          title={`We found ${plainList(
-            existingDeployments.map(
-              ({ tool }) => (DEPLOYMENT_TOOL_LABELS as Readonly<Record<string, string>>)[tool] ?? tool
-            )
-          )} already in this project`}
-        >
-          {existingDeployments.some((deployment) => deployment.managesAws) ? (
-            <>
-              Those files may describe resources that are already running. This Stacktape configuration is separate: it
-              does not import, change or delete anything they own. Databases and other stored data declared there are
-              left alone by default; any new copy is shown under <strong>Decided for you</strong> before you save.
-            </>
-          ) : (
-            <>
-              Saving this file does not change that platform. If you deploy, Stacktape creates a separate copy of the
-              application on AWS; anything already running on the other platform stays untouched.
-            </>
-          )}
-        </Alert>
-      )}
-
-      {/* Said before the file name first appears (the third tab), not at the end of the band. */}
-      {state.existingConfig !== undefined && !written && (
-        <p className="wizard-total-cost">
-          This project already has <span className="wizard-code">{state.existingConfig}</span>, which stays exactly as
-          it is. The new file is written beside it as <span className="wizard-code">{filename}</span>.
+        <p className="w-note mb-5 max-w-[var(--w-measure)]">
+          <BiInfoCircle size={15} />
+          <span>
+            This project also has{' '}
+            {plainList(
+              existingDeployments.map(
+                ({ tool }) => (DEPLOYMENT_TOOL_LABELS as Readonly<Record<string, string>>)[tool] ?? tool
+              )
+            )}{' '}
+            config. Deploying creates a separate copy on AWS; nothing running there is touched.
+          </span>
         </p>
       )}
 
-      <div className="wizard-editor" data-view={view}>
-        <ConfigEditor
-          activeView={view}
-          onActiveViewChange={setView}
-          views={[
-            { id: 'diagram', label: 'Diagram', description: 'Your infrastructure, as a picture' },
-            { id: 'tree', label: 'What & why', description: 'Each resource, with the code that led to it' },
-            { id: 'source', label: filename, shortLabel: 'File', description: 'The file that will be saved' }
-          ]}
-          {...(view === 'source'
-            ? {
-                actions: (
-                  <fieldset aria-label="Configuration format" className="wizard-format-toggle">
-                    <button aria-pressed={format === 'yaml'} onClick={() => setFormat('yaml')} type="button">
-                      YAML
-                    </button>
-                    <button
-                      aria-pressed={format === 'typescript'}
-                      onClick={() => setFormat('typescript')}
-                      type="button"
-                    >
-                      TypeScript
-                    </button>
-                  </fieldset>
-                )
-              }
-            : {})}
-        >
-          {view === 'diagram' && (
+      <div className="w-review">
+        <div className="w-review-main">
+          <section aria-label="Diagram" className="w-card w-diagram">
             <Suspense
               fallback={
                 <div className="flex h-full items-center justify-center">
@@ -568,228 +219,419 @@ export function ReviewStep({
               }
             >
               <Diagram
-                ariaLabel="Diagram of the infrastructure this configuration creates"
-                // The composed resources are the real configuration schema — the same objects the
-                // file is rendered from — so the cast states a fact the type system cannot see
-                // across the package boundary.
-                config={{ resources: state.composition?.resources } as unknown as StacktapeConfig}
+                ariaLabel="Diagram of what this configuration creates on AWS"
+                config={{ resources } as unknown as StacktapeConfig}
+                hint="Hover for what something does · click to see why it is here"
+                initialZoom={1.15}
+                onSelectResource={select}
+                selectedResource={selected ?? null}
                 style={{ width: '100%', height: '100%' }}
               />
             </Suspense>
-          )}
+          </section>
 
-          {view === 'tree' && (
-            <div className="wizard-resources p-4">
-              {resources.map(([name, resource]) => {
-                const provenance = state.composition?.provenance[name];
-                const cost = price?.byResource[name];
-                return (
-                  <article className="wizard-resource" key={name}>
-                    <ResourceIcon className="wizard-resource-icon" resourceType={resource.type} size={24} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex w-full items-baseline gap-3">
-                        <h3 className="wizard-resource-name">{name}</h3>
-                        <span className="wizard-code text-[var(--stp-text-subtle)]">{resource.type}</span>
-                        {cost !== undefined && <span className="wizard-resource-cost">{cost}</span>}
-                      </div>
-                      {provenance !== undefined && (
-                        <>
-                          <p className="wizard-resource-reason">{provenance.reason}</p>
-                          <Evidence citations={provenance.evidence} label="Where we saw this" />
-                        </>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
+          <section aria-label="What gets created" className="w-card">
+            <div className="w-card-head">
+              <h2 className="w-card-title">What gets created</h2>
+              <p className="w-card-note">
+                {Object.keys(resources).length === 1 ? 'One resource' : `${Object.keys(resources).length} resources`},
+                each with the code that called for it
+              </p>
             </div>
-          )}
+            <ul className="w-resources">
+              {Object.entries(resources).map(([name, resource]) => (
+                <ResourceRow
+                  framework={technologyOf(services.find((service) => service.name === name))}
+                  isOpen={selected === name}
+                  key={name}
+                  name={name}
+                  onToggle={() => setSelected(selected === name ? undefined : name)}
+                  price={price?.byResource[name]}
+                  provenance={composition?.provenance[name]}
+                  resource={resource}
+                />
+              ))}
+            </ul>
+          </section>
 
-          {view === 'source' &&
-            (sourceText === undefined ? (
-              <div className="flex h-full items-center justify-center gap-3 text-[var(--stp-text-subtle)]">
-                <Spinner /> Formatting…
+          <section aria-label={filename} className="w-card" id="config-file">
+            <div className="w-card-head">
+              <div className="min-w-0">
+                <h2 className="w-card-title flex items-center gap-2">
+                  <BiCodeAlt size={16} /> {filename}
+                </h2>
+                {format === 'yaml' || isEdited ? (
+                  <p className="w-editor-tips mt-1">
+                    <span>Edit freely</span>
+                    <span>Hover a key for its docs</span>
+                    <span>
+                      <kbd>Ctrl</kbd> + <kbd>Space</kbd> suggests
+                    </span>
+                  </p>
+                ) : (
+                  <p className="w-editor-tips mt-1">
+                    <span>Read-only here. Switch to YAML to edit in the page.</span>
+                  </p>
+                )}
               </div>
-            ) : (
-              <pre className="wizard-source">{sourceText}</pre>
-            ))}
-        </ConfigEditor>
+              <fieldset aria-label="File format" className="w-toggle">
+                <button
+                  aria-pressed={format === 'yaml' || isEdited}
+                  onClick={() => onFormatChange('yaml')}
+                  type="button"
+                >
+                  YAML
+                </button>
+                <button
+                  aria-pressed={format === 'typescript' && !isEdited}
+                  disabled={isEdited}
+                  onClick={() => onFormatChange('typescript')}
+                  title={isEdited ? 'Your edits are YAML. Reset to generated to pick TypeScript.' : undefined}
+                  type="button"
+                >
+                  TypeScript
+                </button>
+              </fieldset>
+            </div>
+            <div className="w-editor-frame">
+              {format === 'typescript' && !isEdited ? (
+                generated?.typescript === undefined ? (
+                  <div className="flex h-full items-center justify-center gap-3 text-[var(--w-subtle)]">
+                    <Spinner /> Formatting…
+                  </div>
+                ) : (
+                  <Suspense fallback={<EditorLoading />}>
+                    <ConfigFileEditor
+                      key="typescript"
+                      language="typescript"
+                      onChange={() => {}}
+                      onProblems={() => {}}
+                      readOnly
+                      value={generated.typescript}
+                    />
+                  </Suspense>
+                )
+              ) : (
+                <Suspense fallback={<EditorLoading />}>
+                  <ConfigFileEditor
+                    key="yaml"
+                    language="yaml"
+                    onChange={changeText}
+                    onProblems={setProblems}
+                    readOnly={isLocked}
+                    value={editorText ?? ''}
+                  />
+                </Suspense>
+              )}
+            </div>
+            <div className={`w-editor-status${parseError !== undefined ? ' is-error' : isEdited ? ' is-edited' : ''}`}>
+              <span>
+                {parseError !== undefined
+                  ? `This YAML does not parse: ${parseError}`
+                  : isEdited
+                    ? 'Edited by hand. This text is what gets saved and deployed, so the settings are off.'
+                    : format === 'typescript'
+                      ? 'Generated. Saved as stacktape.ts; TypeScript is not editable in this page.'
+                      : 'Generated from your code and the settings. Changing a setting rewrites it.'}
+                {parseError === undefined && problems.count > 0 && (
+                  <>
+                    {' '}
+                    <strong className="text-[var(--w-warn)]">
+                      {problems.count === 1 ? '1 schema warning' : `${problems.count} schema warnings`}
+                      {problems.first === undefined ? '' : ` (line ${problems.first.line})`}
+                    </strong>
+                  </>
+                )}
+              </span>
+              {isEdited && (
+                <button className="w-textbutton" onClick={resetText} type="button">
+                  Reset to generated
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <aside className="w-side">
+          <Settings
+            busy={busy}
+            isEdited={isEdited}
+            isLocked={isLocked}
+            onDecision={onDecision}
+            onPreference={onPreference}
+            onRegion={onRegion}
+            onReset={resetText}
+            state={state}
+            types={Object.values(resources).map((resource) => resource.type)}
+          />
+        </aside>
       </div>
 
-      {decidedRows > 0 && (
-        <RowList
-          label="Decided for you"
-          lede={`Your code did not say, so we picked.${isLocked || decisions.length === 0 ? '' : ' Change one and the file follows.'}`}
-          {...(rest.length > 0
-            ? {
-                footer: (
-                  <button className="wizard-disclosure" onClick={() => setShowAll(!showAll)} type="button">
-                    {showAll ? 'Hide' : `Show ${rest.length} smaller ${rest.length === 1 ? 'one' : 'ones'}`}
-                  </button>
-                )
-              }
-            : {})}
-        >
-          {notable.map((decision) => (
-            <DecisionRow
-              decision={decision}
-              isBusy={busy === decision.id}
-              isLocked={isLocked}
-              key={decision.id}
-              onChange={(value) => onChangeDecision(decision.id, value)}
-            />
-          ))}
-          {showAll &&
-            rest.map((decision) => (
-              <DecisionRow
-                decision={decision}
-                isBusy={busy === decision.id}
-                isLocked={isLocked}
-                key={decision.id}
-                onChange={(value) => onChangeDecision(decision.id, value)}
-              />
-            ))}
-          {automaticAlarms.length > 0 && (
-            <Row
-              description={
-                automaticAlarms.length === 1
-                  ? `It fires when the ${lowerFirst(automaticAlarms[0]!)}, ignoring a single noisy sample. It is a CloudWatch alarm in your AWS account; the Stacktape Console can send it to Slack or email.`
-                  : 'Each ignores a single noisy sample. They are CloudWatch alarms in your AWS account; the Stacktape Console can send them to Slack or email.'
-              }
-              title={
-                automaticAlarms.length === 1
-                  ? 'One alarm watches the app'
-                  : `${automaticAlarms.length} alarms watch the app`
-              }
-            >
-              {automaticAlarms.length > 1 && (
-                <ul className="wizard-plain-list">
-                  {automaticAlarms.map((description, index) => (
-                    // oxlint-disable-next-line react/no-array-index-key -- two resources can have the same alarm.
-                    <li key={index}>{description}</li>
-                  ))}
-                </ul>
-              )}
-            </Row>
-          )}
-        </RowList>
-      )}
-
-      {preferences !== undefined && recommendedPreferences !== undefined && preferenceKeys.length > 0 && (
-        <section aria-label="Important choices">
-          <h3 className="wizard-section-heading m-0">Important choices</h3>
-          <p className="wizard-lede mt-1 mb-4">
-            Your code cannot decide these. Switch one and the file and price follow.
-          </p>
-          <div className="flex flex-col gap-6">
-            {preferenceKeys.map((preference) => (
-              <PreferenceCards
-                isBusy={busy === `preference-${preference}`}
-                isLocked={isLocked}
-                key={preference}
-                priceDeltas={price?.options?.[preference]}
-                onChange={onChangePreference}
-                preference={preference}
-                recommended={recommendedPreferences[preference]}
-                value={preferences[preference]}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {(secretVariables.length > 0 || unsetSettings.length > 0 || gaps.length > 0) && (
-        <RowList label="Before you deploy">
-          {secretVariables.length > 0 && (
-            <Row
-              description={`Your app reads ${secretVariables.length === 1 ? 'it' : 'them'} from Stacktape secrets, so the values never go in the file. Each secret has the variable's name in lowercase; the Deploy step gives you the command that creates it.`}
-              title={
-                secretVariables.length === 1
-                  ? 'One secret only you have'
-                  : `${secretVariables.length} secrets only you have`
-              }
-            >
-              <ul className="wizard-variable-list">
-                {secretVariables.map((name) => (
-                  <li key={name}>
-                    <code className="wizard-code">{name}</code>
-                  </li>
-                ))}
-              </ul>
-            </Row>
-          )}
-          {unsetSettings.length > 0 && (
-            <Row
-              description={
-                <>
-                  Your code reads {unsetSettings.length === 1 ? 'this' : 'these'} with no fallback. If your app needs{' '}
-                  {unsetSettings.length === 1 ? 'it' : 'one'} to start, add it under{' '}
-                  <span className="wizard-code">environment</span> in{' '}
-                  <span className="wizard-code">{written ? (state.configFile?.filename ?? filename) : filename}</span>{' '}
-                  {written ? 'before deploying' : 'once it is saved'}.
-                </>
-              }
-              title={
-                unsetSettings.length === 1
-                  ? 'One setting nothing sets yet'
-                  : `${unsetSettings.length} settings nothing sets yet`
-              }
-            >
-              <ul className="wizard-setting-list">
-                {unsetSettings.map((setting) => (
-                  <li key={`${setting.resourceName}-${setting.variableName}`}>
-                    <code className="wizard-code">{setting.variableName}</code>
-                    <span className="wizard-setting-where">
-                      {severalServices ? `${setting.resourceName}, ` : ''}
-                      {setting.evidence[0] === undefined
-                        ? 'read in your code'
-                        : `read in ${setting.evidence[0].file}:${setting.evidence[0].line}`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Row>
-          )}
-          {gaps.length > 0 && (
-            <Row title={gaps.length === 1 ? 'One more thing' : `${gaps.length} more things`}>
-              <GapList gaps={gaps} />
-            </Row>
-          )}
-        </RowList>
-      )}
-
-      {isLocked ? null : written ? (
-        <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">
-          Saved <span className="wizard-code text-[var(--stp-text-primary)]">{state.configFile?.filename}</span> to your
-          project.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <RegionPicker onChange={onRegionChange} value={state.region ?? 'eu-west-1'} />
-            <span className="text-[0.82rem] text-[var(--stp-text-subtle)]">
-              Saved in the file as <span className="wizard-code">region</span>. Commands in this project deploy there.
-              Pick the region closest to your users.
+      <footer className="w-footer">
+        <div className="w-footer-inner">
+          <PriceSummary state={state} />
+          <div className="w-footer-actions">
+            <span className="w-footer-hint">
+              {parseError !== undefined
+                ? 'Fix the YAML to continue.'
+                : `Saves ${filename} to your project. Nothing is created on AWS yet.`}
             </span>
-          </div>
-          <div className="flex items-center gap-4">
             <Button
-              disabled={busy !== undefined}
+              className="w-big"
+              disabled={isLocked || parseError !== undefined || busy !== undefined}
               isLoading={busy === 'write'}
-              onClick={() => onWrite(format)}
+              onClick={onContinue}
               variant="primary"
             >
-              Save {filename} &amp; continue
+              Continue to deploy
             </Button>
-            <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
-              Puts the file in your project. Deploying stays optional.
-            </span>
           </div>
-          {saveFootnote(state) !== undefined && (
-            <p className="m-0 text-[0.82rem] text-[var(--stp-text-subtle)]">{saveFootnote(state)}</p>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function EditorLoading() {
+  return (
+    <div className="flex h-full items-center justify-center gap-3 text-[var(--w-subtle)]">
+      <Spinner /> Loading the editor…
+    </div>
+  );
+}
+
+/** The one line left of the analysis on later screens. */
+function AnalysisReceipt({ state }: { state: WizardState }) {
+  const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
+  const files = state.timeline.filter((entry) => entry.kind === 'tool' && entry.label.startsWith('read_file ')).length;
+  return (
+    <p className="w-receipt">
+      <span className="w-receipt-item">
+        <BiLockAlt size={13} />
+        {agent === undefined || agent.id === 'none'
+          ? 'Read from your project files, without AI'
+          : `Read by your ${agent.label}${files > 0 ? `, ${files} ${files === 1 ? 'file' : 'files'} opened` : ''}`}
+      </span>
+      {state.repositoryPath !== undefined && <span className="w-receipt-item">{state.repositoryPath}</span>}
+    </p>
+  );
+}
+
+/** The fixed monthly price, counting when it changes, with its terms in one line. */
+export function PriceSummary({ state }: { state: WizardState }) {
+  const price = state.composition?.price;
+  if (price === undefined) {
+    return (
+      <div className="w-price">
+        <span className="w-price-value">
+          {state.composition?.priceUnavailable === true ? (
+            <span className="text-[15px] text-[var(--w-muted)]">Price unavailable offline</span>
+          ) : (
+            <span className="flex items-center gap-2 text-[15px] text-[var(--w-muted)]">
+              <Spinner /> Pricing…
+            </span>
+          )}
+        </span>
+        <span className="w-price-note">Nothing else depends on the estimate.</span>
+      </div>
+    );
+  }
+  const { amount, usage } = splitMonthly(price.monthly);
+  return (
+    <div aria-live="polite" className="w-price">
+      {amount === undefined ? (
+        <span className="w-price-value">{price.monthly}</span>
+      ) : (
+        <AnimatedPrice className="w-price-value" text={`${amount} /month`} />
+      )}
+      <span className="w-price-note">
+        {usage ? 'Plus traffic and requests, billed by use. ' : ''}AWS list prices, {price.region}
+      </span>
+    </div>
+  );
+}
+
+function ResourceRow({
+  name,
+  resource,
+  provenance,
+  price,
+  framework,
+  isOpen,
+  onToggle
+}: {
+  name: string;
+  resource: { type: string; properties: Record<string, unknown> };
+  provenance: { reason: string; evidence: Array<{ file: string; line: number; quote: string }> } | undefined;
+  price: string | undefined;
+  framework: string | undefined;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  const alarms = alarmsOf(resource);
+  const evidence = provenance?.evidence ?? [];
+  const first = evidence[0];
+  // A runtime's own reason is about Stacktape ("first-class support for Next.js"); the row says what it runs instead.
+  const reason =
+    provenance === undefined
+      ? 'Added in the file by hand.'
+      : framework !== undefined && provenance.reason.startsWith('Stacktape has first-class support')
+        ? `Runs your ${framework} app, built the way ${framework} expects.`
+        : provenance.reason;
+  const why = first === undefined ? reason : `${reason} Seen in ${first.file}:${first.line}.`;
+  return (
+    <li className={`w-resource${isOpen ? ' is-open is-selected' : ''}`} id={`resource-${name}`}>
+      <button aria-expanded={isOpen} className="w-resource-head" onClick={onToggle} type="button">
+        <span className="w-resource-icon">
+          <ResourceIcon resourceType={resource.type} size={20} />
+        </span>
+        <span className="min-w-0">
+          <span className="w-resource-name">
+            {plainResourceName(resource, framework)}
+            <span className="w-resource-id">{name}</span>
+          </span>
+          <span className="w-resource-why block">{why}</span>
+        </span>
+        <span className={`w-resource-price${price === 'pay-per-use' ? ' is-usage' : ''}`}>
+          {price === undefined ? '' : price === 'pay-per-use' ? 'Pay per use' : price}
+        </span>
+        <BiChevronRight aria-hidden className="w-chevron" size={18} />
+      </button>
+      {isOpen && (
+        <div className="w-resource-body">
+          {evidence.slice(0, 3).map((citation) => (
+            <pre className="w-excerpt" key={`${citation.file}:${citation.line}`}>
+              <span className="w-excerpt-file">
+                {citation.file}:{citation.line}
+              </span>
+              <span className="w-excerpt-line">{citation.quote}</span>
+            </pre>
+          ))}
+          {alarms.length > 0 && (
+            <ul className="w-detail-list">
+              {alarms.map((description) => (
+                <li key={description}>
+                  <BiBell size={13} />
+                  <span>
+                    Alarm in your AWS account when the {description.charAt(0).toLowerCase() + description.slice(1)}.
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {evidence.length === 0 && alarms.length === 0 && (
+            <p className="m-0 text-[12.5px] text-[var(--w-subtle)]">Nothing more to show for this one.</p>
           )}
         </div>
       )}
-    </div>
+    </li>
+  );
+}
+
+function Settings({
+  state,
+  types,
+  busy,
+  isLocked,
+  isEdited,
+  onPreference,
+  onDecision,
+  onRegion,
+  onReset
+}: {
+  state: WizardState;
+  types: string[];
+  busy: string | undefined;
+  isLocked: boolean;
+  isEdited: boolean;
+  onPreference: (change: DeploymentPreferenceChange) => void;
+  onDecision: (id: string, value: string) => void;
+  onRegion: (region: string) => void;
+  onReset: () => void;
+}) {
+  const preferences = state.preferences;
+  const recommended = state.recommendedPreferences ?? preferences;
+  const inert = new Set(state.composition?.inertChoices ?? []);
+  const keys = deploymentPreferenceKeysFor(types).filter((key) => !inert.has(key));
+  const deltas = state.composition?.price?.options;
+  const decisions = (state.facts?.decisions ?? []).filter(
+    (decision) => DECISION_COPY[decision.kind] !== undefined && decision.alternatives.length > 1
+  );
+  const disabled = isLocked || isEdited || busy !== undefined;
+
+  return (
+    <section aria-label="Settings" className="w-card w-settings">
+      <div className="w-card-head">
+        <h2 className="w-card-title">Settings</h2>
+        <p className="w-card-note">Only what applies to this app</p>
+      </div>
+      <div className="w-setting">
+        <RegionPicker isDisabled={disabled} onChange={onRegion} value={state.region ?? 'eu-west-1'} />
+        <p className="w-setting-help">Pick the one closest to your users.</p>
+      </div>
+      {preferences !== undefined &&
+        recommended !== undefined &&
+        keys.map((key) => {
+          const copy = PREFERENCES[key];
+          const value = preferences[key] as string;
+          const picked = copy.options.find((option) => option.value === value);
+          return (
+            <div className="w-setting" key={key}>
+              <div className="w-setting-head">
+                <p className="w-setting-label">{copy.label}</p>
+                {value !== (recommended[key] as string) && (
+                  <button
+                    className="w-textbutton text-[11.5px]"
+                    disabled={disabled}
+                    onClick={() => onPreference({ key, value: recommended[key] } as DeploymentPreferenceChange)}
+                    type="button"
+                  >
+                    Use recommended
+                  </button>
+                )}
+              </div>
+              <Segmented
+                isDisabled={disabled}
+                label={copy.label}
+                onChange={(next) =>
+                  onPreference({ key, value: next as DeploymentPreferences[typeof key] } as DeploymentPreferenceChange)
+                }
+                options={copy.options.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                  note: option.value === value ? undefined : shortDelta(deltas?.[key]?.[option.value])
+                }))}
+                value={value}
+              />
+              <p className="w-setting-help">{picked?.help}</p>
+            </div>
+          );
+        })}
+      {decisions.map((decision) => {
+        const copy = DECISION_COPY[decision.kind]!;
+        const values = decision.alternatives;
+        return (
+          <div className="w-setting" key={decision.id}>
+            <p className="w-setting-label">{copy.summary(decision.parameters, decision.chosen)}</p>
+            <Segmented
+              isDisabled={disabled}
+              label={copy.summary(decision.parameters, decision.chosen)}
+              onChange={(next) => onDecision(decision.id, next)}
+              options={values.map((value) => ({ value, label: copy.option(value, decision.parameters) }))}
+              value={decision.chosen}
+            />
+            <p className="w-setting-help">{copy.detail(decision.parameters, decision.chosen)}</p>
+          </div>
+        );
+      })}
+      {isEdited && (
+        <div className="w-settings-locked">
+          <p>You edited the file by hand, so these settings would overwrite your changes.</p>
+          <button className="w-link w-textbutton" onClick={onReset} type="button">
+            Reset to generated
+          </button>
+        </div>
+      )}
+    </section>
   );
 }

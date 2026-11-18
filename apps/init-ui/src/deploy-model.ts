@@ -76,6 +76,8 @@ export type DeployModel = {
   notices: Array<{ level: string; message: string }>;
   /** Everything the CLI said, for the disclosure at the bottom. */
   log: string[];
+  /** Every CloudFormation resource reported in progress at some point, so one that left the list is known done. */
+  seenInProgress: string[];
 };
 
 export const buildDeployModel = (
@@ -90,6 +92,7 @@ export const buildDeployModel = (
   const phases = new Map<string, DeployPhase>();
   const notices: Array<{ level: string; message: string }> = [];
   const log: string[] = [];
+  const seenInProgress = new Set<string>();
   let latestPhaseId: string | undefined;
 
   for (const event of events) {
@@ -133,6 +136,7 @@ export const buildDeployModel = (
       };
     }
 
+    for (const id of existing.cloudformation?.inProgress ?? []) seenInProgress.add(id);
     phases.set(event.phase, existing);
   }
 
@@ -156,5 +160,5 @@ export const buildDeployModel = (
             : 'pending';
   }
 
-  return { phases: ordered, notices, log: [...log, ...lines] };
+  return { phases: ordered, notices, log: [...log, ...lines], seenInProgress: [...seenInProgress] };
 };

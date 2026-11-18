@@ -1,801 +1,833 @@
-import { useMemo, useState } from 'react';
-import { explainFailure } from '@stacktape/console-api/failure-explanations';
-import { Alert } from '@stacktape/ui-react/alert';
-import { Button, ButtonLink } from '@stacktape/ui-react/button';
-import { Spinner } from '@stacktape/ui-react/spinner';
-import { TextField } from '@stacktape/ui-react/text-field';
-import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { buildDeployModel, type DeployEvent } from '../deploy-model';
-import { CopyableCommand } from '../components/CopyableCommand';
-import { DeployProgress } from '../components/DeployProgress';
-import { AgentSetupCard } from '../components/AgentSetupCard';
-import { FailureExplanationText } from '../components/FailureExplanation';
-import { GapList } from '../components/GapList';
-import { PipelineCard } from '../components/PipelineCard';
-import { RegionPicker } from '../components/RegionPicker';
-import { Row, RowList } from '../components/RowList';
-import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
-import { secretCommand, stackCommand } from '../deploy-commands';
-import type { SignInRequest, WizardState } from '../session';
-import { gapsToList } from '../gaps';
 import { requiredSecrets } from '@stacktape/config-inference/compose/required-secrets';
-import { organizationLabel } from '../sign-in';
+import { explainFailure } from '@stacktape/console-api/failure-explanations';
+import { Button } from '@stacktape/ui-react/button';
+import { Spinner } from '@stacktape/ui-react/spinner';
+import { useEffect, useRef, useState } from 'react';
+import { BiArrowBack, BiLinkExternal } from 'react-icons/bi';
+import { CopyableCommand } from '../components/CopyableCommand';
+import { FailureExplanationText } from '../components/FailureExplanation';
+import { RegionPicker } from '../components/RegionPicker';
+import { StatusIcon, type CheckStatus } from '../components/StatusIcon';
+import { resourcesOf } from '../config-resources';
+import { secretCommand, stackCommand } from '../deploy-commands';
+import { gapsToList } from '../gaps';
+import type { WizardState } from '../session';
 import { blockedTargetCopy, stackStatusWords } from '../target-copy';
+import { PriceSummary } from './ReviewStep';
+
+type Expectation = { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
+
+/** Container services, the only ones the local try-out can start. */
+const CONTAINER_TYPES = new Set(['web-service', 'worker-service', 'private-service', 'multi-container-workload']);
+
+/** "app depends on Drizzle Kit, but nothing we found runs "npx drizzle-kit migrate". …" → the service and command. */
+export const runnableMigration = (gap: {
+  subject: string;
+  message: string;
+}): { service: string; command: string } | undefined => {
+  const service = /^(.+)\.migrations$/.exec(gap.subject)?.[1];
+  const command = /depends on .+, but nothing we found runs "([^"]+)"/.exec(gap.message)?.[1];
+  return service === undefined || command === undefined ? undefined : { service, command };
+};
 
 /**
- * The last step: put it on AWS.
+ * The Deploy step: a readiness list that is honest about what is missing, then one button.
  *
- * Three things have to be true before the button appears, and each is shown rather than assumed:
- * the configuration is on disk, this machine has AWS credentials, and the user knows which account
- * those credentials belong to. The third is the one tools usually skip, and it is the one that
- * turns "it deployed" into "it deployed *where*". A Stacktape account is not one of them: signed
- * out, the deploy runs on this machine's AWS credentials alone.
- *
- * And after it works, the page does not stop. "It's live" is where the daily product begins — the
- * next deploy, the logs, the pipeline, and the Console for someone who deployed without it — so the
- * end of the wizard hands those over instead of ending.
+ * Each row is something the deploy needs, resolved in place where the page can: the AWS account (with keys pasted
+ * here if the machine has none), the secrets the app reads (set here, stored in the user's own AWS account), the
+ * database migration (one click when the command is known). The read-only target check runs by itself. The button
+ * says where it deploys and roughly how long it takes, and stays off until the list is green.
  */
-
-/** Resource types that end up reachable from the internet. Everything else stays private. */
-const PUBLIC_TYPES = new Set([
-  'web-service',
-  'nextjs-web',
-  'nuxt-web',
-  'sveltekit-web',
-  'astro-web',
-  'remix-web',
-  'solid-start-web',
-  'hosting-bucket',
-  'http-api-gateway',
-  'application-load-balancer'
-]);
-
-/** The Console the CLI talks to; production when the session does not name one. */
-const consoleUrlOf = (state: WizardState): string => state.consoleUrl ?? 'https://console.stacktape.com';
-
-const listNames = (names: string[]): string =>
-  names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
-
 export function DeployStep({
   state,
+  busy,
+  isLocked,
+  stage,
+  onStageChange,
+  onBack,
+  onCheckTarget,
   onDeploy,
-  onPipeline,
-  onConnectCodingAgent,
+  onSecret,
+  onConfirmSecrets,
+  onAwsKeys,
   onRecheck,
-  onSignIn,
-  onConsoleConnection,
+  onDecision,
+  onRegion,
   onVerify,
-  onDismissVerification,
-  isBusy
+  onDismissVerification
 }: {
   state: WizardState;
-  onDeploy: (
-    stage: string,
-    region: string,
-    expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string }
-  ) => void;
-  onPipeline: (stage: string, region: string) => void;
-  onConnectCodingAgent: () => void;
-  /** Re-checks AWS credentials and the Stacktape sign-in, for after a terminal detour. */
+  busy: string | undefined;
+  isLocked: boolean;
+  stage: string;
+  onStageChange: (stage: string) => void;
+  onBack: () => void;
+  onCheckTarget: (stage: string, region: string) => Promise<void>;
+  onDeploy: (stage: string, region: string, expected: Expectation) => void;
+  onSecret: (name: string, value: string) => Promise<boolean>;
+  onConfirmSecrets: () => void;
+  onAwsKeys: (accessKeyId: string, secretAccessKey: string) => void;
   onRecheck: () => void;
-  /** Takes one step of signing in to Stacktape from this page. Resolves with the state it led to. */
-  onSignIn: (request: SignInRequest) => Promise<WizardState>;
-  /** Accepts or sets aside the Console after an account-free deploy. Resolves with the state it led to. */
-  onConsoleConnection: (action: 'connect' | 'dismiss') => Promise<WizardState | undefined>;
-  /** Consents to trying the composed services on this machine. The click is the consent. */
+  onDecision: (id: string, value: string) => void;
+  onRegion: (region: string) => void;
   onVerify: () => void;
-  /** Sets a failed try-out aside: results stay visible, the deploy button comes back. */
   onDismissVerification: () => void;
-  /** Which action is in flight, so only the button that was pressed shows a spinner. */
-  isBusy: 'deploy' | 'pipeline' | 'recheck' | 'verify' | 'coding-agent' | undefined;
 }) {
   const file = state.configFile;
   const identity = state.awsIdentity;
-  const deployment = state.deployment;
+  const region = file?.region ?? state.region ?? 'eu-west-1';
+  const resources = resourcesOf(state);
+  const resourceCount = Object.keys(resources).length;
+  const hasDatabase = Object.values(resources).some((resource) => resource.type === 'relational-database');
+  const target =
+    state.deployTarget?.stage === stage && state.deployTarget.region === region ? state.deployTarget : undefined;
+  const [checking, setChecking] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
+  const [editingRegion, setEditingRegion] = useState(false);
+
+  // The read-only target check runs by itself once there is a file and an AWS identity, and again after the stage
+  // changes (after a pause, so typing a stage name does not fire a check per letter).
+  const checkedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (file === undefined || identity?.available !== true || stage === '' || isLocked) return;
+    const key = `${file.path}|${stage}|${region}|${identity.accountId}`;
+    if (target !== undefined && checkedFor.current === key) return;
+    if (target !== undefined) {
+      checkedFor.current = key;
+      return;
+    }
+    const timer = setTimeout(() => {
+      checkedFor.current = key;
+      setChecking(true);
+      void onCheckTarget(stage, region).finally(() => setChecking(false));
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [file, identity, stage, region, target, isLocked, onCheckTarget]);
+
+  const secretNames = requiredSecrets(resources);
+  const secretsAvailable = state.secrets !== undefined;
+  const secretsSet = new Set(state.secrets?.set ?? []);
+  const secretsDone =
+    secretNames.length === 0 || state.secrets?.confirmed === true || secretNames.every((name) => secretsSet.has(name));
+
+  const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
+  const migration = gaps.map(runnableMigration).find((entry) => entry !== undefined);
+  const migrationDecision = (state.facts?.decisions ?? []).find(
+    (decision) => decision.kind === 'migration-timing-unknown'
+  );
+  const otherGaps = gaps.filter((gap) => runnableMigration(gap) === undefined);
+  const unsetNames = [...new Set((state.composition?.unsetSettings ?? []).map((setting) => setting.variableName))];
+
   const verification = state.verification;
-  /**
-   * Mirrors the session's own gate — the server enforces it regardless; mirroring it here is what
-   * makes the button honest rather than a click that silently does nothing.
-   */
+  const canTryOut =
+    Object.values(resources).some((resource) => CONTAINER_TYPES.has(resource.type)) &&
+    verification?.status !== 'unavailable';
   const verificationBlocks =
     verification?.status === 'running' ||
     verification?.status === 'repairing' ||
     (verification?.status === 'completed' && (verification.services ?? []).some((entry) => entry.status === 'failed'));
-  const hasUnverifiedServices = (verification?.services ?? []).some(
-    (entry) => entry.status === 'inconclusive' || entry.status === 'skipped'
-  );
-  const compositionBlocks = state.composition?.deployable !== true;
-  const account = state.stacktapeAccount;
-  const [stage, setStage] = useState('dev');
-  const [showRemoval, setShowRemoval] = useState(false);
-  const [chosenRegion, setRegion] = useState(
-    state.region ??
-      (identity !== undefined && identity.available && identity.region !== undefined ? identity.region : 'eu-west-1')
-  );
-  // A file that declares its region deploys there, and every later command in the project reads it from the file.
-  const declaredRegion = file?.region;
-  const region = declaredRegion ?? chosenRegion;
-  const priceRegion = state.composition?.price?.region;
 
-  const model = useMemo(
-    () =>
-      deployment === undefined
-        ? undefined
-        : buildDeployModel(
-            deployment.events as DeployEvent[],
-            deployment.lines,
-            deployment.status === 'running' ? undefined : deployment.status === 'succeeded' ? 'succeeded' : 'failed'
-          ),
-    [deployment]
-  );
+  const awsStatus: CheckStatus =
+    identity === undefined || checking || state.awsKeys?.status === 'saving'
+      ? 'busy'
+      : !identity.available
+        ? 'todo'
+        : target === undefined
+          ? 'busy'
+          : target.status === 'blocked' || target.status === 'unverified'
+            ? 'error'
+            : 'ok';
 
-  const resources = Object.entries(state.composition?.resources ?? {});
-  const hasDatabase = resources.some(([, resource]) => resource.type === 'relational-database');
-
-  if (file === undefined) {
-    return (
-      <p className="m-0 text-[var(--stp-text-muted)]">
-        Write the configuration on the previous step, and this is where it goes to AWS.
-      </p>
-    );
-  }
-
-  if (deployment !== undefined && model !== undefined) {
-    const target = {
-      configPath: file.filename,
-      projectName: state.projectName,
-      stage: deployment.stage,
-      region: deployment.region,
-      awsAccount: state.awsAccount
-    };
-    const redeployCommand = stackCommand('deploy', target);
-    // The session's own timestamps, so the duration is the deploy's and not the page's. The event
-    // list is capped, so its first entry is only a fallback for a CLI that predates `startedAt`.
-    const events = deployment.events as DeployEvent[];
-    const startedAt = deployment.startedAt ?? events[0]?.ts;
-    const endedAt = events.at(-1)?.ts;
-    const deleteCommand = stackCommand('delete', target);
-    const stageUrl = `${consoleUrlOf(state)}/projects/${state.projectName}/${deployment.stage}/overview`;
-    const retryTarget =
-      state.deployTarget?.stage === deployment.stage && state.deployTarget.region === deployment.region
-        ? state.deployTarget
-        : undefined;
-    return (
-      <div className="flex flex-col gap-8">
-        <DeployProgress
-          commandLine={deployment.commandLine}
-          model={model}
-          outcome={deployment.outcome}
-          status={deployment.status}
-          urls={deployment.status === 'succeeded' ? (deployment.urls ?? []) : []}
-          where={`${deployment.stage}, ${deployment.region}`}
-          {...(startedAt === undefined
-            ? {}
-            : {
-                startedAt,
-                ...(deployment.status === 'running' || deployment.status === 'repairing'
-                  ? {}
-                  : { endedAt: endedAt ?? startedAt })
-              })}
-          {...(deployment.repairs === undefined ? {} : { repairs: deployment.repairs })}
-          {...(deployment.keptPartialProgress === undefined
-            ? {}
-            : { keptPartialProgress: deployment.keptPartialProgress })}
-          actions={
-            deployment.status === 'failed' && (
-              <div className="flex flex-col gap-5">
-                {/* What the button will do to the stack, read before pressing it. */}
-                {retryTarget?.status === 'blocked' && <BlockedTargetAlert command={target} target={retryTarget} />}
-                {retryTarget?.status === 'unverified' && (
-                  <Alert tone="warning" title="The target could not be checked">
-                    {retryTarget.detail} Fix the AWS credentials or the connected account, then check again.
-                  </Alert>
-                )}
-                <div className="flex items-center gap-4">
-                  <Button
-                    isLoading={isBusy === 'deploy'}
-                    onClick={() =>
-                      onDeploy(
-                        deployment.stage,
-                        deployment.region,
-                        retryTarget?.status === 'absent'
-                          ? { kind: 'create' }
-                          : retryTarget?.status === 'updateable'
-                            ? { kind: 'update', stackId: retryTarget.stackId }
-                            : { kind: 'check' }
-                      )
-                    }
-                    variant="primary"
-                  >
-                    {retryTarget?.status === 'absent' || retryTarget?.status === 'updateable'
-                      ? 'Deploy again'
-                      : 'Check the target again'}
-                  </Button>
-                  <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
-                    Fix the cause first: the deploy reads your code and{' '}
-                    <span className="wizard-code">{file.filename}</span> from disk.
-                    {retryTarget?.status === 'updateable' && (
-                      <>
-                        {' '}
-                        It updates <span className="wizard-code">{retryTarget.stackName}</span>, which exists and{' '}
-                        {stackStatusWords(retryTarget.stackStatus)}.
-                      </>
-                    )}
-                  </span>
-                </div>
-                {deployment.keptPartialProgress === true && (
-                  <section>
-                    <h3 className="wizard-section-heading">Or put it back</h3>
-                    <p className="wizard-lede mb-3">
-                      Rolls the stack back to the version that worked before this deploy.
-                    </p>
-                    <CopyableCommand command={stackCommand('stack recover', target)} />
-                  </section>
-                )}
-              </div>
-            )
-          }
-        />
-
-        {deployment.status === 'succeeded' && (
-          <>
-            {/* Right under the live address, and only after it: the app is live either way. */}
-            <ConsoleOfferCard
-              isRechecking={isBusy === 'recheck'}
-              onConnect={() => onConsoleConnection('connect')}
-              onDismiss={() => void onConsoleConnection('dismiss')}
-              onRecheck={onRecheck}
-              onSignIn={onSignIn}
-              stage={deployment.stage}
-              stageUrl={stageUrl}
-              state={state}
-            />
-            <RowList label="Next">
-              {(state.consoleConnection === undefined || state.consoleConnection.status === 'linked') && (
-                <Row
-                  action={
-                    <ButtonLink href={stageUrl} rel="noreferrer" target="_blank" variant="secondary">
-                      Open the Console
-                    </ButtonLink>
-                  }
-                  description="Logs, metrics, alerts and every deploy of this stage, in the Stacktape Console."
-                  title="Watch it run"
-                />
-              )}
-              <Row
-                description="Edit your code, then run the same deploy. It updates the stack in place."
-                title="Ship a change"
-              >
-                <CopyableCommand command={redeployCommand} />
-              </Row>
-              <PipelineCard
-                isBusy={isBusy === 'pipeline'}
-                onWrite={onPipeline}
-                region={deployment.region}
-                stage={deployment.stage}
-                state={state}
-              />
-              {state.codingAgentSetup !== undefined && (
-                <AgentSetupCard
-                  isBusy={isBusy === 'coding-agent'}
-                  onConnect={onConnectCodingAgent}
-                  setup={state.codingAgentSetup}
-                />
-              )}
-            </RowList>
-            <section>
-              <button
-                aria-expanded={showRemoval}
-                className="wizard-disclosure"
-                onClick={() => setShowRemoval(!showRemoval)}
-                type="button"
-              >
-                {showRemoval ? 'Hide' : 'Done experimenting? Remove'} this deployment
-              </button>
-              {showRemoval && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">
-                    This command removes everything this deploy created
-                    {hasDatabase ? ', including the database and its data' : ''}. Your code and{' '}
-                    <span className="wizard-code">{file.filename}</span> stay.
-                  </p>
-                  <CopyableCommand command={deleteCommand} />
-                </div>
-              )}
-            </section>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  const publicNames = resources.filter(([, resource]) => PUBLIC_TYPES.has(resource.type)).map(([name]) => name);
-  const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
-  const secrets = requiredSecrets(state.composition?.resources ?? {});
-  const unsetNames = [...new Set((state.composition?.unsetSettings ?? []).map((setting) => setting.variableName))];
-  const monthly = state.composition?.price?.monthly;
-  const checkedTarget =
-    state.deployTarget?.stage === stage && state.deployTarget.region === region ? state.deployTarget : undefined;
-  const targetBlocked = checkedTarget?.status === 'blocked' || checkedTarget?.status === 'unverified';
-  const targetExpectation =
-    checkedTarget?.status === 'absent'
-      ? ({ kind: 'create' } as const)
-      : checkedTarget?.status === 'updateable'
-        ? ({ kind: 'update', stackId: checkedTarget.stackId } as const)
-        : ({ kind: 'check' } as const);
-
-  /** Why the button cannot be pressed, or what pressing it does. One sentence, beside it and on hover. */
-  const actionHint = verificationBlocks
-    ? verification?.status === 'running'
-      ? 'Waiting for the local try-out to finish.'
-      : 'The local try-out found a problem. Fix it below, or set the result aside.'
-    : compositionBlocks
-      ? 'Resolve every gap above before deploying.'
-      : stage === ''
-        ? 'Name a stage above before deploying.'
-        : targetBlocked
-          ? 'Read-only. Nothing is deployed to this stack until the check passes.'
-          : checkedTarget === undefined
-            ? 'Read-only: nothing is created until you confirm the next step.'
-            : checkedTarget.status === 'updateable'
-              ? 'Updates usually take a few minutes.'
-              : hasDatabase
-                ? 'First deploys with a new database take 10–15 minutes.'
-                : hasUnverifiedServices
-                  ? 'Some services were not checked locally; AWS will be their first full run.'
-                  : 'Usually a few minutes.';
-  const actionDisabled = stage === '' || verificationBlocks || compositionBlocks;
-  const actionButton = (
-    <Button
-      aria-describedby="deploy-action-hint"
-      disabled={actionDisabled}
-      isLoading={isBusy === 'deploy'}
-      onClick={() => onDeploy(stage, region, targetExpectation)}
-      variant="primary"
-    >
-      {checkedTarget?.status === 'absent'
-        ? 'Create new stack'
-        : checkedTarget?.status === 'updateable'
-          ? 'Update existing stack'
-          : targetBlocked
-            ? 'Check again'
-            : 'Check exact AWS target'}
-    </Button>
-  );
-
-  const tryOut = (
-    <Row
-      description={
-        verification === undefined
-          ? 'Builds your services in Docker on this machine and starts them without network access and with placeholder settings, to catch an app that will not start before it reaches AWS. It runs your project’s code, including install scripts.'
-          : verification.status === 'unavailable'
-            ? 'It did not run: it needs Docker, and Docker is not running on this machine. Start Docker (or install Docker Desktop) and try again, or skip it. AWS will be the app’s first full run.'
-            : undefined
-      }
-      title="Try it on this machine first"
-      {...(verification === undefined || verification.status === 'unavailable'
-        ? {
-            action: (
-              <Button isLoading={isBusy === 'verify'} onClick={onVerify} variant="secondary">
-                {verification === undefined ? 'Build and start it here' : 'Try again'}
-              </Button>
-            )
-          }
-        : {})}
-    >
-      {verification === undefined || verification.status === 'unavailable' ? undefined : (
-        <VerificationResult
-          file={file.filename}
-          hasUnverifiedServices={hasUnverifiedServices}
-          isBusy={isBusy}
-          onDismiss={onDismissVerification}
-          onVerify={onVerify}
-          verification={verification}
-          verificationBlocks={verificationBlocks}
-        />
-      )}
-    </Row>
-  );
+  const blockers = [
+    ...(file === undefined ? ['Saving the file…'] : []),
+    ...(identity?.available !== true ? ['Connect an AWS account above.'] : []),
+    ...(identity?.available === true && awsStatus !== 'ok' ? ['Waiting for the account check.'] : []),
+    ...(secretsDone ? [] : ['Set the secrets above, or say they already exist.']),
+    ...(verificationBlocks ? ['The local try-out found a problem.'] : []),
+    ...(state.composition?.deployable === true ? [] : ['The configuration has a gap that blocks deploying.']),
+    ...(stage === '' ? ['Name a stage.'] : [])
+  ];
+  const ready = blockers.length === 0;
+  const expectation: Expectation =
+    target?.status === 'absent'
+      ? { kind: 'create' }
+      : target?.status === 'updateable'
+        ? { kind: 'update', stackId: target.stackId }
+        : { kind: 'check' };
+  const estimate = target?.status === 'updateable' ? 'usually a few minutes' : hasDatabase ? '10–15 min' : '3–6 min';
+  const commandTarget = {
+    configPath: file?.filename ?? 'stacktape.yml',
+    projectName: state.projectName,
+    stage: stage || 'dev',
+    region,
+    awsAccount: state.awsAccount
+  };
 
   return (
-    <div className="flex flex-col gap-8">
-      <section aria-label="Where it deploys">
-        <h3 className="wizard-section-heading">Where it deploys</h3>
-        <div className="wizard-target">
-          <dl className="wizard-facts">
-            <div>
-              <dt>AWS account on this machine</dt>
-              <dd className={identity?.available === true ? 'wizard-code' : undefined}>
-                {identity === undefined ? (
-                  <span className="text-[var(--stp-text-muted)]">Checking…</span>
-                ) : identity.available ? (
-                  identity.accountId
-                ) : (
-                  <span className="text-[var(--stp-text-muted)]">
-                    {identity.reason === 'no-credentials' ? 'None found' : 'Not accepted by AWS'}
-                  </span>
-                )}
-              </dd>
-            </div>
-            {identity?.available === true && (
-              <div className="min-w-0">
-                <dt>AWS identity</dt>
-                <dd className="wizard-code [overflow-wrap:anywhere]" title={identity.arn}>
-                  {identity.arn.split(':').at(-1)}
-                </dd>
-              </div>
-            )}
-            {identity !== undefined && (
-              <div className="min-w-0">
-                <dt>{identity.profile === undefined ? 'Credentials' : 'AWS profile'}</dt>
-                <dd className={identity.profile === undefined ? undefined : 'wizard-code [overflow-wrap:anywhere]'}>
-                  {identity.profile ?? 'Environment variables'}
-                </dd>
-              </div>
-            )}
-            {/* Only when there is one: signed out is the ordinary case and needs no mention before the deploy. */}
-            {account?.signedIn === true && (
-              <div className="min-w-0">
-                <dt>Stacktape account</dt>
-                <dd>
-                  <span className="[overflow-wrap:anywhere]">
-                    {account.email ?? 'Signed in'}
-                    {account.organization !== undefined && (
-                      <span className="text-[var(--stp-text-muted)]"> · {organizationLabel(account.organization)}</span>
-                    )}
-                  </span>
-                </dd>
-              </div>
-            )}
-          </dl>
-          {identity !== undefined && !identity.available && (
-            <Alert
-              tone={identity.reason === 'no-credentials' ? 'info' : 'warning'}
-              title={
-                identity.reason === 'no-credentials'
-                  ? 'This machine has no AWS credentials yet'
-                  : 'AWS did not accept the credentials on this machine'
-              }
-            >
-              <p className="m-0 mb-3">
-                {identity.reason === 'no-credentials' && account?.signedIn !== true ? (
-                  <>
-                    Deploying needs access to an AWS account from this machine. Set up credentials with{' '}
-                    <span className="wizard-code">aws configure</span> (or{' '}
-                    <span className="wizard-code">aws configure sso</span>), then check again; nothing on this page is
-                    lost.
-                  </>
-                ) : identity.reason === 'no-credentials' ? (
-                  <>
-                    Deploying needs access to an AWS account. Either connect one in the{' '}
-                    <a
-                      className="wizard-link"
-                      href={`${consoleUrlOf(state)}/aws-accounts`}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      Stacktape Console
-                    </a>
-                    , or set up credentials on this machine with <span className="wizard-code">aws configure</span>.
-                    Then check again; nothing on this page is lost.
-                  </>
-                ) : explainFailure(identity.detail).length > 0 ? (
-                  <>
-                    <FailureExplanationText explanations={explainFailure(identity.detail)} />
-                    <span className="block text-[0.9rem] text-[var(--stp-text-muted)]">
-                      AWS said: {identity.detail} Check again when that is done; nothing on this page is lost.
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    {identity.detail} Check the AWS profile on this machine, then check again. Nothing on this page is
-                    lost.
-                  </>
-                )}
-              </p>
-              <Button isLoading={isBusy === 'recheck'} onClick={onRecheck} variant="secondary">
-                Check again
-              </Button>
-            </Alert>
-          )}
-          <div className="wizard-target-fields">
-            {declaredRegion === undefined ? (
-              <RegionPicker onChange={setRegion} value={region} />
-            ) : (
-              <p className="wizard-target-note">
-                Region <span className="wizard-code">{declaredRegion}</span>, declared in{' '}
-                <span className="wizard-code">{file?.filename}</span>. Change{' '}
-                <span className="wizard-code">region</span> there to deploy elsewhere.
-              </p>
-            )}
-            <TextField
-              label="Stage"
-              maxLength={12}
-              name="stage"
-              onChange={(changed) => setStage(changed.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-              reserveMessageSpace={false}
-              rootClassName="w-[200px]"
-              value={stage}
-            />
-          </div>
-          <p className="wizard-target-note">
-            {declaredRegion === undefined ? 'Pick the region closest to your users. ' : ''}A stage is one environment of
-            the app, such as dev or production.
-          </p>
-        </div>
-      </section>
-
-      {file.existingPath !== undefined && (
-        <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">
-          Your existing <span className="wizard-code">{file.existingPath}</span> was not touched. The deploy uses{' '}
-          <span className="wizard-code">{file.filename}</span>.
+    <div className="w-enter">
+      <header className="w-hero">
+        <button className="w-textbutton mb-4" onClick={onBack} type="button">
+          <BiArrowBack size={14} /> Back to review
+        </button>
+        <p className="w-eyebrow">Deploy</p>
+        <h1 className="w-title">{ready ? `Ready to deploy to ${stage}` : 'Before you deploy'}</h1>
+        <p className="w-lede">
+          {ready
+            ? 'Everything the deploy needs is in place.'
+            : 'A few things the deploy needs. Each can be done right here.'}
         </p>
-      )}
-
-      {(secrets.length > 0 || gaps.length > 0 || unsetNames.length > 0) && (
-        <RowList label="Before you deploy">
-          {secrets.length > 0 && (
-            <Row
-              description={
-                <>
-                  Create {secrets.length === 1 ? 'this secret' : `these ${secrets.length} secrets`} in{' '}
-                  <span className="wizard-code">{region}</span>. Each command asks for the value; the deploy stops if
-                  one is missing.
-                </>
-              }
-              title={secrets.length === 1 ? 'One secret only you have' : `${secrets.length} secrets only you have`}
-            >
-              <CopyableCommand
-                command={secrets.map((name) => secretCommand(name, region, state.awsAccount)).join('\n')}
-              />
-            </Row>
-          )}
-          {(gaps.length > 0 || unsetNames.length > 0) && (
-            <Row title="Check these first">
-              <GapList gaps={gaps}>
-                {unsetNames.length > 0 && (
-                  <li>
-                    Nothing sets {listNames(unsetNames)} yet. Add the ones your app needs under{' '}
-                    <span className="wizard-code">environment</span> in{' '}
-                    <span className="wizard-code">{file.filename}</span>; the deploy uses the file as it is on disk.
-                  </li>
-                )}
-              </GapList>
-            </Row>
-          )}
-        </RowList>
-      )}
-
-      {/* The plan and the one action that carries it out, on one surface: what is created, where, for how
-          much, then the button. The read-only check comes first and names the exact account and stack. */}
-      <section aria-label="What the deploy does">
-        <h3 className="wizard-section-heading">What the deploy does</h3>
-        <div className="wizard-target">
-          <p className="m-0 max-w-[var(--wizard-measure)] text-[var(--stp-text-muted)]">
-            {checkedTarget?.status === 'updateable'
-              ? 'Updates the stack (the group of AWS resources in your file) that already exists in your own account'
-              : 'Creates one stack (the group of AWS resources in your file) in your own account'}
-            : {resources.length === 1 ? 'one resource' : `${resources.length} resources`}
-            {monthly === undefined || priceRegion !== region ? '' : `, about ${monthly} in ${region}`}.
-            {publicNames.length > 0 && (
-              <>
-                {' '}
-                {publicNames.map((name, index) => (
-                  <span key={name}>
-                    {index === 0 ? '' : index === publicNames.length - 1 ? ' and ' : ', '}
-                    <span className="wizard-code">{name}</span>
-                  </span>
-                ))}{' '}
-                {publicNames.length === 1 ? 'gets' : 'get'} a public HTTPS address.
-              </>
-            )}
-            {publicNames.length === 0 && resources.length > 0 && (
-              <> This review did not identify a public HTTPS address.</>
-            )}{' '}
-            The stack keeps working if you stop using Stacktape.
-          </p>
-          {checkedTarget?.status === 'absent' && (
-            <Alert tone="info" title="This will create a new stack">
-              <span className="wizard-code">{checkedTarget.stackName}</span> has never been deployed to account{' '}
-              <span className="wizard-code">{checkedTarget.accountId}</span>, region{' '}
-              <span className="wizard-code">{checkedTarget.region}</span>.
-            </Alert>
-          )}
-          {checkedTarget?.status === 'updateable' && (
-            <Alert tone="warning" title="This will update a stack that already exists">
-              <span className="wizard-code">{checkedTarget.stackName}</span> is in account{' '}
-              <span className="wizard-code">{checkedTarget.accountId}</span>, region{' '}
-              <span className="wizard-code">{checkedTarget.region}</span>, and{' '}
-              {stackStatusWords(checkedTarget.stackStatus)}. Deploying makes it match the file you saved: anything in it
-              that the file does not define is removed. If the stack changes before you confirm, nothing is deployed.
-            </Alert>
-          )}
-          {checkedTarget?.status === 'blocked' && (
-            <BlockedTargetAlert
-              command={{
-                configPath: file.filename,
-                projectName: state.projectName,
-                stage,
-                region,
-                awsAccount: state.awsAccount
-              }}
-              target={checkedTarget}
-            />
-          )}
-          {checkedTarget?.status === 'unverified' && (
-            <Alert tone="warning" title="The target could not be checked">
-              {checkedTarget.detail} Nothing was created or updated. Fix the AWS credentials or the connected account,
-              then check again.
-            </Alert>
-          )}
-          <div className="flex items-center gap-4">
-            {actionDisabled && isBusy !== 'deploy' ? (
-              // A disabled button gets no pointer events, so the explanation hangs on a wrapper (as the shared
-              // Select does). Keyboard and screen-reader users get the same sentence through aria-describedby.
-              <Tooltip content={actionHint}>
-                <span className="wizard-disabled-reason">{actionButton}</span>
-              </Tooltip>
-            ) : (
-              actionButton
-            )}
-            <span className="text-[0.9rem] text-[var(--stp-text-subtle)]" id="deploy-action-hint">
-              {actionHint}
+        {file !== undefined && (
+          <p className="w-receipt">
+            <span className="w-receipt-item">
+              Saved <span className="w-code">{file.filename}</span>
+              {file.existingPath === undefined ? '' : `, beside your ${file.existingPath.split(/[\\/]/).at(-1)}`}
             </span>
-          </div>
-        </div>
-      </section>
-
-      {/* Neither is needed for the button above; both are here for the people who want them. */}
-      <RowList label="Optional">
-        {tryOut}
-        {!compositionBlocks && (
-          <Row
-            description="The same deploy from a terminal. It creates the stack when absent and updates it when present, and shows the account and target before you confirm."
-            title="Run it from your terminal instead"
-          >
-            <CopyableCommand
-              command={stackCommand('deploy', {
-                configPath: file.filename,
-                projectName: state.projectName,
-                stage: stage || 'dev',
-                region,
-                awsAccount: state.awsAccount
-              })}
-            />
-          </Row>
+          </p>
         )}
-      </RowList>
+      </header>
+
+      <div className="w-deploy">
+        <section aria-label="Readiness" className="w-card">
+          <ul className="w-checks">
+            <li className="w-check">
+              <StatusIcon status={awsStatus} />
+              <div className="min-w-0">
+                <div className="w-check-head">
+                  <h2 className="w-check-title">
+                    {identity?.available === false ? 'Connect an AWS account' : 'AWS account'}
+                  </h2>
+                </div>
+                {identity === undefined && <p className="w-check-meta">Checking the credentials on this machine…</p>}
+                {identity?.available === false && (
+                  <AwsConnect
+                    identity={identity}
+                    onAwsKeys={onAwsKeys}
+                    onRecheck={onRecheck}
+                    state={state}
+                    busy={busy}
+                  />
+                )}
+                {identity?.available === true && (
+                  <>
+                    <div className="w-target">
+                      <span className="w-pill" title={identity.arn}>
+                        Account <strong>{identity.accountId.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3')}</strong>
+                      </span>
+                      <span className="w-pill" title={identity.arn}>
+                        as{' '}
+                        <strong>
+                          {identity.arn
+                            .split(':')
+                            .at(-1)
+                            ?.replace(/^(user|assumed-role)\//, '')}
+                        </strong>
+                      </span>
+                      {editingRegion && file?.region === undefined ? null : (
+                        <button
+                          className="w-pill"
+                          disabled={isLocked || state.configEdit !== undefined}
+                          onClick={() => setEditingRegion(true)}
+                          title={
+                            state.configEdit !== undefined
+                              ? 'Your edited file declares the region. Change it there.'
+                              : 'Change the region'
+                          }
+                          type="button"
+                        >
+                          Region <strong>{region}</strong>
+                        </button>
+                      )}
+                      <label className="w-pill">
+                        Stage
+                        <input
+                          aria-label="Stage"
+                          maxLength={12}
+                          onChange={(event) =>
+                            onStageChange(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+                          }
+                          value={stage}
+                        />
+                      </label>
+                    </div>
+                    {editingRegion && (
+                      <div className="mt-3 flex max-w-[360px] flex-col gap-2">
+                        <RegionPicker
+                          onChange={(next) => {
+                            setEditingRegion(false);
+                            onRegion(next);
+                          }}
+                          value={region}
+                        />
+                        <p className="w-setting-help">The file is saved again with the new region.</p>
+                      </div>
+                    )}
+                    <TargetLine
+                      checking={checking}
+                      commandTarget={commandTarget}
+                      onRecheck={onRecheck}
+                      target={target}
+                    />
+                  </>
+                )}
+              </div>
+            </li>
+
+            {secretNames.length > 0 && (
+              <li className="w-check">
+                <StatusIcon status={secretsDone ? 'ok' : 'todo'} />
+                <div className="min-w-0">
+                  <div className="w-check-head">
+                    <h2 className="w-check-title">
+                      {secretNames.length === 1
+                        ? 'One secret your app reads'
+                        : `${secretNames.length} secrets your app reads`}
+                    </h2>
+                    {!secretsDone && secretsAvailable && (
+                      <button className="w-textbutton" onClick={onConfirmSecrets} type="button">
+                        They already exist
+                      </button>
+                    )}
+                  </div>
+                  <p className="w-check-meta">
+                    {secretsAvailable
+                      ? `Stored in AWS Secrets Manager in your account (${region}). Values go from this page to the CLI on this machine, never to Stacktape.`
+                      : `Create them in ${region} from a terminal; each command asks for the value.`}
+                  </p>
+                  <div className="w-check-body">
+                    {secretsAvailable ? (
+                      secretNames.map((name) => (
+                        <SecretRow
+                          failure={state.secrets?.failure?.name === name ? state.secrets.failure.detail : undefined}
+                          isSet={secretsSet.has(name)}
+                          key={name}
+                          name={name}
+                          onSave={(value) => onSecret(name, value)}
+                        />
+                      ))
+                    ) : (
+                      <CopyableCommand
+                        command={secretNames.map((name) => secretCommand(name, region, state.awsAccount)).join('\n')}
+                      />
+                    )}
+                  </div>
+                </div>
+              </li>
+            )}
+
+            {(migration !== undefined || migrationDecision !== undefined) && (
+              <li className="w-check">
+                <StatusIcon
+                  status={migrationDecision?.chosen === 'deploy-hook' ? 'ok' : migration !== undefined ? 'warn' : 'ok'}
+                />
+                <div className="min-w-0">
+                  <div className="w-check-head">
+                    <h2 className="w-check-title">Database tables</h2>
+                    {migrationDecision?.chosen === 'deploy-hook' &&
+                      migrationDecision.id.startsWith('migration-timing:') && (
+                        <button
+                          className="w-textbutton"
+                          disabled={isLocked || busy !== undefined}
+                          onClick={() => onDecision(migrationDecision.id, 'manual')}
+                          type="button"
+                        >
+                          Undo
+                        </button>
+                      )}
+                  </div>
+                  {migrationDecision?.chosen === 'deploy-hook' ? (
+                    <p className="w-check-meta">
+                      <span className="w-code">{String(migrationDecision.parameters.command ?? 'The migration')}</span>{' '}
+                      runs after each deploy, so the database has its tables before traffic arrives.
+                    </p>
+                  ) : migration !== undefined ? (
+                    <>
+                      <p className="w-check-meta">
+                        Your app uses migrations, but nothing runs <span className="w-code">{migration.command}</span>.
+                        Without it the new database starts empty.
+                      </p>
+                      <div className="w-check-body">
+                        <div>
+                          <Button
+                            disabled={isLocked || state.configEdit !== undefined}
+                            isLoading={busy === `migration-timing:${migration.service}`}
+                            onClick={() => onDecision(`migration-timing:${migration.service}`, 'deploy-hook')}
+                            variant="secondary"
+                          >
+                            Run it after each deploy
+                          </Button>
+                        </div>
+                        {state.configEdit !== undefined && (
+                          <p className="w-setting-help">Your file is edited by hand: add the hook there instead.</p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p className="w-check-meta">
+                      {String(migrationDecision?.parameters.command ?? 'The migration')} runs{' '}
+                      {migrationDecision?.chosen === 'service-startup'
+                        ? 'when the app starts'
+                        : 'when you run it yourself'}
+                      .
+                    </p>
+                  )}
+                </div>
+              </li>
+            )}
+
+            {(otherGaps.length > 0 || unsetNames.length > 0) && (
+              <li className="w-check">
+                <StatusIcon status="warn" />
+                <div className="min-w-0">
+                  <h2 className="w-check-title">Worth a look</h2>
+                  <ul className="w-detail-list mt-2">
+                    {otherGaps.map((gap) => (
+                      <li key={gap.subject}>
+                        <span>{gap.message}</span>
+                      </li>
+                    ))}
+                    {unsetNames.length > 0 && (
+                      <li>
+                        <span>
+                          Your code reads{' '}
+                          {unsetNames.map((name, index) => (
+                            <span key={name}>
+                              {index > 0 && ', '}
+                              <span className="w-code">{name}</span>
+                            </span>
+                          ))}{' '}
+                          and nothing sets {unsetNames.length === 1 ? 'it' : 'them'}. If the app needs{' '}
+                          {unsetNames.length === 1 ? 'it' : 'one'} to start, add it under{' '}
+                          <span className="w-code">environment</span> in the file.
+                        </span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </li>
+            )}
+
+            {canTryOut && (
+              <TryOut
+                busy={busy}
+                onDismiss={onDismissVerification}
+                onVerify={onVerify}
+                verification={verification}
+                verificationBlocks={verificationBlocks}
+              />
+            )}
+          </ul>
+        </section>
+
+        <aside className="w-side">
+          <section aria-label="Deploy" className="w-card w-summary-card">
+            <PriceSummary state={state} />
+            <ul className="w-summary-rows">
+              <li>
+                Creates <strong>{resourceCount === 1 ? '1 resource' : `${resourceCount} resources`}</strong>
+              </li>
+              <li>
+                Where <strong>{region}</strong>
+              </li>
+              <li>
+                Takes <strong>{estimate}</strong>
+              </li>
+            </ul>
+            <div className="w-deploy-cta">
+              <Button
+                className="w-big"
+                disabled={!ready || isLocked || (busy !== undefined && busy !== 'deploy')}
+                isLoading={busy === 'deploy'}
+                onClick={() => onDeploy(stage, region, expectation)}
+                variant="primary"
+              >
+                Deploy to {stage || 'dev'}
+              </Button>
+              <p className="w-blocker">
+                {ready
+                  ? 'Creates real resources in your AWS account. You can remove them with one command.'
+                  : blockers[0]}
+              </p>
+            </div>
+          </section>
+          <div>
+            <button
+              aria-expanded={showTerminal}
+              className="w-textbutton"
+              onClick={() => setShowTerminal(!showTerminal)}
+              type="button"
+            >
+              {showTerminal ? 'Hide the terminal command' : 'Prefer the terminal?'}
+            </button>
+            {showTerminal && (
+              <div className="mt-3">
+                <CopyableCommand command={stackCommand('deploy', commandTarget)} />
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
 
-/** What the local try-out found, and the way past a failure. */
-function VerificationResult({
+function TargetLine({
+  target,
+  checking,
+  commandTarget,
+  onRecheck
+}: {
+  target: WizardState['deployTarget'];
+  checking: boolean;
+  commandTarget: Parameters<typeof stackCommand>[1];
+  onRecheck: () => void;
+}) {
+  if (checking || target === undefined) {
+    return (
+      <p className="w-check-meta mt-3 flex items-center gap-2">
+        <Spinner /> Checking the stack, read-only…
+      </p>
+    );
+  }
+  if (target.status === 'absent') {
+    return (
+      <p className="w-check-meta mt-3">
+        A new stack, <span className="w-code">{target.stackName}</span>, will be created. Nothing is there yet.
+      </p>
+    );
+  }
+  if (target.status === 'updateable') {
+    return (
+      <p className="w-check-meta mt-3">
+        Updates <span className="w-code">{target.stackName}</span>, which exists and{' '}
+        {stackStatusWords(target.stackStatus)}. Anything in it that the file no longer has is removed.
+      </p>
+    );
+  }
+  if (target.status === 'unverified') {
+    return (
+      <div className="w-check-body">
+        <p className="m-0 text-[13px] text-[var(--w-error)]">{target.detail}</p>
+        <div>
+          <Button onClick={onRecheck} variant="secondary">
+            Check again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  const copy = blockedTargetCopy(target);
+  return (
+    <div className="w-check-body">
+      <p className="m-0 font-semibold">{copy.title}</p>
+      <p className="m-0 text-[13px] text-[var(--w-muted)]">{copy.body}</p>
+      {copy.fix !== undefined && (
+        <CopyableCommand command={stackCommand(copy.fix === 'delete' ? 'delete' : 'stack recover', commandTarget)} />
+      )}
+      <div>
+        <Button onClick={onRecheck} variant="secondary">
+          Check again
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SecretRow({
+  name,
+  isSet,
+  failure,
+  onSave
+}: {
+  name: string;
+  isSet: boolean;
+  failure: string | undefined;
+  onSave: (value: string) => Promise<boolean>;
+}) {
+  const [value, setValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(!isSet);
+  const save = async () => {
+    if (value === '') return;
+    setSaving(true);
+    const ok = await onSave(value);
+    setSaving(false);
+    if (ok) {
+      setValue('');
+      setEditing(false);
+    }
+  };
+  return (
+    <div>
+      <form
+        className="w-secret"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <span className="w-secret-name" title={`Read by your app as ${name.toUpperCase()}`}>
+          {name}
+        </span>
+        {isSet && !editing ? (
+          <>
+            <span className="w-saved">✓ Saved in your AWS account</span>
+            <button className="w-textbutton justify-self-end" onClick={() => setEditing(true)} type="button">
+              Replace
+            </button>
+          </>
+        ) : (
+          <>
+            <input
+              aria-label={`Value for ${name}`}
+              autoComplete="off"
+              className="w-input"
+              onChange={(event) => setValue(event.target.value)}
+              placeholder={`Value for ${name.toUpperCase()}`}
+              spellCheck={false}
+              type="password"
+              value={value}
+            />
+            <Button disabled={value === ''} isLoading={saving} type="submit" variant="secondary">
+              Save
+            </Button>
+          </>
+        )}
+      </form>
+      {failure !== undefined && <p className="mt-2 mb-0 text-[12.5px] text-[var(--w-error)]">{failure}</p>}
+    </div>
+  );
+}
+
+/** No working AWS credentials: the three situations people are in, each with its own way forward. */
+function AwsConnect({
+  state,
+  identity,
+  busy,
+  onAwsKeys,
+  onRecheck
+}: {
+  state: WizardState;
+  identity: Extract<NonNullable<WizardState['awsIdentity']>, { available: false }>;
+  busy: string | undefined;
+  onAwsKeys: (accessKeyId: string, secretAccessKey: string) => void;
+  onRecheck: () => void;
+}) {
+  const [path, setPath] = useState<'keys' | 'sso' | 'none'>('keys');
+  const [keyId, setKeyId] = useState('');
+  const [secret, setSecret] = useState('');
+  const explained = identity.reason === 'rejected' ? explainFailure(identity.detail) : [];
+  return (
+    <div className="w-check-body">
+      <p className="w-check-meta">
+        {identity.reason === 'no-credentials' ? (
+          'This machine has no AWS credentials yet. Pick what fits you; everything on this page is kept.'
+        ) : explained.length > 0 ? (
+          <FailureExplanationText explanations={explained} />
+        ) : (
+          `AWS did not accept the credentials on this machine${identity.profile === undefined ? '' : ` (profile ${identity.profile})`}: ${identity.detail}`
+        )}
+      </p>
+      <fieldset aria-label="How you sign in to AWS" className="w-choice-tabs">
+        <button aria-pressed={path === 'keys'} onClick={() => setPath('keys')} type="button">
+          I have access keys
+        </button>
+        <button aria-pressed={path === 'sso'} onClick={() => setPath('sso')} type="button">
+          My company uses AWS SSO
+        </button>
+        <button aria-pressed={path === 'none'} onClick={() => setPath('none')} type="button">
+          I don't have an AWS account
+        </button>
+      </fieldset>
+      {path === 'keys' && (
+        <form
+          className="flex flex-col gap-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onAwsKeys(keyId.trim(), secret.trim());
+          }}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              aria-label="Access key ID"
+              autoComplete="off"
+              className="w-input"
+              onChange={(event) => setKeyId(event.target.value)}
+              placeholder="Access key ID (AKIA…)"
+              spellCheck={false}
+              value={keyId}
+            />
+            <input
+              aria-label="Secret access key"
+              autoComplete="off"
+              className="w-input"
+              onChange={(event) => setSecret(event.target.value)}
+              placeholder="Secret access key"
+              spellCheck={false}
+              type="password"
+              value={secret}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              disabled={keyId === '' || secret === ''}
+              isLoading={busy === 'aws-keys' || state.awsKeys?.status === 'saving'}
+              type="submit"
+              variant="primary"
+            >
+              Save on this machine
+            </Button>
+            <span className="w-setting-help">
+              Saved to <span className="w-code">~/.aws/credentials</span> as{' '}
+              {identity.profile === undefined ? 'the default profile' : `profile ${identity.profile}`}, as{' '}
+              <span className="w-code">stacktape aws-profile:create</span> does. Never sent to Stacktape.
+            </span>
+          </div>
+          {state.awsKeys?.status === 'failed' && (
+            <p className="m-0 text-[12.5px] text-[var(--w-error)]">{state.awsKeys.detail}</p>
+          )}
+          {state.awsKeys?.status === 'saved' && identity.reason === 'rejected' && (
+            <p className="m-0 text-[12.5px] text-[var(--w-error)]">
+              Saved, but AWS did not accept these keys. Check they are active in the IAM console.
+            </p>
+          )}
+        </form>
+      )}
+      {path === 'sso' && (
+        <ol className="w-steps-list">
+          <li>
+            <div className="flex w-full flex-col gap-2">
+              Set up the profile once (it asks for your SSO start URL):
+              <CopyableCommand command="aws configure sso" />
+            </div>
+          </li>
+          <li>
+            <div className="flex w-full flex-col gap-2">
+              Sign in. Do this again when the session expires:
+              <CopyableCommand command="aws sso login" />
+            </div>
+          </li>
+          <li>
+            <div className="flex flex-wrap items-center gap-3">
+              Then check again. If you named the profile, start init with{' '}
+              <span className="w-code">AWS_PROFILE=name</span>.
+              <Button isLoading={busy === 'recheck'} onClick={onRecheck} variant="secondary">
+                Check again
+              </Button>
+            </div>
+          </li>
+        </ol>
+      )}
+      {path === 'none' && (
+        <ol className="w-steps-list">
+          <li>
+            <span>
+              Create an AWS account. It needs a card; nothing is charged until you deploy.{' '}
+              <a
+                className="w-link inline-flex items-center gap-1"
+                href="https://portal.aws.amazon.com/billing/signup"
+                rel="noreferrer"
+                target="_blank"
+              >
+                Create an AWS account <BiLinkExternal size={12} />
+              </a>
+            </span>
+          </li>
+          <li>
+            <span>
+              In the AWS console, create access keys for your user.{' '}
+              <a
+                className="w-link inline-flex items-center gap-1"
+                href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+                rel="noreferrer"
+                target="_blank"
+              >
+                How <BiLinkExternal size={12} />
+              </a>
+            </span>
+          </li>
+          <li>
+            <span>
+              Paste them under{' '}
+              <button className="w-link w-textbutton" onClick={() => setPath('keys')} type="button">
+                I have access keys
+              </button>
+              .
+            </span>
+          </li>
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function TryOut({
   verification,
   verificationBlocks,
-  hasUnverifiedServices,
-  file,
-  isBusy,
+  busy,
   onVerify,
   onDismiss
 }: {
-  verification: NonNullable<WizardState['verification']>;
+  verification: WizardState['verification'];
   verificationBlocks: boolean;
-  hasUnverifiedServices: boolean;
-  file: string;
-  isBusy: string | undefined;
+  busy: string | undefined;
   onVerify: () => void;
   onDismiss: () => void;
 }) {
-  const services = verification.services ?? [];
-  if (verification.status === 'running' || verification.status === 'repairing') {
-    return (
-      <div className="flex items-center gap-3 text-[var(--stp-text-muted)]">
-        <Spinner />
-        <span>
-          {verification.status === 'running'
-            ? 'Building and starting your app… a first build can take a few minutes.'
-            : 'It did not start. Working out what we got wrong, then trying again here.'}
-        </span>
-      </div>
-    );
-  }
-  if (verification.status === 'completed' && services.length === 0) {
-    return (
-      <p className="m-0 text-[var(--stp-text-muted)]">
-        The try-out only starts services that run as containers, and this configuration has none, so there was nothing
-        to start here. AWS will be its first full run.
-      </p>
-    );
-  }
+  const services = verification?.services ?? [];
+  const failed = services.filter((entry) => entry.status === 'failed');
+  const status: CheckStatus =
+    verification === undefined || verification.status === 'dismissed'
+      ? 'idle'
+      : verification.status === 'running' || verification.status === 'repairing'
+        ? 'busy'
+        : failed.length > 0
+          ? 'error'
+          : 'ok';
   return (
-    <div className="flex flex-col gap-3">
-      <ul className="m-0 flex list-none flex-col gap-2.5 p-0 text-[0.95rem]">
-        {services.map((entry) => (
-          <li className="wizard-check" key={entry.serviceName}>
-            <span className="wizard-check-head">
-              <span aria-hidden className={`wizard-check-mark is-${entry.status}`}>
-                {entry.status === 'passed' ? '✓' : entry.status === 'failed' ? '✕' : '–'}
-              </span>
-              <span className="font-medium">
-                {entry.serviceName}
-                <span className="sr-only">
-                  {entry.status === 'passed' && ': passed'}
-                  {entry.status === 'failed' && ': failed'}
-                  {entry.status === 'inconclusive' && ': inconclusive'}
-                  {entry.status === 'skipped' && ': not checked'}
-                </span>
-              </span>
-            </span>
-            <div className="min-w-0 flex-1">
-              <span className="block text-[var(--stp-text-muted)]">{entry.reason}</span>
-              {entry.status === 'failed' && entry.observations.missingEnvironmentVariables.length > 0 && (
-                <span className="block text-[var(--stp-text-muted)]">
-                  It read {listNames(entry.observations.missingEnvironmentVariables)}, and nothing sets{' '}
-                  {entry.observations.missingEnvironmentVariables.length === 1 ? 'it' : 'them'}. Add{' '}
-                  {entry.observations.missingEnvironmentVariables.length === 1 ? 'it' : 'them'} under{' '}
-                  <span className="wizard-code">environment</span> in <span className="wizard-code">{file}</span>, or as
-                  a secret.
-                </span>
-              )}
-              {entry.status === 'failed' && entry.observations.logTail.length > 0 && (
-                <pre className="wizard-output mt-2 max-h-40 overflow-auto">
-                  {entry.observations.logTail.slice(-8).join('\n')}
-                </pre>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-      {verification.status === 'completed' && hasUnverifiedServices && !verificationBlocks && (
-        <Alert tone="info" title="Some services were not proven locally">
-          Deploy is still available because the local try-out is optional. AWS will be the first complete build or
-          startup check for the services marked above.
-        </Alert>
-      )}
-      {verification.status === 'completed' && verificationBlocks && (
-        <Alert tone="warning" title="The local try-out found a startup failure">
-          <p className="m-0 mb-3">
-            The same failure is likely on AWS, so deploy is paused. Fix what it reported (a choice in the review, a
-            setting or the code) and try again. Or, if this machine is the problem rather than the app, set the result
-            aside and deploy anyway.
+    <li className="w-check">
+      <StatusIcon status={status} />
+      <div className="min-w-0">
+        <div className="w-check-head">
+          <h2 className="w-check-title">Try it on this machine first</h2>
+          <span className="w-subtle w-small">Optional</span>
+        </div>
+        <p className="w-check-meta">
+          {verification === undefined
+            ? 'Builds your app in Docker and starts it offline with placeholder settings, to catch one that will not start. It runs your project’s code.'
+            : verification.status === 'running'
+              ? 'Building and starting your app… a first build can take a few minutes.'
+              : verification.status === 'repairing'
+                ? 'It did not start. Working out what we got wrong, then trying again.'
+                : verification.status === 'dismissed'
+                  ? 'Set aside. Deploying is enabled again.'
+                  : failed.length > 0
+                    ? `${failed.map((entry) => entry.serviceName).join(', ')} did not start: ${failed[0]!.reason}`
+                    : 'It started and listened as expected.'}
+        </p>
+        {failed[0] !== undefined && failed[0].observations.missingEnvironmentVariables.length > 0 && (
+          <p className="w-check-meta">
+            It read <span className="w-code">{failed[0].observations.missingEnvironmentVariables.join(', ')}</span> and
+            nothing sets it. Add it under <span className="w-code">environment</span> in the file, or as a secret.
           </p>
-          <div className="flex items-center gap-3">
-            <Button isLoading={isBusy === 'verify'} onClick={onVerify} variant="secondary">
-              Try again
-            </Button>
+        )}
+        {failed[0] !== undefined && failed[0].observations.logTail.length > 0 && (
+          <pre className="w-log">{failed[0].observations.logTail.slice(-8).join('\n')}</pre>
+        )}
+        <div className="mt-3 flex flex-wrap gap-3">
+          {(verification === undefined || verificationBlocks || verification.status === 'dismissed') &&
+            verification?.status !== 'running' &&
+            verification?.status !== 'repairing' && (
+              <Button isLoading={busy === 'verify'} onClick={onVerify} variant="secondary">
+                {verification === undefined ? 'Build and start it here' : 'Try again'}
+              </Button>
+            )}
+          {verificationBlocks && verification?.status === 'completed' && (
             <Button onClick={onDismiss} variant="secondary">
-              Set aside and deploy anyway
+              Deploy anyway
             </Button>
-          </div>
-        </Alert>
-      )}
-      {verification.status === 'dismissed' && (
-        <p className="m-0 text-[0.9rem] text-[var(--stp-text-subtle)]">Set aside. Deploying is enabled again.</p>
-      )}
-    </div>
-  );
-}
-
-/** Why the stack cannot be deployed to, and the way out: the command that is the fix, where there is one. */
-function BlockedTargetAlert({
-  target,
-  command,
-  className
-}: {
-  target: Extract<NonNullable<WizardState['deployTarget']>, { status: 'blocked' }>;
-  command: Parameters<typeof stackCommand>[1];
-  className?: string;
-}) {
-  const copy = blockedTargetCopy(target);
-  return (
-    <div className={`flex flex-col gap-3 ${className ?? ''}`}>
-      <Alert tone="warning" title={copy.title}>
-        {copy.body}
-      </Alert>
-      {copy.fix !== undefined && (
-        <CopyableCommand command={stackCommand(copy.fix === 'delete' ? 'delete' : 'stack recover', command)} />
-      )}
-    </div>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }

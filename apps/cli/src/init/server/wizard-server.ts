@@ -234,6 +234,18 @@ export type WizardState = {
    * hold on the deploy button — the user has seen them and decided to proceed anyway.
    */
   verification?: WizardVerification;
+  /**
+   * The configuration as the user edited it by hand on the Review step. While present it is what gets written and
+   * deployed, and the infrastructure settings that would regenerate the file are off. `error` is the YAML parser's
+   * complaint, when the text does not parse.
+   */
+  configEdit?: { yaml: string; error?: string };
+  /** Secrets set from the page in this session, by name, and whether the user said the rest already exist. */
+  secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
+  /** Saving pasted AWS access keys as a profile on this machine. Never carries the keys. */
+  awsKeys?: { status: 'saving' | 'saved' | 'failed'; detail?: string; profile?: string };
+  /** Folders below the project that look like apps of their own, for an analysis that found nothing to run. */
+  nearbyApps?: string[];
   /** Normalised agent timeline, newest last. */
   timeline: Array<{ kind: string; label: string }>;
   facts?: unknown;
@@ -307,6 +319,14 @@ export type WizardServerHooks = {
    * `onSignIn`: signing in and connecting finish minutes after the click.
    */
   onConsoleConnection: (action: 'connect' | 'dismiss') => Promise<void> | void;
+  /** The configuration edited by hand, or `null` to go back to the generated one. */
+  onConfigText?: (yaml: string | null) => Promise<WizardState> | WizardState;
+  /** Sets one secret the configuration reads, in the user's AWS account. The value is never stored or logged here. */
+  onSecret?: (input: { name: string; value: string }) => Promise<WizardState> | WizardState;
+  /** The user says the secrets the configuration reads already exist in their AWS account. */
+  onSecretsConfirmed?: () => Promise<WizardState> | WizardState;
+  /** Saves pasted AWS access keys as a profile on this machine, then checks the identity again. */
+  onAwsKeys?: (input: { accessKeyId: string; secretAccessKey: string }) => Promise<WizardState> | WizardState;
 };
 
 const json = (response: ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) => {
@@ -376,13 +396,19 @@ export const startWizardServer = async ({
   hooks,
   idleTimeoutMs = 30 * 60_000,
   staticRoot,
-  watchStatic = false
+  watchStatic = false,
+  configSchemaPath
 }: {
   initialState: WizardState;
   hooks: WizardServerHooks;
   idleTimeoutMs?: number;
   /** Reload connected pages when the bundle changes. For working on the wizard itself. */
   watchStatic?: boolean;
+  /**
+   * The Stacktape config JSON schema, served at `/config-schema.json` for the page's YAML editor (hover docs,
+   * completion, validation). Same-origin, so the strict CSP needs no change. Omitted, the editor works without them.
+   */
+  configSchemaPath?: string;
   /**
    * Directory holding the built wizard bundle.
    *
@@ -535,6 +561,18 @@ export const startWizardServer = async ({
       // byte-identical for every user and every run — the session data behind the gate below is what
       // actually needs protecting. Restricted to GET and to non-/api/ paths so no API route can ever
       // be shadowed by a file that happens to share its name.
+      // The config schema is public product data, the same file the CLI release ships beside its binary.
+      if (configSchemaPath !== undefined && request.method === 'GET' && url.pathname === '/config-schema.json') {
+        try {
+          const body = await readFile(configSchemaPath);
+          response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES['.json']! });
+          response.end(body);
+        } catch {
+          json(response, 404, { error: 'The configuration schema is not available.' });
+        }
+        return;
+      }
+
       if (staticRoot !== undefined && request.method === 'GET' && !url.pathname.startsWith('/api/')) {
         // Normalised and confined to the bundle directory. The bundle is ours, but the path in the
         // request is not, and `/assets/../../..` is the oldest trick there is.
@@ -896,6 +934,94 @@ export const startWizardServer = async ({
           json(response, 200, state);
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      // The four requests below carry what the user typed: a configuration, a secret value, AWS keys. Each is
+      // shape-checked here, and none of it is echoed in an error or written to a log.
+      if (url.pathname === '/api/config-text' && request.method === 'POST' && hooks.onConfigText !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request, 512 * 1024)) as { yaml?: unknown };
+          const yaml = typeof body.yaml === 'string' ? body.yaml : body.yaml === null ? null : undefined;
+          if (yaml === undefined || (yaml !== null && yaml.length > 256 * 1024)) {
+            json(response, 400, { error: 'Expected the configuration text, or null.' });
+            return;
+          }
+          json(response, 200, await hooks.onConfigText(yaml));
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/secret' && request.method === 'POST' && hooks.onSecret !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { name?: unknown; value?: unknown };
+          if (
+            typeof body.name !== 'string' ||
+            !/^[A-Za-z0-9_./+=@-]{1,256}$/.test(body.name) ||
+            typeof body.value !== 'string' ||
+            body.value.length === 0 ||
+            body.value.length > 32 * 1024
+          ) {
+            json(response, 400, { error: 'Expected a secret name and a value of up to 32 KB.' });
+            return;
+          }
+          json(response, 200, await hooks.onSecret({ name: body.name, value: body.value }));
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
+        }
+        return;
+      }
+
+      if (
+        url.pathname === '/api/secrets/confirm' &&
+        request.method === 'POST' &&
+        hooks.onSecretsConfirmed !== undefined
+      ) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        json(response, 200, await hooks.onSecretsConfirmed());
+        return;
+      }
+
+      if (url.pathname === '/api/aws-keys' && request.method === 'POST' && hooks.onAwsKeys !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { accessKeyId?: unknown; secretAccessKey?: unknown };
+          if (
+            typeof body.accessKeyId !== 'string' ||
+            !/^[A-Z0-9]{16,128}$/.test(body.accessKeyId) ||
+            typeof body.secretAccessKey !== 'string' ||
+            !/^[A-Za-z0-9/+=]{16,128}$/.test(body.secretAccessKey)
+          ) {
+            json(response, 400, {
+              error:
+                'Those do not look like AWS access keys. The key ID starts with AKIA and the secret is 40 characters.'
+            });
+            return;
+          }
+          json(
+            response,
+            200,
+            await hooks.onAwsKeys({ accessKeyId: body.accessKeyId, secretAccessKey: body.secretAccessKey })
+          );
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
         }
         return;
       }

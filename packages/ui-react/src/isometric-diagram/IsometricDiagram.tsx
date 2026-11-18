@@ -174,6 +174,10 @@ export function IsometricDiagram({
   statuses,
   onNavigate,
   notices,
+  onSelectResource,
+  selectedResource,
+  resourceProgress,
+  hint,
   layers,
   defaultLayers,
   onLayersChange,
@@ -279,6 +283,10 @@ export function IsometricDiagram({
       statuses={statuses}
       onNavigate={onNavigate}
       notices={notices}
+      onSelectResource={onSelectResource}
+      selectedResource={selectedResource}
+      resourceProgress={resourceProgress}
+      hint={hint}
       onToggleGroup={toggleGroup}
       toolbar={
         choices.length > 0 ? (

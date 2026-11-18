@@ -23,6 +23,8 @@ export type WizardScenario = {
   agentSetup?: 'succeed' | 'fail';
   connect?: 'succeed' | 'fail';
   projectName?: string;
+  secrets?: 'succeed' | 'fail';
+  awsKeys?: 'succeed' | 'fail';
 };
 
 export type ScriptedWizard = {

@@ -47,6 +47,10 @@ export type WizardFixtureScenario = {
   connect?: 'succeed' | 'fail';
   /** A project name other than the recorded scan's, e.g. a long one for heavy-data captures. */
   projectName?: string;
+  /** What saving a secret from the Deploy step does. */
+  secrets?: 'succeed' | 'fail';
+  /** What saving pasted AWS keys does; after a success the identity check finds the account. */
+  awsKeys?: 'succeed' | 'fail';
 };
 
 // Wrapped rather than top-level awaits: the CLI's TypeScript settings do not allow them in scripts.
@@ -242,6 +246,7 @@ const main = async () => {
   const { checkFactsCompleteness, projectFactsSchema } = await import('@stacktape/config-inference/facts');
   const { getStackName } = await import('@stacktape/naming/stacks');
   const { INIT_TARGET_SCHEMA_VERSION } = await import('../../src/init/deploy/stack-expectation');
+  const { CONFIG_SCHEMA_PATH } = await import('../../src/config/project-paths');
   const versionJson = (await import('@generated/db-engine-versions/versions.json', { with: { type: 'json' } })).default;
 
   // Parsed like a submitted scan, so a recording made before a field was added gets that field's default.
@@ -280,6 +285,12 @@ const main = async () => {
       ...(detail === undefined ? {} : { detail })
     });
     const total = resourceNames.length * 9 + 6;
+    // CloudFormation names, as the real stream reports them: the resource's name in PascalCase, then what it is.
+    const logicalIds = (names: string[]) =>
+      names.flatMap((name) => {
+        const pascal = `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+        return [`${pascal}Resource`, `${pascal}LogGroup`];
+      });
     const progress = (completed: number, inProgress: string[]) =>
       event(
         'DEPLOY',
@@ -308,18 +319,18 @@ const main = async () => {
         event('BUILD_AND_PACKAGE', 'PACKAGE_ARTIFACTS', 'completed', 'Packaged 1 artifact'),
         event('UPLOAD', 'UPLOAD_DEPLOYMENT_ARTIFACTS', 'completed', 'Uploaded 1 artifact (38.4 MB)'),
         event('DEPLOY', 'UPDATE_STACK', 'started', `Creating stack ${getStackName(projectName, 'dev')}`),
-        progress(4, resourceNames.slice(0, 2)),
-        progress(Math.round(total * 0.45), resourceNames.slice(-2))
+        progress(4, logicalIds(resourceNames.slice(0, 2))),
+        progress(Math.round(total * 0.45), logicalIds(resourceNames.slice(-1)))
       ],
       success: [
-        progress(total - 2, resourceNames.slice(-1)),
+        progress(total - 2, logicalIds(resourceNames.slice(-1))),
         progress(total, []),
         event('DEPLOY', 'UPDATE_STACK', 'completed', 'Stack created'),
         event('POST_DEPLOY', 'INVALIDATE_CACHE', 'completed', 'Cache invalidated'),
         { type: 'result', ts: at(), ok: true, code: 'OK', message: 'Deployed.' }
       ],
       failure: (failedResource: string) => [
-        progress(Math.round(total * 0.7), [failedResource]),
+        progress(Math.round(total * 0.7), logicalIds([failedResource])),
         {
           type: 'log',
           ts: at(),
@@ -377,8 +388,15 @@ const main = async () => {
       const composition = composeConfig({ facts, projectName, engineVersions: versionJson.rds });
       return { facts, composition, verification: [], completeness: checkFactsCompleteness(facts) };
     },
-    write: ({ composition, format, region }) =>
-      writeComposedConfig({ repositoryRoot, composition, format, ...(region === undefined ? {} : { region }) }),
+    write: ({ composition, format, region, contents, replaces }) =>
+      writeComposedConfig({
+        repositoryRoot,
+        composition,
+        format,
+        ...(region === undefined ? {} : { region }),
+        ...(contents === undefined ? {} : { contents }),
+        ...(replaces === undefined ? {} : { replaces })
+      }),
     verify: async ({ composition }) => {
       await sleep(300);
       if (scenario.verify === 'unavailable') return { status: 'unavailable', services: [] };
@@ -408,6 +426,23 @@ const main = async () => {
           }
         }));
       return { status: 'completed', services };
+    },
+    configSchemaPath: CONFIG_SCHEMA_PATH,
+    ...(scenario.project === 'empty' ? { nearbyApps: ['web', 'services/api'] } : {}),
+    setSecret: async ({ name }) => {
+      await sleep(250);
+      return scenario.secrets === 'fail'
+        ? {
+            ok: false,
+            detail: `User: arn:aws:iam::${ACCOUNT_ID}:user/dev is not authorized to perform: secretsmanager:CreateSecret on ${name}.`
+          }
+        : { ok: true, detail: 'Saved in AWS Secrets Manager.' };
+    },
+    createAwsProfile: async () => {
+      await sleep(250);
+      if (scenario.awsKeys === 'fail') return { ok: false, detail: 'Could not write ~/.aws/credentials.' };
+      scenario.aws = 'available';
+      return { ok: true, profile: 'default', detail: 'Saved as AWS profile default in ~/.aws/credentials.' };
     },
     awsIdentity: async () => {
       await sleep(150);
@@ -532,7 +567,7 @@ const main = async () => {
       if (scenario.deploy === 'held') await waitFor('deploy');
       // The app container is what fails to start; the bucket or database beside it never does.
       const failedResource =
-        resources.find(([, resource]) => resource.type === 'web-service' || resource.type === 'worker-service')?.[0] ??
+        resources.find(([, resource]) => /^(web-service|worker-service|[a-z-]+-web)$/.test(resource.type))?.[0] ??
         resourceNames[0]!;
       const tail = scenario.deploy === 'fail' ? script.failure(failedResource) : script.success;
       for (const entry of tail) {

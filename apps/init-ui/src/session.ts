@@ -238,6 +238,14 @@ export type WizardState = {
       };
     }>;
   };
+  /** The configuration as edited by hand. While present it is what gets written and deployed. */
+  configEdit?: { yaml: string; error?: string };
+  /** Secrets set from this page, and whether the user said the others already exist. Absent: setting is unavailable. */
+  secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
+  /** Saving pasted AWS keys as a profile on this machine. */
+  awsKeys?: { status: 'saving' | 'saved' | 'failed'; detail?: string; profile?: string };
+  /** Folders below the project that look like apps, offered when nothing was found here. */
+  nearbyApps?: string[];
   timeline: Array<{ kind: string; label: string }>;
   facts?: {
     services: WizardService[];
@@ -330,6 +338,14 @@ export type Session = {
    */
   consoleConnection: (action: 'connect' | 'dismiss') => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
+  /** Replaces the generated configuration with hand-edited YAML, or goes back to the generated one with `null`. */
+  setConfigText: (yaml: string | null) => Promise<WizardState>;
+  /** Stores one secret in the user's AWS account. The value goes to the CLI on this machine and nowhere else. */
+  setSecret: (name: string, value: string) => Promise<WizardState>;
+  /** The secrets the configuration reads already exist. */
+  confirmSecrets: () => Promise<WizardState>;
+  /** Saves pasted AWS access keys as a profile on this machine and checks the identity again. */
+  saveAwsKeys: (accessKeyId: string, secretAccessKey: string) => Promise<WizardState>;
   /** Calls back on every server-pushed update and connection transition. */
   subscribe: (
     onState: (state: WizardState) => void,
@@ -378,6 +394,13 @@ export const connect = async (): Promise<Session> => {
     current = next;
     for (const listener of listeners) listener(next);
   };
+
+  const post = (path: string, body: unknown) =>
+    fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+      body: JSON.stringify(body)
+    });
 
   return {
     get state() {
@@ -528,6 +551,36 @@ export const connect = async (): Promise<Session> => {
         );
       }
       publish((await changed.json()) as WizardState);
+      return current;
+    },
+    setConfigText: async (yaml) => {
+      const changed = await post('/api/config-text', { yaml });
+      if (!changed.ok) throw new SessionError('The edited file could not be sent to stacktape init.');
+      publish((await changed.json()) as WizardState);
+      return current;
+    },
+    setSecret: async (name, value) => {
+      const saved = await post('/api/secret', { name, value });
+      if (!saved.ok) {
+        const problem = (await saved.json().catch(() => ({}))) as { error?: string };
+        throw new SessionError(problem.error ?? 'The secret could not be saved.');
+      }
+      publish((await saved.json()) as WizardState);
+      return current;
+    },
+    confirmSecrets: async () => {
+      const confirmed = await post('/api/secrets/confirm', {});
+      if (!confirmed.ok) throw new SessionError('Could not record that.');
+      publish((await confirmed.json()) as WizardState);
+      return current;
+    },
+    saveAwsKeys: async (accessKeyId, secretAccessKey) => {
+      const saved = await post('/api/aws-keys', { accessKeyId, secretAccessKey });
+      if (!saved.ok) {
+        const problem = (await saved.json().catch(() => ({}))) as { error?: string };
+        throw new SessionError(problem.error ?? 'The keys could not be saved.');
+      }
+      publish((await saved.json()) as WizardState);
       return current;
     },
     answer: async (questionId, value) => {

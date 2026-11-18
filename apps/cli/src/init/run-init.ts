@@ -21,6 +21,10 @@ import { writePipeline } from './cicd/write-pipeline';
 import { CODING_AGENT_IDS, getCodingAgent, type CodingAgentId } from '@domain-services/coding-agent-setup/agents';
 import { setUpCodingAgents } from '@domain-services/coding-agent-setup/setup';
 import { resolveAwsIdentity } from './deploy/credentials';
+import { setSecretWithCli } from './deploy/set-secret';
+import { findNearbyApps } from './nearby-apps';
+import { upsertAwsProfile } from '@utils/aws-config';
+import { CONFIG_SCHEMA_PATH } from '../config/project-paths';
 import { connectConsole, resolveStacktapeAccount } from './deploy/stacktape-account';
 import {
   deployCommandLine,
@@ -200,6 +204,10 @@ export const canOpenBrowser = (env: NodeJS.ProcessEnv = process.env): boolean =>
  * a development checkout has it wherever Vite last wrote it. Returning undefined is a supported
  * outcome — the server simply has nothing to serve, and the URL is still printed.
  */
+/** The Stacktape config schema for the wizard's editor: beside a released binary, or in the workspace. */
+const findConfigSchema = (): string | undefined =>
+  [join(dirname(process.execPath), 'config-schema.json'), CONFIG_SCHEMA_PATH].find((path) => existsSync(path));
+
 export const findWizardBundle = (): string | undefined => {
   const candidates = [
     process.env.STACKTAPE_WIZARD_BUNDLE,
@@ -437,6 +445,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
   // Opened before anything is read, and nothing is read until the user says so. The analysis spends
   // their own agent subscription, so it starts on a button they pressed after seeing what it will do
   // — not as a side effect of typing a command.
+  const configSchemaPath = findConfigSchema();
   const session = await startWizardSession({
     projectName,
     repositoryPath: repositoryRoot,
@@ -476,12 +485,14 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       }
       return result;
     },
-    write: async ({ composition, format, region }) => {
+    write: async ({ composition, format, region, contents, replaces }) => {
       const written = await writeComposedConfig({
         repositoryRoot,
         composition,
         format,
         ...(region === undefined ? {} : { region }),
+        ...(contents === undefined ? {} : { contents }),
+        ...(replaces === undefined ? {} : { replaces }),
         ...(format === 'typescript' ? { stacktapeVersion: getStacktapeVersion() } : {})
       });
       for (const line of describeDevDependency(written)) say(line);
@@ -704,6 +715,23 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       return { ...outcome, urls: [...byUrl].map(([url, names]) => ({ resourceName: names.join(' and '), url })) };
     },
     ...(bundle === undefined ? {} : { staticRoot: bundle }),
+    ...(configSchemaPath === undefined ? {} : { configSchemaPath }),
+    setSecret: ({ name, value, region }) =>
+      setSecretWithCli({
+        name,
+        value,
+        region,
+        ...(options.awsProfile === undefined ? {} : { profile: options.awsProfile }),
+        ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
+      }),
+    // The profile the deploy would use, or `default` when there is none: the profile the AWS chain reads first.
+    createAwsProfile: async ({ accessKeyId, secretAccessKey }) => {
+      const profile = options.awsProfile ?? 'default';
+      await upsertAwsProfile(profile, accessKeyId, secretAccessKey);
+      say(`\nSaved AWS access keys as profile ${profile}.`);
+      return { ok: true, profile, detail: `Saved as AWS profile ${profile} in ~/.aws/credentials.` };
+    },
+    nearbyApps: await findNearbyApps(repositoryRoot),
     // Only in a development checkout. A released CLI serves a bundle that cannot change underneath
     // it, so watching would burn a file handle to wait for something that never happens.
     ...(process.env.STP_DEV_MODE === 'true' ? { watchStatic: true } : {})
