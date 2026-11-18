@@ -105,7 +105,7 @@ export function AnalyzeFailed({
           <dt>What to do</dt>
           <dd>
             {usesAi && /credit|quota|limit|billing/i.test(state.error ?? '')
-              ? `${agent.label} is out of credit or usage. Top it up and try again, or read the project without AI: Stacktape's own scanner reads manifests and config files, which is enough for most apps.`
+              ? `Add credit to your ${agent.label} account, then try again. Or analyze without AI: Stacktape's own scanner reads manifests and config files, which finds most apps but not settings that only the source code shows.`
               : usesAi
                 ? `Try again. If it stops again, read the project without AI: Stacktape's own scanner reads manifests and config files.`
                 : 'Try again. If it keeps stopping, run stacktape init --headless in a terminal to see the full output.'}

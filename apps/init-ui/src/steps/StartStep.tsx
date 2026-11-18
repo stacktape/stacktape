@@ -33,7 +33,7 @@ export function StartStep({
   const usesAi = agent !== undefined && agent.id !== 'none';
   const modelLabel =
     chosenModel === 'default'
-      ? 'default model'
+      ? 'your default model'
       : (models.find((model) => model.id === chosenModel)?.label ?? chosenModel);
 
   return (
@@ -72,7 +72,7 @@ export function StartStep({
               <BiFileBlank size={17} />
             </span>
             <div>
-              <p className="w-fact-title">One file is written</p>
+              <p className="w-fact-title">You review it, then one file is saved</p>
               <p className="w-fact-text">
                 {state.existingConfig === undefined
                   ? 'stacktape.yml in this folder, after you review it. Nothing else changes.'

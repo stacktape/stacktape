@@ -139,13 +139,13 @@ export function DeployStep({
             : 'ok';
 
   const blockers = [
-    ...(file === undefined ? ['Saving the file…'] : []),
-    ...(identity?.available !== true ? ['Connect an AWS account above.'] : []),
-    ...(identity?.available === true && awsStatus !== 'ok' ? ['Waiting for the account check.'] : []),
-    ...(secretsDone ? [] : ['Set the secrets above, or say they already exist.']),
-    ...(verificationBlocks ? ['The local try-out found a problem.'] : []),
-    ...(state.composition?.deployable === true ? [] : ['The configuration has a gap that blocks deploying.']),
-    ...(stage === '' ? ['Name a stage.'] : [])
+    ...(file === undefined ? ['saving the file'] : []),
+    ...(identity?.available !== true ? ['an AWS account'] : []),
+    ...(identity?.available === true && awsStatus !== 'ok' ? ['the stack check'] : []),
+    ...(secretsDone ? [] : ['the secrets']),
+    ...(verificationBlocks ? ['the local try-out'] : []),
+    ...(state.composition?.deployable === true ? [] : ['a gap in the configuration']),
+    ...(stage === '' ? ['a stage name'] : [])
   ];
   const ready = blockers.length === 0;
   const expectation: Expectation =
@@ -173,7 +173,7 @@ export function DeployStep({
         <h1 className="w-title">{ready ? `Ready to deploy to ${stage}` : 'Before you deploy'}</h1>
         <p className="w-lede">
           {ready
-            ? 'Everything the deploy needs is in place.'
+            ? 'The checks below passed. Pressing Deploy creates the resources in your AWS account.'
             : 'A few things the deploy needs. Each can be done right here.'}
         </p>
         {file !== undefined && (
@@ -283,20 +283,23 @@ export function DeployStep({
                         : `${secretNames.length} secrets your app reads`}
                     </h2>
                     {!secretsDone && secretsAvailable && (
-                      <button className="w-textbutton" onClick={onConfirmSecrets} type="button">
-                        They already exist
+                      <button className="w-link w-textbutton" onClick={onConfirmSecrets} type="button">
+                        I already saved these in AWS
                       </button>
                     )}
                   </div>
                   <p className="w-check-meta">
-                    {secretsAvailable
-                      ? `Stored in AWS Secrets Manager in your account (${region}). Values go from this page to the CLI on this machine, never to Stacktape.`
-                      : `Create them in ${region} from a terminal; each command asks for the value.`}
+                    {secretsAvailable && identity?.available !== true
+                      ? 'Connect an AWS account first: secrets are saved there.'
+                      : secretsAvailable
+                        ? `Your app reads each as an environment variable. Saved in AWS Secrets Manager in your account (${region}); values go from this page to the CLI on this machine, never to Stacktape.`
+                        : `Create them in ${region} from a terminal; each command asks for the value.`}
                   </p>
                   <div className="w-check-body">
                     {secretsAvailable ? (
                       secretNames.map((name) => (
                         <SecretRow
+                          isDisabled={identity?.available !== true}
                           failure={state.secrets?.failure?.name === name ? state.secrets.failure.detail : undefined}
                           isSet={secretsSet.has(name)}
                           key={name}
@@ -444,8 +447,8 @@ export function DeployStep({
               </Button>
               <p className="w-blocker">
                 {ready
-                  ? 'Creates real resources in your AWS account. You can remove them with one command.'
-                  : blockers[0]}
+                  ? 'Creates real resources in your AWS account, billed by AWS from now on.'
+                  : `Still needed: ${blockers.join(', ')}.`}
               </p>
             </div>
           </section>
@@ -535,9 +538,11 @@ function TargetLine({
 function SecretRow({
   name,
   isSet,
+  isDisabled,
   failure,
   onSave
 }: {
+  isDisabled: boolean;
   name: string;
   isSet: boolean;
   failure: string | undefined;
@@ -581,8 +586,9 @@ function SecretRow({
               aria-label={`Value for ${name}`}
               autoComplete="off"
               className="w-input"
+              disabled={isDisabled}
               onChange={(event) => setValue(event.target.value)}
-              placeholder={`Value for ${name.toUpperCase()}`}
+              placeholder={`${name.toUpperCase()} in your app`}
               spellCheck={false}
               type="password"
               value={value}
@@ -612,7 +618,7 @@ function AwsConnect({
   onAwsKeys: (accessKeyId: string, secretAccessKey: string) => void;
   onRecheck: () => void;
 }) {
-  const [path, setPath] = useState<'keys' | 'sso' | 'none'>('keys');
+  const [path, setPath] = useState<'keys' | 'sso' | 'none' | undefined>(undefined);
   const [keyId, setKeyId] = useState('');
   const [secret, setSecret] = useState('');
   const explained = identity.reason === 'rejected' ? explainFailure(identity.detail) : [];
@@ -628,11 +634,11 @@ function AwsConnect({
         )}
       </p>
       <fieldset aria-label="How you sign in to AWS" className="w-choice-tabs">
-        <button aria-pressed={path === 'keys'} onClick={() => setPath('keys')} type="button">
-          I have access keys
-        </button>
         <button aria-pressed={path === 'sso'} onClick={() => setPath('sso')} type="button">
           My company uses AWS SSO
+        </button>
+        <button aria-pressed={path === 'keys'} onClick={() => setPath('keys')} type="button">
+          I have access keys
         </button>
         <button aria-pressed={path === 'none'} onClick={() => setPath('none')} type="button">
           I don't have an AWS account
@@ -646,6 +652,10 @@ function AwsConnect({
             onAwsKeys(keyId.trim(), secret.trim());
           }}
         >
+          <p className="w-setting-help">
+            Keys of an IAM user that may create resources (for a personal account, one with AdministratorAccess). In the
+            AWS console: IAM → Users → your user → Security credentials → Create access key.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               aria-label="Access key ID"

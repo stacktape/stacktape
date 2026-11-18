@@ -84,7 +84,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(page.getByRole('heading', { name: 'Deploying to dev' })).toBeVisible();
   // The reviewed diagram fills in as AWS creates it; the slow part and the tab question are answered on screen.
   await expect(page.locator('.stp-diagram__node[data-progress]').first()).toBeVisible();
-  await expect(page.getByText(/Creating the database .* is the slow part/)).toBeVisible();
+  await expect(page.getByText(/Expect the wait to be the database/)).toBeVisible();
   await expect(page.getByText(/Closing this tab does not stop the deploy/)).toBeVisible();
   await expect(page.locator('[aria-current="step"]')).toContainText('Deploy');
   wizard.release('deploy');
@@ -108,6 +108,7 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
   await page.goto(wizard.url);
   await analyzeAndReview(page);
   await expect(page.getByText('Hover a key for its docs')).toBeVisible();
+  await page.getByRole('button', { name: 'Open the file' }).click();
 
   const editor = page.locator('.monaco-editor').first();
   await expect(editor).toBeVisible({ timeout: 15_000 });
@@ -120,7 +121,8 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
     await expect(page.locator('.monaco-hover').first()).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
 
-  await editor.click();
+  await page.mouse.move(0, 0);
+  await editor.locator('.view-line').first().click();
   await page.keyboard.press('Control+End');
   await page.keyboard.type('\n# tuned by hand\n');
   await expect(page.getByText(/Edited by hand\. This text is what gets saved and deployed/)).toBeVisible();
@@ -152,7 +154,7 @@ test('a failed deploy names the fix in this project, keeps the retry, and a stop
 
   await analyzeAndReview(page);
   await continueToDeploy(page);
-  await page.getByRole('button', { name: 'They already exist' }).click();
+  await page.getByRole('button', { name: 'I already saved these in AWS' }).click();
   await waitForTarget(page);
   await deployButton(page).click();
   await expect(page.getByRole('heading', { name: 'The deploy to dev stopped' })).toBeVisible({ timeout: 15_000 });
@@ -161,7 +163,7 @@ test('a failed deploy names the fix in this project, keeps the retry, and a stop
   await expect(failure).toContainText('could not reach a database at localhost:5432');
   await expect(failure).toContainText('mainDatabase');
   await expect(failure).not.toContainText('myDatabase');
-  await expect(page.getByText(/AWS removed what this deploy had created/)).toBeVisible();
+  await expect(page.getByText(/AWS rolled this deploy back/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Deploy again' })).toBeEnabled();
   await page.getByRole('button', { name: 'Show the full error' }).click();
   await expect(page.locator('pre', { hasText: 'Stack action create failed.' })).toBeVisible();
@@ -180,6 +182,8 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await continueToDeploy(page);
   await expect(page.getByRole('heading', { name: 'Connect an AWS account' })).toBeVisible();
   const paths = page.getByRole('group', { name: 'How you sign in to AWS' });
+  // Secrets are saved in the AWS account, so they wait for it.
+  await expect(page.getByRole('textbox', { name: 'Value for auth_secret' })).toBeDisabled();
   await paths.getByRole('button', { name: 'My company uses AWS SSO' }).click();
   await expect(page.getByText('aws configure sso', { exact: true })).toBeVisible();
   await paths.getByRole('button', { name: "I don't have an AWS account" }).click();
@@ -249,7 +253,7 @@ test('signed out, it deploys without an account, then offers the Console and con
   await page.getByRole('textbox', { name: 'Stage' }).fill('');
   await expect(deployButton(page)).toBeDisabled();
   await page.getByRole('textbox', { name: 'Stage' }).fill('dev');
-  await page.getByRole('button', { name: 'They already exist' }).click();
+  await page.getByRole('button', { name: 'I already saved these in AWS' }).click();
   await waitForTarget(page);
   await deployButton(page).click();
   await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });
@@ -273,7 +277,7 @@ test('a Console connection that fails says why, and "Not now" leaves one quiet l
   await page.goto(wizard.url);
   await analyzeAndReview(page);
   await continueToDeploy(page);
-  await page.getByRole('button', { name: 'They already exist' }).click();
+  await page.getByRole('button', { name: 'I already saved these in AWS' }).click();
   await waitForTarget(page);
   await deployButton(page).click();
   await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });

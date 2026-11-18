@@ -761,6 +761,28 @@
     min-inline-size: 0;
   }
 
+  .w-seg.is-stacked {
+    grid-auto-flow: row;
+  }
+
+  .w-seg.is-stacked label {
+    align-items: flex-start;
+    text-align: left;
+    padding: 8px 10px;
+  }
+
+  /* Monaco's hover widget, in the wizard's type and panel style. */
+  .monaco-editor .monaco-hover {
+    max-width: 460px;
+    border: 1px solid var(--w-line-strong) !important;
+    border-radius: 8px;
+    background: var(--w-panel-raised) !important;
+    box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
   .w-seg input {
     position: absolute;
     opacity: 0;
@@ -2016,6 +2038,7 @@
       display: none;
     }
 
+    .w-path-step:last-child.is-done .w-path-label,
     .w-path-step.is-current .w-path-label,
     .w-path-step.is-working .w-path-label,
     .w-path-step.is-failed .w-path-label {

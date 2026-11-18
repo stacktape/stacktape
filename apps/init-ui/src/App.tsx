@@ -35,7 +35,7 @@ const pathFor = (screen: Screen): PathStep[] => {
     start: [0, 'current'],
     analyze: [0, 'working'],
     'analyze-failed': [0, 'failed'],
-    empty: [1, 'failed'],
+    empty: [1, 'current'],
     review: [1, 'current'],
     deploy: [2, 'current'],
     deploying: [2, 'working'],

@@ -79,6 +79,16 @@ function RunDiagram({ resources, progress }: { resources: ConfigResources; progr
           initialZoom={1.1}
           layerChoices={[]}
           resourceProgress={progress}
+          statuses={Object.fromEntries(
+            Object.entries(progress).map(([name, value]) => [
+              name,
+              [
+                value === 'ready'
+                  ? { tone: 'ok' as const, text: 'Ready' }
+                  : { tone: 'unknown' as const, text: value === 'creating' ? 'Creating…' : 'Waiting' }
+              ]
+            ])
+          )}
           style={{ width: '100%', height: '100%' }}
         />
       </Suspense>
@@ -164,13 +174,23 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
                   </li>
                 ))}
             </ol>
+            <div className="border-t border-[var(--w-line)] px-[18px] py-3">
+              <button className="w-textbutton" onClick={() => setShowLog(!showLog)} type="button">
+                {showLog ? 'Hide the log' : `Show the log (${model.log.length} lines)`}
+              </button>
+              {showLog && (
+                <pre aria-label="Deploy log" className="w-log" ref={logRef}>
+                  {model.log.join('\n')}
+                </pre>
+              )}
+            </div>
           </section>
           {database !== undefined && (
             <p className="w-note">
               <BiInfoCircle size={15} />
               <span>
-                Creating the database (<span className="w-code">{database}</span>) is the slow part: AWS usually takes
-                8–10 minutes for it.
+                Expect the wait to be the database (<span className="w-code">{database}</span>): AWS usually takes 8–10
+                minutes to create one.
               </span>
             </p>
           )}
@@ -181,16 +201,6 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
               your terminal. Stopping that stops it.
             </span>
           </p>
-          <div>
-            <button className="w-textbutton" onClick={() => setShowLog(!showLog)} type="button">
-              {showLog ? 'Hide the log' : `Show the log (${model.log.length} lines)`}
-            </button>
-            {showLog && (
-              <pre aria-label="Deploy log" className="w-log" ref={logRef}>
-                {model.log.join('\n')}
-              </pre>
-            )}
-          </div>
         </aside>
       </div>
     </div>
@@ -545,7 +555,7 @@ export function DeployFailedStep({
             : wasUpdate
               ? 'AWS put the stack back to the version that was running before. Your live app is unchanged.'
               : rolledBack || !wasUpdate
-                ? 'AWS removed what this deploy had created, so nothing from it is left running or billed.'
+                ? 'AWS rolled this deploy back: nothing it created is still running. Secrets you saved stay in your account.'
                 : ''}
         </p>
       </header>
@@ -590,7 +600,7 @@ export function DeployFailedStep({
             Deploy again
           </Button>
           <button className="w-textbutton" onClick={onBackToFile} type="button">
-            Edit the file
+            Open {target.configPath}
           </button>
           <button className="w-textbutton" onClick={() => setShowError(!showError)} type="button">
             {showError ? 'Hide the error' : 'Show the full error'}

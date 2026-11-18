@@ -26,7 +26,11 @@ export function Segmented({
 }) {
   const name = useId();
   return (
-    <fieldset aria-label={label} className="w-seg" disabled={isDisabled}>
+    <fieldset
+      aria-label={label}
+      className={`w-seg${options.some((option) => option.label.length > 18) ? ' is-stacked' : ''}`}
+      disabled={isDisabled}
+    >
       {options.map((option) => {
         const checked = option.value === value;
         return (

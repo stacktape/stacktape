@@ -42,7 +42,7 @@ type PreferenceCopy = {
 /** The settings, in a developer's words. One line of help for the option that is picked. */
 const PREFERENCES: Record<DeploymentPreferenceKey, PreferenceCopy> = {
   capacity: {
-    label: 'Size',
+    label: 'Starting size',
     options: [
       {
         value: 'economical',
@@ -90,7 +90,7 @@ const PREFERENCES: Record<DeploymentPreferenceKey, PreferenceCopy> = {
       {
         value: 'public',
         label: 'Internet',
-        help: 'Protected by a generated 32-character password and TLS. Your laptop and migrations connect directly.'
+        help: 'Has a public address: anyone can try to connect, and only the generated 32-character password over TLS gets in. Simplest for your laptop and migrations.'
       }
     ]
   }
@@ -178,6 +178,9 @@ export function ReviewStep({
   );
 
   const [problems, setProblems] = useState<EditorProblems>({ count: 0 });
+  // The file is one click away rather than open: most people decide from the picture, the list and the settings.
+  const [fileOpen, setFileOpen] = useState(false);
+  const showFile = fileOpen || isEdited;
   const filename = filenameFor(isEdited ? 'yaml' : format, state.existingConfig !== undefined);
   const parseError = draft === undefined ? edit?.error : undefined;
   const price = composition?.price;
@@ -274,81 +277,96 @@ export function ReviewStep({
                   </p>
                 )}
               </div>
-              <fieldset aria-label="File format" className="w-toggle">
-                <button
-                  aria-pressed={format === 'yaml' || isEdited}
-                  onClick={() => onFormatChange('yaml')}
-                  type="button"
-                >
-                  YAML
-                </button>
-                <button
-                  aria-pressed={format === 'typescript' && !isEdited}
-                  disabled={isEdited}
-                  onClick={() => onFormatChange('typescript')}
-                  title={isEdited ? 'Your edits are YAML. Reset to generated to pick TypeScript.' : undefined}
-                  type="button"
-                >
-                  TypeScript
-                </button>
-              </fieldset>
-            </div>
-            <div className="w-editor-frame">
-              {format === 'typescript' && !isEdited ? (
-                generated?.typescript === undefined ? (
-                  <div className="flex h-full items-center justify-center gap-3 text-[var(--w-subtle)]">
-                    <Spinner /> Formatting…
-                  </div>
-                ) : (
-                  <Suspense fallback={<EditorLoading />}>
-                    <ConfigFileEditor
-                      key="typescript"
-                      language="typescript"
-                      onChange={() => {}}
-                      onProblems={() => {}}
-                      readOnly
-                      value={generated.typescript}
-                    />
-                  </Suspense>
-                )
-              ) : (
-                <Suspense fallback={<EditorLoading />}>
-                  <ConfigFileEditor
-                    key="yaml"
-                    language="yaml"
-                    onChange={changeText}
-                    onProblems={setProblems}
-                    readOnly={isLocked}
-                    value={editorText ?? ''}
-                  />
-                </Suspense>
-              )}
-            </div>
-            <div className={`w-editor-status${parseError !== undefined ? ' is-error' : isEdited ? ' is-edited' : ''}`}>
-              <span>
-                {parseError !== undefined
-                  ? `This YAML does not parse: ${parseError}`
-                  : isEdited
-                    ? 'Edited by hand. This text is what gets saved and deployed, so the settings are off.'
-                    : format === 'typescript'
-                      ? 'Generated. Saved as stacktape.ts; TypeScript is not editable in this page.'
-                      : 'Generated from your code and the settings. Changing a setting rewrites it.'}
-                {parseError === undefined && problems.count > 0 && (
-                  <>
-                    {' '}
-                    <strong className="text-[var(--w-warn)]">
-                      {problems.count === 1 ? '1 schema warning' : `${problems.count} schema warnings`}
-                      {problems.first === undefined ? '' : ` (line ${problems.first.line})`}
-                    </strong>
-                  </>
+              <div className="flex flex-none items-center gap-3">
+                {showFile && (
+                  <fieldset aria-label="File format" className="w-toggle">
+                    <button
+                      aria-pressed={format === 'yaml' || isEdited}
+                      onClick={() => onFormatChange('yaml')}
+                      type="button"
+                    >
+                      YAML
+                    </button>
+                    <button
+                      aria-pressed={format === 'typescript' && !isEdited}
+                      disabled={isEdited}
+                      onClick={() => onFormatChange('typescript')}
+                      title={isEdited ? 'Your edits are YAML. Reset to generated to pick TypeScript.' : undefined}
+                      type="button"
+                    >
+                      TypeScript
+                    </button>
+                  </fieldset>
                 )}
-              </span>
-              {isEdited && (
-                <button className="w-textbutton" onClick={resetText} type="button">
-                  Reset to generated
-                </button>
-              )}
+                {!isEdited && (
+                  <Button onClick={() => setFileOpen(!fileOpen)} variant="secondary">
+                    {fileOpen ? 'Close' : 'Open the file'}
+                  </Button>
+                )}
+              </div>
             </div>
+            {showFile && (
+              <>
+                <div className="w-editor-frame">
+                  {format === 'typescript' && !isEdited ? (
+                    generated?.typescript === undefined ? (
+                      <div className="flex h-full items-center justify-center gap-3 text-[var(--w-subtle)]">
+                        <Spinner /> Formatting…
+                      </div>
+                    ) : (
+                      <Suspense fallback={<EditorLoading />}>
+                        <ConfigFileEditor
+                          key="typescript"
+                          language="typescript"
+                          onChange={() => {}}
+                          onProblems={() => {}}
+                          readOnly
+                          value={generated.typescript}
+                        />
+                      </Suspense>
+                    )
+                  ) : (
+                    <Suspense fallback={<EditorLoading />}>
+                      <ConfigFileEditor
+                        key="yaml"
+                        language="yaml"
+                        onChange={changeText}
+                        onProblems={setProblems}
+                        readOnly={isLocked}
+                        value={editorText ?? ''}
+                      />
+                    </Suspense>
+                  )}
+                </div>
+                <div
+                  className={`w-editor-status${parseError !== undefined ? ' is-error' : isEdited ? ' is-edited' : ''}`}
+                >
+                  <span>
+                    {parseError !== undefined
+                      ? `This YAML does not parse: ${parseError}`
+                      : isEdited
+                        ? 'Edited by hand. This text is what gets saved and deployed, so the settings are off.'
+                        : format === 'typescript'
+                          ? 'Generated. Saved as stacktape.ts; TypeScript is not editable in this page.'
+                          : 'Generated from your code and the settings. Changing a setting rewrites it.'}
+                    {parseError === undefined && problems.count > 0 && (
+                      <>
+                        {' '}
+                        <strong className="text-[var(--w-warn)]">
+                          {problems.count === 1 ? '1 schema warning' : `${problems.count} schema warnings`}
+                          {problems.first === undefined ? '' : ` (line ${problems.first.line})`}
+                        </strong>
+                      </>
+                    )}
+                  </span>
+                  {isEdited && (
+                    <button className="w-textbutton" onClick={resetText} type="button">
+                      Reset to generated
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </section>
         </div>
 
@@ -442,10 +460,10 @@ export function PriceSummary({ state }: { state: WizardState }) {
       {amount === undefined ? (
         <span className="w-price-value">{price.monthly}</span>
       ) : (
-        <AnimatedPrice className="w-price-value" text={`${amount} /month`} />
+        <AnimatedPrice className="w-price-value" text={`${amount} /month${usage ? ' + usage' : ''}`} />
       )}
       <span className="w-price-note">
-        {usage ? 'Plus traffic and requests, billed by use. ' : ''}AWS list prices, {price.region}
+        {usage ? 'Fixed part; traffic and requests are billed by use. ' : ''}AWS list prices, {price.region}
       </span>
     </div>
   );
