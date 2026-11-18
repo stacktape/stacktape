@@ -463,7 +463,7 @@ export function PriceSummary({ state }: { state: WizardState }) {
         <AnimatedPrice className="w-price-value" text={`${amount} /month${usage ? ' + usage' : ''}`} />
       )}
       <span className="w-price-note">
-        {usage ? 'Fixed part; traffic and requests are billed by use. ' : ''}AWS list prices, {price.region}
+        {usage ? 'Traffic and requests billed by use · ' : ''}AWS list prices, {price.region}
       </span>
     </div>
   );
