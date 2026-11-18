@@ -292,7 +292,7 @@ export function ReviewStep({
                       aria-pressed={format === 'typescript' && !isEdited}
                       disabled={isEdited}
                       onClick={() => onFormatChange('typescript')}
-                      title={isEdited ? 'Your edits are YAML. Reset to generated to pick TypeScript.' : undefined}
+                      title={isEdited ? 'Your edits are YAML. Discard your edits to pick TypeScript.' : undefined}
                       type="button"
                     >
                       TypeScript
@@ -362,7 +362,7 @@ export function ReviewStep({
                   </span>
                   {isEdited && (
                     <button className="w-textbutton" onClick={resetText} type="button">
-                      Reset to generated
+                      Discard my edits
                     </button>
                   )}
                 </div>
