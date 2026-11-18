@@ -198,3 +198,69 @@ describe('the stacktape dev dependency of a TypeScript config', () => {
     expect(await manifest()).toEqual({ name: 'orders' });
   });
 });
+
+describe('saving again from the wizard', () => {
+  let root: string;
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+  const composed = composeConfig({
+    facts: projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        {
+          name: 'api',
+          path: '.',
+          language: 'javascript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          startCommand: 'node index.js',
+          evidence: [],
+          source: 'probe'
+        }
+      ]
+    }),
+    projectName: 'demo'
+  });
+
+  it('replaces its own earlier file, writes hand-edited YAML as given, and leaves one file after a format switch', async () => {
+    root = await mkdtemp(join(tmpdir(), 'stp-write-again-'));
+    const first = await writeComposedConfig({ repositoryRoot: root, composition: composed, format: 'yaml' });
+    expect(first.filename).toBe('stacktape.yml');
+
+    const edited = 'resources: {}\n# by hand\n';
+    const second = await writeComposedConfig({
+      repositoryRoot: root,
+      composition: composed,
+      format: 'yaml',
+      contents: edited,
+      replaces: first.path
+    });
+    expect(second.filename).toBe('stacktape.yml');
+    expect(second.existingPath).toBeUndefined();
+    expect(await readFile(second.path, 'utf8')).toBe(edited);
+
+    const third = await writeComposedConfig({
+      repositoryRoot: root,
+      composition: composed,
+      format: 'typescript',
+      replaces: second.path
+    });
+    expect(third.filename).toBe('stacktape.ts');
+    expect(await Bun.file(join(root, 'stacktape.yml')).exists()).toBe(false);
+  });
+
+  it('still writes beside a configuration the user had before', async () => {
+    root = await mkdtemp(join(tmpdir(), 'stp-write-again-'));
+    await writeFile(join(root, 'stacktape.yml'), 'resources: {}\n');
+    const first = await writeComposedConfig({ repositoryRoot: root, composition: composed, format: 'yaml' });
+    const second = await writeComposedConfig({
+      repositoryRoot: root,
+      composition: composed,
+      format: 'yaml',
+      replaces: first.path
+    });
+    expect(second.filename).toBe('stacktape.generated.yml');
+    expect(await readFile(join(root, 'stacktape.yml'), 'utf8')).toBe('resources: {}\n');
+  });
+});

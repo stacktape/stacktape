@@ -641,8 +641,10 @@ describe('startWizardSession', () => {
 
         await post('/api/write', { format: 'yaml' });
         expect(declared).toEqual(['eu-north-1']);
-        // The written file declares the region; the page says where to change it rather than deploying elsewhere.
-        expect((await post('/api/region', { region: 'us-west-2' })).region).toBe('eu-north-1');
+        // Changing it on the Deploy step drops the written file, which the page then writes again with the new region.
+        const moved = await post('/api/region', { region: 'us-west-2' });
+        expect(moved.region).toBe('us-west-2');
+        expect(moved.configFile).toBeUndefined();
       });
     });
 
@@ -1787,5 +1789,148 @@ describe('signing in to Stacktape from the page', () => {
     const pollsAtRecheck = fake.device.polls.length;
     await Bun.sleep(300);
     expect(fake.device.polls).toHaveLength(pollsAtRecheck);
+  });
+});
+
+describe('what the page sets besides choices', () => {
+  type PageState = WizardState & {
+    configEdit?: { yaml: string; error?: string };
+    secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
+    awsKeys?: { status: string; profile?: string };
+    configFile?: { path: string; filename: string };
+    composition?: { configText?: { yaml: string }; gaps: Array<{ subject: string }> };
+    facts?: { decisions: Array<{ id: string; chosen: string }> };
+    awsIdentity?: { available: boolean };
+  };
+  const factsFor = (overrides: Record<string, unknown> = {}): GreenfieldResult => {
+    const facts = factsWith(overrides);
+    return { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] };
+  };
+  const connect = async () => {
+    const origin = `http://127.0.0.1:${session!.server.port}`;
+    const token = new URL(session!.server.url).hash.replace('#token=', '');
+    const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+      method: 'POST',
+      headers: { Origin: origin }
+    });
+    const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+    const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
+    const post = async (path: string, body: unknown = {}) => {
+      const response = await fetch(`${origin}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+      return { status: response.status, state: (await response.json()) as PageState };
+    };
+    return { post };
+  };
+
+  it('writes and deploys hand-edited YAML, keeps settings off while edited, and goes back to generated', async () => {
+    const written: Array<{ contents?: string; replaces?: string }> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      write: async ({ contents, replaces }) => {
+        written.push({
+          ...(contents === undefined ? {} : { contents }),
+          ...(replaces === undefined ? {} : { replaces })
+        });
+        return { path: '/repo/stacktape.yml', filename: 'stacktape.yml' };
+      }
+    });
+    const { post } = await connect();
+    const generated = (await post('/api/region', { region: 'eu-west-1' })).state.composition!.configText!.yaml;
+    const edited = `${generated}# tuned by hand\n`;
+
+    const reply = await post('/api/config-text', { yaml: edited });
+    // The reply carries a revision, or the page would drop it as older than what it holds.
+    expect(reply.state.revision).toBeGreaterThan(0);
+    expect(reply.state.configEdit).toEqual({ yaml: edited });
+    // A setting would regenerate the file over the edit, so it is refused while the edit stands.
+    const refused = await post('/api/preferences', { key: 'capacity', value: 'performance' });
+    expect(refused.state.preferences?.capacity).not.toBe('performance');
+
+    await post('/api/write', { format: 'yaml' });
+    await post('/api/write', { format: 'yaml' });
+    expect(written[0]).toEqual({ contents: edited });
+    // A second save replaces the session's own file instead of writing a second one beside it.
+    expect(written[1]).toEqual({ contents: edited, replaces: '/repo/stacktape.yml' });
+
+    expect((await post('/api/config-text', { yaml: 'resources: [' })).state.configEdit?.error).toBeDefined();
+    const reset = await post('/api/config-text', { yaml: null });
+    expect(reset.state.configEdit).toBeUndefined();
+    expect(reset.state.configFile).toBeUndefined();
+  });
+
+  it('sets secrets through the CLI dependency without keeping their values, and reports a failure by name', async () => {
+    const received: Array<{ name: string; value: string; region: string }> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      setSecret: async (input) => {
+        received.push(input);
+        return input.name === 'broken' ? { ok: false, detail: 'Access denied.' } : { ok: true, detail: 'Saved.' };
+      }
+    });
+    const { post } = await connect();
+    const saved = await post('/api/secret', { name: 'auth_secret', value: 'hunter2' });
+    expect(saved.state.secrets).toEqual({ set: ['auth_secret'], confirmed: false });
+    expect(JSON.stringify(saved.state)).not.toContain('hunter2');
+    expect(received).toEqual([{ name: 'auth_secret', value: 'hunter2', region: expect.any(String) }]);
+
+    const failed = await post('/api/secret', { name: 'broken', value: 'x' });
+    expect(failed.state.secrets?.failure).toEqual({ name: 'broken', detail: 'Access denied.' });
+    expect((await post('/api/secret', { name: 'bad name;', value: 'x' })).status).toBe(400);
+    expect((await post('/api/secrets/confirm')).state.secrets?.confirmed).toBe(true);
+  });
+
+  it('saves pasted AWS keys as a profile and checks the identity again', async () => {
+    let hasKeys = false;
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      awsIdentity: async () =>
+        hasKeys
+          ? { available: true, accountId: '123456789012', arn: 'arn:aws:iam::123456789012:user/dev' }
+          : { available: false, reason: 'no-credentials', detail: 'None found.' },
+      createAwsProfile: async () => {
+        hasKeys = true;
+        return { ok: true, profile: 'default', detail: 'Saved.' };
+      }
+    });
+    const { post } = await connect();
+    expect((await post('/api/aws-keys', { accessKeyId: 'nope', secretAccessKey: 'x' })).status).toBe(400);
+    const saved = await post('/api/aws-keys', {
+      accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+      secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    });
+    expect(saved.state.awsKeys).toEqual({ status: 'saved', detail: 'Saved.', profile: 'default' });
+    expect(saved.state.awsIdentity?.available).toBe(true);
+    expect(JSON.stringify(saved.state)).not.toContain('wJalrXUtnFEMI');
+  });
+
+  it('turns a migration nothing runs into a deploy hook with one answer', async () => {
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor({
+        dependencies: [
+          { name: 'mainDatabase', kind: 'postgres', extensions: [], consumedBy: ['api'], evidence: [], source: 'probe' }
+        ],
+        migrations: [
+          { serviceName: 'api', tool: 'drizzle', command: 'npx drizzle-kit migrate', runsAt: 'unknown', evidence: [] }
+        ]
+      })
+    });
+    const { post } = await connect();
+    const before = await post('/api/region', { region: 'eu-west-1' });
+    expect(before.state.composition!.gaps.map((gap) => gap.subject)).toContain('api.migrations');
+
+    const after = await post('/api/answer', { id: 'migration-timing:api', value: 'deploy-hook' });
+    expect(after.state.composition!.gaps.map((gap) => gap.subject)).not.toContain('api.migrations');
+    expect(after.state.facts!.decisions).toContainEqual(
+      expect.objectContaining({ id: 'migration-timing:api', chosen: 'deploy-hook' })
+    );
+    expect(after.state.composition!.configText!.yaml).toContain('npx drizzle-kit migrate');
+    // Only a service that has a migration can be answered this way.
+    const ignored = await post('/api/answer', { id: 'migration-timing:nobody', value: 'deploy-hook' });
+    expect(ignored.state.facts!.decisions.some((decision) => decision.id === 'migration-timing:nobody')).toBe(false);
   });
 });

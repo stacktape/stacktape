@@ -3093,6 +3093,8 @@ export const lanes: readonly Lane[] = [
       'packages/ui-react/src/isometric-diagram/views.test.ts',
       'packages/ui-react/src/link/Link.test.tsx',
       'packages/ui-react/src/monaco-editor/session.test.ts',
+      'packages/ui-react/src/monaco-yaml/monaco-yaml.test.ts',
+      'packages/ui-react/src/monaco-yaml/yaml-schema-associations.test.ts',
       'packages/ui-react/src/progress/Progress.test.tsx',
       'packages/ui-react/src/radio-group/RadioGroup.test.tsx',
       'packages/ui-react/src/resource-icon/catalog.test.ts',
@@ -5388,6 +5390,8 @@ export const slices: readonly Slice[] = [
     paths: [
       'packages/ui-react/src/config-editor/**',
       'packages/ui-react/src/monaco-editor/**',
+      'packages/ui-react/src/monaco-yaml/**',
+      'apps/init-ui/src/editor/**',
       'apps/console/ui/src/components/StacktapeEditor/**',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/ResolvedConfigView.tsx',
       'apps/init-ui/src/steps/ReviewStep.tsx',
@@ -5400,7 +5404,9 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/components/StacktapeEditor/yaml-schema-associations.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
       'packages/ui-react/src/config-editor/ConfigEditor.test.tsx',
-      'packages/ui-react/src/monaco-editor/session.test.ts'
+      'packages/ui-react/src/monaco-editor/session.test.ts',
+      'packages/ui-react/src/monaco-yaml/monaco-yaml.test.ts',
+      'packages/ui-react/src/monaco-yaml/yaml-schema-associations.test.ts'
     ],
     lanes: ['ui-react-test', 'console-ui', 'console-ui-2', 'console-ui-3', 'console-browser-offline', 'init-ui-test']
   },

@@ -61,11 +61,17 @@ const main = async () => {
 
   const stdinLines = createInterface({ input: process.stdin });
   const waiting = new Map<string, Array<() => void>>();
+  // A release that arrives before the step reaches its wait is kept, so a quick test cannot lose it.
+  const released = new Set<string>();
   const waitFor = (command: string) =>
-    new Promise<void>((resolve) => waiting.set(command, [...(waiting.get(command) ?? []), resolve]));
+    released.delete(command)
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => waiting.set(command, [...(waiting.get(command) ?? []), resolve]));
   stdinLines.on('line', (line) => {
     const command = line.trim();
-    for (const resolve of waiting.get(command) ?? []) resolve();
+    const resolvers = waiting.get(command) ?? [];
+    if (resolvers.length === 0) released.add(command);
+    for (const resolve of resolvers) resolve();
     waiting.delete(command);
   });
 

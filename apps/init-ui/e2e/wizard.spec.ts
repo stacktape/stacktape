@@ -3,77 +3,95 @@ import { test } from './fixtures';
 
 const analyzeAndReview = async (page: Page) => {
   await page.getByRole('button', { name: 'Analyze my project' }).click();
-  await expect(page.getByRole('button', { name: /^Save .* & continue$/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: 'Your app on AWS' })).toBeVisible({ timeout: 15_000 });
 };
 
-const saveAndCheckTarget = async (page: Page) => {
-  await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
-  await expect(page.getByRole('heading', { name: 'Ready to deploy' })).toBeVisible();
-  await page.getByRole('button', { name: 'Check exact AWS target' }).click();
-  await page.getByRole('button', { name: 'Create new stack' }).click();
+const continueToDeploy = async (page: Page) => {
+  await page.getByRole('button', { name: 'Continue to deploy' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: /deploy/i })).toBeVisible();
 };
 
-test('a first deploy goes from analysis to a live URL, and a reload keeps the session', async ({
+/** The read-only target check runs by itself; the account row turns green once it has answered. */
+const waitForTarget = async (page: Page) => {
+  await expect(page.getByText(/A new stack, .*, will be created/)).toBeVisible({ timeout: 10_000 });
+};
+
+const deployButton = (page: Page) => page.getByRole('button', { name: /^Deploy to / });
+
+test('a first deploy goes from analysis to a live URL, with settings, secrets and the migration resolved in the page', async ({
   page,
   startWizard
 }) => {
   const wizard = await startWizard({ project: 'saas-starter', deploy: 'held' });
   await page.goto(wizard.url);
+  await expect(page.getByText('AWS only when you click Deploy')).toBeVisible();
   await analyzeAndReview(page);
 
   await expect(page.getByText('A Next.js app, using a Postgres database.')).toBeVisible();
-  // Options are rows: one line of title, one of consequence, the price difference at the right.
-  const card = page.getByRole('radio', { name: /Stay online/ });
-  expect((await card.boundingBox())!.height).toBeLessThan(90);
-  // Each other option says what it changes the monthly price by, priced the same way as the total.
-  await expect(card).toContainText(/\+\$\d+\/mo/);
-  // The selected row says so with its ring, not with a label repeating the price column.
-  await expect(page.getByRole('radio', { name: /Restart it/ })).not.toContainText(/\$/);
-  // The price is stated once, with its terms under it; not again under the editor frame.
-  await expect(page.getByText(/^At AWS list prices in eu-west-1\./)).toHaveCount(1);
-  await expect(page.getByText(/^\$\d+\/mo \+ pay-per-use costs, at AWS list prices/)).toHaveCount(0);
+  // One list under the diagram: plain names, the code that called for each, the price.
+  const resources = page.getByRole('region', { name: 'What gets created' });
+  await expect(resources).toContainText('Postgres database');
+  await expect(resources).toContainText('Next.js app');
+  await resources.getByRole('button', { name: /Postgres database/ }).click();
+  await expect(resources).toContainText('package.json:29');
+  // The alarm is a line on the database it watches, not a card of its own.
+  await expect(resources).toContainText(
+    'Alarm in your AWS account when the database has less than 2 GiB of free storage'
+  );
 
-  // A changed choice is recomposed by the CLI and lands in the file that will be saved.
-  await page.getByRole('radio', { name: /Only this private network/ }).click();
-  await page.getByRole('tab', { name: /stacktape\.yml|File/ }).click();
-  await expect(page.locator('.wizard-source')).toContainText('type: bastion');
+  // The settings are one compact panel; each other option shows its price difference, and the total follows.
+  const settings = page.getByRole('region', { name: 'Settings' });
+  await expect(settings.getByRole('radio', { name: /Stay online/ })).toBeVisible();
+  await expect(settings.locator('label', { hasText: 'Stay online' })).toContainText(/\+\$\d+/);
+  const before = await page.locator('.w-footer .w-price-value').textContent();
+  await settings.locator('label', { hasText: 'Private network' }).click();
+  await expect(resources).toContainText('Database access server');
+  await expect(page.locator('.w-footer .w-price-value')).not.toHaveText(before ?? '');
+  // Secrets and migrations wait for the Deploy step, where they can be resolved.
+  await expect(page.getByText('secrets your app reads')).toHaveCount(0);
 
-  // The region is picked before the file is saved. The file and the price follow it (the stand-in prices us-east-1
-  // 10% lower).
-  await expect(page.locator('.wizard-source')).toContainText('region: eu-west-1');
   await page.getByRole('combobox', { name: 'Region' }).click();
   await page.getByRole('option', { name: /us-east-1/ }).click();
-  await expect(page.locator('.wizard-source')).toContainText('region: us-east-1');
-  await expect(page.getByText(/^At AWS list prices in us-east-1\./)).toHaveCount(1);
+  await expect(page.locator('.w-footer')).toContainText('us-east-1');
 
   // The session survives a reload on its cookie; the one-time token is long gone from the address bar.
   await page.reload();
-  await expect(page.getByRole('button', { name: /^Save .* & continue$/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to deploy' })).toBeVisible();
+  await continueToDeploy(page);
+  await expect(page.getByRole('heading', { name: 'Before you deploy' })).toBeVisible();
+  await waitForTarget(page);
+  await expect(page.getByText('Account 4815 1623 4200')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Region us-east-1/ })).toBeVisible();
+  await expect(deployButton(page)).toBeDisabled();
 
-  await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
-  await expect(page.getByRole('heading', { name: 'Ready to deploy' })).toBeVisible();
-  // The saved file declares the region, so the deploy goes there.
-  await expect(page.getByText(/Region us-east-1, declared in stacktape\.yml/)).toBeVisible();
-  await expect(page.getByText(/about \$\d+\/mo \+ pay-per-use costs in us-east-1/)).toBeVisible();
-  await page.getByRole('button', { name: 'Check exact AWS target' }).click();
-  await page.getByRole('button', { name: 'Create new stack' }).click();
-  await expect(page.getByRole('heading', { name: 'Deploying' })).toBeVisible();
-  await expect(page.getByText(/^\d+ of \d+$/)).toBeVisible();
-  // Finished steps are one line each, and the rail follows the deploy rather than the top line.
-  await expect(page.getByText(/^Saved stacktape\.yml with 3 resources/)).toBeVisible();
-  await expect(page.getByRole('radio', { name: /Only this private network/ })).toHaveCount(0);
-  await expect(page.locator('.wizard-rail [aria-current="step"]')).toContainText('Deploy');
-  // Where the run is and how long it has taken sit on the progress panel, with the phases.
-  await expect(page.getByText(/^Deploying · dev, us-east-1 · \d+s$/)).toBeVisible();
-  // Opened again during the deploy, the review reads but does not change the file the deploy uses.
-  await page.getByRole('button', { name: 'Show the review' }).click();
-  await expect(page.getByText('these choices are locked until it finishes')).toBeVisible();
-  await expect(page.getByRole('radio', { name: /Internet reachable/ })).toHaveAttribute('aria-disabled', 'true');
-  await expect(page.getByRole('button', { name: /^Save/ })).toHaveCount(0);
+  const saveSecret = async (name: string) => {
+    const field = page.getByRole('textbox', { name: `Value for ${name}` });
+    await field.fill('a-secret-value');
+    await field.press('Enter');
+    await expect(field).toHaveCount(0);
+  };
+  // One after another, as a person would: each save is its own request to the CLI.
+  await saveSecret('auth_secret');
+  await saveSecret('stripe_secret_key');
+  await saveSecret('stripe_webhook_secret');
+  await expect(page.getByText('✓ Saved in your AWS account')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Run it after each deploy' }).click();
+  await expect(page.getByText(/runs after each deploy, so the database has its tables/)).toBeVisible();
+  await waitForTarget(page);
+  await expect(page.getByRole('heading', { name: 'Ready to deploy to dev' })).toBeVisible();
+
+  await deployButton(page).click();
+  await expect(page.getByRole('heading', { name: 'Deploying to dev' })).toBeVisible();
+  // The reviewed diagram fills in as AWS creates it; the slow part and the tab question are answered on screen.
+  await expect(page.locator('.stp-diagram__node[data-progress]').first()).toBeVisible();
+  await expect(page.getByText(/Creating the database .* is the slow part/)).toBeVisible();
+  await expect(page.getByText(/Closing this tab does not stop the deploy/)).toBeVisible();
+  await expect(page.locator('[aria-current="step"]')).toContainText('Deploy');
   wizard.release('deploy');
-  await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('link', { name: /stacktape-app\.com/ })).toBeVisible();
-  await expect(page.locator('.wizard-command code').first()).toContainText('--region us-east-1');
+
+  await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('link', { name: 'Open app' })).toHaveAttribute('href', /stacktape-app\.com/);
+  await expect(page.locator('.w-command code').first()).toContainText('--region us-east-1');
   // Deployed signed in: the stage is already in the Console, so the page links there and offers nothing.
   await expect(page.getByRole('region', { name: 'Stacktape Console' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Open the Console' })).toHaveAttribute(
@@ -82,12 +100,46 @@ test('a first deploy goes from analysis to a live URL, and a reload keeps the se
   );
 });
 
-test('a failed deploy, a link opened twice and a stopped CLI each say what to do next', async ({
+test('stacktape.yml is editable with schema help, hand edits switch the settings off, and reset brings them back', async ({
+  page,
+  startWizard
+}) => {
+  const wizard = await startWizard({ project: 'saas-starter' });
+  await page.goto(wizard.url);
+  await analyzeAndReview(page);
+  await expect(page.getByText('Hover a key for its docs')).toBeVisible();
+
+  const editor = page.locator('.monaco-editor').first();
+  await expect(editor).toBeVisible({ timeout: 15_000 });
+  // Hovering a key shows the Stacktape schema's documentation, served by the CLI on loopback under the strict CSP.
+  await expect(async () => {
+    await editor
+      .locator('.view-line span', { hasText: /^projectName$/ })
+      .first()
+      .hover();
+    await expect(page.locator('.monaco-hover').first()).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+
+  await editor.click();
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('\n# tuned by hand\n');
+  await expect(page.getByText(/Edited by hand\. This text is what gets saved and deployed/)).toBeVisible();
+  const settings = page.getByRole('region', { name: 'Settings' });
+  await expect(settings.getByText('You edited the file by hand')).toBeVisible();
+  await expect(settings.getByRole('radio', { name: /Stay online/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'TypeScript' })).toBeDisabled();
+
+  await page.getByRole('button', { name: 'Reset to generated' }).first().click();
+  await expect(page.getByText('Generated from your code and the settings.')).toBeVisible();
+  await expect(settings.getByRole('radio', { name: /Stay online/ })).toBeEnabled();
+});
+
+test('a failed deploy names the fix in this project, keeps the retry, and a stopped CLI says what to do', async ({
   page,
   browser,
   startWizard
 }) => {
-  const wizard = await startWizard({ project: 'epic-stack', deploy: 'fail' });
+  const wizard = await startWizard({ project: 'saas-starter', deploy: 'fail' });
   await page.goto(wizard.url);
 
   const second = await browser.newPage();
@@ -99,64 +151,53 @@ test('a failed deploy, a link opened twice and a stopped CLI each say what to do
   await second.close();
 
   await analyzeAndReview(page);
-  // One app copy is all a SQLite disk allows, so the availability question changes nothing and is not asked.
-  await expect(page.getByRole('radiogroup', { name: 'What should happen when one machine fails?' })).toHaveCount(0);
-  // The SQLite answer is real infrastructure: a disk for the file, and the app pointed at it.
-  await expect(page.getByText('Keeping your SQLite file on a disk that survives deploys')).toBeVisible();
-  await page.getByRole('tab', { name: /stacktape\.yml|File/ }).click();
-  await expect(page.locator('.wizard-source')).toContainText('type: efs-filesystem');
-  await expect(page.locator('.wizard-source')).toContainText('file:/data/data.db');
-  // What the app reads and nobody sets is listed before deploying, not discovered by a crash.
-  await expect(page.getByText('8 secrets only you have')).toBeVisible();
-  await expect(page.locator('.wizard-setting-list')).toContainText('CACHE_DATABASE_PATH');
-  await expect(page.locator('.wizard-setting-list')).not.toContainText('VITEST');
-  await page.getByRole('button', { name: 'Change' }).click();
-  await page.getByRole('radio', { name: /only a cache/ }).click();
-  await expect(page.locator('.wizard-source')).not.toContainText('efs-filesystem');
-  await expect(page.locator('.wizard-source')).toContainText('file:/tmp/data.db');
-  await saveAndCheckTarget(page);
-  await expect(page.getByRole('heading', { name: 'The deploy stopped' })).toBeVisible({ timeout: 15_000 });
-  // The cause in plain words first, then the way forward; the CLI's own message one click away.
-  await expect(page.getByText('The app tried to reach PostgreSQL at 127.0.0.1:5432')).toBeVisible();
-  const retry = page.getByRole('button', { name: 'Deploy again' });
-  await expect(retry).toBeEnabled();
-  const original = page.getByRole('button', { name: 'Show the original error' });
-  expect((await retry.boundingBox())!.y).toBeLessThan((await original.boundingBox())!.y);
-  await original.click();
+  await continueToDeploy(page);
+  await page.getByRole('button', { name: 'They already exist' }).click();
+  await waitForTarget(page);
+  await deployButton(page).click();
+  await expect(page.getByRole('heading', { name: 'The deploy to dev stopped' })).toBeVisible({ timeout: 15_000 });
+  // What happened, why and the fix use this project's names, not a hypothetical database.
+  const failure = page.locator('.w-failure');
+  await expect(failure).toContainText('could not reach a database at localhost:5432');
+  await expect(failure).toContainText('mainDatabase');
+  await expect(failure).not.toContainText('myDatabase');
+  await expect(page.getByText(/AWS removed what this deploy had created/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Deploy again' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Show the full error' }).click();
   await expect(page.locator('pre', { hasText: 'Stack action create failed.' })).toBeVisible();
-  // The step where it broke is marked failed, not ticked like the ones that finished.
-  await expect(page.locator('.wizard-phase.is-failed')).toHaveText(/Creating AWS resources/);
 
   await wizard.stop();
   await expect(page.getByText('Lost the connection to stacktape init')).toBeVisible({ timeout: 10_000 });
 });
 
-test('secrets the deploy needs are listed with their commands, and an empty repository says so', async ({
+test('without AWS credentials, pasted keys become a profile and the check continues; a failed secret says why', async ({
   page,
   startWizard
 }) => {
-  const brokers = await startWizard({ project: 'go-clean-template' });
-  await page.goto(brokers.url);
+  const wizard = await startWizard({ project: 'saas-starter', aws: 'no-credentials', secrets: 'fail' });
+  await page.goto(wizard.url);
   await analyzeAndReview(page);
-  // What Stacktape creates and what it does not are two sentences; a broker it does not create has one
-  // note that names its secret, not a second note saying the same thing.
-  await expect(
-    page.getByText(
-      /^A Fiber app, using a Postgres database\. It also needs a RabbitMQ broker and a NATS server, which Stacktape does not create\./
-    )
-  ).toBeVisible();
-  await expect(page.getByText('2 more things')).toBeVisible();
-  await expect(page.getByText(/through the rmq_url secret, which you create before deploying/)).toBeVisible();
-  await expect(page.getByText(/points at something we are not creating/)).toHaveCount(0);
-  await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
-  await expect(page.getByText('stacktape secret set rmq_url --region eu-west-1')).toBeVisible();
-  await expect(page.getByText('stacktape secret set nats_url --region eu-west-1')).toBeVisible();
+  await continueToDeploy(page);
+  await expect(page.getByRole('heading', { name: 'Connect an AWS account' })).toBeVisible();
+  const paths = page.getByRole('group', { name: 'How you sign in to AWS' });
+  await paths.getByRole('button', { name: 'My company uses AWS SSO' }).click();
+  await expect(page.getByText('aws configure sso', { exact: true })).toBeVisible();
+  await paths.getByRole('button', { name: "I don't have an AWS account" }).click();
+  await expect(page.getByRole('link', { name: /Create an AWS account/ })).toHaveAttribute(
+    'href',
+    /portal\.aws\.amazon\.com/
+  );
+  await paths.getByRole('button', { name: 'I have access keys' }).click();
+  await page.getByRole('textbox', { name: 'Access key ID' }).fill('AKIAIOSFODNN7EXAMPLE');
+  await page.getByRole('textbox', { name: 'Secret access key' }).fill('wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY');
+  await page.getByRole('button', { name: 'Save on this machine' }).click();
+  await expect(page.getByText('Account 4815 1623 4200')).toBeVisible({ timeout: 10_000 });
+  await waitForTarget(page);
 
-  const empty = await startWizard({ project: 'empty', agents: [] });
-  await page.goto(empty.url);
-  await page.getByRole('button', { name: 'Analyze my project' }).click();
-  await expect(page.getByRole('heading', { name: 'Found nothing to deploy' })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole('button', { name: /^Save/ })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Value for auth_secret' }).fill('x');
+  await page.getByRole('textbox', { name: 'Value for auth_secret' }).press('Enter');
+  await expect(page.getByText(/not authorized to perform: secretsmanager:CreateSecret on auth_secret/)).toBeVisible();
+  await expect(deployButton(page)).toBeDisabled();
 });
 
 test('a stack left behind by a failed first deploy says how to clear it, and can be checked again', async ({
@@ -166,12 +207,30 @@ test('a stack left behind by a failed first deploy says how to clear it, and can
   const wizard = await startWizard({ project: 'saas-starter', target: 'blocked' });
   await page.goto(wizard.url);
   await analyzeAndReview(page);
-  await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
-  await page.getByRole('button', { name: 'Check exact AWS target' }).click();
-  await expect(page.getByText('A failed first deploy left this stack behind')).toBeVisible();
-  await expect(page.getByText('stacktape delete --config stacktape.yml')).toBeVisible();
-  // After cleaning up, the developer checks again from the same button; it is never a dead end.
+  await continueToDeploy(page);
+  await expect(page.getByText('A failed first deploy left this stack behind')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/stacktape delete --config stacktape\.yml/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Check again' })).toBeEnabled();
+  await expect(deployButton(page)).toBeDisabled();
+});
+
+test('an empty folder offers app folders below it and starter projects; a failed analysis offers a way on', async ({
+  page,
+  startWizard
+}) => {
+  const empty = await startWizard({ project: 'empty', agents: [] });
+  await page.goto(empty.url);
+  await page.getByRole('button', { name: 'Analyze my project' }).click();
+  await expect(page.getByRole('heading', { name: 'No app in this folder' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('cd services/api && stacktape init')).toBeVisible();
+  await expect(page.getByText('stacktape init --starterId fullstack-nextjs-drizzle')).toBeVisible();
+
+  const failing = await startWizard({ project: 'saas-starter', scan: 'fail' });
+  await page.goto(failing.url);
+  await page.getByRole('button', { name: 'Analyze my project' }).click();
+  await expect(page.getByRole('heading', { name: 'The analysis stopped' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/Credit balance is too low/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Analyze without AI' })).toBeEnabled();
 });
 
 test('signed out, it deploys without an account, then offers the Console and connects from the card', async ({
@@ -180,84 +239,44 @@ test('signed out, it deploys without an account, then offers the Console and con
 }) => {
   const wizard = await startWizard({ project: 'full-stack-fastapi', account: 'signed-out' });
   await page.goto(wizard.url);
-  // The rail names the steps; ones not reached yet are not links to sections that do not exist. The page
-  // title is the only title: the band carries no label of its own.
-  await expect(page.locator('.wizard-rail a')).toHaveCount(1);
-  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(0);
-  await expect(page.getByText('No Stacktape account is needed for any of it.')).toBeVisible();
+  await expect(page.getByText('No Stacktape account needed.')).toBeVisible();
   await analyzeAndReview(page);
-  await page.getByRole('button', { name: /^Save .* & continue$/ }).click();
-  // Finished bands are checked recap lines; the one action sits in the plan panel, above the optional rows.
-  await expect(page.locator('.wizard-section-check')).toHaveCount(3);
-  const action = page.getByRole('button', { name: 'Check exact AWS target' });
-  const tryOut = page.getByRole('button', { name: 'Build and start it here' });
-  expect((await action.boundingBox())!.y).toBeLessThan((await tryOut.boundingBox())!.y);
-
+  await continueToDeploy(page);
   // Nothing about a Stacktape account before the deploy: it goes to the AWS account of this machine's profile.
-  const target = page.getByRole('region', { name: 'Where it deploys' });
-  await expect(target).toContainText('481516234200');
-  await expect(target).toContainText('AWS profile');
-  await expect(target).not.toContainText('Stacktape account');
+  await expect(page.getByText(/Stacktape account/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
-  await expect(page.getByText(/Sign in/)).toHaveCount(0);
-
-  // A button that cannot be pressed says why, beside it and on hover.
+  // A stage name is required; the button says what is missing instead of doing nothing.
   await page.getByRole('textbox', { name: 'Stage' }).fill('');
-  await expect(action).toBeDisabled();
-  await expect(action).toHaveAccessibleDescription('Name a stage above before deploying.');
-  // The band scrolls itself into view when it arrives; hover again if that moved the pointer off the button.
-  await expect(async () => {
-    await action.hover({ force: true });
-    await expect(page.locator('.stp-ui-tooltip')).toHaveText('Name a stage above before deploying.', {
-      timeout: 1_000
-    });
-  }).toPass();
+  await expect(deployButton(page)).toBeDisabled();
   await page.getByRole('textbox', { name: 'Stage' }).fill('dev');
-
-  await action.click();
-  await expect(page.getByText(/has never been deployed to account 481516234200, region eu-west-1/)).toBeVisible();
-  await page.getByRole('button', { name: 'Create new stack' }).click();
-  await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'They already exist' }).click();
+  await waitForTarget(page);
+  await deployButton(page).click();
+  await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });
 
   const live = page.getByRole('region', { name: 'Live' });
-  await expect(live).toContainText('fastapiBackend');
-  await expect(live).toContainText('fastapiFrontend');
-  await expect(live.getByRole('link', { name: 'Open' })).toHaveCount(2);
-  await expect(live.getByRole('link', { name: /cloudfront\.net/ }).first()).toBeVisible();
-  // The finished steps are one line; the live addresses lead.
-  await expect(page.locator('.wizard-phase')).toHaveCount(0);
-  await page.getByRole('button', { name: /^Show the \d deploy steps$/ }).click();
-  await expect(page.locator('.wizard-phase.is-done')).toHaveCount(5);
+  await expect(live.getByRole('link', { name: 'Open app' })).toHaveAttribute('href', /cloudfront\.net/);
+  await expect(live).toContainText('fastapi');
 
-  // The Console comes right under the live addresses, as a card with one action, and only now.
   const offer = page.getByRole('region', { name: 'Stacktape Console' });
-  await expect(offer).toContainText('Deploy history, costs, alerts and team access for this stage.');
-  await expect(offer).toContainText('Free up to $200/month of AWS spend.');
-  expect((await live.boundingBox())!.y).toBeLessThan((await offer.boundingBox())!.y);
-  await expect(page.getByRole('link', { name: 'Open the Console' })).toHaveCount(0);
-
-  // One click opens the Console's device page in a new tab with the code filled in; the card shows the same code
-  // and continues by itself once it is approved there, then connects the AWS account.
+  await expect(offer).toContainText('Free while your AWS spend stays under $200/month');
   const consoleTab = page.waitForEvent('popup');
   await offer.getByRole('button', { name: 'Connect to the Console' }).click();
   const approval = await consoleTab;
   await expect(offer.getByRole('status', { name: 'Sign-in code' })).toHaveText('WDJB-MJHT');
-  await expect(approval).toHaveURL(/\/device\?user_code=WDJB-MJHT$/);
   await approval.getByRole('button', { name: 'Approve' }).click();
-  await expect(approval.getByText('Approved. Return to the wizard.')).toBeVisible();
   await expect(offer).toContainText('Connected to the Stacktape Console', { timeout: 10_000 });
-  await expect(offer.getByRole('link', { name: 'Open dev in the Console' })).toHaveAttribute(
-    'href',
-    /\/projects\/full-stack-fastapi\/dev\/overview$/
-  );
 });
 
 test('a Console connection that fails says why, and "Not now" leaves one quiet line', async ({ page, startWizard }) => {
   const wizard = await startWizard({ project: 'saas-starter', account: 'signed-out', connect: 'fail' });
   await page.goto(wizard.url);
   await analyzeAndReview(page);
-  await saveAndCheckTarget(page);
-  await expect(page.getByRole('heading', { name: 'It’s live' })).toBeVisible({ timeout: 15_000 });
+  await continueToDeploy(page);
+  await page.getByRole('button', { name: 'They already exist' }).click();
+  await waitForTarget(page);
+  await deployButton(page).click();
+  await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });
 
   const offer = page.getByRole('region', { name: 'Stacktape Console' });
   const consoleTab = page.waitForEvent('popup');
@@ -266,10 +285,6 @@ test('a Console connection that fails says why, and "Not now" leaves one quiet l
   await approval.getByRole('button', { name: 'Approve' }).click();
   await expect(offer.getByText('The AWS account was not connected')).toBeVisible({ timeout: 10_000 });
   await expect(offer).toContainText('not authorized to perform: cloudformation:CreateStack');
-  await expect(offer.getByText('stacktape connect', { exact: true })).toBeVisible();
-  await expect(offer.getByRole('button', { name: 'Try again' })).toBeEnabled();
-
   await offer.getByRole('button', { name: 'Not now' }).click();
-  await expect(offer).toHaveCount(0);
   await expect(page.getByText(/To add this stage to the Stacktape Console later, run stacktape connect/)).toBeVisible();
 });

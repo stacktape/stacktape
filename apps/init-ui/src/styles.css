@@ -1946,6 +1946,27 @@
   /* ── Narrow screens ────────────────────────────────────────────────────────────────────────── */
 
   @media (max-width: 1020px) {
+    /* One column: the settings come right after the picture, before the list and the file. */
+    .w-review-main {
+      display: contents;
+    }
+
+    .w-review > .w-side {
+      order: 2;
+    }
+
+    .w-review-main > :first-child {
+      order: 1;
+    }
+
+    .w-review-main > :nth-child(2) {
+      order: 3;
+    }
+
+    .w-review-main > :nth-child(3) {
+      order: 4;
+    }
+
     .w-review,
     .w-deploy,
     .w-progress,
@@ -1964,10 +1985,22 @@
 
   @media (max-width: 760px) {
     .w-top-inner {
-      grid-template-columns: minmax(0, 1fr) auto;
-      height: auto;
-      padding: 10px 16px;
-      row-gap: 8px;
+      grid-template-columns: auto minmax(0, 1fr);
+      height: 56px;
+      padding: 0 16px;
+      gap: 12px;
+    }
+
+    .w-top-inner .w-path {
+      justify-self: end;
+    }
+
+    .w-brand > span {
+      display: none;
+    }
+
+    .w-price-note {
+      display: none;
     }
 
     .w-top-side {

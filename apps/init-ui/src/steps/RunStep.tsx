@@ -77,6 +77,7 @@ function RunDiagram({ resources, progress }: { resources: ConfigResources; progr
           config={{ resources } as unknown as StacktapeConfig}
           hint="Faint: not created yet · pulsing: being created"
           initialZoom={1.1}
+          layerChoices={[]}
           resourceProgress={progress}
           style={{ width: '100%', height: '100%' }}
         />
@@ -460,10 +461,14 @@ export const failureStory = (message: string, resources: ConfigResources): Failu
     /^\s*\d+\.\s+(\S+)/m.exec(message)?.[1] ??
     Object.keys(resources).find((name) => message.includes(name) && name !== database) ??
     'the app';
-  const environment = (resources[failed]?.properties.environment ?? {}) as Record<string, unknown>;
-  const wired = Object.entries(environment).find(
-    ([, value]) => typeof value === 'string' && value.includes(database)
-  )?.[0];
+  // `environment` is a list of { name, value } in a Stacktape config; an object of name to value is accepted too.
+  const environment = resources[failed]?.properties.environment;
+  const variables: Array<[string, unknown]> = Array.isArray(environment)
+    ? environment.flatMap((entry: { name?: unknown; value?: unknown }) =>
+        typeof entry.name === 'string' ? [[entry.name, entry.value] as [string, unknown]] : []
+      )
+    : Object.entries((environment ?? {}) as Record<string, unknown>);
+  const wired = variables.find(([, value]) => typeof value === 'string' && value.includes(database))?.[0];
   return {
     happened: (
       <>
