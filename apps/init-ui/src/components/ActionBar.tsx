@@ -10,9 +10,20 @@ import { InfoTip } from './InfoTip';
  *
  * It spans the window and stays put while the page scrolls; the page leaves room for it by itself.
  */
-export function ActionBar({ price, note, children }: { price?: ReactNode; note?: ReactNode; children: ReactNode }) {
+export function ActionBar({
+  price,
+  note,
+  className,
+  children
+}: {
+  price?: ReactNode;
+  note?: ReactNode;
+  /** `is-blocked`: the action waits for something; on a phone the bar is then one compact row without the price. */
+  className?: string | undefined;
+  children: ReactNode;
+}) {
   return (
-    <div className="w-bar">
+    <div className={className === undefined ? 'w-bar' : `w-bar ${className}`}>
       <div className="w-bar-inner">
         <div className="w-bar-price">{price}</div>
         <div className="w-bar-end">

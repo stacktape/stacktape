@@ -642,11 +642,34 @@
   }
 
   .w-bar-note {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     color: var(--w-subtle);
     font-size: 12px;
     line-height: 16px;
     text-align: right;
+  }
+
+  .w-bar-note-main {
+    color: var(--w-text);
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .w-bar-note-main .w-code {
+    font-size: 12px;
+  }
+
+  .w-bar-next {
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 18px;
+  }
+
+  .w-bar-next .w-link {
+    color: var(--w-text);
+    font-weight: 600;
   }
 
   .w-bar-actions {
@@ -843,13 +866,73 @@
 
   .w-check-title {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 4px 6px;
     margin: 0;
     color: var(--w-text);
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
+  }
+
+  /* Where a section stands, in words beside its title. */
+  .w-state {
+    margin-left: 6px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+  }
+
+  .w-state.is-ready {
+    color: var(--w-ok);
+  }
+
+  .w-state.is-needs-input {
+    color: var(--w-warn);
+  }
+
+  .w-state.is-blocked {
+    color: var(--w-error);
+  }
+
+  .w-state.is-note {
+    color: var(--w-warn);
+  }
+
+  .w-check-aside {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 16px;
+    height: 20px;
+    margin-left: auto;
+  }
+
+  /* A button beside a section title stays on the title's line. */
+  .w-check-aside .stp-ui-button {
+    --stp-control-height: 28px;
+    --stp-button-padding-x: 10px;
+    font-size: 13px;
+  }
+
+  /* A section waiting on an earlier one recedes. */
+  .w-check.is-waiting .w-check-title {
+    color: var(--w-muted);
+  }
+
+  .w-check-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 6px;
+    animation: w-rise 200ms var(--w-ease);
+  }
+
+  .w-check-content > .w-account,
+  .w-check-content > .w-check-meta:first-child {
+    margin-top: 0;
   }
 
   .w-check-tag {
@@ -915,6 +998,11 @@
     border-style: dashed;
   }
 
+  .w-status.is-locked {
+    border-style: dashed;
+    border-color: var(--w-line-strong);
+  }
+
   /* The AWS account in one line: account, identity, region, stage. */
   .w-account {
     display: flex;
@@ -939,7 +1027,10 @@
     grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     gap: 12px;
     align-items: end;
-    margin-top: 14px;
+  }
+
+  .w-check-content > .w-target-line {
+    margin-top: -6px;
   }
 
   .w-target-line {
@@ -991,28 +1082,177 @@
     line-height: 20px;
   }
 
-  .w-secret {
-    display: grid;
-    grid-template-columns: minmax(130px, 0.75fr) minmax(0, 1.5fr) auto;
-    gap: 10px;
-    align-items: center;
+  .w-secret-counts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: -6px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
   }
 
-  .w-secret-name {
+  .w-secret-counts li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .w-secret-counts li > svg {
+    flex: none;
+    margin-top: 2px;
+    color: var(--w-ok);
+  }
+
+  .w-secret-counts .w-info {
+    margin-top: 3px;
+  }
+
+  .w-secret-group {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .w-secret-group-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 2px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--w-line);
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  .w-secret-group-title > :first-child {
+    color: var(--w-text);
+  }
+
+  .w-secret-group-reader {
+    margin-left: auto;
+    font-weight: 500;
+  }
+
+  .w-secret-group-title .w-mono {
+    color: var(--w-muted);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-secret {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+    gap: 4px 16px;
+    align-items: center;
+    padding: 10px 0;
+    scroll-margin: 96px;
+  }
+
+  .w-secret + .w-secret {
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-secret-label {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
-    overflow: hidden;
+  }
+
+  /* The whole name, wrapped if it must: a cut-off variable name cannot be matched against the code. */
+  .w-secret-name {
     color: var(--w-text);
     font-family: var(--w-mono);
     font-size: 13px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-secret-source {
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-secret-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .w-secret-form .stp-ui-text-field {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .w-secret-form .stp-ui-text-field__trailing {
+    padding-right: 4px;
+  }
+
+  /* An action inside a field's right edge: quiet text that fills the field. */
+  .w-field-action {
+    display: inline-flex;
+    align-items: center;
+    height: 26px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 6px;
+    background: var(--w-brand-soft);
+    color: var(--w-brand-strong);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 140ms ease;
+  }
+
+  .w-field-action:hover {
+    background: color-mix(in srgb, var(--w-brand) 22%, transparent);
+  }
+
+  .w-field-action:disabled {
+    cursor: default;
+  }
+
+  .w-field-action .stp-ui-spinner {
+    width: 12px;
+    height: 12px;
   }
 
   .w-secret-saved {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 4px 12px;
+    min-height: 36px;
+  }
+
+  .w-secret-mask {
+    color: var(--w-faint);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+  }
+
+  .w-secret-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--w-subtle);
+    font-size: 12px;
+  }
+
+  .w-secret-saved .w-link {
+    margin-left: auto;
+  }
+
+  .w-secret-error {
+    grid-column: 1 / -1;
   }
 
   .w-saved {
@@ -1054,6 +1294,143 @@
   .w-path-tabs {
     max-width: 100%;
     overflow-x: auto;
+  }
+
+  /* Two explicit choices with what each one means right under them. */
+  .w-choice {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .w-choice-effect {
+    margin: -4px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-choice-effect.is-warn {
+    color: var(--w-warn);
+  }
+
+  /* The three ways into AWS: the ui-react radios, as rows in a flat well. */
+  .w-aws-paths .stp-ui-radio-group__options {
+    flex-direction: column;
+    gap: 0;
+    overflow: hidden;
+    border-radius: var(--w-radius-small);
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+  }
+
+  .w-aws-paths .stp-ui-radio {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    transition: background 140ms ease;
+  }
+
+  .w-aws-paths .stp-ui-radio + .stp-ui-radio {
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-aws-paths .stp-ui-radio:hover {
+    background: var(--w-hover);
+  }
+
+  .w-aws-paths .stp-ui-radio:has(:checked) {
+    background: var(--w-brand-soft);
+  }
+
+  .w-aws-paths .stp-ui-radio__control {
+    margin-top: 1px;
+  }
+
+  .w-aws-paths .stp-ui-radio__content {
+    gap: 2px;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-aws-paths .stp-ui-radio__description {
+    color: var(--w-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+
+  .w-path-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .w-path-body .w-check-meta {
+    margin: 0;
+  }
+
+  /* What is worth a look before the first deploy: a short list above the readiness list, one line each. */
+  .w-notes {
+    margin: -8px 0 20px;
+    padding: 12px 16px 14px;
+    border-radius: var(--w-radius-small);
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+  }
+
+  .w-notes-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 6px;
+    color: var(--w-warn);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-notes ul {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0 0 0 23px;
+    list-style: none;
+  }
+
+  .w-notes li {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    color: var(--w-text);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  /* Two lines at most; the whole note is behind its help mark. */
+  .w-note-text {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .w-notes li .w-info {
+    margin-top: 3px;
+  }
+
+  .w-hero-price {
+    display: none;
+    margin: 8px 0 0;
+    color: var(--w-muted);
+  }
+
+  .w-hero-price strong {
+    color: var(--w-text);
+    font-weight: 600;
   }
 
   .w-steps-list {
@@ -1848,11 +2225,36 @@
     }
 
     .w-secret {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
     }
 
-    .w-secret-name {
-      grid-column: 1 / -1;
+    .w-check-aside {
+      margin-left: 0;
+    }
+
+    .w-hero-price {
+      display: block;
+    }
+
+    /* Blocked: one compact row, the next step and the button. The estimate is in the page until it is ready. */
+    .w-bar.is-blocked .w-bar-price {
+      display: none;
+    }
+
+    .w-bar.is-blocked .w-bar-end {
+      flex-wrap: nowrap;
+      justify-content: space-between;
+    }
+
+    .w-bar.is-blocked .w-bar-note {
+      flex: 1 1 auto;
+      order: 0;
+      text-align: left;
+    }
+
+    .w-notes {
+      margin-top: -4px;
     }
 
     .w-target-edit,
