@@ -118,9 +118,17 @@
     display: none;
   }
 
-  /* More tabs than fit fade out at the edge instead of being cut. */
-  .ws-window-tabs {
+  /* More tabs than fit fade out at the ends that have tabs past them, instead of being cut. */
+  .ws-window-tabs[data-clipped-start='true'] {
+    mask-image: linear-gradient(to right, transparent, black 32px);
+  }
+
+  .ws-window-tabs[data-clipped-end='true'] {
     mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
+  }
+
+  .ws-window-tabs[data-clipped-start='true'][data-clipped-end='true'] {
+    mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 40px), transparent);
   }
 
   .ws-window-tab-ghost span {
@@ -894,19 +902,15 @@
     gap: 24px;
   }
 
-  /* A long project name wraps once, then ends in an ellipsis; the frame's .w-title type. */
+  /* The frame's .w-title type; a long project name wraps rather than losing "on AWS". */
   .ws-title {
-    display: -webkit-box;
     margin: 0;
-    overflow: hidden;
     color: var(--w-text-strong);
     font-size: 28px;
     font-weight: 600;
     letter-spacing: -0.02em;
     line-height: 34px;
     overflow-wrap: anywhere;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
   }
 
   .ws-summary {
@@ -947,8 +951,8 @@
     height: 100%;
   }
 
-  /* The hint stops short of the zoom buttons in the corner, and wraps there on a narrow screen. */
-  .ws-diagram .stp-diagram__hint {
+  /* When the diagram shows its view buttons in the corner, the hint stops short of them. */
+  .ws-diagram .stp-diagram:has(.stp-diagram__controls) .stp-diagram__hint {
     right: 60px;
   }
 

@@ -51,8 +51,17 @@ export function CodeWindow({
   const dimRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
 
+  /** Marks which ends of the tab row have tabs scrolled past them, so only those ends fade. */
+  const markTabEdges = () => {
+    const strip = tabsRef.current;
+    if (strip === null) return;
+    strip.dataset.clippedStart = String(strip.scrollLeft > 1);
+    strip.dataset.clippedEnd = String(strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1);
+  };
+
   // The active tab stays in view as more files open.
   useLayoutEffect(() => {
+    markTabEdges();
     const tab = tabsRef.current?.querySelector<HTMLElement>('[data-active="true"]');
     if (tab === null || tab === undefined || tabsRef.current === null) return;
     const strip = tabsRef.current;
@@ -115,7 +124,7 @@ export function CodeWindow({
 
   return (
     <div className="ws-window" data-focus={focus === undefined ? undefined : 'true'}>
-      <div className="ws-window-tabs" ref={tabsRef}>
+      <div className="ws-window-tabs" onScroll={markTabEdges} ref={tabsRef}>
         {tabs.length === 0 && (
           // Before the first file opens: where its tab will be.
           <span aria-hidden className="ws-window-tab ws-window-tab-ghost">

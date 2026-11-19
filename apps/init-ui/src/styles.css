@@ -619,7 +619,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 24px;
-    min-height: var(--w-bar-h);
+    /* 72 px with the bar's top border. */
+    min-height: calc(var(--w-bar-h) - 1px);
     padding: 12px var(--w-gutter);
     box-sizing: border-box;
   }
@@ -1141,7 +1142,7 @@
     overflow: hidden;
   }
 
-  .w-run-diagram .stp-diagram__hint {
+  .w-run-diagram .stp-diagram:has(.stp-diagram__controls) .stp-diagram__hint {
     right: 60px;
   }
 
