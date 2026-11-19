@@ -53,6 +53,38 @@ test('a dialog opens in its first look: its focused field does not ease its focu
   await expect(dialog).not.toHaveAttribute('data-opening');
 });
 
+test('a dialog keeps its top while its content changes height, and moves up only to stay in the window', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Open example dialog' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Example dialog' });
+  const name = dialog.getByRole('textbox', { name: 'Example name' });
+  await expect(name).toBeFocused();
+  const top = async () => (await dialog.boundingBox())!.y;
+  const fieldTop = async () => (await name.boundingBox())!.y;
+  const openedAt = await fieldTop();
+  // A tab that shows a longer form: the field above it stays under the pointer.
+  const setExtraHeight = (height: number) =>
+    page.evaluate((px) => {
+      const body = document.querySelector('.stp-ui-dialog__body')!;
+      let extra = body.querySelector<HTMLElement>('[data-test-extra]');
+      if (!extra) {
+        extra = document.createElement('div');
+        extra.dataset.testExtra = '';
+        body.append(extra);
+      }
+      extra.style.height = `${px}px`;
+    }, height);
+  await setExtraHeight(120);
+  await expect.poll(fieldTop).toBe(openedAt);
+  await setExtraHeight(0);
+  await expect.poll(fieldTop).toBe(openedAt);
+  // Content taller than the room below: the dialog moves up, never past the overlay's inset.
+  await setExtraHeight(2000);
+  await expect.poll(top).toBe(24);
+});
+
 test('closing by control or backdrop restores the prior scroll state and focus', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {

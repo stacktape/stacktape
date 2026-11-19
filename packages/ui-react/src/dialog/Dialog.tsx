@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BiX } from 'react-icons/bi';
 import { useLayer } from '../layer/layer';
@@ -73,6 +73,38 @@ export function Dialog({
     }
     const timer = setTimeout(() => setIsOpening(false), OPENING_MS);
     return () => clearTimeout(timer);
+  }, [open]);
+  // A dialog opens centred, then keeps its top where it opened: a tab or a choice that changes its height grows or shrinks
+  // it at the bottom, so the tabs and fields above stay under the pointer. It moves up only as far as it must to stay
+  // inside the window. A window resize centres it again.
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    const overlay = dialog?.parentElement;
+    if (!open || !dialog || !overlay || typeof ResizeObserver === 'undefined') return undefined;
+    let top: number | null = null;
+    const place = () => {
+      const inset = Number.parseFloat(getComputedStyle(overlay).paddingTop) || 0;
+      if (top === null) {
+        top = dialog.getBoundingClientRect().top - overlay.getBoundingClientRect().top;
+        dialog.style.alignSelf = 'flex-start';
+      }
+      top = Math.max(inset, Math.min(top, overlay.clientHeight - inset - dialog.offsetHeight));
+      dialog.style.marginTop = `${top - inset}px`;
+    };
+    const recentre = () => {
+      top = null;
+      dialog.style.alignSelf = '';
+      dialog.style.marginTop = '';
+      place();
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(dialog);
+    window.addEventListener('resize', recentre);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', recentre);
+    };
   }, [open]);
   const callbacksRef = useRef({ onClose, onOpenChange });
   callbacksRef.current = { onClose, onOpenChange };
