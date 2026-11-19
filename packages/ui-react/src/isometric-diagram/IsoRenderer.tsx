@@ -697,6 +697,11 @@ export type DiagramViewProps = {
    * picture readable, for a small picture that is read as a whole. Defaults to `strong`.
    */
   focusDimming?: 'strong' | 'soft' | undefined;
+  /**
+   * Room left around the picture inside its frame, in the picture's own units (default 80). A host whose frame is
+   * short for what it shows lowers it, so the picture fills the frame rather than its margin.
+   */
+  framePadding?: number | undefined;
 };
 
 export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
@@ -767,6 +772,7 @@ export function IsoRenderer({
   resourceTooltip,
   onHoverResource,
   focusDimming = 'strong',
+  framePadding = 80,
   onToggleGroup,
   toolbar,
   viewNote,
@@ -857,7 +863,7 @@ export function IsoRenderer({
             })
           ]
         }),
-        padding: 80
+        padding: framePadding
       });
       return { minX: merged.minX, minY: merged.minY, svgW: merged.maxX - merged.minX, svgH: merged.maxY - merged.minY };
     }
@@ -909,7 +915,7 @@ export function IsoRenderer({
       bounds: mergeBounds({
         bounds: [...nodeBounds, ...rectangleBounds, ...labelBounds, ...connectorBounds, ...connectorLabelBounds]
       }),
-      padding: 80
+      padding: framePadding
     });
 
     return {
@@ -918,7 +924,7 @@ export function IsoRenderer({
       svgW: merged.maxX - merged.minX,
       svgH: merged.maxY - merged.minY
     };
-  }, [scene, labelScale]);
+  }, [scene, labelScale, framePadding]);
 
   // The scale the picture is fitted at, for a host that keeps names readable however far it is scaled down.
   useEffect(() => {

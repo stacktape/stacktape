@@ -53,6 +53,11 @@ the same shape holding only the fields `topology.ts` and `security-groups.ts` re
 reaches them only once that list names it; its test compares the topology drawn from both documents on this folder's
 fixtures.
 
+A host that explains resources beside the picture (the init wizard's review) passes `onHoverResource`: it is told the
+node under the pointer or keyboard focus, and nodes show no hover card of their own. `focusDimming="soft"` steps back
+less of a small picture on hover, and `framePadding` lowers the room left around the picture in a short frame. Keyboard
+focus dims what a node does not connect to; a click that focuses it does not.
+
 A host whose frame is small for what it shows (the init wizard's review) can pass `minLabelSize`: when the picture is
 fitted below that size, names, type lines and chips are set larger and the layout is run again with room for them
 (`textScale`), while the shapes keep their size. `resourceTypeLabels` replaces a declared resource's type line with the
