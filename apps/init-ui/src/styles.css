@@ -238,19 +238,14 @@
     padding: 56px var(--w-gutter) 96px;
   }
 
-  /* Analyze and Review until they move into the workspace grid. */
-  .w-main.is-wide {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 44px 28px 140px;
-  }
-
-  /* The two-pane screens fill the window under the header, and the bottom bar when there is one. */
+  /* The two-pane screens fill the window under the header, and leave room for the bottom bar when there is one. The
+   * room opens as the bar slides up at the end of the reveal, so the panes never jump. */
   .w-main.is-workspace {
     display: flex;
     flex-direction: column;
     height: calc(100dvh - var(--w-header-h));
     padding: var(--w-gap) var(--w-gutter);
+    transition: height 320ms 180ms var(--w-ease);
   }
 
   .w-main.is-workspace:has(.w-bar) {
@@ -430,9 +425,6 @@
   }
 
   /* Kept for screens that still print one; the navigation says where you are. */
-  .w-eyebrow {
-    display: none;
-  }
 
   .w-title {
     margin: 0;
@@ -452,37 +444,12 @@
     line-height: 22px;
   }
 
-  .w-receipt {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 14px;
-    margin: 12px 0 0;
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .w-receipt-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .w-receipt-item svg {
-    color: var(--w-ok);
-  }
-
   .w-section-title {
     margin: 0 0 12px;
     color: var(--w-text);
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
-  }
-
-  .w-muted {
-    color: var(--w-muted);
   }
 
   .w-subtle {
@@ -544,30 +511,6 @@
     opacity: 0.5;
   }
 
-  .w-textbutton {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--w-muted);
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: color 150ms var(--w-ease);
-  }
-
-  .w-textbutton:hover {
-    color: var(--w-text);
-  }
-
-  .w-textbutton:disabled {
-    cursor: default;
-    opacity: 0.5;
-  }
-
   .w-big {
     --stp-control-height: 40px;
     --stp-button-padding-x: 18px;
@@ -582,28 +525,6 @@
     border-radius: var(--w-radius);
     background: var(--w-panel-fill);
     box-shadow: var(--w-shadow-rest);
-  }
-
-  .w-card-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--w-line);
-  }
-
-  .w-card-title {
-    margin: 0;
-    color: var(--w-text);
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .w-card-note {
-    margin: 0;
-    color: var(--w-subtle);
-    font-size: 12px;
   }
 
   /* A flat inner area for code, logs and lists. */
@@ -743,6 +664,17 @@
     white-space: nowrap;
   }
 
+  .w-bar-figure {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    transition: color 400ms var(--w-ease);
+  }
+
+  .w-bar-figure.is-changed {
+    color: var(--w-brand);
+  }
+
   .w-bar-amount small {
     color: var(--w-muted);
     font-size: 13px;
@@ -840,205 +772,7 @@
     line-height: 16px;
   }
 
-  /* ── Analyze ───────────────────────────────────────────────────────────────────────────────── */
-
-  .w-analyze {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 28px;
-    align-items: stretch;
-  }
-
-  .w-findings {
-    display: flex;
-    flex-direction: column;
-    margin: 0;
-    padding: 8px 0;
-    list-style: none;
-  }
-
-  .w-finding {
-    display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) auto;
-    gap: 12px;
-    align-items: center;
-    padding: 9px 18px;
-    animation: w-rise 420ms var(--w-ease);
-  }
-
-  .w-finding-text {
-    color: var(--w-text);
-    font-size: 13.5px;
-  }
-
-  .w-finding-file {
-    color: var(--w-subtle);
-    font-family: var(--w-mono);
-    font-size: 11.5px;
-  }
-
-  .w-finding.is-done .w-finding-text {
-    color: var(--w-muted);
-  }
-
-  .w-ghost-diagram {
-    position: relative;
-    display: grid;
-    min-height: 320px;
-    place-items: center;
-    overflow: hidden;
-  }
-
-  .w-ghost-diagram svg {
-    width: min(360px, 90%);
-    height: auto;
-  }
-
-  .w-ghost-block {
-    fill: rgba(54, 190, 190, 0.07);
-    stroke: rgba(54, 190, 190, 0.4);
-    stroke-width: 1;
-    stroke-dasharray: 4 4;
-    animation: w-breathe 2.4s ease-in-out infinite;
-  }
-
-  .w-ghost-block:nth-of-type(2) {
-    animation-delay: 0.4s;
-  }
-
-  .w-ghost-block:nth-of-type(3) {
-    animation-delay: 0.8s;
-  }
-
-  .w-ghost-caption {
-    position: absolute;
-    bottom: 18px;
-    left: 0;
-    right: 0;
-    color: var(--w-subtle);
-    font-size: 12.5px;
-    text-align: center;
-  }
-
-  /* ── Review ────────────────────────────────────────────────────────────────────────────────── */
-
-  .w-review {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 360px;
-    gap: 20px;
-    align-items: start;
-  }
-
-  .w-review-main {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    min-width: 0;
-  }
-
-  .w-diagram {
-    position: relative;
-    height: 440px;
-    overflow: hidden;
-  }
-
-  .w-diagram .stp-diagram {
-    border: none;
-    border-radius: var(--w-radius);
-    background: transparent;
-  }
-
-  .w-side {
-    position: sticky;
-    top: 80px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .w-settings {
-    position: relative;
-  }
-
-  .w-setting {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 14px 18px;
-  }
-
-  .w-setting + .w-setting {
-    border-top: 1px solid var(--w-line);
-  }
-
-  .w-setting-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .w-setting-label {
-    margin: 0;
-    color: var(--w-text);
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .w-setting-help {
-    margin: 0;
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  .w-settings-locked {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px 12px;
-    padding: 12px 18px;
-    border-bottom: 1px solid var(--w-line);
-    background: var(--w-warn-soft);
-  }
-
-  .w-settings:has(.w-settings-locked) .w-setting {
-    opacity: 0.5;
-  }
-
-  .w-settings-locked p {
-    margin: 0;
-    color: var(--w-muted);
-    font-size: 13px;
-  }
-
-  /* Segmented control: one row of choices, the price difference under each. */
-  .w-seg {
-    display: grid;
-    grid-auto-columns: minmax(0, 1fr);
-    grid-auto-flow: column;
-    gap: 3px;
-    padding: 3px;
-    border: 1px solid var(--w-line);
-    border-radius: 9px;
-    background: var(--w-well);
-  }
-
-  .w-seg {
-    margin: 0;
-    min-inline-size: 0;
-  }
-
-  .w-seg.is-stacked {
-    grid-auto-flow: row;
-  }
-
-  .w-seg.is-stacked label {
-    align-items: flex-start;
-    text-align: left;
-    padding: 8px 10px;
-  }
+  /* ── Editor hovers and detail lists ────────────────────────────────────────────────────────── */
 
   /* Monaco's hover widget, in the wizard's type and panel style. */
   .monaco-editor .monaco-hover {
@@ -1050,203 +784,6 @@
     font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
     font-size: 12.5px;
     line-height: 1.55;
-  }
-
-  .w-seg input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .w-seg label {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1px;
-    min-width: 0;
-    min-height: 40px;
-    padding: 5px 6px;
-    border: 1px solid transparent;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--w-muted);
-    font: inherit;
-    font-size: 12.5px;
-    font-weight: 600;
-    line-height: 1.25;
-    cursor: pointer;
-    transition:
-      background-color 160ms var(--w-ease),
-      color 160ms var(--w-ease),
-      border-color 160ms var(--w-ease);
-  }
-
-  .w-seg label:hover:not(.is-disabled) {
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--w-text);
-  }
-
-  .w-seg label.is-checked {
-    border-color: var(--w-brand-line);
-    background: var(--w-brand-soft);
-    color: var(--w-text);
-  }
-
-  .w-seg label:has(input:focus-visible) {
-    outline: 2px solid var(--w-brand-line);
-    outline-offset: 1px;
-  }
-
-  .w-seg label.is-disabled {
-    cursor: default;
-    opacity: 0.55;
-  }
-
-  .w-seg-delta {
-    color: var(--w-subtle);
-    font-size: 11px;
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .w-seg label.is-checked .w-seg-delta {
-    color: var(--w-brand);
-  }
-
-  .w-recommended {
-    color: var(--w-subtle);
-    font-size: 11px;
-    font-weight: 500;
-  }
-
-  /* The resources under the diagram. */
-  .w-resources {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .w-resource {
-    border-top: 1px solid var(--w-line);
-    transition: background-color 200ms var(--w-ease);
-  }
-
-  .w-resource:first-child {
-    border-top: none;
-  }
-
-  .w-resource.is-selected {
-    background: rgba(54, 190, 190, 0.05);
-    box-shadow: inset 2px 0 0 var(--w-brand);
-  }
-
-  .w-resource-head {
-    display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) auto 18px;
-    gap: 14px;
-    align-items: center;
-    width: 100%;
-    padding: 14px 18px;
-    border: none;
-    background: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .w-resource-icon {
-    display: grid;
-    width: 34px;
-    height: 34px;
-    place-items: center;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.04);
-  }
-
-  .w-resource-name {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 10px;
-    margin: 0;
-    color: var(--w-text);
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .w-resource-id {
-    color: var(--w-subtle);
-    font-family: var(--w-mono);
-    font-size: 11.5px;
-    font-weight: 500;
-  }
-
-  .w-resource-why {
-    margin: 2px 0 0;
-    overflow: hidden;
-    color: var(--w-muted);
-    font-size: 12.5px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .w-resource.is-open .w-resource-why {
-    white-space: normal;
-  }
-
-  .w-resource-price {
-    color: var(--w-text);
-    font-size: 13px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .w-resource-price.is-usage {
-    color: var(--w-subtle);
-    font-weight: 500;
-  }
-
-  .w-chevron {
-    color: var(--w-subtle);
-    transition: transform 200ms var(--w-ease);
-  }
-
-  .w-resource.is-open .w-chevron {
-    transform: rotate(90deg);
-  }
-
-  .w-resource-body {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 0 18px 16px 66px;
-    animation: w-rise 260ms var(--w-ease);
-  }
-
-  .w-excerpt {
-    margin: 0;
-    padding: 10px 12px;
-    overflow-x: auto;
-    border: 1px solid var(--w-line);
-    border-radius: var(--w-radius-small);
-    background: var(--w-well);
-    font-family: var(--w-mono);
-    font-size: 12px;
-    line-height: 1.6;
-    white-space: pre;
-  }
-
-  .w-excerpt-file {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--w-subtle);
-  }
-
-  .w-excerpt-line {
-    color: var(--w-text);
   }
 
   .w-detail-list {
@@ -1269,153 +806,6 @@
     flex: none;
     margin-top: 3px;
     color: var(--w-subtle);
-  }
-
-  /* The file. */
-  .w-editor-frame {
-    height: 460px;
-    border-top: 1px solid var(--w-line);
-    background: rgb(23, 28, 28);
-  }
-
-  .w-editor-frame.is-short {
-    height: 340px;
-  }
-
-  .w-editor-tips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 16px;
-    color: var(--w-subtle);
-    font-size: 12px;
-  }
-
-  .w-editor-tips kbd {
-    padding: 1px 5px;
-    border: 1px solid var(--w-line-strong);
-    border-radius: 4px;
-    background: var(--w-well);
-    color: var(--w-muted);
-    font-size: 11px;
-  }
-
-  .w-editor-status {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px 16px;
-    padding: 10px 18px;
-    border-top: 1px solid var(--w-line);
-    color: var(--w-muted);
-    font-size: 12.5px;
-  }
-
-  .w-editor-status.is-edited {
-    background: var(--w-warn-soft);
-  }
-
-  .w-editor-status.is-error {
-    background: var(--w-error-soft);
-  }
-
-  .w-toggle {
-    display: inline-flex;
-    padding: 2px;
-    border: 1px solid var(--w-line);
-    border-radius: 7px;
-    background: var(--w-well);
-  }
-
-  .w-toggle button {
-    padding: 3px 10px;
-    border: none;
-    border-radius: 5px;
-    background: none;
-    color: var(--w-subtle);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .w-toggle button[aria-pressed='true'] {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--w-text);
-  }
-
-  .w-toggle button:disabled {
-    cursor: default;
-    opacity: 0.5;
-  }
-
-  /* The bar at the bottom: the price, always visible, and the one action. */
-  .w-footer {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 25;
-    border-top: 1px solid var(--w-line);
-    background: color-mix(in srgb, rgb(24, 30, 30) 92%, transparent);
-    backdrop-filter: blur(12px);
-    animation: w-footer-in 420ms var(--w-ease);
-  }
-
-  .w-footer-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    max-width: 1200px;
-    min-height: var(--w-footer-height);
-    margin: 0 auto;
-    padding: 12px 28px;
-  }
-
-  .w-price {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  .w-price-value {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    color: var(--w-text);
-    font-size: 22px;
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-  }
-
-  .w-price-value small {
-    color: var(--w-muted);
-    font-size: 13px;
-    font-weight: 500;
-    letter-spacing: 0;
-  }
-
-  .w-price-value.is-changed {
-    animation: w-glow 900ms var(--w-ease);
-  }
-
-  .w-price-note {
-    color: var(--w-subtle);
-    font-size: 12px;
-  }
-
-  .w-footer-actions {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .w-footer-hint {
-    color: var(--w-subtle);
-    font-size: 12.5px;
-    text-align: right;
   }
 
   /* ── Readiness rows (Deploy) ───────────────────────────────────────────────────────────────── */
@@ -1715,22 +1105,6 @@
   }
 
   /* Old names other screens still print. */
-  .w-note {
-    display: flex;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: var(--w-radius-small);
-    background: var(--w-well);
-    color: var(--w-muted);
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .w-note svg {
-    flex: none;
-    margin-top: 3px;
-    color: var(--w-subtle);
-  }
 
   .w-log {
     max-height: 320px;
@@ -2097,8 +1471,7 @@
     white-space: nowrap;
   }
 
-  .w-next-row h3,
-  .wizard-row-title {
+  .w-next-row h3 {
     margin: 0;
     color: var(--w-text);
     font-size: 14px;
@@ -2106,9 +1479,7 @@
     line-height: 20px;
   }
 
-  .w-next-row p,
-  .wizard-row-text,
-  .wizard-console-note {
+  .w-next-row p {
     margin: 2px 0 0;
     color: var(--w-muted);
     font-size: 13px;
@@ -2130,11 +1501,6 @@
   }
 
   /* The Console offer and its sign-in, inside a next-step row. */
-  .wizard-console {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
 
   .wizard-code {
     padding: 1px 5px;
@@ -2175,29 +1541,6 @@
     border-radius: 50%;
     background: var(--w-ok-soft);
     color: var(--w-ok);
-  }
-
-  .wizard-rows {
-    display: flex;
-    flex-direction: column;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .wizard-row-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .wizard-row-body {
-    margin-top: 10px;
-  }
-
-  .wizard-row-action {
-    flex: none;
   }
 
   .wizard-signin {
@@ -2281,72 +1624,6 @@
     margin-top: 24px;
   }
 
-  .w-options-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .w-option {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 16px;
-  }
-
-  .w-option h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 20px;
-  }
-
-  .w-option p {
-    margin: 0;
-    color: var(--w-muted);
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .w-list-rows {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .w-list-row {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px 20px;
-  }
-
-  .w-list-row + .w-list-row {
-    border-top: 1px solid var(--w-line);
-  }
-
-  .w-list-row-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .w-list-row-head h3 {
-    margin: 0;
-    color: var(--w-text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 20px;
-  }
-
-  .w-list-row-head p {
-    margin: 0;
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
   .w-section {
     margin-top: 36px;
   }
@@ -2355,38 +1632,7 @@
     margin-top: 0;
   }
 
-  .w-section-head {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-
-  .w-section-head .w-section-title {
-    margin: 0;
-  }
-
   /* Superseded by the failure rows above; the analysis failure in AnalyzeStep still prints these. */
-  .w-failure {
-    padding: 24px;
-  }
-
-  .w-failure-grid {
-    display: grid;
-    grid-template-columns: 120px minmax(0, 1fr);
-    gap: 14px 20px;
-    margin: 0;
-  }
-
-  .w-failure-grid dt {
-    color: var(--w-subtle);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .w-failure-grid dd {
-    margin: 0;
-  }
 
   /* ── Motion ────────────────────────────────────────────────────────────────────────────────── */
 
@@ -2486,34 +1732,6 @@
 
   @media (max-width: 1020px) {
     /* One column: the settings come right after the picture, before the list and the file. */
-    .w-review-main {
-      display: contents;
-    }
-
-    .w-review > .w-side {
-      order: 3;
-    }
-
-    .w-review-main > :first-child {
-      order: 1;
-    }
-
-    .w-review-main > :nth-child(2) {
-      order: 2;
-    }
-
-    .w-review-main > :nth-child(3) {
-      order: 4;
-    }
-
-    .w-review,
-    .w-analyze {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .w-side {
-      position: static;
-    }
 
     .w-top-side {
       display: none;
@@ -2535,6 +1753,10 @@
       min-height: calc(100dvh - var(--w-header-h));
     }
 
+    .w-main.is-workspace:has(.w-bar) {
+      padding-bottom: calc(var(--w-bar-h) + var(--w-gap));
+    }
+
     .w-workspace {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -2552,7 +1774,6 @@
   @media (max-width: 760px) {
     :root {
       --w-gutter: 16px;
-      --w-header-h: 52px;
     }
 
     .w-top-inner {
@@ -2579,10 +1800,6 @@
       padding-top: 28px;
     }
 
-    .w-main.is-wide {
-      padding: 28px 16px 160px;
-    }
-
     .w-title {
       font-size: 24px;
       line-height: 30px;
@@ -2606,6 +1823,11 @@
 
     .w-main.is-form:has(.w-bar) {
       padding-bottom: calc(var(--w-bar-h) + 120px);
+    }
+
+    /* The bar takes two lines here. */
+    .w-main.is-workspace:has(.w-bar) {
+      padding-bottom: calc(var(--w-bar-h) + 56px);
     }
 
     .w-fact {
@@ -2679,48 +1901,6 @@
       padding: 14px 16px;
     }
 
-    .w-options-grid {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
     /* Review's own narrow rules, kept as they were. */
-    .w-price-note {
-      display: none;
-    }
-
-    .w-diagram {
-      height: 320px;
-    }
-
-    .w-resource-head {
-      grid-template-columns: 30px minmax(0, 1fr) auto;
-      gap: 10px;
-      padding: 12px 14px;
-    }
-
-    .w-resource-head .w-chevron {
-      display: none;
-    }
-
-    .w-resource-body {
-      padding: 0 14px 14px;
-    }
-
-    .w-footer-inner {
-      padding: 10px 16px;
-      gap: 12px;
-    }
-
-    .w-footer-hint {
-      display: none;
-    }
-
-    .w-price-value {
-      font-size: 18px;
-    }
-
-    .w-editor-frame {
-      height: 380px;
-    }
   }
 }

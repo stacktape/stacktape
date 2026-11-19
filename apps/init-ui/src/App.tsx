@@ -15,7 +15,7 @@ import { Workspace } from './workspace/Workspace';
 
 type Screen = 'start' | 'analyze' | 'analyze-failed' | 'empty' | 'review' | 'deploy' | 'deploying' | 'live' | 'failed';
 
-type Layout = 'form' | 'wide' | 'workspace';
+type Layout = 'form' | 'workspace';
 
 /** Which of Review and Deploy the user is on, and whether a deploy's progress or result is in front. */
 type View = 'review' | 'deploy' | 'run';
@@ -37,7 +37,8 @@ const pathFor = (screen: Screen, onReview: () => void): PathStep[] => {
     start: [0, 'current'],
     analyze: [0, 'working'],
     'analyze-failed': [0, 'failed'],
-    empty: [1, 'current'],
+    // Nothing to review: the folder is the result of Analyze, and the way on is another folder.
+    empty: [0, 'current'],
     review: [1, 'current'],
     deploy: [2, 'current'],
     deploying: [2, 'working'],
@@ -56,15 +57,15 @@ const pathFor = (screen: Screen, onReview: () => void): PathStep[] => {
 };
 
 /**
- * How each screen sits under the header. Start, Deploy, Live and the failures are one centred column; Deploying is the
- * two-pane workspace. Analyze and Review keep their own wide page until they become one workspace screen.
+ * How each screen sits under the header. Start, Deploy, Live and the failures are one centred column; Analyze, Review
+ * and Deploying are the two-pane workspace that fills the window.
  */
 const LAYOUT: Record<Screen, Layout> = {
   start: 'form',
-  analyze: 'wide',
+  analyze: 'workspace',
   'analyze-failed': 'form',
   empty: 'form',
-  review: 'wide',
+  review: 'workspace',
   deploy: 'form',
   deploying: 'workspace',
   live: 'form',

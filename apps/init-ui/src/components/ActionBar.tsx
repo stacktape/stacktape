@@ -1,4 +1,7 @@
 import type { ReactNode } from 'react';
+import type { WizardState } from '../session';
+import { splitMonthly } from '../steps/review-model';
+import { AnimatedPrice } from './AnimatedPrice';
 import { InfoTip } from './InfoTip';
 
 /**
@@ -22,7 +25,8 @@ export function ActionBar({ price, note, children }: { price?: ReactNode; note?:
 }
 
 /**
- * The price as the bar shows it: "$31 /month + usage", with what the estimate covers behind the help mark.
+ * The price as the bar shows it: "$31 /month + usage", with what the estimate covers behind the help mark. A new
+ * amount counts to its value, so a setting's effect on the price is seen.
  *
  * `amount` is undefined while there is no estimate; `pending` then says whether one is still coming.
  */
@@ -32,7 +36,7 @@ export function BarPrice({
   help,
   pending = false
 }: {
-  amount: ReactNode | undefined;
+  amount: string | undefined;
   suffix?: string | undefined;
   help?: ReactNode;
   pending?: boolean;
@@ -46,9 +50,29 @@ export function BarPrice({
   }
   return (
     <span aria-live="polite" className="w-bar-amount">
-      {amount}
-      {suffix !== undefined && <small>{suffix}</small>}
+      <AnimatedPrice className="w-bar-figure" text={suffix === undefined ? amount : `${amount} ${suffix}`} />
       {help !== undefined && <InfoTip about="the price">{help}</InfoTip>}
     </span>
+  );
+}
+
+/** The bar's price for this session's file: the fixed monthly amount, and what the estimate covers. */
+export function MonthlyPrice({ state }: { state: WizardState }) {
+  const price = state.composition?.price;
+  if (price === undefined) {
+    return <BarPrice amount={undefined} pending={state.composition?.priceUnavailable !== true} />;
+  }
+  const { amount, usage } = splitMonthly(price.monthly);
+  return (
+    <BarPrice
+      amount={amount ?? price.monthly}
+      help={
+        <>
+          AWS list prices in {price.region}, for what runs all month.
+          {usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
+        </>
+      }
+      suffix={amount === undefined ? undefined : `/month${usage ? ' + usage' : ''}`}
+    />
   );
 }

@@ -11,12 +11,12 @@ import { Tabs } from '@stacktape/ui-react/tabs';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { BiInfoCircle } from 'react-icons/bi';
-import { AnimatedPrice } from '../components/AnimatedPrice';
+import { InfoTip } from '../components/InfoTip';
 import { RegionPicker } from '../components/RegionPicker';
 import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
 import { quoteLabel, type ResourceStory } from '../workspace/resource-story';
-import { deploymentPreferenceKeysFor, plainList, splitMonthly, summarise } from './review-model';
+import { deploymentPreferenceKeysFor, plainList, summarise } from './review-model';
 
 /** Whether a media query matches now, following changes. */
 const useMediaQuery = (query: string): boolean => {
@@ -144,7 +144,7 @@ export function ReviewPane({
   onDiscardEdits: () => void;
 }) {
   const existing = state.facts?.existingDeployments ?? [];
-  const isNarrow = useMediaQuery('(max-width: 900px)');
+  const isTouch = useMediaQuery('(hover: none)');
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
   const opened = new Set(
     state.timeline
@@ -190,7 +190,7 @@ export function ReviewPane({
             ariaLabel="Diagram of what stacktape.yml creates on AWS"
             config={{ resources } as unknown as StacktapeConfig}
             hint={
-              isNarrow
+              isTouch
                 ? 'Tap a resource to find it in stacktape.yml'
                 : 'Hover for why it is here · click to find it in stacktape.yml'
             }
@@ -249,22 +249,12 @@ export function ResourceCard({ story }: { story: ResourceStory }) {
   );
 }
 
-function InfoTip({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Tooltip content={children} maxWidth={300} placement="top">
-      <button aria-label={`About ${label}`} className="ws-info" type="button">
-        <BiInfoCircle aria-hidden size={14} />
-      </button>
-    </Tooltip>
-  );
-}
-
 function SettingRow({ label, about, children }: { label: string; about: ReactNode; children: ReactNode }) {
   return (
     <div className="ws-setting">
       <div className="ws-setting-label">
         <span>{label}</span>
-        <InfoTip label={label}>{about}</InfoTip>
+        <InfoTip about={label.toLowerCase()}>{about}</InfoTip>
       </div>
       <div className="ws-setting-control">{children}</div>
     </div>
@@ -439,39 +429,5 @@ function Settings({
         );
       })}
     </section>
-  );
-}
-
-/** The fixed monthly price, counting when it changes, with its terms in one line. */
-export function PriceSummary({ state }: { state: WizardState }) {
-  const price = state.composition?.price;
-  if (price === undefined) {
-    return (
-      <div className="w-price">
-        <span className="w-price-value">
-          {state.composition?.priceUnavailable === true ? (
-            <span className="text-[15px] text-[var(--w-muted)]">Price unavailable offline</span>
-          ) : (
-            <span className="flex items-center gap-2 text-[15px] text-[var(--w-muted)]">
-              <Spinner /> Pricing…
-            </span>
-          )}
-        </span>
-        <span className="w-price-note">Nothing else depends on the estimate.</span>
-      </div>
-    );
-  }
-  const { amount, usage } = splitMonthly(price.monthly);
-  return (
-    <div aria-live="polite" className="w-price">
-      {amount === undefined ? (
-        <span className="w-price-value">{price.monthly}</span>
-      ) : (
-        <AnimatedPrice className="w-price-value" text={`${amount} /month${usage ? ' + usage' : ''}`} />
-      )}
-      <span className="w-price-note">
-        {usage ? 'Traffic and requests billed by use · ' : ''}AWS list prices, {price.region}
-      </span>
-    </div>
   );
 }

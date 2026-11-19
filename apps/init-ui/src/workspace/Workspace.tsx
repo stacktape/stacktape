@@ -3,15 +3,13 @@ import { Button } from '@stacktape/ui-react/button';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
-import { Tooltip } from '@stacktape/ui-react/tooltip';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BiInfoCircle, BiKey, BiLinkExternal } from 'react-icons/bi';
+import { BiKey, BiLinkExternal } from 'react-icons/bi';
 import { parse as parseYaml } from 'yaml';
-import { ActionBar } from '../components/ActionBar';
+import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { AnimatedPrice } from '../components/AnimatedPrice';
 import type { ConfigEditorHandle, EditorLens, EditorProblems } from '../editor/ConfigFileEditor';
 import type { FileView, Session, WizardState } from '../session';
-import { scanActivity } from '../steps/AnalyzeStep';
 import { ReviewPane } from '../steps/ReviewStep';
 import { filenameFor, splitMonthly } from '../steps/review-model';
 import { CodeWindow } from './CodeWindow';
@@ -27,6 +25,7 @@ import {
   type RevealPlan,
   type ResourceStory
 } from './resource-story';
+import { scanActivity } from './scan-activity';
 import './workspace.css';
 
 const ConfigFileEditor = lazy(() => import('../editor/ConfigFileEditor'));
@@ -651,7 +650,7 @@ export function Workspace({
         <div className="ws-bar-slot" data-arrived={arrived ? 'true' : undefined}>
           <ActionBar
             note={parseError !== undefined ? 'Fix the YAML to continue.' : `Saves ${filename}`}
-            price={<BarPrice state={state} />}
+            price={<MonthlyPrice state={state} />}
           >
             <Button
               disabled={isLocked || parseError !== undefined || busy !== undefined}
@@ -798,49 +797,6 @@ function EvidencePeek({
       )}
       {story.reason !== undefined && <p className="ws-peek-reason">{story.reason}</p>}
     </div>
-  );
-}
-
-function BarPrice({ state }: { state: WizardState }) {
-  const price = state.composition?.price;
-  if (price === undefined) {
-    return (
-      <span className="ws-bar-price is-pending">
-        {state.composition?.priceUnavailable === true ? (
-          'Price unavailable offline'
-        ) : (
-          <>
-            <Spinner /> Pricing…
-          </>
-        )}
-      </span>
-    );
-  }
-  const { amount, usage } = splitMonthly(price.monthly);
-  return (
-    <span aria-live="polite" className="ws-bar-price">
-      {amount === undefined ? (
-        <span className="ws-bar-amount">{price.monthly}</span>
-      ) : (
-        <AnimatedPrice className="ws-bar-amount" text={`${amount} /month${usage ? ' + usage' : ''}`} />
-      )}
-      <Tooltip
-        content={
-          <>
-            {usage
-              ? 'The fixed part runs whether or not anyone uses the app. Usage is traffic and requests, billed by AWS as they happen. '
-              : 'Everything here runs at a fixed monthly price. '}
-            AWS list prices for {price.region}, billed by AWS to your account.
-          </>
-        }
-        maxWidth={300}
-        placement="top"
-      >
-        <button aria-label="What the price includes" className="ws-info" type="button">
-          <BiInfoCircle aria-hidden size={15} />
-        </button>
-      </Tooltip>
-    </span>
   );
 }
 

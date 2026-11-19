@@ -8,7 +8,7 @@ import { TextField } from '@stacktape/ui-react/text-field';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { BiCheck, BiLinkExternal } from 'react-icons/bi';
-import { ActionBar, BarPrice } from '../components/ActionBar';
+import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { CopyableCommand } from '../components/CopyableCommand';
 import { FailureExplanationText } from '../components/FailureExplanation';
 import { InfoTip } from '../components/InfoTip';
@@ -19,7 +19,6 @@ import { secretCommand, stackCommand } from '../deploy-commands';
 import { gapsToList } from '../gaps';
 import type { WizardState } from '../session';
 import { blockedTargetCopy, stackStatusWords } from '../target-copy';
-import { splitMonthly } from './review-model';
 
 type Expectation = { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
 
@@ -45,27 +44,6 @@ const identityName = (arn: string) =>
     .split(':')
     .at(-1)
     ?.replace(/^(user|assumed-role)\//, '') ?? arn;
-
-/** The bar's price: the fixed monthly amount, and what the estimate covers behind the help mark. */
-export function DeployPrice({ state }: { state: WizardState }) {
-  const price = state.composition?.price;
-  if (price === undefined) {
-    return <BarPrice amount={undefined} pending={state.composition?.priceUnavailable !== true} />;
-  }
-  const { amount, usage } = splitMonthly(price.monthly);
-  return (
-    <BarPrice
-      amount={amount ?? price.monthly}
-      help={
-        <>
-          AWS list prices in {price.region}, for what runs all month.
-          {usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
-        </>
-      }
-      suffix={amount === undefined ? undefined : `/month${usage ? ' + usage' : ''}`}
-    />
-  );
-}
 
 /**
  * The Deploy step: a readiness list that is honest about what is missing, then one button in the bottom bar.
@@ -434,7 +412,7 @@ export function DeployStep({
         note={
           ready ? `About ${estimate}. AWS bills the resources from then on.` : `Still needed: ${blockers.join(', ')}.`
         }
-        price={<DeployPrice state={state} />}
+        price={<MonthlyPrice state={state} />}
       >
         <Button
           className="w-big"
