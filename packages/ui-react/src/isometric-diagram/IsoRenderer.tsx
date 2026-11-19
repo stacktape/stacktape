@@ -568,7 +568,7 @@ type TooltipContent = {
 };
 
 /** Pointer position in viewport coordinates: the tooltip is rendered outside the diagram's box. */
-type TooltipState = TooltipContent & { x: number; y: number };
+type TooltipState = TooltipContent & { x: number; y: number; custom?: ReactNode };
 
 /** Clear of the pointer, and clear of the window's edges. */
 const TOOLTIP_OFFSET = 16;
@@ -630,6 +630,13 @@ export type DiagramViewProps = {
   resourceProgress?: Readonly<Record<string, 'pending' | 'creating' | 'ready'>> | undefined;
   /** Replaces the usage hint at the bottom of the frame. */
   hint?: string | undefined;
+  /**
+   * The host's own words for a declared resource's hover card, by its name, in place of the diagram's. Return
+   * `undefined` to keep the diagram's own card for that resource.
+   */
+  resourceTooltip?: ((resourceName: string) => ReactNode | undefined) | undefined;
+  /** Offer the "Find resource" box. On by default; a small picture with a handful of resources can do without it. */
+  searchable?: boolean | undefined;
 };
 
 export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
@@ -683,6 +690,8 @@ export function IsoRenderer({
   selectedResource,
   resourceProgress,
   hint = 'Hover to learn what something does · click a resource for its connections',
+  resourceTooltip,
+  searchable = true,
   onToggleGroup,
   toolbar,
   viewNote
@@ -721,7 +730,7 @@ export function IsoRenderer({
   /** Set when a press ended as a drag, so the click that follows it does not select anything. */
   const suppressClick = useRef(false);
 
-  const moveTooltip = useCallback((e: ReactPointerEvent, content: TooltipContent) => {
+  const moveTooltip = useCallback((e: ReactPointerEvent, content: TooltipContent & { custom?: ReactNode }) => {
     setTooltip({ x: e.clientX, y: e.clientY, ...content });
   }, []);
 
@@ -1306,7 +1315,9 @@ export function IsoRenderer({
               onPointerMove={(e) => {
                 if (isDragging) return;
                 e.stopPropagation();
+                const custom = n.isImplicit || n.memberCount ? undefined : resourceTooltip?.(n.id);
                 moveTooltip(e, {
+                  ...(custom === undefined ? {} : { custom }),
                   title: n.label,
                   subtitle: [n.typeName || n.typeLabel || n.resourceType, n.isImplicit ? 'created automatically' : null]
                     .filter(Boolean)
@@ -1356,36 +1367,43 @@ export function IsoRenderer({
             ref={tooltipRef}
             style={{ left: tooltip.x + TOOLTIP_OFFSET, top: tooltip.y + TOOLTIP_OFFSET }}
           >
-            <div className="stp-diagram__tooltip-heading">
-              <p className="stp-diagram__tooltip-title">{tooltip.title}</p>
-              {tooltip.subtitle && <p className="stp-diagram__tooltip-subtitle">{tooltip.subtitle}</p>}
-            </div>
-            {tooltip.status && tooltip.status.length > 0 && (
-              <ul className="stp-diagram__tooltip-status">
-                {tooltip.status.map((status, index) => (
-                  <li key={index} data-tone={status.tone}>
-                    <ToneIconInline tone={status.tone} />
-                    <span>
-                      <strong>{status.text}</strong>
-                      {status.detail && <span className="stp-diagram__tooltip-status-detail"> {status.detail}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
-            {tooltip.facts && tooltip.facts.length > 0 && (
-              <ul className="stp-diagram__tooltip-facts">
-                {tooltip.facts.map((fact) => (
-                  <li key={fact}>{fact}</li>
-                ))}
-              </ul>
-            )}
-            {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
-            {tooltip.note && (
-              <p className="stp-diagram__tooltip-note" data-alert={tooltip.noteAlert || undefined}>
-                {tooltip.note}
-              </p>
+            {tooltip.custom}
+            {tooltip.custom === undefined && (
+              <>
+                <div className="stp-diagram__tooltip-heading">
+                  <p className="stp-diagram__tooltip-title">{tooltip.title}</p>
+                  {tooltip.subtitle && <p className="stp-diagram__tooltip-subtitle">{tooltip.subtitle}</p>}
+                </div>
+                {tooltip.status && tooltip.status.length > 0 && (
+                  <ul className="stp-diagram__tooltip-status">
+                    {tooltip.status.map((status, index) => (
+                      <li key={index} data-tone={status.tone}>
+                        <ToneIconInline tone={status.tone} />
+                        <span>
+                          <strong>{status.text}</strong>
+                          {status.detail && (
+                            <span className="stp-diagram__tooltip-status-detail"> {status.detail}</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
+                {tooltip.facts && tooltip.facts.length > 0 && (
+                  <ul className="stp-diagram__tooltip-facts">
+                    {tooltip.facts.map((fact) => (
+                      <li key={fact}>{fact}</li>
+                    ))}
+                  </ul>
+                )}
+                {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
+                {tooltip.note && (
+                  <p className="stp-diagram__tooltip-note" data-alert={tooltip.noteAlert || undefined}>
+                    {tooltip.note}
+                  </p>
+                )}
+              </>
             )}
           </div>,
           document.body
@@ -1395,18 +1413,20 @@ export function IsoRenderer({
         : !tooltip && !selectedNode && !selectedGroup && <p className="stp-diagram__hint">{hint}</p>}
       <div className="stp-diagram__toolbar stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
         {toolbar}
-        <label className="stp-diagram__find">
-          <BiSearch aria-hidden="true" size={15} />
-          <input
-            type="search"
-            value={query}
-            placeholder="Find resource"
-            aria-label="Find resource"
-            spellCheck={false}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={onSearchKeyDown}
-          />
-        </label>
+        {searchable && (
+          <label className="stp-diagram__find">
+            <BiSearch aria-hidden="true" size={15} />
+            <input
+              type="search"
+              value={query}
+              placeholder="Find resource"
+              aria-label="Find resource"
+              spellCheck={false}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKeyDown}
+            />
+          </label>
+        )}
         {isSearching && (
           <p className="stp-diagram__find-count" aria-live="polite">
             {matches.size === 0 ? 'No match' : `${matches.size} ${matches.size === 1 ? 'match' : 'matches'}`}

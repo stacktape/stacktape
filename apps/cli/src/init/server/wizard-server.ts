@@ -17,6 +17,7 @@ import type { ServicePreflightResult } from '../preflight/preflight';
 import { AddressInfo, type Socket } from 'node:net';
 import { extname, join, normalize } from 'node:path';
 import type { DeployTargetObservation } from '../deploy/stack-expectation';
+import type { FileView } from './file-view';
 import {
   isDeploymentPreferenceChange,
   type DeploymentPreferenceChange,
@@ -327,6 +328,11 @@ export type WizardServerHooks = {
   onSecretsConfirmed?: () => Promise<WizardState> | WizardState;
   /** Saves pasted AWS access keys as a profile on this machine, then checks the identity again. */
   onAwsKeys?: (input: { accessKeyId: string; secretAccessKey: string }) => Promise<WizardState> | WizardState;
+  /**
+   * The text of a repository file this session has seen (see `file-view.ts`), for the page's code window. Absent when
+   * the session has no repository on disk to read.
+   */
+  onFile?: (path: string) => Promise<FileView>;
 };
 
 const json = (response: ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) => {
@@ -613,6 +619,22 @@ export const startWizardServer = async ({
       // Resuming an established session. The handshake token is single-use, so a page reload — which
       // is an entirely ordinary thing to do — has no token to present and must be able to continue
       // on the cookie alone. Without this, opening the wizard and pressing F5 ends the session.
+      // Repository content: same cookie as every route, and the CSRF token as well, although it only reads. Which files
+      // it may return is decided by `file-view.ts`, not by what the request asks for.
+      if (url.pathname === '/api/file' && request.method === 'GET' && hooks.onFile !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        const path = url.searchParams.get('path');
+        if (path === null || path.length === 0 || path.length > 1024) {
+          json(response, 400, { error: 'Expected a file path.' });
+          return;
+        }
+        json(response, 200, await hooks.onFile(path));
+        return;
+      }
+
       if (url.pathname === '/api/session' && request.method === 'GET') {
         json(response, 200, { csrfToken: secrets.csrfToken, state });
         return;

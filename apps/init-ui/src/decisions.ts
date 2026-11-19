@@ -15,7 +15,9 @@
  */
 
 export type DecisionCopy = {
-  /** What we did, as a statement. Shown as the headline of the row. */
+  /** The row's name in the settings list: a few words, the same whatever was chosen. */
+  label: (parameters: Record<string, unknown>) => string;
+  /** What we did, as a statement. */
   summary: (parameters: Record<string, unknown>, chosen: string) => string;
   /** Why, and what it means for them. One sentence, no jargon. */
   detail: (parameters: Record<string, unknown>, chosen: string) => string;
@@ -76,6 +78,7 @@ const dependencyName = (parameters: Record<string, unknown>): string => {
 
 export const DECISION_COPY: Record<string, DecisionCopy> = {
   'external-database-disposition': {
+    label: (parameters) => `Existing ${dependencyName(parameters)}`,
     summary: (parameters, chosen) =>
       chosen === 'point-at-existing'
         ? text(parameters, 'basis') === 'deployment-manifest'
@@ -101,6 +104,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'sqlite-persistence': {
+    label: () => 'SQLite file',
     summary: (_parameters, chosen) =>
       chosen === 'accept-ephemeral'
         ? 'Starting your SQLite file empty on every deploy'
@@ -118,6 +122,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'local-filesystem-writes': {
+    label: () => 'Uploaded files',
     summary: () => 'Putting uploaded files in storage instead of on disk',
     detail: (parameters) =>
       `${text(parameters, 'serviceName', 'Your app')} saves files next to itself. On AWS the app is replaced on every deploy and those files go with it, so they go to a storage bucket instead.`,
@@ -136,6 +141,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'database-engine-ambiguous': {
+    label: () => 'Database',
     summary: (_parameters, chosen) => `Using ${ENGINE_LABELS[chosen] ?? chosen}`,
     detail: (parameters) =>
       `Your code reads ${text(parameters, 'environmentVariableName', 'a database URL')} but never says which database is behind it. This is the one almost everything uses.`,
@@ -143,6 +149,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'command-unknown': {
+    label: () => 'Start command',
     summary: (parameters, chosen) =>
       `Starting ${text(parameters, 'serviceName', 'your app')} with ${text({ chosen }, 'chosen', chosen)}`,
     detail: () => 'This is the command that runs your app. If you start it differently, change it here.',
@@ -150,6 +157,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'dockerfile-ownership': {
+    label: (parameters) => `Build ${text(parameters, 'serviceName', 'the app')}`,
     summary: (parameters, chosen) =>
       chosen === 'stacktape-packaging'
         ? `Packaging ${text(parameters, 'serviceName', 'your app')} with Stacktape instead of the Dockerfile`
@@ -160,6 +168,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'schedule-unknown': {
+    label: (parameters) => `${text(parameters, 'serviceName', 'Job')} schedule`,
     summary: (parameters, chosen) =>
       chosen === 'none'
         ? `No schedule for ${text(parameters, 'serviceName', 'this job')} yet`
@@ -172,6 +181,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'environment-variable-timing': {
+    label: (parameters) => text(parameters, 'environmentVariableName', 'A setting'),
     summary: (parameters, chosen) =>
       chosen === 'build-time'
         ? `Baking ${text(parameters, 'environmentVariableName', 'a value')} in when your app is built`
@@ -188,6 +198,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'cross-service-target-unknown': {
+    label: (parameters) => text(parameters, 'environmentVariableName', 'Address'),
     summary: (parameters, chosen) =>
       `Pointing ${text(parameters, 'environmentVariableName', 'this address')} at ${chosen}`,
     detail: () => 'The real address does not exist until it is deployed, so we fill it in for you at that point.',
@@ -195,6 +206,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'migration-timing-unknown': {
+    label: () => 'Migrations',
     summary: (_parameters, chosen) =>
       chosen === 'deploy-hook'
         ? 'Running your database migrations on every deploy'
@@ -212,6 +224,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'service-deployment-intent': {
+    label: (parameters) => text(parameters, 'serviceName', 'Service'),
     summary: (parameters, chosen) =>
       chosen === 'deploy'
         ? `Deploying ${text(parameters, 'serviceName', 'this')}`
@@ -221,6 +234,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'unconfirmed-claim': {
+    label: (parameters) => text(parameters, 'claimedValue', 'Found'),
     summary: (parameters) => `Including ${text(parameters, 'claimedValue', 'this')}`,
     detail: (parameters) =>
       `We are fairly sure your project uses ${text(parameters, 'claimedValue', 'this')}, but could not point at a line that proves it. Leaving it in costs a little if we are wrong; taking it out breaks your app if we are right.`,
@@ -229,6 +243,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'conflicting-observation': {
+    label: (parameters) => text(parameters, 'field', 'Setting'),
     summary: (parameters, chosen) =>
       `Using ${chosen === 'probe' ? text(parameters, 'probeValue', 'the scanned value') : text(parameters, 'agentValue', 'the reviewed value')} for ${text(parameters, 'field', 'one setting')}`,
     detail: (parameters) =>
@@ -242,6 +257,7 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'stage-intent': {
+    label: () => 'Environment',
     summary: () => 'Set up as one environment you can throw away',
     detail: () => 'You can add more environments later; each one is completely separate.',
     option: (value) => (value === 'trial' ? 'Just trying it out' : 'This is production')

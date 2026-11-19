@@ -449,6 +449,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
   const session = await startWizardSession({
     projectName,
     repositoryPath: repositoryRoot,
+    repositoryRoot,
     ...(existingConfig === undefined ? {} : { existingConfig }),
     ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
     consoleUrl: new URL(stacktapeConsoleUrl()).origin,

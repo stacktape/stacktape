@@ -124,3 +124,40 @@ describe('runAgentSessionWithRetry', () => {
     expect(outcome.stopReason).toBe('error');
   });
 });
+
+describe('streaming tool calls', () => {
+  it('reports each tool call while the agent runs, and once only', async () => {
+    const { events, hooks } = collectEvents();
+    const toolUse = (path: string) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', name: 'mcp__stacktape_init__read_file', input: { path } }] }
+      });
+    let seenWhileRunning: AgentEvent[] = [];
+
+    await runAgentSessionWithRetry(input(), hooks, {
+      provider: 'claude-code',
+      executable: 'claude',
+      retryDelaysMs: [],
+      spawner: async ({ args, onStdoutLine }) => {
+        onStdoutLine?.(toolUse('package.json'));
+        onStdoutLine?.(toolUse('lib/db.ts'));
+        seenWhileRunning = [...events];
+        const config = JSON.parse(await readFile(args[args.indexOf('--mcp-config') + 1]!, 'utf8'));
+        await writeFile(
+          config.mcpServers.stacktape_init.env[initSessionEnvVars.submissionFile],
+          JSON.stringify(validSubmission),
+          'utf8'
+        );
+        const result = claudeResult();
+        return { ...result, stdout: [toolUse('package.json'), toolUse('lib/db.ts'), result.stdout].join('\n') };
+      }
+    });
+
+    expect(seenWhileRunning.filter((event) => event.type === 'tool-call')).toHaveLength(2);
+    expect(events.filter((event) => event.type === 'tool-call')).toEqual([
+      { type: 'tool-call', name: 'read_file', summary: 'package.json' },
+      { type: 'tool-call', name: 'read_file', summary: 'lib/db.ts' }
+    ]);
+  });
+});

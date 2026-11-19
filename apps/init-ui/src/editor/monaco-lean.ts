@@ -4,7 +4,8 @@
  *
  * `monaco-editor`'s own entry registers every language and ships five language workers (TypeScript alone is 7 MB), all
  * embedded in each CLI release. This is that entry's list of editor features without the languages. Regenerate it
- * from `monaco-editor/esm/vs/editor/editor.main.js` when Monaco is upgraded.
+ * from `monaco-editor/esm/vs/editor/editor.main.js` when Monaco is upgraded. The API itself is imported from
+ * `monaco-editor/editor/editor.api.js` by `monaco-setup.ts`, after this module has registered the features.
  */
 /* oxlint-disable import/no-unassigned-import -- each import registers an editor feature with Monaco. */
 import 'monaco-esm/editor/contrib/anchorSelect/browser/anchorSelect.js';
@@ -83,5 +84,3 @@ import 'monaco-esm/editor/common/standaloneStrings.js';
 import 'monaco-esm/base/browser/ui/codicons/codicon/codicon-modifiers.css';
 import 'monaco-esm/languages/definitions/yaml/register.js';
 import 'monaco-esm/languages/definitions/typescript/register.js';
-
-export * from 'monaco-editor/editor/editor.api.js';

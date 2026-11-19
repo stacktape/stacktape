@@ -178,6 +178,8 @@ export function IsometricDiagram({
   selectedResource,
   resourceProgress,
   hint,
+  resourceTooltip,
+  searchable,
   layers,
   defaultLayers,
   onLayersChange,
@@ -287,6 +289,8 @@ export function IsometricDiagram({
       selectedResource={selectedResource}
       resourceProgress={resourceProgress}
       hint={hint}
+      resourceTooltip={resourceTooltip}
+      searchable={searchable}
       onToggleGroup={toggleGroup}
       toolbar={
         choices.length > 0 ? (

@@ -6,13 +6,12 @@ import { CopyableCommand } from './components/CopyableCommand';
 import { StepPath, type PathStep, type PathStepStatus } from './components/StepPath';
 import { buildDeployModel, type DeployEvent } from './deploy-model';
 import { connect, SessionError, type Session, type WizardState } from './session';
-import { AnalyzeStep } from './steps/AnalyzeStep';
 import { AnalyzeFailedStep } from './steps/AnalyzeFailedStep';
 import { DeployStep } from './steps/DeployStep';
 import { EmptyStep } from './steps/EmptyStep';
-import { ReviewStep } from './steps/ReviewStep';
 import { DeployFailedStep, DeployingStep, LiveStep } from './steps/RunStep';
 import { StartStep } from './steps/StartStep';
+import { Workspace } from './workspace/Workspace';
 
 type Screen = 'start' | 'analyze' | 'analyze-failed' | 'empty' | 'review' | 'deploy' | 'deploying' | 'live' | 'failed';
 
@@ -89,6 +88,8 @@ export function App() {
   const [view, setView] = useState<View>('review');
   const [format, setFormat] = useState<'yaml' | 'typescript'>('yaml');
   const [stage, setStage] = useState('dev');
+  /** The analysis result is still being told on the workspace: the navigation stays on Analyze until it ends. */
+  const [isRevealing, setRevealing] = useState(false);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -230,7 +231,7 @@ export function App() {
     <Frame
       connectionState={connectionState}
       layout={LAYOUT[screen]}
-      path={pathFor(screen, backToReview)}
+      path={pathFor(screen === 'review' && isRevealing ? 'analyze' : screen, backToReview)}
       projectName={state.projectName}
       repositoryPath={state.repositoryPath}
     >
@@ -259,7 +260,6 @@ export function App() {
           state={state}
         />
       )}
-      {screen === 'analyze' && <AnalyzeStep startedAt={startedAt} state={state} />}
       {screen === 'analyze-failed' && (
         <AnalyzeFailedStep
           busy={busy}
@@ -271,8 +271,9 @@ export function App() {
       {screen === 'empty' && (
         <EmptyStep busy={busy} onAnalyzeWithAgent={(agentId) => startAnalysis(agentId, 'default')} state={state} />
       )}
-      {screen === 'review' && (
-        <ReviewStep
+      {(screen === 'analyze' || screen === 'review') && (
+        // One element for both screens: Analyze turns into Review in place.
+        <Workspace
           busy={busy}
           format={format}
           isLocked={isLocked || deploymentStatus === 'running' || deploymentStatus === 'repairing'}
@@ -302,6 +303,9 @@ export function App() {
             )
           }
           onRegion={(region) => void run('region', () => session.setRegion(region), 'That region could not be chosen.')}
+          onRevealing={setRevealing}
+          session={session}
+          startedAt={startedAt}
           state={state}
         />
       )}

@@ -16,11 +16,16 @@ const COMMON_REGIONS: Array<{ id: string; label: string }> = [
 export function RegionPicker({
   value,
   onChange,
-  isDisabled = false
+  isDisabled = false,
+  hideLabel = false,
+  width
 }: {
   value: string;
   onChange: (region: string) => void;
   isDisabled?: boolean;
+  /** For a row that names the setting itself; the select keeps "Region" as its accessible name. */
+  hideLabel?: boolean;
+  width?: string | number;
 }) {
   const isCommon = COMMON_REGIONS.some((region) => region.id === value);
   const options = [
@@ -31,6 +36,8 @@ export function RegionPicker({
   return (
     <Select
       disabled={isDisabled}
+      hideLabel={hideLabel}
+      {...(width === undefined ? {} : { width })}
       label="Region"
       name="region"
       onChange={(selected) => {

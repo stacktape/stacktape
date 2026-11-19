@@ -3,8 +3,6 @@ import type { JSONSchema } from 'monaco-yaml';
 import { configureMonacoYaml } from 'monaco-yaml';
 import { createYamlSchemaAssociations } from './yaml-schema-associations.js';
 
-export { getYamlModelPath } from './yaml-schema-associations.js';
-
 type YamlConfigDiagnostic = Pick<editor.IMarkerData, 'message' | 'severity' | 'startLineNumber' | 'startColumn'>;
 
 export type MonacoYamlModelSettings = {
