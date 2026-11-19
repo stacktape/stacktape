@@ -87,12 +87,26 @@ const sentence = (names: readonly string[]): string =>
 function RunDiagram({
   resources,
   progress,
-  caption
+  caption,
+  services
 }: {
   resources: ConfigResources;
   progress: Record<string, Progress>;
   caption: ReactNode;
+  services: ReadonlyArray<{ name: string; framework?: string; language?: string }>;
 }) {
+  // The same names Review used ("Postgres database"), so the picture does not change its words between steps.
+  // One object per set of names: a new object would lay the picture out again on every progress event.
+  const titleKey = JSON.stringify(
+    Object.entries(resources).map(([name, resource]) => {
+      const part = partName(name, resource, services);
+      return [name, `${part.charAt(0).toUpperCase()}${part.slice(1)}`];
+    })
+  );
+  const titles = useMemo(
+    () => Object.fromEntries(JSON.parse(titleKey) as Array<[string, string]>) as Record<string, string>,
+    [titleKey]
+  );
   return (
     <section aria-label="Diagram" className="w-card w-run-diagram">
       <p className="w-run-parts">{caption}</p>
@@ -110,7 +124,9 @@ function RunDiagram({
           initialZoom={1.1}
           // The same picture as Review, without layer switches.
           layerChoices={[]}
+          bastionTunnels
           resourceProgress={progress}
+          resourceTitles={titles}
           statuses={Object.fromEntries(
             Object.entries(progress).map(([name, value]) => [
               name,
@@ -242,6 +258,7 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
           }
           progress={progress}
           resources={resources}
+          services={state.facts?.services ?? []}
         />
       </div>
 
