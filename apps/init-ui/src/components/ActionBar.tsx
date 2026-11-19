@@ -18,7 +18,10 @@ export function ActionBar({
 }: {
   price?: ReactNode;
   note?: ReactNode;
-  /** `is-blocked`: the action waits for something; on a phone the bar is then one compact row without the price. */
+  /**
+   * `is-blocked`: the action waits for something; on a phone the bar is then one compact row without the price.
+   * `is-ready`: on a phone the note (what the click does) takes its own line above the price and the button.
+   */
   className?: string | undefined;
   children: ReactNode;
 }) {

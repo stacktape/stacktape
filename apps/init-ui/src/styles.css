@@ -868,7 +868,7 @@
 
   .w-check-head {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
     justify-content: space-between;
     gap: 6px 16px;
@@ -1128,6 +1128,7 @@
 
   .w-secret-group-title {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     margin: 0 0 2px;
@@ -1239,15 +1240,15 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 12px;
+    gap: 4px 10px;
     min-height: 36px;
   }
 
   .w-secret-mask {
-    color: var(--w-faint);
+    color: var(--w-subtle);
     font-family: var(--w-mono);
     font-size: 13px;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.04em;
   }
 
   .w-secret-tag {
@@ -2083,7 +2084,6 @@
   }
 
   .w-fail-row dd > .w-link {
-    margin-left: 4px;
     white-space: nowrap;
   }
 
@@ -2426,6 +2426,26 @@
       flex: 1 1 auto;
       order: 0;
       text-align: left;
+    }
+
+    /* Ready: what the click does on its own line, then the price and the button. */
+    .w-bar.is-ready .w-bar-end {
+      display: contents;
+    }
+
+    .w-bar.is-ready .w-bar-note {
+      flex: 1 1 100%;
+      order: -1;
+      text-align: left;
+    }
+
+    .w-bar.is-ready .w-bar-price {
+      flex: 1;
+    }
+
+    /* A section-wide button (Generate all) goes under the title rather than squeezing it. */
+    .w-check-head:has(.w-check-aside .stp-ui-button) {
+      flex-wrap: wrap;
     }
 
     .w-notes {

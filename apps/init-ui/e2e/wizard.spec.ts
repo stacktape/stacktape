@@ -21,10 +21,12 @@ const waitForTarget = async (page: Page) => {
   await expect(page.getByText(/Creates the stack .*\. Nothing is there yet\./)).toBeVisible({ timeout: 10_000 });
 };
 
-/** The migration row holds the deploy until the hook is switched on or skipped on purpose. */
+/** The migration section holds the deploy until one of its two choices is made. */
 const skipMigration = async (page: Page) => {
-  await page.getByRole('button', { name: 'I run them myself' }).click();
+  await page.getByRole('tab', { name: /run it myself/ }).click();
 };
+
+const liveHeading = (page: Page) => page.getByRole('heading', { name: 'Your app is live' });
 
 const deployButton = (page: Page) => page.getByRole('button', { name: /^Deploy to / });
 
@@ -70,7 +72,8 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(page.getByText('Account 4815 1623 4200')).toBeVisible();
   await expect(page.locator('.w-account')).toContainText('us-east-1');
   await expect(deployButton(page)).toBeDisabled();
-  await expect(page.locator('.w-bar')).toContainText('Still needed: the secrets, the database migrations.');
+  // The bar names the next thing to do; the first section that needs it is open.
+  await expect(page.locator('.w-bar')).toContainText('Next: 3 secrets');
   // Review stays one click away in the header while on Deploy.
   await expect(
     page.getByRole('navigation', { name: 'Progress' }).getByRole('button', { name: /Review/ })
@@ -82,17 +85,25 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
     await field.press('Enter');
     await expect(field).toHaveCount(0);
   };
+  // The app's own session key is generated in the page and saved in one click; the value is never shown.
+  const authRow = page.locator('#secret-auth_secret');
+  await authRow.getByRole('button', { name: 'Generate' }).click();
+  await expect(authRow).toContainText('generated');
+  await expect(authRow.getByRole('textbox')).toHaveCount(0);
+  // Third-party keys have no Generate: only the person has them.
+  await expect(page.locator('#secret-stripe_secret_key').getByRole('button', { name: 'Generate' })).toHaveCount(0);
   // One after another, as a person would: each save is its own request to the CLI.
-  await saveSecret('auth_secret');
   await saveSecret('stripe_secret_key');
   await saveSecret('stripe_webhook_secret');
-  await expect(page.locator('.w-saved', { hasText: 'Saved' })).toHaveCount(3);
-  const migration = page.getByRole('switch', { name: 'Run npx drizzle-kit migrate after each deploy' });
-  await migration.click();
-  await expect(migration).toHaveAttribute('aria-checked', 'true');
+  // Done, the section folds to one line and the next one opens.
+  await expect(page.locator('#deploy-secrets')).toContainText('All 3 saved in your AWS account');
+  await page.getByRole('tab', { name: 'Run after every deploy' }).click();
+  await expect(page.locator('#deploy-migrations')).toContainText('Runs npx drizzle-kit migrate after every deploy.');
   await waitForTarget(page);
   await expect(deployButton(page)).toBeEnabled();
-  await expect(page.locator('.w-bar')).toContainText('About 10–15 min.');
+  // Ready, the bar says what the click does.
+  await expect(page.locator('.w-bar')).toContainText('in your AWS account');
+  await expect(page.locator('.w-bar')).toContainText('AWS bills them from now on · about 10–15 min');
 
   await deployButton(page).click();
   await expect(page.getByRole('heading', { name: 'Deploying to dev' })).toBeVisible();
@@ -103,7 +114,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(page.locator('[aria-current="step"]')).toContainText('Deploy');
   wizard.release('deploy');
 
-  await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });
+  await expect(liveHeading(page)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('link', { name: 'Open app' })).toHaveAttribute('href', /stacktape-app\.com/);
   await expect(page.locator('.w-command code').first()).toContainText('--region us-east-1');
   // Deployed signed in: the stage is already in the Console, so the page links there and offers nothing.
@@ -239,19 +250,24 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await page.goto(wizard.url);
   await analyzeAndReview(page);
   await continueToDeploy(page);
-  await expect(page.getByRole('heading', { name: 'Connect an AWS account' })).toBeVisible();
-  const paths = page.getByRole('tablist', { name: 'How you sign in to AWS' });
+  await expect(page.getByRole('heading', { name: /Connect AWS to deploy/ })).toBeVisible();
+  await expect(page.locator('.w-bar')).toContainText('Next: connect AWS');
   // Secrets are saved in the AWS account, so they wait for it.
-  await expect(page.getByText('Connect an AWS account first. Secrets are saved there.')).toBeVisible();
+  await expect(page.locator('#deploy-secrets')).toContainText('Available after AWS is connected');
   await expect(page.getByRole('textbox', { name: 'Value for auth_secret' })).toHaveCount(0);
-  await paths.getByRole('tab', { name: 'AWS SSO' }).click();
+  // The way in is chosen first; no field shows before that.
+  await expect(page.getByRole('textbox', { name: 'Access key ID' })).toHaveCount(0);
+  // The ui-react radio hides its input; the label is what gets clicked.
+  const choosePath = (name: RegExp) => page.locator('label.stp-ui-radio', { hasText: name }).click();
+  await choosePath(/SSO/);
+  await expect(page.getByRole('radio', { name: /SSO/ })).toBeChecked();
   await expect(page.getByText('aws configure sso', { exact: true })).toBeVisible();
-  await paths.getByRole('tab', { name: 'No AWS account yet' }).click();
+  await choosePath(/Create an AWS account/);
   await expect(page.getByRole('link', { name: /Create an AWS account/ })).toHaveAttribute(
     'href',
     /portal\.aws\.amazon\.com/
   );
-  await paths.getByRole('tab', { name: 'Access keys' }).click();
+  await choosePath(/access keys/);
   await page.getByRole('textbox', { name: 'Access key ID' }).fill('AKIAIOSFODNN7EXAMPLE');
   await page.getByRole('textbox', { name: 'Secret access key' }).fill('wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY');
   await page.getByRole('button', { name: 'Save on this machine' }).click();
@@ -292,9 +308,12 @@ test('an empty folder offers app folders below it and starter projects; a failed
   const failing = await startWizard({ project: 'saas-starter', scan: 'fail' });
   await page.goto(failing.url);
   await page.getByRole('button', { name: 'Analyze my project' }).click();
-  await expect(page.getByRole('heading', { name: 'The analysis stopped' })).toBeVisible({ timeout: 15_000 });
+  // The reason leads, and the way that works right now is the primary action.
+  await expect(page.getByRole('heading', { name: 'Claude Code ran out of credit' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(/Credit balance is too low/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Analyze without AI' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Try Claude Code again' })).toBeEnabled();
+  await expect(page.getByText(/exit code/i)).toHaveCount(0);
 });
 
 test('signed out, it deploys without an account, then offers the Console and connects from the card', async ({
@@ -303,14 +322,15 @@ test('signed out, it deploys without an account, then offers the Console and con
 }) => {
   const wizard = await startWizard({ project: 'full-stack-fastapi', account: 'signed-out' });
   await page.goto(wizard.url);
-  await expect(page.getByText(/No account needed\./)).toBeVisible();
+  await expect(page.getByText(/No Stacktape account needed\./)).toBeVisible();
   await analyzeAndReview(page);
   await continueToDeploy(page);
   // Nothing about a Stacktape account before the deploy: it goes to the AWS account of this machine's profile.
   await expect(page.getByText(/Stacktape account/)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
   // A stage name is required; the button says what is missing instead of doing nothing.
-  await page.getByRole('button', { name: 'Change', exact: true }).click();
+  await waitForTarget(page);
+  await page.locator('#deploy-aws').getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('textbox', { name: 'Stage' }).fill('');
   await expect(page.locator('.w-bar')).toContainText('a stage name');
   await expect(deployButton(page)).toBeDisabled();
@@ -318,11 +338,13 @@ test('signed out, it deploys without an account, then offers the Console and con
   await page.getByRole('button', { name: 'I already saved these in AWS' }).click();
   await waitForTarget(page);
   await deployButton(page).click();
-  await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });
+  await expect(liveHeading(page)).toBeVisible({ timeout: 15_000 });
 
   const live = page.getByRole('region', { name: 'Live' });
   await expect(live.getByRole('link', { name: 'Open app' })).toHaveAttribute('href', /cloudfront\.net/);
-  await expect(live).toContainText('fastapi');
+  // Two addresses, each named for what it is.
+  await expect(live).toContainText('Frontend');
+  await expect(live).toContainText('API');
 
   const offer = page.getByRole('region', { name: 'Stacktape Console' });
   await expect(offer).toContainText('Free while your AWS spend stays under $200/month');
@@ -343,7 +365,7 @@ test('a Console connection that fails says why, and "Not now" leaves one quiet l
   await skipMigration(page);
   await waitForTarget(page);
   await deployButton(page).click();
-  await expect(page.getByText('Live on AWS')).toBeVisible({ timeout: 15_000 });
+  await expect(liveHeading(page)).toBeVisible({ timeout: 15_000 });
 
   const offer = page.getByRole('region', { name: 'Stacktape Console' });
   const consoleTab = page.waitForEvent('popup');

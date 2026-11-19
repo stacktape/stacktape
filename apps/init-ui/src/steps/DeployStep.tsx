@@ -557,7 +557,7 @@ export function DeployStep({
       </div>
 
       <ActionBar
-        className={ready ? undefined : 'is-blocked'}
+        className={ready ? 'is-ready' : 'is-blocked'}
         note={
           ready ? (
             <>
@@ -970,7 +970,7 @@ function SecretRow({
             <BiCheck aria-hidden size={16} /> Saved
           </span>
           <span aria-label="Value hidden" className="w-secret-mask">
-            ••••••••••••
+            ••••••••
           </span>
           {isGenerated && (
             <span className="w-secret-tag">
