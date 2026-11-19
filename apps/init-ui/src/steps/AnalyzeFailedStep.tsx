@@ -18,6 +18,12 @@ export const analysisError = (error: string): { said: string; exitCode?: string 
   return { said, ...(exitCode === undefined ? {} : { exitCode }) };
 };
 
+/** Where an agent's credit is topped up: the account behind it, not the tool's name. */
+const CREDIT_ACCOUNT: Readonly<Record<string, string>> = {
+  'claude-code': 'Claude account',
+  codex: 'OpenAI account'
+};
+
 /** The agent's words, ending in a full stop, without the exit code that is in the details. */
 const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
 
@@ -73,7 +79,7 @@ export function AnalyzeFailedStep({
       </Button>
       <p>
         {outOfCredit
-          ? `Add credit to your ${agent.label} account first.`
+          ? `Add credit to your ${CREDIT_ACCOUNT[agent.id] ?? `${agent.label} account`} first.`
           : usesAi
             ? 'It may have been a one-off.'
             : 'If it keeps stopping, run stacktape init --headless in a terminal to see the full output.'}
