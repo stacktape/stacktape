@@ -34,6 +34,7 @@ import { DEFAULT_PRICING_REGION, estimateMonthlyCost, formatMonthlyDelta, type P
 import { renderTypeScript, renderYaml } from '../write-config';
 import type { PreflightResult } from '../preflight/preflight';
 import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
+import { readSeenFile, seenFilePaths } from './file-view';
 import {
   startWizardServer,
   type WizardAgentOption,
@@ -106,6 +107,7 @@ export type WizardSession = {
 export const startWizardSession = async ({
   projectName,
   repositoryPath,
+  repositoryRoot = repositoryPath,
   existingConfig,
   awsAccount,
   consoleUrl,
@@ -138,6 +140,11 @@ export const startWizardSession = async ({
   projectName: string;
   /** Shown on the first screen so the user can see exactly which directory will be read. */
   repositoryPath?: string;
+  /**
+   * Where the repository is on disk, for showing the page the files the analysis looked at. Defaults to
+   * `repositoryPath`; a fixture shows one path and reads another. Absent, the page shows no file content.
+   */
+  repositoryRoot?: string;
   /** A configuration already in the repository. Never modified; the page names it before writing. */
   existingConfig?: string;
   /** The `--awsAccount` this run was started with, so commands the page hands out target the same account. */
@@ -1356,6 +1363,25 @@ export const startWizardSession = async ({
         }
         return buildState();
       },
+      ...(repositoryRoot === undefined
+        ? {}
+        : {
+            onFile: (path: string) =>
+              readSeenFile({
+                repositoryRoot,
+                path,
+                // Recomputed per request: the timeline grows while the agent reads, and the facts arrive at the end.
+                seen: seenFilePaths({
+                  timeline,
+                  evidenceSources: [
+                    facts,
+                    composition?.provenance,
+                    composition?.assumptions,
+                    composition?.unsetSettings
+                  ]
+                })
+              })
+          }),
       onConfigText: (yaml) => {
         if (composition === undefined || deploymentInFlight()) return buildState();
         // Back to generated, or an edit that changed nothing: the composition is the file again.

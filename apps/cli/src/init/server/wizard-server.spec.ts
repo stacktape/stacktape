@@ -166,6 +166,51 @@ describe('authorisation', () => {
   });
 });
 
+describe('showing a repository file', () => {
+  const requested: string[] = [];
+  const startWithFiles = () =>
+    start({
+      hooks: {
+        onAnswer: () => baseState,
+        onMode: () => baseState,
+        onPreference: () => baseState,
+        onStart: () => {},
+        onWrite: () => {},
+        onDeploy: () => {},
+        onVerify: () => {},
+        onVerifyDismiss: () => baseState,
+        onPipeline: () => {},
+        onCodingAgentSetup: () => {},
+        onRecheck: () => baseState,
+        onSignIn: () => {},
+        onConsoleConnection: () => {},
+        onFile: async (path) => {
+          requested.push(path);
+          return { path, status: 'not-shown', reason: 'not-seen' };
+        }
+      }
+    });
+
+  it('needs the session cookie and the CSRF token, and leaves the path to the file rules', async () => {
+    const { origin, token } = await startWithFiles();
+    const { cookie, body } = await handshake(origin, token);
+    const url = `${origin}/api/file?path=${encodeURIComponent('../.ssh/id_rsa')}`;
+
+    expect((await fetch(url, { headers: { Origin: origin } })).status).toBe(401);
+    expect((await fetch(url, { headers: { Origin: origin, Cookie: cookie } })).status).toBe(403);
+    expect(
+      (await fetch(url, { headers: { Origin: 'http://evil.test', Cookie: cookie, 'x-csrf-token': body.csrfToken! } }))
+        .status
+    ).toBe(403);
+    expect(requested).toEqual([]);
+
+    const response = await fetch(url, { headers: { Origin: origin, Cookie: cookie, 'x-csrf-token': body.csrfToken! } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ path: '../.ssh/id_rsa', status: 'not-shown', reason: 'not-seen' });
+    expect(requested).toEqual(['../.ssh/id_rsa']);
+  });
+});
+
 describe('resuming after a reload', () => {
   it('continues on the cookie once the token has been spent', async () => {
     const { origin, token } = await start();

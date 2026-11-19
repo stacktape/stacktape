@@ -3,7 +3,9 @@
  *
  * The real wizard server and session run here, serving the built `apps/init-ui` bundle, so the page goes through the
  * real handshake, CSRF checks, event stream, recomposition and file writes. Only what lies outside this machine or
- * would spend money is scripted: the scan replays facts recorded from a real repository (`projects/*.json`), and the
+ * would spend money is scripted: the scan replays facts recorded from a real repository (`projects/*.json`), with the
+ * files it read recorded beside them (`projects/*.files.json`, written into the fixture's repository so the page can
+ * show them), and the
  * coding agent, AWS identity, Stacktape sign-in, price estimate, target check, local try-out, deploy child and
  * `stacktape connect` answer
  * from the scenario below. Every network request that is not loopback is refused (run with the network guard).
@@ -15,10 +17,10 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { ProjectFacts } from '@stacktape/config-inference/facts';
 import type { StackPriceEstimationResponse } from '@stacktape/console-api/anonymous';
@@ -28,8 +30,12 @@ export type WizardFixtureScenario = {
   project: string;
   /** Coding agents this machine offers besides "Files only". */
   agents?: Array<'claude-code' | 'codex'>;
-  /** `held` stays in progress until `scan` arrives on stdin; `fail` ends the way an agent crash does. */
-  scan?: 'instant' | 'held' | 'fail';
+  /**
+   * `paced` (the default) reads one file after another, about 12 s in all, the way an agent run looks. `instant` reports
+   * everything at once, for tests. `held` stays in progress until `scan` arrives on stdin; `fail` ends the way an agent
+   * crash does.
+   */
+  scan?: 'paced' | 'instant' | 'held' | 'fail';
   /** A configuration already in the repository, which makes the wizard write beside it. */
   existingConfig?: boolean;
   aws?: 'available' | 'no-credentials' | 'rejected';
@@ -265,18 +271,48 @@ const main = async () => {
   if (scenario.existingConfig === true) {
     await Bun.write(join(repositoryRoot, 'stacktape.yml'), 'resources: {}\n');
   }
+  /** The files the recorded scan read and cited, from `record-files.ts`. Absent for a project with nothing to show. */
+  const recordedFiles = (() => {
+    try {
+      return JSON.parse(readFileSync(join(fixtureDirectory, 'projects', `${scenario.project}.files.json`), 'utf8')) as {
+        timeline: Array<{ kind: string; label: string }>;
+        files: Record<string, string[]>;
+      };
+    } catch {
+      return undefined;
+    }
+  })();
+  for (const [path, lines] of Object.entries(recordedFiles?.files ?? {})) {
+    await mkdir(dirname(join(repositoryRoot, path)), { recursive: true });
+    await writeFile(join(repositoryRoot, path), lines.join('\n'));
+  }
 
   const ACCOUNT_ID = '481516234200';
   const AGENT_VERSIONS = { 'claude-code': '2.1.296 (Claude Code)', codex: 'codex-cli 0.98.0' } as const;
   /** Timeline entries as `toTimelineEntry` labels a Claude Code session's tool calls: the tool, then its path or pattern. */
-  const SCAN_TIMELINE: Array<{ kind: string; label: string }> = [
+  const SCAN_TIMELINE: Array<{ kind: string; label: string }> = recordedFiles?.timeline ?? [
     { kind: 'tool', label: 'get_project_brief get_project_brief' },
-    { kind: 'tool', label: 'read_file package.json' },
-    { kind: 'tool', label: 'list_dir app' },
-    { kind: 'tool', label: 'grep process.env' },
-    { kind: 'tool', label: 'read_file .env.example' },
+    { kind: 'tool', label: 'list_dir .' },
     { kind: 'tool', label: 'submit_facts submit_facts' }
   ];
+  /**
+   * How long each kind of tool call takes in a paced scan, relative to the others: opening a file and reading it is the
+   * slow part. Scaled so the whole scan takes `PACED_SCAN_MS`. Reading without an agent is the probe alone: a few seconds.
+   */
+  const PACED_SCAN_MS = 12_000;
+  const PACED_PROBE_MS = 2_500;
+  const TOOL_WEIGHTS: Readonly<Record<string, number>> = {
+    read_file: 3,
+    list_dir: 1.5,
+    grep: 2,
+    get_project_brief: 2,
+    submit_facts: 2.5
+  };
+  const pacing = (timeline: Array<{ kind: string; label: string }>) => {
+    const weights = timeline.map((entry) => TOOL_WEIGHTS[entry.label.split(' ')[0]!] ?? 2);
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    return weights.map((weight) => Math.round((weight / total) * PACED_SCAN_MS));
+  };
 
   /** One deploy, as the CLI's JSONL stream would report it for this composition. */
   const deployEvents = (resourceNames: string[]) => {
@@ -377,6 +413,7 @@ const main = async () => {
   const session = await startWizardSession({
     projectName,
     repositoryPath,
+    repositoryRoot,
     ...(scenario.existingConfig === true ? { existingConfig: 'stacktape.yml' } : {}),
     agents: agents.map((agent, index) =>
       index === 0 ? { ...agent, recommended: true } : { ...agent, recommended: undefined }
@@ -385,9 +422,19 @@ const main = async () => {
     start: async (choice, onProgress) => {
       // Files only reads without an agent, so there are no tool calls to report.
       const timeline = choice.agentId === 'none' ? [] : SCAN_TIMELINE;
-      for (const entry of timeline.slice(0, 3)) onProgress(entry);
+      const isPaced = (scenario.scan ?? 'paced') === 'paced';
+      // Each entry is reported when the agent starts it, then takes its share of the scan.
+      const delays = pacing(timeline);
+      const report = async (from: number, to: number) => {
+        for (let index = from; index < Math.min(to, timeline.length); index += 1) {
+          onProgress(timeline[index]!);
+          if (isPaced) await sleep(delays[index]!);
+        }
+      };
+      await report(0, 3);
       if (scenario.scan === 'held') await waitFor('scan');
-      for (const entry of timeline.slice(3)) onProgress(entry);
+      await report(3, timeline.length);
+      if (isPaced && timeline.length === 0) await sleep(PACED_PROBE_MS);
       if (scenario.scan === 'fail') {
         throw new Error('Claude Code exited before it finished (exit code 1): Credit balance is too low.');
       }
