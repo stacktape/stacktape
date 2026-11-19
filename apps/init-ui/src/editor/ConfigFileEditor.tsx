@@ -1,5 +1,5 @@
 import { MonacoEditor } from '@stacktape/ui-react/monaco-editor';
-import { getYamlModelPath } from '@stacktape/ui-react/monaco-yaml';
+import { getYamlModelPath } from '@stacktape/ui-react/monaco-yaml/model-path';
 import { useEffect, useState } from 'react';
 import { monaco, sharedMonaco, stacktapeYaml } from './monaco-setup';
 

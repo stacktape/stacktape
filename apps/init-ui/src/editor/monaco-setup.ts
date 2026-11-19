@@ -1,5 +1,7 @@
 /* eslint-disable import/default -- Vite's `?worker` modules export a worker constructor by default. */
-import * as monaco from './monaco-lean';
+// oxlint-disable-next-line import/no-unassigned-import -- registers the editor features and the two languages.
+import './monaco-lean';
+import * as monaco from 'monaco-editor/editor/editor.api.js';
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
 import { configureStacktapeMonacoYaml } from '@stacktape/ui-react/monaco-yaml';
 import YamlWorker from './yaml-worker?worker';

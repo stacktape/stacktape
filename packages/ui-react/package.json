@@ -75,6 +75,10 @@
       "types": "./dist/monaco-yaml/monaco-yaml.d.ts",
       "default": "./dist/monaco-yaml/monaco-yaml.js"
     },
+    "./monaco-yaml/model-path": {
+      "types": "./dist/monaco-yaml/yaml-schema-associations.d.ts",
+      "default": "./dist/monaco-yaml/yaml-schema-associations.js"
+    },
     "./progress": {
       "types": "./dist/progress/Progress.d.ts",
       "default": "./dist/progress/Progress.js"
