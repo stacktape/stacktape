@@ -1136,8 +1136,8 @@ function MigrationSection({
               }
             }}
             tabs={[
-              { value: 'deploy-hook', label: 'Run after every deploy' },
-              { value: 'self', label: 'I’ll run it myself' }
+              { value: 'deploy-hook', label: 'Run after every deploy', compactLabel: 'After every deploy' },
+              { value: 'self', label: 'I’ll run it myself', compactLabel: 'Myself' }
             ]}
             value={choice}
             width="fit"

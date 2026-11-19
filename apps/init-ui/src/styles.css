@@ -869,7 +869,7 @@
   .w-check-head {
     display: flex;
     flex-wrap: nowrap;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 6px 16px;
     min-height: 20px;
@@ -879,7 +879,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 6px;
+    gap: 2px 8px;
     margin: 0;
     color: var(--w-text);
     font-size: 15px;
@@ -887,9 +887,12 @@
     line-height: 20px;
   }
 
+  .w-check-title > .w-info {
+    margin-left: -3px;
+  }
+
   /* Where a section stands, in words beside its title. */
   .w-state {
-    margin-left: 6px;
     color: var(--w-subtle);
     font-size: 12px;
     font-weight: 500;
@@ -2369,11 +2372,13 @@
       line-height: 26px;
     }
 
-    .w-path-tabs .stp-ui-tab__label--full {
+    .w-path-tabs .stp-ui-tab__label--full,
+    .w-choice .stp-ui-tab__label--full {
       display: none;
     }
 
-    .w-path-tabs .stp-ui-tab__label--compact {
+    .w-path-tabs .stp-ui-tab__label--compact,
+    .w-choice .stp-ui-tab__label--compact {
       display: inline;
     }
 
