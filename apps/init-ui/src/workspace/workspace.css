@@ -996,19 +996,16 @@
 
   /* What was found so far, on a tray over the bottom of the code window: the code above it is stepped back anyway,
    * and the window keeps its size from the scan to the reveal. */
+  /* What the reveal has found so far, in a strip of its own under the code, so it never covers a line. Its height is
+   * kept from the first finding, so the code above it does not move when the first chip arrives. */
   .ws-chips {
-    position: absolute;
-    right: 1px;
-    bottom: 1px;
-    left: 1px;
-    z-index: 4;
     display: flex;
+    flex: none;
     flex-wrap: wrap;
     gap: 8px;
+    min-height: 28px;
     margin: 0;
-    padding: 28px 16px 14px;
-    border-radius: 0 0 var(--w-radius) var(--w-radius);
-    background: linear-gradient(to top, var(--ws-code-bg) 55%, transparent);
+    padding: 0;
     list-style: none;
     pointer-events: none;
   }
@@ -2099,12 +2096,6 @@
       grid-area: show;
       justify-self: start;
     }
-
-    .ws-chips {
-      position: static;
-      padding: 0;
-      background: none;
-    }
   }
 
   /* The phone's reveal: the finding, its lines and the YAML they became, in one card. */
@@ -2117,9 +2108,8 @@
 
   .ws-phone-finding-head {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 4px 8px;
+    gap: 8px;
     margin: 0;
     font-size: 15px;
     line-height: 20px;
@@ -2153,9 +2143,13 @@
     white-space: normal;
   }
 
+  /* The resource's own price under the YAML it was written for; its line is kept, so nothing moves when it shows. */
   .ws-phone-finding-price {
-    color: var(--w-muted);
+    margin: -2px 0 0;
+    color: var(--w-text);
     font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    line-height: 18px;
     opacity: 0;
     transition: opacity 240ms var(--w-ease);
   }

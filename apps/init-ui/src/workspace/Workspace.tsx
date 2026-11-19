@@ -688,7 +688,7 @@ export function Workspace({
                   tabs={phase === 'scan' ? opened : revealTabs}
                 />
               )}
-              {phase !== 'scan' && chips.length > 0 && <Chips chips={chips} />}
+              {phase !== 'scan' && <Chips chips={chips} />}
             </div>
           )}
           {phase === 'review' && (
@@ -742,7 +742,7 @@ export function Workspace({
                     ) : (
                       <>
                         <span className="ws-editor-estimate-label">Estimate so far</span>
-                        <AnimatedPrice className="ws-editor-price" countFromZero duration={420} text={price.text} />
+                        <AnimatedPrice className="ws-editor-price" countFromZero duration={0} text={price.text} />
                       </>
                     )}
                   </span>
@@ -1026,11 +1026,6 @@ function PhoneFinding({
       <p className="ws-phone-finding-head">
         <ResourceIcon resourceType={story.type} size={16} />
         <strong>{story.plainName}</strong>
-        {ownPrice !== undefined && (
-          <span className="ws-phone-finding-price" data-shown={isPriced ? 'true' : undefined}>
-            {ownPrice}
-          </span>
-        )}
       </p>
       <p className="ws-phone-finding-why">
         <EvidenceLine citation={citation} story={story} />
@@ -1069,6 +1064,12 @@ function PhoneFinding({
           </div>
         ))}
       </div>
+      {/* What the block written above it costs, once it is written: the estimate under the card takes it in. */}
+      {ownPrice !== undefined && (
+        <p className="ws-phone-finding-price" data-shown={isPriced ? 'true' : undefined}>
+          {ownPrice}
+        </p>
+      )}
     </div>
   );
 }

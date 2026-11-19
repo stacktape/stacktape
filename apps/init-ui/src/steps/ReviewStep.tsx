@@ -306,7 +306,7 @@ function SelectionRow({
             <strong>
               {isTouch ? 'Tap a resource to see why it is here' : 'Select a resource to see why it is here'}
             </strong>
-            <span>The line of code that asked for it, and what it costs</span>
+            <span>Its line of code and its price</span>
           </span>
         </p>
       </div>

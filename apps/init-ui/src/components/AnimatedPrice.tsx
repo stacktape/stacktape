@@ -25,7 +25,7 @@ export function AnimatedPrice({
   title?: string;
   /** A first amount after a text without one ("estimating…") counts up from $0 instead of appearing. */
   countFromZero?: boolean;
-  /** How long a count takes, in milliseconds. */
+  /** How long a count takes, in milliseconds; 0 shows the new amount at once. */
   duration?: number;
 }) {
   const target = parse(text);
@@ -41,6 +41,12 @@ export function AnimatedPrice({
       return;
     }
     setChanged(true);
+    // No count: the new amount shows at once, marked for a moment.
+    if (duration <= 0) {
+      setShown(target);
+      const settle = setTimeout(() => setChanged(false), 900);
+      return () => clearTimeout(settle);
+    }
     const started = performance.now();
     let frame = 0;
     const tick = (now: number) => {
