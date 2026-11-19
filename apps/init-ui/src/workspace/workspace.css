@@ -1515,20 +1515,21 @@
   }
 
   /* One height for the app (its longest citation), so hovering or picking never resizes the picture above it. The
-   * name and the way to the file on the first line; the why beside its lines of code under it, which take most of the
-   * width so a cited line shows whole. */
+   * name and the way to the file on the first line; under it the why, wrapping beside the lines of code, which take the
+   * width they need so a cited line shows whole. */
   .ws-selection {
     display: grid;
     flex: none;
     grid-template-areas:
       'name actions'
       'why code';
-    grid-template-columns: fit-content(50%) minmax(0, 1fr);
-    grid-template-rows: 28px minmax(0, 1fr);
+    grid-template-columns: minmax(200px, 1fr) fit-content(72%);
+    grid-template-rows: 28px auto;
+    align-content: start;
     align-items: center;
     gap: 6px 20px;
     box-sizing: border-box;
-    height: calc(60px + var(--ws-selection-rows, 1) * 20px);
+    min-height: 80px;
     padding: 8px 12px 10px 16px;
     border-top: 1px solid var(--w-line);
     background: var(--w-well);
@@ -1624,23 +1625,39 @@
     content: '·';
   }
 
-  /* Two lines at most: a long path wraps rather than being cut. */
+  /* A long path wraps rather than being cut; the row is as tall as the app's longest why needs. */
   .ws-selection-why {
-    display: -webkit-box;
     grid-area: why;
     align-self: start;
     min-width: 0;
     margin: 0;
-    overflow: hidden;
     font-size: 13px;
     line-height: 20px;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
     animation: ws-fade-in 160ms var(--w-ease) both;
   }
 
   .ws-selection-why .ws-evidence {
+    display: inline;
     white-space: normal;
+  }
+
+  /* Hidden copies of every resource's row at the row's width: the tallest sets the row's height. */
+  .ws-selection-sizer {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .ws-selection-sizer .ws-selection {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: auto;
   }
 
   .ws-selection-why .ws-evidence-says {
@@ -1684,7 +1701,8 @@
     text-overflow: ellipsis;
   }
 
-  .ws-selection-show {
+  .ws-selection-show,
+  .ws-selection-show-size {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -2075,8 +2093,7 @@
       grid-template-rows: 30px auto auto 30px;
       align-content: start;
       gap: 8px;
-      /* The name, two lines of why, the code and the button, with their gaps and padding. */
-      height: calc(150px + var(--ws-code-rows, 1) * 20px);
+      min-height: 56px;
       padding: 12px 8px 14px 16px;
     }
 
@@ -2092,7 +2109,8 @@
       margin-right: 8px;
     }
 
-    .ws-selection-show {
+    .ws-selection-show,
+    .ws-selection-show-size {
       grid-area: show;
       justify-self: start;
     }

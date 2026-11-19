@@ -242,7 +242,7 @@ test('the analysis shows the files it reads, then ties each resource to the line
 
   // The row under the diagram says what the resource under the pointer is and why, with its line of code; nothing
   // floats over the picture.
-  const selection = page.locator('.ws-selection');
+  const selection = page.locator('.ws-diagram > .ws-selection');
   await expect(selection).toContainText('Select a resource to see why it is here');
   await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').hover();
   await expect(selection).toContainText('Postgres database');

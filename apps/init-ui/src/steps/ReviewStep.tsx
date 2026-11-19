@@ -9,7 +9,7 @@ import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { BiChevronDown, BiCodeAlt, BiInfoCircle, BiLinkExternal, BiPointer, BiX } from 'react-icons/bi';
 import { InfoTip } from '../components/InfoTip';
@@ -148,29 +148,24 @@ export function ReviewPane({
   const [hovered, setHovered] = useState<string | undefined>(undefined);
   const shown = hovered !== undefined && stories[hovered] !== undefined ? hovered : selected;
   const story = shown === undefined ? undefined : stories[shown];
-  // The row keeps one height for the app, so a resource with three cited lines never resizes the picture: room for
-  // the most lines of code any resource cites, and for a why line long enough to wrap beside them.
-  const codeRows = Math.min(
-    3,
-    Math.max(
-      1,
-      ...Object.values(stories).map((entry) =>
-        entry.designChoice !== undefined || entry.evidence === undefined
-          ? 1
-          : (citations[entry.name]?.lines.length ?? 1)
-      )
-    )
-  );
-  const whyRows = Math.max(
-    1,
-    ...Object.values(stories).map((entry) =>
-      entry.designChoice === undefined &&
-      entry.evidence !== undefined &&
-      (whyText(entry, citations[entry.name])?.length ?? 0) > WHY_LINE_CHARS
-        ? 2
-        : 1
-    )
-  );
+  // The row keeps one height for the app, so a resource with three cited lines never resizes the picture: the
+  // tallest any resource needs, measured on hidden copies of every resource's row at the row's own width.
+  const sizer = useRef<HTMLDivElement>(null);
+  const [rowHeight, setRowHeight] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const node = sizer.current;
+    if (node === null) return;
+    const measure = () => {
+      const tallest = Math.max(0, ...[...node.children].map((child) => (child as HTMLElement).offsetHeight));
+      setRowHeight(tallest > 0 ? tallest : undefined);
+    };
+    measure();
+    // The row's width, and any copy's own height (a font arriving), change what it needs.
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    for (const child of node.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [stories, citations, isTouch]);
   // One object per file: a new one is a new picture, and the diagram forgets what the pointer was on.
   const config = useMemo(() => ({ resources }) as unknown as StacktapeConfig, [resources]);
   // The picture names each resource the way this page does ("Postgres database"), its key in the file under it. One
@@ -196,14 +191,7 @@ export function ReviewPane({
         </p>
       )}
 
-      <section
-        aria-label="Diagram"
-        className="ws-panel ws-diagram"
-        style={{
-          ['--ws-selection-rows' as string]: Math.max(codeRows, whyRows),
-          ['--ws-code-rows' as string]: codeRows
-        }}
-      >
+      <section aria-label="Diagram" className="ws-panel ws-diagram">
         <div className="ws-diagram-canvas">
           <Suspense
             fallback={
@@ -239,12 +227,27 @@ export function ReviewPane({
         </div>
         <SelectionRow
           citation={story === undefined ? undefined : citations[story.name]}
+          height={rowHeight}
           isPicked={story !== undefined && story.name === selected}
           isTouch={isTouch}
           onClear={() => selected !== undefined && onSelect(selected)}
           onShowInFile={onShowInFile}
           story={story}
         />
+        <div aria-hidden className="ws-selection-sizer" inert ref={sizer}>
+          {Object.values(stories).map((entry) => (
+            <SelectionRow
+              citation={citations[entry.name]}
+              isPicked
+              isSizer
+              isTouch={isTouch}
+              key={entry.name}
+              onClear={() => {}}
+              onShowInFile={() => {}}
+              story={entry}
+            />
+          ))}
+        </div>
       </section>
 
       <NotCreated state={state} />
@@ -264,9 +267,6 @@ export function ReviewPane({
   );
 }
 
-/** About as many characters of the why line as fit on one line beside the lines of code at 1280 px. */
-const WHY_LINE_CHARS = 48;
-
 /** The why line as plain text, for its tooltip when a narrow row cuts it short. */
 const whyText = (story: ResourceStory, citation: Citation | undefined): string | undefined => {
   if (story.designChoice !== undefined) return `Added by Stacktape ${story.designChoice}`;
@@ -285,21 +285,28 @@ const whyText = (story: ResourceStory, citation: Citation | undefined): string |
 function SelectionRow({
   story,
   citation,
+  height,
   isPicked,
+  isSizer = false,
   isTouch,
   onShowInFile,
   onClear
 }: {
   story: ResourceStory | undefined;
   citation: Citation | undefined;
+  /** The app's tallest row, which every state keeps. */
+  height?: number | undefined;
   isPicked: boolean;
+  /** A hidden copy that only measures: its controls are stand-ins of the same size. */
+  isSizer?: boolean;
   isTouch: boolean;
   onShowInFile: (resourceName: string) => void;
   onClear: () => void;
 }) {
+  const style = height === undefined ? undefined : { height };
   if (story === undefined) {
     return (
-      <div className="ws-selection" data-empty="true">
+      <div className="ws-selection" data-empty="true" style={style}>
         <p className="ws-selection-empty">
           <BiPointer aria-hidden size={15} />
           <span>
@@ -326,6 +333,7 @@ function SelectionRow({
       data-code={lines.length > 0 ? 'true' : undefined}
       data-picked={isPicked ? 'true' : undefined}
       key={story.name}
+      style={style}
     >
       <p className="ws-selection-name">
         <ResourceIcon resourceType={story.type} size={16} />
@@ -347,7 +355,12 @@ function SelectionRow({
       )}
       {/* One slot for both states, so nothing beside it moves when a resource is picked. */}
       <div className="ws-selection-actions">
-        {isPicked ? (
+        {isSizer ? (
+          <span className="ws-selection-show-size">
+            <BiCodeAlt aria-hidden size={15} />
+            Show in stacktape.yml
+          </span>
+        ) : isPicked ? (
           <>
             <button className="ws-selection-show" onClick={() => onShowInFile(story.name)} type="button">
               <BiCodeAlt aria-hidden size={15} />
