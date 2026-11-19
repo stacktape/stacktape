@@ -1371,12 +1371,12 @@
     line-height: 16px;
   }
 
-  /* The diagram takes what the title and settings leave; below 240 px the column scrolls instead. Its last row says
+  /* The diagram takes what the title and settings leave; below 264 px the column scrolls instead. Its last row says
    * what the resource under the pointer, or the picked one, is. */
   .ws-diagram {
     position: relative;
     display: flex;
-    flex: 1 0 300px;
+    flex: 1 0 264px;
     flex-direction: column;
     overflow: hidden;
   }
@@ -1399,7 +1399,7 @@
     align-items: center;
     gap: 16px;
     box-sizing: border-box;
-    height: calc(max(44px, var(--ws-selection-rows, 1) * 20px + 12px) + 28px);
+    height: calc(max(44px, var(--ws-selection-rows, 1) * 20px + 12px) + 20px);
     padding: 0 12px 0 16px;
     border-top: 1px solid var(--w-line);
     background: var(--w-well);
@@ -1868,6 +1868,8 @@
     .ws-editor[data-collapsed] .ws-editor-price small {
       margin: 0;
       line-height: 16px;
+      text-align: right;
+      text-wrap: balance;
     }
 
     .ws-editor[data-collapsed] .ws-editor-hint {
@@ -2150,8 +2152,9 @@
       white-space: normal;
     }
 
+    /* Two lines, "/month estimated" over "AWS cost + usage", the help mark right after them. */
     .ws-bar-slot .w-bar-amount small {
-      max-width: 128px;
+      max-width: 9.4em;
       font-size: 12px;
       line-height: 15px;
     }
