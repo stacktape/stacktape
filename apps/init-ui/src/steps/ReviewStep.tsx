@@ -9,28 +9,17 @@ import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BiChevronDown, BiCodeAlt, BiInfoCircle, BiLinkExternal, BiX } from 'react-icons/bi';
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
+import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
+import { BiChevronDown, BiCodeAlt, BiInfoCircle, BiLinkExternal, BiPointer, BiX } from 'react-icons/bi';
 import { InfoTip } from '../components/InfoTip';
 import { RegionPicker } from '../components/RegionPicker';
 import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
-import { lineRange, quoteLabel, type Citation, type ResourceStory } from '../workspace/resource-story';
+import { evidenceSays, lineRange, quoteLabel, type Citation, type ResourceStory } from '../workspace/resource-story';
+import { EvidenceLine } from '../workspace/EvidenceLine';
+import { useMediaQuery } from '../workspace/use-media-query';
 import { deploymentPreferenceKeysFor, NOT_CREATED_KINDS, plainList } from './review-model';
-
-/** Whether a media query matches now, following changes. */
-const useMediaQuery = (query: string): boolean => {
-  const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches === true);
-  useEffect(() => {
-    const list = window.matchMedia?.(query);
-    if (list === undefined) return;
-    const update = () => setMatches(list.matches);
-    update();
-    list.addEventListener('change', update);
-    return () => list.removeEventListener('change', update);
-  }, [query]);
-  return matches;
-};
 
 /** Heavy on purpose, light on arrival: the diagram loads after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));
@@ -111,9 +100,9 @@ const shortDelta = (delta: string | undefined): string | undefined =>
 /**
  * Review, the left side of the workspace: what this is, the picture of it, and the few settings that apply.
  *
- * Everything about a single resource (why it is there, its price) is on its node's hover card and above its block in
- * the editor; a click on a node finds the block. The settings rewrite the file, and the editor shows the lines they
- * changed.
+ * Everything about a single resource (why it is there, its price) is in the row under the picture, for the resource
+ * the pointer is on or the one picked, and above its block in the editor; a click on a node finds the block. Nothing
+ * floats over the picture. The settings rewrite the file, and the editor shows the lines they changed.
  */
 export function ReviewPane({
   state,
@@ -122,7 +111,7 @@ export function ReviewPane({
   citations,
   selected,
   onSelect,
-  onShowWhy,
+  onShowInFile,
   progress,
   busy,
   isLocked,
@@ -140,8 +129,8 @@ export function ReviewPane({
   citations: Readonly<Record<string, Citation>>;
   selected: string | undefined;
   onSelect: (resourceName: string) => void;
-  /** Opens the code a resource came from, in the editor. */
-  onShowWhy: (resourceName: string) => void;
+  /** Picks a resource and brings its block in stacktape.yml into view. */
+  onShowInFile: (resourceName: string) => void;
   /** Nodes still appearing after the reveal. */
   progress: Readonly<Record<string, 'pending' | 'ready'>> | undefined;
   busy: string | undefined;
@@ -155,7 +144,24 @@ export function ReviewPane({
   const existing = state.facts?.existingDeployments ?? [];
   // A phone-width screen is read with a finger even where the browser reports a mouse.
   const isTouch = useMediaQuery('(hover: none), (max-width: 760px)');
-  const story = selected === undefined ? undefined : stories[selected];
+  /** The resource the pointer or keyboard is on: the row says what it is until it leaves. */
+  const [hovered, setHovered] = useState<string | undefined>(undefined);
+  const shown = hovered !== undefined && stories[hovered] !== undefined ? hovered : selected;
+  const story = shown === undefined ? undefined : stories[shown];
+  // The row keeps one height for the app, so a resource with three cited lines never resizes the picture.
+  const codeRows = Math.min(
+    3,
+    Math.max(
+      1,
+      ...Object.values(stories).map((entry) =>
+        entry.designChoice !== undefined || entry.evidence === undefined
+          ? 1
+          : (citations[entry.name]?.lines.length ?? 1)
+      )
+    )
+  );
+  // One object per file: a new one is a new picture, and the diagram forgets what the pointer was on.
+  const config = useMemo(() => ({ resources }) as unknown as StacktapeConfig, [resources]);
   // A disk that holds the app's SQLite file says so in the picture.
   const typeLabels = useMemo(
     () =>
@@ -182,54 +188,50 @@ export function ReviewPane({
         </p>
       )}
 
-      <section aria-label="Diagram" className="ws-panel ws-diagram">
-        <Suspense
-          fallback={
-            <div className="flex h-full items-center justify-center">
-              <Spinner />
-            </div>
-          }
-        >
-          <Diagram
-            ariaLabel="Diagram of what stacktape.yml creates on AWS"
-            config={{ resources } as unknown as StacktapeConfig}
-            hint={
-              story !== undefined
-                ? ''
-                : isTouch
-                  ? 'Tap a resource for why it is here'
-                  : 'Hover a resource for why it is here · click it to find it in stacktape.yml'
+      <section
+        aria-label="Diagram"
+        className="ws-panel ws-diagram"
+        style={{ ['--ws-selection-rows' as string]: codeRows }}
+      >
+        <div className="ws-diagram-canvas">
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center">
+                <Spinner />
+              </div>
             }
-            // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can be.
-            layerChoices={[]}
-            layout="shown-layers"
-            // A larger app is scaled down to fit beside the file; its names stay readable.
-            minLabelSize={isTouch ? 12 : 11}
-            resourceTypeLabels={typeLabels}
-            volumeMounts
-            onSelectResource={onSelect}
-            resourceProgress={progress}
-            resourceTooltip={cardsFor(stories, citations)}
-            selectedResource={selected ?? null}
-            style={{ width: '100%', height: '100%' }}
-          />
-        </Suspense>
-        {story !== undefined && (
-          <div className="ws-picked" key={story.name}>
-            <ResourceCard citation={citations[story.name]} story={story} />
-            <div className="ws-picked-actions">
-              {story.evidence !== undefined && (
-                <button className="ws-picked-why" onClick={() => onShowWhy(story.name)} type="button">
-                  <BiCodeAlt aria-hidden size={15} />
-                  Show the code
-                </button>
-              )}
-              <button aria-label="Close" className="ws-picked-close" onClick={() => onSelect(story.name)} type="button">
-                <BiX aria-hidden size={18} />
-              </button>
-            </div>
-          </div>
-        )}
+          >
+            <Diagram
+              ariaLabel="Diagram of what stacktape.yml creates on AWS"
+              config={config}
+              // The row under the picture says what to do and what each resource is.
+              focusDimming="soft"
+              // The frame is what the title, the row and the settings leave: the picture fills it, not its margin.
+              framePadding={32}
+              hint=""
+              // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can be.
+              layerChoices={[]}
+              layout="shown-layers"
+              // A larger app is scaled down to fit beside the file; its names stay readable.
+              minLabelSize={isTouch ? 12 : 11}
+              onHoverResource={(name) => setHovered(name ?? undefined)}
+              onSelectResource={onSelect}
+              resourceProgress={progress}
+              resourceTypeLabels={typeLabels}
+              selectedResource={selected ?? null}
+              style={{ width: '100%', height: '100%' }}
+              volumeMounts
+            />
+          </Suspense>
+        </div>
+        <SelectionRow
+          citation={story === undefined ? undefined : citations[story.name]}
+          isPicked={story !== undefined && story.name === selected}
+          isTouch={isTouch}
+          onClear={() => selected !== undefined && onSelect(selected)}
+          onShowInFile={onShowInFile}
+          story={story}
+        />
       </section>
 
       <NotCreated state={state} />
@@ -249,33 +251,101 @@ export function ReviewPane({
   );
 }
 
-/** The diagram's hover cards, one per resource with a story. */
-const cardsFor =
-  (stories: Readonly<Record<string, ResourceStory>>, citations: Readonly<Record<string, Citation>>) =>
-  (name: string): ReactNode =>
-    stories[name] === undefined ? undefined : <ResourceCard citation={citations[name]} story={stories[name]} />;
-
-/** A node's card: its plain name and price, why it is there, and the line of code it came from. */
-export function ResourceCard({ story, citation }: { story: ResourceStory; citation?: Citation | undefined }) {
+/** The why line as plain text, for its tooltip when a narrow row cuts it short. */
+const whyText = (story: ResourceStory, citation: Citation | undefined): string | undefined => {
+  if (story.designChoice !== undefined) return `Added by Stacktape ${story.designChoice}`;
   const evidence = story.evidence;
-  const why = story.designChoice ?? story.reason;
-  return (
-    <div className="ws-node-card">
-      <div className="ws-node-card-head">
-        <strong>{story.plainName}</strong>
-        {story.priceLabel !== undefined && <span>{story.priceLabel}</span>}
+  if (evidence === undefined) return story.reason;
+  const says = evidenceSays(story, evidence)?.replaceAll('`', '') ?? quoteLabel(evidence.quote);
+  return `${says} in ${evidence.file}:${lineRange(citation, evidence)}`;
+};
+
+/**
+ * The row under the picture: what to do while nothing is picked; then the resource the pointer is on, or the one
+ * picked: its plain name and price, what in the code called for it with those lines, and the way to its block in
+ * stacktape.yml. It keeps one place and one height, so it never covers the picture or moves it.
+ */
+function SelectionRow({
+  story,
+  citation,
+  isPicked,
+  isTouch,
+  onShowInFile,
+  onClear
+}: {
+  story: ResourceStory | undefined;
+  citation: Citation | undefined;
+  isPicked: boolean;
+  isTouch: boolean;
+  onShowInFile: (resourceName: string) => void;
+  onClear: () => void;
+}) {
+  if (story === undefined) {
+    return (
+      <div className="ws-selection" data-empty="true">
+        <p className="ws-selection-empty">
+          <BiPointer aria-hidden size={15} />
+          {isTouch ? 'Tap a resource to see why it is here' : 'Select a resource to see why it is here'}
+        </p>
       </div>
-      <p className="ws-node-card-reason">{why ?? 'Added in stacktape.yml by hand.'}</p>
-      {evidence !== undefined && story.designChoice === undefined && (
-        <div className="ws-node-card-evidence">
-          {(citation?.text ?? [quoteLabel(evidence.quote)]).map((text) => (
-            <code key={text}>{text}</code>
+    );
+  }
+  const evidence = story.designChoice === undefined ? story.evidence : undefined;
+  const lines =
+    evidence === undefined
+      ? []
+      : citation === undefined
+        ? [{ number: evidence.line, text: quoteLabel(evidence.quote) }]
+        : citation.lines.slice(0, 3).map((number, index) => ({ number, text: citation.text[index] ?? '' }));
+  return (
+    <div
+      aria-live="polite"
+      className="ws-selection"
+      data-code={lines.length > 0 ? 'true' : undefined}
+      data-picked={isPicked ? 'true' : undefined}
+      key={story.name}
+    >
+      <div className="ws-selection-main">
+        <p className="ws-selection-name">
+          <ResourceIcon resourceType={story.type} size={16} />
+          <strong>{story.plainName}</strong>
+          {story.priceLabel !== undefined && <span className="ws-selection-price">{story.priceLabel}</span>}
+        </p>
+        <p className="ws-selection-why" title={whyText(story, citation)}>
+          <EvidenceLine citation={citation} story={story} />
+        </p>
+      </div>
+      {lines.length > 0 && (
+        <div className="ws-selection-code">
+          {lines.map((line) => (
+            <div className="ws-selection-line" key={line.number}>
+              <span className="ws-selection-number">{line.number}</span>
+              <span className="ws-selection-text">{line.text}</span>
+            </div>
           ))}
-          <span>
-            {evidence.file}:{lineRange(citation, evidence)}
-          </span>
         </div>
       )}
+      {/* One slot for both states, so the lines beside it never move when a resource is picked. */}
+      <div className="ws-selection-actions">
+        {isPicked ? (
+          <>
+            <button
+              className="ws-selection-show"
+              onClick={() => onShowInFile(story.name)}
+              title="Show in stacktape.yml"
+              type="button"
+            >
+              <BiCodeAlt aria-hidden size={15} />
+              <span className="ws-selection-show-label">Show in stacktape.yml</span>
+            </button>
+            <button aria-label="Clear the selection" className="ws-selection-clear" onClick={onClear} type="button">
+              <BiX aria-hidden size={18} />
+            </button>
+          </>
+        ) : (
+          !isTouch && <span className="ws-selection-hint">Click to show it in stacktape.yml</span>
+        )}
+      </div>
     </div>
   );
 }

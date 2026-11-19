@@ -244,6 +244,9 @@ export const alarmsOf = (resource: { properties: Record<string, unknown> }): str
     : [];
 };
 
+/** What follows the amount wherever the page shows the monthly estimate: "/month estimated AWS cost + usage". */
+export const monthlySuffix = (usage: boolean): string => `/month estimated AWS cost${usage ? ' + usage' : ''}`;
+
 /** "$31/mo + pay-per-use costs" as its two halves: the fixed amount, and whether usage is billed on top. */
 export const splitMonthly = (monthly: string): { amount?: string; usage: boolean } => {
   const amount = /^\$[\d,.]+/.exec(monthly)?.[0];

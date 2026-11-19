@@ -15,17 +15,22 @@
     --ws-code-string: rgb(201, 185, 138);
     --ws-code-number: rgb(181, 206, 168);
     --ws-code-keyword: rgb(143, 184, 240);
-    --ws-code-comment: rgb(107, 118, 118);
-    --ws-code-line-number: rgb(73, 84, 84);
+    --ws-code-comment: rgb(128, 139, 139);
+    /* Legible beside the code (about 3.5:1), still a step behind it. */
+    --ws-code-line-number: rgb(100, 112, 112);
     --ws-code-line-number-active: rgb(154, 164, 164);
     --ws-code-line-active: rgb(28, 35, 35);
     --ws-code-selection: rgba(54, 190, 190, 0.25);
     --ws-code-guide: rgb(36, 44, 44);
-    --ws-code-lens: rgb(120, 133, 133);
+    --ws-code-lens: rgb(150, 160, 160);
     --ws-code-popup: rgb(34, 41, 41);
     --ws-code-popup-border: rgb(56, 66, 66);
     --ws-code-popup-selected: rgb(43, 58, 58);
     --ws-code-scrollbar: rgba(255, 255, 255, 0.08);
+    /* One accent ties a finding together: its line of code, what the head row says it is, its key in the file, the
+     * picked node in the diagram. */
+    --ws-accent: color-mix(in srgb, var(--w-brand) 15%, transparent);
+    --ws-accent-line: color-mix(in srgb, var(--w-brand) 40%, transparent);
 
     /* File-type tints, quiet versions of what editors use. */
     --ws-file-ts: rgb(96, 148, 214);
@@ -180,15 +185,21 @@
 
   /* More tabs than fit fade out at the ends that have tabs past them, instead of being cut. */
   .ws-window-tabs[data-clipped-start='true'] {
-    mask-image: linear-gradient(to right, transparent, black 32px);
+    mask-image: linear-gradient(to right, transparent 8px, black 56px);
   }
 
   .ws-window-tabs[data-clipped-end='true'] {
-    mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 80px), transparent calc(100% - 8px));
   }
 
   .ws-window-tabs[data-clipped-start='true'][data-clipped-end='true'] {
-    mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 40px), transparent);
+    mask-image: linear-gradient(
+      to right,
+      transparent 8px,
+      black 56px,
+      black calc(100% - 80px),
+      transparent calc(100% - 8px)
+    );
   }
 
   .ws-window[data-bare] .ws-window-tabs,
@@ -268,7 +279,7 @@
   }
 
   .ws-window-path-empty {
-    color: var(--w-subtle);
+    color: var(--w-muted);
   }
 
   .ws-window-list-toggle {
@@ -314,7 +325,7 @@
   .ws-files-title {
     margin: 0 0 8px;
     font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
@@ -334,7 +345,7 @@
     gap: 8px;
     min-width: 0;
     height: 24px;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-family: var(--w-mono);
     font-size: 12px;
   }
@@ -368,7 +379,7 @@
   .ws-window-path-note {
     margin-left: auto;
     padding-left: 12px;
-    color: var(--w-subtle);
+    color: var(--w-muted);
   }
 
   .ws-window-body {
@@ -379,9 +390,11 @@
     background: var(--ws-code-bg);
   }
 
+  /* Above the beam: its line and glow pass behind the letters, never over them. */
   .ws-code {
     position: relative;
-    padding: 12px 0;
+    z-index: 1;
+    padding: 16px 0;
     color: var(--ws-code-text);
     font-family: var(--w-mono);
     font-size: 13px;
@@ -408,8 +421,28 @@
   }
 
   .ws-line-text {
+    flex: 1;
     min-width: 0;
     overflow: hidden;
+  }
+
+  /* A line scrolled up under the file's path fades out rather than being cut against it. */
+  .ws-window-fade {
+    position: relative;
+    z-index: 3;
+    flex: none;
+    height: 0;
+  }
+
+  .ws-window-fade::after {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 14px;
+    background: linear-gradient(var(--ws-code-bg), transparent);
+    content: '';
+    pointer-events: none;
   }
 
   .ws-tok-comment {
@@ -435,7 +468,7 @@
 
   .ws-window-more {
     padding: 8px 0 0 calc(var(--ws-gutter-digits, 2) * 1ch + 36px);
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
     font-size: 12px;
   }
@@ -490,6 +523,79 @@
     text-align: center;
   }
 
+  /* Without an agent: what the scanner reads, from the top of the window. */
+  .ws-window[data-bare] .ws-window-empty {
+    align-items: flex-start;
+    justify-content: flex-start;
+    padding: 28px 32px;
+    text-align: left;
+  }
+
+  .ws-manifests {
+    display: grid;
+    gap: 6px;
+    width: 100%;
+    max-width: 640px;
+    animation: ws-fade-in 300ms var(--w-ease) both;
+  }
+
+  .ws-manifests-title {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    color: var(--w-text-strong);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 22px;
+  }
+
+  .ws-manifests-line {
+    margin: 0 0 18px 19px;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .ws-manifests .ws-files-title {
+    margin-left: 19px;
+  }
+
+  .ws-manifests-list {
+    display: grid;
+    gap: 2px;
+    margin: 0 0 0 19px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ws-manifests-list li {
+    display: grid;
+    grid-template-columns: 16px 150px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+    border-bottom: 1px solid var(--w-line);
+    font-size: 13px;
+    animation: ws-manifest-read 1.7s ease-in-out infinite alternate both;
+  }
+
+  .ws-window-empty .ws-manifests-list strong {
+    margin: 0;
+    color: var(--w-text);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .ws-manifests-list span:last-child {
+    min-width: 0;
+    padding: 6px 0;
+    color: var(--w-muted);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
   .ws-window-empty strong {
     color: var(--w-muted);
     font-family: var(--w-mono);
@@ -502,7 +608,7 @@
     top: 0;
     right: 0;
     left: 0;
-    z-index: 2;
+    z-index: 0;
     height: 2px;
     margin-top: -1px;
     background: linear-gradient(90deg, transparent, var(--w-brand) 10%, var(--w-brand) 90%, transparent);
@@ -542,91 +648,26 @@
     top: 0;
     right: 0;
     left: 0;
-    z-index: 1;
+    z-index: 2;
     height: 0;
-    background: color-mix(in srgb, var(--ws-code-bg) 24%, transparent);
+    background: color-mix(in srgb, var(--ws-code-bg) 18%, transparent);
     pointer-events: none;
     will-change: transform;
   }
 
   /* The reveal points at one line: the rest steps back, the line lights up, a callout says what it led to. */
   .ws-window[data-focus] .ws-line {
-    opacity: 0.5;
+    opacity: 0.62;
   }
 
   .ws-window[data-focus] .ws-line[data-focus] {
-    background: color-mix(in srgb, var(--w-brand) 14%, transparent);
+    background: var(--ws-accent);
     box-shadow: inset 2px 0 0 var(--w-brand);
     opacity: 1;
   }
 
   .ws-window[data-focus] .ws-line[data-focus] .ws-line-number {
     color: var(--ws-code-line-number-active);
-  }
-
-  .ws-callout {
-    position: absolute;
-    left: calc(var(--ws-gutter-digits, 2) * 1ch + 30px);
-    z-index: 3;
-    animation: ws-callout-in 280ms var(--w-ease) both;
-  }
-
-  .ws-callout-tag {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 12px;
-    border: 1px solid color-mix(in srgb, var(--w-brand) 45%, transparent);
-    border-radius: var(--w-radius-small);
-    background: var(--ws-code-popup);
-    box-shadow: var(--w-shadow-float);
-    color: var(--w-text);
-    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
-    font-size: 12px;
-    line-height: 16px;
-    white-space: nowrap;
-  }
-
-  .ws-callout-tag::before {
-    position: absolute;
-    top: -5px;
-    left: 16px;
-    width: 8px;
-    height: 8px;
-    border-top: 1px solid color-mix(in srgb, var(--w-brand) 45%, transparent);
-    border-left: 1px solid color-mix(in srgb, var(--w-brand) 45%, transparent);
-    background: var(--ws-code-popup);
-    content: '';
-    transform: rotate(45deg);
-  }
-
-  .ws-callout-tag code {
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--w-brand) 14%, transparent);
-    color: var(--ws-code-key);
-    font-family: var(--w-mono);
-    font-size: 12px;
-  }
-
-  .ws-callout-group {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
-  }
-
-  .ws-callout-in {
-    color: var(--w-muted);
-  }
-
-  .ws-callout-arrow {
-    color: var(--w-brand);
-  }
-
-  .ws-callout-tag strong {
-    font-weight: 600;
   }
 
   .ws-status {
@@ -683,31 +724,16 @@
     position: relative;
   }
 
-  .ws-finding-from code {
-    min-width: 0;
+  /* What the evidence shows carries the accent of the line it lights in the code and of the key being written. */
+  .ws-finding .ws-evidence-says {
     padding: 0 8px;
-    overflow: hidden;
     border-radius: var(--w-radius-chip);
-    background: color-mix(in srgb, var(--w-brand) 14%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--w-brand) 30%, transparent);
-    color: var(--w-text-strong);
-    font-family: var(--w-mono);
-    font-size: 13px;
-    line-height: 22px;
-    text-overflow: ellipsis;
+    background: var(--ws-accent);
+    box-shadow: inset 0 0 0 1px var(--ws-accent-line);
   }
 
-  .ws-finding-where {
-    flex: none;
-    color: var(--w-muted);
-    font-size: 13px;
-  }
-
-  .ws-finding-choice {
-    min-width: 0;
+  .ws-finding .ws-evidence {
     overflow: hidden;
-    color: var(--w-text);
-    text-overflow: ellipsis;
   }
 
   /* The leader runs from the code to the pane's edge and on across the gap, ending in an arrowhead. */
@@ -745,11 +771,81 @@
     text-overflow: ellipsis;
   }
 
+  /* The resource's own estimate, beside its name; the file's total is in the editor's header. */
   .ws-finding-price {
-    margin-left: auto;
+    flex: none;
     color: var(--w-muted);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
+    animation: ws-fade-in 300ms var(--w-ease) both;
+  }
+
+  .ws-finding-price::before {
+    margin-right: 8px;
+    color: var(--w-faint);
+    content: '·';
+  }
+
+  /* Why a resource is there, in one line: "Postgres driver in package.json:29", or "Added by Stacktape so …". */
+  .ws-evidence {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .ws-evidence-says {
+    flex: none;
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  .ws-evidence-says code {
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--w-code-fill);
+    font-family: var(--w-mono);
+    font-size: 0.93em;
+    font-weight: 500;
+  }
+
+  .ws-finding .ws-evidence-says code {
+    padding: 0;
+    background: none;
+  }
+
+  /* A resource added for another cites no code: its words are plain, the tag says who added it. */
+  .ws-finding .ws-evidence-tag + .ws-evidence-says {
+    padding: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .ws-evidence-where {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-muted);
+    font-size: 13px;
+    text-overflow: ellipsis;
+  }
+
+  .ws-evidence-tag {
+    flex: none;
+    padding: 0 7px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-code-fill);
+    box-shadow: inset 0 0 0 1px var(--w-line-strong);
+    color: var(--w-text);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .ws-evidence-tag + .ws-evidence-says {
+    color: var(--w-text);
+    font-weight: 500;
+    white-space: normal;
   }
 
   .ws-pulse {
@@ -950,7 +1046,7 @@
 
   .ws-editor-price small {
     margin-left: 3px;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     font-weight: 500;
   }
@@ -970,7 +1066,7 @@
     margin: 0;
     padding: 10px 16px;
     border-bottom: 1px solid var(--w-line);
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     line-height: 16px;
   }
@@ -984,18 +1080,6 @@
     flex: 1;
     min-height: 0;
     background: var(--ws-code-bg);
-  }
-
-  .ws-editor-placeholder {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    display: grid;
-    margin: 0;
-    color: var(--w-subtle);
-    font-size: 13px;
-    pointer-events: none;
-    place-items: center;
   }
 
   /* Before the first finding: the file's first lines are written, and faint rows hold the place of what comes. */
@@ -1042,7 +1126,7 @@
     justify-content: center;
     gap: 10px;
     height: 100%;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 13px;
   }
 
@@ -1115,8 +1199,18 @@
     animation: ws-fade-out 1.8s ease-in both;
   }
 
+  /* The picked resource's key, and the key being written in the reveal, carry the finding's accent; the rest of a
+   * picked block a quieter one. */
+  .monaco-editor .ws-editor-key {
+    background: var(--ws-accent);
+  }
+
   .monaco-editor .ws-editor-picked {
-    background: color-mix(in srgb, var(--w-brand) 9%, transparent);
+    background: color-mix(in srgb, var(--w-brand) 5%, transparent);
+  }
+
+  .monaco-editor .ws-editor-picked-gutter.is-quiet {
+    opacity: 0.4;
   }
 
   .monaco-editor .codelens-decoration a:hover {
@@ -1160,7 +1254,7 @@
   }
 
   .ws-peek-line {
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-weight: 500;
   }
 
@@ -1191,7 +1285,7 @@
   .ws-peek-row {
     display: flex;
     white-space: pre;
-    color: var(--w-subtle);
+    color: var(--w-muted);
   }
 
   .ws-peek-row[data-focus] {
@@ -1239,14 +1333,6 @@
     min-height: 0;
   }
 
-  .ws-review-head {
-    display: flex;
-    flex: none;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 24px;
-  }
-
   /* The frame's .w-title type; a long project name wraps rather than losing "on AWS". */
   .ws-title {
     margin: 0;
@@ -1280,93 +1366,250 @@
     align-items: center;
     gap: 8px;
     margin: 0;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     line-height: 16px;
   }
 
-  /* The diagram takes what the title and settings leave; below 240 px the column scrolls instead. */
+  /* The diagram takes what the title and settings leave; below 264 px the column scrolls instead. Its last row says
+   * what the resource under the pointer, or the picked one, is. */
   .ws-diagram {
     position: relative;
-    flex: 1 0 240px;
+    display: flex;
+    container: ws-diagram / inline-size;
+    flex: 1 0 264px;
+    flex-direction: column;
     overflow: hidden;
+  }
+
+  .ws-diagram-canvas {
+    position: relative;
+    flex: 1;
+    min-height: 0;
   }
 
   .ws-diagram .stp-diagram {
     height: 100%;
   }
 
-  /* When the diagram shows its view buttons in the corner, the hint stops short of them. */
-  .ws-diagram .stp-diagram:has(.stp-diagram__controls) .stp-diagram__hint {
-    right: 60px;
+  /* One height for the app (its longest citation), so hovering never resizes the picture above it. */
+  .ws-selection {
+    display: grid;
+    flex: none;
+    /* The name and why first; the lines take what is left, up to about a quarter. */
+    grid-template-columns: minmax(240px, 1fr) fit-content(26%) 200px;
+    align-items: center;
+    gap: 16px;
+    box-sizing: border-box;
+    height: calc(max(44px, var(--ws-selection-rows, 1) * 20px + 12px) + 20px);
+    padding: 0 12px 0 16px;
+    border-top: 1px solid var(--w-line);
+    background: var(--w-well);
   }
 
-  /* A resource picked in the picture: its card stays, with a way into its code, until it is closed. */
-  .ws-picked {
-    position: absolute;
-    bottom: 12px;
-    left: 12px;
-    z-index: 3;
+  .ws-selection[data-empty] {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    max-width: calc(100% - 24px);
-    padding: 12px 8px 12px 14px;
-    border-radius: var(--w-radius-small);
-    background: var(--ws-code-popup);
-    box-shadow:
-      var(--w-shadow-float),
-      inset 0 0 0 1px var(--ws-code-popup-border);
-    animation: ws-rise-small 200ms var(--w-ease) both;
   }
 
-  .ws-picked .ws-node-card {
+  .ws-selection:not([data-code]) {
+    grid-template-columns: minmax(0, 1fr) 200px;
+  }
+
+  .ws-selection-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
     min-width: 0;
   }
 
-  .ws-picked-actions {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 2px;
+  .ws-selection-hint {
+    color: var(--w-muted);
+    font-size: 12px;
+    white-space: nowrap;
   }
 
-  .ws-picked-why {
+  /* A narrow pane beside the editor: the way to the file is its icon (named in its tooltip), so the resource's name
+   * and why keep their room. */
+  @container ws-diagram (max-width: 760px) {
+    .ws:not([data-stacked]) .ws-selection {
+      grid-template-columns: minmax(240px, 1fr) fit-content(36%) 64px;
+    }
+
+    .ws:not([data-stacked]) .ws-selection:not([data-code]) {
+      grid-template-columns: minmax(0, 1fr) 64px;
+    }
+
+    .ws:not([data-stacked]) .ws-selection-show {
+      width: 30px;
+      padding: 0;
+      justify-content: center;
+    }
+
+    .ws:not([data-stacked]) .ws-selection-show-label,
+    .ws:not([data-stacked]) .ws-selection-hint {
+      display: none;
+    }
+  }
+
+  .ws-selection-empty {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  .ws-selection-main {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    animation: ws-fade-in 160ms var(--w-ease) both;
+  }
+
+  .ws-selection-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    font-size: 14px;
+    line-height: 20px;
+    white-space: nowrap;
+  }
+
+  .ws-selection-name svg {
+    flex: none;
+  }
+
+  .ws-selection-name strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-text-strong);
+    font-weight: 600;
+    text-overflow: ellipsis;
+  }
+
+  .ws-selection-price {
+    flex: none;
+    color: var(--w-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ws-selection-price::before {
+    margin-right: 8px;
+    color: var(--w-faint);
+    content: '·';
+  }
+
+  .ws-selection-why {
+    display: flex;
+    min-width: 0;
+    margin: 0;
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .ws-selection-why .ws-evidence-says {
+    font-weight: 500;
+  }
+
+  .ws-selection-why .ws-evidence-tag + .ws-evidence-says {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* The cited lines, as the file has them, in the accent of a picked resource. */
+  .ws-selection-code {
+    min-width: 0;
+    padding: 6px 0;
+    border-radius: var(--w-radius-chip);
+    background: var(--ws-code-bg);
+    box-shadow: inset 2px 0 0 var(--w-brand);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 20px;
+    animation: ws-fade-in 160ms var(--w-ease) both;
+  }
+
+  .ws-selection-line {
+    display: flex;
+    min-width: 0;
+    white-space: pre;
+  }
+
+  .ws-selection-number {
+    flex: none;
+    min-width: 3ch;
+    padding: 0 12px 0 10px;
+    color: var(--ws-code-line-number);
+    text-align: right;
+  }
+
+  .ws-selection-text {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ws-code-text);
+    text-overflow: ellipsis;
+  }
+
+  .ws-selection-show {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 28px;
+    height: 30px;
     padding: 0 10px;
     border: 0;
     border-radius: var(--w-radius-chip);
-    background: var(--w-brand-soft);
+    background: var(--ws-accent);
+    box-shadow: inset 0 0 0 1px var(--ws-accent-line);
     color: var(--w-text-strong);
     font: inherit;
     font-size: 12px;
     font-weight: 600;
+    white-space: nowrap;
     cursor: pointer;
   }
 
-  .ws-picked-why:hover {
-    background: color-mix(in srgb, var(--w-brand) 22%, transparent);
+  .ws-selection-show:hover {
+    background: color-mix(in srgb, var(--w-brand) 24%, transparent);
   }
 
-  .ws-picked-close {
+  .ws-selection-clear {
     display: grid;
-    width: 28px;
-    height: 28px;
+    flex: none;
+    width: 30px;
+    height: 30px;
     padding: 0;
     border: 0;
     border-radius: var(--w-radius-chip);
     background: none;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     cursor: pointer;
     place-items: center;
   }
 
-  .ws-picked-close:hover {
+  .ws-selection-clear:hover {
     background: var(--w-hover);
     color: var(--w-text);
+  }
+
+  /* On a phone the bar carries the price and the button; what the click does is the page's last line. */
+  .ws-save-note {
+    display: none;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+    text-align: right;
+  }
+
+  /* When the diagram shows its view buttons in the corner, the hint stops short of them. */
+  .ws-diagram .stp-diagram:has(.stp-diagram__controls) .stp-diagram__hint {
+    right: 60px;
   }
 
   /* What the app needs that this deploy does not create, right under the picture. */
@@ -1459,13 +1702,13 @@
     gap: 14px;
     min-width: 0;
     overflow: hidden;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 13px;
     white-space: nowrap;
   }
 
   .ws-more-values strong {
-    color: var(--w-muted);
+    color: var(--w-text);
     font-weight: 600;
   }
 
@@ -1519,64 +1762,8 @@
   }
 
   .ws-option-delta {
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-weight: 500;
-  }
-
-  /* A node's hover card, inside the diagram's own tooltip. */
-  .ws-node-card {
-    display: grid;
-    gap: 6px;
-    min-width: 220px;
-    max-width: 300px;
-  }
-
-  .ws-node-card-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 16px;
-    font-size: 13px;
-  }
-
-  .ws-node-card-head span {
-    color: var(--w-muted);
-    font-size: 12px;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .ws-node-card-reason {
-    margin: 0;
-    color: var(--w-muted);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .ws-node-card-evidence {
-    display: grid;
-    gap: 2px;
-    min-width: 0;
-    margin: 2px 0 0;
-    padding: 7px 10px;
-    border-radius: var(--w-radius-chip);
-    background: var(--ws-code-bg);
-    box-shadow: inset 2px 0 0 var(--w-brand);
-    font-size: 12px;
-    line-height: 18px;
-  }
-
-  .ws-node-card-evidence code {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--w-text);
-    font-family: var(--w-mono);
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .ws-node-card-evidence span {
-    color: var(--w-muted);
   }
 
   /* ── The bar ─────────────────────────────────────────────────────────────────────────────────── */
@@ -1591,10 +1778,6 @@
   }
 
   /* ── Arrival: after the reveal, the review comes in; on a reload it is simply there ─────────────── */
-
-  .ws[data-arrived] .ws-review-head {
-    animation: ws-rise 420ms 120ms var(--w-ease) both;
-  }
 
   .ws[data-arrived] .ws-diagram {
     animation: ws-fade-in 520ms 40ms var(--w-ease) both;
@@ -1630,9 +1813,16 @@
       overflow-wrap: anywhere;
     }
 
+    /* Skipping is a way out, not the next step: a quiet link under the title. */
     .ws-head > .ws-skip {
       align-self: flex-start;
       margin-left: -6px;
+      color: var(--w-muted);
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: underline;
+      text-decoration-color: var(--w-line-strong);
+      text-underline-offset: 3px;
     }
 
     /* The phone's reveal card names the finding itself. */
@@ -1662,9 +1852,23 @@
       height: 300px;
     }
 
-    /* While it reads, the code is all there is to watch: it takes the screen. */
+    /* While it reads, the window is as tall as the file it shows, up to most of the screen. */
     .ws[data-phase='scan'] .ws-window {
-      height: max(300px, calc(100dvh - var(--w-header-h) - 300px));
+      height: auto;
+    }
+
+    .ws[data-phase='scan'] .ws-window-body {
+      flex: none;
+      height: clamp(160px, var(--ws-code-h, 300px), calc(100dvh - var(--w-header-h) - 320px));
+    }
+
+    .ws[data-phase='scan'] .ws-window[data-bare] .ws-window-body {
+      height: auto;
+    }
+
+    /* A line longer than the screen fades at the edge instead of stopping mid-word. */
+    .ws-window[data-compact] .ws-line-text {
+      mask-image: linear-gradient(to left, transparent, black 28px);
     }
 
     .ws-editor {
@@ -1678,7 +1882,25 @@
     }
 
     .ws-editor[data-collapsed] .ws-editor-head {
+      height: auto;
+      min-height: 48px;
+      padding-top: 8px;
+      padding-bottom: 8px;
       border-bottom: 0;
+    }
+
+    /* The running total keeps its words, on a line under the amount rather than squeezing the filename. */
+    .ws-editor[data-collapsed] .ws-editor-price {
+      display: grid;
+      justify-items: end;
+      line-height: 20px;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-price small {
+      margin: 0;
+      line-height: 16px;
+      text-align: right;
+      text-wrap: balance;
     }
 
     .ws-editor[data-collapsed] .ws-editor-hint {
@@ -1700,14 +1922,62 @@
 
     .ws-diagram {
       flex: none;
-      height: 300px;
       min-height: 0;
     }
 
+    .ws-diagram-canvas {
+      flex: none;
+      height: 300px;
+    }
+
     @media (max-width: 760px) {
-      .ws-diagram {
-        height: 260px;
+      .ws-diagram-canvas {
+        height: 204px;
       }
+    }
+
+    /* In the page's flow under the picture, as tall as what it says: the resource and a way to clear it, its lines,
+     * then the way to its block. */
+    .ws-selection,
+    .ws-selection:not([data-code]) {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px 8px;
+      height: auto;
+      min-height: 56px;
+      padding: 12px 8px 14px 16px;
+    }
+
+    .ws-selection-main {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .ws-selection-actions {
+      display: contents;
+    }
+
+    .ws-selection-clear {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: start;
+      margin: -4px 0 0;
+    }
+
+    .ws-selection-code {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      margin-right: 8px;
+    }
+
+    .ws-selection-show {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      justify-self: start;
+    }
+
+    .ws-selection-why .ws-evidence {
+      flex-wrap: wrap;
+      white-space: normal;
     }
 
     .ws-chips {
@@ -1740,22 +2010,44 @@
     font-weight: 600;
   }
 
-  .ws-phone-finding-head span {
-    color: var(--w-muted);
-    font-size: 13px;
-  }
-
-  .ws-phone-finding-choice {
-    margin: 0;
-    color: var(--w-text);
-    font-size: 14px;
-  }
-
   .ws-phone-finding-arrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin: 0;
     color: var(--w-brand);
     font-size: 12px;
     font-weight: 600;
+  }
+
+  .ws-phone-finding-why {
+    display: flex;
+    min-width: 0;
+    margin: -4px 0 0;
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .ws-phone-finding-why .ws-evidence {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  .ws-phone-finding-price {
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  /* The block typed so far is the start of the file, not all of it. */
+  .ws-tag {
+    margin-left: auto;
+    padding: 0 7px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
   }
 
   .ws-excerpt {
@@ -1772,7 +2064,7 @@
     display: flex;
     min-width: 0;
     padding: 0 12px 0 0;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     white-space: pre;
   }
 
@@ -1856,25 +2148,56 @@
       display: none;
     }
 
+    .ws-window[data-bare] .ws-window-empty {
+      padding: 20px 16px;
+    }
+
+    .ws-manifests-list,
+    .ws-manifests-line,
+    .ws-manifests .ws-files-title {
+      margin-left: 0;
+    }
+
+    /* Each kind on its line, the files it covers under it. */
+    .ws-manifests-list li {
+      grid-template-columns: 16px minmax(0, 1fr);
+      row-gap: 0;
+      padding: 8px 0;
+    }
+
+    .ws-manifests-list span:last-child {
+      grid-column: 2;
+      padding: 0;
+    }
+
+    .ws-save-note {
+      display: block;
+    }
+
+    /* One row: the amount with its words wrapped beside it, and the button. */
+    .ws-bar-slot .w-bar-note {
+      display: none;
+    }
+
+    .ws-bar-slot .w-bar-amount,
+    .ws-bar-slot .w-bar-figure {
+      align-items: center;
+      white-space: normal;
+    }
+
+    /* Two lines, "/month estimated" over "AWS cost + usage", the help mark right after them. */
+    .ws-bar-slot .w-bar-amount small {
+      max-width: 9.4em;
+      font-size: 12px;
+      line-height: 15px;
+    }
+
     .ws-external {
       grid-template-columns: minmax(0, 1fr);
     }
 
     .ws-external-note {
       justify-self: start;
-    }
-
-    .ws-picked {
-      right: 8px;
-      bottom: 8px;
-      left: 8px;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .ws-picked-actions {
-      width: 100%;
-      justify-content: space-between;
     }
   }
 
@@ -1935,13 +2258,6 @@
   }
 }
 
-@keyframes ws-callout-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}
-
 @keyframes ws-bar-up {
   from {
     transform: translateY(100%);
@@ -1951,6 +2267,15 @@
 @keyframes ws-ghost {
   from {
     opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ws-manifest-read {
+  from {
+    opacity: 0.6;
   }
   to {
     opacity: 1;

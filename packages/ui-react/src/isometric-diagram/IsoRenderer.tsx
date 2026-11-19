@@ -472,7 +472,8 @@ const ConnSvg = ({
   idPrefix: string;
   nodeMap: Map<string, IsoNode>;
   animateConnectors: boolean;
-  dimmed: boolean;
+  /** Stepped back from the focus: drawn at this opacity. */
+  dimmed: number | false;
   highlighted: boolean;
   onPointerEnter?: () => void;
   onPointerLeave?: () => void;
@@ -491,7 +492,7 @@ const ConnSvg = ({
   const cc = conn.color || style.color;
 
   return (
-    <g className="stp-diagram__fade" opacity={dimmed ? 0.12 : 1}>
+    <g className="stp-diagram__fade" opacity={dimmed === false ? 1 : dimmed}>
       <path
         data-iso-kind="connector-path"
         data-iso-id={conn.id}
@@ -525,7 +526,7 @@ const ConnSvg = ({
 
 // Horizontal label chip drawn on top of everything so pipes never cut through the
 // text; the chip background doubles as padding between the text and the pipe.
-const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: boolean }) => {
+const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: number | false }) => {
   const scale = useContext(LabelScale);
   if (!conn.label) return null;
 
@@ -538,7 +539,7 @@ const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: bool
     <g
       data-iso-kind="connector-label"
       data-iso-id={conn.id}
-      opacity={dimmed ? 0.12 : 1}
+      opacity={dimmed === false ? 1 : dimmed}
       className="stp-diagram__fade stp-diagram__chip"
     >
       <rect
@@ -671,7 +672,7 @@ export type DiagramViewProps = {
    * deploy.
    */
   resourceProgress?: Readonly<Record<string, 'pending' | 'creating' | 'ready'>> | undefined;
-  /** Replaces the usage hint at the bottom of the frame. */
+  /** Replaces the usage hint at the bottom of the frame; an empty string shows none, for a host that says it itself. */
   hint?: string | undefined;
   /**
    * The smallest a resource's name is drawn, in screen pixels, when a large picture is scaled down to fit its frame:
@@ -685,6 +686,22 @@ export type DiagramViewProps = {
    * `undefined` to keep the diagram's own card for that resource.
    */
   resourceTooltip?: ((resourceName: string) => ReactNode | undefined) | undefined;
+  /**
+   * Tells the host which node the pointer or keyboard is on (its id, a declared resource's name), and `null` when it
+   * leaves, for a host that explains it beside the picture rather than over it. With it, nodes show no hover card and
+   * the hovered one gets a soft ring; connectors keep theirs.
+   */
+  onHoverResource?: ((resourceName: string | null) => void) | undefined;
+  /**
+   * How far hovering or keyboard focus on a node steps back what it does not connect to. `soft` keeps the rest of the
+   * picture readable, for a small picture that is read as a whole. Defaults to `strong`.
+   */
+  focusDimming?: 'strong' | 'soft' | undefined;
+  /**
+   * Room left around the picture inside its frame, in the picture's own units (default 80). A host whose frame is
+   * short for what it shows lowers it, so the picture fills the frame rather than its margin.
+   */
+  framePadding?: number | undefined;
 };
 
 export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
@@ -709,6 +726,16 @@ export type IsoRendererProps = DiagramViewProps & {
 const DRAG_THRESHOLD = 4;
 
 const normalize = (text: string) => text.trim().toLowerCase();
+
+/** Whether an element has focus from the keyboard rather than from a click, as `:focus-visible` tells it. */
+const isKeyboardFocus = (element: Element): boolean => {
+  try {
+    return element.matches(':focus-visible');
+  } catch {
+    // A browser without the selector: count every focus, as before.
+    return true;
+  }
+};
 
 /** The nodes a search matches: by name, and a group when one of its members matches. */
 const findMatches = ({ scene, query }: { scene: IsoScene; query: string }) => {
@@ -743,6 +770,9 @@ export function IsoRenderer({
   resourceProgress,
   hint = 'Hover to learn what something does · click a resource for its connections',
   resourceTooltip,
+  onHoverResource,
+  focusDimming = 'strong',
+  framePadding = 80,
   onToggleGroup,
   toolbar,
   viewNote,
@@ -833,7 +863,7 @@ export function IsoRenderer({
             })
           ]
         }),
-        padding: 80
+        padding: framePadding
       });
       return { minX: merged.minX, minY: merged.minY, svgW: merged.maxX - merged.minX, svgH: merged.maxY - merged.minY };
     }
@@ -885,7 +915,7 @@ export function IsoRenderer({
       bounds: mergeBounds({
         bounds: [...nodeBounds, ...rectangleBounds, ...labelBounds, ...connectorBounds, ...connectorLabelBounds]
       }),
-      padding: 80
+      padding: framePadding
     });
 
     return {
@@ -894,7 +924,7 @@ export function IsoRenderer({
       svgW: merged.maxX - merged.minX,
       svgH: merged.maxY - merged.minY
     };
-  }, [scene, labelScale]);
+  }, [scene, labelScale, framePadding]);
 
   // The scale the picture is fitted at, for a host that keeps names readable however far it is scaled down.
   useEffect(() => {
@@ -1191,6 +1221,9 @@ export function IsoRenderer({
     if (isShowingAttention) return !attention.nodeIds.has(nodeId);
     return false;
   };
+  // Soft dimming applies to what hovering or focus steps back; a search and the attention chip still step back hard.
+  const softFocus = focusDimming === 'soft' && Boolean(focusNodeId || hoveredConnector);
+  const connectorDimOpacity = softFocus ? 0.4 : 0.12;
   const isConnectorDimmed = (connector: IsoConnector) => {
     if (hoveredConnectorId) return connector.id !== hoveredConnectorId;
     if (focusNodeId) return connector.from !== focusNodeId && connector.to !== focusNodeId;
@@ -1221,6 +1254,8 @@ export function IsoRenderer({
   const ringOf = (nodeId: string): 'strong' | 'soft' | null => {
     if (nodeId === selectedId || nodeId === selectedResource) return 'strong';
     if (nodeId === focusedNodeId || (isSearching && matches.has(nodeId))) return 'soft';
+    // A host that explains the hovered resource beside the picture is pointed back at it.
+    if (onHoverResource && nodeId === hoveredNodeId) return 'soft';
     return null;
   };
 
@@ -1369,7 +1404,7 @@ export function IsoRenderer({
               idPrefix={idPrefix}
               nodeMap={nodeMap}
               animateConnectors={animateConnectors}
-              dimmed={isConnectorDimmed(c)}
+              dimmed={isConnectorDimmed(c) && connectorDimOpacity}
               highlighted={hoveredConnectorId === c.id}
               onPointerEnter={() => {
                 if (!isDragging) setHoveredConnectorId(c.id);
@@ -1402,21 +1437,28 @@ export function IsoRenderer({
                   isNodeDimmed(n.id)
                     ? (isSearching || isShowingAttention) && !focusNodeId && !hoveredConnector
                       ? 0.2
-                      : 0.35
+                      : softFocus
+                        ? 0.6
+                        : 0.35
                     : 1
                 }
                 className="stp-diagram__fade stp-diagram__node"
                 data-progress={resourceProgress?.[n.id]}
                 onPointerEnter={() => {
-                  if (!isDragging) setHoveredNodeId(n.id);
+                  if (isDragging) return;
+                  setHoveredNodeId(n.id);
+                  onHoverResource?.(n.id);
                 }}
                 onPointerLeave={() => {
                   setHoveredNodeId((current) => (current === n.id ? null : current));
                   setTooltip(null);
+                  onHoverResource?.(null);
                 }}
                 onPointerMove={(e) => {
                   if (isDragging) return;
                   e.stopPropagation();
+                  // The host says what it is, beside the picture.
+                  if (onHoverResource) return;
                   const custom = n.isImplicit || n.memberCount ? undefined : resourceTooltip?.(n.id);
                   moveTooltip(e, {
                     ...(custom === undefined ? {} : { custom }),
@@ -1449,8 +1491,16 @@ export function IsoRenderer({
                   e.preventDefault();
                   selectNode(n.id);
                 }}
-                onFocus={() => setFocusedNodeId(n.id)}
-                onBlur={() => setFocusedNodeId((current) => (current === n.id ? null : current))}
+                onFocus={(e) => {
+                  // A click focuses the node too; only keyboard focus steps the rest of the picture back.
+                  if (!isKeyboardFocus(e.currentTarget)) return;
+                  setFocusedNodeId(n.id);
+                  onHoverResource?.(n.id);
+                }}
+                onBlur={() => {
+                  if (focusedNodeId === n.id) onHoverResource?.(null);
+                  setFocusedNodeId((current) => (current === n.id ? null : current));
+                }}
               >
                 <IsoNodeBlock idPrefix={idPrefix} node={n} ring={ringOf(n.id)} status={nodeStatuses.get(n.id)} />
               </g>
@@ -1458,7 +1508,7 @@ export function IsoRenderer({
             </Fragment>
           ))}
           {scene.connectors.map((c) => (
-            <ConnectorLabelChip key={`${c.id}-label`} conn={c} dimmed={isConnectorDimmed(c)} />
+            <ConnectorLabelChip key={`${c.id}-label`} conn={c} dimmed={isConnectorDimmed(c) && connectorDimOpacity} />
           ))}
           {scene.labels.map((l) => (
             <ZoneTag key={l.id} label={l} />
@@ -1516,7 +1566,7 @@ export function IsoRenderer({
         )}
       {viewNote
         ? !tooltip && <div className="stp-diagram__view-note">{viewNote}</div>
-        : !tooltip && !selectedNode && !selectedGroup && <p className="stp-diagram__hint">{hint}</p>}
+        : !tooltip && !selectedNode && !selectedGroup && hint !== '' && <p className="stp-diagram__hint">{hint}</p>}
       <div className="stp-diagram__toolbar stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
         {toolbar}
         {!compact && (

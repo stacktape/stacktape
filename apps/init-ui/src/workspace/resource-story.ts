@@ -7,7 +7,7 @@
  */
 
 import type { FileView, WizardState } from '../session';
-import { plainResourceName, technologyOf } from '../steps/review-model';
+import { monthlySuffix, plainResourceName, splitMonthly, technologyOf } from '../steps/review-model';
 
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
 type Service = NonNullable<WizardState['facts']>['services'][number];
@@ -26,9 +26,11 @@ export type ResourceStory = {
   citations?: Evidence[];
   /** A word the right line contains (`sqlite`, `postgres`), for finding it when a citation's line number is off. */
   hint?: string;
+  /** What it is built from, in a person's words: the app's framework ("Next.js") or the data's engine ("Postgres"). */
+  technology?: string;
   /**
-   * Stacktape adds it for another resource rather than because the code asks for it: "Added so you can reach the
-   * private database". Its citations are the other resource's.
+   * Stacktape adds it for another resource rather than because the code asks for it, and why, said after "Added by
+   * Stacktape": "so you can reach the private database". Its citations are the other resource's, so it shows none.
    */
   designChoice?: string;
   /** `$15/mo`, `Pay per use`, or absent until the price arrives. */
@@ -169,9 +171,22 @@ const parseMonthly = (label: string | undefined): number | undefined => {
   return amount === undefined ? undefined : Number(amount.replaceAll(',', ''));
 };
 
-/** Resources Stacktape adds for another one, and why, in a developer's words. */
+/** Resources Stacktape adds for another one, and why, in a developer's words, after "Added by Stacktape". */
 const DESIGN_CHOICES: Readonly<Record<string, string>> = {
-  bastion: 'Added so you can reach the private database'
+  bastion: 'so you can reach the private database'
+};
+
+/** The data a dependency stands for, by its kind, as people name it. */
+const DATA_ENGINES: Readonly<Record<string, string>> = {
+  postgres: 'Postgres',
+  mysql: 'MySQL',
+  mariadb: 'MariaDB',
+  sqlite: 'SQLite',
+  redis: 'Redis',
+  mongodb: 'MongoDB',
+  dynamodb: 'DynamoDB',
+  opensearch: 'OpenSearch',
+  elasticsearch: 'Elasticsearch'
 };
 
 const sameCitation = (left: Evidence | undefined, right: Evidence | undefined) =>
@@ -205,6 +220,9 @@ export const storyOf = (state: WizardState, name: string, resource: Resources[st
   // A disk added for a SQLite file is named for what it keeps.
   const named = resource.type === 'efs-filesystem' && hint === 'sqlite' ? 'Disk for SQLite data' : plainName;
   const designChoice = provenance === undefined ? undefined : DESIGN_CHOICES[resource.type];
+  const engine =
+    resource.type === 'relational-database' ? plainName.replace(/ database$/, '') : DATA_ENGINES[hint ?? ''];
+  const builtFrom = service === undefined ? engine : technology;
   const raw = state.composition?.price?.byResource[name];
   const priceLabel = raw === undefined ? undefined : raw === 'pay-per-use' ? 'Pay per use' : raw;
   const monthly = parseMonthly(raw);
@@ -216,6 +234,7 @@ export const storyOf = (state: WizardState, name: string, resource: Resources[st
     ...(evidence === undefined ? {} : { evidence }),
     ...(citations.length === 0 ? {} : { citations }),
     ...(hint === undefined ? {} : { hint }),
+    ...(builtFrom === undefined ? {} : { technology: builtFrom }),
     ...(designChoice === undefined ? {} : { designChoice }),
     ...(priceLabel === undefined ? {} : { priceLabel }),
     ...(monthly === undefined ? {} : { monthly })
@@ -223,19 +242,63 @@ export const storyOf = (state: WizardState, name: string, resource: Resources[st
 };
 
 /**
- * What stacktape.yml costs so far while the reveal writes it, in the editor's header: "estimating…" until every
- * resource written has a price (never "$0 /mo" beside a database), "Pay per use" when nothing has a fixed price, then
- * the fixed amount with "+ usage" once something is billed by use.
+ * What stacktape.yml costs so far while the reveal writes it, in the editor's header and in the words of Review's bar:
+ * "estimating…" until every resource written has a price (never "$0" beside a database), "Pay per use" when nothing
+ * has a fixed price, then the fixed amount with "+ usage" once something is billed by use. Once every resource is told,
+ * it is the estimate's own total (`whole`, "$31/mo + pay-per-use costs"), so the reveal ends on Review's number rather
+ * than on a sum of rounded parts.
  */
 export const runningPrice = (
-  written: ReadonlyArray<Pick<ResourceStory, 'priceLabel' | 'monthly'>>
+  written: ReadonlyArray<Pick<ResourceStory, 'priceLabel' | 'monthly'>>,
+  whole?: string
 ): { text: string; amount?: number } => {
+  const total = whole === undefined ? undefined : splitMonthly(whole);
+  const totalAmount = total?.amount === undefined ? undefined : Number(total.amount.slice(1).replaceAll(',', ''));
+  if (total !== undefined && totalAmount !== undefined && Number.isFinite(totalAmount)) {
+    return { text: `${total.amount} ${monthlySuffix(total.usage)}`, amount: totalAmount };
+  }
   if (written.length === 0 || written.some((story) => story.monthly === undefined)) return { text: 'estimating…' };
   const amount = written.reduce((sum, story) => sum + (story.monthly ?? 0), 0);
   const usage = written.some((story) => story.priceLabel === 'Pay per use');
   if (amount === 0) return { text: 'Pay per use' };
   const rounded = Math.round(amount);
-  return { text: `$${rounded.toLocaleString('en-US')} /mo${usage ? ' + usage' : ''}`, amount: rounded };
+  return { text: `$${rounded.toLocaleString('en-US')} ${monthlySuffix(usage)}`, amount: rounded };
+};
+
+const MANIFEST =
+  /^(package\.json|requirements[\w.-]*\.txt|pyproject\.toml|pipfile|setup\.py|go\.mod|gemfile|composer\.json|cargo\.toml|pom\.xml|build\.gradle(\.kts)?|mix\.exs)$/i;
+const COMPOSE = /^(docker-)?compose([.-][\w-]+)?\.ya?ml$/i;
+const SOURCE = /\.(ts|tsx|js|jsx|mjs|cjs|py|go|rb|php|rs|java|kt|cs|ex|exs)$/i;
+const DATA_TYPES =
+  /^(relational-database|redis-cluster|upstash-redis|dynamo-db-table|mongo-db-atlas-cluster|efs-filesystem|open-search-domain|bucket)$/;
+const SQL_ENGINES: ReadonlySet<string> = new Set(['Postgres', 'MySQL', 'MariaDB', 'SQL', 'SQLite']);
+
+/**
+ * What a resource's evidence shows, in plain words with any name from the code in backticks: "Postgres driver",
+ * "Postgres container", "FastAPI app", "Next.js dependency", "`BUCKET_NAME` setting". Undefined when the line says
+ * nothing a person would name (a Dockerfile's `FROM`): the page quotes the line instead.
+ */
+export const evidenceSays = (story: Pick<ResourceStory, 'type' | 'technology' | 'hint'>, evidence: Evidence) => {
+  const file = evidence.file.split('/').at(-1) ?? evidence.file;
+  const quote = quoteLabel(evidence.quote);
+  const named = story.hint !== undefined && words(quote).has(story.hint);
+  const isApp = !DATA_TYPES.test(story.type);
+  const technology = story.technology;
+  const setting = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(quote)?.[1];
+  if (setting !== undefined && /^\.env/i.test(file)) return `\`${setting}\` setting`;
+  if (technology === undefined) return undefined;
+  if (!isApp) {
+    if (MANIFEST.test(file)) return `${technology} ${SQL_ENGINES.has(technology) ? 'driver' : 'client'}`;
+    if (COMPOSE.test(file)) return `${technology} container`;
+    if (/\.prisma$/i.test(file)) return `${technology} datasource`;
+    return undefined;
+  }
+  if (MANIFEST.test(file)) {
+    const name = /^[@\w./-]+$/.exec(quote)?.[0];
+    return named ? `${technology} dependency` : name === undefined ? undefined : `\`${name}\` dependency`;
+  }
+  if (SOURCE.test(file) && named) return `${technology} app`;
+  return undefined;
 };
 
 export const storiesOf = (state: WizardState, resources: Resources): Record<string, ResourceStory> =>

@@ -207,6 +207,9 @@ export function IsometricDiagram({
   hint,
   minLabelSize,
   resourceTooltip,
+  onHoverResource,
+  focusDimming,
+  framePadding,
   resourceTypeLabels,
   volumeMounts = false,
   layers,
@@ -370,6 +373,9 @@ export function IsometricDiagram({
       labelScale={scale}
       onFitScale={minLabelSize === undefined ? undefined : onFitScale}
       resourceTooltip={resourceTooltip}
+      onHoverResource={onHoverResource}
+      focusDimming={focusDimming}
+      framePadding={framePadding}
       onToggleGroup={toggleGroup}
       toolbar={
         choices.length > 0 ? (
