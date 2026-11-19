@@ -521,10 +521,9 @@ export function Workspace({
       all.push({ line: lines.from, title: head, onClick: () => select(name) });
       const evidence = story.evidence;
       if (evidence !== undefined) {
-        const line = citations[name]?.line ?? evidence.line;
         all.push({
           line: lines.from,
-          title: `why: ${evidence.file}:${line}`,
+          title: `why: ${evidence.file}:${lineRange(citations[name], evidence)}`,
           onClick: () => {
             setPeek((current) => (current === name ? undefined : name));
             load(evidence.file);
@@ -578,7 +577,7 @@ export function Workspace({
     />
   ) : (
     <EmptyCode
-      line="It reads manifests, Dockerfiles and config files. No AI, nothing leaves this machine."
+      line="Manifests, Dockerfiles and config files. Nothing leaves this machine."
       title="Stacktape is reading project manifests"
     />
   );
@@ -893,7 +892,7 @@ function ScanStatus({
         <span aria-hidden className="ws-pulse" />
         <span className="ws-status-text">
           {agentLabel === undefined ? (
-            'Stacktape is reading project manifests, without AI'
+            'Stacktape’s own scanner, without AI'
           ) : activity === undefined ? (
             `${agentLabel} is starting`
           ) : (
