@@ -664,9 +664,12 @@
     overflow-wrap: anywhere;
   }
 
-  /* One argument never breaks: "--stage" split after its dashes reads as a broken flag. */
+  /* An argument moves to the next line whole: "--stage" split after its dashes reads as a broken flag. Only one wider
+   * than the whole line (a very long project name) breaks inside. */
   .w-command-arg {
-    white-space: nowrap;
+    display: inline-block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .w-command .stp-ui-button {
