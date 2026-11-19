@@ -308,3 +308,49 @@ export const planSecrets = (state: WizardState, resources: Resources): SecretsPl
     explainedGaps: [...explainedGaps]
   };
 };
+
+/**
+ * What the user does about a secret, which is how the Deploy step groups them.
+ *
+ * `generate`: a value only the app uses, which a random one fills. `import`: the project's `.env` has a value for it,
+ * which the user checks and keeps. `provide`: a key or address from somewhere else, typed in by hand.
+ */
+export type SecretTask = 'generate' | 'provide' | 'import';
+
+export type SecretTaskGroup = { task: SecretTask; entries: SecretEntry[] };
+
+/** A value from the project's `.env`, as the CLI read it for this page. */
+export type EnvironmentValues = { file: string; values: ReadonlyMap<string, string> };
+
+/**
+ * The secrets by what the user does about them, in the order they do it: what one click fills, then what they type,
+ * then what they check. A value the app owns is generated even when `.env` has one: the local one is a development
+ * value, and a random one is stronger. An empty `.env` value is nothing to import.
+ */
+export const taskGroups = (plan: SecretsPlan, environment: EnvironmentValues | undefined): SecretTaskGroup[] => {
+  const taskOf = (entry: SecretEntry): SecretTask =>
+    entry.canGenerate
+      ? 'generate'
+      : (environment?.values.get(entry.variable) ?? '').trim() !== ''
+        ? 'import'
+        : 'provide';
+  return (['generate', 'provide', 'import'] as const).flatMap((task) => {
+    const entries = plan.entries.filter((entry) => taskOf(entry) === task);
+    return entries.length === 0 ? [] : [{ task, entries }];
+  });
+};
+
+/**
+ * Why a value from `.env` should not go to AWS as it is: it points at this machine (`localhost`, `ENVIRONMENT=local`),
+ * or it is the template's placeholder (`changethis`, `admin@example.com`). Undefined when it looks deployable.
+ */
+export const localValueReason = (value: string): 'local' | 'example' | undefined => {
+  const trimmed = value.trim();
+  if (/\blocalhost\b|\b127\.0\.0\.1\b|\b0\.0\.0\.0\b|host\.docker\.internal/i.test(trimmed)) return 'local';
+  if (/^local$/i.test(trimmed)) return 'local';
+  if (/^(change[-_ ]?(this|me|it)|replace[-_ ]?(this|me)|your[-_ ].+|x{3,}|todo|placeholder)$/i.test(trimmed)) {
+    return 'example';
+  }
+  if (/@example\.(com|org|net)\b|\bexample\.(com|org|net)$/i.test(trimmed)) return 'example';
+  return undefined;
+};

@@ -18,6 +18,7 @@ import { AddressInfo, type Socket } from 'node:net';
 import { extname, join, normalize } from 'node:path';
 import type { DeployTargetObservation } from '../deploy/stack-expectation';
 import type { FileView } from './file-view';
+import type { EnvironmentValues } from './environment-values';
 import {
   isDeploymentPreferenceChange,
   type DeploymentPreferenceChange,
@@ -247,6 +248,8 @@ export type WizardState = {
   awsKeys?: { status: 'saving' | 'saved' | 'failed'; detail?: string; profile?: string };
   /** Folders below the project that look like apps of their own, for an analysis that found nothing to run. */
   nearbyApps?: string[];
+  /** What each of `nearbyApps` is written in, by folder, when its marker files say ("Node.js", "Go"). */
+  nearbyAppKinds?: Record<string, string>;
   /** Normalised agent timeline, newest last. */
   timeline: Array<{ kind: string; label: string }>;
   facts?: unknown;
@@ -333,6 +336,12 @@ export type WizardServerHooks = {
    * the session has no repository on disk to read.
    */
   onFile?: (path: string) => Promise<FileView>;
+  /**
+   * The values the project's `.env` sets for the secrets the configuration reads, for the Deploy step's "Use the values
+   * from .env" (see `environment-values.ts`). They go to the page on this machine and, when the user saves them, into
+   * their AWS account; never into a log. Absent when the session has no repository on disk.
+   */
+  onEnvironmentValues?: () => Promise<EnvironmentValues>;
 };
 
 const json = (response: ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) => {
@@ -632,6 +641,21 @@ export const startWizardServer = async ({
           return;
         }
         json(response, 200, await hooks.onFile(path));
+        return;
+      }
+
+      // Secret values from the project's `.env`: same cookie and CSRF token as the file route, and never logged. The
+      // session decides which variables, not the request.
+      if (
+        url.pathname === '/api/environment-values' &&
+        request.method === 'GET' &&
+        hooks.onEnvironmentValues !== undefined
+      ) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        json(response, 200, await hooks.onEnvironmentValues());
         return;
       }
 

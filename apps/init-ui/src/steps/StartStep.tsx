@@ -1,13 +1,16 @@
 import { Button } from '@stacktape/ui-react/button';
 import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Tabs } from '@stacktape/ui-react/tabs';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { BiCloudUpload, BiFileBlank, BiSearchAlt } from 'react-icons/bi';
 import { InfoTip } from '../components/InfoTip';
 import type { WizardAgentOption, WizardState } from '../session';
 
-/** A project name longer than this sets the heading a size smaller, so the name does not take over the screen. */
-const LONG_NAME = 28;
+/**
+ * A project name with places to wrap after its separators: `acme-customer-portal` breaks after a dash, as a person
+ * would hyphenate it, and the heading keeps one size for every name.
+ */
+export const wrappableName = (name: string): string[] => name.split(/(?<=[-_./])/);
 
 /**
  * The first screen: what is about to happen, in three facts, and one button.
@@ -45,8 +48,18 @@ export function StartStep({
 
   return (
     <div className="w-start w-enter">
-      <h1 className={`w-title w-start-title${state.projectName.length > LONG_NAME ? ' is-long' : ''}`}>
-        Deploy <span className="w-start-name">{state.projectName}</span> to AWS
+      <h1 className="w-title w-start-title">
+        Deploy{' '}
+        <span className="w-start-name">
+          {wrappableName(state.projectName).map((part, index) => (
+            // oxlint-disable-next-line react/no-array-index-key -- positions in a fixed name.
+            <Fragment key={index}>
+              {index > 0 && <wbr />}
+              {part}
+            </Fragment>
+          ))}
+        </span>{' '}
+        to AWS
       </h1>
       <p className="w-lede">Stacktape reads your code and shows what it needs on AWS, and what that costs.</p>
 
@@ -146,7 +159,7 @@ export function StartStep({
         <li className="w-fact">
           <BiCloudUpload aria-hidden size={18} />
           <p className="w-fact-text">
-            Nothing is created on AWS until you click Deploy. No Stacktape account{' '}
+            It deploys to your own AWS account. No Stacktape account{' '}
             <span className="whitespace-nowrap">
               needed.
               <InfoTip about="AWS and accounts">
@@ -168,7 +181,10 @@ export function StartStep({
         >
           Analyze my project
         </Button>
-        <span className="w-subtle w-small">{usesAi ? 'Usually under a minute' : 'Takes a few seconds'}</span>
+        <p className="w-start-promise">
+          <span>{usesAi ? 'Usually under a minute.' : 'Takes a few seconds.'}</span>
+          <span>Nothing is created on AWS until you click Deploy.</span>
+        </p>
       </div>
 
       <p className="w-footnote">

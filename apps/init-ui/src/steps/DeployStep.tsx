@@ -2,11 +2,10 @@ import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Button } from '@stacktape/ui-react/button';
 import { RadioGroup } from '@stacktape/ui-react/radio-group';
 import { Spinner } from '@stacktape/ui-react/spinner';
-import { Tabs } from '@stacktape/ui-react/tabs';
 import { TextField } from '@stacktape/ui-react/text-field';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
-import { BiCheck, BiInfoCircle, BiLinkExternal } from 'react-icons/bi';
+import { BiCheck, BiChevronRight, BiErrorCircle, BiLinkExternal } from 'react-icons/bi';
 import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { CopyableCommand } from '../components/CopyableCommand';
 import { FailureExplanationText } from '../components/FailureExplanation';
@@ -15,8 +14,17 @@ import { RegionPicker } from '../components/RegionPicker';
 import { StatusIcon, type CheckStatus } from '../components/StatusIcon';
 import { resourcesOf } from '../config-resources';
 import { secretCommand, stackCommand } from '../deploy-commands';
-import { gapsToList } from '../gaps';
-import { firstSentence, generateSecretValue, planSecrets, type SecretEntry, type SecretGroup } from '../secrets-model';
+import { gapsToList, notesHeading, plainNote, type PlainNote } from '../gaps';
+import {
+  generateSecretValue,
+  localValueReason,
+  planSecrets,
+  taskGroups,
+  type EnvironmentValues,
+  type SecretEntry,
+  type SecretTask,
+  type SecretTaskGroup
+} from '../secrets-model';
 import type { WizardState } from '../session';
 import { blockedTargetCopy, stackStatusWords } from '../target-copy';
 import { plainList, splitMonthly } from './review-model';
@@ -59,10 +67,6 @@ const withCode = (text: string): ReactNode =>
       <Fragment key={index}>{part}</Fragment>
     )
   );
-
-/** At most `length` characters, cut at a word: notes stay within two lines, the whole text is behind the help mark. */
-const shortened = (text: string, length: number): string =>
-  text.length <= length ? text : `${text.slice(0, text.lastIndexOf(' ', length)).replace(/[,;:]$/, '')}…`;
 
 type SectionId = 'aws' | 'secrets' | 'migrations';
 
@@ -113,7 +117,8 @@ export function DeployStep({
   onDecision,
   onRegion,
   onVerify,
-  onDismissVerification
+  onDismissVerification,
+  onLoadEnvironment
 }: {
   state: WizardState;
   busy: string | undefined;
@@ -130,6 +135,10 @@ export function DeployStep({
   onRegion: (region: string) => void;
   onVerify: () => void;
   onDismissVerification: () => void;
+  /** The project's `.env` values for the secrets, read once the secrets can be saved from here. */
+  onLoadEnvironment: () => Promise<
+    { file: string; values: Array<{ name: string; value: string }> } | { file: undefined }
+  >;
 }) {
   const file = state.configFile;
   const identity = state.awsIdentity;
@@ -173,6 +182,49 @@ export function DeployStep({
   const hasSettings = plan.groups.some((group) => group.kind === 'setting');
   const secretsNoun = (count: number) => (hasSettings ? 'secrets and settings' : count === 1 ? 'secret' : 'secrets');
 
+  // What the project's `.env` sets for these, read once they can be saved from here and again if the variables change
+  // (a hand edit). Kept in this component's memory only.
+  const [environment, setEnvironment] = useState<EnvironmentValues | undefined>();
+  const variablesKey = plan.entries.map((entry) => entry.variable).join(',');
+  useEffect(() => {
+    if (!secretsAvailable || variablesKey === '') return;
+    let current = true;
+    void (async () => {
+      try {
+        const read = await onLoadEnvironment();
+        if (current && read.file !== undefined) {
+          setEnvironment({ file: read.file, values: new Map(read.values.map((entry) => [entry.name, entry.value])) });
+        }
+      } catch {
+        // Without the values the rows are typed in by hand, as before.
+      }
+    })();
+    return () => {
+      current = false;
+    };
+  }, [secretsAvailable, variablesKey, onLoadEnvironment]);
+  const groups = taskGroups(plan, environment);
+  const remainingIn = (group: SecretTaskGroup) => group.entries.filter((entry) => !secretsSet.has(entry.name));
+  const nextGroup = groups.find((group) => remainingIn(group).length > 0);
+  // The first group with something left is open; Show and Hide override that, and a group the user finished folds.
+  const [taskChoice, setTaskChoice] = useState<Partial<Record<SecretTask, boolean>>>({});
+  const openTasks = new Set(
+    groups.filter((group) => taskChoice[group.task] ?? (group === nextGroup && !secretsDone)).map((group) => group.task)
+  );
+  const doneKey = groups.map((group) => `${group.task}:${remainingIn(group).length === 0}`).join('|');
+  const [seenDone, setSeenDone] = useState(doneKey);
+  if (seenDone !== doneKey) {
+    setSeenDone(doneKey);
+    const finished = groups.filter((group) => remainingIn(group).length === 0).map((group) => group.task);
+    if (finished.some((task) => taskChoice[task] === true)) {
+      setTaskChoice((current) => {
+        const next = { ...current };
+        for (const task of finished) delete next[task];
+        return next;
+      });
+    }
+  }
+
   const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
   const migration = gaps.map(runnableMigration).find((entry) => entry !== undefined);
   const migrationDecision = (state.facts?.decisions ?? []).find(
@@ -185,19 +237,21 @@ export function DeployStep({
     migration === undefined && migrationDecision === undefined
       ? gaps.find((gap) => gap.subject.endsWith('.migrations'))
       : undefined;
-  const notes = [
+  const configPath = file?.filename ?? 'stacktape.yml';
+  const notes: PlainNote[] = [
     ...gaps
       .filter(
         (gap) =>
           runnableMigration(gap) === undefined && gap !== migrationNote && !plan.explainedGaps.includes(gap.subject)
       )
-      .map((gap) => ({ key: gap.subject, text: gap.message })),
+      .map((gap) => plainNote(gap, configPath)),
     ...(unsetNames.length === 0
       ? []
       : [
           {
             key: 'unset-settings',
-            text: `Your code reads ${plainList(unsetNames.map((name) => `\`${name}\``))} and nothing sets ${unsetNames.length === 1 ? 'it' : 'them'}. If the app needs ${unsetNames.length === 1 ? 'it' : 'one'} to start, add it under \`environment\` in ${file?.filename ?? 'stacktape.yml'}.`
+            title: `Your code reads ${unsetNames.length === 1 ? 'a setting' : `${unsetNames.length} settings`} that nothing sets`,
+            body: `${plainList(unsetNames.map((name) => `\`${name}\``))}. If the app needs ${unsetNames.length === 1 ? 'it' : 'one'} to start, add it under \`environment\` in ${configPath}.`
           }
         ])
   ];
@@ -265,10 +319,11 @@ export function DeployStep({
   }
   const isOpen = (id: SectionId) => openChoice[id] ?? id === firstOpen;
   const toggle = (id: SectionId) => setOpenChoice((current) => ({ ...current, [id]: !isOpen(id) }));
-  const goTo = (id: SectionId) => {
+  const goTo = (id: SectionId, task?: SecretTask) => {
     setOpenChoice((current) => ({ ...current, [id]: true }));
+    if (task !== undefined) setTaskChoice((current) => ({ ...current, [task]: true }));
     requestAnimationFrame(() => {
-      const element = document.getElementById(`deploy-${id}`);
+      const element = document.getElementById(task === undefined ? `deploy-${id}` : `task-${task}`);
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       element?.querySelector<HTMLElement>('input:not([type="radio"]), [role="tab"], input[type="radio"]')?.focus({
         preventScroll: true
@@ -302,7 +357,7 @@ export function DeployStep({
   const regionLocked = isLocked || state.configEdit !== undefined;
 
   /** What the bar says while the button is off: the next thing, as a link to it, or what is still being checked. */
-  const next: { text: string; section?: SectionId } | undefined =
+  const next: { text: string; section?: SectionId; task?: SecretTask } | undefined =
     file === undefined
       ? { text: `Saving ${commandTarget.configPath}…` }
       : identity === undefined
@@ -319,10 +374,16 @@ export function DeployStep({
               : awsState === 'blocked'
                 ? { text: 'a stack Stacktape can deploy to', section: 'aws' }
                 : !secretsDone
-                  ? {
-                      text: `${state.secrets?.set.length ? `${unsaved.length} more` : unsaved.length} ${secretsNoun(unsaved.length)}`,
-                      section: 'secrets'
-                    }
+                  ? nextGroup !== undefined && secretsAvailable
+                    ? {
+                        text: taskNextText(nextGroup, remainingIn(nextGroup), environment?.file),
+                        section: 'secrets',
+                        task: nextGroup.task
+                      }
+                    : {
+                        text: `${state.secrets?.set.length ? `${unsaved.length} more` : unsaved.length} ${secretsNoun(unsaved.length)}`,
+                        section: 'secrets'
+                      }
                   : migrationNeeded
                     ? { text: 'database migrations', section: 'migrations' }
                     : verificationBlocks
@@ -333,6 +394,25 @@ export function DeployStep({
 
   const price = state.composition?.price;
   const monthly = price === undefined ? undefined : splitMonthly(price.monthly);
+  /** What the Deploy click commits to: what it creates in which account, that AWS bills it, how long it takes. */
+  const commitment = (
+    <>
+      <span className="w-bar-note-main">
+        {target?.status === 'updateable' ? (
+          <>
+            Updates <span className="w-code">{target.stackName}</span> in your AWS account
+          </>
+        ) : resourceNames.length <= 3 ? (
+          `Creates ${plainList(resourceNames)} in your AWS account`
+        ) : (
+          `Creates ${resourceNames.length} resources in your AWS account`
+        )}
+      </span>
+      <span>
+        {target?.status === 'updateable' ? '' : 'AWS bills them from now on · '}about {estimate}
+      </span>
+    </>
+  );
 
   return (
     <div className="w-enter">
@@ -356,30 +436,6 @@ export function DeployStep({
           </p>
         )}
       </header>
-
-      {notes.length > 0 && (
-        <section aria-label="Worth a look" className="w-notes">
-          <p className="w-notes-title">
-            <BiInfoCircle aria-hidden size={15} />
-            Worth a look before you deploy
-          </p>
-          <ul>
-            {notes.map((note) => {
-              const short = shortened(firstSentence(note.text), 150);
-              return (
-                <li key={note.key}>
-                  {withCode(short)}
-                  {short.length < note.text.trim().length && (
-                    <InfoTip about="this note" placement="top">
-                      {withCode(note.text)}
-                    </InfoTip>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
 
       <section aria-label="Readiness" className="w-card">
         <ul className="w-checks">
@@ -407,7 +463,7 @@ export function DeployStep({
             title={
               identity?.available === false
                 ? identity.reason === 'no-credentials'
-                  ? 'Connect AWS to deploy'
+                  ? `Connect AWS to deploy to ${stage || 'dev'}`
                   : /expired|ExpiredToken/i.test(identity.detail)
                     ? 'Your AWS session expired'
                     : 'AWS did not accept these credentials'
@@ -453,15 +509,6 @@ export function DeployStep({
 
           {plan.entries.length > 0 && (
             <Section
-              aside={
-                secretsState === 'needs-input' && secretsAvailable ? (
-                  <GenerateAll
-                    entries={unsaved.filter((entry) => entry.canGenerate)}
-                    onSaved={(name) => setGenerated((current) => new Set([...current, name]))}
-                    onSecret={onSecret}
-                  />
-                ) : undefined
-              }
               id="secrets"
               isOpen={secretsState !== 'waiting' && isOpen('secrets')}
               onToggle={secretsState === 'waiting' ? undefined : () => toggle('secrets')}
@@ -483,12 +530,16 @@ export function DeployStep({
             >
               <SecretsBody
                 awsAccount={state.awsAccount}
+                environment={environment}
                 failure={state.secrets?.failure}
                 generated={generated}
+                groups={groups}
                 isAvailable={secretsAvailable}
                 onConfirm={onConfirmSecrets}
                 onGenerated={(name) => setGenerated((current) => new Set([...current, name]))}
                 onSecret={onSecret}
+                onToggleTask={(task) => setTaskChoice((current) => ({ ...current, [task]: !openTasks.has(task) }))}
+                openTasks={openTasks}
                 plan={plan}
                 region={region}
                 saved={secretsSet}
@@ -544,6 +595,13 @@ export function DeployStep({
         </ul>
       </section>
 
+      {notes.length > 0 && <Notes notes={notes} />}
+
+      {ready && (
+        // On a phone the bar is one row; what the click creates and bills is said here, right above it.
+        <p className="w-deploy-summary">{commitment}</p>
+      )}
+
       <div className="w-terminal">
         <button
           aria-expanded={showTerminal}
@@ -557,31 +615,17 @@ export function DeployStep({
       </div>
 
       <ActionBar
+        align="column"
         className={ready ? 'is-ready' : 'is-blocked'}
         note={
           ready ? (
-            <>
-              <span className="w-bar-note-main">
-                {target?.status === 'updateable' ? (
-                  <>
-                    Updates <span className="w-code">{target.stackName}</span> in your AWS account
-                  </>
-                ) : resourceNames.length <= 3 ? (
-                  `Creates ${plainList(resourceNames)} in your AWS account`
-                ) : (
-                  `Creates ${resourceNames.length} resources in your AWS account`
-                )}
-              </span>
-              <span>
-                {target?.status === 'updateable' ? '' : 'AWS bills them from now on · '}about {estimate}
-              </span>
-            </>
+            commitment
           ) : next === undefined ? undefined : next.section === undefined ? (
             <span className="w-bar-next">{next.text}</span>
           ) : (
             <span className="w-bar-next">
               Next:{' '}
-              <button className="w-link" onClick={() => goTo(next.section!)} type="button">
+              <button className="w-link" onClick={() => goTo(next.section!, next.task)} type="button">
                 {next.text}
               </button>
             </span>
@@ -753,15 +797,46 @@ function TargetLine({
   );
 }
 
-const GROUP_WORDS: Record<SecretGroup['kind'], string> = {
-  secret: 'Secrets',
-  outside: 'Services you run elsewhere',
-  setting: 'Settings'
+const TASK_WORDS: Record<SecretTask, { title: string; help: string }> = {
+  generate: {
+    title: 'Generated for you',
+    help: 'Values only your app uses, such as session keys. A strong random value works, made in this page and saved straight to AWS.'
+  },
+  provide: {
+    title: 'You provide',
+    help: 'Keys and addresses that come from other services. Stacktape cannot make these up.'
+  },
+  import: {
+    title: 'Imported from .env',
+    help: 'Your .env sets these on your machine. Check each value: it goes from this page to AWS Secrets Manager in your account, nowhere else.'
+  }
 };
 
-/** The secrets, grouped by the resource that reads them, each with the line that reads it. */
+/** "Next: …" for the first group with something left: the concrete action, in the user's words. */
+export const taskNextText = (
+  group: SecretTaskGroup,
+  remaining: readonly SecretEntry[],
+  file: string | undefined
+): string => {
+  if (group.task === 'generate') {
+    return remaining.length === 1 ? `generate ${remaining[0]!.variable}` : `generate ${remaining.length} secrets`;
+  }
+  if (group.task === 'import')
+    return `check ${remaining.length} ${remaining.length === 1 ? 'value' : 'values'} from ${file ?? '.env'}`;
+  if (remaining.every((entry) => entry.kind === 'outside')) {
+    return `${remaining.length} service ${remaining.length === 1 ? 'URL' : 'URLs'}`;
+  }
+  return remaining.length === 1 ? `enter ${remaining[0]!.variable}` : `${remaining.length} values you provide`;
+};
+
+/**
+ * The secrets, grouped by what the user does about them: generate, type in, or check what `.env` has. Each group says
+ * how many are left; the first with something left is open, a finished one folds to one line.
+ */
 function SecretsBody({
   plan,
+  groups,
+  environment,
   saved,
   generated,
   failure,
@@ -769,11 +844,15 @@ function SecretsBody({
   awsAccount,
   isAvailable,
   showConfirm,
+  openTasks,
+  onToggleTask,
   onSecret,
   onGenerated,
   onConfirm
 }: {
   plan: ReturnType<typeof planSecrets>;
+  groups: SecretTaskGroup[];
+  environment: EnvironmentValues | undefined;
   saved: ReadonlySet<string>;
   generated: ReadonlySet<string>;
   failure: { name: string; detail: string } | undefined;
@@ -781,10 +860,33 @@ function SecretsBody({
   awsAccount: string | undefined;
   isAvailable: boolean;
   showConfirm: boolean;
+  openTasks: ReadonlySet<SecretTask>;
+  onToggleTask: (task: SecretTask) => void;
   onSecret: (name: string, value: string) => Promise<boolean>;
   onGenerated: (name: string) => void;
   onConfirm: () => void;
 }) {
+  /** What is typed or imported in each row, by secret name, until it is saved. Only in this page's memory. */
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
+  /** Rows filled from `.env` by "Use the values from .env". */
+  const [imported, setImported] = useState<ReadonlySet<string>>(new Set());
+  const [savingAll, setSavingAll] = useState(false);
+  const setDraft = (name: string, value: string) => setDrafts((current) => ({ ...current, [name]: value }));
+  const save = async (name: string, value: string) => {
+    const ok = await onSecret(name, value);
+    if (ok) {
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[name];
+        return next;
+      });
+    }
+    return ok;
+  };
+  const readers = new Set(
+    plan.entries.map((entry) => plan.groups.find((group) => group.entries.includes(entry))?.resourceName)
+  );
+
   if (!isAvailable) {
     return (
       <>
@@ -810,13 +912,7 @@ function SecretsBody({
             <li>
               <BiCheck aria-hidden size={15} />
               <span>
-                {plan.setByStacktape.length} set by Stacktape:{' '}
-                {plan.setByStacktape.map((name, index) => (
-                  <Fragment key={name}>
-                    {index > 0 && ', '}
-                    <span className="w-code">{name}</span>
-                  </Fragment>
-                ))}
+                {plan.setByStacktape.length} set by Stacktape: <CodeList names={plan.setByStacktape} />
               </span>
               <InfoTip about="secrets Stacktape sets">
                 The database password. The deploy creates it and gives it to the app.
@@ -827,13 +923,7 @@ function SecretsBody({
             <li>
               <BiCheck aria-hidden size={15} />
               <span>
-                {plan.notNeeded.length} not needed to deploy:{' '}
-                {plan.notNeeded.map((name, index) => (
-                  <Fragment key={name}>
-                    {index > 0 && ', '}
-                    <span className="w-code">{name}</span>
-                  </Fragment>
-                ))}
+                {plan.notNeeded.length} not needed to deploy: <CodeList names={plan.notNeeded} />
               </span>
               <InfoTip about="secrets the deploy does not need">
                 Your code reads {plan.notNeeded.length === 1 ? 'it' : 'them'} only in a build or test tool, or has a
@@ -844,39 +934,123 @@ function SecretsBody({
           )}
         </ul>
       )}
-      {plan.groups.map((group) => (
-        <div className="w-secret-group" key={`${group.resourceName}|${group.kind}`}>
-          <p className="w-secret-group-title">
-            <span>
-              {GROUP_WORDS[group.kind]}
-              {group.kind === 'setting' && group.from !== undefined && ` from ${group.from}`}
-            </span>
-            {group.kind === 'setting' && (
-              <InfoTip about="settings from your deployment files">
-                {group.from ?? 'Your deployment files'} sets these. Init does not copy values from it, because such
-                files can also hold credentials. Copy them from there.
-              </InfoTip>
-            )}
-            {group.resourceName !== '' && (
-              <span className="w-secret-group-reader">
-                read by <span className="w-mono">{group.resourceName}</span>
-              </span>
-            )}
-          </p>
-          {group.entries.map((entry) => (
-            <SecretRow
-              entry={entry}
-              failure={failure?.name === entry.name ? failure.detail : undefined}
-              isGenerated={generated.has(entry.name)}
-              isSet={saved.has(entry.name)}
-              key={entry.name}
-              onGenerated={() => onGenerated(entry.name)}
-              onSave={(value) => onSecret(entry.name, value)}
-              readCommand={`stacktape secret get ${entry.name} --region ${region} --show-secrets`}
-            />
-          ))}
-        </div>
-      ))}
+      <div className="w-tasks">
+        {groups.map((group) => {
+          const remaining = group.entries.filter((entry) => !saved.has(entry.name));
+          const isOpen = openTasks.has(group.task);
+          const environmentValue = (entry: SecretEntry) => environment?.values.get(entry.variable);
+          const importable = remaining.filter((entry) => (environmentValue(entry) ?? '') !== '');
+          const ready = remaining.filter((entry) => {
+            const draft = drafts[entry.name];
+            return (
+              imported.has(entry.name) && draft !== undefined && draft !== '' && localValueReason(draft) === undefined
+            );
+          });
+          const action =
+            group.task === 'generate' ? (
+              <GenerateAll entries={remaining} onSaved={onGenerated} onSecret={onSecret} />
+            ) : group.task === 'import' && importable.some((entry) => !imported.has(entry.name)) ? (
+              <Button
+                onClick={() => {
+                  setDrafts((current) => ({
+                    ...current,
+                    ...Object.fromEntries(importable.map((entry) => [entry.name, environmentValue(entry)!]))
+                  }));
+                  setImported((current) => new Set([...current, ...importable.map((entry) => entry.name)]));
+                }}
+                variant="secondary"
+              >
+                Use the {importable.length} {importable.length === 1 ? 'value' : 'values'} from{' '}
+                {environment?.file ?? '.env'}
+              </Button>
+            ) : group.task === 'import' && ready.length > 0 ? (
+              <Button
+                isLoading={savingAll}
+                onClick={() =>
+                  void (async () => {
+                    setSavingAll(true);
+                    for (const entry of ready) {
+                      // One after another, like Generate all: the first failure stops the rest.
+                      // oxlint-disable-next-line no-await-in-loop
+                      if (!(await save(entry.name, drafts[entry.name]!))) break;
+                    }
+                    setSavingAll(false);
+                  })()
+                }
+                variant="primary"
+              >
+                Save {ready.length} checked {ready.length === 1 ? 'value' : 'values'}
+              </Button>
+            ) : undefined;
+          return (
+            <section
+              aria-label={TASK_WORDS[group.task].title}
+              className={`w-task${isOpen ? ' is-open' : ''}`}
+              id={`task-${group.task}`}
+              key={group.task}
+            >
+              <div className="w-task-head">
+                <button
+                  aria-expanded={isOpen}
+                  className="w-task-toggle"
+                  onClick={() => onToggleTask(group.task)}
+                  type="button"
+                >
+                  <BiChevronRight aria-hidden className="w-task-chevron" size={16} />
+                  <span className="w-task-title">
+                    {group.task === 'import' && imported.size === 0
+                      ? `Values in ${environment?.file ?? '.env'}`
+                      : TASK_WORDS[group.task].title}
+                  </span>
+                  {remaining.length === 0 ? (
+                    <span className="w-task-count is-done">
+                      <BiCheck aria-hidden size={14} />{' '}
+                      {group.entries.length === 1 ? 'Saved' : `All ${group.entries.length} saved`}
+                    </span>
+                  ) : (
+                    <span className="w-task-count">{remaining.length} left</span>
+                  )}
+                </button>
+                <InfoTip about={TASK_WORDS[group.task].title.toLowerCase()}>{TASK_WORDS[group.task].help}</InfoTip>
+                {isOpen && action !== undefined && <span className="w-task-action">{action}</span>}
+              </div>
+              {isOpen && (
+                <div className="w-task-rows">
+                  {group.entries.map((entry) => {
+                    const fromEnvironment = environmentValue(entry);
+                    const reader =
+                      readers.size > 1
+                        ? plan.groups.find((candidate) => candidate.entries.includes(entry))?.resourceName
+                        : undefined;
+                    return (
+                      <SecretRow
+                        draft={drafts[entry.name] ?? ''}
+                        entry={entry}
+                        environmentNote={
+                          group.task === 'provide' && fromEnvironment === ''
+                            ? `Empty in ${environment?.file ?? '.env'}`
+                            : undefined
+                        }
+                        failure={failure?.name === entry.name ? failure.detail : undefined}
+                        isGenerated={generated.has(entry.name)}
+                        isImported={imported.has(entry.name)}
+                        isSet={saved.has(entry.name)}
+                        key={entry.name}
+                        onDraft={(value) => setDraft(entry.name, value)}
+                        onGenerated={() => onGenerated(entry.name)}
+                        onSave={(value) => save(entry.name, value)}
+                        readCommand={`stacktape secret get ${entry.name} --region ${region} --show-secrets`}
+                        reader={reader}
+                        source={group.task === 'import' ? '' : undefined}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
       {showConfirm && (
         <p className="w-quiet">
           <button className="w-link" onClick={onConfirm} type="button">
@@ -884,6 +1058,19 @@ function SecretsBody({
           </button>
         </p>
       )}
+    </>
+  );
+}
+
+function CodeList({ names }: { names: readonly string[] }) {
+  return (
+    <>
+      {names.map((name, index) => (
+        <Fragment key={name}>
+          {index > 0 && ', '}
+          <span className="w-code">{name}</span>
+        </Fragment>
+      ))}
     </>
   );
 }
@@ -917,7 +1104,7 @@ function GenerateAll({
             setRunning(false);
           })()
         }
-        variant="secondary"
+        variant="primary"
       >
         Generate all {entries.length}
       </Button>
@@ -925,24 +1112,43 @@ function GenerateAll({
   );
 }
 
+const LOCAL_WORDS = {
+  local: 'Local value: change before deploying',
+  example: 'Example value: change before deploying'
+} as const;
+
 function SecretRow({
   entry,
+  draft,
   isSet,
   isGenerated,
+  isImported,
   failure,
   readCommand,
+  reader,
+  source,
+  environmentNote,
+  onDraft,
   onSave,
   onGenerated
 }: {
   entry: SecretEntry;
+  /** What is in the field: typed, or filled from `.env`. */
+  draft: string;
   isSet: boolean;
   isGenerated: boolean;
+  isImported: boolean;
   failure: string | undefined;
   readCommand: string;
+  /** The resource that reads it, when several do. */
+  reader: string | undefined;
+  /** Said instead of the line that reads it; empty for a value the group already says comes from `.env`. */
+  source: string | undefined;
+  environmentNote: string | undefined;
+  onDraft: (value: string) => void;
   onSave: (value: string) => Promise<boolean>;
   onGenerated: () => void;
 }) {
-  const [value, setValue] = useState('');
   const [saving, setSaving] = useState<'typed' | 'generated' | undefined>();
   const [editing, setEditing] = useState(false);
   const save = async (input: string, how: 'typed' | 'generated') => {
@@ -951,18 +1157,25 @@ function SecretRow({
     const ok = await onSave(input);
     setSaving(undefined);
     if (ok) {
-      setValue('');
       setEditing(false);
       if (how === 'generated') onGenerated();
     }
   };
+  // A secret stays hidden while it is typed; a plain setting is shown, so an imported one can be checked.
+  const isHidden = entry.kind !== 'setting';
+  const local = isImported && !isSet ? localValueReason(draft) : undefined;
+  const meta = [
+    reader === undefined ? undefined : `read by ${reader}`,
+    environmentNote ??
+      (source !== undefined
+        ? source
+        : (entry.note ?? (entry.source === undefined ? undefined : `${entry.source.file}:${entry.source.line}`)))
+  ].filter((part): part is string => part !== undefined && part !== '');
   return (
-    <div className="w-secret" id={`secret-${entry.name}`}>
+    <div className={`w-secret${local === undefined ? '' : ' is-local'}`} id={`secret-${entry.name}`}>
       <div className="w-secret-label">
         <span className="w-secret-name">{entry.variable}</span>
-        {(entry.source !== undefined || entry.note !== undefined) && (
-          <span className="w-secret-source">{entry.note ?? `${entry.source!.file}:${entry.source!.line}`}</span>
-        )}
+        {meta.length > 0 && <span className="w-secret-source">{meta.join(' · ')}</span>}
       </div>
       {isSet && !editing ? (
         <div className="w-secret-saved">
@@ -990,18 +1203,18 @@ function SecretRow({
           className="w-secret-form"
           onSubmit={(event) => {
             event.preventDefault();
-            void save(value, 'typed');
+            void save(draft, 'typed');
           }}
         >
           <TextField
             aria-label={`Value for ${entry.name}`}
             autoComplete="off"
-            onChange={(event) => setValue(event.target.value)}
+            onChange={(event) => onDraft(event.target.value)}
             placeholder={entry.kind === 'outside' ? 'URL' : 'Value'}
             reserveMessageSpace={false}
             spellCheck={false}
             trailing={
-              entry.canGenerate && value === '' ? (
+              entry.canGenerate && draft === '' ? (
                 <button
                   className="w-field-action"
                   disabled={saving !== undefined}
@@ -1013,10 +1226,10 @@ function SecretRow({
                 </button>
               ) : undefined
             }
-            type="password"
-            value={value}
+            type={isHidden ? 'password' : 'text'}
+            value={draft}
           />
-          <Button disabled={value === ''} isLoading={saving === 'typed'} type="submit" variant="secondary">
+          <Button disabled={draft === ''} isLoading={saving === 'typed'} type="submit" variant="secondary">
             Save
           </Button>
           {editing && (
@@ -1025,6 +1238,12 @@ function SecretRow({
             </button>
           )}
         </form>
+      )}
+      {local !== undefined && (
+        <p className="w-secret-local">
+          <BiErrorCircle aria-hidden size={14} />
+          {LOCAL_WORDS[local]}
+        </p>
       )}
       {failure !== undefined && <p className="w-error-text w-secret-error">{failure}</p>}
     </div>
@@ -1107,66 +1326,62 @@ function MigrationSection({
         <p className="w-check-meta">
           {choice === 'deploy-hook' ? (
             <>
-              Runs <span className="w-code">{command}</span> after every deploy.
+              Stacktape runs <span className="w-code">{command}</span> after every deploy.
             </>
           ) : choice === 'self' ? (
             <>
               You run <span className="w-code">{command}</span> yourself.
             </>
           ) : (
-            'Without them the database starts empty.'
+            'The new database starts empty. Choose who runs the migrations.'
           )}
         </p>
       }
       title={title}
     >
+      <p className="w-check-meta">The new database starts empty. This command creates its tables:</p>
+      <pre className="w-command-line">{command}</pre>
       <Tooltip content="Your file is edited by hand. Add the hook there instead." disabled={!isHandEdited}>
-        <div className="w-choice">
-          <Tabs<MigrationChoice>
-            appearance="segmented"
-            ariaLabel="When the migrations run"
+        <div className="w-choices">
+          <RadioGroup<Exclude<MigrationChoice, 'unset'>>
             disabled={isLocked || isHandEdited || busy === decisionId}
+            label={<span className="sr-only">Who runs the migrations</span>}
+            name="migration-runner"
             onValueChange={(value) => {
               if (value === 'deploy-hook') {
                 onSkip(false);
                 onDecision(decisionId, 'deploy-hook');
-              } else if (value === 'self') {
+              } else {
                 onSkip(true);
                 if (isOn) onDecision(decisionId, 'manual');
               }
             }}
-            tabs={[
-              { value: 'deploy-hook', label: 'Run after every deploy', compactLabel: 'After every deploy' },
-              { value: 'self', label: 'I’ll run it myself', compactLabel: 'Myself' }
+            options={[
+              {
+                value: 'deploy-hook',
+                label: 'Stacktape runs it after every deploy',
+                description: 'Before the new version takes traffic.'
+              },
+              {
+                value: 'self',
+                label: 'I run it myself',
+                description: 'The app starts against an empty database until you do.'
+              }
             ]}
-            value={choice}
-            width="fit"
+            value={(choice === 'unset' ? '' : choice) as Exclude<MigrationChoice, 'unset'>}
           />
         </div>
       </Tooltip>
-      <p className={`w-choice-effect${choice === 'unset' ? ' is-warn' : ''}`}>
-        {choice === 'deploy-hook' ? (
-          <>
-            Runs <span className="w-code">{command}</span> after each deploy, before the new version takes traffic.
-          </>
-        ) : choice === 'self' ? (
-          <>
-            The database starts empty. Run <span className="w-code">{command}</span> against it before the app gets
-            traffic.
-          </>
-        ) : (
-          <>
-            Without it the database starts empty. The command is <span className="w-code">{command}</span>.
-          </>
-        )}
-      </p>
     </Section>
   );
 }
 
 type AwsPath = 'sso' | 'keys' | 'none';
 
-/** No working AWS credentials: the three situations people are in, each with its own way forward. */
+/**
+ * No working AWS credentials. Without any, one question with three plain answers, each with its own way forward. An
+ * expired session has one way back, so it leads: the command, then the check; other logins wait behind a link.
+ */
 function AwsConnect({
   state,
   identity,
@@ -1181,25 +1396,32 @@ function AwsConnect({
   onRecheck: () => void;
 }) {
   const expired = identity.reason === 'rejected' && /expired|ExpiredToken/i.test(identity.detail);
-  // An expired session has one way back; otherwise the person picks how they sign in before seeing any field.
-  const [path, setPath] = useState<AwsPath | undefined>(expired ? 'sso' : undefined);
+  const [path, setPath] = useState<AwsPath | undefined>();
+  const [otherLogin, setOtherLogin] = useState(false);
   const [keyId, setKeyId] = useState('');
   const [secret, setSecret] = useState('');
   const explained = identity.reason === 'rejected' && !expired ? explainFailure(identity.detail) : [];
   const profileFlag =
     identity.profile === undefined || identity.profile === 'default' ? '' : ` --profile ${identity.profile}`;
   const profileWords = identity.profile === undefined ? 'the default profile' : `profile ${identity.profile}`;
-  const checkAgain = (
-    <Button isLoading={busy === 'recheck'} onClick={onRecheck} variant="secondary">
+  const checkAgain = (variant: 'primary' | 'secondary') => (
+    <Button isLoading={busy === 'recheck'} onClick={onRecheck} variant={variant}>
       Check again
     </Button>
   );
+  const profileTip = (
+    <InfoTip about="AWS profiles">
+      If the profile has a name, start <span className="w-code">stacktape init</span> with{' '}
+      <span className="w-code">AWS_PROFILE=name</span> so the wizard uses it.
+    </InfoTip>
+  );
+  const showPaths = !expired || otherLogin;
 
   return (
     <>
       <p className="w-check-meta">
         {identity.reason === 'no-credentials' ? (
-          'This machine has no AWS credentials yet. How do you sign in to AWS?'
+          'This machine has no AWS credentials yet.'
         ) : expired ? (
           `The AWS session on this machine${identity.profile === undefined ? '' : ` (profile ${identity.profile})`} is no longer valid.`
         ) : explained.length > 0 ? (
@@ -1208,33 +1430,58 @@ function AwsConnect({
           `AWS did not accept the credentials on this machine${identity.profile === undefined ? '' : ` (profile ${identity.profile})`}: ${identity.detail}`
         )}
       </p>
-      <div className="w-aws-paths">
-        <RadioGroup<AwsPath>
-          label={<span className="sr-only">How you sign in to AWS</span>}
-          name="aws-path"
-          onValueChange={setPath}
-          options={[
-            {
-              value: 'sso',
-              label: 'Use your work AWS login (SSO)',
-              description: 'Your company signs you in to AWS through a portal.'
-            },
-            {
-              value: 'keys',
-              label: 'Use access keys you already have',
-              description: 'An access key ID and secret from IAM.'
-            },
-            {
-              value: 'none',
-              label: 'Create an AWS account',
-              description: 'You do not have one yet. It takes a few minutes.'
-            }
-          ]}
-          value={(path ?? '') as AwsPath}
-        />
-      </div>
 
-      {path === 'keys' && (
+      {expired && (
+        <div className="w-relogin">
+          <p className="w-field-label">
+            Sign in to AWS again
+            {profileTip}
+          </p>
+          <CopyableCommand command={`aws sso login${profileFlag}`} />
+          <div className="w-relogin-actions">
+            {checkAgain('primary')}
+            <span className="w-quiet">After you sign in.</span>
+          </div>
+          <button
+            aria-expanded={otherLogin}
+            className="w-link w-small w-relogin-other"
+            onClick={() => setOtherLogin(!otherLogin)}
+            type="button"
+          >
+            {otherLogin ? 'Hide other AWS logins' : 'Use a different AWS login'}
+          </button>
+        </div>
+      )}
+
+      {showPaths && (
+        <div className="w-choices w-aws-paths">
+          <RadioGroup<AwsPath>
+            label={expired ? <span className="sr-only">How you sign in to AWS</span> : 'How do you sign in to AWS?'}
+            name="aws-path"
+            onValueChange={setPath}
+            options={[
+              {
+                value: 'sso',
+                label: 'Company login (SSO)',
+                description: 'Your company signs you in to AWS through a portal.'
+              },
+              {
+                value: 'keys',
+                label: 'Access keys I already have',
+                description: 'An access key ID and secret from IAM.'
+              },
+              {
+                value: 'none',
+                label: 'I don’t have an AWS account yet',
+                description: 'Create one first. It takes a few minutes.'
+              }
+            ]}
+            value={(path ?? '') as AwsPath}
+          />
+        </div>
+      )}
+
+      {showPaths && path === 'keys' && (
         <form
           className="w-path-body"
           onSubmit={(event) => {
@@ -1288,33 +1535,28 @@ function AwsConnect({
         </form>
       )}
 
-      {path === 'sso' && (
+      {showPaths && path === 'sso' && (
         <ol className="w-steps-list w-path-body">
-          {!expired && (
-            <Step text="Set up the profile once. It asks for your SSO start URL.">
-              <CopyableCommand command="aws configure sso" />
-            </Step>
-          )}
-          <Step text={expired ? 'Sign in to AWS again:' : 'Sign in. Do this again when the session expires.'}>
+          <Step text="Set up the profile once. It asks for your SSO start URL.">
+            <CopyableCommand command="aws configure sso" />
+          </Step>
+          <Step text="Sign in. Do this again when the session expires.">
             <CopyableCommand command={`aws sso login${profileFlag}`} />
           </Step>
           <Step
             text={
               <span className="inline-flex items-center gap-1.5">
                 Then check again.
-                <InfoTip about="AWS profiles">
-                  If the profile has a name, start <span className="w-code">stacktape init</span> with{' '}
-                  <span className="w-code">AWS_PROFILE=name</span> so the wizard uses it.
-                </InfoTip>
+                {profileTip}
               </span>
             }
           >
-            <div>{checkAgain}</div>
+            <div>{checkAgain('primary')}</div>
           </Step>
         </ol>
       )}
 
-      {path === 'none' && (
+      {showPaths && path === 'none' && (
         <ol className="w-steps-list w-path-body">
           <Step
             text={
@@ -1351,7 +1593,7 @@ function AwsConnect({
               <span>
                 Paste them under{' '}
                 <button className="w-link" onClick={() => setPath('keys')} type="button">
-                  Use access keys you already have
+                  Access keys I already have
                 </button>
                 .
               </span>
@@ -1453,5 +1695,37 @@ function TryOut({
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * What the analysis noticed that the checklist does not ask about: one folded row ("3 notes about compose.yml"), and
+ * each note, opened, as what it means for the deploy, then what to do about it.
+ */
+function Notes({ notes }: { notes: readonly PlainNote[] }) {
+  const [isOpen, setOpen] = useState(false);
+  return (
+    <section aria-label="Worth a look" className={`w-notes${isOpen ? ' is-open' : ''}`}>
+      <button aria-expanded={isOpen} className="w-notes-head" onClick={() => setOpen(!isOpen)} type="button">
+        <BiErrorCircle aria-hidden className="w-notes-icon" size={17} />
+        <span className="w-notes-title">
+          Worth a look <span>{notesHeading(notes)}</span>
+        </span>
+        <span className="w-notes-toggle">
+          {isOpen ? 'Hide' : 'Show'}
+          <BiChevronRight aria-hidden className="w-task-chevron" size={16} />
+        </span>
+      </button>
+      {isOpen && (
+        <ul className="w-notes-list">
+          {notes.map((note) => (
+            <li key={note.key}>
+              <p className="w-note-title">{withCode(note.title)}</p>
+              {note.body !== '' && <p className="w-note-body">{withCode(note.body)}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

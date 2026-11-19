@@ -246,6 +246,8 @@ export type WizardState = {
   awsKeys?: { status: 'saving' | 'saved' | 'failed'; detail?: string; profile?: string };
   /** Folders below the project that look like apps, offered when nothing was found here. */
   nearbyApps?: string[];
+  /** What each of `nearbyApps` is written in, by folder, when its files say ("Node.js", "Go"). */
+  nearbyAppKinds?: Record<string, string>;
   timeline: Array<{ kind: string; label: string }>;
   facts?: {
     services: WizardService[];
@@ -360,6 +362,13 @@ export type Session = {
   saveAwsKeys: (accessKeyId: string, secretAccessKey: string) => Promise<WizardState>;
   /** The text of a file the analysis read or cited, for the code window. Read-only. */
   readFile: (path: string) => Promise<FileView>;
+  /**
+   * What the project's `.env` sets for the secrets the configuration reads, for "Use the values from .env". Held in
+   * memory by the page only; saved only when the user saves them, through `setSecret`.
+   */
+  readEnvironmentValues: () => Promise<
+    { file: string; values: Array<{ name: string; value: string }> } | { file: undefined }
+  >;
   /** Calls back on every server-pushed update and connection transition. */
   subscribe: (
     onState: (state: WizardState) => void,
@@ -618,6 +627,13 @@ export const connect = async (): Promise<Session> => {
       });
       if (!read.ok) throw new SessionError('The file could not be read.');
       return (await read.json()) as FileView;
+    },
+    readEnvironmentValues: async () => {
+      const read = await fetch('/api/environment-values', { headers: { 'x-csrf-token': csrfToken } });
+      if (!read.ok) return { file: undefined };
+      return (await read.json()) as
+        | { file: string; values: Array<{ name: string; value: string }> }
+        | { file: undefined };
     },
     subscribe: (onState, onConnectionState) => {
       listeners.add(onState);

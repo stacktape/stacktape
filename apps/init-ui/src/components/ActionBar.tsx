@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import type { WizardState } from '../session';
 import { splitMonthly } from '../steps/review-model';
 import { AnimatedPrice } from './AnimatedPrice';
@@ -8,25 +8,48 @@ import { InfoTip } from './InfoTip';
  * The bar along the bottom of Review and Deploy: the monthly price on the left, the step's actions on the right, and
  * one short note beside them (what the action does, or what still blocks it).
  *
- * It spans the window and stays put while the page scrolls; the page leaves room for it by itself.
+ * It spans the window and stays put while the page scrolls. Its height, whatever the viewport makes of it, is kept in
+ * `--w-bar-space` on the root, and every page with a bar reserves that much at the end of its scroll area, so the last
+ * row of a page can always be scrolled clear of it.
  */
 export function ActionBar({
   price,
   note,
   className,
+  align = 'window',
   children
 }: {
   price?: ReactNode;
   note?: ReactNode;
   /**
    * `is-blocked`: the action waits for something; on a phone the bar is then one compact row without the price.
-   * `is-ready`: on a phone the note (what the click does) takes its own line above the price and the button.
+   * `is-ready`: on a phone the bar is one row with the price and the button; the note is the page's to show.
    */
   className?: string | undefined;
+  /** `column`: the content lines up with the form column above it (Deploy), so price, note and button read as one. */
+  align?: 'window' | 'column';
   children: ReactNode;
 }) {
+  const bar = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = bar.current;
+    if (element === null) return;
+    const root = document.documentElement;
+    const measure = () =>
+      root.style.setProperty('--w-bar-space', `${Math.ceil(element.getBoundingClientRect().height)}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--w-bar-space');
+    };
+  }, []);
   return (
-    <div className={className === undefined ? 'w-bar' : `w-bar ${className}`}>
+    <div
+      className={['w-bar', align === 'column' ? 'is-column' : '', className ?? ''].filter(Boolean).join(' ')}
+      ref={bar}
+    >
       <div className="w-bar-inner">
         <div className="w-bar-price">{price}</div>
         <div className="w-bar-end">

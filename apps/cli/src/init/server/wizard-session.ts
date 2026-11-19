@@ -35,6 +35,8 @@ import { renderTypeScript, renderYaml } from '../write-config';
 import type { PreflightResult } from '../preflight/preflight';
 import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
 import { readSeenFile, seenFilePaths } from './file-view';
+import { readEnvironmentValues } from './environment-values';
+import { requiredSecretVariables } from '@stacktape/config-inference/compose/required-secrets';
 import {
   startWizardServer,
   type WizardAgentOption,
@@ -135,7 +137,8 @@ export const startWizardSession = async ({
   configSchemaPath,
   setSecret,
   createAwsProfile,
-  nearbyApps
+  nearbyApps,
+  nearbyAppKinds
 }: {
   projectName: string;
   /** Shown on the first screen so the user can see exactly which directory will be read. */
@@ -306,6 +309,8 @@ export const startWizardSession = async ({
   }) => Promise<{ ok: boolean; detail: string; profile?: string }>;
   /** Folders below the project that look like apps of their own, offered when the analysis finds nothing to run. */
   nearbyApps?: string[];
+  /** What each nearby folder is written in, by folder, when its marker files say ("Node.js", "Go"). */
+  nearbyAppKinds?: Record<string, string>;
 }): Promise<WizardSession> => {
   let facts = result?.facts;
   let composition = result?.composition;
@@ -722,6 +727,7 @@ export const startWizardSession = async ({
         }),
     ...(awsKeys === undefined ? {} : { awsKeys }),
     ...(nearbyApps === undefined || nearbyApps.length === 0 ? {} : { nearbyApps }),
+    ...(nearbyAppKinds === undefined || Object.keys(nearbyAppKinds).length === 0 ? {} : { nearbyAppKinds }),
     ...codingAgentSetupState(),
     ...consoleConnectionState(),
     timeline,
@@ -1380,7 +1386,24 @@ export const startWizardSession = async ({
                     composition?.unsetSettings
                   ]
                 })
-              })
+              }),
+            // Only the variables the configuration about to be deployed reads as secrets: the hand-edited text when
+            // there is one, else the composition. No other key of `.env` leaves the file.
+            onEnvironmentValues: () => {
+              let resources: Record<string, unknown> = composition?.config.resources ?? {};
+              if (configEdit !== undefined) {
+                try {
+                  const parsed = parseYaml(configEdit.yaml) as { resources?: unknown } | null;
+                  resources =
+                    typeof parsed?.resources === 'object' && parsed.resources !== null
+                      ? (parsed.resources as Record<string, unknown>)
+                      : {};
+                } catch {
+                  resources = {};
+                }
+              }
+              return readEnvironmentValues({ repositoryRoot, names: new Set(requiredSecretVariables(resources)) });
+            }
           }),
       onConfigText: (yaml) => {
         if (composition === undefined || deploymentInFlight()) return buildState();

@@ -3,7 +3,7 @@ import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Button, ButtonLink } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BiBot, BiCheck, BiCodeAlt, BiCopy, BiInfoCircle, BiLinkExternal, BiX } from 'react-icons/bi';
+import { BiBot, BiCheck, BiChevronRight, BiCodeAlt, BiCopy, BiInfoCircle, BiLinkExternal, BiX } from 'react-icons/bi';
 import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
 import { CopyableCommand } from '../components/CopyableCommand';
 import { FailureExplanationText } from '../components/FailureExplanation';
@@ -70,13 +70,30 @@ function useElapsed(startedAt: string | undefined, endedAt: string | undefined):
 const duration = (seconds: number | undefined): string =>
   seconds === undefined ? '' : seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
 
+/** A running timer as a clock: "0:42", "3:12", "1:02:05". */
+export const clock = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = String(seconds % 60).padStart(2, '0');
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
+};
+
 /** "mainDatabase", "app" and "cdn" as a sentence: "mainDatabase, app and cdn". */
 const sentence = (names: readonly string[]): string =>
   names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 
-function RunDiagram({ resources, progress }: { resources: ConfigResources; progress: Record<string, Progress> }) {
+function RunDiagram({
+  resources,
+  progress,
+  caption
+}: {
+  resources: ConfigResources;
+  progress: Record<string, Progress>;
+  caption: ReactNode;
+}) {
   return (
     <section aria-label="Diagram" className="w-card w-run-diagram">
+      <p className="w-run-parts">{caption}</p>
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center">
@@ -141,12 +158,21 @@ const activeOperation = (
   };
 };
 
+/** Seconds since the log last grew: the tail goes quiet when nothing new arrives. */
+function useQuietFor(length: number): number {
+  const [changedAt, setChangedAt] = useState(() => Date.now());
+  useEffect(() => setChangedAt(Date.now()), [length]);
+  const now = useNow(true);
+  return Math.max(0, Math.round((now - changedAt) / 1000));
+}
+
 /**
  * A deploy in progress, or one that has just been repaired and is running again.
  *
- * The workspace grid of Review: the diagram it reviewed fills in on the left as AWS creates each part, with how many
- * parts are ready. The right leads with what is happening now and how long it has taken against the usual, then the
- * phases, then the log: its last lines, live, until it is opened in full.
+ * The workspace grid of Review: the diagram it reviewed fills in on the left as AWS creates each part. The right leads
+ * with what is happening now and the deploy's total time against the usual, then the phases with the time each took;
+ * the log's latest lines sit under the phase that is running, and open in full from there. On a phone the progress
+ * comes first and the diagram after it.
  */
 export function DeployingStep({ state, model }: { state: WizardState; model: DeployModel }) {
   const deployment = state.deployment!;
@@ -167,30 +193,42 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [model.log.length, showLog]);
+  const quietFor = useQuietFor(model.log.length);
   const repairing = deployment.status === 'repairing';
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
   const operation = activeOperation(model, resources, creating, repairing);
+  // The log's tail belongs to the phase that is running, or the last one that started.
+  const current =
+    phases.find((phase) => phase.status === 'running') ?? phases.findLast((phase) => phase.status !== 'pending');
+  const logToggle = (
+    <button aria-expanded={showLog} className="w-link w-small" onClick={() => setShowLog(!showLog)} type="button">
+      {showLog ? 'Hide the deploy log' : `Show the deploy log (${model.log.length} lines)`}
+    </button>
+  );
 
   return (
-    <div className="w-workspace w-enter">
+    <div className="w-workspace w-run w-enter">
       <div className="w-pane">
         <header className="w-run-head">
-          <div className="min-w-0">
-            <h1 className="w-title">{repairing ? 'Fixing what went wrong' : `Deploying to ${deployment.stage}`}</h1>
-            <p className="w-lede">
-              {repairing
-                ? `The first attempt failed. ${agent === undefined || agent.id === 'none' ? 'The agent' : agent.label} is reading your code again and deploys once more if it finds the cause.`
-                : `Into AWS account ${identity?.available === true ? identity.accountId.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3') : 'on this machine'}, ${deployment.region}.`}
-            </p>
-          </div>
-          <p className="w-run-parts">
-            <strong>
-              {ready} of {names.length}
-            </strong>{' '}
-            {names.length === 1 ? 'part' : 'parts'} of your app ready
+          <h1 className="w-title">{repairing ? 'Fixing what went wrong' : `Deploying to ${deployment.stage}`}</h1>
+          <p className="w-lede">
+            {repairing
+              ? `The first attempt failed. ${agent === undefined || agent.id === 'none' ? 'The agent' : agent.label} is reading your code again and deploys once more if it finds the cause.`
+              : `Into AWS account ${identity?.available === true ? identity.accountId.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3') : 'on this machine'}, ${deployment.region}.`}
           </p>
         </header>
-        <RunDiagram progress={progress} resources={resources} />
+        <RunDiagram
+          caption={
+            <>
+              <strong>
+                {ready} of {names.length}
+              </strong>{' '}
+              {names.length === 1 ? 'part' : 'parts'} of your app ready
+            </>
+          }
+          progress={progress}
+          resources={resources}
+        />
       </div>
 
       <aside aria-label="Deploy progress" className={`w-card w-run-side${showLog ? ' is-log-open' : ''}`}>
@@ -200,33 +238,26 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
           </p>
           {operation.detail !== undefined && <p className="w-run-op-detail">{operation.detail}</p>}
           <p className="w-run-time">
-            <strong>{elapsed === undefined ? '—' : duration(elapsed)}</strong>
-            {repairing ? '' : ` · usually ${hasDatabase ? '10–15' : '3–6'} min in all`}
+            Total <strong>{elapsed === undefined ? '—' : clock(elapsed)}</strong>
+            {repairing ? '' : ` · usually ${hasDatabase ? '10–15' : '3–6'} min`}
           </p>
-          <p className="w-run-tab">
-            <BiInfoCircle aria-hidden size={14} />
-            <span>
-              Closing this tab does not stop the deploy. Ctrl+C in the terminal running{' '}
-              <span className="w-code">stacktape init</span> does.
-            </span>
-          </p>
-        </div>
-        <div className="w-run-progress">
-          <progress
-            aria-label="AWS resources created"
-            className="w-run-meter"
-            max={100}
-            value={Math.max(2, Math.min(100, cloudformation?.percent ?? 0))}
-          />
-          <p className="w-run-count">
-            {cloudformation === undefined || cloudformation.total === 0
-              ? 'AWS resources: not started yet'
-              : `${cloudformation.completed} of ${cloudformation.total} AWS resources`}
-            <InfoTip about="AWS resources">
-              Each part of your app is several AWS resources: the service, its log group, its permissions and so on.
-              This counts those.
-            </InfoTip>
-          </p>
+          <div className="w-run-progress">
+            <progress
+              aria-label="AWS resources created"
+              className="w-run-meter"
+              max={100}
+              value={Math.max(2, Math.min(100, cloudformation?.percent ?? 0))}
+            />
+            <p className="w-run-count">
+              {cloudformation === undefined || cloudformation.total === 0
+                ? 'AWS resources: not started yet'
+                : `${cloudformation.completed} of ${cloudformation.total} AWS resources`}
+              <InfoTip about="AWS resources">
+                Each part of your app is several AWS resources: the service, its log group, its permissions and so on.
+                This counts those.
+              </InfoTip>
+            </p>
+          </div>
         </div>
         <ol className="w-phases">
           {phases.length === 0 && (
@@ -242,11 +273,15 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
             const seconds =
               phase.startedAt === undefined
                 ? undefined
-                : Math.round(
-                    ((phase.endedAt ?? (phase.status === 'running' ? now : phase.startedAt)) - phase.startedAt) / 1000
+                : Math.max(
+                    0,
+                    Math.round(
+                      ((phase.endedAt ?? (phase.status === 'running' ? now : phase.startedAt)) - phase.startedAt) / 1000
+                    )
                   );
+            const isCurrent = phase === current && !showLog;
             return (
-              <li className={`w-phase is-${phase.status}`} key={phase.id}>
+              <li className={`w-phase is-${phase.status}${isCurrent ? ' is-current' : ''}`} key={phase.id}>
                 <span className="w-phase-icon">
                   {phase.status === 'done' ? (
                     <BiCheck className="text-[var(--w-ok)]" size={18} />
@@ -260,28 +295,42 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
                 </span>
                 <p className="w-phase-label">{phase.label}</p>
                 <span className="w-phase-time">
-                  {seconds === undefined || (seconds < 1 && phase.status !== 'running') ? '' : duration(seconds)}
+                  {seconds === undefined || (seconds < 1 && phase.status !== 'running') ? '' : clock(seconds)}
                 </span>
+                {isCurrent && (
+                  <div className={`w-phase-log${quietFor > 8 ? ' is-quiet' : ''}`}>
+                    {model.log.length > 0 && (
+                      <pre aria-label="Latest from the deploy log" className="w-log is-tail">
+                        {model.log.slice(-3).join('\n')}
+                      </pre>
+                    )}
+                    {logToggle}
+                  </div>
+                )}
               </li>
             );
           })}
         </ol>
-        <div className="w-run-log">
-          <div className="w-run-log-head">
-            <span>{showLog ? 'Deploy log' : 'Latest from the log'}</span>
-            <button
-              aria-expanded={showLog}
-              className="w-link w-small"
-              onClick={() => setShowLog(!showLog)}
-              type="button"
-            >
-              {showLog ? 'Show less' : `Show the full log (${model.log.length} lines)`}
-            </button>
+        {(showLog || current === undefined) && (
+          <div className="w-run-log">
+            <div className="w-run-log-head">
+              <span>Deploy log</span>
+              {logToggle}
+            </div>
+            {showLog && (
+              <pre aria-label="Deploy log" className="w-log" ref={logRef}>
+                {model.log.join('\n')}
+              </pre>
+            )}
           </div>
-          <pre aria-label="Deploy log" className={`w-log${showLog ? '' : ' is-tail'}`} ref={logRef}>
-            {(showLog ? model.log : model.log.slice(-4)).join('\n')}
-          </pre>
-        </div>
+        )}
+        <p className="w-run-tab">
+          <BiInfoCircle aria-hidden size={14} />
+          <span>
+            Closing this tab does not stop the deploy. Ctrl+C in the terminal running{' '}
+            <span className="w-code">stacktape init</span> does.
+          </span>
+        </p>
       </aside>
     </div>
   );
@@ -370,52 +419,52 @@ export function LiveStep({
         </h1>
         {primary === undefined ? (
           <p className="w-live-note">Everything was created. None of it has a public address.</p>
+        ) : addresses.length === 1 ? (
+          <>
+            <a className="w-live-url is-hero" href={primary.url} rel="noreferrer" target="_blank" title={primary.url}>
+              {primary.url.replace(/^https:\/\//, '')}
+            </a>
+            <div className="w-live-actions">
+              <ButtonLink
+                className="w-big"
+                href={primary.url}
+                icon={<BiLinkExternal size={15} />}
+                iconPosition="end"
+                rel="noreferrer"
+                target="_blank"
+                variant="primary"
+              >
+                Open app
+              </ButtonLink>
+              <CopyAddress isBig url={primary.url} />
+            </div>
+          </>
         ) : (
-          <ul className={`w-live-addresses${addresses.length > 1 ? ' is-labelled' : ''}`}>
+          // Several addresses: each row is one of them, with its own Open and Copy.
+          <ul aria-label="Addresses" className="w-live-addresses">
             {addresses.map((entry, index) => (
-              <li className={index === 0 ? 'is-primary' : undefined} key={entry.url}>
-                {entry.label !== undefined && <span className="w-live-label">{entry.label}</span>}
+              <li key={entry.url}>
+                <span className="w-live-label">{entry.label}</span>
                 <a className="w-live-url" href={entry.url} rel="noreferrer" target="_blank" title={entry.url}>
                   {entry.url.replace(/^https:\/\//, '')}
                 </a>
+                <span className="w-live-row-actions">
+                  <ButtonLink
+                    aria-label={`Open ${entry.label === 'API' ? 'the API' : (entry.label ?? 'it').toLowerCase()}`}
+                    href={entry.url}
+                    icon={<BiLinkExternal size={14} />}
+                    iconPosition="end"
+                    rel="noreferrer"
+                    target="_blank"
+                    variant={index === 0 ? 'primary' : 'secondary'}
+                  >
+                    Open
+                  </ButtonLink>
+                  <CopyAddress label={entry.label} url={entry.url} />
+                </span>
               </li>
             ))}
           </ul>
-        )}
-        <ul className="w-live-meta">
-          {elapsed !== undefined && elapsed > 0 && (
-            <li>
-              Live in <strong>{duration(elapsed)}</strong>
-            </li>
-          )}
-          {monthly?.amount !== undefined && (
-            <li>
-              <strong>{monthly.amount}</strong>/month{monthly.usage ? ' + usage' : ''}
-              <InfoTip about="the price">
-                AWS list prices in {deployment.region}, for what runs all month.
-                {monthly.usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
-              </InfoTip>
-            </li>
-          )}
-          <li>
-            <strong>{deployment.stage}</strong> in {deployment.region}
-          </li>
-        </ul>
-        {primary !== undefined && (
-          <div className="w-live-actions">
-            <ButtonLink
-              className="w-big"
-              href={primary.url}
-              icon={<BiLinkExternal size={15} />}
-              iconPosition="end"
-              rel="noreferrer"
-              target="_blank"
-              variant="primary"
-            >
-              Open app
-            </ButtonLink>
-            <CopyAddress url={primary.url} />
-          </div>
         )}
         {repaired.length > 0 && (
           <p className="w-live-note">
@@ -423,6 +472,42 @@ export function LiveStep({
             the version that is live.
           </p>
         )}
+        <dl className="w-live-meta">
+          <div>
+            <dt>Stage</dt>
+            <dd>{deployment.stage}</dd>
+          </div>
+          <div>
+            <dt>Region</dt>
+            <dd>{deployment.region}</dd>
+          </div>
+          {monthly?.amount !== undefined && (
+            <div>
+              <dt>
+                Estimated AWS cost
+                <InfoTip about="the price">
+                  AWS list prices in {deployment.region}, for what runs all month.
+                  {monthly.usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
+                </InfoTip>
+              </dt>
+              <dd>
+                {monthly.amount}/month{monthly.usage ? ' + usage' : ''}
+              </dd>
+            </div>
+          )}
+          {elapsed !== undefined && elapsed > 0 && (
+            <div>
+              <dt>Deployed in</dt>
+              <dd>{duration(elapsed)}</dd>
+            </div>
+          )}
+        </dl>
+        <div className="w-live-details">
+          <button aria-expanded={showLog} className="w-link w-small" onClick={() => setShowLog(!showLog)} type="button">
+            {showLog ? 'Hide the deploy log' : 'Show the deploy log'}
+          </button>
+          {showLog && <pre className="w-log">{model.log.join('\n')}</pre>}
+        </div>
       </section>
 
       <h2 className="w-next-title">Next steps</h2>
@@ -473,43 +558,36 @@ export function LiveStep({
         )}
       </ul>
 
-      <div className="w-live-links">
-        <button
-          aria-expanded={showRemoval}
-          className="w-link w-small text-[var(--w-subtle)]"
-          onClick={() => setShowRemoval(!showRemoval)}
-          type="button"
-        >
-          {showRemoval ? 'Hide' : 'Remove this deployment'}
-        </button>
-        <button
-          aria-expanded={showLog}
-          className="w-link w-small text-[var(--w-subtle)]"
-          onClick={() => setShowLog(!showLog)}
-          type="button"
-        >
-          {showLog ? 'Hide the deploy log' : 'Show the deploy log'}
-        </button>
-      </div>
-      {showRemoval && (
-        <div className="mt-3 flex flex-col gap-2">
-          <p className="w-quiet">
-            Deletes everything this deploy created{hasDatabase ? ', including the database and its data' : ''}. Your
-            code and <span className="w-code">{target.configPath}</span> stay.
-          </p>
-          <CopyableCommand command={stackCommand('delete', target)} />
+      <section aria-label="Manage this deployment" className="w-manage">
+        <div className="w-manage-head">
+          <div>
+            <h2 className="w-manage-title">Remove this deployment</h2>
+            <p className="w-quiet">
+              Deletes everything this deploy created{hasDatabase ? ', including the database and its data' : ''}. Your
+              code and <span className="w-code">{target.configPath}</span> stay.
+            </p>
+          </div>
+          <button
+            aria-expanded={showRemoval}
+            className="w-link w-small"
+            onClick={() => setShowRemoval(!showRemoval)}
+            type="button"
+          >
+            {showRemoval ? 'Hide the command' : 'Show the command'}
+          </button>
         </div>
-      )}
-      {showLog && <pre className="w-log">{model.log.join('\n')}</pre>}
+        {showRemoval && <CopyableCommand command={stackCommand('delete', target)} />}
+      </section>
     </div>
   );
 }
 
-function CopyAddress({ url }: { url: string }) {
+function CopyAddress({ url, label, isBig = false }: { url: string; label?: string | undefined; isBig?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
-      className="w-big"
+      aria-label={label === undefined ? undefined : `Copy the ${label === 'API' ? 'API' : label.toLowerCase()} address`}
+      className={isBig ? 'w-big' : undefined}
       icon={copied ? <BiCheck size={15} /> : <BiCopy size={14} />}
       onClick={() =>
         void (async () => {
@@ -524,7 +602,7 @@ function CopyAddress({ url }: { url: string }) {
       }
       variant="secondary"
     >
-      {copied ? 'Copied' : 'Copy address'}
+      {copied ? 'Copied' : isBig ? 'Copy address' : 'Copy'}
     </Button>
   );
 }
@@ -587,6 +665,8 @@ function CodingAgentRow({
 }
 
 type FailureStory = {
+  /** The part of the app that failed, as stacktape.yml names it. */
+  part: string;
   happened: ReactNode;
   why: ReactNode;
   /** The fix as a heading: what to change, in this project's names. */
@@ -644,6 +724,7 @@ export const failureStory = (
   const location = wired === undefined ? undefined : readingLocation(state, wired);
   const stpName = `STP_${database.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase()}_CONNECTION_STRING`;
   return {
+    part: failed,
     happened: (
       <>
         <span className="w-code">{failed}</span> started on AWS, then exited: it could not reach a database at{' '}
@@ -661,7 +742,7 @@ export const failureStory = (
       ? {
           fix: (
             <>
-              Read the database address from <span className="w-code">{wired}</span>
+              Update your code to read <span className="w-code">{wired}</span>
             </>
           ),
           fixDetail: (
@@ -722,22 +803,25 @@ export function DeployFailedStep({
   };
   const wasUpdate = state.deployTarget?.status === 'updateable';
   const repairs = deployment.repairs ?? [];
-  const showErrorButton = (
-    <button aria-expanded={showError} className="w-link w-small" onClick={() => setShowError(!showError)} type="button">
-      {showError ? 'Hide the error' : 'Show the full error'}
-    </button>
-  );
 
   return (
     <div className="w-enter">
       <header className="w-hero">
-        <h1 className="w-title">The deploy to {deployment.stage} stopped</h1>
+        <h1 className="w-title">
+          {story === undefined ? (
+            `The deploy to ${deployment.stage} stopped`
+          ) : (
+            <>
+              <span className="w-title-code">{story.part}</span> did not start on AWS
+            </>
+          )}
+        </h1>
         <p className="w-lede">
           {deployment.keptPartialProgress === true
             ? 'What this attempt created is kept for the next one, and billed until you deploy again or remove it.'
             : wasUpdate
-              ? 'AWS put the stack back to the version that was running. Your live app is unchanged.'
-              : 'AWS rolled it back, so nothing it created is running. Your saved secrets stay.'}
+              ? `AWS put ${deployment.stage} back to the version that was running. Your live app is unchanged.`
+              : `AWS rolled back the deploy to ${deployment.stage}, so nothing it created is running. Your saved secrets stay.`}
         </p>
       </header>
       <dl className="w-card w-fail">
@@ -751,9 +835,7 @@ export function DeployFailedStep({
                 </span>
               ) : (
                 <FailureExplanationText explanations={explained.slice(0, 1)} part="cause" />
-              ))}{' '}
-            {showErrorButton}
-            {showError && <pre className="w-log">{[message, '', ...model.log.slice(-60)].join('\n')}</pre>}
+              ))}
           </dd>
         </div>
         {story !== undefined && (
@@ -762,6 +844,18 @@ export function DeployFailedStep({
             <dd>{story.why}</dd>
           </div>
         )}
+        <div className="w-fail-more">
+          <button
+            aria-expanded={showError}
+            className="w-disclosure"
+            onClick={() => setShowError(!showError)}
+            type="button"
+          >
+            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
+            {showError ? 'Hide the full error' : 'Show the full error'}
+          </button>
+          {showError && <pre className="w-log">{[message, '', ...model.log.slice(-60)].join('\n')}</pre>}
+        </div>
       </dl>
 
       <section aria-label="The fix" className="w-card w-fix">
@@ -775,20 +869,19 @@ export function DeployFailedStep({
             ))}
         </h2>
         {story?.location !== undefined && <p className="w-fix-location">{story.location}</p>}
-        <div className="w-fix-body">
-          <p>
-            {story?.fixDetail ??
-              (explained.length > 0 ? (
-                <>
-                  The full error has the details. Change <span className="w-code">{configPath}</span> or your code, then
-                  deploy again.
-                </>
-              ) : (
-                <>Read the full error above, change your code or the file, then deploy again.</>
-              ))}
-          </p>
+        <p className="w-fix-text">
+          {story?.fixDetail ??
+            (explained.length > 0 ? (
+              <>
+                The full error has the details. Change <span className="w-code">{configPath}</span> or your code.
+              </>
+            ) : (
+              <>Read the full error above, then change your code or the file.</>
+            ))}
+        </p>
+        <div className="w-fix-actions">
           <Button onClick={onBackToFile} variant="secondary">
-            Open {configPath}
+            {story === undefined ? `Open ${configPath}` : `View the database setting in ${configPath}`}
           </Button>
         </div>
         {repairs.length > 0 && (
@@ -804,7 +897,7 @@ export function DeployFailedStep({
         <Button className="w-big" isLoading={busy === 'deploy'} onClick={onDeployAgain} variant="primary">
           Deploy again
         </Button>
-        <span className="w-quiet">Reads your code and {configPath} from disk again.</span>
+        <span className="w-quiet">After your change. It reads your code and {configPath} from disk again.</span>
       </div>
       {deployment.keptPartialProgress === true && (
         <section className="mt-8">

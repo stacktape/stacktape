@@ -35,54 +35,62 @@ export function EmptyStep({
   const [starterId, setStarterId] = useState<StarterId>(STARTERS[0].id);
   const starter = STARTERS.find((entry) => entry.id === starterId) ?? STARTERS[0];
 
+  const kinds = state.nearbyAppKinds ?? {};
+
   return (
     <div className="w-enter">
       <header className="w-hero">
         <h1 className="w-title">No app in this folder</h1>
-        <p className="w-lede">
-          Nothing in{' '}
-          {state.repositoryPath === undefined ? 'this folder' : <span className="w-code">{state.repositoryPath}</span>}{' '}
-          runs as a server, worker or website.
-        </p>
+        {state.repositoryPath !== undefined && <p className="w-hero-path">{state.repositoryPath}</p>}
+        <p className="w-lede">Nothing here runs as a server, worker or website.</p>
       </header>
 
-      {(nearby.length > 0 || (!usedAgent && agent !== undefined)) && (
+      {nearby.length > 0 && (
         <section className="w-section">
-          <h2 className="w-section-title">{nearby.length > 0 ? 'Run init from an app folder' : 'Look again'}</h2>
-          {nearby.length > 0 && (
-            <p className="w-section-lede">
-              {nearby.length === 1 ? 'This folder looks' : 'These folders look'} like an app. Run{' '}
-              {nearby.length === 1 ? 'this' : 'one of these'} in the terminal you started init from.
-            </p>
-          )}
+          <h2 className="w-section-title">
+            {nearby.length === 1 ? 'Is this the app you want to deploy?' : 'Choose the app you want to deploy'}
+          </h2>
+          <p className="w-section-lede">Run its command in the terminal you started init from.</p>
           <ul className="w-card w-next">
             {nearby.map((folder) => (
-              <Row icon={<BiFolder size={17} />} key={folder} title={<span className="w-mono">{folder}/</span>}>
+              <Row
+                icon={<BiFolder size={17} />}
+                key={folder}
+                title={
+                  <span className="w-candidate">
+                    <span className="w-mono">{folder}/</span>
+                    {kinds[folder] !== undefined && <span className="w-candidate-kind">{kinds[folder]}</span>}
+                  </span>
+                }
+              >
                 <CopyableCommand command={`cd ${folder} && stacktape init`} />
               </Row>
             ))}
-            {!usedAgent && agent !== undefined && (
-              <Row
-                action={
-                  <Button isLoading={busy === 'start'} onClick={() => onAnalyzeWithAgent(agent.id)} variant="secondary">
-                    Analyze with {agent.label}
-                  </Button>
-                }
-                description={`Only manifests and Dockerfiles were read. ${agent.label} reads the source too.`}
-                icon={<BiSearchAlt size={17} />}
-                title={`Read it again with ${agent.label}`}
-              />
-            )}
           </ul>
         </section>
       )}
 
-      <section className="w-section">
+      {!usedAgent && agent !== undefined && (
+        <section className="w-section">
+          <ul className="w-card w-next">
+            <Row
+              action={
+                <Button isLoading={busy === 'start'} onClick={() => onAnalyzeWithAgent(agent.id)} variant="secondary">
+                  Analyze with {agent.label}
+                </Button>
+              }
+              description={`Only manifests and Dockerfiles were read. ${agent.label} reads the source too.`}
+              icon={<BiSearchAlt size={17} />}
+              title={`Read it again with ${agent.label}`}
+            />
+          </ul>
+        </section>
+      )}
+
+      <section className="w-section w-starters">
         <h2 className="w-section-title">Or start from a working app</h2>
-        <p className="w-section-lede">
-          Pick a starter, then run its command in a new, empty folder. It deploys as it is.
-        </p>
-        <div className="w-card flex flex-col gap-3 p-5">
+        <p className="w-section-lede">Run a starter’s command in a new, empty folder. It deploys as it is.</p>
+        <div className="w-starter">
           <Tabs
             appearance="segmented"
             ariaLabel="Starter project"
@@ -91,7 +99,7 @@ export function EmptyStep({
             value={starterId}
             width="fit"
           />
-          <p className="w-quiet">{starter.text}</p>
+          <p className="w-starter-text">{starter.text}</p>
           <CopyableCommand command={`stacktape init --starterId ${starter.id}`} />
         </div>
       </section>

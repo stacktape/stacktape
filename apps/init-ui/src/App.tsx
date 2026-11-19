@@ -1,6 +1,6 @@
 import { Alert } from '@stacktape/ui-react/alert';
 import { Spinner } from '@stacktape/ui-react/spinner';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import logo from './assets/logo.svg';
 import { CopyableCommand } from './components/CopyableCommand';
 import { StepPath, type PathStep, type PathStepStatus } from './components/StepPath';
@@ -142,6 +142,17 @@ export function App() {
   }, []);
 
   const screen = state === undefined ? undefined : screenFor(state, view);
+
+  // A new step starts at its top: on a phone the deploy's progress is long, and Live must not open halfway down its
+  // card. Analyze becoming Review is the one exception: it is the same workspace, changing in place.
+  const shownScreen = useRef<Screen | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (screen === undefined) return;
+    const before = shownScreen.current;
+    shownScreen.current = screen;
+    if (before === undefined || before === screen || (before === 'analyze' && screen === 'review')) return;
+    window.scrollTo({ top: 0 });
+  }, [screen]);
 
   // On the Deploy step the file has to be on disk. A setting changed there (the region, the migration) recomposes it,
   // which drops the old file; it is written again here, once per configuration, so the target check can run.
@@ -330,6 +341,7 @@ export function App() {
           onDismissVerification={() =>
             void run('dismiss-verify', () => session.dismissVerification(), 'Could not set the result aside.')
           }
+          onLoadEnvironment={session.readEnvironmentValues}
           onRecheck={() => void run('recheck', () => session.recheck(), 'Could not check again.')}
           onRegion={(region) => void run('region', () => session.setRegion(region), 'That region could not be chosen.')}
           onSecret={async (name, value) => {

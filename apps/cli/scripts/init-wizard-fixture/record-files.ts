@@ -133,7 +133,19 @@ const main = async () => {
   }
 
   const target = join(import.meta.dir, 'projects', `${name}.files.json`);
-  await writeFile(target, `${JSON.stringify({ source: project.source, timeline, files }, null, 2)}\n`);
+  // `localValues` is recorded by hand (a template's public `.env` values for the Deploy step's import); a new
+  // recording keeps it.
+  const previous = (() => {
+    try {
+      return JSON.parse(readFileSync(target, 'utf8')) as { localValues?: Record<string, string[]> };
+    } catch {
+      return {};
+    }
+  })();
+  await writeFile(
+    target,
+    `${JSON.stringify({ source: project.source, timeline, files, ...(previous.localValues === undefined ? {} : { localValues: previous.localValues }) }, null, 2)}\n`
+  );
   console.log(`Wrote ${target}: ${paths.size} files`);
 };
 

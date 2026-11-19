@@ -277,12 +277,18 @@ const main = async () => {
       return JSON.parse(readFileSync(join(fixtureDirectory, 'projects', `${scenario.project}.files.json`), 'utf8')) as {
         timeline: Array<{ kind: string; label: string }>;
         files: Record<string, string[]>;
+        /**
+         * Files whose real text the session reads, recorded by hand over their masked copy in `files`: the template's
+         * own `.env`, which the Deploy step offers to import. Public example values only (`changethis`, `localhost`);
+         * the code window still shows them masked.
+         */
+        localValues?: Record<string, string[]>;
       };
     } catch {
       return undefined;
     }
   })();
-  for (const [path, lines] of Object.entries(recordedFiles?.files ?? {})) {
+  for (const [path, lines] of Object.entries({ ...recordedFiles?.files, ...recordedFiles?.localValues })) {
     await mkdir(dirname(join(repositoryRoot, path)), { recursive: true });
     await writeFile(join(repositoryRoot, path), lines.join('\n'));
   }
@@ -481,7 +487,9 @@ const main = async () => {
       return { status: 'completed', services };
     },
     configSchemaPath: CONFIG_SCHEMA_PATH,
-    ...(scenario.project === 'empty' ? { nearbyApps: ['web', 'services/api'] } : {}),
+    ...(scenario.project === 'empty'
+      ? { nearbyApps: ['web', 'services/api'], nearbyAppKinds: { web: 'Node.js', 'services/api': 'Go' } }
+      : {}),
     setSecret: async ({ name }) => {
       await sleep(250);
       return scenario.secrets === 'fail'

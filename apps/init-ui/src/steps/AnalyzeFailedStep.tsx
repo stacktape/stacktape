@@ -1,5 +1,6 @@
 import { Button } from '@stacktape/ui-react/button';
 import { useState } from 'react';
+import { BiChevronRight } from 'react-icons/bi';
 import type { WizardState } from '../session';
 
 /**
@@ -64,7 +65,7 @@ export function AnalyzeFailedStep({
       >
         Analyze without AI
       </Button>
-      <p>Reads your manifests and config files. Takes a few seconds.</p>
+      <p>Reads manifests and config files to draft your setup.</p>
     </div>
   );
   const retry = (
@@ -121,11 +122,12 @@ export function AnalyzeFailedStep({
         <div className="w-terminal">
           <button
             aria-expanded={showDetails}
-            className="w-link w-small text-[var(--w-subtle)]"
+            className="w-disclosure"
             onClick={() => setShowDetails(!showDetails)}
             type="button"
           >
-            {showDetails ? 'Hide the details' : 'Show the details'}
+            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
+            {showDetails ? 'Hide what it printed' : 'Show what it printed'}
           </button>
           {showDetails && (
             <pre className="w-log">

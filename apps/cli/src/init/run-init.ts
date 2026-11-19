@@ -732,7 +732,15 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       say(`\nSaved AWS access keys as profile ${profile}.`);
       return { ok: true, profile, detail: `Saved as AWS profile ${profile} in ~/.aws/credentials.` };
     },
-    nearbyApps: await findNearbyApps(repositoryRoot),
+    ...(await (async () => {
+      const apps = await findNearbyApps(repositoryRoot);
+      return {
+        nearbyApps: apps.map((app) => app.path),
+        nearbyAppKinds: Object.fromEntries(
+          apps.flatMap((app) => (app.kind === undefined ? [] : [[app.path, app.kind]]))
+        )
+      };
+    })()),
     // Only in a development checkout. A released CLI serves a bundle that cannot change underneath
     // it, so watching would burn a file handle to wait for something that never happens.
     ...(process.env.STP_DEV_MODE === 'true' ? { watchStatic: true } : {})
