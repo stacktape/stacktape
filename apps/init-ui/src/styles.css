@@ -3018,6 +3018,11 @@
       margin: 0 0 10px 24px;
     }
 
+    /* A sub-group has no chevron to line up with. */
+    .w-subtask-head .w-task-action {
+      margin-left: 0;
+    }
+
     .w-secret-local {
       grid-column: 1;
     }
