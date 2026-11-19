@@ -88,14 +88,13 @@ export const findDirectRoute = ({
   if (!from || !to || turnsOf(current) === 0) return current;
   const clear = (route: IsoTilePoint[]) => isClear({ route, obstacles, endClearance });
 
-  if (Math.abs(from.y - to.y) < EPSILON) {
-    const straight = [from, to];
-    return clear(straight) ? straight : current;
-  }
+  const sameRow = Math.abs(from.y - to.y) < EPSILON;
+  if (sameRow && clear([from, to])) return [from, to];
   if (turnsOf(current) <= 2) return current;
 
   // Of the clear jogs, the one whose route stays within the space between its two ends on screen, so it does not run
   // past its target and turn back; then the one nearest the middle.
+  const forward = to.x >= from.x;
   const low = Math.min(from.x, to.x) + LEAD;
   const high = Math.max(from.x, to.x) - LEAD;
   if (high < low - EPSILON) return current;
@@ -119,14 +118,59 @@ export const findDirectRoute = ({
     }, 0);
   const middle = (low + high) / 2;
   let best: { route: IsoTilePoint[]; cost: number } | undefined;
-  for (let jog = low; jog <= high + EPSILON; jog += JOG_STEP) {
+  // On one row, a single jog is the straight line already found blocked.
+  const firstJog = sameRow ? Number.POSITIVE_INFINITY : low;
+  for (let jog = firstJog; jog <= high + EPSILON; jog += JOG_STEP) {
     const x = Math.round(jog * 1000) / 1000;
     const route = [from, { x, y: from.y }, { x, y: to.y }, to];
     const cost = overshoot(route) * 100 + Math.abs(x - middle);
     if ((!best || cost < best.cost - EPSILON) && clear(route)) best = { route, cost };
   }
   if (best) return best.route;
-  return current;
+  if (turnsOf(current) <= 4) return current;
+
+  // No single jog is clear: two jogs, across to a row the current route already uses and back, at places where it
+  // already turns or the first and last places a jog may go.
+  const turnXs = new Set([low, high, ...current.slice(1, -1).map((point) => point.x)]);
+  const xs = [...turnXs].filter((x) => x >= low - EPSILON && x <= high + EPSILON).sort((a, b) => a - b);
+  if (!forward) xs.reverse();
+  const rows = [...new Set(current.slice(1, -1).map((point) => point.y))];
+  for (const [index, first] of xs.entries()) {
+    for (const second of xs.slice(index + 1)) {
+      for (const row of rows) {
+        const route = simplifyPoints([
+          from,
+          { x: first, y: from.y },
+          { x: first, y: row },
+          { x: second, y: row },
+          { x: second, y: to.y },
+          to
+        ]);
+        if (turnsOf(route) >= turnsOf(current)) continue;
+        const cost = turnsOf(route) * 1000 + overshoot(route) * 100 + lengthOf(route) / 100;
+        if ((!best || cost < best.cost - EPSILON) && clear(route)) best = { route, cost };
+      }
+    }
+  }
+  return best?.route ?? current;
+};
+
+/** Drops repeated points and points in the middle of a straight run. */
+const simplifyPoints = (points: IsoTilePoint[]) => {
+  const unique = points.filter(
+    (point, index) =>
+      index === 0 ||
+      Math.abs(point.x - points[index - 1].x) > EPSILON ||
+      Math.abs(point.y - points[index - 1].y) > EPSILON
+  );
+  return unique.filter((point, index) => {
+    if (index === 0 || index === unique.length - 1) return true;
+    const previous = unique[index - 1];
+    const next = unique[index + 1];
+    const sameX = Math.abs(previous.x - point.x) < EPSILON && Math.abs(point.x - next.x) < EPSILON;
+    const sameY = Math.abs(previous.y - point.y) < EPSILON && Math.abs(point.y - next.y) < EPSILON;
+    return !sameX && !sameY;
+  });
 };
 
 /**
