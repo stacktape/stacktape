@@ -147,7 +147,7 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
   const wizard = await startWizard({ project: 'saas-starter' });
   await page.goto(wizard.url);
   await analyzeAndReview(page);
-  await expect(page.getByText('hover a key for docs')).toBeVisible();
+  await expect(page.getByText('or hover a key')).toBeVisible();
 
   const editor = page.locator('.monaco-editor').first();
   await expect(editor).toBeVisible({ timeout: 15_000 });
@@ -159,6 +159,11 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
       .hover();
     await expect(page.locator('.monaco-hover').first()).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
+  // Without a pointer, "Docs" opens the same card, for the first resource while the cursor is nowhere yet.
+  await page.mouse.move(0, 0);
+  await expect(page.locator('.monaco-hover').first()).toBeHidden();
+  await page.getByRole('button', { name: 'Docs' }).click();
+  await expect(page.locator('.monaco-hover').first()).toContainText('relational (SQL) database');
 
   await page.mouse.move(0, 0);
   await editor.locator('.view-line').first().click();
@@ -190,6 +195,11 @@ test('the analysis shows the files it reads, then ties each resource to the line
   await expect(codeWindow.locator('.ws-window-tab[data-active]')).toHaveText('.env.example');
   await expect(codeWindow).toContainText('POSTGRES_URL=••••');
   await expect(page.locator('.ws-status')).toContainText('Claude Code is reading .env.example');
+  // The window says the file it shows is the one being read, how long it has read and how many files so far.
+  await expect(codeWindow.locator('.ws-window-state')).toHaveText('Reading');
+  await expect(codeWindow.locator('.ws-window-meta')).toContainText(/Read-only · \d:\d\d/);
+  await codeWindow.getByRole('button', { name: '2 files read' }).click();
+  await expect(codeWindow.locator('.ws-window-list')).toContainText('Read so far');
   // The file already has its first lines, and says it is waiting for the rest.
   await expect(page.getByText('Waiting for the first finding')).toBeVisible();
   await expect(page.locator('.ws-editor .view-lines')).toContainText('projectName: saas-starter');
@@ -200,6 +210,11 @@ test('the analysis shows the files it reads, then ties each resource to the line
   await expect(finding).toContainText('Postgres database', { timeout: 15_000 });
   // It says what the line shows, in plain words, and where.
   await expect(finding).toContainText('Postgres driver in package.json:29');
+  // Its own price is said apart from the file's estimate, which takes it in when the block is written.
+  await expect(finding.locator('.ws-finding-price[data-shown]')).toContainText('/mo for this database', {
+    timeout: 5_000
+  });
+  await expect(page.locator('.ws-editor-estimate')).toContainText('Estimate so far');
   await expect(codeWindow.locator('.ws-line[data-focus]')).toContainText('"postgres"');
   await expect(page.getByRole('list', { name: 'Found so far' })).toContainText('3 secrets');
   // The cited line and the first line of the block written for it sit at the same height.
