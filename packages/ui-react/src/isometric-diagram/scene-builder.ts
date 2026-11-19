@@ -134,17 +134,20 @@ const toLayoutNode = ({
   node,
   zone,
   statusLines,
-  infrastructure
+  infrastructure,
+  textScale
 }: {
   node: TopologyNode;
   zone: string | undefined;
   statusLines: boolean;
   /** Whether the picture can show the Infrastructure layer, whose load balancer badges need room. */
   infrastructure: boolean;
+  /** How much larger than usual the renderer sets names and chips (`minLabelSize`). */
+  textScale: number;
 }): LayoutNode => {
   // A declared resource or group can report a status; its pill hangs under the name tag.
   const status = statusLines && !node.implicit;
-  const tagWidth = Math.max(getNameTagWidthPx(node), status ? STATUS_MIN_WIDTH_PX : 0);
+  const tagWidth = Math.max(getNameTagWidthPx(node) * textScale, status ? STATUS_MIN_WIDTH_PX : 0);
   const { shape } = getNodeAppearance(node.resourceType, { group: Boolean(node.memberIds) });
   const above = hasBadge({
     shape,
@@ -162,7 +165,7 @@ const toLayoutNode = ({
     lift: (SHAPE_HEIGHT_PX[shape] + above) / V_PX,
     tag: {
       halfWidth: tagWidth / 2 / U_PX,
-      height: (NAME_TAG_HEIGHT_PX + (status ? STATUS_LINE_HEIGHT_PX : 0)) / V_PX
+      height: (NAME_TAG_HEIGHT_PX * textScale + (status ? STATUS_LINE_HEIGHT_PX : 0)) / V_PX
     },
     rank: node.layer === 'external' ? 'first' : DATA_STORE_TYPES.has(node.resourceType) ? 'last' : undefined,
     zone
@@ -247,17 +250,19 @@ const getZoneTagSize = (zoneId: string): ZoneTagSize | undefined => {
 const buildLayoutInput = ({
   topology,
   statusLines,
-  infrastructure
+  infrastructure,
+  textScale
 }: {
   topology: DiagramTopology;
   statusLines: boolean;
   infrastructure: boolean;
+  textScale: number;
 }): DiagramLayoutInput => {
   const nodeById = new Map(topology.nodes.map((node) => [node.id, node]));
   return {
     // Zones are drawn only by the Infrastructure layer; without it, nothing has to stay inside or outside a band.
     nodes: topology.nodes.map((node) =>
-      toLayoutNode({ node, zone: infrastructure ? getZone(node) : undefined, statusLines, infrastructure })
+      toLayoutNode({ node, zone: infrastructure ? getZone(node) : undefined, statusLines, infrastructure, textScale })
     ),
     edges: topology.edges.map((edge) => ({
       id: edge.id,
@@ -269,7 +274,7 @@ const buildLayoutInput = ({
       label: edge.label ?? (infrastructure && isVpcLink({ edge, nodeById }) ? VPC_LINK_LABEL : undefined)
     })),
     zones: ZONES,
-    measureLabel: measureChip,
+    measureLabel: textScale === 1 ? measureChip : (text: string) => scaleBox(measureChip(text), textScale),
     zoneTag: getZoneTagSize
   };
 };
@@ -423,7 +428,8 @@ export const buildDiagramModel = ({
   parsedConfig,
   expandedGroups,
   statusLines = false,
-  infrastructure = true
+  infrastructure = true,
+  textScale = 1
 }: {
   parsedConfig: StacktapeConfig | null;
   /** Role groups the reader has expanded; every other group is drawn as one node. */
@@ -436,6 +442,11 @@ export const buildDiagramModel = ({
    * laid out on its own instead of keeping room for things it never draws.
    */
   infrastructure?: boolean | undefined;
+  /**
+   * How much larger than usual names, type lines and chips are drawn (the renderer's `labelScale`), so the layout keeps
+   * room for them. 1 unless a host asks for a minimum label size.
+   */
+  textScale?: number | undefined;
 }): DiagramModel | null => {
   const base = buildDiagramTopology({ parsedConfig });
   if (!base || base.nodes.length === 0) return null;
@@ -463,7 +474,7 @@ export const buildDiagramModel = ({
       infrastructure: false
     });
   }
-  const layoutInput = buildLayoutInput({ topology, statusLines, infrastructure });
+  const layoutInput = buildLayoutInput({ topology, statusLines, infrastructure, textScale });
   const layout = layoutDiagram(layoutInput);
   const sceneNodes = buildSceneNodes({ topology, placements: layout.nodes, details, connections, memberGroup });
   const { rectangles, labels } = buildRectanglesAndLabels({ topology, layout });
@@ -569,6 +580,11 @@ export const diagramFrame = ({
     )
   };
 };
+
+const scaleBox = (box: { halfWidth: number; halfHeight: number }, scale: number) => ({
+  halfWidth: box.halfWidth * scale,
+  halfHeight: box.halfHeight * scale
+});
 
 /** A connector chip's size in projected units, as the layout reserves it. */
 export const measureChip = (text: string) => ({

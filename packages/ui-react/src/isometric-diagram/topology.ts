@@ -187,6 +187,29 @@ const SCHEDULE_NODE_ID = 'schedule--implicit';
 
 const getProps = (resource: any) => resource?.properties || {};
 const getField = (resource: any, key: string) => resource?.[key] ?? resource?.properties?.[key];
+
+/** The EFS file systems a resource mounts (`volumeMounts` of type `efs`), its own and its containers'. */
+const getEfsMounts = (resource: any): Array<{ filesystem: string; path?: string }> => {
+  const containers = getField(resource, 'containers');
+  const lists = [
+    getField(resource, 'volumeMounts'),
+    ...(containers && typeof containers === 'object' ? Object.values(containers).map((c: any) => c?.volumeMounts) : [])
+  ];
+  return lists.flatMap((list) =>
+    Array.isArray(list)
+      ? list.flatMap((mount: any) =>
+          mount?.type === 'efs' && typeof mount.properties?.efsFilesystemName === 'string'
+            ? [
+                {
+                  filesystem: mount.properties.efsFilesystemName as string,
+                  ...(typeof mount.properties.mountPath === 'string' ? { path: mount.properties.mountPath } : {})
+                }
+              ]
+            : []
+        )
+      : []
+  );
+};
 const getLoadBalancerName = (value: any) => value?.loadBalancerName;
 
 const getAccessibilityMode = (resource: any) => {
@@ -1738,6 +1761,18 @@ export const buildDiagramTopology = ({
           description: 'Uses a value of this resource, such as its URL or name, filled in at deploy time.'
         });
       }
+    }
+
+    // ── EFS volume mounts (a service's, a function's, or a container's of a workload) ──
+    for (const mount of getEfsMounts(resource)) {
+      addEdge({
+        edgeMap,
+        nodeMap,
+        from: node.id,
+        to: mount.filesystem,
+        semantic: 'dependency',
+        description: `Mounts this file system${mount.path ? ` at ${mount.path}` : ''}: files written there outlive deploys and restarts.`
+      });
     }
 
     // ── Container events (multi-container-workload) ──
