@@ -138,7 +138,7 @@
     box-shadow: var(--w-shadow-rest);
   }
 
-  /* ── The scan: code window, status line, chips ──────────────────────────────────────────────── */
+  /* ── The scan: the project's file tree, status line, chips ──────────────────────────────────── */
 
   .ws-scan {
     position: relative;
@@ -169,347 +169,54 @@
     box-shadow: var(--w-shadow-rest);
   }
 
-  .ws-window-tabs {
+  /* The same height as the file's header beside it, so both panes start their content level. */
+  .ws-tree-head {
     display: flex;
-    flex: none;
-    align-items: flex-end;
-    gap: 2px;
-    height: 49px;
-    padding: 0 8px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .ws-window-tabs::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* More tabs than fit fade out at the ends that have tabs past them, instead of being cut. */
-  .ws-window-tabs[data-clipped-start='true'] {
-    mask-image: linear-gradient(to right, transparent 8px, black 56px);
-  }
-
-  .ws-window-tabs[data-clipped-end='true'] {
-    mask-image: linear-gradient(to right, black calc(100% - 80px), transparent calc(100% - 8px));
-  }
-
-  .ws-window-tabs[data-clipped-start='true'][data-clipped-end='true'] {
-    mask-image: linear-gradient(
-      to right,
-      transparent 8px,
-      black 56px,
-      black calc(100% - 80px),
-      transparent calc(100% - 8px)
-    );
-  }
-
-  .ws-window[data-bare] .ws-window-tabs,
-  .ws-window[data-bare] .ws-window-path {
-    display: none;
-  }
-
-  .ws-window-tab-ghost span {
-    width: 88px;
-    height: 8px;
-    border-radius: 4px;
-    background: var(--w-line-strong);
-    animation: ws-ghost 1.6s ease-in-out infinite alternate;
-  }
-
-  .ws-window-tab {
-    position: relative;
-    display: inline-flex;
     flex: none;
     align-items: center;
-    gap: 7px;
-    height: 34px;
-    padding: 0 14px 0 12px;
-    border-radius: var(--w-radius-small) var(--w-radius-small) 0 0;
-    color: var(--w-muted);
+    gap: 12px;
+    height: 48px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--w-line);
     font-size: 12px;
-    font-weight: 500;
     line-height: 16px;
-    white-space: nowrap;
-    animation: ws-tab-in 240ms var(--w-ease) both;
   }
 
-  .ws-window-tab[data-active] {
-    background: var(--ws-code-bg);
-    color: var(--w-text);
-  }
-
-  .ws-window-tab[data-active]::before {
-    position: absolute;
-    top: 0;
-    right: 10px;
-    left: 10px;
-    height: 2px;
-    border-radius: 0 0 2px 2px;
-    background: var(--w-brand);
-    content: '';
-  }
-
-  .ws-window-path {
-    position: relative;
-    display: flex;
-    flex: none;
+  .ws-tree-title {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    height: 36px;
-    padding: 0 16px;
-    overflow: hidden;
-    border-bottom: 1px solid var(--w-line);
-    background: var(--ws-code-bg);
-    color: var(--w-muted);
-    font-size: 12px;
-    line-height: 16px;
-    white-space: nowrap;
-  }
-
-  .ws-window-path-segments {
-    display: inline-flex;
-    align-items: center;
-    gap: 2px;
     min-width: 0;
     overflow: hidden;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
     text-overflow: ellipsis;
   }
 
-  .ws-window-path-segments .ws-file-icon {
-    margin-right: 6px;
-  }
-
-  .ws-window-path-empty {
-    color: var(--w-muted);
-  }
-
-  /* Whether the file shown is the one being read: "Reading" with the live pulse, or "Viewing" an earlier one. */
-  .ws-window-state {
-    display: inline-flex;
+  .ws-tree-title svg {
     flex: none;
-    align-items: center;
-    height: 20px;
-    padding: 0 7px;
-    border-radius: var(--w-radius-chip);
-    background: var(--w-code-fill);
-    color: var(--w-muted);
-    font-weight: 600;
+    color: var(--w-faint);
   }
 
-  .ws-window-state[data-state='reading'] {
-    background: var(--ws-accent);
-    color: var(--w-text-strong);
-  }
-
-  .ws-window-state .ws-pulse {
-    margin: 0 6px 0 0;
-  }
-
-  /* The header's end on every size: read-only, the time so far and the files read. */
+  /* The header's end: how many files, read-only and the time so far. */
   .ws-window-meta {
     display: inline-flex;
     flex: none;
     align-items: center;
     gap: 6px;
     margin-left: auto;
-    padding-left: 12px;
     color: var(--w-muted);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .ws-elapsed {
     color: var(--w-text);
   }
 
-  .ws-window-list-toggle {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 2px;
-    height: 24px;
-    padding: 0 4px 0 8px;
-    border: 0;
-    border-radius: var(--w-radius-chip);
-    background: var(--w-code-fill);
-    color: var(--w-text);
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
-  }
-
-  .ws-window-list-toggle:hover {
-    background: var(--w-hover);
-  }
-
-  .ws-window-list-toggle svg {
-    transition: transform 150ms var(--w-ease);
-  }
-
-  .ws-window-list-toggle[aria-expanded='true'] svg {
-    transform: rotate(180deg);
-  }
-
-  /* "Read so far", opened from the header: over the top right of the code, under the button that opened it. */
-  .ws-window-list {
-    position: absolute;
-    top: 89px;
-    right: 8px;
-    z-index: 4;
-    width: min(380px, calc(100% - 16px));
-    max-height: calc(100% - 100px);
-    box-sizing: border-box;
-    padding: 10px 14px 12px;
-    overflow: auto;
-    border: 1px solid var(--ws-code-popup-border);
-    border-radius: var(--w-radius-small);
-    background: var(--ws-code-popup);
-    box-shadow: var(--w-shadow-rest);
-    animation: ws-fade-in 160ms var(--w-ease) both;
-  }
-
-  /* The phone's window: no tabs; its first row is the time and the files read. */
-  .ws-window-bar {
-    display: flex;
-    flex: none;
-    align-items: center;
-    height: 40px;
-    padding: 0 12px 0 16px;
-    border-bottom: 1px solid var(--w-line);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .ws-window-bar .ws-window-meta {
-    width: 100%;
-    padding-left: 0;
-  }
-
-  .ws-window-bar .ws-window-list-toggle {
-    margin-left: auto;
-  }
-
-  .ws-window-bar .ws-window-meta-sep {
-    display: none;
-  }
-
-  .ws-window[data-compact] .ws-window-list {
-    position: static;
-    width: auto;
-    max-height: none;
-    border-width: 0 0 1px;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  .ws-files-title {
-    margin: 0 0 8px;
-    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
-    color: var(--w-muted);
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 16px;
-  }
-
-  .ws-files {
-    display: grid;
-    gap: 2px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .ws-files li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    height: 24px;
-    color: var(--w-muted);
-    font-family: var(--w-mono);
-    font-size: 12px;
-  }
-
-  .ws-files li[data-active] {
-    color: var(--w-text);
-  }
-
-  .ws-files-path {
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .ws-files-state {
-    color: var(--w-brand);
-    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
-  }
-
-  .ws-files-done {
-    flex: none;
-    color: var(--w-ok);
-  }
-
-  .ws-window-path-sep {
-    padding: 0 5px;
-    opacity: 0.6;
-  }
-
-  .ws-window-path-note {
-    flex: none;
-    color: var(--w-muted);
-  }
-
-  .ws-window-path-note::before {
-    margin-right: 8px;
-    content: '·';
-  }
-
-  .ws-window-body {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
-    background: var(--ws-code-bg);
-  }
-
-  /* Above the beam: its line and glow pass behind the letters, never over them. */
-  .ws-code {
-    position: relative;
-    z-index: 1;
-    padding: 16px 0;
-    color: var(--ws-code-text);
-    font-family: var(--w-mono);
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .ws-line {
-    display: flex;
-    height: 20px;
-    white-space: pre;
-    transition:
-      opacity 300ms var(--w-ease),
-      background-color 300ms var(--w-ease);
-  }
-
-  .ws-line-number {
-    box-sizing: border-box;
-    flex: none;
-    width: calc(var(--ws-gutter-digits, 2) * 1ch + 36px);
-    padding-right: 18px;
-    color: var(--ws-code-line-number);
-    text-align: right;
-    user-select: none;
-  }
-
-  .ws-line-text {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  /* A line scrolled up under the file's path fades out rather than being cut against it. */
+  /* A row scrolled up under the header fades out rather than being cut against it. */
   .ws-window-fade {
     position: relative;
     z-index: 3;
@@ -522,10 +229,180 @@
     top: 0;
     right: 0;
     left: 0;
-    height: 14px;
+    height: 16px;
     background: linear-gradient(var(--ws-code-bg), transparent);
     content: '';
     pointer-events: none;
+  }
+
+  .ws-window-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--ws-code-bg);
+  }
+
+  /* A tree longer than the window fades out at the bottom rather than stopping mid-row. */
+  .ws-tree-body {
+    mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
+  }
+
+  /* Above the beam: its line and glow pass behind the names, never over them. */
+  .ws-tree {
+    position: relative;
+    z-index: 1;
+    padding: 8px 0;
+    font-size: 13px;
+    line-height: 16px;
+  }
+
+  /* One row per folder, file or count. Children sit one step in, their icons under the folder's name. */
+  .ws-tree-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    height: 24px;
+    padding: 0 16px 0 calc(16px + var(--ws-depth, 0) * 20px);
+    color: var(--w-muted);
+    white-space: nowrap;
+    transition:
+      opacity 300ms var(--w-ease),
+      background-color 300ms var(--w-ease),
+      color 300ms var(--w-ease);
+    animation: ws-row-in 260ms var(--w-ease) both;
+  }
+
+  .ws-tree-row[data-kind='directory'] {
+    gap: 6px;
+    color: var(--w-text);
+    font-weight: 500;
+  }
+
+  .ws-tree-chevron {
+    flex: none;
+    margin-left: -1px;
+    color: var(--w-faint);
+  }
+
+  .ws-tree-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-tree-count {
+    flex: none;
+    color: var(--w-faint);
+    font-size: 12px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* "+3 more" lines up with the file names above it. */
+  .ws-tree-more {
+    padding-left: 21px;
+    color: var(--w-faint);
+    font-size: 12px;
+  }
+
+  /* What the analysis did: a file it read keeps a check; the one it is reading is lit. */
+  .ws-tree-row[data-mark='read'],
+  .ws-tree-row[data-mark='cited'] {
+    color: var(--w-text);
+  }
+
+  .ws-tree-check {
+    flex: none;
+    margin-left: -2px;
+    color: var(--w-ok);
+    animation: ws-fade-in 300ms var(--w-ease) both;
+  }
+
+  .ws-tree-row[data-mark='cited'] .ws-tree-check {
+    color: var(--w-brand);
+  }
+
+  /* What a cited file became, at the end of its row. */
+  .ws-tree-note {
+    min-width: 0;
+    margin-left: auto;
+    padding-left: 16px;
+    overflow: hidden;
+    color: var(--w-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    animation: ws-fade-in 300ms var(--w-ease) both;
+  }
+
+  .ws-tree-row[data-focus] .ws-tree-note {
+    color: var(--w-text);
+  }
+
+  .ws-tree-row[data-mark='reading'],
+  .ws-tree-window[data-focus] .ws-tree-row[data-focus] {
+    background: var(--ws-accent);
+    box-shadow: inset 2px 0 0 var(--w-brand);
+    color: var(--w-text-strong);
+  }
+
+  .ws-tree-state {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    color: var(--w-brand);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ws-tree-state .ws-pulse {
+    margin: 0 8px 0 4px;
+  }
+
+  /* The reveal points at one file: the rest steps back, the file lights up, the lines that called for the resource
+   * open right under it. */
+  .ws-tree-window[data-focus] .ws-tree-row {
+    opacity: 0.5;
+  }
+
+  .ws-tree-window[data-focus] .ws-tree-row[data-focus] {
+    opacity: 1;
+  }
+
+  .ws-tree-excerpt {
+    box-sizing: border-box;
+    min-height: 32px;
+    margin: 0 0 8px;
+    padding: 6px 16px 6px calc(16px + var(--ws-depth, 0) * 20px + 21px);
+    background: color-mix(in srgb, var(--w-brand) 6%, transparent);
+    box-shadow: inset 2px 0 0 var(--w-brand-line);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    line-height: 20px;
+    animation: ws-excerpt-in 280ms var(--w-ease) both;
+  }
+
+  .ws-tree-excerpt-row {
+    display: flex;
+    gap: 14px;
+    min-width: 0;
+    color: var(--ws-code-text);
+    white-space: pre;
+  }
+
+  .ws-tree-excerpt-number {
+    flex: none;
+    min-width: 3ch;
+    color: var(--ws-code-line-number-active);
+    text-align: right;
+    user-select: none;
+  }
+
+  .ws-tree-excerpt-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .ws-tok-comment {
@@ -549,14 +426,7 @@
     color: var(--ws-code-key);
   }
 
-  .ws-window-more {
-    padding: 8px 0 0 calc(var(--ws-gutter-digits, 2) * 1ch + 36px);
-    color: var(--w-muted);
-    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
-    font-size: 12px;
-  }
-
-  /* Room under the last line, so the reveal can bring any line up level with the block beside it. */
+  /* Room under the tree, so the reveal can bring any file up level with the block beside it. */
   .ws-window-runway {
     height: 70vh;
   }
@@ -572,7 +442,6 @@
   .ws-window-empty .ws-empty-code strong {
     margin-top: 8px;
     color: var(--w-text);
-    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
@@ -606,86 +475,7 @@
     text-align: center;
   }
 
-  /* Without an agent: what the scanner reads, from the top of the window. */
-  .ws-window[data-bare] .ws-window-empty {
-    align-items: flex-start;
-    justify-content: flex-start;
-    padding: 28px 32px;
-    text-align: left;
-  }
-
-  .ws-manifests {
-    display: grid;
-    gap: 6px;
-    width: 100%;
-    max-width: 640px;
-    animation: ws-fade-in 300ms var(--w-ease) both;
-  }
-
-  .ws-manifests-title {
-    display: flex;
-    align-items: center;
-    margin: 0;
-    color: var(--w-text-strong);
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 22px;
-  }
-
-  .ws-manifests-line {
-    margin: 0 0 18px 19px;
-    color: var(--w-muted);
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .ws-manifests .ws-files-title {
-    margin-left: 19px;
-  }
-
-  .ws-manifests-list {
-    display: grid;
-    gap: 2px;
-    margin: 0 0 0 19px;
-    padding: 0;
-    list-style: none;
-  }
-
-  .ws-manifests-list li {
-    display: grid;
-    grid-template-columns: 16px 150px minmax(0, 1fr);
-    align-items: center;
-    gap: 10px;
-    min-height: 30px;
-    border-bottom: 1px solid var(--w-line);
-    font-size: 13px;
-    animation: ws-manifest-read 1.7s ease-in-out infinite alternate both;
-  }
-
-  .ws-window-empty .ws-manifests-list strong {
-    margin: 0;
-    color: var(--w-text);
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .ws-manifests-list span:last-child {
-    min-width: 0;
-    padding: 6px 0;
-    color: var(--w-muted);
-    font-family: var(--w-mono);
-    font-size: 12px;
-    line-height: 18px;
-  }
-
-  .ws-window-empty strong {
-    color: var(--w-muted);
-    font-family: var(--w-mono);
-    font-weight: 500;
-  }
-
-  /* The scanner: a thin brand line with a soft trail above it; lines below it sit a little darker. */
+  /* The scanner: a thin brand line with a soft trail above it, sweeping down the tree while the project is read. */
   .ws-beam {
     position: absolute;
     top: 0;
@@ -696,9 +486,7 @@
     margin-top: -1px;
     background: linear-gradient(90deg, transparent, var(--w-brand) 10%, var(--w-brand) 90%, transparent);
     box-shadow: 0 0 14px 1px color-mix(in srgb, var(--w-brand) 55%, transparent);
-    opacity: 0;
     pointer-events: none;
-    transition: opacity 200ms var(--w-ease);
     will-change: transform;
   }
 
@@ -712,45 +500,8 @@
     content: '';
   }
 
-  .ws-beam[data-state='sweeping'] {
-    opacity: 1;
-  }
-
-  .ws-beam[data-state='idle'] {
-    opacity: 1;
-    animation: ws-beam-idle 2.2s ease-in-out infinite;
-  }
-
-  .ws-beam[data-state='waiting'] {
-    opacity: 1;
-    animation: ws-beam-wait 3.6s ease-in-out infinite alternate;
-  }
-
-  .ws-dim {
-    position: absolute;
-    top: 0;
-    right: 0;
-    left: 0;
-    z-index: 2;
-    height: 0;
-    background: color-mix(in srgb, var(--ws-code-bg) 18%, transparent);
-    pointer-events: none;
-    will-change: transform;
-  }
-
-  /* The reveal points at one line: the rest steps back, the line lights up, a callout says what it led to. */
-  .ws-window[data-focus] .ws-line {
-    opacity: 0.62;
-  }
-
-  .ws-window[data-focus] .ws-line[data-focus] {
-    background: var(--ws-accent);
-    box-shadow: inset 2px 0 0 var(--w-brand);
-    opacity: 1;
-  }
-
-  .ws-window[data-focus] .ws-line[data-focus] .ws-line-number {
-    color: var(--ws-code-line-number-active);
+  .ws-tree-beam {
+    animation: ws-sweep var(--ws-sweep-ms, 3200ms) cubic-bezier(0.45, 0, 0.55, 1) infinite;
   }
 
   .ws-status {
@@ -1995,26 +1746,32 @@
 
     .ws-window {
       flex: none;
-      height: 300px;
     }
 
-    /* While it reads, the window is as tall as the file it shows, up to most of the screen. */
-    .ws[data-phase='scan'] .ws-window {
-      height: auto;
-    }
-
-    .ws[data-phase='scan'] .ws-window-body {
+    /* While it reads, the tree has most of the screen; the file under it is one row until something is found. */
+    .ws[data-phase='scan'] .ws-tree-body {
       flex: none;
-      height: clamp(160px, var(--ws-code-h, 300px), calc(100dvh - var(--w-header-h) - 320px));
+      height: clamp(240px, calc(100dvh - var(--w-header-h) - 290px), 560px);
     }
 
-    .ws[data-phase='scan'] .ws-window[data-bare] .ws-window-body {
-      height: auto;
+    /* In the reveal the tree is fitted to a few rows: as tall as they are. */
+    .ws-phone-finding .ws-tree-body {
+      flex: none;
     }
 
-    /* A line longer than the screen fades at the edge instead of stopping mid-word. */
-    .ws-window[data-compact] .ws-line-text {
-      mask-image: linear-gradient(to left, transparent, black 28px);
+    .ws-tree-row,
+    .ws-tree-excerpt {
+      padding-right: 12px;
+      padding-left: calc(12px + var(--ws-depth, 0) * 16px);
+    }
+
+    .ws-tree-excerpt {
+      padding-left: calc(12px + var(--ws-depth, 0) * 16px + 21px);
+      font-size: 12px;
+    }
+
+    .ws-tree-head {
+      padding: 0 12px 0 16px;
     }
 
     .ws-editor {
@@ -2119,9 +1876,13 @@
   /* The phone's reveal: the finding, its lines and the YAML they became, in one card. */
   .ws-phone-finding {
     display: grid;
-    gap: 10px;
-    padding: 14px;
+    gap: 12px;
     animation: ws-fade-in 220ms var(--w-ease) both;
+  }
+
+  .ws-phone-finding-text {
+    display: grid;
+    gap: 6px;
   }
 
   .ws-phone-finding-head {
@@ -2286,28 +2047,6 @@
       display: none;
     }
 
-    .ws-window[data-bare] .ws-window-empty {
-      padding: 20px 16px;
-    }
-
-    .ws-manifests-list,
-    .ws-manifests-line,
-    .ws-manifests .ws-files-title {
-      margin-left: 0;
-    }
-
-    /* Each kind on its line, the files it covers under it. */
-    .ws-manifests-list li {
-      grid-template-columns: 16px minmax(0, 1fr);
-      row-gap: 0;
-      padding: 8px 0;
-    }
-
-    .ws-manifests-list span:last-child {
-      grid-column: 2;
-      padding: 0;
-    }
-
     .ws-save-note {
       display: block;
     }
@@ -2349,8 +2088,7 @@
       transition: none !important;
     }
 
-    .ws-beam,
-    .ws-dim {
+    .ws-beam {
       display: none;
     }
   }
@@ -2382,10 +2120,38 @@
   }
 }
 
-@keyframes ws-tab-in {
+@keyframes ws-row-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes ws-excerpt-in {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    max-height: 80px;
+  }
+}
+
+/* Down the tree and out, then again from the top, while the analysis reads. */
+@keyframes ws-sweep {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  8% {
+    opacity: 1;
+  }
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(var(--ws-sweep-h, 240px));
   }
 }
 
@@ -2411,15 +2177,6 @@
   }
 }
 
-@keyframes ws-manifest-read {
-  from {
-    opacity: 0.6;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 @keyframes ws-pulse {
   from {
     opacity: 0.8;
@@ -2428,21 +2185,6 @@
   to {
     opacity: 0;
     transform: scale(1.5);
-  }
-}
-
-@keyframes ws-beam-idle {
-  50% {
-    opacity: 0.45;
-  }
-}
-
-@keyframes ws-beam-wait {
-  from {
-    top: 22%;
-  }
-  to {
-    top: 78%;
   }
 }
 

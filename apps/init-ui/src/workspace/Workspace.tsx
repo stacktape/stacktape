@@ -9,11 +9,11 @@ import { parse as parseYaml } from 'yaml';
 import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { AnimatedPrice } from '../components/AnimatedPrice';
 import type { ConfigEditorHandle, EditorLens, EditorProblems } from '../editor/ConfigFileEditor';
-import type { FileView, Session, WizardState } from '../session';
+import type { FileView, RepositoryTree, Session, WizardState } from '../session';
 import { ReviewPane } from '../steps/ReviewStep';
 import { filenameFor, monthlySuffix, summarise } from '../steps/review-model';
-import { CodeWindow, LINE_HEIGHT } from './CodeWindow';
 import { FileIcon } from './FileIcon';
+import { buildTree, fileCountLabel } from './file-tree';
 import {
   allChips,
   citationOf,
@@ -32,6 +32,8 @@ import {
 } from './resource-story';
 import { EvidenceLine } from './EvidenceLine';
 import { scanActivity } from './scan-activity';
+import { tokenizeFile, type Token } from './syntax';
+import { EXCERPT_ROWS, TreeWindow, type TreeFocus, type TreeMark } from './TreeWindow';
 import { useMediaQuery } from './use-media-query';
 import './workspace.css';
 
@@ -44,6 +46,10 @@ type Phase = 'scan' | 'reveal' | 'review';
 
 /** The width at which the two panes stack (`.ws` in `workspace.css`). */
 const STACKED = '(max-width: 1020px)';
+/** Matches the editor's line height (`monaco-setup.ts`). */
+const LINE_HEIGHT = 20;
+/** The phone's reveal fits the tree in this many rows, under the finding and over its YAML. */
+const PHONE_REVEAL_ROWS = 12;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const nextFrame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
@@ -58,11 +64,12 @@ const fileHeader = (state: WizardState) =>
  * Analyze and Review as one screen, so the page never jumps between them.
  *
  * One head row spans both panes and says what is happening: the file being read, then each finding, then what the
- * app is. While the analysis runs, the left pane shows the code being read (a scanner line sweeping each file the agent
- * opens) and the right one is stacktape.yml with its first lines and room for what comes. When the result arrives it
- * is told one resource at a time: the head names the finding, the lines of code that called for it light up on the
- * left, level with its block being typed on the right, and the price counts up. Then the code window gives way to the
- * diagram, the settings rise in under it and the file becomes editable.
+ * app is. While the analysis runs, the left pane shows the project's file tree with a scanner line sweeping down it,
+ * the file the agent is reading lit and the files it read checked; the right one is stacktape.yml with its first lines
+ * and room for what comes. When the result arrives it is told one resource at a time: the head names the finding, the
+ * file it came from lights up in the tree with the lines that called for it right under it, level with its block being
+ * typed on the right, and the price counts up. Then the tree gives way to the diagram, the settings rise in under it
+ * and the file becomes editable.
  *
  * The reveal plays once, for the page that watched the analysis: a reload lands on Review directly, and so does
  * anyone who prefers reduced motion.
@@ -157,11 +164,55 @@ export function Workspace({
     [state.timeline]
   );
   useEffect(() => {
-    for (const path of opened) load(path);
-  }, [opened, load]);
-  useEffect(() => {
     for (const step of plan.current?.steps ?? []) if (step.story.evidence) load(step.story.evidence.file);
   }, [phase, load]);
+
+  // ── The project's file tree, while it is read and told ──────────────────────────────────────────
+  const [listing, setListing] = useState<RepositoryTree | undefined>(undefined);
+  /** Read once, for the scan and the reveal that follows it; a page that opens on Review never draws the tree. */
+  const needsTree = useRef(phase !== 'review');
+  useEffect(() => {
+    if (!needsTree.current) return;
+    let isCurrent = true;
+    void (async () => {
+      // Without the listing the tree still has the files the analysis opened and cited.
+      const tree = await session.readTree().catch((): RepositoryTree => ({ files: [], truncated: false }));
+      if (isCurrent) setListing(tree);
+    })();
+    return () => {
+      isCurrent = false;
+    };
+  }, [session]);
+  /** The files a resource came from, in telling order: the reveal lights them in the tree. */
+  const evidenceFiles = useMemo(
+    () =>
+      phase === 'scan'
+        ? []
+        : [
+            ...new Set(
+              (plan.current?.steps ?? []).flatMap((entry) =>
+                entry.story.evidence === undefined || entry.story.designChoice !== undefined
+                  ? []
+                  : [entry.story.evidence.file]
+              )
+            )
+          ],
+    [phase]
+  );
+  const pinned = useMemo(() => new Set([...opened, ...evidenceFiles]), [opened, evidenceFiles]);
+  const tree = useMemo(
+    () => (listing === undefined ? undefined : buildTree([...listing.files, ...pinned])),
+    [listing, pinned]
+  );
+  const tokenized = useRef(new Map<string, Token[][]>());
+  const tokensOf = (view: Extract<FileView, { status: 'shown' }>): Token[][] => {
+    let lines = tokenized.current.get(view.path);
+    if (lines === undefined) {
+      lines = tokenizeFile(view.text, view.path);
+      tokenized.current.set(view.path, lines);
+    }
+    return lines;
+  };
 
   // ── The file, as the user edits it ──────────────────────────────────────────────────────────────
   const composition = state.composition;
@@ -221,8 +272,6 @@ export function Workspace({
     }
     return all;
   }, [stories, files]);
-  const citationsRef = useRef(citations);
-  citationsRef.current = citations;
   const filesRef = useRef(files);
   filesRef.current = files;
 
@@ -304,10 +353,11 @@ export function Workspace({
       ]);
     };
     /**
-     * Brings the cited line on the left and the block's first line on the right to the same height, together: about a
-     * third of the way down, higher when the block would not fit under it, and never lower than either can come.
+     * Brings the cited line under its file in the tree and the block's first line on the right to the same height,
+     * together: about a third of the way down, higher when the block would not fit under it, and never lower than
+     * either can come.
      */
-    const align = async (citedLine: number | undefined, blockLine: number, blockLines: number) => {
+    const align = async (cites: boolean, blockLine: number, blockLines: number) => {
       const body = codeBodyRef.current;
       const editorNode = editor.getDomNode();
       if (stackedRef.current || editorNode === null) return;
@@ -315,8 +365,13 @@ export function Workspace({
       const height = editor.getLayoutInfo().height;
       const blockAt = editor.getTopForLineNumber(blockLine);
       const lineNode =
-        citedLine === undefined || body === null ? null : body.querySelector<HTMLElement>(`[data-line="${citedLine}"]`);
+        !cites || body === null ? null : body.querySelector<HTMLElement>('.ws-tree-excerpt-row[data-focus]');
       const bodyTop = body?.getBoundingClientRect().top ?? editorTop;
+      // Where the line sits in the tree's content, whatever the tree is scrolled to now.
+      const lineAt =
+        lineNode === null || body === null
+          ? undefined
+          : lineNode.getBoundingClientRect().top - bodyTop + body.scrollTop;
       const top = Math.max(editorTop, bodyTop) + 12;
       // A block that fits starts where all of it shows; a longer one a few lines down, the rest typed below the fold.
       const room = Math.max(top + 3 * LINE_HEIGHT, editorTop + height - blockLines * LINE_HEIGHT - 16);
@@ -326,7 +381,7 @@ export function Workspace({
           editorTop + height * 0.3,
           room,
           editorTop + blockAt,
-          lineNode === null ? Number.POSITIVE_INFINITY : bodyTop + lineNode.offsetTop
+          lineAt === undefined ? Number.POSITIVE_INFINITY : bodyTop + lineAt
         )
       );
       // Both panes then run on one 20 px line grid through `y`. It is set so a line starts just under their top edge:
@@ -337,7 +392,7 @@ export function Workspace({
       const fromEditor = editor.getScrollTop();
       const toEditor = Math.max(0, blockAt - (y - editorTop));
       const fromCode = body?.scrollTop ?? 0;
-      const toCode = lineNode === null || body === null ? fromCode : Math.max(0, lineNode.offsetTop - (y - bodyTop));
+      const toCode = lineAt === undefined ? fromCode : Math.max(0, lineAt - (y - bodyTop));
       const started = performance.now();
       const duration = 380;
       for (;;) {
@@ -419,7 +474,6 @@ export function Workspace({
           current.header.length
         );
         const firstLine = model.getPositionAt(offset).lineNumber;
-        const citedLine = citationsRef.current[entry.story.name]?.lines[0] ?? entry.story.evidence?.line;
         await type(
           block,
           offset,
@@ -428,7 +482,7 @@ export function Workspace({
           async (line) => {
             editorHandle.markWriting(line, line);
             const cites = entry.story.evidence !== undefined && entry.story.designChoice === undefined;
-            await align(cites ? citedLine : undefined, line, lineCount(block));
+            await align(cites, line, lineCount(block));
           }
         );
         if (run.cancelled) return;
@@ -530,20 +584,11 @@ export function Workspace({
   const peekLines = peek === undefined ? undefined : blockLines[peek];
 
   // ── Layout ──────────────────────────────────────────────────────────────────────────────────────
-  // The code window keeps its last frame while it fades out, so it never jumps to another file on the way.
+  // The tree keeps the last finding's light while it fades out, so it never jumps to another file on the way.
   const plannedStep = phase === 'scan' ? undefined : plan.current?.steps[step];
-  const revealTabs = useMemo(() => {
-    const evidence = (plan.current?.steps ?? [])
-      .slice(0, step + 1)
-      .flatMap((entry) =>
-        entry.story.evidence === undefined || entry.story.designChoice !== undefined ? [] : [entry.story.evidence.file]
-      );
-    return [...new Set([...opened, ...evidence])];
-  }, [opened, step]);
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
   const usesAgent = agent !== undefined && agent.id !== 'none';
   const lastTool = state.timeline.findLast((entry) => entry.kind === 'tool');
-  const scanActive = phase === 'scan' ? opened.at(-1) : undefined;
   // The file the agent is reading this moment: the last thing it did was open it.
   const liveFile =
     phase === 'scan' && lastTool?.label.startsWith('read_file ') === true
@@ -553,11 +598,64 @@ export function Workspace({
   const focusedCitation = focusedStory === undefined ? undefined : citations[focusedStory.name];
   // A resource Stacktape adds for another points at no code of its own: the last highlight goes out.
   const focusedEvidence = focusedStory?.designChoice === undefined ? focusedStory?.evidence : undefined;
-  // A finding with no code of its own stays on the file the last one cited, its highlight gone.
-  const lastCited = (plan.current?.steps ?? [])
-    .slice(0, step + 1)
-    .findLast((entry) => entry.story.evidence !== undefined && entry.story.designChoice === undefined)?.story.evidence;
-  const activeFile = phase === 'scan' ? scanActive : (focusedEvidence?.file ?? lastCited?.file ?? revealTabs.at(-1));
+  const focusedView = focusedEvidence === undefined ? undefined : files.get(focusedEvidence.file);
+  /** The one or two lines under the file in the tree: the ones that called for the resource, as the file has them. */
+  const treeFocus = useMemo((): TreeFocus | undefined => {
+    if (focusedEvidence === undefined) return undefined;
+    if (focusedView?.status !== 'shown') {
+      // Not readable (too large, binary): the cited quote on its line number, as the analysis recorded it.
+      return focusedView === undefined
+        ? { path: focusedEvidence.file, lines: [] }
+        : {
+            path: focusedEvidence.file,
+            lines: [
+              {
+                number: focusedEvidence.line,
+                tokens: [{ text: quoteLabel(focusedEvidence.quote), kind: 'plain' }],
+                lit: true
+              }
+            ]
+          };
+    }
+    const tokens = tokensOf(focusedView);
+    const numbers = (focusedCitation?.lines ?? [focusedEvidence.line]).slice(0, 2);
+    const shown = numbers.map((number) => tokens[number - 1] ?? []);
+    // The lines start right after their numbers: the indentation they share is the file's, not the finding's.
+    const indent = Math.min(
+      ...shown.map((line) => /^[ \t]*/.exec(line.map((token) => token.text).join(''))![0].length)
+    );
+    return {
+      path: focusedEvidence.file,
+      lines: numbers.map((number, index) => ({ number, tokens: dropLeading(shown[index]!, indent), lit: true }))
+    };
+    // `tokensOf` reads a cache keyed by the file; the view and citation are what change the lines.
+  }, [focusedEvidence, focusedView, focusedCitation]);
+  const marks = useMemo(() => {
+    const all = new Map<string, TreeMark>();
+    for (const path of opened) all.set(path, 'read');
+    for (const entry of (plan.current?.steps ?? []).slice(0, phase === 'scan' ? 0 : step + 1)) {
+      if (entry.story.evidence !== undefined && entry.story.designChoice === undefined) {
+        all.set(entry.story.evidence.file, 'cited');
+      }
+    }
+    if (liveFile !== undefined) all.set(liveFile, 'reading');
+    return all;
+  }, [opened, phase, step, liveFile]);
+  /** What each file cited so far became, in telling order: "Next.js site, Postgres database". */
+  const notes = useMemo(() => {
+    const all = new Map<string, string[]>();
+    for (const entry of (plan.current?.steps ?? []).slice(0, phase === 'scan' ? 0 : step + 1)) {
+      const evidence = entry.story.designChoice === undefined ? entry.story.evidence : undefined;
+      if (evidence !== undefined) all.set(evidence.file, [...(all.get(evidence.file) ?? []), entry.story.plainName]);
+    }
+    return new Map([...all].map(([path, names]) => [path, names.join(', ')]));
+  }, [phase, step]);
+  const phoneRevealPinned = useMemo(() => new Set(evidenceFiles), [evidenceFiles]);
+  const treeTitle = state.repositoryPath?.split(/[/\\]/).findLast((segment) => segment !== '') ?? state.projectName;
+  const treeCount =
+    listing === undefined || listing.files.length === 0
+      ? undefined
+      : fileCountLabel(listing.files.length, listing.truncated);
   const chips = phase === 'scan' ? [] : allChips(plan.current).slice(0, chipCount(plan.current, step));
   const filename = filenameFor(isEdited ? 'yaml' : format, state.existingConfig !== undefined);
   const parseError = draft === undefined ? edit?.error : undefined;
@@ -580,13 +678,11 @@ export function Workspace({
   const showFile = !stacked || phase !== 'review' || stackedView === 'file';
   const showLeft = !stacked || phase !== 'review' || stackedView === 'architecture';
 
-  const emptyState = usesAgent ? (
+  const emptyState = (
     <EmptyCode
-      line="The files it opens show up here, with what it is reading marked."
-      title={`${agent.label} is starting`}
+      line={usesAgent ? 'The files it opens show up here.' : 'It reads manifests and config files.'}
+      title={usesAgent ? `${agent.label} is starting` : 'Reading the project'}
     />
-  ) : (
-    <ManifestScan />
   );
 
   return (
@@ -607,12 +703,6 @@ export function Workspace({
             <>
               <h1 className="ws-title">Reading {state.projectName}</h1>
               <ScanStatus agentLabel={usesAgent ? agent.label : undefined} lastTool={lastTool?.label} />
-              {/* Without an agent nothing is read file by file, and the code window has no header for the time. */}
-              {!usesAgent && (
-                <p className="ws-head-side ws-status-meta">
-                  <ScanMeta startedAt={startedAt} />
-                </p>
-              )}
             </>
           ) : phase === 'reveal' ? (
             <>
@@ -661,34 +751,62 @@ export function Workspace({
               {stacked && phase === 'reveal' && focusedStory !== undefined ? (
                 <PhoneFinding
                   citation={focusedCitation}
-                  file={focusedEvidence === undefined ? undefined : files.get(focusedEvidence.file)}
                   isPriced={focusedPriced}
                   story={stories[focusedStory.name] ?? focusedStory}
+                  tree={
+                    <TreeWindow
+                      budget={PHONE_REVEAL_ROWS}
+                      compact
+                      emptyState={emptyState}
+                      focus={treeFocus}
+                      isScanning={false}
+                      marks={marks}
+                      // Only the files resources came from: the phone's tree is short.
+                      pinned={phoneRevealPinned}
+                      reducedMotion={reducedMotion}
+                      title={treeTitle}
+                      tree={tree}
+                    />
+                  }
                   typed={typedBlock}
                 />
               ) : (
-                <CodeWindow
-                  active={activeFile}
+                <TreeWindow
                   bodyRef={stacked ? undefined : codeBodyRef}
                   compact={stacked}
                   emptyState={emptyState}
-                  files={files}
-                  focus={
-                    phase !== 'reveal' || focusedStory === undefined
-                      ? undefined
-                      : {
-                          lines: focusedEvidence === undefined ? [] : (focusedCitation?.lines ?? [focusedEvidence.line])
-                        }
-                  }
-                  isBare={phase === 'scan' && !usesAgent}
+                  focus={phase === 'reveal' ? treeFocus : undefined}
+                  hasRunway={phase === 'reveal' && !stacked}
                   isScanning={phase === 'scan'}
-                  live={liveFile}
-                  meta={phase === 'scan' ? <ScanMeta startedAt={startedAt} /> : undefined}
+                  marks={marks}
+                  notes={notes}
+                  meta={
+                    phase === 'scan' ? (
+                      <>
+                        {treeCount !== undefined && (
+                          <>
+                            {treeCount}
+                            <span aria-hidden className="ws-window-meta-sep">
+                              ·
+                            </span>
+                          </>
+                        )}
+                        <ScanMeta startedAt={startedAt} />
+                      </>
+                    ) : (
+                      treeCount
+                    )
+                  }
+                  pinned={pinned}
                   reducedMotion={reducedMotion}
-                  tabs={phase === 'scan' ? opened : revealTabs}
+                  // The phone's scan tree is never focused: the reveal shows its own, under the finding.
+                  reserve={stacked ? 0 : EXCERPT_ROWS}
+                  title={treeTitle}
+                  tree={tree}
                 />
               )}
-              {phase !== 'scan' && <Chips chips={chips} />}
+              {/* Kept from the scan on, so the tree does not refold when the first chip arrives. */}
+              {!stacked || phase !== 'scan' ? <Chips chips={chips} /> : null}
             </div>
           )}
           {phase === 'review' && (
@@ -912,6 +1030,17 @@ export function Workspace({
   );
 }
 
+/** A line's tokens without its first `count` characters. */
+const dropLeading = (tokens: readonly Token[], count: number): Token[] => {
+  let left = count;
+  return tokens.flatMap((token) => {
+    if (left <= 0) return [token];
+    const cut = Math.min(left, token.text.length);
+    left -= cut;
+    return cut === token.text.length ? [] : [{ ...token, text: token.text.slice(cut) }];
+  });
+};
+
 /** How many chips the reveal shows at `step`: every chip of the steps told so far. */
 const chipCount = (plan: RevealPlan | undefined, step: number): number =>
   plan?.steps.slice(0, step + 1).reduce((sum, entry) => sum + entry.chips.length, 0) ?? 0;
@@ -941,7 +1070,7 @@ function ScanStatus({ agentLabel, lastTool }: { agentLabel: string | undefined; 
         <span aria-hidden className="ws-pulse" />
         <span className="ws-status-text">
           {agentLabel === undefined ? (
-            'Stacktape’s own scanner, without AI'
+            'Stacktape is reading manifests and config files, without AI'
           ) : activity === undefined ? (
             `${agentLabel} is starting`
           ) : (
@@ -996,62 +1125,42 @@ function Finding({
 }
 
 /**
- * The phone's reveal: the finding, a few lines of the file around it and the YAML it became, together, where the
- * desktop has two panes side by side.
+ * The phone's reveal: the finding, the file it came from in the project's tree with its lines under it, and the YAML
+ * it became, in one column, where the desktop has two panes side by side.
  */
 function PhoneFinding({
   story,
   citation,
-  file,
+  tree,
   typed,
   isPriced
 }: {
   story: ResourceStory;
   citation: Citation | undefined;
-  file: FileView | undefined;
+  tree: ReactNode;
   typed: string;
   isPriced: boolean;
 }) {
-  const evidence = story.evidence;
   const ownPrice = resourcePrice(story);
-  const lines = file?.status === 'shown' ? file.text.split('\n') : undefined;
-  const lit = new Set(citation?.lines ?? (evidence === undefined ? [] : [evidence.line]));
-  const first = citation?.lines[0] ?? evidence?.line ?? 1;
-  const last = citation?.lines.at(-1) ?? first;
-  const from = Math.max(1, first - 1);
-  const to = Math.min(lines?.length ?? last, Math.max(last + 1, from + 2));
   const yaml = typed.split('\n').slice(0, 5);
   return (
-    <div className="ws-phone-finding ws-panel" key={story.name}>
-      <p className="ws-phone-finding-head">
-        <ResourceIcon resourceType={story.type} size={16} />
-        <strong>{story.plainName}</strong>
-      </p>
-      <p className="ws-phone-finding-why">
-        <EvidenceLine citation={citation} story={story} />
-      </p>
-      {story.designChoice === undefined && evidence !== undefined && (
-        <div className="ws-excerpt">
-          {lines === undefined ? (
-            <div className="ws-excerpt-row" data-focus="true">
-              <span className="ws-excerpt-number">{evidence.line}</span>
-              <span className="ws-excerpt-text">{quoteLabel(evidence.quote)}</span>
-            </div>
-          ) : (
-            lines.slice(from - 1, to).map((text, index) => (
-              <div
-                className="ws-excerpt-row"
-                data-focus={lit.has(from + index) ? 'true' : undefined}
-                // oxlint-disable-next-line react/no-array-index-key -- consecutive lines of one file; the number is identity.
-                key={from + index}
-              >
-                <span className="ws-excerpt-number">{from + index}</span>
-                <span className="ws-excerpt-text">{text || ' '}</span>
-              </div>
-            ))
+    <div className="ws-phone-finding" key={story.name}>
+      <div className="ws-phone-finding-text">
+        <p className="ws-phone-finding-head">
+          <ResourceIcon resourceType={story.type} size={16} />
+          <strong>{story.plainName}</strong>
+          {/* What the block below costs, once it is written: the estimate in the file's header takes it in. */}
+          {ownPrice !== undefined && (
+            <span className="ws-phone-finding-price" data-shown={isPriced ? 'true' : undefined}>
+              {ownPrice}
+            </span>
           )}
-        </div>
-      )}
+        </p>
+        <p className="ws-phone-finding-why">
+          <EvidenceLine citation={citation} story={story} />
+        </p>
+      </div>
+      {tree}
       <p className="ws-phone-finding-arrow">
         <span aria-hidden>↓</span> stacktape.yml
         <span className="ws-tag">Preview</span>
@@ -1064,12 +1173,6 @@ function PhoneFinding({
           </div>
         ))}
       </div>
-      {/* What the block written above it costs, once it is written: the estimate under the card takes it in. */}
-      {ownPrice !== undefined && (
-        <p className="ws-phone-finding-price" data-shown={isPriced ? 'true' : undefined}>
-          {ownPrice}
-        </p>
-      )}
     </div>
   );
 }
@@ -1098,48 +1201,6 @@ function Waiting({ lines }: { lines: number }) {
           style={{ marginLeft: `${indent}ch`, width: `${width}ch`, animationDelay: `${index * 90}ms` }}
         />
       ))}
-    </div>
-  );
-}
-
-/** What Stacktape's own scanner reads, by kind: the files its probes look for (`packages/config-inference/src/scan`). */
-const MANIFEST_KINDS: ReadonlyArray<{ label: string; icon: string; files: readonly string[] }> = [
-  {
-    label: 'Package manifests',
-    icon: 'package.json',
-    files: ['package.json', 'requirements.txt', 'pyproject.toml', 'go.mod', 'Gemfile', 'Cargo.toml']
-  },
-  { label: 'Containers', icon: 'Dockerfile', files: ['Dockerfile', 'compose.yml'] },
-  {
-    label: 'Other deploy setups',
-    icon: 'fly.toml',
-    files: ['fly.toml', 'render.yaml', 'vercel.json', 'serverless.yml', 'Terraform']
-  },
-  { label: 'Environment files', icon: '.env', files: ['.env.example', '.env'] }
-];
-
-/**
- * The scan without an agent reads no file at a time, so the window says what it reads instead: from the top, like the
- * files an agent opens, with the kinds of files it checks under it.
- */
-function ManifestScan() {
-  return (
-    <div className="ws-manifests">
-      <p className="ws-manifests-title">
-        <span aria-hidden className="ws-pulse" />
-        Stacktape is reading project manifests
-      </p>
-      <p className="ws-manifests-line">Nothing leaves this machine.</p>
-      <p className="ws-files-title">It checks</p>
-      <ul className="ws-manifests-list">
-        {MANIFEST_KINDS.map((kind, index) => (
-          <li key={kind.label} style={{ animationDelay: `${index * 420}ms` }}>
-            <FileIcon path={kind.icon} />
-            <strong>{kind.label}</strong>
-            <span>{kind.files.join(' · ')}</span>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

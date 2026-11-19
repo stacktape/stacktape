@@ -187,7 +187,7 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
   await expect(settings.getByRole('tab', { name: /Stay online/ })).toBeEnabled();
 });
 
-test('the analysis shows the files it reads, then ties each resource to the line that called for it, once', async ({
+test('the analysis draws the project as a file tree, then ties each resource to the line that called for it, once', async ({
   page,
   startWizard
 }) => {
@@ -195,17 +195,16 @@ test('the analysis shows the files it reads, then ties each resource to the line
   await page.goto(wizard.url);
   await page.getByRole('button', { name: 'Analyze my project' }).click();
 
-  // While the agent reads: its files, their real text (values in .env files masked), and what it is doing.
-  const codeWindow = page.locator('.ws-window');
-  await expect(codeWindow.locator('.ws-window-tab', { hasText: 'package.json' })).toBeVisible();
-  await expect(codeWindow.locator('.ws-window-tab[data-active]')).toHaveText('.env.example');
-  await expect(codeWindow).toContainText('POSTGRES_URL=••••');
+  // While the agent reads: the project's real tree (names only), the file it is reading lit, the ones it read checked.
+  const tree = page.getByRole('tree', { name: 'Project files' });
+  await expect(tree.locator('[data-mark="reading"]')).toHaveAttribute('data-path', '.env.example');
+  await expect(tree.locator('[data-path="package.json"][data-mark="read"]')).toBeVisible();
   await expect(page.locator('.ws-status')).toContainText('Claude Code is reading .env.example');
-  // The window says the file it shows is the one being read, how long it has read and how many files so far.
-  await expect(codeWindow.locator('.ws-window-state')).toHaveText('Reading');
-  await expect(codeWindow.locator('.ws-window-meta')).toContainText(/Read-only · \d:\d\d/);
-  await codeWindow.getByRole('button', { name: '2 files read' }).click();
-  await expect(codeWindow.locator('.ws-window-list')).toContainText('Read so far');
+  await expect(page.locator('.ws-tree-window .ws-window-meta')).toContainText(/55 files·?\s*Read-only · \d:\d\d/);
+  // Folders say what they leave out, and folded ones how many files they hold (what fits is `file-tree.spec.ts`'s).
+  await expect(tree.locator('[data-kind="more"]').first()).toHaveText(/^\+\d+ (more|folders?)/);
+  await expect(tree.locator('[data-kind="directory"][aria-expanded="false"]').first()).toContainText(/\d+ files?$/);
+  await expect(tree).not.toContainText('POSTGRES_URL');
   // The file already has its first lines, and says it is waiting for the rest.
   await expect(page.getByText('Waiting for the first finding')).toBeVisible();
   await expect(page.locator('.ws-editor .view-lines')).toContainText('projectName: saas-starter');
@@ -221,14 +220,18 @@ test('the analysis shows the files it reads, then ties each resource to the line
     timeout: 5_000
   });
   await expect(page.locator('.ws-editor-estimate')).toContainText('Estimate so far');
-  await expect(codeWindow.locator('.ws-line[data-focus]')).toContainText('"postgres"');
+  // The file it came from is lit in the tree with the line right under it, and says what it became so far.
+  const lit = tree.locator('.ws-tree-row[data-focus]');
+  await expect(lit).toHaveAttribute('data-path', 'package.json');
+  await expect(lit).toContainText('Next.js site, Postgres database');
+  await expect(tree.locator('.ws-tree-excerpt-row[data-focus]')).toContainText('"postgres": "^3.4.5"');
   await expect(page.getByRole('list', { name: 'Found so far' })).toContainText('3 secrets');
   // The cited line and the first line of the block written for it sit at the same height.
   await expect
     .poll(
       async () =>
         page.evaluate(() => {
-          const line = document.querySelector('.ws-line[data-focus]')?.getBoundingClientRect().top;
+          const line = document.querySelector('.ws-tree-excerpt-row[data-focus]')?.getBoundingClientRect().top;
           const block = [...document.querySelectorAll('.ws-editor .view-line')].find((node) =>
             node.textContent?.includes('mainDatabase:')
           );
@@ -266,7 +269,34 @@ test('the analysis shows the files it reads, then ties each resource to the line
   // The reveal plays once: a reload lands on Review.
   await page.reload();
   await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible();
-  await expect(page.locator('.ws-window')).toHaveCount(0);
+  await expect(page.locator('.ws-tree-window')).toHaveCount(0);
+});
+
+test('on a phone the scan is the tree, and each finding shows its file, its line and the YAML it became', async ({
+  page,
+  startWizard
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const wizard = await startWizard({ project: 'full-stack-fastapi', scan: 'held' });
+  await page.goto(wizard.url);
+  await page.getByRole('button', { name: 'Analyze my project' }).click();
+
+  const tree = page.getByRole('tree', { name: 'Project files' });
+  await expect(tree.locator('[data-mark="reading"]')).toHaveAttribute('data-path', '.env');
+  await expect(page.getByText('Waiting for findings')).toBeVisible();
+
+  wizard.release('scan');
+  const finding = page.locator('.ws-phone-finding');
+  await expect(finding.locator('.ws-phone-finding-head')).toContainText('Postgres database', { timeout: 15_000 });
+  await expect(finding).toContainText('Postgres container in compose.yml:4');
+  await expect(finding.locator('.ws-tree-row[data-focus]')).toHaveAttribute('data-path', 'compose.yml');
+  await expect(finding.locator('.ws-tree-excerpt-row[data-focus]')).toContainText('image: postgres:18');
+  await expect(finding.locator('.ws-excerpt[data-kind="yaml"]')).toContainText('mainDatabase:');
+  // Nothing is wider than the phone.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+
+  await page.getByRole('button', { name: /^Skip/ }).click();
+  await expect(page.getByRole('heading', { name: 'full-stack-fastapi on AWS' })).toBeVisible({ timeout: 15_000 });
 });
 
 test('skipping the reveal at once leaves the generated file exactly as it is, not an edit', async ({

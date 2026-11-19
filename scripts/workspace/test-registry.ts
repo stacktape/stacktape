@@ -4183,6 +4183,7 @@ export const slices: readonly Slice[] = [
       'apps/init-ui/src/editor/line-diff.spec.ts',
       'apps/init-ui/src/workspace/resource-story.spec.ts',
       'apps/init-ui/src/workspace/syntax.spec.ts',
+      'apps/init-ui/src/workspace/file-tree.spec.ts',
       'apps/init-ui/e2e/wizard.spec.ts'
     ],
     lanes: ['init-ui-test', 'init-ui-browser', 'cli', 'cli-2', 'cli-3', 'init-e2e', 'init-ui-fast-rules'],

@@ -308,6 +308,9 @@ export type FileView =
       reason: 'not-seen' | 'outside' | 'missing' | 'not-a-file' | 'too-large' | 'binary';
     };
 
+/** The repository's file names, as the CLI lists them for the scan (no dependencies, build output or ignored files). */
+export type RepositoryTree = { files: string[]; truncated: boolean };
+
 export class SessionError extends Error {}
 
 /** Reads the handshake token out of the fragment and removes it from the address bar. */
@@ -360,8 +363,10 @@ export type Session = {
   confirmSecrets: () => Promise<WizardState>;
   /** Saves pasted AWS access keys as a profile on this machine and checks the identity again. */
   saveAwsKeys: (accessKeyId: string, secretAccessKey: string) => Promise<WizardState>;
-  /** The text of a file the analysis read or cited, for the code window. Read-only. */
+  /** The text of a file the analysis read or cited, for the evidence it shows. Read-only. */
   readFile: (path: string) => Promise<FileView>;
+  /** The repository's file names, for the tree the scan draws. Names only. */
+  readTree: () => Promise<RepositoryTree>;
   /**
    * What the project's `.env` sets for the secrets the configuration reads, for "Use the values from .env". Held in
    * memory by the page only; saved only when the user saves them, through `setSecret`.
@@ -627,6 +632,11 @@ export const connect = async (): Promise<Session> => {
       });
       if (!read.ok) throw new SessionError('The file could not be read.');
       return (await read.json()) as FileView;
+    },
+    readTree: async () => {
+      const read = await fetch('/api/tree', { headers: { 'x-csrf-token': csrfToken } });
+      if (!read.ok) throw new SessionError('The file tree could not be read.');
+      return (await read.json()) as RepositoryTree;
     },
     readEnvironmentValues: async () => {
       const read = await fetch('/api/environment-values', { headers: { 'x-csrf-token': csrfToken } });
