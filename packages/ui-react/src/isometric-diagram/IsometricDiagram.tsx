@@ -232,7 +232,13 @@ export function IsometricDiagram({
     },
     [showInfrastructure, showAccess, onLayersChange]
   );
-  const frame = useMemo(() => (model ? diagramFrame({ model, security }) : undefined), [model, security]);
+  // The frame holds every layer, so switching one moves nothing. A host that offers no layers to switch (a stage's
+  // overview) gets the picture it shows, fitted to its own room.
+  const canSwitchLayers = layerChoices.length > 0;
+  const frame = useMemo(
+    () => (model && canSwitchLayers ? diagramFrame({ model, security }) : undefined),
+    [model, security, canSwitchLayers]
+  );
   const scene: IsoScene | null = useMemo(
     () =>
       model

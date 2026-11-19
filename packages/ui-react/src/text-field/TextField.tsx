@@ -1,5 +1,6 @@
-import type { ComponentPropsWithRef, ReactNode } from 'react';
+import type { ComponentPropsWithRef, FocusEvent, ReactNode } from 'react';
 import { useId } from 'react';
+import { useKeyboardFocus } from '../focus/keyboard-focus';
 
 type CommonProps = {
   label?: ReactNode;
@@ -30,12 +31,26 @@ export function TextField(props: TextFieldProps) {
     rootClassName,
     reserveMessageSpace = true,
     trailing,
+    // Chooses the element; on the element itself React would warn about an unknown attribute.
+    multiline,
     ...controlProps
   } = props;
   const inputId = controlProps.id ?? `stacktape-field-${generatedId}`;
   const messageId = message ? `${inputId}-message` : undefined;
   const className = ['stp-ui-text-field__control', controlProps.className].filter(Boolean).join(' ');
   const describedBy = [controlProps['aria-describedby'], messageId].filter(Boolean).join(' ') || undefined;
+  const keyboardFocus = useKeyboardFocus();
+  // Only the field itself: a button in `trailing` draws its own focus mark.
+  const focusHandlers = {
+    onFocus: (event: FocusEvent<HTMLInputElement & HTMLTextAreaElement>) => {
+      keyboardFocus.onFocus();
+      controlProps.onFocus?.(event);
+    },
+    onBlur: (event: FocusEvent<HTMLInputElement & HTMLTextAreaElement>) => {
+      keyboardFocus.onBlur(event);
+      controlProps.onBlur?.(event);
+    }
+  };
 
   return (
     <div className={['stp-ui-text-field', rootClassName].filter(Boolean).join(' ')}>
@@ -45,11 +60,19 @@ export function TextField(props: TextFieldProps) {
           {labelDetail ? <span className="stp-ui-text-field__label-detail">{labelDetail}</span> : null}
         </label>
       ) : null}
-      <div className="stp-ui-text-field__surface">
+      <div
+        className={[
+          'stp-ui-text-field__surface',
+          keyboardFocus.isKeyboardFocused && 'stp-ui-text-field__surface--keyboard-focus'
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         {leading ? <span className="stp-ui-text-field__leading">{leading}</span> : null}
-        {props.multiline ? (
+        {multiline ? (
           <textarea
             {...(controlProps as ComponentPropsWithRef<'textarea'>)}
+            {...focusHandlers}
             aria-describedby={describedBy}
             className={className}
             id={inputId}
@@ -57,6 +80,7 @@ export function TextField(props: TextFieldProps) {
         ) : (
           <input
             {...(controlProps as ComponentPropsWithRef<'input'>)}
+            {...focusHandlers}
             aria-describedby={describedBy}
             className={className}
             id={inputId}

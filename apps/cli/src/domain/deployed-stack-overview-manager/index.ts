@@ -23,7 +23,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-names';
-import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
+import { injectedParameterEnvVarName } from '@stacktape/naming/injected-parameter-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { traverseResourcesInMap } from '@utils/stack-info-map';
 import compose from '@utils/compose';

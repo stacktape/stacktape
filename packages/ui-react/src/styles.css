@@ -85,7 +85,7 @@
 
   /* One hover for every variant: the same lift, the same thin highlight along the top edge. What
    * differs per variant is only how bright that highlight has to be to read on its own fill. */
-  .stp-ui-button:hover:not(:disabled)::before {
+  .stp-ui-button:hover:not(:disabled, [aria-disabled='true'])::before {
     background: var(--stp-ui-button-surface-hover, var(--stp-ui-button-surface));
     box-shadow: var(--stp-ui-button-shadow-hover, var(--stp-ui-button-shadow));
   }
@@ -93,7 +93,7 @@
   /* Pressing settles the control back onto the page rather than moving it. Nothing here scales: a
    * control that shrinks under the cursor was the one interaction both consumers disliked, and it
    * was also the only thing in this package that animated geometry. */
-  .stp-ui-button:active:not(:disabled)::before {
+  .stp-ui-button:active:not(:disabled, [aria-disabled='true'])::before {
     box-shadow: var(--stp-ui-button-shadow-active, var(--stp-ui-button-shadow));
   }
 
@@ -104,7 +104,9 @@
     outline-offset: var(--stp-focus-outline-offset);
   }
 
-  .stp-ui-button:disabled {
+  /* `aria-disabled`: unavailable but still focusable, so the keyboard reaches the reason it is unavailable. */
+  .stp-ui-button:disabled,
+  .stp-ui-button[aria-disabled='true'] {
     cursor: default;
     opacity: 0.6;
   }
@@ -475,7 +477,9 @@
     --stp-ui-button-shadow-hover: var(--stp-button-plain-shadow-hover, inset 0 0 0 100px rgba(255, 255, 255, 0.07));
     --stp-ui-button-shadow-active: var(--stp-button-plain-shadow-active, inset 0 0 0 100px rgba(255, 255, 255, 0.12));
 
-    padding: 0 4px;
+    /* Text-tight by default. An application whose plain buttons stand as controls in their own right (a toolbar, an
+     * action slot) gives them a button's padding, so the hover wash reads as a button and not as a highlight. */
+    padding: 0 var(--stp-button-plain-padding-x, 4px);
   }
 
   /* ── Icon-only shape ──────────────────────────────────────────────────────────────────────────
@@ -593,6 +597,8 @@
 
   .stp-ui-tabs__indicator {
     position: absolute;
+    top: 0;
+    left: 0;
     z-index: 0;
     box-sizing: border-box;
     border: var(--stp-tab-indicator-border, 1px solid transparent);
@@ -606,14 +612,13 @@
     );
     pointer-events: none;
     /* An easing without overshoot: the indicator slides and stops inside the bar instead of springing past its
-       ends. */
+       ends. It moves by transform; only its own size changes layout. Its first place is taken without motion. */
     transition:
-      left 250ms cubic-bezier(0.2, 0, 0, 1),
-      top 250ms cubic-bezier(0.2, 0, 0, 1),
-      width 250ms cubic-bezier(0.2, 0, 0, 1),
-      height 250ms cubic-bezier(0.2, 0, 0, 1),
+      transform var(--stp-motion-duration-base) var(--stp-motion-easing-out),
+      width var(--stp-motion-duration-base) var(--stp-motion-easing-out),
+      height var(--stp-motion-duration-base) var(--stp-motion-easing-out),
       opacity var(--stp-motion-duration-fast) var(--stp-motion-easing);
-    will-change: left, top, width, height;
+    will-change: transform;
   }
 
   .stp-ui-tab {
@@ -631,13 +636,37 @@
     border-radius: var(--stp-tab-radius, 9px);
     background: transparent;
     color: var(--stp-tab-text, var(--stp-text-muted));
+    text-decoration: none;
     font: inherit;
+    letter-spacing: normal;
     font-size: var(--stp-tab-font-size, 0.84rem);
     font-weight: var(--stp-tab-font-weight, 600);
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
     transition: color var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  /* Groups in one row of tabs: a hairline between them and a quiet label before each. */
+  .stp-ui-tabs__divider {
+    align-self: stretch;
+    width: 1px;
+    margin: 4px 4px;
+    background: var(--stp-border-subtle);
+  }
+
+  /* Grouped tabs carry a label and a divider in the same row, so each tab keeps a little less room around its word. */
+  .stp-ui-tabs.stp-ui-tabs--grouped {
+    --stp-tab-padding-x: 6px;
+  }
+
+  .stp-ui-tabs__group {
+    flex-shrink: 0;
+    padding: 0 2px;
+    color: var(--stp-text-subtle, var(--stp-text-muted));
+    font-size: 0.7rem;
+    font-weight: 500;
+    white-space: nowrap;
   }
 
   .stp-ui-tabs--vertical .stp-ui-tab {
@@ -682,6 +711,11 @@
 
   .stp-ui-tab:hover:not(:disabled) {
     color: var(--stp-tab-text-hover, var(--stp-text-primary));
+  }
+
+  /* The same flat wash as a navigation row or a table row. */
+  .stp-ui-tabs:not(.stp-ui-tabs--underline) .stp-ui-tab:hover:not(:disabled, .stp-ui-tab--active) {
+    background: var(--stp-tab-background-hover, rgba(255, 255, 255, 0.055));
   }
 
   .stp-ui-tab--active {
@@ -819,6 +853,14 @@
     padding: 0 6px;
     font-size: 11px;
     letter-spacing: 0;
+  }
+
+  /* A count that is only a number (open errors) is said quietly: a muted figure on a faint fill, beside red and amber
+   * counts that ask for a look. */
+  .stp-ui-count-badge.stp-ui-badge--neutral,
+  .stp-ui-count-badge--dot.stp-ui-badge--neutral {
+    --stp-badge-solid: rgb(255 255 255 / 0.1);
+    --stp-badge-solid-text: var(--stp-text-muted);
   }
 
   /* Where a number does not fit: a dot ringed in the surface colour, so it reads as cut out of the icon it sits on. */
@@ -1155,6 +1197,12 @@
     );
   }
 
+  /* Keyboard focus wears the one focus mark every control has; a click keeps the quiet field look above. */
+  .stp-ui-text-field__surface--keyboard-focus {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: var(--stp-focus-outline-offset);
+  }
+
   .stp-ui-text-field__surface:has(.stp-ui-text-field__control:disabled) {
     cursor: not-allowed;
     opacity: 0.6;
@@ -1197,6 +1245,12 @@
     min-height: 20px;
     padding: 3px 0 0 var(--stp-field-inset, 0);
     text-align: left;
+  }
+
+  /* A message under a field keeps 8px of room below it, so an error never touches the next label or button. What
+   * follows the field moves down by that much when an error appears. */
+  .stp-ui-text-field__message-slot:has(.stp-ui-text-field__message) {
+    padding-bottom: 8px;
   }
 
   .stp-ui-text-field__message {
@@ -1324,6 +1378,12 @@
     text-align: left;
   }
 
+  /* A message under a field keeps 8px of room below it, so an error never touches the next label or button. What
+   * follows the field moves down by that much when an error appears. */
+  .stp-ui-select__message-slot:has(.stp-ui-select__message) {
+    padding-bottom: 8px;
+  }
+
   .stp-ui-select__message {
     display: block;
     font-size: 12.5px;
@@ -1361,6 +1421,7 @@
     overflow: hidden;
     background: var(--stp-dialog-overlay, rgba(12, 16, 16, 0.78));
     backdrop-filter: blur(8px);
+    animation: stp-ui-fade-in var(--stp-motion-duration-fast) var(--stp-motion-easing-out);
   }
 
   /* A column: the body scrolls and the action row stays pinned under it, so a dialog taller than
@@ -1382,6 +1443,18 @@
     background: var(--stp-dialog-background, var(--stp-surface-modal));
     color: var(--stp-text-primary);
     box-shadow: var(--stp-dialog-shadow, 0 24px 64px rgba(0, 0, 0, 0.5));
+    /* A dialog fades in as the page behind it dims. Opacity only: what measures the dialog as it opens (a list placed
+       under its field, a test) sees its final size and place. */
+    animation: stp-ui-fade-in var(--stp-motion-duration-base) var(--stp-motion-easing-out);
+  }
+
+  /* While the dialog fades in, its first field takes the focus and its selects settle into their first state. Those are
+   * its first look, not changes, so nothing eases into them. `!important` because some controls inside (the selects)
+   * set their transitions outside this layer. */
+  .stp-ui-dialog[data-opening] *,
+  .stp-ui-dialog[data-opening] *::before,
+  .stp-ui-dialog[data-opening] *::after {
+    transition: none !important;
   }
 
   .stp-ui-dialog__backdrop {
@@ -1419,6 +1492,11 @@
       radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, 0.5), transparent) bottom / 100% 12px no-repeat scroll;
   }
 
+  .stp-ui-dialog__body:focus-visible {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: calc(-1 * var(--stp-focus-outline-width));
+  }
+
   .stp-ui-dialog__body:has(+ .stp-ui-dialog__actions) {
     padding-bottom: 4px;
   }
@@ -1428,7 +1506,8 @@
     position: absolute;
     top: 24px;
     right: 22px;
-    z-index: 1;
+    /* Above the title row, which stays over the scrolled body. */
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1452,9 +1531,18 @@
     outline-offset: var(--stp-focus-outline-offset);
   }
 
+  /* The title stays in place while a long body scrolls under it, so the close button never sits on the content.
+   * It reaches up over the body's top inset, on the dialog's own surface, and its bottom space is padding, so what
+   * scrolls under it disappears 22px before the title. */
   .stp-ui-dialog__header {
-    margin-bottom: 22px;
-    padding-right: 40px;
+    position: sticky;
+    /* Sticky offsets count from inside the body's inset. */
+    top: calc(-1 * var(--stp-dialog-padding, 28px));
+    z-index: 1;
+    margin: calc(-1 * var(--stp-dialog-padding, 28px)) calc(-1 * var(--stp-dialog-padding, 28px)) 0;
+    padding: var(--stp-dialog-padding, 28px) calc(var(--stp-dialog-padding, 28px) + 40px) 22px
+      var(--stp-dialog-padding, 28px);
+    background: var(--stp-dialog-background, var(--stp-surface-modal));
   }
 
   .stp-ui-dialog__title,
@@ -1485,25 +1573,39 @@
   .stp-ui-tooltip {
     box-sizing: border-box;
     width: max-content;
-    padding: 16px 20px;
     overflow-wrap: anywhere;
     border: 1px solid var(--stp-tooltip-border, var(--stp-border-subtle));
     border-radius: var(--stp-tooltip-radius, var(--stp-radius-large));
     background: var(--stp-tooltip-background, var(--stp-surface-modal));
     color: var(--stp-text-primary);
     box-shadow: var(--stp-tooltip-shadow, 0 12px 28px rgba(0, 0, 0, 0.45));
-    font-size: 0.85rem;
-    line-height: 1.6;
     text-align: left;
+  }
+
+  /* A label is one short line: padding that would suit a paragraph made "Copy" a large box. */
+  .stp-ui-tooltip--label {
+    padding: 6px 10px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  .stp-ui-tooltip--help {
+    padding: 12px 14px;
+    font-size: 0.85rem;
+    line-height: 1.55;
   }
 
   .stp-ui-tooltip__headline {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
   }
 
   .stp-ui-tooltip__content > :first-child {
     margin-top: 0;
+  }
+
+  .stp-ui-tooltip__content > * + * {
+    margin-top: 6px;
   }
 
   .stp-ui-tooltip__content > :last-child {
@@ -1645,6 +1747,8 @@
     border-radius: 999px;
     color: var(--stp-linear-loader-color);
     opacity: 0;
+    /* It comes and goes quietly rather than blinking. */
+    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
   }
 
   .stp-ui-linear-loader::before,
@@ -1682,8 +1786,28 @@
     }
 
     .stp-ui-switch__thumb,
-    .stp-ui-linear-loader::after {
+    .stp-ui-linear-loader::after,
+    .stp-ui-dialog__overlay,
+    .stp-ui-dialog {
       animation: none;
+    }
+  }
+
+  /* Windows Contrast themes replace colours with system colours and drop shadows. A switch is a filled track and knob,
+   * so it draws them with system colours instead of disappearing; the checked knob takes the selection colour. */
+  @media (forced-colors: active) {
+    .stp-ui-switch {
+      border: 1px solid ButtonText;
+    }
+
+    .stp-ui-switch__thumb {
+      top: 2px;
+      left: 2px;
+      background: ButtonText;
+    }
+
+    .stp-ui-switch--checked .stp-ui-switch__thumb {
+      background: Highlight;
     }
   }
 }
@@ -1705,6 +1829,12 @@
 @keyframes stp-ui-switch-busy {
   50% {
     opacity: 0.6;
+  }
+}
+
+@keyframes stp-ui-fade-in {
+  from {
+    opacity: 0;
   }
 }
 

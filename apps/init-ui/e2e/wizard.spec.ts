@@ -145,7 +145,9 @@ test('secrets the deploy needs are listed with their commands, and an empty repo
       /^A Fiber app, using a Postgres database\. It also needs a RabbitMQ broker and a NATS server, which Stacktape does not create\./
     )
   ).toBeVisible();
-  await expect(page.getByText('2 more things')).toBeVisible();
+  // Alongside the two broker notes, the scanner reports the missing database migration command.
+  await expect(page.getByText('3 more things')).toBeVisible();
+  await expect(page.getByText(/^goCleanTemplate depends on golang-migrate.*migrate up/)).toBeVisible();
   await expect(page.getByText(/through the rmq_url secret, which you create before deploying/)).toBeVisible();
   await expect(page.getByText(/points at something we are not creating/)).toHaveCount(0);
   await page.getByRole('button', { name: /^Save .* & continue$/ }).click();

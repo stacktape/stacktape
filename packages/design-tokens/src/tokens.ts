@@ -32,13 +32,15 @@ export const designTokens = {
     input: 'rgb(20, 26, 26)'
   },
   text: {
+    /** Page titles and the name that identifies a row, the brightest text on a screen. */
+    strong: 'rgba(255, 255, 255, 0.95)',
     primary: 'rgba(255, 255, 255, 0.87)',
     /** Teal accent text: links and secondary emphasis. */
     secondary: 'rgba(10, 187, 181, 1)',
     headline: '#cecece',
-    muted: 'rgb(160, 160, 160)',
-    subtle: 'rgb(140, 140, 140)',
-    faint: '#848484'
+    muted: 'rgb(172, 172, 172)',
+    subtle: 'rgb(152, 152, 152)',
+    faint: '#8e8e8e'
   },
   border: {
     /** The dark separating border used against page and element surfaces. */
@@ -56,8 +58,8 @@ export const designTokens = {
   field: {
     /** Hover lifts the hairline a step toward the focus border; focus adds the ring. */
     hoverBorder: 'rgba(110, 116, 116, 0.38)',
-    focusBorder: 'rgba(110, 116, 116, 0.56)',
-    focusRing: 'rgba(110, 116, 116, 0.12)'
+    focusBorder: 'rgba(110, 116, 116, 0.85)',
+    focusRing: 'rgba(110, 116, 116, 0.28)'
   },
   status: {
     error: '#eb6161',
@@ -82,10 +84,15 @@ export const designTokens = {
     outlineWidth: '2px',
     outlineOffset: '2px'
   },
+  /**
+   * Fast for hover and small state changes, base for things that open, move or arrive. Things that enter or move ease
+   * out: they start quickly and settle without overshoot.
+   */
   motion: {
     durationFast: '150ms',
-    durationBase: '250ms',
-    easing: 'ease'
+    durationBase: '200ms',
+    easing: 'ease',
+    easingOut: 'cubic-bezier(0.2, 0, 0, 1)'
   },
   /** Spacing stops on a 4 px grid, named by their size: gaps, padding, rhythm between sections. */
   space: {
@@ -107,7 +114,9 @@ export const designTokens = {
     /** Page and dialog titles. */
     title: '1.15rem',
     /** Headline numbers on tiles. */
-    display: '1.5rem'
+    display: '1.5rem',
+    /** A page's primary total, above supporting tile values. */
+    metric: '2rem'
   },
   fontWeight: {
     body: '500',
@@ -142,6 +151,7 @@ export const tokenVar = {
     input: 'var(--stp-surface-input)'
   },
   text: {
+    strong: 'var(--stp-text-strong)',
     primary: 'var(--stp-text-primary)',
     secondary: 'var(--stp-text-secondary)',
     headline: 'var(--stp-text-headline)',
@@ -187,7 +197,8 @@ export const tokenVar = {
   motion: {
     durationFast: 'var(--stp-motion-duration-fast)',
     durationBase: 'var(--stp-motion-duration-base)',
-    easing: 'var(--stp-motion-easing)'
+    easing: 'var(--stp-motion-easing)',
+    easingOut: 'var(--stp-motion-easing-out)'
   },
   space: {
     4: 'var(--stp-space-4)',
@@ -203,7 +214,8 @@ export const tokenVar = {
     body: 'var(--stp-font-size-body)',
     heading: 'var(--stp-font-size-heading)',
     title: 'var(--stp-font-size-title)',
-    display: 'var(--stp-font-size-display)'
+    display: 'var(--stp-font-size-display)',
+    metric: 'var(--stp-font-size-metric)'
   },
   fontWeight: {
     body: 'var(--stp-font-weight-body)',

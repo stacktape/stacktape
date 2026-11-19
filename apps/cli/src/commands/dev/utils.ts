@@ -9,7 +9,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { execDocker, inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@utils/docker';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
-import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
+import { injectedParameterEnvVarName } from '@stacktape/naming/injected-parameter-names';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';
 import { createCleanupHook } from './cleanup-utils';

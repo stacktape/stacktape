@@ -1,6 +1,6 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
+import { injectedParameterEnvVarName } from '@stacktape/naming/injected-parameter-names';
 import { isIntrinsic } from '@stacktape/cloudformation/intrinsics';
 import type { DevNetworkPlacement } from '@domain-services/dev-network/placement';
 

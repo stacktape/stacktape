@@ -13,7 +13,7 @@ import { stpErrors } from '@errors';
 import { CliError } from '@utils/errors';
 import { describeToolDownload } from '@utils/external-tools';
 import { fsPaths } from 'src/config/runtime-paths';
-import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
+import { injectedParameterEnvVarName } from '@stacktape/naming/injected-parameter-names';
 import { wait } from '@utils/misc';
 import { type LocalPortReservation, reserveFreeLocalPort, reserveLocalPort } from '@utils/ports';
 import { execa } from 'execa';

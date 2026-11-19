@@ -1,5 +1,5 @@
 import type { CSSProperties, KeyboardEvent, ReactNode, RefObject } from 'react';
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 export type TabValue = string | number;
 
@@ -12,6 +12,14 @@ export type Tab<Value extends TabValue = TabValue> = {
   disabled?: boolean;
   title?: string;
   panelId?: string;
+  /** The address this tab opens. It makes the tab a real link, so it can open in a new tab; a plain click still selects. */
+  href?: string;
+  /**
+   * Tabs of two kinds in one row ("npm pnpm bun" and "macOS Linux Windows") name their kind here: a divider separates
+   * the groups and a small muted label leads each one that names itself, so the row does not read as six of one kind.
+   * An empty name groups without a label, for the kind that needs none.
+   */
+  group?: string;
 };
 
 export type TabsProps<Value extends TabValue> = {
@@ -27,6 +35,12 @@ export type TabsProps<Value extends TabValue> = {
   width?: 'fill' | 'fit';
   size?: 'small' | 'medium';
   disabled?: boolean;
+  /**
+   * `automatic` (the default) selects a tab as the arrow keys reach it, for small switches whose views are already
+   * there. `manual`: the arrows only move focus, and Enter or Space selects, for tabs that open a view that loads (a
+   * resource's or a stage's tabs), so arrowing to the fourth tab does not load the three on the way (WAI-ARIA tabs).
+   */
+  activation?: 'automatic' | 'manual';
 };
 
 const classes = (...values: Array<string | false | null | undefined>) => values.filter(Boolean).join(' ');
@@ -35,18 +49,33 @@ type IndicatorGeometry = {
   height: number;
   left: number;
   ready: boolean;
+  /**
+   * Whether the indicator glides to this place: only to another item. Its first place, and a new size of the same
+   * item (a count or a web font arriving after the first render), are taken at once, so a page opens without motion.
+   */
+  moves: boolean;
+  /** The item it was placed for. */
+  placedFor: TabValue | null | undefined;
   top: number;
   width: number;
 };
 
-const hiddenIndicator: IndicatorGeometry = { height: 0, left: 0, ready: false, top: 0, width: 0 };
+const hiddenIndicator: IndicatorGeometry = {
+  height: 0,
+  left: 0,
+  ready: false,
+  moves: false,
+  placedFor: undefined,
+  top: 0,
+  width: 0
+};
 
 /**
  * The selected surface that slides to the active item: the one Tabs draws, for navigation lists that are not tabs
  * (a project's stage list). Place it inside `container`, which must be positioned, after the items: their refs are
  * attached by the time it measures. It measures `getTarget()` against
  * the container (including its scroll offset) whenever `activeKey` changes or either element resizes, and animates
- * with the tab bar's timing and easing.
+ * with the tab bar's timing and easing when `activeKey` changes.
  */
 export function SlidingIndicator({
   containerRef,
@@ -75,21 +104,20 @@ export function SlidingIndicator({
     }
     const containerBox = container.getBoundingClientRect();
     const targetBox = target.getBoundingClientRect();
-    const next: IndicatorGeometry = {
+    const next = {
       height: targetBox.height,
       left: targetBox.left - containerBox.left - container.clientLeft + container.scrollLeft,
-      ready: true,
       top: targetBox.top - containerBox.top - container.clientTop + container.scrollTop,
       width: targetBox.width
     };
     setIndicator((current) =>
+      current.ready &&
       current.height === next.height &&
       current.left === next.left &&
-      current.ready === next.ready &&
       current.top === next.top &&
       current.width === next.width
         ? current
-        : next
+        : { ...next, ready: true, moves: current.ready && current.placedFor !== activeKey, placedFor: activeKey }
     );
   }, [activeKey, containerRef]);
 
@@ -121,10 +149,10 @@ export function SlidingIndicator({
       style={{
         ...style,
         height: indicator.height,
-        left: indicator.left,
+        width: indicator.width,
         opacity: indicator.ready ? 1 : 0,
-        top: indicator.top,
-        width: indicator.width
+        transform: `translate(${indicator.left}px, ${indicator.top}px)`,
+        ...(!indicator.moves && { transition: 'none' })
       }}
     />
   );
@@ -149,46 +177,60 @@ export function Tabs<const Value extends TabValue>({
   orientation = 'horizontal',
   width = 'fill',
   size = 'medium',
-  disabled = false
+  disabled = false,
+  activation = 'automatic'
 }: TabsProps<Value>) {
   const generatedId = useId();
   const tabsId = id ?? `stacktape-tabs-${generatedId}`;
-  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const buttonRefs = useRef<Array<HTMLElement | null>>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
   const activeIndex = tabs.findIndex((tab) => tab.value === value);
   const hasSlidingIndicator = appearance !== 'underline' && activeIndex >= 0;
+  // With manual activation, the tab the arrows reached (until focus leaves the list) is the list's one Tab stop.
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const tabStopIndex =
+    focusedIndex !== null && focusedIndex < tabs.length ? focusedIndex : activeIndex >= 0 ? activeIndex : 0;
 
   useLayoutEffect(() => {
     buttonRefs.current.length = tabs.length;
   }, [tabs.length]);
 
-  const selectAndFocus = (index: number) => {
+  const moveTo = (index: number, step: 1 | -1) => {
     if (tabs.length === 0) return;
 
     for (let offset = 0; offset < tabs.length; offset += 1) {
-      const candidateIndex = (index + offset + tabs.length) % tabs.length;
+      const candidateIndex = (index + step * offset + tabs.length) % tabs.length;
       const candidate = tabs[candidateIndex];
       if (candidate && !candidate.disabled) {
         buttonRefs.current[candidateIndex]?.focus();
-        onValueChange?.(candidate.value);
+        if (activation === 'manual') setFocusedIndex(candidateIndex);
+        else onValueChange?.(candidate.value);
         return;
       }
     }
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>, index: number) => {
     const previousKey = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp';
     const nextKey = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
+    const tab = tabs[index];
 
+    // A tab drawn as a link selects with Space too, as a tab button does.
+    if (event.key === ' ' && tab?.href) {
+      event.preventDefault();
+      onValueChange?.(tab.value);
+      return;
+    }
     if (![previousKey, nextKey, 'Home', 'End'].includes(event.key)) return;
 
     event.preventDefault();
     if (event.key === 'Home') {
-      selectAndFocus(0);
+      moveTo(0, 1);
     } else if (event.key === 'End') {
-      selectAndFocus(tabs.length - 1);
+      moveTo(tabs.length - 1, -1);
     } else {
-      selectAndFocus(index + (event.key === nextKey ? 1 : -1));
+      const step = event.key === nextKey ? 1 : -1;
+      moveTo(index + step, step);
     }
   };
 
@@ -203,6 +245,7 @@ export function Tabs<const Value extends TabValue>({
         `stp-ui-tabs--${width}`,
         `stp-ui-tabs--${size}`,
         disabled && 'stp-ui-tabs--disabled',
+        tabs.some((tab) => tab.group !== undefined) && 'stp-ui-tabs--grouped',
         className
       )}
       style={style}
@@ -211,6 +254,9 @@ export function Tabs<const Value extends TabValue>({
         aria-label={ariaLabel}
         aria-orientation={orientation}
         className="stp-ui-tabs__list"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedIndex(null);
+        }}
         ref={listRef}
         role="tablist"
       >
@@ -218,24 +264,22 @@ export function Tabs<const Value extends TabValue>({
           const isActive = tab.value === value;
           const tabId = `${tabsId}-tab-${String(tab.value)}`;
 
-          return (
-            <button
-              aria-controls={tab.panelId}
-              aria-selected={isActive}
-              className={classes('stp-ui-tab', isActive && 'stp-ui-tab--active')}
-              disabled={disabled || tab.disabled}
-              id={tabId}
-              key={tab.value}
-              onClick={() => onValueChange?.(tab.value)}
-              onKeyDown={(event) => handleKeyDown(event, index)}
-              ref={(element) => {
-                buttonRefs.current[index] = element;
-              }}
-              role="tab"
-              tabIndex={isActive || (activeIndex < 0 && index === 0) ? 0 : -1}
-              title={tab.title}
-              type="button"
-            >
+          const isDisabled = disabled || tab.disabled;
+          const shared = {
+            'aria-controls': tab.panelId,
+            'aria-selected': isActive,
+            className: classes('stp-ui-tab', isActive && 'stp-ui-tab--active'),
+            id: tabId,
+            onKeyDown: (event: KeyboardEvent<HTMLElement>) => handleKeyDown(event, index),
+            ref: (element: HTMLElement | null) => {
+              buttonRefs.current[index] = element;
+            },
+            role: 'tab',
+            tabIndex: index === tabStopIndex ? 0 : -1,
+            title: tab.title
+          };
+          const content = (
+            <>
               {tab.icon && (
                 <span aria-hidden="true" className="stp-ui-tab__icon">
                   {tab.icon}
@@ -248,8 +292,49 @@ export function Tabs<const Value extends TabValue>({
                 <span className="stp-ui-tab__label stp-ui-tab__label--compact">{tab.compactLabel}</span>
               )}
               {tab.suffix}
-            </button>
+            </>
           );
+
+          const startsGroup = tab.group !== undefined && index > 0 && tab.group !== tabs[index - 1]?.group;
+          const groupStart = (startsGroup || (index === 0 && tab.group)) && (
+            <Fragment key={`group-${tab.group}`}>
+              {startsGroup && <span aria-hidden="true" className="stp-ui-tabs__divider" />}
+              {tab.group && (
+                <span aria-hidden="true" className="stp-ui-tabs__group">
+                  {tab.group}
+                </span>
+              )}
+            </Fragment>
+          );
+
+          const control =
+            tab.href && !isDisabled ? (
+              <a
+                {...shared}
+                key={tab.value}
+                href={tab.href}
+                draggable={false}
+                onClick={(event) => {
+                  // A modified click belongs to the browser: Ctrl or middle click opens a new tab.
+                  if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                  event.preventDefault();
+                  onValueChange?.(tab.value);
+                }}
+              >
+                {content}
+              </a>
+            ) : (
+              <button
+                {...shared}
+                key={tab.value}
+                disabled={isDisabled}
+                onClick={() => onValueChange?.(tab.value)}
+                type="button"
+              >
+                {content}
+              </button>
+            );
+          return groupStart ? [groupStart, control] : control;
         })}
         {hasSlidingIndicator ? (
           <SlidingIndicator
