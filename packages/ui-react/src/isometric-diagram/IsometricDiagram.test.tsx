@@ -185,6 +185,51 @@ describe('layers', () => {
   test('a host that offers no layers gets no switches', () => {
     expect(switches(markupOf({ layerChoices: [] }))).toEqual([]);
   });
+
+  test('a host that offers no Infrastructure switch gets the application picture laid out and fitted alone', () => {
+    const nextjs = parseFixtureConfig({ fixture: getFixtureById({ id: 'nextjs-hosting' }) });
+    const withoutSwitch = markupOf({ layerChoices: [] }, nextjs);
+    expect(withoutSwitch).not.toContain('data-iso-id="web--server"');
+    expect(viewBox(withoutSwitch)).not.toBe(viewBox(markupOf({}, nextjs)));
+    // A host that keeps the switch can ask for the same picture while the layer is off, and the full one when it is on.
+    expect(viewBox(markupOf({ layout: 'shown-layers' }, nextjs))).toBe(viewBox(withoutSwitch));
+    const infrastructure = { infrastructure: true, access: false };
+    expect(viewBox(markupOf({ layout: 'shown-layers', layers: infrastructure }, nextjs))).toBe(
+      viewBox(markupOf({ layers: infrastructure }, nextjs))
+    );
+    expect(markupOf({ layout: 'shown-layers', layers: infrastructure }, nextjs)).toContain('data-iso-id="web--server"');
+  });
+});
+
+describe('controls', () => {
+  const markupFor = (id: string) =>
+    quiet(() =>
+      renderToStaticMarkup(
+        <IsometricDiagram config={parseFixtureConfig({ fixture: getFixtureById({ id }) })} animateConnectors={false} />
+      )
+    );
+
+  test('a small picture has no search box and no zoom buttons', () => {
+    const markup = markupFor('simple-function-url');
+    expect(markup).not.toContain('Find resource');
+    expect(markup).not.toContain('Zoom in');
+    expect(markup).not.toContain('Reset view');
+  });
+
+  test('a larger picture has them', () => {
+    const markup = markupFor('serverless-routes');
+    expect(markup).toContain('aria-label="Find resource"');
+    expect(markup).toContain('aria-label="Zoom in"');
+    expect(markup).toContain('aria-label="Reset view"');
+  });
+
+  test('a small picture is not enlarged past the size its shapes were drawn for', () => {
+    const markup = markupFor('simple-function-url');
+    const [, , width, height] = (viewBox(markup) ?? '').split(' ').map(Number);
+    const style = markup.match(/class="stp-diagram__canvas" style="([^"]+)"/)?.[1] ?? '';
+    expect(Number(style.match(/max-width:([\d.]+)px/)?.[1])).toBeCloseTo(width * 1.15, 1);
+    expect(Number(style.match(/max-height:([\d.]+)px/)?.[1])).toBeCloseTo(height * 1.15, 1);
+  });
 });
 
 describe('reading a deployment', () => {

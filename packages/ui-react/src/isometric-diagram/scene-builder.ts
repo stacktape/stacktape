@@ -584,6 +584,7 @@ export const buildIsometricScene = ({
   parsedConfig,
   expandedGroups,
   statusLines,
+  infrastructure,
   layers = { infrastructure: true, access: false },
   security
 }: {
@@ -592,10 +593,12 @@ export const buildIsometricScene = ({
   expandedGroups?: ReadonlySet<string> | undefined;
   /** Reserve a live-status line under every declared resource, so statuses can come and go without moving anything. */
   statusLines?: boolean | undefined;
+  /** Whether the picture can show the Infrastructure layer; without it, the application picture is laid out alone. */
+  infrastructure?: boolean | undefined;
   layers?: DiagramLayers | undefined;
   security?: SecurityGroupModel | null | undefined;
 }): IsoScene | null => {
-  const model = buildDiagramModel({ parsedConfig, expandedGroups, statusLines });
+  const model = buildDiagramModel({ parsedConfig, expandedGroups, statusLines, infrastructure });
   if (!model) return null;
   return { ...selectDiagramView({ model, layers, security }), frame: diagramFrame({ model, security }) };
 };
