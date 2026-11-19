@@ -53,6 +53,13 @@ the same shape holding only the fields `topology.ts` and `security-groups.ts` re
 reaches them only once that list names it; its test compares the topology drawn from both documents on this folder's
 fixtures.
 
+A host whose frame is small for what it shows (the init wizard's review) can pass `minLabelSize`: when the picture is
+fitted below that size, names, type lines and chips are set larger and the layout is run again with room for them
+(`textScale`), while the shapes keep their size. `resourceTypeLabels` replaces a declared resource's type line with the
+host's words ("SQLite data"). `volumeMounts` draws a connector to each EFS file system a resource mounts; it is off by
+default because Console's Viewer projection does not carry `volumeMounts` yet, and that projection must draw the same
+picture as the config. Hover cards stay inside the frame when they fit there.
+
 `onOpenResource(resourceName)` is optional. When a host passes it, the side panel offers to open declared resources
 (never implicit ones or groups); `canOpenResource` narrows that to the ones the host can show. Console opens its
 resource dialog through the stage's `selectedResourceName` search parameter. The panel, search and group controls sit
