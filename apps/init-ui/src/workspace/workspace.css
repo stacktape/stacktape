@@ -200,6 +200,12 @@
     color: var(--w-faint);
   }
 
+  .ws-tree-title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* The header's end: how many files, read-only and the time so far. */
   .ws-window-meta {
     display: inline-flex;
@@ -1772,6 +1778,12 @@
 
     .ws-tree-head {
       padding: 0 12px 0 16px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .ws-meta-wide {
+      display: none;
     }
 
     .ws-editor {

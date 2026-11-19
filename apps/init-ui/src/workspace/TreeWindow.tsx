@@ -6,8 +6,8 @@ import type { Token } from './syntax';
 
 /** Matches `.ws-tree-row` in `workspace.css`. */
 export const TREE_ROW = 24;
-/** Matches `.ws-tree-excerpt` (two 20 px lines and its padding): the rows a focused file's lines take. */
-export const EXCERPT_ROWS = 3;
+/** The room a focused file's lines take under its row: `.ws-tree-excerpt`, two 20 px lines with padding and margin. */
+export const EXCERPT_HEIGHT = 3 * TREE_ROW;
 
 /** What the analysis did with a file: reading it now, read it, or (in the reveal) cited it for a resource. */
 export type TreeMark = 'reading' | 'read' | 'cited';
@@ -39,7 +39,7 @@ export function TreeWindow({
   emptyState,
   budget: fixedBudget,
   compact = false,
-  reserve = EXCERPT_ROWS,
+  reserve = EXCERPT_HEIGHT,
   hasRunway = false,
   bodyRef: hostBodyRef
 }: {
@@ -62,7 +62,10 @@ export function TreeWindow({
   /** Rows to fit, instead of as many as the window's height has room for. */
   budget?: number;
   compact?: boolean;
-  /** Rows kept free for a focused file's lines, so the tree does not refold when the reveal begins. */
+  /**
+   * Pixels kept free of rows: for a focused file's lines, and for whatever arrives under the window later, so the tree
+   * does not refold when the reveal begins.
+   */
   reserve?: number;
   /** Room under the tree, so the host can scroll any file up level with the block it is writing beside it. */
   hasRunway?: boolean;
@@ -70,29 +73,31 @@ export function TreeWindow({
 }) {
   const ownBodyRef = useRef<HTMLDivElement>(null);
   const bodyRef = hostBodyRef ?? ownBodyRef;
-  const [measured, setMeasured] = useState(0);
+  const [bodyHeight, setBodyHeight] = useState(0);
+  const measured = Math.floor((bodyHeight - 16 - reserve) / TREE_ROW);
   useLayoutEffect(() => {
     const body = bodyRef.current;
     if (fixedBudget !== undefined || body === null) return;
-    const measure = () => setMeasured(Math.floor((body.clientHeight - 16) / TREE_ROW));
+    const measure = () => setBodyHeight(body.clientHeight);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(body);
     return () => observer.disconnect();
   }, [bodyRef, fixedBudget]);
-  const budget = Math.max(6, (fixedBudget ?? measured) - reserve);
+  const budget = Math.max(6, fixedBudget === undefined ? measured : fixedBudget - Math.ceil(reserve / TREE_ROW));
   const rows = useMemo(
-    () =>
-      tree === undefined || (fixedBudget === undefined && measured === 0) ? [] : fitTree(tree, { pinned, budget }),
+    () => (tree === undefined || (fixedBudget === undefined && measured <= 0) ? [] : fitTree(tree, { pinned, budget })),
     [tree, pinned, budget, fixedBudget, measured]
   );
 
-  // A file the analysis opens comes into view, if the tree is taller than the window.
+  // A file the analysis opens comes into view, if the tree is taller than the window; so does a focused file, unless
+  // the host lines it up itself.
   const reading = [...marks].find(([, mark]) => mark === 'reading')?.[0];
   useLayoutEffect(() => {
     const body = bodyRef.current;
-    if (body === null || hostBodyRef !== undefined || (reading === undefined && focus === undefined)) return;
-    const row = body.querySelector<HTMLElement>(focus === undefined ? '[data-mark="reading"]' : '.ws-tree-excerpt');
+    const target = focus === undefined ? (reading === undefined ? undefined : 'reading') : 'focus';
+    if (body === null || target === undefined || (target === 'focus' && hostBodyRef !== undefined)) return;
+    const row = body.querySelector<HTMLElement>(target === 'reading' ? '[data-mark="reading"]' : '.ws-tree-excerpt');
     if (row === null) return;
     const top = row.offsetTop;
     if (top < body.scrollTop + 8 || top + row.offsetHeight > body.scrollTop + body.clientHeight - 8) {
@@ -100,7 +105,7 @@ export function TreeWindow({
     }
   }, [reading, focus, rows, bodyRef, hostBodyRef, reducedMotion]);
 
-  const contentHeight = rows.length * TREE_ROW + (focus === undefined ? 0 : EXCERPT_ROWS * TREE_ROW);
+  const contentHeight = rows.length * TREE_ROW + (focus === undefined ? 0 : EXCERPT_HEIGHT);
   const isEmpty = tree !== undefined && tree.fileCount === 0;
 
   return (
@@ -112,7 +117,7 @@ export function TreeWindow({
       <div className="ws-tree-head">
         <span className="ws-tree-title">
           <BiFolder aria-hidden size={15} />
-          {title}
+          <span className="ws-tree-title-text">{title}</span>
         </span>
         {meta !== undefined && <span className="ws-window-meta">{meta}</span>}
       </div>
@@ -121,7 +126,8 @@ export function TreeWindow({
         className="ws-window-body ws-tree-body"
         ref={bodyRef}
         style={{
-          ['--ws-sweep-h' as string]: `${Math.max(TREE_ROW, contentHeight - TREE_ROW / 2)}px`,
+          // Down the rows the window shows, not past its bottom edge.
+          ['--ws-sweep-h' as string]: `${Math.max(TREE_ROW, Math.min(contentHeight, bodyHeight - TREE_ROW) - TREE_ROW / 2)}px`,
           // About a tenth of a second a row: a calm pass over a short tree, never a crawl over a long one.
           ['--ws-sweep-ms' as string]: `${Math.min(4800, Math.max(2200, rows.length * 110))}ms`
         }}

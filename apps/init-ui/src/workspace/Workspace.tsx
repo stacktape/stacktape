@@ -33,7 +33,7 @@ import {
 import { EvidenceLine } from './EvidenceLine';
 import { scanActivity } from './scan-activity';
 import { tokenizeFile, type Token } from './syntax';
-import { EXCERPT_ROWS, TreeWindow, type TreeFocus, type TreeMark } from './TreeWindow';
+import { EXCERPT_HEIGHT, TreeWindow, type TreeFocus, type TreeMark } from './TreeWindow';
 import { useMediaQuery } from './use-media-query';
 import './workspace.css';
 
@@ -48,6 +48,8 @@ type Phase = 'scan' | 'reveal' | 'review';
 const STACKED = '(max-width: 1020px)';
 /** Matches the editor's line height (`monaco-setup.ts`). */
 const LINE_HEIGHT = 20;
+/** The strip of chips the reveal adds under the tree, with the gap above it (`.ws-chips`, `.ws-scan`). */
+const CHIPS_HEIGHT = 28 + 14;
 /** The phone's reveal fits the tree in this many rows, under the finding and over its YAML. */
 const PHONE_REVEAL_ROWS = 12;
 
@@ -678,12 +680,7 @@ export function Workspace({
   const showFile = !stacked || phase !== 'review' || stackedView === 'file';
   const showLeft = !stacked || phase !== 'review' || stackedView === 'architecture';
 
-  const emptyState = (
-    <EmptyCode
-      line={usesAgent ? 'The files it opens show up here.' : 'It reads manifests and config files.'}
-      title={usesAgent ? `${agent.label} is starting` : 'Reading the project'}
-    />
-  );
+  const emptyState = <EmptyCode line="The folder is empty, or everything in it is ignored." title="No files to show" />;
 
   return (
     <>
@@ -799,14 +796,14 @@ export function Workspace({
                   }
                   pinned={pinned}
                   reducedMotion={reducedMotion}
-                  // The phone's scan tree is never focused: the reveal shows its own, under the finding.
-                  reserve={stacked ? 0 : EXCERPT_ROWS}
+                  // The phone's scan tree is never focused: the reveal shows its own, under the finding. On a desktop the
+                  // tree keeps its rows when the reveal adds the chips under it.
+                  reserve={stacked ? 0 : EXCERPT_HEIGHT + (phase === 'scan' ? CHIPS_HEIGHT : 0)}
                   title={treeTitle}
                   tree={tree}
                 />
               )}
-              {/* Kept from the scan on, so the tree does not refold when the first chip arrives. */}
-              {!stacked || phase !== 'scan' ? <Chips chips={chips} /> : null}
+              {phase !== 'scan' && <Chips chips={chips} />}
             </div>
           )}
           {phase === 'review' && (
@@ -1054,7 +1051,10 @@ function ScanMeta({ startedAt }: { startedAt: number }) {
   }, [startedAt]);
   return (
     <>
-      Read-only <span aria-hidden>·</span>{' '}
+      {/* A phone's header has room for the count and the time only. */}
+      <span className="ws-meta-wide">
+        Read-only <span aria-hidden>·</span>
+      </span>{' '}
       <span className="ws-elapsed">
         {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
       </span>
