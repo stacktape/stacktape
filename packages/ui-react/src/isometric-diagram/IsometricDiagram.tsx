@@ -178,6 +178,7 @@ export function IsometricDiagram({
   selectedResource,
   resourceProgress,
   hint,
+  resourceTooltip,
   layers,
   defaultLayers,
   onLayersChange,
@@ -287,6 +288,7 @@ export function IsometricDiagram({
       selectedResource={selectedResource}
       resourceProgress={resourceProgress}
       hint={hint}
+      resourceTooltip={resourceTooltip}
       onToggleGroup={toggleGroup}
       toolbar={
         choices.length > 0 ? (
