@@ -26,6 +26,32 @@ export type ConfigEditorHandle = {
 
 let lensCommand = 0;
 
+/** Where to scroll for a line to show at the top with the lens above it: never under the editor's own edge. */
+const lensTop = (editor: MonacoEditorTypes.IStandaloneCodeEditor, line: number) =>
+  Math.max(0, editor.getTopForLineNumber(line, true) - 4);
+
+/**
+ * Scrolls a line and its lens to the top: always, or only when they are out of view or low in it. It waits for the
+ * editor's layout (a file view just shown has none yet) and looks again once the lenses have been drawn above it.
+ */
+const bringToTop = (editor: MonacoEditorTypes.IStandaloneCodeEditor, line: number, always: boolean) => {
+  let placed = false;
+  const place = (again: boolean) => {
+    const top = lensTop(editor, line);
+    const scrolled = editor.getScrollTop();
+    if (!again && !always && top >= scrolled && top <= scrolled + editor.getLayoutInfo().height * 0.5) return;
+    placed = true;
+    if (Math.abs(top - scrolled) < 2) return;
+    editor.setScrollTop(top, again ? monaco.editor.ScrollType.Immediate : monaco.editor.ScrollType.Smooth);
+  };
+  const first = setTimeout(() => place(false), 40);
+  const settled = setTimeout(() => placed && place(true), 420);
+  return () => {
+    clearTimeout(first);
+    clearTimeout(settled);
+  };
+};
+
 /** A gutter mark that follows its lines as text is inserted around them, and never grows into text typed at its edge. */
 const mark = (from: number, to: number, className: string) => ({
   range: new monaco.Range(from, 1, to, 1),
@@ -69,8 +95,11 @@ export default function ConfigFileEditor({
   onProblems: (problems: EditorProblems) => void;
   onReady?: (handle: ConfigEditorHandle) => void;
   lenses?: readonly EditorLens[];
-  /** Lines to mark and bring into view, e.g. the resource a diagram click picked. */
-  highlight?: { from: number; to: number } | undefined;
+  /**
+   * Lines to mark and bring into view, e.g. the resource a diagram click picked: its key line (`from`) carries the
+   * selection's accent, the rest of the block a quieter one. A new `reveal` brings it into view again.
+   */
+  highlight?: { from: number; to: number; reveal?: number } | undefined;
   /** An inline panel under a line, pushing the lines below it down. */
   peek?: { afterLine: number; height: number; content: ReactNode } | undefined;
   /** Off while the file is still empty: a lone "1" is noise. */
@@ -174,26 +203,43 @@ export default function ConfigFileEditor({
     };
   }, [editor, language]);
 
-  // The block a diagram click picked: marked, and scrolled to the top third of the editor.
+  // The block a diagram click picked: its key in the selection's accent, the block marked, and its lens and first
+  // lines brought into view unless they are already near the top.
   const highlighted = useRef<MonacoEditorTypes.IEditorDecorationsCollection | null>(null);
   const highlightFrom = highlight?.from;
   const highlightTo = highlight?.to;
+  const highlightReveal = highlight?.reveal;
   useEffect(() => {
     if (editor === null) return;
     highlighted.current?.clear();
     if (highlightFrom === undefined || highlightTo === undefined) return;
     highlighted.current = editor.createDecorationsCollection([
       {
-        range: new monaco.Range(highlightFrom, 1, highlightTo, 1),
-        options: {
-          isWholeLine: true,
-          className: 'ws-editor-picked',
-          linesDecorationsClassName: 'ws-editor-picked-gutter'
-        }
-      }
+        range: new monaco.Range(highlightFrom, 1, highlightFrom, 1),
+        options: { isWholeLine: true, className: 'ws-editor-key', linesDecorationsClassName: 'ws-editor-picked-gutter' }
+      },
+      ...(highlightTo > highlightFrom
+        ? [
+            {
+              range: new monaco.Range(highlightFrom + 1, 1, highlightTo, 1),
+              options: {
+                isWholeLine: true,
+                className: 'ws-editor-picked',
+                linesDecorationsClassName: 'ws-editor-picked-gutter is-quiet'
+              }
+            }
+          ]
+        : [])
     ]);
-    editor.revealLineNearTop(highlightFrom, monaco.editor.ScrollType.Smooth);
+    return bringToTop(editor, highlightFrom, false);
   }, [editor, highlightFrom, highlightTo]);
+  // Asked again (Show in stacktape.yml), the block comes to the top even when it was in view.
+  const lastReveal = useRef(highlightReveal);
+  useEffect(() => {
+    if (editor === null || highlightFrom === undefined || lastReveal.current === highlightReveal) return;
+    lastReveal.current = highlightReveal;
+    return bringToTop(editor, highlightFrom, true);
+  }, [editor, highlightFrom, highlightReveal]);
 
   // The peek: a view zone keeps the space under its line, and an overlay widget on top of it holds the content, so the
   // panel takes clicks (a zone sits under the text layer, which would take them instead). VS Code's peek works the same.
@@ -236,11 +282,12 @@ export default function ConfigFileEditor({
       });
     });
     setPeekNode(node);
-    editor.revealLinesInCenterIfOutsideViewport(
-      peekLine,
-      peekLine + Math.ceil(peekHeight / 20),
-      monaco.editor.ScrollType.Smooth
-    );
+    // The line the peek explains comes to the top with its lens, so the panel is read under them.
+    const top = lensTop(editor, peekLine);
+    const scrolled = editor.getScrollTop();
+    if (top < scrolled || top + peekHeight + 60 > scrolled + editor.getLayoutInfo().height) {
+      editor.setScrollTop(top, monaco.editor.ScrollType.Smooth);
+    }
     return () => {
       layoutChanged.dispose();
       editor.changeViewZones((zones) => zones.removeZone(zoneId));
@@ -268,6 +315,8 @@ export default function ConfigFileEditor({
           // Marks follow their lines as blocks are inserted above them, and never grow into a block typed at their edge.
           const writing = instance.createDecorationsCollection();
           const written = instance.createDecorationsCollection();
+          // The key being written carries the accent its line of code carries in the code window.
+          const key = instance.createDecorationsCollection();
           let current: { from: number; to: number } | undefined;
           let fade: ReturnType<typeof setTimeout> | undefined;
           onReadyRef.current?.({
@@ -275,6 +324,12 @@ export default function ConfigFileEditor({
             markWriting: (from, to) => {
               current = { from, to };
               writing.set([mark(from, to, 'ws-editor-writing')]);
+              key.set([
+                {
+                  range: new monaco.Range(from, 1, from, 1),
+                  options: { isWholeLine: true, className: 'ws-editor-key' }
+                }
+              ]);
             },
             markWritten: () => {
               const range = writing.getRanges()[0];
@@ -282,11 +337,13 @@ export default function ConfigFileEditor({
                 written.append([mark(range.startLineNumber, range.endLineNumber, 'ws-editor-written')]);
               }
               writing.clear();
+              key.clear();
               current = undefined;
             },
             clearMarks: () => {
               const container = instance.getContainerDomNode();
               container.classList.add('ws-editor-marks-fading');
+              key.clear();
               fade = setTimeout(() => {
                 writing.clear();
                 written.clear();
@@ -306,9 +363,13 @@ export default function ConfigFileEditor({
           lineHeight: 20,
           minimap: { enabled: false },
           scrollBeyondLastLine,
-          // Long values wrap under their key rather than running off the edge.
+          // Long values wrap under their key rather than running off the edge: after a space, or inside a long name
+          // after a hyphen or slash, never inside a word or after the dot of `$Secret('app-db.password')`.
           wordWrap: 'on',
           wrappingIndent: 'indent',
+          wrappingStrategy: 'simple',
+          wordWrapBreakBeforeCharacters: '',
+          wordWrapBreakAfterCharacters: ' \t})],;|&/-',
           renderLineHighlight: readOnly ? 'none' : 'line',
           padding: { top: 12, bottom: 12 },
           quickSuggestions: { other: true, strings: true, comments: false },

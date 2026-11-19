@@ -15,7 +15,7 @@ import { tokenizeFile } from './syntax';
 
 /** Matches `.ws-line` and `.ws-code` padding in `workspace.css`. */
 export const LINE_HEIGHT = 20;
-const PADDING_TOP = 12;
+const PADDING_TOP = 16;
 /** A file this much shorter than the window leaves room for the list of files read under it. */
 const ROOM_FOR_TRAIL = 150;
 
@@ -219,7 +219,12 @@ export function CodeWindow({
       {compact && listOpen && (
         <FilesRead active={active} className="ws-window-list" isReading={isScanning} tabs={tabs} />
       )}
-      <div className="ws-window-body" ref={bodyRef} style={{ ['--ws-gutter-digits' as string]: digits }}>
+      <div aria-hidden className="ws-window-fade" />
+      <div
+        className="ws-window-body"
+        ref={bodyRef}
+        style={{ ['--ws-gutter-digits' as string]: digits, ['--ws-code-h' as string]: `${codeHeight}px` }}
+      >
         {lines !== undefined ? (
           <div className="ws-code">
             {lines.map((tokens, index) => (

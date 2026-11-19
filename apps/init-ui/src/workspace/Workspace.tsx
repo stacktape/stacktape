@@ -6,12 +6,12 @@ import { Tabs } from '@stacktape/ui-react/tabs';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BiKey, BiLinkExternal } from 'react-icons/bi';
 import { parse as parseYaml } from 'yaml';
-import { ActionBar, MonthlyPrice } from '../components/ActionBar';
+import { ActionBar, BarPrice } from '../components/ActionBar';
 import { AnimatedPrice } from '../components/AnimatedPrice';
 import type { ConfigEditorHandle, EditorLens, EditorProblems } from '../editor/ConfigFileEditor';
 import type { FileView, Session, WizardState } from '../session';
 import { ReviewPane } from '../steps/ReviewStep';
-import { filenameFor, summarise } from '../steps/review-model';
+import { filenameFor, monthlySuffix, splitMonthly, summarise } from '../steps/review-model';
 import { CodeWindow, LINE_HEIGHT } from './CodeWindow';
 import { FileIcon } from './FileIcon';
 import {
@@ -29,6 +29,7 @@ import {
   type RevealPlan,
   type ResourceStory
 } from './resource-story';
+import { EvidenceLine } from './EvidenceLine';
 import { scanActivity } from './scan-activity';
 import './workspace.css';
 
@@ -329,7 +330,7 @@ export function Workspace({
       const top = Math.max(editorTop, bodyTop) + 12;
       // A block that fits starts where all of it shows; a longer one a few lines down, the rest typed below the fold.
       const room = Math.max(top + 3 * LINE_HEIGHT, editorTop + height - blockLines * LINE_HEIGHT - 16);
-      const y = Math.max(
+      const wanted = Math.max(
         top,
         Math.min(
           editorTop + height * 0.3,
@@ -338,6 +339,11 @@ export function Workspace({
           lineNode === null ? Number.POSITIVE_INFINITY : bodyTop + lineNode.offsetTop
         )
       );
+      // Both panes then run on one 20 px line grid through `y`. It is set so a line starts just under their top edge:
+      // the line above it shows no letters, rather than half of them pressed against the header.
+      const grid = Math.max(editorTop, bodyTop) + 4;
+      const snapped = grid + Math.round((wanted - grid) / LINE_HEIGHT) * LINE_HEIGHT;
+      const y = snapped < top ? snapped + LINE_HEIGHT : snapped;
       const fromEditor = editor.getScrollTop();
       const toEditor = Math.max(0, blockAt - (y - editorTop));
       const fromCode = body?.scrollTop ?? 0;
@@ -431,7 +437,8 @@ export function Workspace({
           (line) => editorHandle.markWriting(firstLine, Math.max(firstLine, line)),
           async (line) => {
             editorHandle.markWriting(line, line);
-            await align(entry.story.evidence === undefined ? undefined : citedLine, line, lineCount(block));
+            const cites = entry.story.evidence !== undefined && entry.story.designChoice === undefined;
+            await align(cites ? citedLine : undefined, line, lineCount(block));
           }
         );
         if (run.cancelled) return;
@@ -500,17 +507,13 @@ export function Workspace({
     (name: string) => setSelected((current) => (current === name || resources[name] === undefined ? undefined : name)),
     [resources]
   );
-  const showWhy = useCallback(
-    (name: string) => {
-      const evidence = stories[name]?.evidence;
-      if (evidence === undefined) return;
-      load(evidence.file);
-      setSelected(name);
-      setPeek(name);
-      if (stackedRef.current) setStackedView('file');
-    },
-    [stories, load]
-  );
+  /** Bumped to bring the picked block into view again, after the user scrolled away from it. */
+  const [revealCount, setRevealCount] = useState(0);
+  const showInFile = useCallback((name: string) => {
+    setSelected(name);
+    setRevealCount((count) => count + 1);
+    if (stackedRef.current) setStackedView('file');
+  }, []);
   const lenses = useMemo((): EditorLens[] => {
     if (phase !== 'review') return [];
     const all: EditorLens[] = [];
@@ -519,7 +522,7 @@ export function Workspace({
       if (story === undefined) continue;
       const head = `${story.plainName}${story.priceLabel === undefined ? '' : ` · ${story.priceLabel}`}`;
       all.push({ line: lines.from, title: head, onClick: () => select(name) });
-      const evidence = story.evidence;
+      const evidence = story.designChoice === undefined ? story.evidence : undefined;
       if (evidence !== undefined) {
         all.push({
           line: lines.from,
@@ -542,7 +545,9 @@ export function Workspace({
   const revealTabs = useMemo(() => {
     const evidence = (plan.current?.steps ?? [])
       .slice(0, step + 1)
-      .flatMap((entry) => (entry.story.evidence === undefined ? [] : [entry.story.evidence.file]));
+      .flatMap((entry) =>
+        entry.story.evidence === undefined || entry.story.designChoice !== undefined ? [] : [entry.story.evidence.file]
+      );
     return [...new Set([...opened, ...evidence])];
   }, [opened, step]);
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
@@ -551,22 +556,32 @@ export function Workspace({
   const scanActive = phase === 'scan' ? opened.at(-1) : undefined;
   const focusedStory = plannedStep?.story;
   const focusedCitation = focusedStory === undefined ? undefined : citations[focusedStory.name];
-  const focusedEvidence = focusedStory?.evidence;
-  const activeFile = phase === 'scan' ? scanActive : (focusedEvidence?.file ?? revealTabs.at(-1));
+  // A resource Stacktape adds for another points at no code of its own: the last highlight goes out.
+  const focusedEvidence = focusedStory?.designChoice === undefined ? focusedStory?.evidence : undefined;
+  // A finding with no code of its own stays on the file the last one cited, its highlight gone.
+  const lastCited = (plan.current?.steps ?? [])
+    .slice(0, step + 1)
+    .findLast((entry) => entry.story.evidence !== undefined && entry.story.designChoice === undefined)?.story.evidence;
+  const activeFile = phase === 'scan' ? scanActive : (focusedEvidence?.file ?? lastCited?.file ?? revealTabs.at(-1));
   const chips = phase === 'scan' ? [] : allChips(plan.current).slice(0, chipCount(plan.current, step));
   const filename = filenameFor(isEdited ? 'yaml' : format, state.existingConfig !== undefined);
   const parseError = draft === undefined ? edit?.error : undefined;
   const [problems, setProblems] = useState<EditorProblems>({ count: 0 });
   const showTypeScript = phase === 'review' && format === 'typescript' && !isEdited;
+  // A block's price counts up while it is typed, so the count has settled by the time it is written; the last one
+  // brings the estimate's own total, the number Review's bar shows.
+  const wholePrice = state.composition?.price?.monthly;
   const price = useMemo(() => {
     const steps = plan.current?.steps ?? [];
-    const sofar = steps.slice(0, written).map((entry) => stories[entry.story.name] ?? entry.story);
-    return runningPrice(sofar);
-  }, [written, stories]);
+    const told = Math.max(written, step + 1);
+    const sofar = steps.slice(0, told).map((entry) => stories[entry.story.name] ?? entry.story);
+    return runningPrice(sofar, told >= steps.length && steps.length > 0 ? wholePrice : undefined);
+  }, [written, step, stories, wholePrice]);
   const filesRead = new Set(opened).size;
   const receipt = !usesAgent
     ? 'Read without AI'
     : `Read by ${agent.label}${filesRead > 0 ? ` · ${filesRead} ${filesRead === 1 ? 'file' : 'files'}` : ''}`;
+  const barNote = parseError !== undefined ? 'Fix the YAML to continue.' : `Saves ${filename}`;
   const showFile = !stacked || phase !== 'review' || stackedView === 'file';
   const showLeft = !stacked || phase !== 'review' || stackedView === 'architecture';
 
@@ -576,10 +591,7 @@ export function Workspace({
       title={`${agent.label} is starting`}
     />
   ) : (
-    <EmptyCode
-      line="Manifests, Dockerfiles and config files. Nothing leaves this machine."
-      title="Stacktape is reading project manifests"
-    />
+    <ManifestScan />
   );
 
   return (
@@ -614,7 +626,6 @@ export function Workspace({
               {focusedStory !== undefined && (
                 <Finding
                   citation={focusedCitation}
-                  isWritten={written > step}
                   key={focusedStory.name}
                   story={stories[focusedStory.name] ?? focusedStory}
                 />
@@ -664,9 +675,11 @@ export function Workspace({
                   emptyState={emptyState}
                   files={files}
                   focus={
-                    phase === 'reveal' && focusedEvidence !== undefined
-                      ? { lines: focusedCitation?.lines ?? [focusedEvidence.line] }
-                      : undefined
+                    phase !== 'reveal' || focusedStory === undefined
+                      ? undefined
+                      : {
+                          lines: focusedEvidence === undefined ? [] : (focusedCitation?.lines ?? [focusedEvidence.line])
+                        }
                   }
                   isBare={phase === 'scan' && !usesAgent}
                   isScanning={phase === 'scan'}
@@ -688,7 +701,7 @@ export function Workspace({
               onPreference={onPreference}
               onRegion={onRegion}
               onSelect={select}
-              onShowWhy={showWhy}
+              onShowInFile={showInFile}
               progress={nodeProgress}
               resources={resources}
               selected={selected}
@@ -784,7 +797,11 @@ export function Workspace({
                 )
               ) : (
                 <ConfigFileEditor
-                  highlight={selected === undefined ? undefined : blockLines[selected]}
+                  highlight={
+                    selected === undefined || blockLines[selected] === undefined
+                      ? undefined
+                      : { ...blockLines[selected], reveal: revealCount }
+                  }
                   key="yaml"
                   language="yaml"
                   lenses={lenses}
@@ -844,14 +861,13 @@ export function Workspace({
             </footer>
           )}
         </section>
+        {/* A phone's bar has room for the price and the button only: what the click does is said above it. */}
+        {phase === 'review' && stacked && <p className="ws-save-note">{barNote}</p>}
       </div>
 
       {phase === 'review' && (
         <div className="ws-bar-slot" data-arrived={arrived ? 'true' : undefined}>
-          <ActionBar
-            note={parseError !== undefined ? 'Fix the YAML to continue.' : `Saves ${filename}`}
-            price={<MonthlyPrice state={state} />}
-          >
+          <ActionBar note={barNote} price={<ReviewPrice state={state} />}>
             <Button
               disabled={isLocked || parseError !== undefined || busy !== undefined}
               isLoading={busy === 'write'}
@@ -864,6 +880,30 @@ export function Workspace({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * The bar's price on Review: "$31 /month estimated AWS cost + usage", what the reveal ended on, with what the estimate
+ * covers behind the help mark.
+ */
+function ReviewPrice({ state }: { state: WizardState }) {
+  const price = state.composition?.price;
+  if (price === undefined) {
+    return <BarPrice amount={undefined} pending={state.composition?.priceUnavailable !== true} />;
+  }
+  const { amount, usage } = splitMonthly(price.monthly);
+  return (
+    <BarPrice
+      amount={amount ?? price.monthly}
+      help={
+        <>
+          AWS list prices in {price.region}, for what runs all month.
+          {usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
+        </>
+      }
+      suffix={amount === undefined ? undefined : monthlySuffix(usage)}
+    />
   );
 }
 
@@ -919,36 +959,17 @@ function ScanStatus({
  * The finding the reveal is on, across both panes: the line of code on the left, what it became on the right, with
  * its price once the block is written. A resource Stacktape adds for another says so instead of quoting code.
  */
-function Finding({
-  story,
-  citation,
-  isWritten
-}: {
-  story: ResourceStory;
-  citation: Citation | undefined;
-  isWritten: boolean;
-}) {
-  const evidence = story.evidence;
-  const where = evidence === undefined ? undefined : `${evidence.file}:${lineRange(citation, evidence)}`;
+function Finding({ story, citation }: { story: ResourceStory; citation: Citation | undefined }) {
   return (
     <div className="ws-finding" data-design-choice={story.designChoice === undefined ? undefined : 'true'}>
       <p className="ws-finding-from">
-        {story.designChoice !== undefined || evidence === undefined ? (
-          <span className="ws-finding-choice">{story.designChoice ?? 'Added to the file'}</span>
-        ) : (
-          <>
-            {(citation?.text ?? [quoteLabel(evidence.quote)]).map((text) => (
-              <code key={text}>{text}</code>
-            ))}
-            <span className="ws-finding-where">{where}</span>
-          </>
-        )}
+        <EvidenceLine citation={citation} story={story} />
         <span aria-hidden className="ws-finding-leader" />
       </p>
       <p className="ws-finding-to">
         <ResourceIcon resourceType={story.type} size={16} />
         <strong>{story.plainName}</strong>
-        {isWritten && story.priceLabel !== undefined && <span className="ws-finding-price">{story.priceLabel}</span>}
+        {story.priceLabel !== undefined && <span className="ws-finding-price">{story.priceLabel}</span>}
       </p>
     </div>
   );
@@ -982,15 +1003,12 @@ function PhoneFinding({
       <p className="ws-phone-finding-head">
         <ResourceIcon resourceType={story.type} size={16} />
         <strong>{story.plainName}</strong>
-        {evidence !== undefined && story.designChoice === undefined && (
-          <span>
-            {evidence.file}:{lineRange(citation, evidence)}
-          </span>
-        )}
+        {story.priceLabel !== undefined && <span className="ws-phone-finding-price">{story.priceLabel}</span>}
       </p>
-      {story.designChoice !== undefined || evidence === undefined ? (
-        <p className="ws-phone-finding-choice">{story.designChoice ?? 'Added to the file'}</p>
-      ) : (
+      <p className="ws-phone-finding-why">
+        <EvidenceLine citation={citation} story={story} />
+      </p>
+      {story.designChoice === undefined && evidence !== undefined && (
         <div className="ws-excerpt">
           {lines === undefined ? (
             <div className="ws-excerpt-row" data-focus="true">
@@ -1012,8 +1030,9 @@ function PhoneFinding({
           )}
         </div>
       )}
-      <p aria-hidden className="ws-phone-finding-arrow">
-        ↓ stacktape.yml
+      <p className="ws-phone-finding-arrow">
+        <span aria-hidden>↓</span> stacktape.yml
+        <span className="ws-tag">Preview</span>
       </p>
       <div className="ws-excerpt" data-kind="yaml">
         {(yaml.length === 0 || yaml[0] === '' ? ['  '] : yaml).map((text, index) => (
@@ -1051,6 +1070,48 @@ function Waiting({ lines }: { lines: number }) {
           style={{ marginLeft: `${indent}ch`, width: `${width}ch`, animationDelay: `${index * 90}ms` }}
         />
       ))}
+    </div>
+  );
+}
+
+/** What Stacktape's own scanner reads, by kind: the files its probes look for (`packages/config-inference/src/scan`). */
+const MANIFEST_KINDS: ReadonlyArray<{ label: string; icon: string; files: readonly string[] }> = [
+  {
+    label: 'Package manifests',
+    icon: 'package.json',
+    files: ['package.json', 'requirements.txt', 'pyproject.toml', 'go.mod', 'Gemfile', 'Cargo.toml']
+  },
+  { label: 'Containers', icon: 'Dockerfile', files: ['Dockerfile', 'compose.yml'] },
+  {
+    label: 'Other deploy setups',
+    icon: 'fly.toml',
+    files: ['fly.toml', 'render.yaml', 'vercel.json', 'serverless.yml', 'Terraform']
+  },
+  { label: 'Environment files', icon: '.env', files: ['.env.example', '.env'] }
+];
+
+/**
+ * The scan without an agent reads no file at a time, so the window says what it reads instead: from the top, like the
+ * files an agent opens, with the kinds of files it checks under it.
+ */
+function ManifestScan() {
+  return (
+    <div className="ws-manifests">
+      <p className="ws-manifests-title">
+        <span aria-hidden className="ws-pulse" />
+        Stacktape is reading project manifests
+      </p>
+      <p className="ws-manifests-line">Nothing leaves this machine.</p>
+      <p className="ws-files-title">It checks</p>
+      <ul className="ws-manifests-list">
+        {MANIFEST_KINDS.map((kind, index) => (
+          <li key={kind.label} style={{ animationDelay: `${index * 420}ms` }}>
+            <FileIcon path={kind.icon} />
+            <strong>{kind.label}</strong>
+            <span>{kind.files.join(' · ')}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

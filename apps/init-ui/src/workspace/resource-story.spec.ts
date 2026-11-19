@@ -3,6 +3,7 @@ import type { WizardState } from '../session';
 import {
   bestEvidence,
   citationOf,
+  evidenceSays,
   locate,
   quoteLabel,
   quotedOn,
@@ -275,7 +276,7 @@ describe('checking a citation against its file', () => {
     });
     expect(
       storyOf(withBastion, 'databaseBastion', withBastion.composition!.resources.databaseBastion!).designChoice
-    ).toBe('Added so you can reach the private database');
+    ).toBe('so you can reach the private database');
   });
 });
 
@@ -289,16 +290,75 @@ describe('the price while the file is written', () => {
         { priceLabel: 'Pay per use', monthly: 0 },
         { priceLabel: '$15/mo', monthly: 15.33 }
       ],
-      '$15 /mo + usage'
+      '$15 /month estimated AWS cost + usage'
     ],
     [
       [
         { priceLabel: '$18/mo', monthly: 18.07 },
         { priceLabel: '$15/mo', monthly: 15.33 }
       ],
-      '$33 /mo'
+      '$33 /month estimated AWS cost'
     ]
   ])('says %j as %p', (written, text) => {
     expect(runningPrice(written).text).toBe(text);
+  });
+
+  it("ends on the estimate's own total, as Review's bar says it, not on a sum of rounded parts", () => {
+    const parts = [
+      { priceLabel: '$31/mo', monthly: 30.66 },
+      { priceLabel: '$18/mo', monthly: 18.07 },
+      { priceLabel: '$3.80/mo', monthly: 3.8 }
+    ];
+    expect(runningPrice(parts, '$52.53/mo + pay-per-use costs')).toEqual({
+      text: '$52.53 /month estimated AWS cost + usage',
+      amount: 52.53
+    });
+    expect(runningPrice(parts, '$31/mo')).toEqual({ text: '$31 /month estimated AWS cost', amount: 31 });
+    // A total that is not an amount leaves the running sum.
+    expect(runningPrice(parts, 'pay-per-use costs').text).toBe('$53 /month estimated AWS cost');
+  });
+});
+
+const data = (technology: string, type = 'relational-database') => ({ type, technology, hint: 'postgres' });
+const app = (technology: string, hint: string) => ({ type: 'web-service', technology, hint });
+
+describe('what the evidence shows, in plain words', () => {
+  it.each([
+    [data('Postgres'), { file: 'package.json', line: 29, quote: '"postgres"' }, 'Postgres driver'],
+    [data('Postgres'), { file: 'go.mod', line: 22, quote: 'pgx' }, 'Postgres driver'],
+    [data('Postgres'), { file: 'compose.yml', line: 4, quote: 'image: postgres:18' }, 'Postgres container'],
+    [data('Postgres'), { file: 'deploy/docker-compose.yml', line: 52, quote: 'image: postgres' }, 'Postgres container'],
+    [data('Postgres'), { file: '.env.example', line: 3, quote: 'POSTGRES_URL=' }, '`POSTGRES_URL` setting'],
+    [
+      { type: 'efs-filesystem', technology: 'SQLite', hint: 'sqlite' },
+      { file: 'prisma/schema.prisma', line: 6, quote: 'provider        =' },
+      'SQLite datasource'
+    ],
+    [
+      { type: 'redis-cluster', technology: 'Redis', hint: 'redis' },
+      { file: 'package.json', line: 9, quote: '"ioredis"' },
+      'Redis client'
+    ],
+    [
+      { type: 'bucket', hint: 'object-storage' },
+      { file: '.env.example', line: 29, quote: 'BUCKET_NAME=' },
+      '`BUCKET_NAME` setting'
+    ],
+    [app('Next.js', 'next'), { file: 'package.json', line: 27, quote: '"next"' }, 'Next.js dependency'],
+    [app('Fiber', 'fiber'), { file: 'go.mod', line: 20, quote: 'fiber' }, 'Fiber dependency'],
+    [app('React', 'react'), { file: 'frontend/package.json', line: 7, quote: '"vite"' }, '`vite` dependency'],
+    [app('FastAPI', 'fastapi'), { file: 'backend/app/main.py', line: 17, quote: 'app = FastAPI(' }, 'FastAPI app'],
+    // Nothing a person would name: the page quotes the line.
+    [app('FastAPI', 'fastapi'), { file: 'backend/Dockerfile', line: 1, quote: 'FROM python:3.14' }, undefined],
+    [app('Go', 'go'), { file: 'cmd/app/main.go', line: 18, quote: 'app.Run(cfg)' }, undefined],
+    [{ type: 'web-service' }, { file: 'package.json', line: 27, quote: '"next"' }, undefined]
+  ])('%j citing %j says %p', (story, evidence, says) => {
+    expect(evidenceSays(story, evidence)).toBe(says);
+  });
+
+  it('knows what the resources of a recorded app are built from', () => {
+    const shop = state();
+    expect(storyOf(shop, 'app', shop.composition!.resources.app!).technology).toBe('Next.js');
+    expect(storyOf(shop, 'mainDatabase', shop.composition!.resources.mainDatabase!).technology).toBe('Postgres');
   });
 });
