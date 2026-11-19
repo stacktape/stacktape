@@ -43,7 +43,9 @@ import {
   BADGE_HEIGHT_PX,
   BADGE_OFFSET_PX,
   NAME_MAX_CHARS,
+  NAME_TAG_CODE_FONT,
   SHAPE_HEIGHT_PX,
+  TITLE_MAX_CHARS,
   TYPE_MAX_CHARS
 } from './node-appearance.js';
 import { NodeBadges, NodeShape } from './node-shapes.js';
@@ -138,10 +140,12 @@ const truncate = (text: string, maxChars: number) =>
 const LabelScale = createContext(1);
 
 // ── Node name tag ──
-// Flat, horizontal, hanging below the shape's front tip: the resource name, then a muted line saying what it is.
+// Flat, horizontal, hanging below the shape's front tip: the resource name, then a muted line saying what it is. With a
+// host's plain name (`title`), that name leads and the muted line is the resource's name in the config, in code type.
 const NodeNameTag = ({ node }: { node: IsoNode }) => {
   const tip = frontTip(node.tile.x, node.tile.y);
   const scale = useContext(LabelScale);
+  const second = node.title === undefined ? node.typeLabel : node.label;
 
   return (
     <text
@@ -155,18 +159,19 @@ const NodeNameTag = ({ node }: { node: IsoNode }) => {
       fontFamily={FONT}
     >
       <tspan x={tip.x} fill="rgba(255,255,255,0.92)" fontSize={12 * scale} fontWeight={600}>
-        {truncate(node.label, NAME_MAX_CHARS)}
+        {node.title === undefined ? truncate(node.label, NAME_MAX_CHARS) : truncate(node.title, TITLE_MAX_CHARS)}
       </tspan>
-      {node.typeLabel && (
+      {second && (
         <tspan
           x={tip.x}
           dy={14 * scale}
-          fill="#8E9AAB"
+          fill={node.title === undefined ? '#8E9AAB' : '#A3AEBD'}
           fontSize={10 * scale}
           fontWeight={500}
-          data-iso-kind="type-label"
+          {...(node.title === undefined ? {} : { fontFamily: NAME_TAG_CODE_FONT })}
+          data-iso-kind={node.title === undefined ? 'type-label' : 'config-name'}
         >
-          {truncate(node.typeLabel, TYPE_MAX_CHARS)}
+          {truncate(second, TYPE_MAX_CHARS)}
         </tspan>
       )}
     </text>
@@ -1430,7 +1435,7 @@ export function IsoRenderer({
                 data-iso-id={n.id}
                 role="button"
                 tabIndex={0}
-                aria-label={[n.label, n.typeLabel, n.access?.text, nodeStatuses.get(n.id)?.line]
+                aria-label={[n.title, n.label, n.typeLabel, n.access?.text, nodeStatuses.get(n.id)?.line]
                   .filter(Boolean)
                   .join(', ')}
                 opacity={

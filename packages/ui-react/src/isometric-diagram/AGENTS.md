@@ -61,9 +61,13 @@ focus dims what a node does not connect to; a click that focuses it does not.
 A host whose frame is small for what it shows (the init wizard's review) can pass `minLabelSize`: when the picture is
 fitted below that size, names, type lines and chips are set larger and the layout is run again with room for them
 (`textScale`), while the shapes keep their size. `resourceTypeLabels` replaces a declared resource's type line with the
-host's words ("SQLite data"). `volumeMounts` draws a connector to each EFS file system a resource mounts; it is off by
-default because Console's Viewer projection does not carry `volumeMounts` yet, and that projection must draw the same
-picture as the config. Hover cards stay inside the frame when they fit there.
+host's words ("SQLite data"). `resourceTitles` goes further for a reader who knows the app but not AWS (the init
+wizard): a declared resource's name tag leads with the host's plain name ("Postgres database") and shows its config name
+under it in a code font, and the layout keeps room for both. `volumeMounts` draws a connector to each EFS file system a
+resource mounts; it is off by default because Console's Viewer projection does not carry `volumeMounts` yet, and that
+projection must draw the same picture as the config. `bastionTunnels` draws a `tunnel` connector from a bastion to each
+database, Redis cluster and search domain not open to the internet, so the bastion does not stand alone; it is off by
+default so Console's picture does not change. Hover cards stay inside the frame when they fit there.
 
 `onOpenResource(resourceName)` is optional. When a host passes it, the side panel offers to open declared resources
 (never implicit ones or groups); `canOpenResource` narrows that to the ones the host can show. Console opens its

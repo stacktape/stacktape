@@ -314,6 +314,7 @@ const buildSceneNodes = ({
       accessNote: node.accessNote,
       accessFix: node.accessFix,
       typeLabel: node.typeLabel,
+      title: node.title,
       tile: placement,
       isImplicit: node.implicit,
       ...getNodeAppearance(node.resourceType, { group: isGroup }),
@@ -430,7 +431,9 @@ export const buildDiagramModel = ({
   statusLines = false,
   infrastructure = true,
   textScale = 1,
-  volumeMounts = false
+  volumeMounts = false,
+  bastionTunnels = false,
+  resourceTitles
 }: {
   parsedConfig: StacktapeConfig | null;
   /** Role groups the reader has expanded; every other group is drawn as one node. */
@@ -450,9 +453,25 @@ export const buildDiagramModel = ({
   textScale?: number | undefined;
   /** Draw connectors for EFS volume mounts (`buildDiagramTopology`). */
   volumeMounts?: boolean | undefined;
+  /** Draw a connector from each bastion to the private data stores it reaches (`buildDiagramTopology`). */
+  bastionTunnels?: boolean | undefined;
+  /** The host's plain names of declared resources, which their name tags lead with; the layout keeps room for them. */
+  resourceTitles?: Readonly<Record<string, string>> | undefined;
 }): DiagramModel | null => {
-  const base = buildDiagramTopology({ parsedConfig, volumeMounts });
-  if (!base || base.nodes.length === 0) return null;
+  const drawn = buildDiagramTopology({ parsedConfig, volumeMounts, bastionTunnels });
+  if (!drawn || drawn.nodes.length === 0) return null;
+  // Only a declared resource takes the host's name: the user, a CDN or a gateway Stacktape adds keeps its own.
+  const declared = (parsedConfig?.resources ?? {}) as Readonly<Record<string, unknown>>;
+  const base = resourceTitles
+    ? {
+        ...drawn,
+        nodes: drawn.nodes.map((node) =>
+          !node.implicit && Object.hasOwn(declared, node.id) && resourceTitles[node.id]
+            ? { ...node, title: resourceTitles[node.id] }
+            : node
+        )
+      }
+    : drawn;
 
   const grouped = groupTopology({ topology: base, expandedGroupIds: expandedGroups });
   const details = buildSceneDetails({ base, grouped });

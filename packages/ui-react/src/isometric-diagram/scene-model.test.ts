@@ -7,6 +7,9 @@ import { getDiagramFixtures, getSceneForFixture, parseFixtureConfig } from './fi
 
 const CONTAINERS = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
 
+const titlesOf = (model: NonNullable<ReturnType<typeof buildDiagramModel>>) =>
+  Object.fromEntries(model.scene.nodes.map((node) => [node.id, node.title]));
+
 describe('diagram scene model', () => {
   for (const fixture of getDiagramFixtures()) {
     test(`builds stable scene for ${fixture.id}`, () => {
@@ -156,6 +159,56 @@ describe('diagram scene model', () => {
       'web:Mounts this file system at /data: files written there outlive deploys and restarts.',
       'worker:Mounts this file system: files written there outlive deploys and restarts.'
     ]);
+  });
+
+  test('connects a bastion to the private data stores it reaches when the host asks, and only then', () => {
+    const parsedConfig = parse(`resources:
+  privateDb:
+    type: relational-database
+    properties:
+      accessibility:
+        accessibilityMode: vpc
+  publicDb:
+    type: relational-database
+    properties:
+      accessibility:
+        accessibilityMode: internet
+  cache:
+    type: redis-cluster
+  access:
+    type: bastion
+`) as any;
+    const tunnels = (bastionTunnels: boolean) =>
+      buildDiagramTopology({ parsedConfig, bastionTunnels })!
+        .edges.filter((edge) => edge.from === 'access')
+        .map((edge) => `${edge.to}:${edge.semantic}`);
+
+    expect(tunnels(false)).toEqual([]);
+    expect(tunnels(true)).toEqual(['privateDb:dependency', 'cache:dependency']);
+  });
+
+  test('leads a name tag with the host title, keeps the config name under it and room for both', () => {
+    const parsedConfig = parse(`resources:
+  mainDatabase:
+    type: relational-database
+  backend:
+    type: web-service
+    properties:
+      connectTo:
+        - mainDatabase
+`) as any;
+    const titled = buildDiagramModel({
+      parsedConfig,
+      infrastructure: false,
+      resourceTitles: { mainDatabase: 'Postgres database', user: 'Not a declared resource' }
+    })!;
+    const plain = buildDiagramModel({ parsedConfig, infrastructure: false })!;
+
+    expect(titlesOf(titled)).toEqual({ mainDatabase: 'Postgres database', backend: undefined, user: undefined });
+    expect(titlesOf(plain).mainDatabase).toBeUndefined();
+    expect(titled.layoutNodes.get('mainDatabase')!.tag!.halfWidth).toBeGreaterThan(
+      plain.layoutNodes.get('mainDatabase')!.tag!.halfWidth
+    );
   });
 
   test('keeps room for larger names when a host sets them larger', () => {
