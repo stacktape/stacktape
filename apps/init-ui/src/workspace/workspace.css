@@ -1376,6 +1376,7 @@
   .ws-diagram {
     position: relative;
     display: flex;
+    container: ws-diagram / inline-size;
     flex: 1 0 264px;
     flex-direction: column;
     overflow: hidden;
@@ -1395,7 +1396,8 @@
   .ws-selection {
     display: grid;
     flex: none;
-    grid-template-columns: minmax(0, 1fr) fit-content(42%);
+    /* The name and why first; the lines take what is left, up to about a quarter. */
+    grid-template-columns: minmax(240px, 1fr) fit-content(26%) 200px;
     align-items: center;
     gap: 16px;
     box-sizing: border-box;
@@ -1410,15 +1412,44 @@
   }
 
   .ws-selection:not([data-code]) {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 200px;
   }
 
-  .ws-selection[data-picked] {
-    grid-template-columns: minmax(0, 1fr) fit-content(34%) auto auto;
+  .ws-selection-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    min-width: 0;
   }
 
-  .ws-selection[data-picked]:not([data-code]) {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+  .ws-selection-hint {
+    color: var(--w-muted);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  /* A narrow pane beside the editor: the way to the file is its icon (named in its tooltip), so the resource's name
+   * and why keep their room. */
+  @container ws-diagram (max-width: 760px) {
+    .ws:not([data-stacked]) .ws-selection {
+      grid-template-columns: minmax(240px, 1fr) fit-content(36%) 64px;
+    }
+
+    .ws:not([data-stacked]) .ws-selection:not([data-code]) {
+      grid-template-columns: minmax(0, 1fr) 64px;
+    }
+
+    .ws:not([data-stacked]) .ws-selection-show {
+      width: 30px;
+      padding: 0;
+      justify-content: center;
+    }
+
+    .ws:not([data-stacked]) .ws-selection-show-label,
+    .ws:not([data-stacked]) .ws-selection-hint {
+      display: none;
+    }
   }
 
   .ws-selection-empty {
@@ -1549,7 +1580,7 @@
 
   .ws-selection-clear {
     display: grid;
-    margin-left: -12px;
+    flex: none;
     width: 30px;
     height: 30px;
     padding: 0;
@@ -1908,9 +1939,7 @@
     /* In the page's flow under the picture, as tall as what it says: the resource and a way to clear it, its lines,
      * then the way to its block. */
     .ws-selection,
-    .ws-selection[data-picked],
-    .ws-selection:not([data-code]),
-    .ws-selection[data-picked]:not([data-code]) {
+    .ws-selection:not([data-code]) {
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 10px 8px;
       height: auto;
@@ -1921,6 +1950,10 @@
     .ws-selection-main {
       grid-column: 1;
       grid-row: 1;
+    }
+
+    .ws-selection-actions {
+      display: contents;
     }
 
     .ws-selection-clear {

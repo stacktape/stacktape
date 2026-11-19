@@ -16,7 +16,7 @@ import { InfoTip } from '../components/InfoTip';
 import { RegionPicker } from '../components/RegionPicker';
 import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
-import { quoteLabel, type Citation, type ResourceStory } from '../workspace/resource-story';
+import { evidenceSays, lineRange, quoteLabel, type Citation, type ResourceStory } from '../workspace/resource-story';
 import { EvidenceLine } from '../workspace/EvidenceLine';
 import { deploymentPreferenceKeysFor, NOT_CREATED_KINDS, plainList } from './review-model';
 
@@ -264,6 +264,15 @@ export function ReviewPane({
   );
 }
 
+/** The why line as plain text, for its tooltip when a narrow row cuts it short. */
+const whyText = (story: ResourceStory, citation: Citation | undefined): string | undefined => {
+  if (story.designChoice !== undefined) return `Added by Stacktape ${story.designChoice}`;
+  const evidence = story.evidence;
+  if (evidence === undefined) return story.reason;
+  const says = evidenceSays(story, evidence)?.replaceAll('`', '') ?? quoteLabel(evidence.quote);
+  return `${says} in ${evidence.file}:${lineRange(citation, evidence)}`;
+};
+
 /**
  * The row under the picture: what to do while nothing is picked; then the resource the pointer is on, or the one
  * picked: its plain name and price, what in the code called for it with those lines, and the way to its block in
@@ -315,7 +324,7 @@ function SelectionRow({
           <strong>{story.plainName}</strong>
           {story.priceLabel !== undefined && <span className="ws-selection-price">{story.priceLabel}</span>}
         </p>
-        <p className="ws-selection-why">
+        <p className="ws-selection-why" title={whyText(story, citation)}>
           <EvidenceLine citation={citation} story={story} />
         </p>
       </div>
@@ -329,17 +338,27 @@ function SelectionRow({
           ))}
         </div>
       )}
-      {isPicked && (
-        <>
-          <button className="ws-selection-show" onClick={() => onShowInFile(story.name)} type="button">
-            <BiCodeAlt aria-hidden size={15} />
-            Show in stacktape.yml
-          </button>
-          <button aria-label="Clear the selection" className="ws-selection-clear" onClick={onClear} type="button">
-            <BiX aria-hidden size={18} />
-          </button>
-        </>
-      )}
+      {/* One slot for both states, so the lines beside it never move when a resource is picked. */}
+      <div className="ws-selection-actions">
+        {isPicked ? (
+          <>
+            <button
+              className="ws-selection-show"
+              onClick={() => onShowInFile(story.name)}
+              title="Show in stacktape.yml"
+              type="button"
+            >
+              <BiCodeAlt aria-hidden size={15} />
+              <span className="ws-selection-show-label">Show in stacktape.yml</span>
+            </button>
+            <button aria-label="Clear the selection" className="ws-selection-clear" onClick={onClear} type="button">
+              <BiX aria-hidden size={18} />
+            </button>
+          </>
+        ) : (
+          !isTouch && <span className="ws-selection-hint">Click to show it in stacktape.yml</span>
+        )}
+      </div>
     </div>
   );
 }
