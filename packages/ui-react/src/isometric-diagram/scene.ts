@@ -82,6 +82,11 @@ export type IsoNode = {
   typeName?: string | undefined;
   /** Short muted line under the name, e.g. "Aurora Postgres · 2 instances" or "Worker service · 2–6 tasks". */
   typeLabel?: string | undefined;
+  /**
+   * The host's plain name for it ("Postgres database", `resourceTitles`). The name tag then leads with it and shows
+   * `label`, the name in the config, under it in the code font, instead of the type line.
+   */
+  title?: string | undefined;
   /** One-sentence lead for the tooltip. */
   summary?: string | undefined;
   /** Up to three short sentences more, shown one per line. */

@@ -77,6 +77,20 @@ export type IsometricDiagramProps = DiagramViewProps & {
    */
   resourceTypeLabels?: Readonly<Record<string, string>> | undefined;
   /**
+   * The host's plain name for a declared resource, by its name: "Postgres database", "Next.js site". Its name tag then
+   * leads with that name and shows the resource's name in the config (`mainDatabase`) under it in a code font, in
+   * place of the type line, for a reader who knows the app but not the AWS words. Resources it does not name keep the
+   * diagram's two lines; the layout keeps room for the longer names. Pass a stable object: a new one lays the picture
+   * out again.
+   */
+  resourceTitles?: Readonly<Record<string, string>> | undefined;
+  /**
+   * Draws a connector from each bastion to the databases, Redis clusters and search domains it is there to reach (the
+   * ones not open to the internet), so it does not stand alone in the picture. Off by default, so Console's picture
+   * stays as it is.
+   */
+  bastionTunnels?: boolean | undefined;
+  /**
    * Draws a connector from a resource to each EFS file system it mounts. Off by default: Console's Viewer projection
    * does not carry `volumeMounts` yet, and a Viewer's picture must match everyone else's.
    */
@@ -211,6 +225,8 @@ export function IsometricDiagram({
   focusDimming,
   framePadding,
   resourceTypeLabels,
+  resourceTitles,
+  bastionTunnels = false,
   volumeMounts = false,
   layers,
   defaultLayers,
@@ -273,10 +289,12 @@ export function IsometricDiagram({
             statusLines,
             infrastructure: true,
             textScale: scale,
-            volumeMounts
+            volumeMounts,
+            bastionTunnels,
+            resourceTitles
           })
         : null,
-    [config, expandedGroups, statusLines, offersInfrastructure, scale, volumeMounts]
+    [config, expandedGroups, statusLines, offersInfrastructure, scale, volumeMounts, bastionTunnels, resourceTitles]
   );
   const security = useMemo(() => {
     const input = readDiagramDeployment(deployment);
@@ -297,10 +315,12 @@ export function IsometricDiagram({
             statusLines,
             infrastructure: false,
             textScale: scale,
-            volumeMounts
+            volumeMounts,
+            bastionTunnels,
+            resourceTitles
           })
         : null,
-    [config, expandedGroups, statusLines, needsApplicationModel, scale, volumeMounts]
+    [config, expandedGroups, statusLines, needsApplicationModel, scale, volumeMounts, bastionTunnels, resourceTitles]
   );
   const model = needsApplicationModel ? applicationModel : fullModel;
   const showAccess = wantsAccess && canShowAccess;

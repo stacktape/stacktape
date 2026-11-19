@@ -234,6 +234,41 @@ export const plainResourceName = (
     : `${name} (${framework})`;
 };
 
+const SITE_FRAMEWORKS: Readonly<Record<string, string>> = {
+  'nextjs-web': 'Next.js',
+  'nuxt-web': 'Nuxt',
+  'sveltekit-web': 'SvelteKit',
+  'astro-web': 'Astro',
+  'remix-web': 'Remix',
+  'solid-start-web': 'SolidStart'
+};
+
+/**
+ * A resource's short name in the workspace, on its diagram node and beside its block: what it is to a developer, from
+ * what runs in it. "Postgres database", "Next.js site", "React site", "FastAPI service", "Database access server".
+ */
+export const resourceTitle = (
+  resource: { type: string; properties: Record<string, unknown> },
+  technology?: string
+): string => {
+  const site = SITE_FRAMEWORKS[resource.type];
+  if (site !== undefined) return `${site} site`;
+  switch (resource.type) {
+    case 'hosting-bucket':
+      return technology === undefined ? 'Static site' : `${technology} site`;
+    case 'web-service':
+      return technology === undefined ? 'Web service' : `${technology} service`;
+    case 'private-service':
+      return technology === undefined ? 'Private service' : `Private ${technology} service`;
+    case 'worker-service':
+      return technology === undefined ? 'Background worker' : `${technology} worker`;
+    case 'function':
+      return technology === undefined ? 'Function' : `${technology} function`;
+    default:
+      return plainResourceName(resource, technology);
+  }
+};
+
 /** What each resource's alarms watch, in the words the file gives them. */
 export const alarmsOf = (resource: { properties: Record<string, unknown> }): string[] => {
   const alarms = resource.properties.alarms;

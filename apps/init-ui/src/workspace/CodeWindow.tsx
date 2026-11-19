@@ -1,13 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-  type RefObject
-} from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { BiCheck, BiChevronDown } from 'react-icons/bi';
 import type { FileView } from '../session';
 import { FileIcon } from './FileIcon';
@@ -16,8 +7,6 @@ import { tokenizeFile } from './syntax';
 /** Matches `.ws-line` and `.ws-code` padding in `workspace.css`. */
 export const LINE_HEIGHT = 20;
 const PADDING_TOP = 16;
-/** A file this much shorter than the window leaves room for the list of files read under it. */
-const ROOM_FOR_TRAIL = 150;
 
 const NOT_SHOWN: Readonly<Record<Extract<FileView, { status: 'not-shown' }>['reason'], string>> = {
   'not-seen': 'not shown',
@@ -32,12 +21,13 @@ const NOT_SHOWN: Readonly<Record<Extract<FileView, { status: 'not-shown' }>['rea
  * An editor-like window onto the files the analysis read: a tab per file, line numbers, the file's real text.
  *
  * While the analysis reads, a scanner line sweeps down the active file at reading pace, lines above it a touch
- * brighter than lines below, and idles at the end until the next file opens. A file shorter than the window sits at
- * the top, and the files read so far are listed under it. During the reveal the window instead points at the lines
- * that called for a resource: the rest steps back and those lines light up. The host scrolls them into place (through
- * `bodyRef`), level with the block being written beside them.
+ * brighter than lines below, and idles at the end until the next file opens. The header says whether the file shown is
+ * the one being read ("Reading") or an earlier one ("Viewing"), and ends, on every size, with the host's `meta`
+ * (read-only, the time so far) and the files read so far, a list that opens under the header. During the reveal the
+ * window instead points at the lines that called for a resource: the rest steps back and those lines light up. The
+ * host scrolls them into place (through `bodyRef`), level with the block being written beside them.
  *
- * `compact` is the phone's window: no tab row, the path and a "Files read" list that opens under it.
+ * `compact` is the phone's window: no tab row; the meta and the files read take its place above the path.
  */
 export function CodeWindow({
   tabs,
@@ -49,11 +39,17 @@ export function CodeWindow({
   reducedMotion,
   compact = false,
   isBare = false,
+  live,
+  meta,
   bodyRef: hostBodyRef
 }: {
   /** Paths in the order they were opened. */
   tabs: readonly string[];
   active: string | undefined;
+  /** The file the analysis is reading right now, if it is reading one: the only file the header calls "Reading". */
+  live?: string | undefined;
+  /** What the header ends with while the analysis reads: "Read-only · 0:06". */
+  meta?: ReactNode;
   files: ReadonlyMap<string, FileView>;
   /** The scanner is sweeping (the analysis is reading). */
   isScanning: boolean;
@@ -80,16 +76,7 @@ export function CodeWindow({
   const beamRef = useRef<HTMLDivElement>(null);
   const dimRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
-  const [bodyHeight, setBodyHeight] = useState(0);
   const [listOpen, setListOpen] = useState(false);
-
-  useEffect(() => {
-    const body = bodyRef.current;
-    if (body === null) return;
-    const observer = new ResizeObserver(() => setBodyHeight(body.clientHeight));
-    observer.observe(body);
-    return () => observer.disconnect();
-  }, [bodyRef]);
 
   /** Marks which ends of the tab row have tabs scrolled past them, so only those ends fade. */
   const markTabEdges = () => {
@@ -162,8 +149,33 @@ export function CodeWindow({
   const digits = String(lines?.length ?? 1).length;
   const lit = new Set(shown === active ? (focus?.lines ?? []) : []);
   const codeHeight = PADDING_TOP * 2 + (lines?.length ?? 0) * LINE_HEIGHT;
-  const showTrail =
-    isScanning && lines !== undefined && tabs.length > 1 && bodyHeight - codeHeight >= ROOM_FOR_TRAIL && !compact;
+  // Only the file being read right now is "Reading"; the window can still show an earlier one (the next is loading,
+  // or the agent is searching rather than reading).
+  const reading = isScanning && shown !== undefined ? (shown === live ? 'reading' : 'viewing') : undefined;
+  const filesToggle =
+    isScanning && tabs.length > 0 ? (
+      <button
+        aria-expanded={listOpen}
+        className="ws-window-list-toggle"
+        onClick={() => setListOpen((open) => !open)}
+        type="button"
+      >
+        {tabs.length} {tabs.length === 1 ? 'file' : 'files'} read
+        <BiChevronDown aria-hidden size={16} />
+      </button>
+    ) : undefined;
+  const headerEnd =
+    meta === undefined && filesToggle === undefined ? undefined : (
+      <span className="ws-window-meta">
+        {meta}
+        {meta !== undefined && filesToggle !== undefined && (
+          <span aria-hidden className="ws-window-meta-sep">
+            ·
+          </span>
+        )}
+        {filesToggle}
+      </span>
+    );
 
   return (
     <div
@@ -188,11 +200,18 @@ export function CodeWindow({
           ))}
         </div>
       )}
+      {compact && headerEnd !== undefined && <div className="ws-window-bar">{headerEnd}</div>}
       <div className="ws-window-path">
+        {reading !== undefined && (
+          <span className="ws-window-state" data-state={reading}>
+            {reading === 'reading' && <span aria-hidden className="ws-pulse" />}
+            {reading === 'reading' ? 'Reading' : 'Viewing'}
+          </span>
+        )}
         {shown === undefined ? (
           <span className="ws-window-path-empty">{compact ? 'No file open yet' : ''}</span>
         ) : (
-          <span className="ws-window-path-segments">
+          <span className="ws-window-path-segments" title={shown}>
             {compact && <FileIcon path={shown} />}
             {shown.split('/').map((segment, index, all) => (
               // oxlint-disable-next-line react/no-array-index-key -- segments of one path; position is identity.
@@ -204,21 +223,9 @@ export function CodeWindow({
           </span>
         )}
         {view?.status === 'shown' && view.masked && <span className="ws-window-path-note">values hidden</span>}
-        {compact && tabs.length > 0 && (
-          <button
-            aria-expanded={listOpen}
-            className="ws-window-list-toggle"
-            onClick={() => setListOpen((open) => !open)}
-            type="button"
-          >
-            Files read · {tabs.length}
-            <BiChevronDown aria-hidden size={16} />
-          </button>
-        )}
+        {!compact && headerEnd}
       </div>
-      {compact && listOpen && (
-        <FilesRead active={active} className="ws-window-list" isReading={isScanning} tabs={tabs} />
-      )}
+      {listOpen && filesToggle !== undefined && <FilesRead className="ws-window-list" live={live} tabs={tabs} />}
       <div aria-hidden className="ws-window-fade" />
       <div
         className="ws-window-body"
@@ -268,15 +275,6 @@ export function CodeWindow({
         ) : shown === undefined ? (
           <div className="ws-window-empty">{emptyState}</div>
         ) : null}
-        {showTrail && (
-          <FilesRead
-            active={active}
-            className="ws-window-trail"
-            isReading
-            style={{ top: codeHeight + 20 }}
-            tabs={tabs}
-          />
-        )}
         <div aria-hidden className="ws-dim" ref={dimRef} />
         <div aria-hidden className="ws-beam" data-state="off" ref={beamRef} />
       </div>
@@ -284,29 +282,25 @@ export function CodeWindow({
   );
 }
 
-/** The files read so far, the one being read last: under a short file, and the phone's "Files read" list. */
+/** The files read so far, in order, the one being read marked: the list the header's "5 files read" opens. */
 function FilesRead({
   tabs,
-  active,
-  className,
-  isReading,
-  style
+  live,
+  className
 }: {
   tabs: readonly string[];
-  active: string | undefined;
+  live: string | undefined;
   className: string;
-  isReading: boolean;
-  style?: CSSProperties;
 }) {
   return (
-    <div className={className} style={style}>
+    <div className={className}>
       <p className="ws-files-title">Read so far</p>
       <ul className="ws-files">
         {tabs.map((path) => (
-          <li data-active={path === active ? 'true' : undefined} key={path}>
+          <li data-active={path === live ? 'true' : undefined} key={path}>
             <FileIcon path={path} />
             <span className="ws-files-path">{path}</span>
-            {path === active && isReading ? (
+            {path === live ? (
               <span className="ws-files-state">reading</span>
             ) : (
               <BiCheck aria-label="read" className="ws-files-done" size={14} />

@@ -22,6 +22,33 @@ export type ConfigEditorHandle = {
   markWritten: () => void;
   /** The file is written: every mark fades out. */
   clearMarks: () => void;
+  /**
+   * Shows the schema docs, the same card a hover shows, for the key on the cursor's line, or on `fallbackLine` while
+   * the cursor has not been placed. Without a pointer to hover with, this is how docs are read.
+   */
+  showDocs: (fallbackLine?: number) => void;
+};
+
+/** A YAML key on a line, `  type:` or `- name:`: where it starts and ends, 1-based columns. */
+const keyOn = (text: string): { start: number; end: number } | undefined => {
+  const match = /^(\s*(?:-\s+)?)([^\s:#'"][^:#]*?):(\s|$)/.exec(text);
+  return match === null ? undefined : { start: match[1]!.length + 1, end: match[1]!.length + match[2]!.length + 1 };
+};
+
+/** Opens the hover card for the key on `line`, with the cursor on the key so the card is anchored to it. */
+const openDocs = (editor: MonacoEditorTypes.IStandaloneCodeEditor, line: number, column?: number) => {
+  const model = editor.getModel();
+  if (model === null || line < 1 || line > model.getLineCount()) return;
+  const key = keyOn(model.getLineContent(line));
+  const at =
+    key === undefined
+      ? (column ?? 1)
+      : column !== undefined && column >= key.start && column <= key.end
+        ? column
+        : key.start;
+  editor.setPosition({ lineNumber: line, column: at });
+  editor.revealLineInCenterIfOutsideViewport(line, monaco.editor.ScrollType.Smooth);
+  editor.trigger('stacktape.wizard.docs', 'editor.action.showHover', { focus: false });
 };
 
 let lensCommand = 0;
@@ -83,7 +110,8 @@ export default function ConfigFileEditor({
   highlight,
   peek,
   showLineNumbers = true,
-  scrollBeyondLastLine = false
+  scrollBeyondLastLine = false,
+  docsOnTap = false
 }: {
   /** The text. Undefined while the host types it in itself (the reveal), through `onReady`. */
   value: string | undefined;
@@ -106,11 +134,15 @@ export default function ConfigFileEditor({
   showLineNumbers?: boolean;
   /** Lets the last lines scroll up past the bottom, for a host that positions lines itself. */
   scrollBeyondLastLine?: boolean;
+  /** A touch screen has no hover: a tap on a key opens its docs instead. */
+  docsOnTap?: boolean;
 }) {
   const [path] = useState(() => (language === 'yaml' ? YAML_PATH : 'file:///stacktape.ts'));
   const [editor, setEditor] = useState<MonacoEditorTypes.IStandaloneCodeEditor | null>(null);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
+  const docsOnTapRef = useRef(docsOnTap);
+  docsOnTapRef.current = docsOnTap;
 
   useEffect(() => {
     if (language !== 'yaml') return;
@@ -309,8 +341,16 @@ export default function ConfigFileEditor({
         onMount={({ editor: mounted }) => {
           const instance = mounted as unknown as MonacoEditorTypes.IStandaloneCodeEditor;
           setEditor(instance);
+          let tapDocs: ReturnType<typeof setTimeout> | undefined;
           const selections = instance.onDidChangeCursorSelection((event) => {
             if (event.source !== 'modelChange') userSelection.current = event.selection;
+            // A tap that puts the cursor on a key opens its docs; a drag that selects text does not.
+            const { selection } = event;
+            if (event.source !== 'mouse' || !docsOnTapRef.current || !selection.isEmpty()) return;
+            const key = keyOn(instance.getModel()?.getLineContent(selection.startLineNumber) ?? '');
+            if (key === undefined || selection.startColumn < key.start || selection.startColumn > key.end) return;
+            clearTimeout(tapDocs);
+            tapDocs = setTimeout(() => openDocs(instance, selection.startLineNumber, selection.startColumn), 120);
           });
           // Marks follow their lines as blocks are inserted above them, and never grow into a block typed at their edge.
           const writing = instance.createDecorationsCollection();
@@ -349,10 +389,16 @@ export default function ConfigFileEditor({
                 written.clear();
                 container.classList.remove('ws-editor-marks-fading');
               }, 700);
+            },
+            showDocs: (fallbackLine) => {
+              const placed = userSelection.current;
+              if (placed !== null) openDocs(instance, placed.positionLineNumber, placed.positionColumn);
+              else openDocs(instance, fallbackLine ?? 1);
             }
           });
           return () => {
             clearTimeout(fade);
+            clearTimeout(tapDocs);
             selections.dispose();
             setEditor(null);
           };
@@ -373,7 +419,8 @@ export default function ConfigFileEditor({
           renderLineHighlight: readOnly ? 'none' : 'line',
           padding: { top: 12, bottom: 12 },
           quickSuggestions: { other: true, strings: true, comments: false },
-          hover: { delay: 250 },
+          // The docs card opens under the key, so the key and the lines above it stay in view.
+          hover: { delay: 250, above: false },
           fixedOverflowWidgets: true,
           scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
           codeLens: language === 'yaml',

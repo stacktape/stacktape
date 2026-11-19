@@ -152,19 +152,39 @@ export const getAccessTagWidthPx = (text: string) => {
 /** Name tags show at most this many characters of the name and of the muted type line. */
 export const NAME_MAX_CHARS = 20;
 export const TYPE_MAX_CHARS = 32;
+/** A host's plain name ("Database access server") may run a little longer than a resource name. */
+export const TITLE_MAX_CHARS = 26;
 
 /**
  * The name tag: the name in 12 px semibold and the muted type line in 10 px under it, as the renderer truncates them.
- * Measured in Chromium, names stay under 7.4 px per character and type lines under 5.6 px.
+ * Measured in Chromium, names stay under 7.4 px per character and type lines under 5.6 px. Under a host's title the
+ * second line is the config name in a 10 px code font, under 6.2 px per character.
  */
 const NAME_CHAR_PX = 7.4;
 const TYPE_CHAR_PX = 5.6;
+const CODE_CHAR_PX = 6.2;
 
-export const getNameTagWidthPx = ({ label, typeLabel }: { label: string; typeLabel?: string | undefined }) =>
-  Math.max(
-    Math.min(label.length, NAME_MAX_CHARS) * NAME_CHAR_PX,
-    Math.min(typeLabel?.length ?? 0, TYPE_MAX_CHARS) * TYPE_CHAR_PX
-  );
+/** The font of the config name under a host's title: the code font the host's editor shows it in. */
+export const NAME_TAG_CODE_FONT = "ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace";
+
+export const getNameTagWidthPx = ({
+  label,
+  typeLabel,
+  title
+}: {
+  label: string;
+  typeLabel?: string | undefined;
+  title?: string | undefined;
+}) =>
+  title === undefined
+    ? Math.max(
+        Math.min(label.length, NAME_MAX_CHARS) * NAME_CHAR_PX,
+        Math.min(typeLabel?.length ?? 0, TYPE_MAX_CHARS) * TYPE_CHAR_PX
+      )
+    : Math.max(
+        Math.min(title.length, TITLE_MAX_CHARS) * NAME_CHAR_PX,
+        Math.min(label.length, TYPE_MAX_CHARS) * CODE_CHAR_PX
+      );
 
 // ── Live status line ──
 // A host that shows live status gets a pill under every declared resource's name tag: a tone icon and a few words in
@@ -187,7 +207,11 @@ const STATUS_MAX_CHARS = 26;
 export const STATUS_MIN_WIDTH_PX = STATUS_MIN_CHARS * STATUS_CHAR_PX + STATUS_PILL_CHROME_PX;
 
 /** How much status text fits under a node: as wide as its name tag, and never narrower than `STATUS_MIN_WIDTH_PX`. */
-export const getStatusTextBudget = (node: { label: string; typeLabel?: string | undefined }) =>
+export const getStatusTextBudget = (node: {
+  label: string;
+  typeLabel?: string | undefined;
+  title?: string | undefined;
+}) =>
   Math.min(
     STATUS_MAX_CHARS,
     Math.floor((Math.max(getNameTagWidthPx(node), STATUS_MIN_WIDTH_PX) - STATUS_PILL_CHROME_PX) / STATUS_CHAR_PX)
