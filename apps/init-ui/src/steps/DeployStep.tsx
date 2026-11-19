@@ -167,7 +167,9 @@ export function DeployStep({
     identity === undefined || checking || state.awsKeys?.status === 'saving'
       ? 'busy'
       : !identity.available
-        ? 'todo'
+        ? identity.reason === 'rejected'
+          ? 'error'
+          : 'todo'
         : target === undefined
           ? 'busy'
           : target.status === 'blocked' || target.status === 'unverified'
@@ -553,7 +555,7 @@ function SecretRow({
         {isSet && !editing ? (
           <span className="w-secret-saved [grid-column:span_2]">
             <span className="w-saved">
-              <BiCheck aria-hidden size={16} /> Saved in your AWS account
+              <BiCheck aria-hidden size={16} /> Saved
             </span>
             <button className="w-link w-small" onClick={() => setEditing(true)} type="button">
               Replace
@@ -715,7 +717,7 @@ function AwsConnect({
         {identity.reason === 'no-credentials' ? (
           'This machine has no AWS credentials yet.'
         ) : expired ? (
-          `AWS rejected the sign-in on this machine${identity.profile === undefined ? '' : ` (profile ${identity.profile})`}. Sign in again.`
+          `The AWS session on this machine${identity.profile === undefined ? '' : ` (profile ${identity.profile})`} is no longer valid.`
         ) : explained.length > 0 ? (
           <FailureExplanationText explanations={explained} />
         ) : (
@@ -776,7 +778,7 @@ function AwsConnect({
                 Save on this machine
               </Button>
               <span className="w-quiet inline-flex items-center gap-1.5">
-                Saved to <span className="w-code">~/.aws/credentials</span>, never sent to Stacktape.
+                Never sent to Stacktape. Saved in <span className="w-code">~/.aws/credentials</span>
                 <InfoTip about="access keys">
                   Keys of an IAM user that may create resources; for a personal account, one with AdministratorAccess.
                   In the AWS console: IAM → Users → your user → Security credentials → Create access key. They are saved

@@ -69,9 +69,10 @@ export function StartStep({
         <li className="w-fact">
           <BiCloudUpload aria-hidden size={18} />
           <p className="w-fact-text">
-            Nothing is created on AWS until you click Deploy
+            Nothing is created on AWS until you click Deploy. No account needed.
             <InfoTip about="AWS and accounts">
-              No Stacktape account needed. The deploy uses the AWS credentials on this machine, in your own AWS account.
+              The deploy uses the AWS credentials on this machine and creates everything in your own AWS account. You do
+              not need a Stacktape account for it.
             </InfoTip>
           </p>
         </li>

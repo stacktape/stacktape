@@ -47,12 +47,7 @@ export function EmptyStep({
           <h2 className="w-section-title">{nearby.length > 0 ? 'These folders look like apps' : 'Look again'}</h2>
           <ul className="w-card w-next">
             {nearby.map((folder) => (
-              <Row
-                description="Run init there instead."
-                icon={<BiFolder size={17} />}
-                key={folder}
-                title={<span className="w-mono">{folder}/</span>}
-              >
+              <Row icon={<BiFolder size={17} />} key={folder} title={<span className="w-mono">{folder}/</span>}>
                 <CopyableCommand command={`cd ${folder} && stacktape init`} />
               </Row>
             ))}

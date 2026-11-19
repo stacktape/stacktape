@@ -1,6 +1,23 @@
 import { Button } from '@stacktape/ui-react/button';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { BiCheck, BiCopy } from 'react-icons/bi';
+
+/** The command as text, each argument kept whole: the code element holds the full text, a line break per line. */
+const commandParts = (command: string): ReactNode[] => {
+  const parts: ReactNode[] = [];
+  for (const [lineIndex, line] of command.split('\n').entries()) {
+    if (lineIndex > 0) parts.push(<br key={`break-${lineIndex}`} />);
+    for (const [index, argument] of line.split(' ').entries()) {
+      if (index > 0) parts.push(' ');
+      parts.push(
+        <span className="w-command-arg" key={`${lineIndex}-${index}`}>
+          {argument}
+        </span>
+      );
+    }
+  }
+  return parts;
+};
 
 /**
  * A command to paste into a terminal, with a copy button.
@@ -24,20 +41,7 @@ export function CopyableCommand({ command }: { command: string }) {
 
   return (
     <div className="w-command">
-      <code>
-        {command.split('\n').map((line, lineIndex) => (
-          // oxlint-disable-next-line react/no-array-index-key -- lines of a fixed string.
-          <span className="block" key={lineIndex}>
-            {line.split(' ').map((argument, index) => (
-              // oxlint-disable-next-line react/no-array-index-key -- arguments of a fixed string.
-              <span key={index}>
-                {index > 0 && ' '}
-                <span className="w-command-arg">{argument}</span>
-              </span>
-            ))}
-          </span>
-        ))}
-      </code>
+      <code>{commandParts(command)}</code>
       <Button
         aria-label={copied ? 'Copied' : `Copy ${command.split(' ').slice(0, 2).join(' ')}`}
         icon={copied ? <BiCheck size={14} /> : <BiCopy size={13} />}

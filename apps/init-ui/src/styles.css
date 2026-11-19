@@ -1576,7 +1576,6 @@
     padding: 14px 16px;
     border-radius: var(--w-radius-small);
     background: var(--w-error-soft);
-    box-shadow: inset 0 0 0 1px var(--w-error-line);
   }
 
   .w-problem-title {
@@ -2088,8 +2087,9 @@
     min-width: 0;
   }
 
-  .w-next-head .stp-ui-button {
+  .w-next-head > :last-child:not(:first-child) {
     flex: none;
+    white-space: nowrap;
   }
 
   .w-next-row h3,
@@ -2238,7 +2238,7 @@
 
   .w-fail-row {
     display: grid;
-    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-columns: 104px minmax(0, 1fr);
     gap: 16px;
     padding: 16px 20px;
   }

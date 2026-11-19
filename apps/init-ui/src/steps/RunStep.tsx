@@ -556,8 +556,8 @@ export const failureStory = (message: string, resources: ConfigResources): Failu
     ),
     why: (
       <>
-        On AWS the database is <span className="w-code">{database}</span>, at its own address. The app still looks for a
-        local one, usually from a default in code or a <span className="w-code">.env</span> file that is not deployed.
+        On AWS the database is <span className="w-code">{database}</span>. The app still looks for a local one, often
+        from a default in code or a <span className="w-code">.env</span> file that is not deployed.
       </>
     ),
     fix:
@@ -620,7 +620,7 @@ export function DeployFailedStep({
             ? 'What this attempt created is kept for the next one, and billed until you deploy again or remove it.'
             : wasUpdate
               ? 'AWS put the stack back to the version that was running. Your live app is unchanged.'
-              : 'AWS rolled this deploy back, so nothing it created is running. Secrets you saved stay in your account.'}
+              : 'AWS rolled it back, so nothing it created is running. Your saved secrets stay.'}
         </p>
       </header>
       <dl className="w-card w-fail">
@@ -652,6 +652,9 @@ export function DeployFailedStep({
               ) : (
                 'Read the full error, fix the cause in your code or the file, then deploy again.'
               ))}
+            <p className="w-quiet">
+              Deploy again reads your code and <span className="w-code">{target.configPath}</span> from disk.
+            </p>
             {repairs.length > 0 && (
               <p className="w-quiet">
                 {repairs.some((repair) => repair.applied)
@@ -663,15 +666,9 @@ export function DeployFailedStep({
         </div>
       </dl>
       <div className="w-actions">
-        <span className="inline-flex items-center gap-2">
-          <Button className="w-big" isLoading={busy === 'deploy'} onClick={onDeployAgain} variant="primary">
-            Deploy again
-          </Button>
-          <InfoTip about="deploying again">
-            The deploy reads your code and <span className="w-code">{target.configPath}</span> from disk, so fix them
-            first.
-          </InfoTip>
-        </span>
+        <Button className="w-big" isLoading={busy === 'deploy'} onClick={onDeployAgain} variant="primary">
+          Deploy again
+        </Button>
         <Button className="w-big" onClick={onBackToFile} variant="secondary">
           Open {target.configPath}
         </Button>
