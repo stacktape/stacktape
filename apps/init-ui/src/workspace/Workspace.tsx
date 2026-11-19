@@ -17,6 +17,7 @@ import { FileIcon } from './FileIcon';
 import {
   allChips,
   citationOf,
+  lineRange,
   quoteLabel,
   revealPlan,
   runningPrice,
@@ -282,6 +283,8 @@ export function Workspace({
     },
     [state.composition?.resources]
   );
+  const finishRevealRef = useRef(finishReveal);
+  finishRevealRef.current = finishReveal;
 
   useEffect(() => {
     if (phase !== 'reveal' || editorHandle === undefined || plan.current === undefined) return;
@@ -367,6 +370,8 @@ export function Workspace({
       onLine?: (line: number) => void,
       before?: (firstLine: number) => Promise<void>
     ) => {
+      // A skip may have finished the file while this step waited: nothing more goes into it.
+      if (run.cancelled) return;
       const text = whole.endsWith('\n') ? whole.slice(0, -1) : whole;
       if (whole.endsWith('\n')) insert(offset, '\n');
       await before?.(model.getPositionAt(offset).lineNumber);
@@ -440,22 +445,23 @@ export function Workspace({
       await type(current.trailer, model.getValueLength(), 300);
       if (run.cancelled) return;
       await sleep(500);
-      if (!run.cancelled) finishReveal(editorHandle, current.text);
+      if (!run.cancelled) finishRevealRef.current(editorHandle, current.text);
     })();
     /* oxlint-enable no-await-in-loop */
     return () => {
       run.cancelled = true;
       cancelTyping.current = undefined;
     };
-  }, [phase, editorHandle, finishReveal]);
+    // The reveal plays once: a new state while it plays (the price arriving) must not start it over.
+  }, [phase, editorHandle]);
 
   const editorHandleRef = useRef(editorHandle);
   editorHandleRef.current = editorHandle;
   const skipReveal = useCallback(() => {
     if (phaseRef.current !== 'reveal') return;
     cancelTyping.current?.();
-    finishReveal(editorHandleRef.current, plan.current?.text);
-  }, [finishReveal]);
+    finishRevealRef.current(editorHandleRef.current, plan.current?.text);
+  }, []);
   // An editor that has not loaded after a few seconds does not hold the review back.
   useEffect(() => {
     if (phase !== 'reveal' || editorHandle !== undefined) return;
@@ -618,7 +624,9 @@ export function Workspace({
           ) : (
             <>
               <h1 className="ws-title">{state.projectName} on AWS</h1>
-              <p className="ws-head-line ws-summary">{summarise(state, { external: false })}</p>
+              <p className="ws-head-line ws-summary" title={summarise(state, { external: false })}>
+                {summarise(state, { external: false })}
+              </p>
               <p className="ws-head-side ws-receipt">{receipt}</p>
             </>
           )}
@@ -708,7 +716,7 @@ export function Workspace({
               {phase === 'scan' && stacked ? (
                 <span className="ws-editor-wait">
                   <span aria-hidden className="ws-pulse" />
-                  Waiting for the first finding
+                  Waiting for findings
                 </span>
               ) : phase !== 'review' ? (
                 phase === 'reveal' && (
@@ -922,7 +930,7 @@ function Finding({
   isWritten: boolean;
 }) {
   const evidence = story.evidence;
-  const where = evidence === undefined ? undefined : `${evidence.file}:${citation?.line ?? evidence.line}`;
+  const where = evidence === undefined ? undefined : `${evidence.file}:${lineRange(citation, evidence)}`;
   return (
     <div className="ws-finding" data-design-choice={story.designChoice === undefined ? undefined : 'true'}>
       <p className="ws-finding-from">
@@ -977,7 +985,7 @@ function PhoneFinding({
         <strong>{story.plainName}</strong>
         {evidence !== undefined && story.designChoice === undefined && (
           <span>
-            {evidence.file}:{citation?.line ?? evidence.line}
+            {evidence.file}:{lineRange(citation, evidence)}
           </span>
         )}
       </p>

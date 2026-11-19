@@ -83,6 +83,12 @@ export const locate = (lines: readonly string[], evidence: Evidence, hint?: stri
   );
 };
 
+/** "29", or "10–11" for a citation lit with the line next to it. */
+export const lineRange = (citation: Citation | undefined, evidence: { line: number }): string =>
+  citation === undefined || citation.lines.length < 2
+    ? String(citation?.line ?? evidence.line)
+    : `${citation.lines[0]}–${citation.lines.at(-1)}`;
+
 /** How close another citation in the same file has to be to be lit with the main one. */
 const NEARBY_LINES = 3;
 
@@ -196,6 +202,8 @@ export const storyOf = (state: WizardState, name: string, resource: Resources[st
   const evidence = bestEvidence(state, name);
   const citations = [...(service?.evidence ?? []), ...(provenance?.evidence ?? [])];
   const hint = hintFor(state, service, provenance?.evidence ?? []);
+  // A disk added for a SQLite file is named for what it keeps.
+  const named = resource.type === 'efs-filesystem' && hint === 'sqlite' ? 'Disk for SQLite data' : plainName;
   const designChoice = provenance === undefined ? undefined : DESIGN_CHOICES[resource.type];
   const raw = state.composition?.price?.byResource[name];
   const priceLabel = raw === undefined ? undefined : raw === 'pay-per-use' ? 'Pay per use' : raw;
@@ -203,7 +211,7 @@ export const storyOf = (state: WizardState, name: string, resource: Resources[st
   return {
     name,
     type: resource.type,
-    plainName,
+    plainName: named,
     ...(reason === undefined ? {} : { reason }),
     ...(evidence === undefined ? {} : { evidence }),
     ...(citations.length === 0 ? {} : { citations }),
@@ -280,6 +288,7 @@ export const yamlSegments = (
 /** One line per resource in the chips row: "Next.js app", "Postgres", "3 secrets". */
 const chipLabel = (story: ResourceStory, resource: Resources[string], technology: string | undefined): string => {
   if (resource.type === 'relational-database') return story.plainName.replace(/ database$/, '');
+  if (story.plainName === 'Disk for SQLite data') return 'SQLite data';
   if (technology === undefined || resource.type.endsWith('-web')) return story.plainName;
   return resource.type === 'hosting-bucket' ? `${technology} site` : `${technology} app`;
 };

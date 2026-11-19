@@ -214,6 +214,28 @@ test('the analysis shows the files it reads, then ties each resource to the line
   await expect(page.locator('.ws-window')).toHaveCount(0);
 });
 
+test('skipping the reveal at once leaves the generated file exactly as it is, not an edit', async ({
+  page,
+  startWizard
+}) => {
+  // The price and other state arrive while the reveal plays; neither they nor a skip may leave anything in the file.
+  const wizard = await startWizard({
+    project: 'saas-starter',
+    projectName: 'a-very-long-project-name-for-the-acme-corporation-billing-service',
+    scan: 'held'
+  });
+  await page.goto(wizard.url);
+  await page.getByRole('button', { name: 'Analyze my project' }).click();
+  // The scan has written the file's first lines into the editor before anything is found.
+  await expect(page.locator('.ws-editor .view-lines')).toContainText('projectName:');
+  wizard.release('scan');
+  await page.getByRole('button', { name: /^Skip/ }).click({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: / on AWS$/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.ws-editor .view-line').first()).toContainText('projectName:');
+  await expect(page.locator('.ws-badge', { hasText: 'Edited' })).toHaveCount(0);
+  await expect(page.getByText('Paused while you edit stacktape.yml by hand.')).toHaveCount(0);
+});
+
 test('a failed deploy names the fix in this project, keeps the retry, and a stopped CLI says what to do', async ({
   page,
   browser,

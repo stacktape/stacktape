@@ -71,8 +71,9 @@
     min-width: 0;
   }
 
+  /* The title has the whole row, except beside the reveal's Skip. */
   .ws-head > .ws-title {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: 1;
     min-width: 0;
     overflow: hidden;
@@ -98,6 +99,10 @@
     grid-column: 2;
     grid-row: 1;
     justify-self: end;
+  }
+
+  .ws-head[data-phase='reveal'] > .ws-title {
+    grid-column: 1;
   }
 
   .ws-head[data-phase='scan'] > .ws-title,
@@ -1699,6 +1704,12 @@
       min-height: 0;
     }
 
+    @media (max-width: 760px) {
+      .ws-diagram {
+        height: 260px;
+      }
+    }
+
     .ws-chips {
       position: static;
       padding: 0;
@@ -1826,6 +1837,15 @@
 
     .ws-editor-hint-keys {
       display: none;
+    }
+
+    .ws-status {
+      align-items: flex-start;
+    }
+
+    .ws-status .ws-pulse {
+      flex: none;
+      margin-top: 8px;
     }
 
     .ws-status-text {

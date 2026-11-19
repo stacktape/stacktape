@@ -15,7 +15,7 @@ import { InfoTip } from '../components/InfoTip';
 import { RegionPicker } from '../components/RegionPicker';
 import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
-import { quoteLabel, type Citation, type ResourceStory } from '../workspace/resource-story';
+import { lineRange, quoteLabel, type Citation, type ResourceStory } from '../workspace/resource-story';
 import { deploymentPreferenceKeysFor, NOT_CREATED_KINDS, plainList } from './review-model';
 
 /** Whether a media query matches now, following changes. */
@@ -206,6 +206,7 @@ export function ReviewPane({
             // A larger app is scaled down to fit beside the file; its names stay readable.
             minLabelSize={isTouch ? 12 : 11}
             resourceTypeLabels={typeLabels}
+            volumeMounts
             onSelectResource={onSelect}
             resourceProgress={progress}
             resourceTooltip={cardsFor(stories, citations)}
@@ -271,7 +272,7 @@ export function ResourceCard({ story, citation }: { story: ResourceStory; citati
             <code key={text}>{text}</code>
           ))}
           <span>
-            {evidence.file}:{citation?.line ?? evidence.line}
+            {evidence.file}:{lineRange(citation, evidence)}
           </span>
         </div>
       )}
