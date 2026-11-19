@@ -429,7 +429,8 @@ export const buildDiagramModel = ({
   expandedGroups,
   statusLines = false,
   infrastructure = true,
-  textScale = 1
+  textScale = 1,
+  volumeMounts = false
 }: {
   parsedConfig: StacktapeConfig | null;
   /** Role groups the reader has expanded; every other group is drawn as one node. */
@@ -447,8 +448,10 @@ export const buildDiagramModel = ({
    * room for them. 1 unless a host asks for a minimum label size.
    */
   textScale?: number | undefined;
+  /** Draw connectors for EFS volume mounts (`buildDiagramTopology`). */
+  volumeMounts?: boolean | undefined;
 }): DiagramModel | null => {
-  const base = buildDiagramTopology({ parsedConfig });
+  const base = buildDiagramTopology({ parsedConfig, volumeMounts });
   if (!base || base.nodes.length === 0) return null;
 
   const grouped = groupTopology({ topology: base, expandedGroupIds: expandedGroups });

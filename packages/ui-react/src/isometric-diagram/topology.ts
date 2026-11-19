@@ -1334,9 +1334,15 @@ const addConvexParts = ({ edgeMap, nodeMap, node, resource }: GraphMaps & { node
 // ── Main topology builder ──
 
 export const buildDiagramTopology = ({
-  parsedConfig
+  parsedConfig,
+  volumeMounts = false
 }: {
   parsedConfig: StacktapeConfig | null;
+  /**
+   * Draw a connector from a resource to each EFS file system it mounts. Off unless a host asks: Console's Viewer
+   * projection (`diagram-projection.ts`) does not carry `volumeMounts` yet, and both of its pictures must match.
+   */
+  volumeMounts?: boolean | undefined;
 }): DiagramTopology | null => {
   if (!parsedConfig?.resources) return null;
 
@@ -1764,7 +1770,7 @@ export const buildDiagramTopology = ({
     }
 
     // ── EFS volume mounts (a service's, a function's, or a container's of a workload) ──
-    for (const mount of getEfsMounts(resource)) {
+    for (const mount of volumeMounts ? getEfsMounts(resource) : []) {
       addEdge({
         edgeMap,
         nodeMap,

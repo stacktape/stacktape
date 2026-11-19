@@ -76,6 +76,11 @@ export type IsometricDiagramProps = DiagramViewProps & {
    * diagram's words.
    */
   resourceTypeLabels?: Readonly<Record<string, string>> | undefined;
+  /**
+   * Draws a connector from a resource to each EFS file system it mounts. Off by default: Console's Viewer projection
+   * does not carry `volumeMounts` yet, and a Viewer's picture must match everyone else's.
+   */
+  volumeMounts?: boolean | undefined;
 };
 
 /** A name's size at the picture's own scale, and the most `minLabelSize` enlarges text. */
@@ -203,6 +208,7 @@ export function IsometricDiagram({
   minLabelSize,
   resourceTooltip,
   resourceTypeLabels,
+  volumeMounts = false,
   layers,
   defaultLayers,
   onLayersChange,
@@ -263,10 +269,11 @@ export function IsometricDiagram({
             expandedGroups,
             statusLines,
             infrastructure: true,
-            textScale: scale
+            textScale: scale,
+            volumeMounts
           })
         : null,
-    [config, expandedGroups, statusLines, offersInfrastructure, scale]
+    [config, expandedGroups, statusLines, offersInfrastructure, scale, volumeMounts]
   );
   const security = useMemo(() => {
     const input = readDiagramDeployment(deployment);
@@ -286,10 +293,11 @@ export function IsometricDiagram({
             expandedGroups,
             statusLines,
             infrastructure: false,
-            textScale: scale
+            textScale: scale,
+            volumeMounts
           })
         : null,
-    [config, expandedGroups, statusLines, needsApplicationModel, scale]
+    [config, expandedGroups, statusLines, needsApplicationModel, scale, volumeMounts]
   );
   const model = needsApplicationModel ? applicationModel : fullModel;
   const showAccess = wantsAccess && canShowAccess;
