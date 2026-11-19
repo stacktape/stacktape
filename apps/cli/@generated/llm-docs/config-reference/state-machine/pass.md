@@ -6,22 +6,22 @@ Resource type: `state-machine`
 
 ```typescript
 type Pass = {
-  Type: string;
+  Type: "Pass";
   Comment?: string;
-  End?: boolean;
-  InputPath?: string;
+  End?: true;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
   Parameters?: unknown;
   Result?: unknown;
-  ResultPath?: string;
+  ResultPath?: string | null;
 };
 ```
 
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Pass"`
 
 ## Property: `Comment`
 
@@ -31,12 +31,12 @@ type Pass = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -46,7 +46,7 @@ type Pass = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Parameters`
 
@@ -61,4 +61,4 @@ type Pass = {
 ## Property: `ResultPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`

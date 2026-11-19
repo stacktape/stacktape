@@ -6,6 +6,8 @@
 type NamedScriptLifecycleHook = {
   /** Script Name */
   scriptName: string;
+  /** What happens when the script fails. */
+  onFailure?: "continue" | "fail";
   /** Skip this hook in CI/CD environments (GitHub Actions, GitLab CI, and similar systems). */
   skipOnCI?: boolean;
   /** Skip this hook when running locally; only run in CI/CD. */
@@ -44,7 +46,7 @@ resources:
       engine:
         type: mysql
         properties:
-          version: '8.0.36'
+          version: '8.4'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -57,7 +59,7 @@ import { RelationalDatabase, RdsEngineMysql, LocalScript, $Secret, defineConfig 
 export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEngineMysql({ version: '8.0.36', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEngineMysql({ version: '8.4', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({ executeCommand: 'npm run migrate', connectTo: [db] });
 
@@ -69,6 +71,61 @@ export default defineConfig(() => {
       ]
     },
     resources: { db }
+  };
+});
+```
+
+## Property: `onFailure`
+
+- Required: no
+- Type: `string: "continue" | "fail"`
+- Default: `fail`
+
+What happens when the script fails.
+
+`fail`: the command stops and exits with an error, and the hooks listed after this one don't run. When an
+`afterDeploy` hook fails, the deployment has already finished and stays live. The command still exits with an
+error, so a CI job fails.
+`continue`: the failure is printed as a warning and the command carries on.
+
+Use `continue` for work that must not fail a deploy, such as sending a notification.
+
+### Example 1 (yaml)
+
+```yaml
+scripts:
+  notifyTeam:
+    type: local-script
+    properties:
+      executeCommand: node ./scripts/notify-team.js
+hooks:
+  afterDeploy:
+    - scriptName: notifyTeam
+      onFailure: continue
+resources:
+  web:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: ./dist
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const notifyTeam = new LocalScript({ executeCommand: 'node ./scripts/notify-team.js' });
+  const web = new HostingBucket({ uploadDirectoryPath: './dist' });
+
+  return {
+    scripts: { notifyTeam },
+    hooks: {
+      afterDeploy: [
+        { scriptName: 'notifyTeam', onFailure: 'continue' }
+      ]
+    },
+    resources: { web }
   };
 });
 ```

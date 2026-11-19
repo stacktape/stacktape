@@ -10,8 +10,8 @@ import { serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { CliError } from '@utils/errors';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';
+import { resourceLimitExceededError, resourceLimitWarning } from './resource-limit';
 import { getInitialCfTemplate } from './utils';
 
 export class TemplateManager {
@@ -49,6 +49,21 @@ export class TemplateManager {
     this.#stackName = undefined;
   };
 
+  /** The synthesis state before a pass whose result must not stay, such as deploy's confirmation preview. */
+  captureSynthesisState = () => ({
+    template: serialize(this.template),
+    initialTemplate: serialize(this.initialTemplate),
+    templateOverrideFunctions: [...this.templateOverrideFunctions],
+    preFinalizationTemplate: this.#preFinalizationTemplate && serialize(this.#preFinalizationTemplate)
+  });
+
+  restoreSynthesisState = (state: ReturnType<TemplateManager['captureSynthesisState']>) => {
+    this.template = state.template;
+    this.initialTemplate = state.initialTemplate;
+    this.templateOverrideFunctions = state.templateOverrideFunctions;
+    this.#preFinalizationTemplate = state.preFinalizationTemplate;
+  };
+
   /**
    * Starts a finalization pass, putting the template back to the state it was in before this invocation finalized it
    * for the first time.
@@ -71,19 +86,10 @@ export class TemplateManager {
   };
 
   getTemplate = (): CloudFormationTemplate => {
-    const amountOfResources = Object.keys(this.template.Resources).length;
-    if (amountOfResources > 470) {
-      // @later-dodo: print options to solve this issue
-      tuiManager.warn(`Approaching CloudFormation 500-resource limit (used: ${amountOfResources}).`);
-    }
-    if (amountOfResources > 500) {
-      throw new CliError({
-        category: 'CLOUDFORMATION',
-        code: 'CLOUDFORMATION_RESOURCE_LIMIT_EXCEEDED',
-        message: `CloudFormation templates cannot contain more than 500 resources. This template contains ${amountOfResources}.`,
-        hints: 'Split the infrastructure across multiple stacks or remove resources that are no longer needed.'
-      });
-    }
+    const limitError = resourceLimitExceededError(this.template.Resources);
+    if (limitError) throw limitError;
+    const limitWarning = resourceLimitWarning(this.template.Resources);
+    if (limitWarning) tuiManager.warn(limitWarning);
     return serialize(this.template);
   };
 

@@ -27,7 +27,7 @@ const protectedConfig = () =>
           credentials: { masterUserPassword: "$Secret('password')" },
           engine: {
             type: 'postgres',
-            properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.medium' } }
+            properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.medium' } }
           },
           accessibility: { accessibilityMode: 'vpc' as 'vpc' | 'internet' },
           deletionProtection: true as boolean,
@@ -188,7 +188,7 @@ test('each limit admits its boundary and the defaults it applies, and blocks the
       credentials: { masterUserPassword: "$Secret('password')" },
       engine: {
         type: 'postgres' as const,
-        properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.medium' }, ...extra }
+        properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.medium' }, ...extra }
       },
       accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' as const }
     }
@@ -294,7 +294,7 @@ test('each limit admits its boundary and the defaults it applies, and blocks the
                 credentials: { masterUserPassword: "$Secret('password')" },
                 engine: {
                   type: 'aurora-postgresql',
-                  properties: { version: '16.6', instances: [{ instanceSize: 'db.r6g.large' }] }
+                  properties: { version: '16', instances: [{ instanceSize: 'db.r6g.large' }] }
                 }
               }
             }

@@ -535,6 +535,7 @@ export const lanes: readonly Lane[] = [
       'tests/characterization/change-plan-replacements.spec.ts',
       'src/domain/config-manager/utils/cdn.spec.ts',
       'tests/characterization/cdn-edge-lambdas.spec.ts',
+      'tests/characterization/cdn-selectors.spec.ts',
       'src/utils/stack-info-map-diff.spec.ts',
       'src/commands/deploy/ec2-runner-config-path.spec.ts',
       'src/commands/deploy/fast-deploy.spec.ts',
@@ -561,6 +562,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/characterization/change-plan-replacements.spec.ts',
       'apps/cli/src/domain/config-manager/utils/cdn.spec.ts',
       'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
+      'apps/cli/tests/characterization/cdn-selectors.spec.ts',
       'apps/cli/src/utils/stack-info-map-diff.spec.ts',
       'apps/cli/src/commands/deploy/ec2-runner-config-path.spec.ts',
       'apps/cli/src/commands/deploy/fast-deploy.spec.ts',
@@ -962,6 +964,17 @@ export const lanes: readonly Lane[] = [
       'Through a real HTTP API and its default domain, connectTo grants exactly its targets, an update revokes removed targets and swaps the STP_* variables, a $Secret() reference serves the pinned then the rotated value, and deletion leaves no resource or DNS record.'
   },
   {
+    id: 'alarm-notifications-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=alarm-inline-channels-in-account'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/alarm-notifications-canary.ts'],
+    requires: ['aws', 'network'],
+    release: 'affected-external-contract',
+    proves:
+      "A real error-rate alarm's firing and recovery reach Teams, Discord and a signed webhook from the stack's service Lambda exactly once each, a replayed event sends nothing again, the Console report names no channel and carries no credential, and deletion leaves nothing."
+  },
+  {
     id: 'static-site-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=hosting-bucket-cdn-update'],
     level: 'live-aws',
@@ -984,6 +997,17 @@ export const lanes: readonly Lane[] = [
       "A batch job deploys on Amazon Linux 2023 compute environments that AWS Batch accepts, runs for a message of its SQS queue with the launch template's 100 GB root volume, a deploy that CloudFormation's pre-deployment validation rejects names the resource, property path and reason, and deletion leaves no compute environment, job queue or other resource."
   },
   {
+    id: 'v3-upgrade-live',
+    command: ['pnpm', 'test:aws', '--aws-scenario=v3-upgrade-customer-shapes'],
+    level: 'live-aws',
+    tier: 'release',
+    tests: ['apps/cli/scripts/real-aws/v3-upgrade-canary.ts'],
+    requires: ['aws', 'network', 'docker'],
+    release: 'every-candidate',
+    proves:
+      "Stacks shaped like the paying customers' and created by the released 3.x CLIs they run (3.7.1 binary, 3.5.7 npm package) upgrade through the documented migration without replacing or deleting a stateful resource; the sites, functions, a batch job, an alarm notification and the database rows the v3 deploys wrote all survive; a code-only change then takes the fast path; and deletion leaves nothing but deferred edge replicas."
+  },
+  {
     id: 'container-fast-deploy-live',
     command: ['pnpm', 'test:aws', '--aws-scenario=container-fast-deploy-serving'],
     level: 'live-aws',
@@ -1003,7 +1027,7 @@ export const lanes: readonly Lane[] = [
     requires: ['aws', 'network'],
     release: 'affected-external-contract',
     proves:
-      'A release command runs once in the deployed image inside the VPC before workloads get the new code, on full and fast deployments, EC2 and js-bundle included. A failure stops the deploy with the old code serving, and a rollback does not rerun it. On a function stack, deploys, a rollback and a delete started at once wait for each other and act on what the previous one left; the lock of a killed operation is taken over after its lease; Ctrl+C stops only the waiting command; and a hook running a command on its own stack fails instead of waiting. A deploy after a killed one waits for its still-running command.'
+      'A release command runs once in the deployed image inside the VPC before workloads get the new code, on full and fast deployments, EC2 and js-bundle included. A failure stops the deploy with the old code serving, and a rollback does not rerun it. The release command of a function runs in an image of the whole project inside the VPC before the function gets its code, a code change skips it on the fast path, and a failing command leaves the old code serving. On a function stack, deploys, a rollback and a delete started at once wait for each other and act on what the previous one left; the lock of a killed operation is taken over after its lease; Ctrl+C stops only the waiting command; a hook running a command on its own stack fails instead of waiting; and a failing afterDeploy hook fails the command while the finished deployment stays live and unlocked. A deploy after a killed one waits for its still-running command.'
   },
   {
     id: 'local-dev-live',
@@ -1408,12 +1432,14 @@ export const lanes: readonly Lane[] = [
       'apps/cli/tests/ministack/security-deploy.spec.ts',
       'apps/cli/tests/ministack/fast-deploy.spec.ts',
       'apps/cli/tests/ministack/domain-cache.spec.ts',
-      'apps/cli/tests/ministack/domain-add.spec.ts'
+      'apps/cli/tests/ministack/domain-add.spec.ts',
+      'apps/cli/tests/ministack/deploy-hooks.spec.ts',
+      'apps/cli/tests/ministack/command-output.spec.ts'
     ],
     requires: ['docker', 'network'],
     release: 'every-candidate',
     proves:
-      "On MiniStack, a new stack's deployment bucket and image repository are created before the stack and deleted only when no stack uses them, security scanning gates a deploy, fast deploys publish code and shared layers directly and hand them back to CloudFormation, and custom domains reuse cached certificates.",
+      "On MiniStack, a new stack's deployment bucket and image repository are created before the stack and deleted only when no stack uses them, security scanning gates a deploy, fast deploys publish code and shared layers directly and hand them back to CloudFormation, and custom domains reuse cached certificates. Deploy, param get, secret get, script failures and the MCP server return a deployed secret only with --show-secrets (MCP never), and captured, inherited and pipeStdio scripts behave as configured.",
     selections: ['ministack-deploy']
   },
   {
@@ -1717,6 +1743,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/error-contract-database.test.ts',
+      'apps/console/api/scripts/v3-cli-database.test.ts',
       'apps/console/api/scripts/console-tenancy-database.test.ts',
       'apps/console/api/scripts/auth-audit-database.test.ts',
       'apps/console/api/scripts/audit-coverage-database.test.ts',
@@ -2192,6 +2219,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/DomainsPage/domain-readiness.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/pages/OverviewPage/next-steps.test.ts',
+      'apps/console/ui/src/components/FreePlan/free-plan-format.test.ts',
       'apps/console/ui/src/components/Metrics/metrics.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/StageDetails/Environment/environment.test.ts',
       'apps/console/ui/src/pages/UsersPage/members-data.test.ts',
@@ -2346,6 +2374,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/console/ui/e2e/isolated-budgets.test.ts',
       'apps/console/ui/e2e/isolated-free-plan.test.ts',
+      'apps/console/ui/e2e/isolated-existing-stacks.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
@@ -2834,6 +2863,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/api/src/aws/context.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
       'apps/console/api/src/billing/cost-months.test.ts',
+      'apps/console/api/src/billing/free-plan-limit.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/config.test.ts',
       'apps/console/api/src/controllers/bitbucket-pull-request-commit.test.ts',
@@ -2934,6 +2964,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-integrations.test.ts',
       'apps/console/ui/e2e/isolated-money-pages.test.ts',
       'apps/console/ui/e2e/isolated-free-plan.test.ts',
+      'apps/console/ui/e2e/isolated-existing-stacks.test.ts',
       'apps/console/ui/e2e/isolated-domains.test.ts',
       'apps/console/ui/e2e/isolated-alerting.test.ts',
       'apps/console/ui/e2e/isolated-consistency.test.ts',
@@ -3040,6 +3071,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/pages/TracesPage/traces-presentation.test.ts',
       'apps/console/ui/src/components/FeatureSetup/feature-setups.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
+      'apps/console/ui/src/components/FreePlan/free-plan-format.test.ts',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/repository-option.test.tsx',
       'apps/console/ui/src/pages/ProjectsPage/ProjectOverview/stage-order.test.ts',
       'apps/console/ui/src/components/Filters/aws-scope.test.ts',
@@ -3050,10 +3082,12 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/src/utils/dates.test.ts',
       'apps/console/ui/src/utils/yaml.test.ts',
       'apps/docs/tests/api-reference-data.test.ts',
+      'apps/docs/tests/cdn-redirects.test.ts',
       'apps/docs/tests/config-conversion.test.ts',
       'apps/docs/tests/mdx-components.test.ts',
       'apps/docs/tests/routes.test.ts',
       'apps/docs/tests/twoslash-types.test.ts',
+      'apps/docs/tests/v3-archive.test.ts',
       'apps/init-ui/src/decisions.spec.ts',
       'apps/init-ui/src/deploy-commands.spec.ts',
       'apps/init-ui/src/deploy-model.spec.ts',
@@ -3088,6 +3122,7 @@ export const lanes: readonly Lane[] = [
       'packages/config/tests/config-import.test.ts',
       'packages/config/tests/leaf-capabilities.test.ts',
       'packages/console-api/src/api-key.test.ts',
+      'packages/console-api/src/billing.test.ts',
       'packages/console-api/src/failure-explanations.test.ts',
       'packages/console-api/src/guardrails.test.ts',
       'packages/console-api/src/permissions.test.ts',
@@ -3888,6 +3923,7 @@ export const lanes: readonly Lane[] = [
     tests: [
       'apps/console/api/src/billing/fees.test.ts',
       'apps/console/api/src/billing/cost-months.test.ts',
+      'apps/console/api/src/billing/free-plan-limit.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/security/cvss.test.ts',
       'apps/console/api/src/security/inventory-grading.test.ts'
@@ -4078,7 +4114,12 @@ export const slices: readonly Slice[] = [
     promise: 'Resource identity stays stable.',
     status: 'active',
     journeys: ['J2'],
-    paths: ['packages/naming/**'],
+    paths: [
+      'packages/naming/**',
+      'apps/cli/_test-stacks/v3-upgrade/**',
+      'apps/cli/scripts/real-aws/v3-upgrade-canary.ts',
+      'apps/cli/tests/data-safety/**'
+    ],
     tests: [
       'apps/cli/tests/characterization/naming-ownership.spec.ts',
       'apps/cli/tests/data-safety/change-plan-compatibility.spec.ts',
@@ -4092,7 +4133,7 @@ export const slices: readonly Slice[] = [
       'packages/naming/src/user-pool-domain-prefix.test.ts',
       'packages/naming/src/workload-names.test.ts'
     ],
-    lanes: ['naming', 'naming-2', 'data-safety', 'synthesis', 'synthesis-2']
+    lanes: ['naming', 'naming-2', 'data-safety', 'synthesis', 'synthesis-2', 'v3-upgrade-live']
   },
   {
     id: 'S04',
@@ -4316,6 +4357,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/email-sender-manager/identity.spec.ts',
       'apps/cli/src/domain/email-sender-manager/template.spec.ts',
       'apps/cli/src/domain/template-manager/index.spec.ts',
+      'apps/cli/tests/synthesis-families/resource-limit.spec.ts',
       'apps/cli/src/domain/template-manager/log-group-class.spec.ts',
       'apps/cli/src/domain/template-manager/service-lambda-created-resources.spec.ts',
       'apps/cli/src/domain/cloudfront-manager/new-distribution-inputs.spec.ts',
@@ -4376,6 +4418,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/shared-network/placement.spec.ts',
       'apps/cli/src/domain/shared-network/janitor.spec.ts',
       'apps/cli/tests/synthesis-families/shared-network.spec.ts',
+      'apps/cli/tests/synthesis-families/database-versions.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/kafka-bootstrap-brokers.spec.ts'
     ],
     lanes: ['data-connections', 'synthesis', 'synthesis-2', 'data-safety', 'config-loading', 'cli-operations-database'],
@@ -4586,6 +4629,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/cli-process/stack-operations.spec.ts',
       'apps/cli/tests/characterization/cloudformation-stack-delete.spec.ts',
       'apps/cli/tests/characterization/cdn-edge-lambdas.spec.ts',
+      'apps/cli/tests/characterization/cdn-selectors.spec.ts',
       'apps/cli/src/domain/config-manager/utils/cdn.spec.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/custom-resources/resolvers/edge-functions.spec.ts'
     ],
@@ -4797,6 +4841,9 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/_utils/auth/**',
       'apps/cli/src/commands/login/**',
       'apps/cli/src/commands/logout/**',
+      'apps/cli/src/commands/connect/**',
+      'apps/cli/src/commands/_utils/console-hints.ts',
+      'apps/cli/src/commands/_utils/free-plan-notice.ts',
       'apps/cli/src/commands/info-whoami/**',
       'apps/cli/src/commands/defaults-*/**',
       'apps/cli/src/commands/aws-profile-*/**',
@@ -4818,17 +4865,25 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/app/global-state-manager/project-creation.test.ts',
       'apps/cli/tests/cli-process/aws-account-selection.spec.ts',
       'apps/cli/tests/cli-process/login.spec.ts',
+      'apps/cli/tests/cli-process/account-free.spec.ts',
+      'apps/cli/src/app/global-state-manager/account-mode.spec.ts',
+      'apps/cli/src/app/global-state-manager/local-caller-identity.spec.ts',
+      'apps/cli/src/commands/connect/connection-name.spec.ts',
+      'apps/cli/src/commands/_utils/console-hints.spec.ts',
+      'apps/cli/src/commands/_utils/free-plan-notice.spec.ts',
       'apps/cli/tests/cli-process/logout.spec.ts',
       'apps/cli/tests/cli-process/package-without-aws.spec.ts',
       'apps/cli/tests/cli-process/config-project-settings.spec.ts',
       'apps/cli/src/app/global-state-manager/invocation-target.spec.ts',
       'apps/cli/src/app/operation-invocation-context.spec.ts',
       'apps/cli/src/app/stacktape-trpc-api-manager/index.spec.ts',
+      'apps/cli/src/app/stacktape-trpc-api-manager/recorded-command-args.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
       'apps/cli/src/config/params.spec.ts',
       'apps/cli/src/utils/aws-config.spec.ts',
       'apps/cli/tests/characterization/trpc-auth-surfaces.spec.ts',
       'packages/console-api/src/api-key.test.ts',
+      'packages/console-api/src/billing.test.ts',
       'packages/console-api/src/failure-explanations.test.ts',
       'packages/console-api/src/guardrails.test.ts',
       'packages/console-api/src/permissions.test.ts',
@@ -5397,10 +5452,12 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/docs/scripts/test-build-contracts.ts',
       'apps/docs/tests/api-reference-data.test.ts',
+      'apps/docs/tests/cdn-redirects.test.ts',
       'apps/docs/tests/config-conversion.test.ts',
       'apps/docs/tests/mdx-components.test.ts',
       'apps/docs/tests/routes.test.ts',
-      'apps/docs/tests/twoslash-types.test.ts'
+      'apps/docs/tests/twoslash-types.test.ts',
+      'apps/docs/tests/v3-archive.test.ts'
     ],
     lanes: ['docs', 'docs-2', 'docs-3', 'docs-test']
   },
@@ -5546,6 +5603,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/api/scripts/console-access-database.test.ts',
       'apps/console/api/scripts/error-contract-database.test.ts',
+      'apps/console/api/scripts/v3-cli-database.test.ts',
       'apps/console/api/scripts/sign-up-database.test.ts',
       'apps/console/api/src/lambdas/sign-up-user-name.test.ts',
       'apps/console/api/src/services/api-key-security.test.ts',
@@ -6019,6 +6077,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/console/ui/scripts/secrets-parameters-database.test.ts',
       'apps/cli/tests/config-loading-ministack/secrets.spec.ts',
+      'apps/cli/src/domain/config-manager/secret-references.spec.ts',
       'apps/cli/tests/config-loading-ministack/dev-generated-secrets.spec.ts',
       'apps/console/api/scripts/console-secrets-database.test.ts',
       'apps/console/api/src/services/secret-usage.test.ts',
@@ -6059,6 +6118,7 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/billing-database.test.ts',
       'apps/console/api/src/billing/fees.test.ts',
       'apps/console/api/src/billing/cost-months.test.ts',
+      'apps/console/api/src/billing/free-plan-limit.test.ts',
       'apps/console/api/src/billing/paddle-signature.test.ts',
       'apps/console/api/src/services/customer-announcements.test.ts'
     ],
@@ -6428,6 +6488,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/src/pages/DeployNewProject/agent-prompt.test.ts',
       'apps/console/ui/src/pages/OverviewPage/overview-metrics.test.ts',
       'apps/console/ui/src/pages/OverviewPage/next-steps.test.ts',
+      'apps/console/ui/src/components/FreePlan/free-plan-format.test.ts',
       'apps/console/ui/e2e/isolated-first-run.test.ts',
       'apps/console/ui/e2e/isolated-overview.test.ts',
       'apps/console/ui/e2e/isolated-first-run-links.test.ts',
@@ -6459,10 +6520,13 @@ export const slices: readonly Slice[] = [
       'apps/console/api/src/lambdas/monitoring-sweeper.ts',
       'apps/cli/src/domain/config-manager/utils/uptime-checks.ts',
       'apps/console/api/src/services/alarm-event-counts.ts',
-      'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.ts'
+      'apps/console/ui/src/pages/AlarmsPage/cloudwatch-alarms.ts',
+      'apps/cli/_test-stacks/alarm-notifications/**',
+      'apps/cli/scripts/real-aws/alarm-notifications-canary.ts'
     ],
     tests: [
       'apps/console/api/scripts/uptime-database.test.ts',
+      'apps/cli/scripts/real-aws/alarm-notifications-canary.ts',
       'apps/console/api/src/services/uptime-stored-state.test.ts',
       'apps/console/api/src/services/uptime-access.test.ts',
       'apps/cli/helper-lambdas/stacktapeServiceLambda/alarm-notifications/index.test.ts',
@@ -6489,7 +6553,8 @@ export const slices: readonly Slice[] = [
       'console-ui-2',
       'console-ui-3',
       'console-database-incident-journey',
-      'console-database-console-access'
+      'console-database-console-access',
+      'alarm-notifications-live'
     ],
     contributors: ['S56', 'S45']
   },
@@ -6521,6 +6586,7 @@ export const slices: readonly Slice[] = [
       'apps/console/ui/e2e/isolated-budgets.test.ts',
       'apps/console/ui/e2e/isolated-free-plan.test.ts',
       'apps/console/ui/src/services/plan-change.test.ts',
+      'apps/console/ui/e2e/isolated-existing-stacks.test.ts',
       'apps/cli/src/domain/budget-manager/index.spec.ts'
     ],
     lanes: [
@@ -6604,6 +6670,9 @@ export const slices: readonly Slice[] = [
       'packages/analytics/**',
       'apps/cli/src/utils/telemetry.ts',
       'apps/cli/src/utils/telemetry-completion.fixture.ts',
+      'apps/cli/src/utils/telemetry-signed-in.fixture.ts',
+      'apps/cli/src/utils/telemetry-allowlist.ts',
+      'apps/cli/src/utils/telemetry-notice.ts',
       'apps/cli/src/utils/file-error-stacks.ts',
       'apps/cli/src/utils/file-error-stacks.fixture.ts',
       'apps/cli/src/init/telemetry-init.fixture.ts',
@@ -6614,6 +6683,7 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/src/utils/file-error-stacks.spec.ts',
       'apps/cli/src/utils/telemetry.spec.ts',
+      'apps/cli/src/utils/telemetry-allowlist.spec.ts',
       'apps/console/api/src/integrations/posthog.test.ts',
       'packages/analytics/src/posthog.test.ts',
       'packages/analytics/src/privacy.test.ts',
@@ -6794,6 +6864,8 @@ export const slices: readonly Slice[] = [
     tests: [
       'apps/cli/scripts/operations/output.spec.ts',
       'apps/cli/scripts/operations/lifecycle-hooks.spec.ts',
+      'apps/cli/tests/ministack/deploy-hooks.spec.ts',
+      'apps/cli/tests/ministack/command-output.spec.ts',
       'apps/cli/scripts/operations/terminal-ownership.spec.ts',
       'apps/cli/src/app/tui-manager/dev/__tests__/log-normalize.test.ts',
       'apps/cli/src/app/tui-manager/dev/views/__tests__/dashboard.test.tsx',
@@ -6813,7 +6885,15 @@ export const slices: readonly Slice[] = [
       'apps/cli/tests/characterization/command-error-modernization.spec.ts',
       'apps/cli/tests/characterization/error-contract.spec.ts'
     ],
-    lanes: ['cli-operation-rules', 'cli-terminal-ownership', 'cli', 'cli-2', 'cli-3', 'cli-operations']
+    lanes: [
+      'cli-operation-rules',
+      'cli-terminal-ownership',
+      'cli',
+      'cli-2',
+      'cli-3',
+      'cli-operations',
+      'ministack-deploy-2'
+    ]
   },
   {
     id: 'S75',

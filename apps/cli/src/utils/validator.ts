@@ -59,7 +59,7 @@ export const validateScript = ({ type, properties, scriptName }: Script) => {
 
 export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand[] }) => {
   const hint =
-    'Use `stacktape help` to see all available commands and their options, or visit https://docs.stacktape.com/cli/.';
+    'Use `stacktape help` to see all available commands and their options, or visit https://docs.stacktape.com/cli/help/.';
   if (rawCommands.length > 1) {
     throw new CliError({
       category: 'CLI',
@@ -90,10 +90,14 @@ export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand
   }
 };
 
-const getLink = (command: string) => {
-  const cmdLink = command.replaceAll(':', '-');
-  return `https://docs.stacktape.com/cli/commands/${cmdLink}/`;
+// Commands documented on another command's page.
+const commandDocsPage: Record<string, string> = {
+  'dev:network:delete': 'cli/dev-network',
+  'alarms:export': 'observability/alarms'
 };
+
+const getLink = (command: string) =>
+  `https://docs.stacktape.com/${commandDocsPage[command] ?? `cli/${command.replaceAll(':', '-')}`}/`;
 
 export const validateArgs = ({
   command,
@@ -368,7 +372,7 @@ export const validateAwsProfile = ({
         `Available profiles are: ${
           availableAwsProfiles.map((p) => p.profile).join(', ') || 'NONE'
         }. Create one with \`stacktape aws-profile create\`, or set \`AWS_ACCESS_KEY_ID\` and \`AWS_SECRET_ACCESS_KEY\`.`,
-        'See https://docs.stacktape.com/user-guides/configure-aws-profile/ for a detailed guide.'
+        'See https://docs.stacktape.com/cli/aws-profile-create/ for a detailed guide.'
       ]
     });
   }

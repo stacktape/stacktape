@@ -466,6 +466,19 @@ describe('stacktape_cli audit findings', () => {
 
     const refused = await call({ action: 'run', command: 'param:get', args: { ...args, showSensitiveValues: true } });
     expect(refused).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+    // Every command that accepts --show-secrets is refused it.
+    for (const [command, commandArgs] of [
+      ['secret:get', { region: 'eu-west-1', secretName: 'stripe' }],
+      ['deploy', { region: 'eu-west-1', stage: 'production', projectName: 'shop-api' }]
+    ] as const) {
+      const output = await call({
+        action: 'run',
+        command,
+        confirm: true,
+        args: { ...commandArgs, showSensitiveValues: true }
+      });
+      expect(output, command).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+    }
     expect(runs).toHaveLength(0);
 
     // Without the flag the CLI itself replaces a sensitive value; a plain one (a URL) comes back unchanged.

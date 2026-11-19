@@ -58,13 +58,13 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       disabled: true
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -76,14 +76,14 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     disabled: true
   },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -111,7 +111,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - postgresql
@@ -121,7 +121,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -133,7 +133,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['postgresql'],
     engineSpecificOptions: {
@@ -144,7 +144,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -228,7 +228,7 @@ resources:
         logForwarding:
           type: datadog
           properties:
-            apiKey: $Secret('datadog.apiKey')
+            apiKey: $Secret('datadog', 'apiKey')
 ```
 
 ### Example 2 (typescript)
@@ -245,7 +245,7 @@ export default defineConfig(() => {
       retentionDays: 90,
       logForwarding: {
         type: 'datadog',
-        properties: { apiKey: $Secret('datadog.apiKey') }
+        properties: { apiKey: $Secret('datadog', 'apiKey') }
       }
     }
   });
@@ -273,7 +273,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - error
@@ -281,7 +281,7 @@ mainDatabase:
     engine:
       type: mysql
       properties:
-        version: '8.0.36'
+        version: '8.4'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -293,14 +293,14 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['error', 'slowquery']
   },
   engine: {
     type: 'mysql',
     properties: {
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -325,7 +325,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       retentionDays: 180
       logTypes:
@@ -333,7 +333,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -345,7 +345,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     retentionDays: 180,
     logTypes: ['postgresql']
@@ -353,7 +353,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }

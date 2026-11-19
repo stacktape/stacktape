@@ -995,13 +995,16 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
 
     // actual distributions START
     if (!cdn.customDomains?.length) {
-      const cdnDefaultDomainName = domainManager.getDefaultDomainForResource({
-        stpResourceName: name,
-        cdn: true,
-        customPrefix:
-          isCompositeWebResourceType(configParentResourceType) &&
-          `${configManager.findImmediateParent({ nameChain }).name.toLowerCase()}-${calculatedStackOverviewManager.context.stackName}`
-      });
+      // Without the Console the distribution keeps its own cloudfront.net domain.
+      const cdnDefaultDomainName =
+        configManager.consoleConnected &&
+        domainManager.getDefaultDomainForResource({
+          stpResourceName: name,
+          cdn: true,
+          customPrefix:
+            isCompositeWebResourceType(configParentResourceType) &&
+            `${configManager.findImmediateParent({ nameChain }).name.toLowerCase()}-${calculatedStackOverviewManager.context.stackName}`
+        });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.cloudfrontDistribution(
           isCompositeWebResourceType(configParentResourceType)
@@ -1014,33 +1017,60 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
           stpResourceName: name,
           cdnCompatibleResource,
           defaultOriginType: type as StpCdnAttachableResourceType,
-          customDomains: [cdnDefaultDomainName],
-          certificateArn: getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
+          customDomains: cdnDefaultDomainName ? [cdnDefaultDomainName] : undefined,
+          certificateArn: cdnDefaultDomainName
+            ? getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
+            : undefined
         })
       });
-      calculatedStackOverviewManager.addCfChildResource({
-        cfLogicalName: cfLogicalNames.customResourceDefaultDomain(
-          isCompositeWebResourceType(configParentResourceType)
-            ? configManager.findImmediateParent({ nameChain }).name
-            : name,
-          true
-        ),
-        nameChain,
-        resource: getCdnDefaultDomainCustomResource({
-          resource: lambdaProps as StpLambdaFunction,
-          domainName: cdnDefaultDomainName
-        })
-      });
+      if (cdnDefaultDomainName) {
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: cfLogicalNames.customResourceDefaultDomain(
+            isCompositeWebResourceType(configParentResourceType)
+              ? configManager.findImmediateParent({ nameChain }).name
+              : name,
+            true
+          ),
+          nameChain,
+          resource: getCdnDefaultDomainCustomResource({
+            resource: lambdaProps as StpLambdaFunction,
+            domainName: cdnDefaultDomainName
+          })
+        });
+      }
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         nameChain,
         paramName: 'cdnUrl',
-        paramValue: `https://${cdnDefaultDomainName}`,
+        paramValue: cdnDefaultDomainName
+          ? `https://${cdnDefaultDomainName}`
+          : join('', [
+              'https://',
+              getAtt(
+                cfLogicalNames.cloudfrontDistribution(
+                  isCompositeWebResourceType(configParentResourceType)
+                    ? configManager.findImmediateParent({ nameChain }).name
+                    : name,
+                  0
+                ),
+                'DomainName'
+              )
+            ]),
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnDomain',
         nameChain,
-        paramValue: cdnDefaultDomainName,
+        paramValue:
+          cdnDefaultDomainName ||
+          getAtt(
+            cfLogicalNames.cloudfrontDistribution(
+              isCompositeWebResourceType(configParentResourceType)
+                ? configManager.findImmediateParent({ nameChain }).name
+                : name,
+              0
+            ),
+            'DomainName'
+          ),
         showDuringPrint: false
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({

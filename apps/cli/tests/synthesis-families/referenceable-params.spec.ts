@@ -189,10 +189,11 @@ const variants: Record<string, Record<string, unknown>> = {
   },
   agents: {
     tools: { type: 'function', properties: { packaging: lambdaPackaging('./src/tool.ts') } },
-    agentMemory: { type: 'agentcore-memory', properties: { expirationDays: 30 } },
+    agentMemory: { type: 'agentcore-memory', properties: { eventRetentionDays: 30 } },
     agentGateway: {
       type: 'agentcore-gateway',
       properties: {
+        authorizer: { type: 'none' },
         tools: [
           {
             name: 'lookupOrder',
@@ -270,7 +271,7 @@ class ParametersCollected extends Error {}
 
 type MapResource = {
   resourceType: string;
-  referencableParams: Record<string, unknown>;
+  referencableParams: Record<string, { ssmParameterName?: string }>;
   _nestedResources?: Record<string, MapResource>;
 };
 
@@ -279,13 +280,28 @@ type MapResource = {
  * configuration exercised, including types that publish no parameters.
  */
 const synthesizeParameters = async (resources: Record<string, unknown>) => {
-  const published: [resourceType: string, param: string][] = [];
+  const { published, sensitive, types } = await synthesizeParameterValues(resources);
+  return {
+    published: published.map(([resourceType, param]) => [resourceType, param] as [string, string]),
+    sensitive,
+    types
+  };
+};
+
+/** Every published parameter with its value, keyed by the resource it belongs to. */
+const synthesizeParameterValues = async (resources: Record<string, unknown>) => {
+  const published: [resourceType: string, param: string, value: unknown, resourceName: string][] = [];
+  const sensitive: string[] = [];
   const types = new Set(Object.values(resources).map((resource) => (resource as { type: string }).type));
-  const collect = (resource: MapResource) => {
-    for (const param of Object.keys(resource.referencableParams)) published.push([resource.resourceType, param]);
-    for (const nested of Object.values(resource._nestedResources ?? {})) {
+  const collect = (resource: MapResource, resourceName: string) => {
+    for (const [param, entry] of Object.entries(resource.referencableParams)) {
+      const { value, ssmParameterName } = entry as { value: unknown; ssmParameterName?: string };
+      published.push([resource.resourceType, param, value, resourceName]);
+      if (ssmParameterName) sensitive.push(`${resource.resourceType}: ${param}`);
+    }
+    for (const [nestedName, nested] of Object.entries(resource._nestedResources ?? {})) {
       types.add(nested.resourceType);
-      collect(nested);
+      collect(nested, `${resourceName}.${nestedName}`);
     }
   };
   const synthesis = synthesizeFixture({
@@ -300,8 +316,8 @@ const synthesizeParameters = async (resources: Record<string, unknown>) => {
     }),
     workingDir: fixturesDir,
     beforeFinalize: () => {
-      for (const resource of Object.values(calculatedStackOverviewManager.stackInfoMap.resources)) {
-        collect(resource as unknown as MapResource);
+      for (const [name, resource] of Object.entries(calculatedStackOverviewManager.stackInfoMap.resources)) {
+        collect(resource as unknown as MapResource, name);
       }
       throw new ParametersCollected();
     }
@@ -309,15 +325,17 @@ const synthesizeParameters = async (resources: Record<string, unknown>) => {
   await synthesis.catch((error) => {
     if (!(error instanceof ParametersCollected)) throw error;
   });
-  return { published, types };
+  return { published, sensitive, types };
 };
 
 test('the registry lists exactly the parameters each resource type publishes', async () => {
   const published: [resourceType: string, param: string][] = [];
+  const sensitive = new Set<string>();
   const exercisedTypes = new Set<string>();
   for (const resources of Object.values(variants)) {
     const result = await synthesizeParameters(resources);
     published.push(...result.published);
+    for (const param of result.sensitive) sensitive.add(param);
     for (const type of result.types) exercisedTypes.add(type);
   }
   expect([...exercisedTypes].sort()).toEqual([...STACKTAPE_RESOURCE_TYPES].sort());
@@ -345,6 +363,15 @@ test('the registry lists exactly the parameters each resource type publishes', a
     )
   ];
   expect(neverPublished).toEqual([]);
+
+  // A parameter the CLI keeps in SSM is one commands withhold without --show-secrets; dev mode masks the variables
+  // built from it by its registry flag.
+  const registeredSensitive = Object.entries(REFERENCEABLE_PARAMS).flatMap(([resourceType, params]) =>
+    (params as ReadonlyArray<{ name: string; sensitive?: true }>)
+      .filter((param) => param.sensitive)
+      .map(({ name }) => `${resourceType}: ${name}`)
+  );
+  expect([...sensitive].sort()).toEqual(registeredSensitive.sort());
 }, 120_000);
 
 test('numbered parameters match only their number', () => {
@@ -370,3 +397,49 @@ test('numbered parameters reject numbers synthesis never writes', () => {
   expect(isReferenceableParam('relational-database', 'readReplica01Port')).toBe(false);
   expect(isReferenceableParam('relational-database', 'readReplica15Port')).toBe(false);
 });
+
+test('a website `url` is one URL; `customDomainUrls` lists every custom domain in configured order', async () => {
+  const websites = (customDomains: string[]) => {
+    const domainsProperty = customDomains.length
+      ? { customDomains: customDomains.map((name) => ({ ...domain(name), domainName: name })) }
+      : {};
+    return {
+      astro: { type: 'astro-web', properties: { appDirectory: './web', ...domainsProperty } },
+      nextServer: { type: 'nextjs-web', properties: { appDirectory: './web', ...domainsProperty } },
+      nextEdge: { type: 'nextjs-web', properties: { appDirectory: './web', useEdgeLambda: true, ...domainsProperty } }
+    };
+  };
+  const paramsOf = async (customDomains: string[]) => {
+    const { published } = await synthesizeParameterValues(websites(customDomains));
+    return Object.fromEntries(
+      ['astro', 'nextServer', 'nextEdge'].map((resourceName) => [
+        resourceName,
+        Object.fromEntries(
+          published.filter(([, , , name]) => name === resourceName).map(([, param, value]) => [param, value])
+        )
+      ])
+    );
+  };
+
+  const managed = await paramsOf([]);
+  for (const params of Object.values(managed)) {
+    expect(Object.keys(params)).toEqual(['url']);
+    // The managed default domain of the website's CDN.
+    expect(params.url).toMatch(/^https:\/\/[a-z-]+-characterization-baseline-[a-z0-9]+\.stacktape-app\.com$/);
+  }
+
+  const single = await paramsOf(['www.example.com']);
+  for (const params of Object.values(single)) {
+    expect(params).toEqual({ url: 'https://www.example.com', customDomainUrls: 'https://www.example.com' });
+  }
+
+  // `b` sorts before `z`; the configured order still wins.
+  const two = await paramsOf(['z.example.com', 'b.example.com']);
+  for (const params of Object.values(two)) {
+    expect(params).toEqual({
+      url: 'https://z.example.com',
+      customDomainUrls: 'https://z.example.com, https://b.example.com'
+    });
+    expect(() => new URL(params.url as string)).not.toThrow();
+  }
+}, 120_000);

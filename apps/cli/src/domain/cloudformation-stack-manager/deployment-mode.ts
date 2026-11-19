@@ -64,13 +64,15 @@ export const chooseUpdateDeploymentMode = ({
  * on fails. Measured 29 Oct 2026: a Valkey user group reported DELETE_COMPLETE after 7 s while still `deleting`, and
  * the delete of its `default` user a second later failed with "User is associated to user group(s) as a default user
  * and can't be deleted", which left the stack in DELETE_FAILED. The standard mode waits for the group (about 61 s).
+ * Measured 16 Nov 2026: a MySQL instance reported DELETE_COMPLETE in express mode after 90 s, and its option group
+ * (MySQL and MariaDB databases have one) failed to delete for 4 minutes with "cannot be deleted because it is in use".
  */
-const STANDARD_DELETE_RESOURCE_TYPES = new Set(['AWS::ElastiCache::UserGroup']);
+const STANDARD_DELETE_RESOURCE_TYPES = new Set(['AWS::ElastiCache::UserGroup', 'AWS::RDS::OptionGroup']);
 
 /**
  * The CloudFormation deployment mode of a stack delete. Express mode was measured faster for deletes and still waits
- * for databases, caches, distributions, ECS services and network interfaces; stacks with a resource type above keep the
- * standard mode.
+ * for most databases, caches, distributions, ECS services and network interfaces; stacks with a resource type above keep
+ * the standard mode.
  */
 export const chooseDeleteDeploymentMode = (resourceTypes: (string | undefined)[]): 'EXPRESS' | 'STANDARD' =>
   resourceTypes.some((type) => type !== undefined && STANDARD_DELETE_RESOURCE_TYPES.has(type)) ? 'STANDARD' : 'EXPRESS';

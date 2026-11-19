@@ -2246,7 +2246,13 @@ export interface CdnCacheKey {
 }
 
 
-export interface CacheKeyCookies {
+export type CacheKeyCookies =
+  | CacheKeyCookiesNone
+  | CacheKeyCookiesWhitelist
+  | CacheKeyCookiesAllExcept
+  | CacheKeyCookiesAll;
+
+export interface CacheKeyCookiesNone {
   /**
    * #### No cookies are included in the cache key.
  *
@@ -2293,7 +2299,13 @@ export interface CacheKeyCookies {
  * });
  * ```
    */
-  none?: boolean;
+  none: true;
+  whitelist?: never;
+  allExcept?: never;
+  all?: never;
+}
+
+export interface CacheKeyCookiesWhitelist {
   /**
    * #### Only the listed cookies are included in the cache key.
  *
@@ -2341,7 +2353,13 @@ export interface CacheKeyCookies {
  * });
  * ```
    */
-  whitelist?: string[];
+  whitelist: string[];
+  none?: never;
+  allExcept?: never;
+  all?: never;
+}
+
+export interface CacheKeyCookiesAllExcept {
   /**
    * #### All cookies except the listed ones are included in the cache key.
  *
@@ -2389,7 +2407,13 @@ export interface CacheKeyCookies {
  * });
  * ```
    */
-  allExcept?: string[];
+  allExcept: string[];
+  none?: never;
+  whitelist?: never;
+  all?: never;
+}
+
+export interface CacheKeyCookiesAll {
   /**
    * #### All cookies are included in the cache key.
  *
@@ -2436,11 +2460,19 @@ export interface CacheKeyCookies {
  * });
  * ```
    */
-  all?: boolean;
+  all: true;
+  none?: never;
+  whitelist?: never;
+  allExcept?: never;
 }
 
 
-export interface CacheKeyHeaders {
+
+export type CacheKeyHeaders =
+  | CacheKeyHeadersNone
+  | CacheKeyHeadersWhitelist;
+
+export interface CacheKeyHeadersNone {
   /**
    * #### No headers are included in the cache key.
  *
@@ -2487,7 +2519,11 @@ export interface CacheKeyHeaders {
  * });
  * ```
    */
-  none?: boolean;
+  none: true;
+  whitelist?: never;
+}
+
+export interface CacheKeyHeadersWhitelist {
   /**
    * #### Only the listed headers are included in the cache key.
  *
@@ -2535,11 +2571,18 @@ export interface CacheKeyHeaders {
  * });
  * ```
    */
-  whitelist?: string[];
+  whitelist: string[];
+  none?: never;
 }
 
 
-export interface CacheKeyQueryString {
+
+export type CacheKeyQueryString =
+  | CacheKeyQueryStringAll
+  | CacheKeyQueryStringNone
+  | CacheKeyQueryStringWhitelist;
+
+export interface CacheKeyQueryStringAll {
   /**
    * #### All query parameters are included in the cache key.
  *
@@ -2586,7 +2629,12 @@ export interface CacheKeyQueryString {
  * });
  * ```
    */
-  all?: boolean;
+  all: true;
+  none?: never;
+  whitelist?: never;
+}
+
+export interface CacheKeyQueryStringNone {
   /**
    * #### No query parameters are included in the cache key.
  *
@@ -2633,7 +2681,12 @@ export interface CacheKeyQueryString {
  * });
  * ```
    */
-  none?: boolean;
+  none: true;
+  all?: never;
+  whitelist?: never;
+}
+
+export interface CacheKeyQueryStringWhitelist {
   /**
    * #### Only the listed query parameters are included in the cache key.
  *
@@ -2681,8 +2734,11 @@ export interface CacheKeyQueryString {
  * });
  * ```
    */
-  whitelist?: string[];
+  whitelist: string[];
+  all?: never;
+  none?: never;
 }
+
 
 
 export interface CdnCustomRequestHeader {
@@ -3051,7 +3107,12 @@ export interface CdnForwardingOptions {
 }
 
 
-export interface ForwardCookies {
+export type ForwardCookies =
+  | ForwardCookiesNone
+  | ForwardCookiesWhitelist
+  | ForwardCookiesAll;
+
+export interface ForwardCookiesNone {
   /**
    * #### No cookies are forwarded to the origin.
  *
@@ -3090,7 +3151,12 @@ export interface ForwardCookies {
  * });
  * ```
    */
-  none?: boolean;
+  none: true;
+  whitelist?: never;
+  all?: never;
+}
+
+export interface ForwardCookiesWhitelist {
   /**
    * #### Only the listed cookies are forwarded to the origin.
  *
@@ -3130,7 +3196,12 @@ export interface ForwardCookies {
  * });
  * ```
    */
-  whitelist?: string[];
+  whitelist: string[];
+  none?: never;
+  all?: never;
+}
+
+export interface ForwardCookiesAll {
   /**
    * #### All cookies are forwarded to the origin.
  *
@@ -3169,11 +3240,21 @@ export interface ForwardCookies {
  * });
  * ```
    */
-  all?: boolean;
+  all: true;
+  none?: never;
+  whitelist?: never;
 }
 
 
-export interface ForwardHeaders {
+
+export type ForwardHeaders =
+  | ForwardHeadersNone
+  | ForwardHeadersWhitelist
+  | ForwardHeadersAllViewer
+  | ForwardHeadersAllViewerAndWhitelistCloudFront
+  | ForwardHeadersAllExcept;
+
+export interface ForwardHeadersNone {
   /**
    * #### No headers are forwarded to the origin.
  *
@@ -3212,7 +3293,14 @@ export interface ForwardHeaders {
  * });
  * ```
    */
-  none?: boolean;
+  none: true;
+  whitelist?: never;
+  allViewer?: never;
+  allViewerAndWhitelistCloudFront?: never;
+  allExcept?: never;
+}
+
+export interface ForwardHeadersWhitelist {
   /**
    * #### Only the listed headers are forwarded to the origin.
  *
@@ -3252,7 +3340,14 @@ export interface ForwardHeaders {
  * });
  * ```
    */
-  whitelist?: string[];
+  whitelist: string[];
+  none?: never;
+  allViewer?: never;
+  allViewerAndWhitelistCloudFront?: never;
+  allExcept?: never;
+}
+
+export interface ForwardHeadersAllViewer {
   /**
    * #### Forward all headers from the viewer's request.
  *
@@ -3291,7 +3386,14 @@ export interface ForwardHeaders {
  * });
  * ```
    */
-  allViewer?: boolean;
+  allViewer: true;
+  none?: never;
+  whitelist?: never;
+  allViewerAndWhitelistCloudFront?: never;
+  allExcept?: never;
+}
+
+export interface ForwardHeadersAllViewerAndWhitelistCloudFront {
   /**
    * #### Forward all viewer headers plus the listed CloudFront-specific headers (e.g., `CloudFront-Viewer-Country`).
  *
@@ -3331,7 +3433,14 @@ export interface ForwardHeaders {
  * });
  * ```
    */
-  allViewerAndWhitelistCloudFront?: string[];
+  allViewerAndWhitelistCloudFront: string[];
+  none?: never;
+  whitelist?: never;
+  allViewer?: never;
+  allExcept?: never;
+}
+
+export interface ForwardHeadersAllExcept {
   /**
    * #### Forward all viewer headers except the listed ones.
  *
@@ -3371,11 +3480,21 @@ export interface ForwardHeaders {
  * });
  * ```
    */
-  allExcept?: string[];
+  allExcept: string[];
+  none?: never;
+  whitelist?: never;
+  allViewer?: never;
+  allViewerAndWhitelistCloudFront?: never;
 }
 
 
-export interface ForwardQueryString {
+
+export type ForwardQueryString =
+  | ForwardQueryStringAll
+  | ForwardQueryStringNone
+  | ForwardQueryStringWhitelist;
+
+export interface ForwardQueryStringAll {
   /**
    * #### All query parameters are forwarded to the origin.
  *
@@ -3414,7 +3533,12 @@ export interface ForwardQueryString {
  * });
  * ```
    */
-  all?: boolean;
+  all: true;
+  none?: never;
+  whitelist?: never;
+}
+
+export interface ForwardQueryStringNone {
   /**
    * #### No query parameters are forwarded to the origin.
  *
@@ -3453,7 +3577,12 @@ export interface ForwardQueryString {
  * });
  * ```
    */
-  none?: boolean;
+  none: true;
+  all?: never;
+  whitelist?: never;
+}
+
+export interface ForwardQueryStringWhitelist {
   /**
    * #### Only the listed query parameters are forwarded to the origin.
  *
@@ -3493,5 +3622,8 @@ export interface ForwardQueryString {
  * });
  * ```
    */
-  whitelist?: string[];
+  whitelist: string[];
+  all?: never;
+  none?: never;
 }
+

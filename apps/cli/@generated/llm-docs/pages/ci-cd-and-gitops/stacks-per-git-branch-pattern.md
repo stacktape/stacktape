@@ -28,15 +28,11 @@ A typical mapping:
 | `develop` | `staging` | Pre-production integration and QA |
 | `release-v2` | `release` | Release candidate testing |
 
-The stage name does not have to match the branch name. Most teams use short, meaningful names (`prod`, `staging`) rather than the literal branch name. The mapping is configured either in the [Stacktape Console's GitOps settings](/ci-cd-and-gitops/gitops-with-console) or in your [custom CI/CD pipeline](/ci-cd-and-gitops/custom-ci-cd). The GitHub App handler matches configurations by the stored branch value from the event. For pattern-based branch routing, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) where you control the branch-matching logic.
+The stage name does not have to match the branch name. Most teams use short, meaningful names (`prod`, `staging`) rather than the literal branch name. You configure the mapping either as [Git deployments in the Stacktape Console](/ci-cd-and-gitops/gitops-with-console) or in your [custom CI/CD pipeline](/ci-cd-and-gitops/custom-ci-cd). A Git deployment watches one exact branch name. For pattern-based routing, such as every `release-*` branch, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd), where you control the matching.
 
 ### Setting up with GitOps
 
-The [GitOps page](/ci-cd-and-gitops/gitops-with-console) in the Stacktape Console lists configurations by deployment trigger, branch, stage name, AWS region, and AWS account, with a **New GitOps configuration** action for adding entries. Existing configurations use one of two deployment triggers — **PR Opened** or **Push to Branch**. For Push to Branch configurations, the handler requires a branch ref and a commit SHA, so branch-deletion events and pushes missing a commit SHA are ignored.
-
-
-> **Info:** The managed GitOps flow shown here is implemented through the GitHub App integration. For GitLab, Bitbucket, and other providers, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) for this pattern.
-
+Git deployments work with repositories on GitHub, GitLab and Bitbucket. Open the project, choose **Configure Git deployments** from the gear menu and click **New Git deployment**. Pick the **Push to branch** trigger, the branch, the stage, and the AWS account and region. Every push to that branch then deploys the stage. Tag pushes and branch deletions do not deploy anything. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for connecting your Git provider and the full walkthrough.
 
 ### Setting up with custom CI/CD
 
@@ -66,17 +62,13 @@ PR previews give every pull request a dedicated stage. Reviewers test changes ag
 
 ### How PR previews work with GitOps
 
-When you configure a **PR Opened** trigger in the Console's GitOps settings, the GitHub App handler automates the preview lifecycle:
+Create a Git deployment with the **Pull request opened** trigger and choose the branch that pull requests merge into, such as `main`. This works the same way on GitHub, GitLab (merge requests) and Bitbucket:
 
-1. **PR opened** — The handler starts a deployment to stage `pr-{number}` (e.g. `pr-42`). For preview deployments, the GitHub App creates a comment on the PR with pending deployment details.
-2. **Temporary configuration** — A temporary GitOps configuration is created for the PR branch, linking it to the `pr-{number}` stage. The temporary configuration stores the `deleteStackAfterPrClose` preference and is removed by the PR cleanup flow.
-3. **PR closed or merged** — On PR close, the handler finds temporary PR configurations by branch and PR number. The `startDeletion` utility orchestrates a Stacktape delete operation, and `deleteGitConfigurationForPR` removes the temporary GitOps configuration.
+1. **Pull request opened** — Stacktape deploys the stage `pr-<number>`, for example `pr-42`, and comments on the pull request. The comment is updated with the result.
+2. **New commits pushed to the pull request** — Stacktape redeploys `pr-<number>` with the latest commit.
+3. **Pull request merged or closed** — if the Git deployment has **Delete stack after pull request is merged or closed?** turned on, Stacktape deletes the preview stage and comments on the pull request. Otherwise the stage keeps running.
 
-For preview deployments and deletions, if orchestration fails after a PR number is available, the handler attempts to update the PR comment with failure details.
-
-
-> **Info:** For PR Opened events, the handler derives the preview stage as `pr-{number}` — for example, PR #42 deploys to stage `pr-42`. For PR Opened configurations, the Console shows `pr-{#number}` as the stage placeholder when no fixed stage is stored.
-
+Pull requests from forks never get a preview, so code from outside the repository does not run with your project's credentials.
 
 ### How PR previews work with custom CI/CD
 
@@ -110,19 +102,19 @@ For GitHub Actions, you can run this workflow on GitHub-hosted compute or enable
 
 ### Auto-delete on PR close
 
-Temporary PR GitOps configurations store a `deleteStackAfterPrClose` value. On PR close, the handler finds temporary PR configurations by branch and PR number. The provided utilities include `startDeletion`, which orchestrates a Stacktape delete operation, and `deleteGitConfigurationForPR`, which removes the temporary GitOps configuration. Configure `deleteStackAfterPrClose` through the Console GitOps page or a custom CI delete step so preview stages don't sit idle running databases, load balancers, or container workloads after the PR is closed.
+Turn on **Delete stack after pull request is merged or closed?** in the Git deployment, or add a delete step to your custom CI pipeline, so preview stages don't keep running databases, load balancers or containers after the pull request closes.
 
-Disable auto-delete only when you have a specific reason to keep preview stages alive after merge, such as:
+Keep previews after merge only when you have a specific reason, such as:
 
 - Post-merge QA validation that runs against the deployed preview
 - Debugging a deployment issue after the PR was merged
 - Compliance workflows that require a frozen snapshot
 
-You can always remove a preview stage manually with [`stacktape delete`](/cli/delete) regardless of the `deleteStackAfterPrClose` setting.
+You can always remove a preview stage manually with [`stacktape delete`](/cli/delete), whatever the Git deployment's setting.
 
-### GitLab and other Git providers
+### CI variables for custom pipelines
 
-The managed GitOps flow is implemented through the GitHub App integration. For GitLab, Bitbucket, and other Git providers, use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) to implement the same stacks-per-branch pattern. Implement the same deploy and delete steps in your custom CI/CD pipeline and substitute the provider-specific branch or PR variables used by your CI system.
+If you implement the pattern in your own pipeline, substitute your CI system's branch and pull request variables in the deploy and delete steps above.
 
 | Provider | PR/MR number variable | Branch name variable |
 |----------|----------------------|---------------------|
@@ -134,7 +126,7 @@ The managed GitOps flow is implemented through the GitHub App integration. For G
 
 Feature branch stages sit between long-lived stages and PR previews. They're deployed from a named branch (e.g. `feat/payments`) and live until the feature merges or is abandoned.
 
-Feature branch stages are often deployed explicitly when you need a live environment for a long-running feature, but they can also be automated with a Push to Branch GitOps configuration targeting that specific branch, or a custom CI pipeline triggered on push. Unlike long-lived stages, they're torn down once the feature ships.
+Feature branch stages are often deployed explicitly when you need a live environment for a long-running feature, but they can also be automated with a **Push to branch** Git deployment for that branch, or a custom CI pipeline triggered on push. Unlike long-lived stages, they're torn down once the feature ships.
 
 Deploy a feature branch stage:
 
@@ -182,7 +174,7 @@ Deploying to a stage runs a Stacktape deploy operation for the selected project,
 
 **Right-size preview resources.** Use [stage-specific configuration](/configuration/stages-and-environments) to give preview stages smaller database instances, lower container counts, or fewer replicas than production.
 
-**Auto-delete PR previews.** Configure `deleteStackAfterPrClose` in the PR preview GitOps configuration, or add a deletion step in your custom CI pipeline. Stale previews running unused databases or containers are the most common source of unexpected bills.
+**Auto-delete PR previews.** Turn on **Delete stack after pull request is merged or closed?** in the preview Git deployment, or add a deletion step in your custom CI pipeline. Stale previews running unused databases or containers are the most common source of unexpected bills.
 
 **Use serverless resources in previews.** [Lambda functions](/resources/compute/lambda-function) and [DynamoDB tables](/resources/databases/dynamodb) have pay-per-use pricing with generous free tiers. A preview stage with only serverless resources costs nearly nothing when idle. [Container workloads](/resources/compute/web-service) and [relational databases](/resources/databases/relational-database) incur costs whether traffic is flowing or not.
 
@@ -196,7 +188,7 @@ Stale stages are the primary risk of the stacks-per-branch pattern. A forgotten 
 
 | Strategy | How | Best for |
 |----------|-----|----------|
-| **GitOps cleanup** | Configure `deleteStackAfterPrClose` in the PR preview GitOps configuration so the PR-close flow triggers deletion | PR previews |
+| **Git deployment cleanup** | Turn on **Delete stack after pull request is merged or closed?** in the preview Git deployment | PR previews |
 | **CI pipeline step** | Add a [`stacktape delete`](/cli/delete) step triggered on PR close or branch deletion | Custom CI/CD setups |
 | **Manual cleanup** | Run `stacktape delete --stage {name}` | Feature branches, one-off stages |
 | **Periodic audit** | Schedule a script that lists stacks and deletes those older than N days | Teams with many developers |
@@ -220,7 +212,7 @@ This gives you:
 - Production deployment on merge to `main`
 - Isolated preview environments for every PR targeting `main`, cleaned up on PR close
 
-The Console GitOps page supports PR Opened and Push to Branch configurations for GitHub repositories, so you can model production, staging, and PR-preview triggers there without writing pipeline files. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for the full setup walkthrough.
+Git deployments in the Console support **Push to branch** and **Pull request opened** triggers for GitHub, GitLab and Bitbucket repositories, so you can set up production, staging and PR previews there without writing pipeline files. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for the full setup walkthrough.
 
 ## When to use this pattern
 
@@ -256,8 +248,8 @@ Deleting a preview stage starts a Stacktape delete operation for that stage. Tre
 
 ### How do I debug a failing PR preview deployment?
 
-For preview deployments, the GitHub App creates a comment on the PR with pending deployment details. For preview deployments and deletions, if orchestration fails, the handler attempts to update the PR comment with failure details. You can also use [`stacktape logs`](/cli/logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape stack history`](/cli/info-operations) for the deployment history of the preview stage.
+For Git deployment previews, start with the comment Stacktape posts on the pull request: it shows whether the deploy succeeded or failed. The deployment's logs are in the Stacktape Console. You can also use [`stacktape logs`](/cli/logs) with `--stage pr-{number}` to tail logs from the deployed resources, or check [`stacktape stack history`](/cli/info-operations) for the deployment history of the preview stage.
 
 ### GitOps vs custom CI/CD for stacks-per-branch — which should I choose?
 
-GitOps with Console stores deployment configurations in the Stacktape Console, and the GitHub App handler starts deploy and delete operations from GitHub events — creating temporary PR configurations, orchestrating preview deployments, and posting PR comments. Choose [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) when you need pre-deployment tests, approval gates, custom build steps, support for Git providers other than GitHub, or integration with existing pipelines. Many teams start with GitOps and move to custom CI/CD when they outgrow the managed flow.
+With [Git deployments in the Console](/ci-cd-and-gitops/gitops-with-console), Stacktape deploys on pushes and pull requests from GitHub, GitLab or Bitbucket, posts results on the pull request and cleans up previews, with no pipeline file. Choose [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) when you need pre-deployment tests, approval gates, custom build steps, a Git host other than GitHub, GitLab or Bitbucket, or integration with existing pipelines. Many teams start with GitOps and move to custom CI/CD when they outgrow the managed flow.

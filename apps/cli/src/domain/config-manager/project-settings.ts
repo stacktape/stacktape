@@ -35,6 +35,7 @@ const COMMANDS_WITHOUT_PROJECT_SETTINGS = new Set<string>([
   'version',
   'login',
   'logout',
+  'connect',
   'upgrade',
   'init',
   'mcp',
@@ -67,20 +68,11 @@ export const projectSettingsErrorsAreFatal = (command: StacktapeCommand): boolea
 // Locating the config file
 // ---------------------------------------------------------------------------------------------------------------------
 
-export const CONFIG_FILE_PRECEDENCE = [
-  'stacktape.ts',
-  'stacktape.yml',
-  ...VALID_CONFIG_PATHS.filter((configPath) => !['stacktape.ts', 'stacktape.yml'].includes(configPath))
-];
-
-const configFilePriority = (filePath: string) => {
-  const priority = CONFIG_FILE_PRECEDENCE.indexOf(basename(filePath));
-  return priority === -1 ? Number.MAX_SAFE_INTEGER : priority;
-};
-
 /**
- * The config file a command uses: `--config` resolved against `--cwd` (or the process directory), otherwise the
- * highest-precedence `stacktape.*` file in that directory. `candidates` lists every discovered file, best first.
+ * The config file a command uses: `--config` resolved against `--cwd` (or the process directory), otherwise the one
+ * `stacktape.*` file in that directory. Several such files are refused rather than ranked: they usually mean a stale
+ * file (a YAML config left next to its TypeScript rewrite, or a compiled `stacktape.js`), and each can name another
+ * project, stage or region.
  */
 export const locateConfigFile = ({
   configPath,
@@ -90,17 +82,27 @@ export const locateConfigFile = ({
   configPath?: string;
   currentWorkingDirectory?: string;
   cwd?: string;
-}): { path?: string; candidates: string[]; explicit: boolean } => {
+}): { path?: string; explicit: boolean } => {
   const directory = resolve(cwd, currentWorkingDirectory || '.');
   if (configPath) {
-    const path = isAbsolute(configPath) ? configPath : join(directory, configPath);
-    return { path, candidates: [path], explicit: true };
+    return { path: isAbsolute(configPath) ? configPath : join(directory, configPath), explicit: true };
   }
   const candidates = readdirSync(directory)
-    .map((item) => join(directory, item))
-    .filter((item) => VALID_CONFIG_PATHS.includes(basename(item)) && lstatSync(item).isFile())
-    .toSorted((first, second) => configFilePriority(first) - configFilePriority(second));
-  return { path: candidates[0], candidates, explicit: false };
+    .filter((item) => VALID_CONFIG_PATHS.includes(item) && lstatSync(join(directory, item)).isFile())
+    .toSorted();
+  if (candidates.length > 1) {
+    throw new CliError({
+      category: 'CONFIG',
+      code: 'CONFIG_FILE_AMBIGUOUS',
+      message: `Found ${candidates.length} Stacktape config files in ${directory}: ${candidates.join(', ')}. Stacktape does not guess which one to use.`,
+      hints: [
+        `Choose one with \`--config\`, for example \`--config ${candidates[0]}\`.`,
+        'Or delete or rename the file you no longer use.'
+      ],
+      data: { directory, candidates }
+    });
+  }
+  return { path: candidates[0] && join(directory, candidates[0]), explicit: false };
 };
 
 // ---------------------------------------------------------------------------------------------------------------------

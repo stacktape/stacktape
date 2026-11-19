@@ -73,7 +73,7 @@ export interface LogForwardingBase extends CloudWatchLogGroupOptions {
    *         logForwarding:
    *           type: datadog
    *           properties:
-   *             apiKey: $Secret('datadog.apiKey')
+   *             apiKey: $Secret('datadog', 'apiKey')
    *         # stp-end-focus
    * ```
    *
@@ -92,7 +92,7 @@ export interface LogForwardingBase extends CloudWatchLogGroupOptions {
    *       // stp-focus
    *       logForwarding: {
    *         type: 'datadog',
-   *         properties: { apiKey: $Secret('datadog.apiKey') }
+   *         properties: { apiKey: $Secret('datadog', 'apiKey') }
    *       }
    *       // stp-end-focus
    *     }
@@ -354,7 +354,7 @@ export interface HttpEndpointLogForwardingProps {
    *           properties:
    *             endpointUrl: https://logs.example.com/v1/ingest
    *             # stp-focus
-   *             accessKey: $Secret('logForwarding.accessKey')
+   *             accessKey: $Secret('logForwarding', 'accessKey')
    *             # stp-end-focus
    * ```
    *
@@ -373,7 +373,7 @@ export interface HttpEndpointLogForwardingProps {
    *         properties: {
    *           endpointUrl: 'https://logs.example.com/v1/ingest',
    *           // stp-focus
-   *           accessKey: $Secret('logForwarding.accessKey')
+   *           accessKey: $Secret('logForwarding', 'accessKey')
    *           // stp-end-focus
    *         }
    *       }
@@ -532,7 +532,7 @@ export interface DatadogLogForwardingProps {
    *           type: datadog
    *           properties:
    *             # stp-focus
-   *             apiKey: $Secret('datadog.apiKey')
+   *             apiKey: $Secret('datadog', 'apiKey')
    *             # stp-end-focus
    * ```
    *
@@ -550,7 +550,7 @@ export interface DatadogLogForwardingProps {
    *         type: 'datadog',
    *         properties: {
    *           // stp-focus
-   *           apiKey: $Secret('datadog.apiKey')
+   *           apiKey: $Secret('datadog', 'apiKey')
    *           // stp-end-focus
    *         }
    *       }
@@ -582,7 +582,7 @@ export interface DatadogLogForwardingProps {
    *         logForwarding:
    *           type: datadog
    *           properties:
-   *             apiKey: $Secret('datadog.apiKey')
+   *             apiKey: $Secret('datadog', 'apiKey')
    *             # stp-focus
    *             endpointUrl: https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input
    *             # stp-end-focus
@@ -601,7 +601,7 @@ export interface DatadogLogForwardingProps {
    *       logForwarding: {
    *         type: 'datadog',
    *         properties: {
-   *           apiKey: $Secret('datadog.apiKey'),
+   *           apiKey: $Secret('datadog', 'apiKey'),
    *           // stp-focus
    *           endpointUrl: 'https://aws-kinesis-http-intake.logs.datadoghq.eu/v1/input'
    *           // stp-end-focus

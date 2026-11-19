@@ -63,7 +63,7 @@ stacktape deploy --stage production --region eu-west-1 --full
 
 ### `--yes`
 
-Skips the interactive confirmation prompt before deploying. Use `--yes` in CI/CD pipelines or other non-interactive environments to avoid blocking on confirmation. The `--agent` flag also confirms operations automatically (along with switching to JSONL output).
+Confirms the deploy when it needs confirmation: an update that may delete stateful resources, or a project that does not exist yet and would be created. Use `--yes` in CI/CD pipelines and other non-interactive runs. Without it, such a deploy fails with `CONFIRMATION_REQUIRED` before it changes anything. `--agent` only switches the output to JSONL; it does not confirm.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --yes
@@ -101,7 +101,7 @@ By default, Stacktape extracts shared code into Lambda layers to reduce per-func
 
 ### `--show-secrets`
 
-Includes sensitive values in deploy output. Handle with care.
+Includes secret values, such as database passwords and connection strings with credentials, in the `--agent` result (`data.result.stackInfo`) and in the stack-info file. Without it, each of them is `<<OMITTED>>`. Use it only where the output stays private, never in shared CI logs. The terminal summary never prints secret values.
 
 ## All flags
 
@@ -117,13 +117,15 @@ stacktape deploy --stage production --region us-east-1
 
 ### Deploy to the account of an AWS profile
 
-The deploy goes to the connected AWS account that `my-aws-profile` belongs to. It fails if that account is not connected to your organization.
+The deploy goes to the AWS account that `my-aws-profile` belongs to. When the CLI is signed in to the Console, that account must be connected to your organization, or the deploy fails.
 
 ```bash
 stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --project my-app
 ```
 
 ### Deploy to a named connected account
+
+With the Console, choose one of the organization's connected AWS accounts by name.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --aws-account production

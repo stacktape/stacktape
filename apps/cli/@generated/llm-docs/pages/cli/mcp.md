@@ -36,7 +36,7 @@ The MCP server exposes five focused tools that AI agents use to investigate inci
 
 When an MCP-compatible client starts the server, Stacktape registers the five tools and begins listening over stdio immediately, then initializes its bundled documentation index asynchronously. Incident context (`stacktape_incident`) comes from the same `incident show` and `incidents` commands you can run yourself. Infrastructure operations and diagnostics (`stacktape_cli`) execute Stacktape CLI commands with validation and safety gates. Documentation queries (`stacktape_docs`) search the local lexical index. Project scanning (`stacktape_project`) reads local config files and package scripts. Dev-mode follow-up operations like status checks, log reading, rebuilds, local database queries, resets and stop (`stacktape_dev`) communicate with the dev agent API started by [`stacktape dev`](/cli/dev).
 
-`stacktape mcp` itself does not require an API key. Operations that run Stacktape CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need credentials configured with [`stacktape login`](/cli/login).
+`stacktape mcp` itself does not require an API key. Operations that run Stacktape CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need AWS credentials on the machine. Console features also need [`stacktape login`](/cli/login); see [Use the CLI without an account](/getting-started/open-source-cli).
 
 ## Client configuration
 
@@ -75,7 +75,7 @@ stacktape mcp --debug
 
 ### Do I need an API key to use the MCP server?
 
-The `stacktape mcp` command itself does not require an API key, so docs search and project inspection work with no credentials. Operations that run CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need credentials configured with [`stacktape login`](/cli/login).
+The `stacktape mcp` command itself does not require an API key, so docs search and project inspection work with no credentials. Operations that run CLI commands requiring account access — such as deploy, delete, diagnostics, and starting dev mode — need AWS credentials on the machine. Console features also need [`stacktape login`](/cli/login); see [Use the CLI without an account](/getting-started/open-source-cli).
 
 ### Can the MCP server modify my infrastructure?
 

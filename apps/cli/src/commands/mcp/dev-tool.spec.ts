@@ -674,6 +674,36 @@ describe('MCP dev session routing', () => {
 
   // The P1 of the review: a start that fails after start returned DEV_STARTING, while no status call waits, must keep
   // its own error for the next call instead of answering NOT_FOUND.
+  test('a start that needs confirmation says how to confirm it, and only confirm=true passes --yes', async () => {
+    const received: Array<Record<string, unknown>> = [];
+    const runCli: RunCli = async ({ args, cwd }) => {
+      received.push(args);
+      return {
+        ok: false,
+        code: 'CONFIRMATION_REQUIRED',
+        message: 'Project "shop" does not exist, and creating it needs confirmation.',
+        events: [],
+        logEvents: [],
+        outputEvents: [],
+        resolvedContext: { cwd: cwd || process.cwd() }
+      };
+    };
+    const handler = createDevToolHandler({ runCli, discoverAgents: async () => [] });
+    const refused = (await handler({ action: 'start', args: { stage: 'dev' } })).structuredContent;
+    expect(refused.code).toBe('CONFIRMATION_REQUIRED');
+    expect(refused.nextActions?.join(' ')).toContain('args.confirm=true');
+    // `dev --agent` alone confirms nothing.
+    expect(received[0].autoConfirmOperation).toBeUndefined();
+    expect(received[0].confirm).toBeUndefined();
+
+    await handler({ action: 'start', args: { stage: 'dev', confirm: true } });
+    expect(received[1].autoConfirmOperation).toBe(true);
+    expect(received[1].confirm).toBeUndefined();
+    // An explicit false is kept.
+    await handler({ action: 'start', args: { stage: 'dev', confirm: true, autoConfirmOperation: false } });
+    expect(received[2].autoConfirmOperation).toBe(false);
+  });
+
   test('a background start that fails while no call waits keeps its code and hints for the next status call', async () => {
     let failStart!: () => void;
     const gate = new Promise<void>((resolve) => (failStart = resolve));

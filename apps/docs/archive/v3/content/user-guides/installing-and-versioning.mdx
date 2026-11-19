@@ -1,0 +1,64 @@
+---
+title: "Installing and Versioning"
+order: 4
+---
+
+## Installing Stacktape
+
+### Using an installation script
+
+<CodeBlock
+  tabs={[
+    {
+      lang: "bash",
+      code: "iwr https://installs.stacktape.com/windows.ps1 -useb | iex\n",
+      label: "Windows (PowerShell)"
+    },
+    { lang: "bash", code: "curl -L https://installs.stacktape.com/linux.sh | sh\n", label: "Linux" },
+    { lang: "bash", code: "curl -L https://installs.stacktape.com/macos.sh | sh\n", label: "macOS" },
+    { lang: "bash", code: "curl -L https://installs.stacktape.com/macos-arm.sh | sh\n", label: "macOS (ARM)" }
+  ]}
+/>
+
+After the installation is complete, you may need to manually add the Stacktape bin folder to your `PATH` environment variable. To do so, follow the instructions printed in the terminal.
+
+### Manual installation
+
+To install Stacktape manually, download the appropriate binary from the [GitHub releases page](https://github.com/stacktape/stacktape/releases).
+
+Extract the archive to `~/.stacktape/bin` and add this directory to your `PATH` environment variable.
+
+## Installing a specific version
+
+To install a specific version, set the `STACKTAPE_VERSION` environment variable before running the installation script.
+
+<CodeBlock
+  tabs={[
+    {
+      lang: "bash",
+      code: '$env:STACKTAPE_VERSION="2.0.0" && iwr https://installs.stacktape.com/windows.ps1 -useb | iex\n',
+      label: "Windows (PowerShell)"
+    },
+    {
+      lang: "bash",
+      code: 'export STACKTAPE_VERSION="2.0.0" && curl -L https://installs.stacktape.com/linux.sh | sh\n',
+      label: "Linux"
+    },
+    {
+      lang: "bash",
+      code: 'export STACKTAPE_VERSION="2.0.0" && curl -L https://installs.stacktape.com/macos.sh | sh\n',
+      label: "macOS"
+    },
+    {
+      lang: "bash",
+      code: 'export STACKTAPE_VERSION="2.0.0" && curl -L https://installs.stacktape.com/macos-arm.sh | sh\n',
+      label: "macOS (ARM)"
+    }
+  ]}
+/>
+
+## Semantic versioning
+
+Stacktape follows [semantic versioning](https://semver.org/) as closely as possible.
+
+There may be minor breaking changes in minor versions from time to time, but these are always documented on the [releases page](https://github.com/stacktape/stacktape/releases).

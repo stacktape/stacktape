@@ -5,24 +5,46 @@ Resource type: `cdn`
 ## TypeScript definition
 
 ```typescript
-import type { CacheKeyCookies, CacheKeyHeaders, CacheKeyQueryString } from 'stacktape';
+import type { CacheKeyCookiesAll, CacheKeyCookiesAllExcept, CacheKeyCookiesNone, CacheKeyCookiesWhitelist, CacheKeyHeadersNone, CacheKeyHeadersWhitelist, CacheKeyQueryStringAll, CacheKeyQueryStringNone, CacheKeyQueryStringWhitelist } from 'stacktape';
 
 type CdnCacheKey = {
   /** Which cookies to include in the cache key. Different cookie values = different cached responses. */
-  cookies?: CacheKeyCookies;
+  cookies?: CdnCacheKeyCookies;
   /** Which headers to include in the cache key. Different header values = different cached responses. */
-  headers?: CacheKeyHeaders;
+  headers?: CdnCacheKeyHeaders;
   /** Which query params to include in the cache key. Different param values = different cached responses. */
-  queryString?: CacheKeyQueryString;
+  queryString?: CdnCacheKeyQueryString;
 };
+
+/** Union choices used by the properties above. */
+type CdnCacheKeyCookies =
+  | CacheKeyCookiesNone
+  | CacheKeyCookiesWhitelist
+  | CacheKeyCookiesAllExcept
+  | CacheKeyCookiesAll;
+
+type CdnCacheKeyHeaders =
+  | CacheKeyHeadersNone
+  | CacheKeyHeadersWhitelist;
+
+type CdnCacheKeyQueryString =
+  | CacheKeyQueryStringAll
+  | CacheKeyQueryStringNone
+  | CacheKeyQueryStringWhitelist;
 ```
 
 ## Property: `cookies`
 
 - Required: no
-- Type: `CacheKeyCookies`
+- Type: `CacheKeyCookiesNone | CacheKeyCookiesWhitelist | CacheKeyCookiesAllExcept | CacheKeyCookiesAll`
 
 Which cookies to include in the cache key. Different cookie values = different cached responses.
+
+Choices:
+- `CacheKeyCookiesNone` (`CacheKeyCookiesNone`). Properties: `none: boolean = true`.
+- `CacheKeyCookiesWhitelist` (`CacheKeyCookiesWhitelist`). Properties: `whitelist: Array<string>`.
+- `CacheKeyCookiesAllExcept` (`CacheKeyCookiesAllExcept`). Properties: `allExcept: Array<string>`.
+- `CacheKeyCookiesAll` (`CacheKeyCookiesAll`). Properties: `all: boolean = true`.
 
 ### Example 1 (yaml)
 
@@ -63,9 +85,13 @@ return { resources: { api } };
 ## Property: `headers`
 
 - Required: no
-- Type: `CacheKeyHeaders`
+- Type: `CacheKeyHeadersNone | CacheKeyHeadersWhitelist`
 
 Which headers to include in the cache key. Different header values = different cached responses.
+
+Choices:
+- `CacheKeyHeadersNone` (`CacheKeyHeadersNone`). Properties: `none: boolean = true`.
+- `CacheKeyHeadersWhitelist` (`CacheKeyHeadersWhitelist`). Properties: `whitelist: Array<string>`.
 
 ### Example 1 (yaml)
 
@@ -106,9 +132,14 @@ return { resources: { api } };
 ## Property: `queryString`
 
 - Required: no
-- Type: `CacheKeyQueryString`
+- Type: `CacheKeyQueryStringAll | CacheKeyQueryStringNone | CacheKeyQueryStringWhitelist`
 
 Which query params to include in the cache key. Different param values = different cached responses.
+
+Choices:
+- `CacheKeyQueryStringAll` (`CacheKeyQueryStringAll`). Properties: `all: boolean = true`.
+- `CacheKeyQueryStringNone` (`CacheKeyQueryStringNone`). Properties: `none: boolean = true`.
+- `CacheKeyQueryStringWhitelist` (`CacheKeyQueryStringWhitelist`). Properties: `whitelist: Array<string>`.
 
 ### Example 1 (yaml)
 

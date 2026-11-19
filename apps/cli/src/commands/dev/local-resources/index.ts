@@ -206,14 +206,10 @@ const removeLocalData = async (config: LocalResourceConfig) => {
 };
 
 const mapEngineToLocalType = (engineType: string): 'postgres' | 'mysql' | 'mariadb' | null => {
-  if (
-    ['postgres', 'aurora-postgresql', 'aurora-postgresql-serverless', 'aurora-postgresql-serverless-v2'].includes(
-      engineType
-    )
-  ) {
+  if (['postgres', 'aurora-postgresql', 'aurora-postgresql-serverless-v2'].includes(engineType)) {
     return 'postgres';
   }
-  if (['mysql', 'aurora-mysql', 'aurora-mysql-serverless', 'aurora-mysql-serverless-v2'].includes(engineType)) {
+  if (['mysql', 'aurora-mysql', 'aurora-mysql-serverless-v2'].includes(engineType)) {
     return 'mysql';
   }
   if (engineType === 'mariadb') {

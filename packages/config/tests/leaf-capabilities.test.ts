@@ -25,10 +25,8 @@ describe('Fargate workload resource compatibility', () => {
 describe('relational database engine normalization', () => {
   test.each([
     ['aurora-postgresql', 'aurora-postgresql'],
-    ['aurora-postgresql-serverless', 'aurora-postgresql'],
     ['aurora-postgresql-serverless-v2', 'aurora-postgresql'],
     ['aurora-mysql', 'aurora-mysql'],
-    ['aurora-mysql-serverless', 'aurora-mysql'],
     ['aurora-mysql-serverless-v2', 'aurora-mysql'],
     ['postgres', 'postgres'],
     ['mysql', 'mysql'],

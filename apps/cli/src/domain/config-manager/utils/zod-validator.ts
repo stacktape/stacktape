@@ -8,6 +8,8 @@ import yaml from 'yaml';
 import { Scalar, YAMLMap, YAMLSeq } from 'yaml';
 import { stacktapeConfigSchema } from '../../../../@generated/schemas/validate-config-zod';
 import { STACKTAPE_RESOURCE_TYPES } from '@stacktape/config/resource-types';
+import { uptimeCheckCredentialChannelHint } from './uptime-checks';
+import { v3PackagingTypeHint, v3PropertyHint } from './v3-config-names';
 
 type FormattedError = {
   path: string;
@@ -227,7 +229,13 @@ const formatUnionMemberIssue = ({
       const result: Pick<FormattedError, 'hint' | 'message'> = {
         message: `Invalid type ${inlineCode(`"${unionType}"`)} at ${inlineCode(formatZodIssuePath(errorPath))}`
       };
-      if (validTypes.length) {
+      const v3Hint = v3PackagingTypeHint(unionType);
+      const uptimeChannelHint = uptimeCheckCredentialChannelHint({ config, path: errorPath, channelType: unionType });
+      if (uptimeChannelHint) {
+        result.hint = uptimeChannelHint;
+      } else if (v3Hint) {
+        result.hint = v3Hint;
+      } else if (validTypes.length) {
         const suggestion = findClosestMatch(unionType, validTypes);
         result.hint = suggestion
           ? `Did you mean ${inlineCode(`"${suggestion}"`)}? Valid types: ${validTypes.map(inlineCode).join(', ')}`
@@ -263,15 +271,24 @@ const formatUnionMemberIssue = ({
 
   if (issue.code === 'unrecognized_keys') {
     const unknownKeys = issue.keys || [];
+    const v3Hint = joinV3PropertyHints(unknownKeys);
     return {
       message: `Unknown ${unknownKeys.length === 1 ? 'property' : 'properties'} ${unknownKeys
         .map(inlineCode)
-        .join(', ')} at ${inlineCode(formatZodIssuePath(errorPath))}`
+        .join(', ')} at ${inlineCode(formatZodIssuePath(errorPath))}`,
+      ...(v3Hint && { hint: v3Hint })
     };
   }
 
   return { message: `Invalid configuration at ${inlineCode(formatZodIssuePath(errorPath))}` };
 };
+
+/** The v3 renames among unknown properties, one sentence each. */
+const joinV3PropertyHints = (keys: string[]) =>
+  keys
+    .map(v3PropertyHint)
+    .filter((hint): hint is string => Boolean(hint))
+    .join(' ') || undefined;
 
 const SCRIPT_TYPES = ['local-script', 'bastion-script', 'local-script-with-bastion-tunneling'];
 
@@ -394,8 +411,9 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
     const formattedKeys = unknownKeys.map(inlineCode).join(', ');
     message = `Unknown ${unknownKeys.length === 1 ? 'property' : 'properties'}: ${formattedKeys}`;
 
+    hint = joinV3PropertyHints(unknownKeys);
     // For single unknown property, try to suggest
-    if (unknownKeys.length === 1 && 'allowedKeys' in (issue as any)) {
+    if (!hint && unknownKeys.length === 1 && 'allowedKeys' in (issue as any)) {
       const allowed = (issue as any).allowedKeys as string[];
       const suggestion = findClosestMatch(unknownKeys[0], allowed);
       if (suggestion) {

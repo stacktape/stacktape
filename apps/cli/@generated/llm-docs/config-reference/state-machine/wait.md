@@ -6,23 +6,23 @@ Resource type: `state-machine`
 
 ```typescript
 type Wait = {
-  Type: string;
+  Type: "Wait";
   Comment?: string;
-  End?: boolean;
-  InputPath?: string;
+  End?: true;
+  InputPath?: string | null;
   Next?: string;
-  OutputPath?: string;
+  OutputPath?: string | null;
   Seconds?: number;
-  SecondsPath?: string;
+  SecondsPath?: string | null;
   Timestamp?: string;
-  TimestampPath?: string;
+  TimestampPath?: string | null;
 };
 ```
 
 ## Property: `Type`
 
 - Required: yes
-- Type: `string`
+- Type: `string = "Wait"`
 
 ## Property: `Comment`
 
@@ -32,12 +32,12 @@ type Wait = {
 ## Property: `End`
 
 - Required: no
-- Type: `boolean`
+- Type: `boolean = true`
 
 ## Property: `InputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Next`
 
@@ -47,7 +47,7 @@ type Wait = {
 ## Property: `OutputPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Seconds`
 
@@ -57,7 +57,7 @@ type Wait = {
 ## Property: `SecondsPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`
 
 ## Property: `Timestamp`
 
@@ -67,4 +67,4 @@ type Wait = {
 ## Property: `TimestampPath`
 
 - Required: no
-- Type: `string`
+- Type: `string | null`

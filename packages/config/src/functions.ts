@@ -1,4 +1,4 @@
-import type { CloudformationTag, EnvironmentVar, ResourceAccessProps, ResourceOverrides } from './shared';
+import type { CloudformationTag, EnvironmentVar, ReleaseCommand, ResourceAccessProps, ResourceOverrides } from './shared';
 import type { LambdaAlarm } from './alarms';
 import type { CdnConfiguration } from './cdn';
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
@@ -423,7 +423,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    * ```
@@ -436,7 +436,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+   *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
    *   });
    *   const dbMigrator = new LambdaFunction({
    *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/migrate.ts' } },
@@ -452,6 +452,56 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    * @default false
    */
   joinDefaultVpc?: boolean;
+  /**
+   * #### Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+   *
+   * ---
+   *
+   * Use it for database migrations. A function's package holds only its bundled code, so Stacktape builds an image of
+   * the whole project and runs the command in a one-off ECS task, with this function's environment variables and its
+   * access to the resources in `connectTo`. The deploy waits for the task, prints its logs, and stops if the command
+   * fails, so the running version keeps serving.
+   *
+   * Set `runWhenChanged` to your migration folder. Without it, each code change builds the image and runs the command.
+   * Building the image needs Docker on the machine that deploys.
+   *
+   * The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+   * with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+   * reverses what the command changed.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   mainDb:
+   *     type: relational-database
+   *     properties:
+   *       credentials:
+   *         masterUserPassword: $Secret('db-password')
+   *       engine:
+   *         type: postgres
+   *         properties:
+   *           version: '17'
+   *           primaryInstance:
+   *             instanceSize: db.t4g.micro
+   *   api:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: js-bundle
+   *         properties:
+   *           entryfilePath: src/api.ts
+   *       connectTo:
+   *         - mainDb
+   *       # stp-focus
+   *       releaseCommand:
+   *         command: npx prisma migrate deploy
+   *         runWhenChanged:
+   *           - prisma/migrations
+   *       # stp-end-focus
+   * ```
+   */
+  releaseCommand?: string | ReleaseCommand;
   /**
    * #### Additional tags for this function (on top of stack-level tags). Max 50.
    *
@@ -694,7 +744,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    * ```
@@ -707,7 +757,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const legacyDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+   *     engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
    *   });
    *   const legacyDbWriter = new LambdaFunction({
    *     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/write.ts' } },

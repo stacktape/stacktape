@@ -2,7 +2,6 @@ import { resolveCloudwatchLogExports } from '@domain-services/config-manager/dat
 import { resolveDatabasePort } from '@domain-services/config-manager/database-engine';
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
-import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -245,20 +244,6 @@ export const resolveDatabases = async () => {
         });
       }
 
-      // if it is serverless v1 cluster
-      if (
-        (definition.engine.type === 'aurora-mysql-serverless' ||
-          definition.engine.type === 'aurora-postgresql-serverless') &&
-        definition.accessibility?.accessibilityMode === 'internet'
-      ) {
-        throw new ExpectedError(
-          'CONFIG_VALIDATION',
-          `Error in configuration of database "${name}". When using serverless engine type "${definition.engine.type}", accessibilityMode cannot be set to ${definition.accessibility?.accessibilityMode} due to AWS limitations.`,
-          `Try using one of the following accessibility options: ${(
-            ['vpc', 'scoping-workloads-in-vpc'] as StpRelationalDatabase['accessibility']['accessibilityMode'][]
-          ).join(', ')}.`
-        );
-      }
       // non aurora rds
     } else {
       const instanceSize = (definition.engine as RdsEngine).properties.primaryInstance.instanceSize;

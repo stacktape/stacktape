@@ -501,7 +501,7 @@ import {
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
   const myBucket = new Bucket({});
 

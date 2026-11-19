@@ -1,6 +1,4 @@
 import type { ChildStdioMode } from '@utils/exec';
 
-export const resolveScriptStdioMode = (properties: {
-  stdioMode?: ChildStdioMode;
-  pipeStdio?: boolean;
-}): ChildStdioMode => properties.stdioMode ?? (properties.pipeStdio === false ? 'ignore' : 'capture');
+export const resolveScriptStdioMode = (properties: { stdioMode?: ChildStdioMode }): ChildStdioMode =>
+  properties.stdioMode ?? 'capture';

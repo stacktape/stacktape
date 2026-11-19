@@ -50,18 +50,13 @@ class OperationSession {
     this.journal.append({ type: 'completion-pending', summary: params });
   }
 
-  commitPendingCompletion(options?: { hookFailureCount?: number }) {
+  /** `failedHookName` is the `afterDeploy` hook that failed the command after the deployment had finished. */
+  commitPendingCompletion(options?: { failedHookName?: string }) {
     const pending = this.store.getSnapshot().pendingCompletion;
     if (!pending) return;
-    let summary: OperationSummary = pending;
-    if (options?.hookFailureCount) {
-      const count = options.hookFailureCount;
-      summary = {
-        ...pending,
-        success: false,
-        message: `DEPLOYED WITH ERRORS — ${count} after:deploy hook${count > 1 ? 's' : ''} failed`
-      };
-    }
+    const summary: OperationSummary = options?.failedHookName
+      ? { ...pending, success: false, message: `DEPLOYED, BUT THE afterDeploy HOOK ${options.failedHookName} FAILED` }
+      : pending;
     this.journal.append({ type: 'session-completed', summary });
   }
 

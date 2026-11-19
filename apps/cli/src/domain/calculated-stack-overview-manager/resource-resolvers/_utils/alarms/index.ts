@@ -151,6 +151,7 @@ const getInputTemplate = ({ alarm, resource }: { alarm: AlarmDefinition; resourc
     description: '<description>',
     time: '<time>',
     stateValue: '<stateValue>',
+    previousStateValue: '<previousStateValue>',
     alarmAwsResourceName,
     stackName: calculatedStackOverviewManager.context.stackName,
     alarmConfig: alarm,
@@ -201,7 +202,8 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
             alarmName: '$.detail.alarmName',
             description: '$.detail.configuration.description',
             time: '$.time',
-            stateValue: '$.detail.state.value'
+            stateValue: '$.detail.state.value',
+            previousStateValue: '$.detail.previousState.value'
           },
           InputTemplate: JSON.stringify(getInputTemplate({ resource, alarm }))
         },

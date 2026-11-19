@@ -10,7 +10,7 @@ import type { AuroraEngineInstance } from 'stacktape';
 type AuroraEngineProperties = {
   /** Cluster instances. First = primary (writer), rest = read replicas. */
   instances: Array<AuroraEngineInstance>;
-  /** Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL). */
+  /** Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`. */
   version: string;
   /** Name of the initial database. */
   dbName?: string;
@@ -39,11 +39,11 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql
       properties:
-        version: '16.6'
+        version: '16'
         instances:
           - instanceSize: db.r6g.large
           - instanceSize: db.r6g.large
@@ -56,11 +56,11 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql',
     properties: {
-      version: '16.6',
+      version: '16',
       instances: [
         { instanceSize: 'db.r6g.large' },
         { instanceSize: 'db.r6g.large' }
@@ -77,7 +77,14 @@ return { resources: { mainDatabase } };
 - Required: yes
 - Type: `string`
 
-Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL).
+Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`.
+
+Name the release line unless you need one exact minor version. AWS then runs a current minor version of that line
+and applies new ones in the maintenance window. A full version pins the minor version, and AWS retires old minor
+versions, after which a new database can no longer be created with it. PostgreSQL, MySQL, MariaDB and Aurora accept
+a release line; Oracle and SQL Server need a full version.
+
+A database that is already deployed keeps the version it has when you switch its config to the release line.
 
 ### Example 1 (yaml)
 
@@ -87,11 +94,11 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '17'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -103,11 +110,11 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '17',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -132,11 +139,11 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql
       properties:
-        version: '16.6'
+        version: '16'
         dbName: appdb
         instances:
           - instanceSize: db.r6g.large
@@ -149,11 +156,11 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql',
     properties: {
-      version: '16.6',
+      version: '16',
       dbName: 'appdb',
       instances: [{ instanceSize: 'db.r6g.large' }]
     }
@@ -179,11 +186,11 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         disableAutoMinorVersionUpgrade: true
         primaryInstance:
           instanceSize: db.t4g.medium
@@ -196,11 +203,11 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       disableAutoMinorVersionUpgrade: true,
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
@@ -225,11 +232,11 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql
       properties:
-        version: '16.6'
+        version: '16'
         port: 5433
         instances:
           - instanceSize: db.r6g.large
@@ -242,11 +249,11 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql',
     properties: {
-      version: '16.6',
+      version: '16',
       port: 5433,
       instances: [{ instanceSize: 'db.r6g.large' }]
     }

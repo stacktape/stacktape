@@ -58,7 +58,7 @@ const postgres = (accessibility: string) => `
       engine:
         type: postgres
         properties:
-          version: '16.9'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:${accessibility}`;

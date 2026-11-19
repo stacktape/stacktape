@@ -26,6 +26,8 @@ export const commandLogin = async () => {
 
   try {
     await globalStateManager.saveApiKey({ apiKey });
+    // Signed in from here on, for this command too: login links the anonymous install ID to the user.
+    globalStateManager.apiKey = apiKey;
     await stacktapeTrpcApiManager.init({ apiKey });
     const userData = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
 

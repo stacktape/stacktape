@@ -120,6 +120,7 @@ export const startWizardSession = async ({
   machineRegion,
   stacktapeAccount,
   signIn,
+  connectConsole,
   gitHost,
   writePipeline,
   codingAgentSetup,
@@ -228,7 +229,10 @@ export const startWizardSession = async ({
    * another region or the identity check reports one.
    */
   machineRegion?: string;
-  /** Whether this machine is signed in to Stacktape, which deploying requires and generating does not. */
+  /**
+   * Whether this machine is signed in to Stacktape. Neither step needs it: signed in, the deploy is recorded in the
+   * Console and the page links there; signed out, it runs on local AWS credentials and the page offers the Console.
+   */
   stacktapeAccount?: () => Promise<NonNullable<WizardState['stacktapeAccount']>>;
   /**
    * How to sign in to Stacktape without leaving the page.
@@ -237,6 +241,12 @@ export const startWizardSession = async ({
    * the recheck notices when that has been done.
    */
   signIn?: WizardSignInDependencies;
+  /**
+   * Connects the AWS account of this machine's credentials to the signed-in organization (`stacktape connect`), so the
+   * stacks deployed without an account appear in the Console. Never redeploys. Absent when the session cannot; the
+   * page then hands out the command.
+   */
+  connectConsole?: () => Promise<{ ok: boolean; detail: string }>;
   /** The git host this project pushes to, when it is one we generate a pipeline for. */
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** How much infrastructure to compose for. Chosen on the first screen, before anything is read. */
@@ -439,6 +449,13 @@ export const startWizardSession = async ({
     machineRegion ??
     DEFAULT_PRICING_REGION;
   let account: WizardState['stacktapeAccount'];
+  /** The account check in flight, if any, so a deploy can wait for its answer instead of guessing. */
+  let accountCheck: Promise<void> | undefined;
+  /** Whether the latest deploy ran signed in, which decides between the Console link and the Console offer. */
+  let deployedSignedIn = false;
+  /** How far the Console offer after an account-free deploy has got. Kept across redeploys. */
+  let connection: Exclude<NonNullable<WizardState['consoleConnection']>['status'], 'linked'> = 'offered';
+  let connectionDetail = '';
   /** Set once the server exists. Its step is published; what it holds to authenticate never is. */
   let signInFlow: WizardSignInFlow | undefined;
   let deployment: WizardDeployment | undefined;
@@ -594,6 +611,16 @@ export const startWizardSession = async ({
     };
   };
 
+  const consoleConnectionState = (): Pick<WizardState, 'consoleConnection'> => {
+    if (deployment?.status !== 'succeeded') return {};
+    // A session that does not check the account cannot know; it links, as it always did.
+    if (stacktapeAccount === undefined || deployedSignedIn) return { consoleConnection: { status: 'linked' } };
+    return {
+      consoleConnection:
+        connection === 'failed' ? { status: 'failed', detail: connectionDetail } : { status: connection }
+    };
+  };
+
   const buildState = (): WizardState => ({
     phase:
       failure !== undefined
@@ -629,6 +656,7 @@ export const startWizardSession = async ({
         }),
     ...(pipeline === undefined ? {} : { pipeline }),
     ...codingAgentSetupState(),
+    ...consoleConnectionState(),
     timeline,
     // Absent, rather than empty, while the mission runs: an empty facts object is indistinguishable
     // from "we looked and found nothing", which is a different and much more alarming answer.
@@ -687,7 +715,28 @@ export const startWizardSession = async ({
     publish(buildState());
   };
 
-  const resolveAccount = async (): Promise<void> => {
+  /** Connects the AWS account to the Console, once signed in. Answers over the event stream. */
+  const startConnecting = () => {
+    if (connection === 'connecting' || connection === 'connected') return;
+    connection = 'connecting';
+    publish(buildState());
+    void (async () => {
+      const outcome =
+        connectConsole === undefined
+          ? { ok: false, detail: 'This session cannot connect the account from the page.' }
+          : await connectConsole().catch((error: unknown) => ({
+              ok: false,
+              detail: error instanceof Error ? error.message : String(error)
+            }));
+      // Set aside while it ran: the user said not now, so the result is not pushed at them.
+      if (connection !== 'connecting') return;
+      connection = outcome.ok ? 'connected' : 'failed';
+      connectionDetail = outcome.detail;
+      publish(buildState());
+    })();
+  };
+
+  const checkAccount = async (): Promise<void> => {
     if (stacktapeAccount === undefined) return;
     try {
       account = await stacktapeAccount();
@@ -697,7 +746,15 @@ export const startWizardSession = async ({
     // Signed in — from this page, or in a terminal while it was open. Either way an attempt still
     // in progress here has nothing left to do, and what it was holding is dropped.
     if (account.signedIn) signInFlow?.reset();
+    // Signing in was the first half of connecting from the Console offer; the second follows by itself.
+    if (account.signedIn && connection === 'signing-in') startConnecting();
     publish(buildState());
+  };
+
+  const resolveAccount = (): Promise<void> => {
+    const check = checkAccount();
+    accountCheck = check;
+    return check;
   };
 
   if (signIn !== undefined) {
@@ -804,7 +861,6 @@ export const startWizardSession = async ({
           // The real wizard's target probe resolves the same connected account/profile as deploy.
           // Embedders without it retain the older ambient identity gate.
           (inspectDeployTarget === undefined && awsIdentity !== undefined && identity?.available !== true) ||
-          (stacktapeAccount !== undefined && account?.signedIn !== true) ||
           // The agreed gate: a configuration the local try-out has proven broken never deploys
           // until something changes or the user explicitly sets the result aside.
           verificationBlocksDeploy()
@@ -878,6 +934,10 @@ export const startWizardSession = async ({
           return;
         }
 
+        // No sign-in is needed: signed out, the deploy runs on this machine's AWS credentials. Which of the two it is
+        // decides what the page offers afterwards, so an account check still in flight is waited for.
+        if (stacktapeAccount !== undefined && account === undefined) await accountCheck;
+        deployedSignedIn = account?.signedIn === true;
         deployment = {
           status: 'running',
           stage,
@@ -1107,6 +1167,30 @@ export const startWizardSession = async ({
             agentSetup = { agentId, status: ok ? 'connected' : 'failed', detail };
             publish(buildState());
           });
+      },
+      onConsoleConnection: async (action) => {
+        // Offered only after an account-free deploy succeeded; anything else has nothing to accept or set aside.
+        const offer = consoleConnectionState().consoleConnection;
+        if (offer === undefined || offer.status === 'linked') return;
+        if (action === 'dismiss') {
+          // A sign-in started from the offer ends with it; a connection already running finishes in the background.
+          if (connection === 'signing-in' && account?.signedIn !== true) signInFlow?.reset();
+          if (connection !== 'connected') connection = 'dismissed';
+          publish(buildState());
+          return;
+        }
+        if (connection === 'connecting' || connection === 'connected') return;
+        if (account?.signedIn === true) {
+          startConnecting();
+          return;
+        }
+        connection = 'signing-in';
+        publish(buildState());
+        // One click both accepts and opens the Console tab, so the device sign-in starts with it.
+        if (signInFlow !== undefined && signInFlow.state().step === 'signed-out') {
+          await signInFlow.handle({ kind: 'start' });
+          publish(buildState());
+        }
       },
       onPipeline: async ({ stage, region }) => {
         // The pipeline deploys a configuration, so there has to be one. Nothing to say otherwise.

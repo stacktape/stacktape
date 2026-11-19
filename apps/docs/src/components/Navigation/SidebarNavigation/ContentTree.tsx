@@ -2,16 +2,20 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ContentTreeGroup } from './ContentTreeGroup';
 import { createExpansionStore, ExpansionStoreContext } from './expansion-store';
 import { getNavigationTree } from './navigation-data';
+import { VersionSwitcher } from './VersionSwitcher';
+import type { DocsVersion } from '@/site-config';
 import type { DocPage } from '@/utils/docs-data';
 
 export function ContentTree({
   allDocPages,
-  pathname: initialPathname = '/'
+  pathname: initialPathname = '/',
+  version = 'v4'
 }: {
   allDocPages: DocPage[];
   pathname?: string;
+  version?: DocsVersion;
 }) {
-  const navigationTree = useMemo(() => getNavigationTree(allDocPages || []), [allDocPages]);
+  const navigationTree = useMemo(() => getNavigationTree(allDocPages || [], version), [allDocPages, version]);
 
   // The sidebar uses `transition:persist`, so it is NOT re-mounted on navigation and never receives
   // an updated `pathname` prop. Track it in state and refresh from Astro's view-transition
@@ -49,6 +53,7 @@ export function ContentTree({
   return (
     <ExpansionStoreContext.Provider value={store}>
       <div className="w-full">
+        <VersionSwitcher version={version} pathname={pathname} />
         {navigationTree.map((group) => (
           <ContentTreeGroup key={group.id} group={group} />
         ))}

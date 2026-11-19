@@ -366,7 +366,8 @@ const stackCommandArgs = ({
   '--profile',
   options.profile,
   '--awsAccount',
-  awsAccountName
+  awsAccountName,
+  '--autoConfirmOperation'
 ];
 
 /** What `deploy` prints after creating a stack in a terminal checked out from GitHub, GitLab or Bitbucket. */
@@ -390,11 +391,7 @@ const runFirstDeployInTerminal = async ({
   invocationId: string;
 }) => {
   // The change-plan confirmation is answered up front; the CI/CD offer is asked on any TTY regardless.
-  const cliArgs = [
-    'dev:cli',
-    ...stackCommandArgs({ options, command: 'deploy', awsAccountName }),
-    '--autoConfirmOperation'
-  ];
+  const cliArgs = ['dev:cli', ...stackCommandArgs({ options, command: 'deploy', awsAccountName })];
   const quoted = cliArgs.map((part) => `'${part.replaceAll("'", "'\\''")}'`).join(' ');
   invocationIds.push(invocationId);
   const child = Bun.spawn({

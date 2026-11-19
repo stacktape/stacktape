@@ -368,30 +368,29 @@ type Plan = {
 
 const DEFAULT_PLANS: Plan[] = [
   {
-    name: 'Stacktape Core',
+    name: 'Stacktape CLI',
     price: 'Free',
-    tagline: 'The open-source CLI and engine',
+    tagline: 'Open source, no account needed',
     highlight: true,
     features: [
-      'The full CLI: deploy, dev, logs, scripts and more',
+      'Deploy, update, roll back and delete stacks',
       'Every resource type in the library',
-      'Override, extend and eject anytime',
-      'Local dev mode against real cloud resources',
-      'MIT-licensed - yours forever'
+      'Dev mode, logs, secrets and scripts',
+      'Runs on your own AWS credentials',
+      'MIT-licensed'
     ],
-    cta: { label: 'Get started free', href: '/getting-started/configure-your-stack' }
+    cta: { label: 'Get started', href: '/getting-started/open-source-cli' }
   },
   {
     name: 'Stacktape Console',
-    price: 'Paid',
-    tagline: 'Hosted CI/CD, GitOps & observability',
+    price: 'Free to start',
+    tagline: 'Free up to $200 a month of AWS spend, then 19–25% of it',
     features: [
-      'CI/CD pipeline for GitHub, GitLab & Bitbucket',
-      'Web console to deploy and manage stacks',
-      'Browse logs, metrics, costs and issues',
-      'Remote sessions into running containers',
-      'Secrets management, guardrails & alarms',
-      'Premium support - 8-minute average response'
+      'Deploy history and costs for every stage',
+      'Alerts, incidents, error tracking and uptime checks',
+      'Git deployments and PR previews',
+      'Team access, guardrails and audit log',
+      'Connect existing stacks without a redeploy'
     ],
     cta: { label: 'See the Console', href: '/stacktape-console/console-overview' }
   }

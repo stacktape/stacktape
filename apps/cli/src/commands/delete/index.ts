@@ -273,17 +273,20 @@ export const commandDelete = async () => {
     functionNames: []
   });
   // The stack is gone, so its uptime checks leave the Console projection with it. Best effort: a
-  // failed sync leaves paused rows behind, which the next deploy of this stage reconciles.
-  try {
-    await withSyncRetries(() =>
-      stacktapeTrpcApiManager.apiClient.syncUptimeChecks({
-        project: stackContext.projectName,
-        stage: stackContext.stage,
-        checks: []
-      })
-    );
-  } catch (err) {
-    tui.info(`Could not remove uptime check definitions from the Stacktape Console: ${err}`);
+  // failed sync leaves paused rows behind, which the next deploy of this stage reconciles. Without the Console there is
+  // no projection.
+  if (!globalStateManager.isAccountFree) {
+    try {
+      await withSyncRetries(() =>
+        stacktapeTrpcApiManager.apiClient.syncUptimeChecks({
+          project: stackContext.projectName,
+          stage: stackContext.stage,
+          checks: []
+        })
+      );
+    } catch (err) {
+      tui.info(`Could not remove uptime check definitions from the Stacktape Console: ${err}`);
+    }
   }
   // The network's janitor removes the shared NAT and network later, so the delete never waits for them.
   if (wasInSharedNetwork) {

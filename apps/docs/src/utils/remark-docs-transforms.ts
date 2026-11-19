@@ -1,5 +1,6 @@
 import { visit } from 'unist-util-visit';
 import type { AstNode, AstParent, MdxVFile } from './ast';
+import { isV3ArchiveFile } from './v3-archive';
 
 /**
  * Content transforms that mirror what the old Next.js pipeline did at render time, applied here as
@@ -10,6 +11,8 @@ import type { AstNode, AstParent, MdxVFile } from './ast';
  */
 export function remarkDocsTransforms() {
   return (tree: AstParent, file: MdxVFile) => {
+    // The frozen v3 archive keeps its own heading structure (see remark-v3-archive.ts).
+    if (isV3ArchiveFile(file?.path)) return;
     const title = file?.data?.astro?.frontmatter?.title;
 
     const firstContentIndex = tree.children.findIndex(

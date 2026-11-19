@@ -32,7 +32,7 @@ import type { ValidatedAwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { getApexDomain } from '@utils/domains';
 
-const DOMAINS_DOCS_URL = 'https://docs.stacktape.com/other-resources/domains-and-certificates/';
+const DOMAINS_DOCS_URL = 'https://docs.stacktape.com/resources/networking/custom-domains/';
 
 const wrap = (
   errorsObj: typeof errors
@@ -279,7 +279,7 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
               desiredNameServers.map((ns) => `- ${ns}`).join('\n')
             )}`
           : 'At your registrar, update name servers to the values shown in the Stacktape Console.',
-        `Docs: ${DOMAINS_DOCS_URL}#adding-domain`
+        `Docs: ${DOMAINS_DOCS_URL}`
       ]
     };
   },
@@ -439,14 +439,18 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       message: `Cannot perform operation, because no resource of type ${prettyResourceType(
         'bastion'
       )} was found in your stack.`,
-      hint: ['See Stacktape docs on how to add and use bastion: https://docs.stacktape.com/resources/bastion-servers/']
+      hint: [
+        'See Stacktape docs on how to add and use bastion: https://docs.stacktape.com/resources/security/bastion-host/'
+      ]
     };
   },
   e98({ stpResourceName }: { stpResourceName: string }): ReturnedError {
     return {
       type: 'NON_EXISTING_RESOURCE',
       message: `No resource with name ${prettyResourceName(stpResourceName)} was found in your stack.`,
-      hint: ['See Stacktape docs on how to add and use bastion: https://docs.stacktape.com/resources/bastion-servers/']
+      hint: [
+        'See Stacktape docs on how to add and use bastion: https://docs.stacktape.com/resources/security/bastion-host/'
+      ]
     };
   },
   e99({
@@ -523,24 +527,10 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
         )
     };
   },
-  e103(arg: { missingProjectName?: string } | null): ReturnedError {
-    if (arg?.missingProjectName) {
-      return {
-        type: 'INPUT',
-        message: `Project "${arg.missingProjectName}" does not exist, and creating it needs confirmation.`,
-        hint: `Add ${prettyOption('autoConfirmOperation')} to create it, or declare projectName in the config.`
-      };
-    }
+  e103(_arg: null): ReturnedError {
     return {
       type: 'INPUT',
       message: `Invalid arguments. Please specify ${prettyOption('projectName')} option.`
-    };
-  },
-  e108({ reason, command }: { reason?: string; command: StacktapeCommand }) {
-    return {
-      type: 'CONFIRMATION_REQUIRED',
-      message: `Operation ${prettyCommand(command)} requires confirmation.${reason ? `Reason:\n${reason}` : ''} `,
-      hint: `To automatically provide confirmation use auto-confirm option (${prettyOption('autoConfirmOperation')}) during this operation.`
     };
   },
   e110({
@@ -578,7 +568,8 @@ If you want to disable local emulation, use the ${prettyOption('disableEmulation
       )}. Specified engine ${prettyConfigProperty('version')} ${bold(chosenDatabaseVersion)} is not a valid available version for this engine.\n Available versions are: ${availableVersions
         .sort((v1, v2) => v2.localeCompare(v1))
         .map((version) => colorize('gray', version))
-        .join(', ')}`
+        .join(', ')}`,
+      hint: 'For PostgreSQL, MySQL, MariaDB and Aurora you can name a release line instead, such as 17 or 8.4. AWS then runs a current minor version of it, and your config never names a version that AWS retired.'
     };
   },
   e113({ providerType }: { providerType: 'Upstash' | 'Atlas Mongo' }): ReturnedError {

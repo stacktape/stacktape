@@ -10,6 +10,12 @@ formatting: content is excluded from `bun fmt` because code-example whitespace c
 Change canonical MDX or resource data, then run the CLI generator. Never patch `apps/cli/@generated/llm-docs` directly.
 `aws:call` documentation must match the exact allowlist in `packages/aws-read-only/src/operations.ts`.
 
+## v3 archive
+
+`archive/v3/` holds the frozen Stacktape 3.7.1 documentation, served under `/v3/` and kept out of search, the sitemap
+and the LLM corpus. It is owned content, not generated output; read `archive/v3/README.md` before touching it. Do not
+move it into `content/`.
+
 ## Routes and generated inputs
 
 `src/pages/[...slug].astro` renders the content collection. `src/utils/route-slugs.ts` owns file-to-URL mapping and
@@ -44,6 +50,14 @@ can override shared component styles.
 
 `public` is committed app-owned static content. Generated assets go to `dist` during build; builds must not rewrite
 `public`.
+
+## Publishing
+
+`stacktape.ts` deploys the site: `pnpm deploy:docs:preview` publishes `https://preview-docs.stacktape.com`, and
+`pnpm deploy:docs` publishes production. Redirects live in `src/utils/site-redirects.ts`; Astro renders them as
+meta-refresh pages and the CDN answers them with a 301 through a CloudFront Function, whose code must stay under 10 KB
+(`tests/cdn-redirects.test.ts`). The procedure, verification and rollback are in
+[releasing](../../docs/releasing.md#documentation-site).
 
 ## Checks
 

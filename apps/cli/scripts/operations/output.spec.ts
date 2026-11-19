@@ -180,7 +180,8 @@ setInterval(() => {}, 1000);
         const pid = Number(await readFile(join(fixture.directory, 'child.pid'), 'utf8'));
         run.child.kill('SIGINT');
         const result = await run.finished;
-        expect(result.exitCode).toBe(0);
+        // An interrupted command never reports shell success: 128 + SIGINT.
+        expect(result.exitCode).toBe(130);
         expect(result.stderr).toBe('');
         expect(result.stdout).toBe(stripAnsi(result.stdout));
         if (format === 'jsonl') {
@@ -250,7 +251,7 @@ test.skipIf(process.platform === 'win32')(
       await run.waitFor('Choose an arbitrary profile name:');
       run.write('\x03');
       const result = await run.finished;
-      expect(result.exitCode).toBe(0);
+      expect(result.exitCode).toBe(130);
       expect(await Bun.file(join(fixture.home, '.aws/credentials')).exists()).toBe(false);
       expect(stripAnsi(result.stdout)).not.toContain('Saved credentials');
     } finally {

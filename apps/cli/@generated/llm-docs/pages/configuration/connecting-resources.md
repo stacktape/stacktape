@@ -27,7 +27,7 @@ import {
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -183,7 +183,7 @@ import {
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -543,7 +543,7 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres, Bastion } from 'st
 export default defineConfig(() => {
   const myDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -578,7 +578,7 @@ stacktape script run migrate --stage production --region eu-west-1
 
 The `local-script-with-bastion-tunneling` type tunnels connections through a [bastion host](/resources/security/bastion-host), giving your local machine secure access to VPC-only databases. The injected environment variables are automatically adjusted to route through the tunnel. Use `local-script` for commands that can reach their targets from the machine running Stacktape; use `local-script-with-bastion-tunneling` when the target must be reached through a bastion tunnel. Three script types support `connectTo`: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`. The example uses `executeCommand`; local scripts can also use `executeCommands`, `executeScript`, or `executeScripts`, while bastion scripts support `executeCommand` and `executeCommands`.
 
-For `local-script-with-bastion-tunneling`, `properties.bastionResource` names the [bastion host](/resources/security/bastion-host) resource used for the tunnel. For `bastion-script`, `properties.bastionResource` names the bastion server where the commands are executed. Script execution can also set `cwd` to control the working directory; local scripts can set `pipeStdio` (defaults to `true`) when terminal output or interactive prompts matter. See [hooks and scripts](/configuration/hooks-and-scripts) for details.
+For `local-script-with-bastion-tunneling`, `properties.bastionResource` names the [bastion host](/resources/security/bastion-host) resource used for the tunnel. For `bastion-script`, `properties.bastionResource` names the bastion server where the commands are executed. Script execution can also set `cwd` to control the working directory; local scripts can set `stdioMode` (`capture` by default, `inherit` for interactive prompts, `ignore` to discard output). See [hooks and scripts](/configuration/hooks-and-scripts) for details.
 
 Scripts can also define `properties.environment` for static values, secrets, custom directives, or `$ResourceParam()` values when a tool expects a specific variable name that differs from the `STP_*` convention. Use `connectTo` when the script needs connection variables for specific targets. Use `assumeRoleOfResource` when the script should run with the same IAM permissions as a deployed workload — such as a function, batch job, web service, private service, worker service, multi-container workload, or SSR frontend.
 

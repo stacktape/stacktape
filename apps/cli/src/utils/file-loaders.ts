@@ -4,8 +4,7 @@ import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import * as stacktapeAuthoringRuntime from '@stacktape/config-authoring';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
-import { CONFIG_FILE_PRECEDENCE, locateConfigFile } from '@domain-services/config-manager/project-settings';
+import { locateConfigFile } from '@domain-services/config-manager/project-settings';
 import { checkExecutableInPath } from '@utils/bin-executable';
 import {
   dynamicRequire,
@@ -43,6 +42,18 @@ const findInstalledStacktape = (importer: string): string | undefined => {
     const packageDirectory = join(directory, 'node_modules', 'stacktape');
     if (existsSync(join(packageDirectory, 'package.json'))) return packageDirectory;
     if (dirname(directory) === directory) return undefined;
+  }
+};
+
+/** The version of the `stacktape` package that `import ... from 'stacktape'` in this file loads, if one is installed. */
+export const getInstalledStacktapeVersion = (importer: string): string | undefined => {
+  const installed = findInstalledStacktape(importer);
+  if (installed === undefined) return undefined;
+  try {
+    const { version } = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8')) as { version?: unknown };
+    return typeof version === 'string' ? version : undefined;
+  } catch {
+    return undefined;
   }
 };
 
@@ -332,11 +343,6 @@ export const getConfigPath = (): string => {
       });
     }
     return located.path;
-  }
-  if (located.candidates.length > 1) {
-    tuiManager.warn(
-      `Found multiple matching config files: ${located.candidates.join(', ')}. Using ${located.path} based on precedence: ${CONFIG_FILE_PRECEDENCE.join(' > ')}.`
-    );
   }
   return located.path;
 };

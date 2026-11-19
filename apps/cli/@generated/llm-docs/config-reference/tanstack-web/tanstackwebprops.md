@@ -5,7 +5,7 @@ Resource type: `tanstack-web`
 ## TypeScript definition
 
 ```typescript
-import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
+import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, ReleaseCommand, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type TanStackWebProps = {
   /** Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace. */
@@ -26,11 +26,18 @@ type TanStackWebProps = {
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: TanStackWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: SsrWebServerLambdaConfig;
   /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
 };
+
+/** Union choices used by the properties above. */
+type TanStackWebReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 ```
 
 ## Property: `appDirectory`
@@ -220,7 +227,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -236,7 +243,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -346,7 +353,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
   web:
@@ -370,7 +377,7 @@ import { TanStackWeb, RelationalDatabase, defineConfig, $Secret, $ResourceParam 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const web = new TanStackWeb({
     environment: [
@@ -482,6 +489,29 @@ export default defineConfig(() => {
   return { resources: { processor } };
 });
 ```
+
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+prints its logs, and stops if the command fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+command. Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
 
 ## Property: `serverLambda`
 

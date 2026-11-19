@@ -4,6 +4,7 @@ import { VALID_CONFIG_PATHS } from 'src/config/random';
 import { CliError } from '@utils/errors';
 import type { Subtype } from '@utils/type-helpers';
 import { isCustomResourceType } from '@utils/referenceable-types';
+import { UPGRADING_FROM_V3_URL } from './utils/v3-config-names';
 
 const inlineCode = (value: unknown) => `\`${String(value)}\``;
 
@@ -383,9 +384,7 @@ export const configErrors = {
           'cpu'
         )} and ${inlineCode('memory')}`
       ].join('\n'),
-      hints: [
-        `See resource docs to learn more: https://docs.stacktape.com/compute-resources/${workloadType}s/#resources`
-      ]
+      hints: [`See resource docs to learn more: https://docs.stacktape.com/resources/compute/${workloadType}/`]
     });
   },
   scalingRangeInvalid({
@@ -770,6 +769,41 @@ export const configErrors = {
       code: 'CONFIG_TYPESCRIPT_EXPORT_MISSING',
       message: `TypeScript config ${inlineCode(configPath)} must export the result of ${inlineCode('defineConfig')} as its default export.`,
       hints: `Example:\n${inlineCode(`import { defineConfig } from 'stacktape';\nexport default defineConfig(({ stage }) => ({ resources: {} }));`)}`
+    });
+  },
+  stacktapePackageOutdated({
+    configPath,
+    installedVersion,
+    cliVersion
+  }: {
+    configPath: string;
+    installedVersion: string;
+    cliVersion: string;
+  }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_STACKTAPE_PACKAGE_OUTDATED',
+      message: `${inlineCode(configPath)} imports the project's ${inlineCode('stacktape')} package, version ${inlineCode(installedVersion)}. This CLI is Stacktape ${inlineCode(cliVersion)} and cannot load a config written with the v3 package.`,
+      hints: [
+        `Install the package version that matches the CLI, for example ${inlineCode(`npm install stacktape@${cliVersion}`)}.`,
+        `Then update the config for v4: see ${UPGRADING_FROM_V3_URL}`
+      ]
+    });
+  },
+  typescriptV3ExportImported({
+    configPath,
+    exportNames,
+    hints
+  }: {
+    configPath: string;
+    exportNames: string[];
+    hints: string[];
+  }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_TYPESCRIPT_V3_EXPORT',
+      message: `${inlineCode(configPath)} imports ${exportNames.map(inlineCode).join(', ')} from ${inlineCode('stacktape')}, which Stacktape v4 no longer exports.`,
+      hints
     });
   },
   typescriptDefineConfigRequired({ configPath }: { configPath: string }): CliError {

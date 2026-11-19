@@ -729,7 +729,8 @@
   /* ── Where it deploys ───────────────────────────────────────────────────────────────────────── */
 
   /* The target is one thing, not three headings: who deploys, to which account, region and stage. */
-  .wizard-target {
+  .wizard-target,
+  .wizard-console {
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -901,6 +902,15 @@
     overflow-wrap: anywhere;
   }
 
+  /* The Console card under the live addresses shares the target's surface (above): never louder than the result. */
+
+  .wizard-console-note {
+    margin: -4px 0 0;
+    max-width: var(--wizard-measure);
+    color: var(--stp-text-subtle);
+    font-size: 0.82rem;
+  }
+
   /* One block per checked service: a mark and its name on one line, what happened under them. */
   .wizard-check {
     display: flex;
@@ -956,6 +966,11 @@
     width: 100%;
     max-width: 420px;
     padding: 20px;
+  }
+
+  /* Inside a card that is already a panel: no second frame. */
+  .wizard-signin.is-bare {
+    padding: 0;
   }
 
   /* The code the person compares with the Console page: large enough to read at a glance. */

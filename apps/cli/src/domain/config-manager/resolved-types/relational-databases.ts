@@ -9,8 +9,5 @@ export type StpRelationalDatabase = RelationalDatabase['properties'] & {
 };
 export type NormalizedSQLEngine = Exclude<
   StpRelationalDatabase['engine']['type'],
-  | 'aurora-postgresql-serverless'
-  | 'aurora-mysql-serverless'
-  | 'aurora-postgresql-serverless-v2'
-  | 'aurora-mysql-serverless-v2'
+  'aurora-postgresql-serverless-v2' | 'aurora-mysql-serverless-v2'
 >;

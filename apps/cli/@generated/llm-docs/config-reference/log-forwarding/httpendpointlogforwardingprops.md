@@ -89,7 +89,7 @@ resources:
           type: http-endpoint
           properties:
             endpointUrl: https://logs.example.com/v1/ingest
-            accessKey: $Secret('logForwarding.accessKey')
+            accessKey: $Secret('logForwarding', 'accessKey')
 ```
 
 ### Example 2 (typescript)
@@ -106,7 +106,7 @@ export default defineConfig(() => {
         type: 'http-endpoint',
         properties: {
           endpointUrl: 'https://logs.example.com/v1/ingest',
-          accessKey: $Secret('logForwarding.accessKey')
+          accessKey: $Secret('logForwarding', 'accessKey')
         }
       }
     }

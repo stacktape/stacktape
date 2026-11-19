@@ -23,12 +23,15 @@ export type AwsIdentity =
       arn: string;
       /** Where the region came from, or undefined when nothing on this machine names one. */
       region?: string;
+      /** The AWS profile the credentials came from; absent when they came from environment variables. */
+      profile?: string;
     }
   | {
       available: false;
       /** Which of the two failure modes this is: nothing configured, or configured and rejected. */
       reason: 'no-credentials' | 'rejected';
       detail: string;
+      profile?: string;
     };
 
 /** The region the environment names, for callers that do not resolve the CLI's region themselves. */
@@ -44,15 +47,30 @@ const environmentRegion = (env: NodeJS.ProcessEnv = process.env): string | undef
  */
 export const resolveAwsIdentity = async ({
   region = environmentRegion(),
-  timeoutMs = 8_000
+  profile,
+  timeoutMs = 8_000,
+  env = process.env
 }: {
   /** The region this machine deploys to, reported with the identity. `init` passes the one the CLI resolved. */
   region?: string;
+  /**
+   * The profile a deploy on this machine would use (`AWS_PROFILE`, else the `stacktape defaults` profile), as the
+   * CLI selects it. Absent: the AWS SDK's own default chain.
+   */
+  profile?: string;
   timeoutMs?: number;
+  env?: NodeJS.ProcessEnv;
 } = {}): Promise<AwsIdentity> => {
+  // The SDK's chain reads access keys in the environment before any profile, so those win, as they do for a deploy.
+  const fromEnvironment = Boolean(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY);
+  const source = fromEnvironment ? {} : { profile: profile ?? env.AWS_PROFILE ?? 'default' };
   const client = new STSClient({
     region: region ?? 'us-east-1',
-    credentials: fromNodeProviderChain({ timeout: timeoutMs, maxRetries: 1 }),
+    credentials: fromNodeProviderChain({
+      ...(profile === undefined ? {} : { profile }),
+      timeout: timeoutMs,
+      maxRetries: 1
+    }),
     // Bun's `node:https` stalls against the AWS SDK; every client in this CLI uses fetch instead.
     requestHandler: createFetchHandler({ requestTimeout: timeoutMs }),
     maxAttempts: 1
@@ -61,20 +79,21 @@ export const resolveAwsIdentity = async ({
   try {
     const identity = await client.send(new GetCallerIdentityCommand({}));
     if (identity.Account === undefined || identity.Arn === undefined) {
-      return { available: false, reason: 'rejected', detail: 'AWS answered without an account identity.' };
+      return { available: false, reason: 'rejected', detail: 'AWS answered without an account identity.', ...source };
     }
     return {
       available: true,
       accountId: identity.Account,
       arn: identity.Arn,
-      ...(region === undefined ? {} : { region })
+      ...(region === undefined ? {} : { region }),
+      ...source
     };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     // The provider chain throws its own error when it finds nothing at all, which is a different
     // problem for the user than credentials AWS actively refused.
     const missing = /could not load credentials|credentialsproviderror|no credentials/i.test(detail);
-    return { available: false, reason: missing ? 'no-credentials' : 'rejected', detail };
+    return { available: false, reason: missing ? 'no-credentials' : 'rejected', detail, ...source };
   } finally {
     client.destroy();
   }

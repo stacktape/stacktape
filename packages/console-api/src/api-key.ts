@@ -12,7 +12,7 @@ import { sourceMapManifestSchema } from './source-maps.js';
  * deployment needs; the server decides that, and it is deliberately not described here.
  */
 
-export const recordStackOperationInputSchema = z.object({
+const recordStackOperationFieldsSchema = z.object({
   invocationId: z.string(),
   command: z.string().optional().nullable(),
   stackName: z.string().optional().nullable(),
@@ -28,9 +28,14 @@ export const recordStackOperationInputSchema = z.object({
   success: z.boolean().optional().nullable(),
   description: z.string().optional().nullable(),
   /**
-   * The CLI's parsed command-line flags, forwarded as they were parsed and stored as JSON. The Console
-   * reads `stage` out of it and keeps the rest verbatim, so the values stay unknown here: the CLI owns
-   * what a flag means. Stage names stay strings; other flags may contain arbitrary JSON values.
+   * Why an `afterDeploy` hook failed after this deploy finished. `success` stays true, because the new release is live
+   * and the Console reads `success` to know that. The command itself failed, which is what a Git provider status and a
+   * runner job report.
+   */
+  hookFailure: z.string().optional().nullable(),
+  /**
+   * The operation's command-line flags. Only the flags in {@link recordedCommandArgs} are kept; the parser strips
+   * the rest, including those sent by older CLIs. The Console reads `stage` out of it.
    */
   commandArgs: z.record(z.string(), z.unknown()).optional().nullable(),
   logStreamName: z.string().optional().nullable(),
@@ -46,8 +51,84 @@ export const recordStackOperationInputSchema = z.object({
    * Which source maps in the stack's deployment bucket describe each function this operation deploys. Sent before the
    * code switches and again with each function's `activeSince` once it has.
    */
-  sourceMaps: sourceMapManifestSchema.optional().nullable()
+  sourceMaps: sourceMapManifestSchema.optional().nullable(),
+  /**
+   * @deprecated Stacktape 3 CLIs send the project name in this field. The Console reads it as `projectName`, so their
+   * deployments still belong to the project. Send `projectName`.
+   */
+  serviceName: z.string().optional().nullable()
 });
+
+/**
+ * Flags an operation record keeps. They name the target and how the command ran. Flags whose value is free-form input,
+ * such as `--dockerArgs` (which can carry build credentials), script `--env`, command bodies and SDK inputs, never
+ * leave the CLI. Each kept value must be a string, number or boolean.
+ */
+const RECORDED_COMMAND_ARG_NAMES = new Set([
+  'stage',
+  'region',
+  'projectName',
+  'awsAccount',
+  'configPath',
+  'autoConfirmOperation',
+  'autoRollback',
+  'fullDeploy',
+  'skipReleaseCommand',
+  'runner',
+  'noCache',
+  'disableDockerRemoteCache',
+  'disableLayerOptimization',
+  'preserveTempFiles',
+  'targetVersion',
+  'rollbackSteps',
+  'scriptName',
+  'resourceName',
+  'bucketId',
+  'invalidateCdnCache',
+  'headersPreset',
+  'logLevel',
+  'agent'
+]);
+
+/** How the CLI was invoked (for example by a coding agent's MCP tool). The CLI adds it under this key. */
+const INVOCATION_CONTEXT_ARG_NAME = '__stacktapeInvocation';
+const INVOCATION_CONTEXT_FIELDS = ['initiator', 'interface', 'client', 'tool'] as const;
+const MAX_INVOCATION_CONTEXT_VALUE_LENGTH = 80;
+
+type RecordedCommandArgValue = string | number | boolean;
+export type RecordedCommandArgs = Record<string, RecordedCommandArgValue | Record<string, string>>;
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+/** Keeps only the flags an operation record may store. See {@link RECORDED_COMMAND_ARG_NAMES}. */
+export const recordedCommandArgs = (args: Record<string, unknown>): RecordedCommandArgs => {
+  const recorded: RecordedCommandArgs = {};
+  for (const [name, value] of Object.entries(args)) {
+    if (name === INVOCATION_CONTEXT_ARG_NAME && isPlainObject(value)) {
+      const context: Record<string, string> = {};
+      for (const field of INVOCATION_CONTEXT_FIELDS) {
+        const fieldValue = value[field];
+        if (typeof fieldValue === 'string') context[field] = fieldValue.slice(0, MAX_INVOCATION_CONTEXT_VALUE_LENGTH);
+      }
+      recorded[name] = context;
+    } else if (
+      RECORDED_COMMAND_ARG_NAMES.has(name) &&
+      (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+    ) {
+      recorded[name] = value;
+    }
+  }
+  return recorded;
+};
+
+export const recordStackOperationInputSchema = recordStackOperationFieldsSchema.transform(
+  ({ serviceName, commandArgs, ...operation }) => ({
+    ...operation,
+    commandArgs: commandArgs ? recordedCommandArgs(commandArgs) : commandArgs,
+    projectName: operation.projectName ?? serviceName
+  })
+);
 
 export const createDeploymentTokenFromCliInputSchema = z.object({
   projectName: z.string(),
@@ -94,6 +175,11 @@ export const awsConnectionInputSchema = z.object({
 });
 
 export const getAwsConnectionStatusInputSchema = z.object({
+  connectionId: z.string()
+});
+
+/** `stacktape connect` on an account that is already connected: look for its Stacktape stacks again. */
+export const findExistingStacksFromCliInputSchema = z.object({
   connectionId: z.string()
 });
 
@@ -288,6 +374,48 @@ export type ResolveSlackChannelsResponse = {
   unresolved: Array<{ channel: string; reason: string }>;
 };
 
+type UptimeCheckWireChannel = {
+  name: string;
+  type: 'slack' | 'slack_app' | 'ms_teams' | 'e_mail' | 'discord' | 'webhook' | 'console-channel';
+  properties: unknown;
+};
+
+const stringProperties = (properties: unknown, names: readonly string[]): Record<string, string> => {
+  const picked: Record<string, string> = {};
+  if (!isPlainObject(properties)) return picked;
+  for (const name of names) {
+    const value = properties[name];
+    if (typeof value === 'string') picked[name] = value;
+  }
+  return picked;
+};
+
+/**
+ * The uptime-check channels the Console may store. The Console delivers uptime notifications, so a check refers only to
+ * destinations that hold no credentials: a Console channel by name, a channel of the connected Slack app, or an email
+ * address. Channels that carry a bot token or webhook URL (`slack`, `ms_teams`, `discord`, `webhook`) are dropped, and
+ * every kept channel keeps only its named properties.
+ */
+export const uptimeCheckChannelsWithoutCredentials = (channels: UptimeCheckWireChannel[]) => {
+  const kept: Array<{
+    name: string;
+    type: 'slack_app' | 'e_mail' | 'console-channel';
+    properties: Record<string, string>;
+  }> = [];
+  for (const { name, type, properties } of channels) {
+    if (type === 'console-channel') kept.push({ name, type, properties: {} });
+    if (type === 'slack_app') {
+      kept.push({
+        name,
+        type,
+        properties: stringProperties(properties, ['channel', 'connectionId', 'channelId', 'channelName'])
+      });
+    }
+    if (type === 'e_mail') kept.push({ name, type, properties: stringProperties(properties, ['sender', 'recipient']) });
+  }
+  return kept;
+};
+
 export const syncUptimeChecksInputSchema = z.object({
   project: z.string().min(1),
   stage: z.string().min(1),
@@ -311,11 +439,16 @@ export const syncUptimeChecksInputSchema = z.object({
           .array(
             z.object({
               name: z.string().min(1),
+              /**
+               * `slack`, `ms_teams`, `discord` and `webhook` are accepted from Stacktape 4 previews, which sent their
+               * credentials here, and then dropped. See {@link uptimeCheckChannelsWithoutCredentials}.
+               */
               type: z.enum(['slack', 'slack_app', 'ms_teams', 'e_mail', 'discord', 'webhook', 'console-channel']),
               properties: z.unknown()
             })
           )
           .optional()
+          .transform((channels) => channels && uptimeCheckChannelsWithoutCredentials(channels))
       })
     )
     .max(100)
@@ -335,6 +468,7 @@ export type DeleteOrganizationParams = z.input<typeof deleteOrganizationFromCliI
 export type CreateAwsConnectionPendingInput = z.input<typeof awsConnectionInputSchema>;
 export type InitAwsConnectionForCliInput = z.input<typeof awsConnectionInputSchema>;
 export type GetAwsConnectionStatusInput = z.input<typeof getAwsConnectionStatusInputSchema>;
+export type FindExistingStacksFromCliInput = z.input<typeof findExistingStacksFromCliInputSchema>;
 export type GetGitProviderConnectionStatusInput = z.input<typeof getGitProviderConnectionStatusInputSchema>;
 export type CreateGitDeploymentConfigFromCliInput = z.input<typeof createGitDeploymentConfigFromCliInputSchema>;
 export type ReportEventParams = z.input<typeof reportEventInputSchema>;
@@ -544,6 +678,12 @@ export type CanDeployResponse = {
     month: string;
     upgradeUrl: string;
   };
+  /**
+   * One plain sentence the CLI prints after a successful deploy: the Free plan's grace countdown with the estimated
+   * Flexible fee, or how close the organization is to the Free limit. Absent when there is nothing to say; paid plans
+   * never get one.
+   */
+  notice?: string;
 };
 
 export type DefaultDomainsInfoResponse = {
@@ -628,6 +768,16 @@ export type GetAwsConnectionStatusResponse = {
   state: 'PENDING' | 'ACTIVE' | 'FAILED';
   awsAccountId?: string;
   name?: string;
+};
+
+/**
+ * The Stacktape stacks found in a connected AWS account. Each project is reused by name or created; its stages then
+ * appear in the Console without a deploy. Running it again changes nothing.
+ */
+export type FindExistingStacksFromCliResponse = {
+  projects: Array<{ name: string; created: boolean; stages: Array<{ stage: string; region: string }> }>;
+  /** Regions whose stacks could not be read (for example, CloudFormation denied there); stacks there are not found. */
+  skippedRegions: string[];
 };
 
 export type GetGitProviderConnectionStatusResponse = {
@@ -788,6 +938,9 @@ export type ApiKeyTrpcClient = {
   };
   getAwsConnectionStatus: {
     query: (args: GetAwsConnectionStatusInput) => Promise<GetAwsConnectionStatusResponse>;
+  };
+  findExistingStacksFromCli: {
+    mutate: (args: FindExistingStacksFromCliInput) => Promise<FindExistingStacksFromCliResponse>;
   };
   getGitProviderConnectionStatus: {
     query: (args: GetGitProviderConnectionStatusInput) => Promise<GetGitProviderConnectionStatusResponse>;

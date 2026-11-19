@@ -3,12 +3,13 @@ import test from 'node:test';
 import {
   createGitDeploymentConfigFromCliInputSchema,
   getGitProviderConnectionStatusInputSchema,
-  recordStackOperationInputSchema
+  recordStackOperationInputSchema,
+  syncUptimeChecksInputSchema
 } from './api-key.js';
 
 /**
- * `commandArgs` is the CLI's whole parsed flag object. The CLI's argument parser decides the value types,
- * not the Console, so these checks pin the v4 wire contract.
+ * `commandArgs` keeps only the flags that name an operation's target and how it ran. The schema applies the same
+ * allowlist the CLI does, so an older CLI that sends every parsed flag cannot store the rest.
  */
 
 const operation = (commandArgs: unknown) => ({
@@ -18,16 +19,14 @@ const operation = (commandArgs: unknown) => ({
   commandArgs
 });
 
-test('commandArgs accepts a CLI flag object whatever the parser made of the values', () => {
+test('commandArgs keeps operational flags with the values the parser made of them', () => {
   const parsed = recordStackOperationInputSchema.parse(
     operation({
-      // Recorded JSON flags preserve numbers, booleans, lists and nested context without coercion.
-      // Validating a command's particular flag types belongs to the producer.
       stage: 2024,
       region: 'eu-west-1',
       fullDeploy: true,
-      resourcesToSkip: ['bucket', 'lambda'],
-      stacktapeOperationInvocationContext: { initiator: 'user', interface: 'cli' }
+      targetVersion: 'v000041',
+      __stacktapeInvocation: { initiator: 'ai-agent', interface: 'mcp', client: 'codex', tool: 'deploy', extra: 'x' }
     })
   );
 
@@ -35,9 +34,29 @@ test('commandArgs accepts a CLI flag object whatever the parser made of the valu
     stage: 2024,
     region: 'eu-west-1',
     fullDeploy: true,
-    resourcesToSkip: ['bucket', 'lambda'],
-    stacktapeOperationInvocationContext: { initiator: 'user', interface: 'cli' }
+    targetVersion: 'v000041',
+    __stacktapeInvocation: { initiator: 'ai-agent', interface: 'mcp', client: 'codex', tool: 'deploy' }
   });
+});
+
+test('commandArgs drops free-form flags an older CLI still sends', () => {
+  const synthetic = 'synthetic-credential-value';
+  const parsed = recordStackOperationInputSchema.parse(
+    operation({
+      stage: 'production',
+      dockerArgs: [`--build-arg=NPM_TOKEN=${synthetic}`],
+      env: [`TOKEN=${synthetic}`],
+      sdkInput: synthetic,
+      command: synthetic,
+      apiKey: synthetic,
+      hotSwap: true,
+      resourcesToSkip: ['bucket'],
+      configPath: { nested: synthetic }
+    })
+  );
+
+  assert.deepEqual(parsed.commandArgs, { stage: 'production' });
+  assert.equal(JSON.stringify(parsed).includes(synthetic), false);
 });
 
 test('commandArgs may be absent, null, or empty', () => {
@@ -129,4 +148,76 @@ test('CLI Git deployment setup may name the provider, so a project without a rep
   assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse(input).success, true);
   assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse({ ...input, provider: 'GITLAB' }).success, true);
   assert.equal(createGitDeploymentConfigFromCliInputSchema.safeParse({ ...input, provider: 'GITEA' }).success, false);
+});
+
+test('a Stacktape 3 CLI names the project in serviceName, and the Console reads it as projectName', () => {
+  // 3.7.1 sends the project only in its progress report, as `serviceName`.
+  const v3Progress = { invocationId: 'inv-1', command: 'deploy', stackName: 'shop-production', serviceName: 'shop' };
+  const parsed = recordStackOperationInputSchema.parse(v3Progress);
+  assert.equal(parsed.projectName, 'shop');
+  assert.equal('serviceName' in parsed, false);
+
+  assert.equal(
+    recordStackOperationInputSchema.parse({ ...v3Progress, projectName: 'billing' }).projectName,
+    'billing',
+    'projectName wins when a client sends both'
+  );
+  assert.equal(recordStackOperationInputSchema.parse({ invocationId: 'inv-1' }).projectName, undefined);
+});
+
+test('uptime sync drops channels with credentials that Stacktape 4 previews sent, and keeps named properties only', () => {
+  const synthetic = 'synthetic-uptime-credential';
+  const parsed = syncUptimeChecksInputSchema.parse({
+    project: 'shop',
+    stage: 'production',
+    checks: [
+      {
+        name: 'site',
+        revision: 'r1',
+        enabled: true,
+        url: 'https://example.invalid/health',
+        method: 'GET',
+        intervalSeconds: 60,
+        timeoutSeconds: 10,
+        followRedirects: true,
+        regions: ['eu-west-1'],
+        consecutiveFailures: 2,
+        consecutiveSuccesses: 2,
+        notificationChannels: [
+          { name: 'Slack', type: 'slack', properties: { conversationId: 'C1', accessToken: synthetic } },
+          { name: 'ms-teams', type: 'ms_teams', properties: { webhookUrl: `https://example.invalid/${synthetic}` } },
+          { name: 'discord', type: 'discord', properties: { webhookUrl: `https://example.invalid/${synthetic}` } },
+          { name: 'webhook', type: 'webhook', properties: { url: 'https://example.invalid', secret: synthetic } },
+          { name: 'on-call', type: 'console-channel', properties: { token: synthetic } },
+          {
+            name: '#alerts',
+            type: 'slack_app',
+            properties: {
+              channel: '#alerts',
+              connectionId: 'c',
+              channelId: 'C2',
+              channelName: 'alerts',
+              token: synthetic
+            }
+          },
+          {
+            name: 'Email',
+            type: 'e_mail',
+            properties: { sender: 'a@example.com', recipient: 'b@example.com', x: synthetic }
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.deepEqual(parsed.checks[0]!.notificationChannels, [
+    { name: 'on-call', type: 'console-channel', properties: {} },
+    {
+      name: '#alerts',
+      type: 'slack_app',
+      properties: { channel: '#alerts', connectionId: 'c', channelId: 'C2', channelName: 'alerts' }
+    },
+    { name: 'Email', type: 'e_mail', properties: { sender: 'a@example.com', recipient: 'b@example.com' } }
+  ]);
+  assert.equal(JSON.stringify(parsed).includes(synthetic), false);
 });

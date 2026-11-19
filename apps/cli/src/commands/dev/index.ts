@@ -1451,13 +1451,13 @@ export const commandDev = async () => {
 
   // Keep the process running until Ctrl+C
   await new Promise<void>((resolve) => {
-    const cleanup = async () => {
-      await applicationManager.handleExitSignal('SIGINT');
+    const cleanup = (signal: 'SIGINT' | 'SIGTERM') => async () => {
+      await applicationManager.handleExitSignal(signal);
       resolve();
     };
 
-    process.on('SIGINT', cleanup);
-    process.on('SIGTERM', cleanup);
+    process.on('SIGINT', cleanup('SIGINT'));
+    process.on('SIGTERM', cleanup('SIGTERM'));
   });
 };
 

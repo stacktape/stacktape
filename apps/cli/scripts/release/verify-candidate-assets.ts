@@ -14,15 +14,23 @@ export const EXPECTED_RELEASE_ARCHIVES = [
 
 const MEBIBYTE = 1024 * 1024;
 
-/** A deliberate ceiling: update it only after reviewing the extracted artifact delta. */
+/**
+ * A deliberate ceiling: update it only after reviewing the extracted artifact delta.
+ *
+ * Raised on 16 Nov 2026 for 4.0.0. From 4.0.0-preview.11 (27 Oct) the executable grew from 187 to 216 MB (Linux x64,
+ * uncompressed) and every archive by about 14 MiB, with no new file in the archive: the bundled code grew, and Bun
+ * bytecode roughly doubles it. The candidate measured 81.6 (Alpine), 94.3 (Linux arm64), 84.9 (Linux x64), 73.1 (macOS
+ * arm64), 74.9 (macOS x64), 87.4 (Windows arm64) and 92.3 MiB (Windows x64). The largest single dependency in the bundle
+ * is the TypeScript compiler (18 MB of source), the first candidate for a smaller download.
+ */
 export const MAX_RELEASE_ARCHIVE_BYTES: Record<(typeof EXPECTED_RELEASE_ARCHIVES)[number], number> = {
-  'alpine.tar.gz': 90 * MEBIBYTE,
-  'linux-arm.tar.gz': 90 * MEBIBYTE,
-  'linux.tar.gz': 90 * MEBIBYTE,
-  'macos-arm.tar.gz': 80 * MEBIBYTE,
-  'macos.tar.gz': 80 * MEBIBYTE,
-  'windows-arm.zip': 90 * MEBIBYTE,
-  'windows.zip': 90 * MEBIBYTE
+  'alpine.tar.gz': 100 * MEBIBYTE,
+  'linux-arm.tar.gz': 105 * MEBIBYTE,
+  'linux.tar.gz': 100 * MEBIBYTE,
+  'macos-arm.tar.gz': 90 * MEBIBYTE,
+  'macos.tar.gz': 90 * MEBIBYTE,
+  'windows-arm.zip': 105 * MEBIBYTE,
+  'windows.zip': 105 * MEBIBYTE
 };
 
 export const verifyCandidateArchives = async (directory = DIST_PACKAGE_FOLDER_PATH) => {

@@ -3,6 +3,7 @@
   "version": "4.0.0-dev.0",
   "private": true,
   "description": "Deployment-package build engine for Stacktape artifacts, images, web applications and Lambda layers.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./artifact/archive-entries": "./src/artifact/archive-entries.ts",

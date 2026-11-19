@@ -122,15 +122,23 @@ export type WizardState = {
   region?: string;
   /** Who this machine is to AWS. Absent until the check has answered. */
   awsIdentity?:
-    | { available: true; accountId: string; arn: string; region?: string }
-    | { available: false; reason: 'no-credentials' | 'rejected'; detail: string };
+    | { available: true; accountId: string; arn: string; region?: string; profile?: string }
+    | { available: false; reason: 'no-credentials' | 'rejected'; detail: string; profile?: string };
   /**
-   * Deploying needs a signed-in Stacktape account; generating never does. Absent while checking.
-   * `email` and `organization` are present when the account check could name them.
+   * Whether this machine is signed in to Stacktape. Nothing in the wizard needs it: signed out, the deploy runs on this
+   * machine's AWS credentials alone. Absent while checking. `email` and `organization` are present when the account
+   * check could name them.
    */
   stacktapeAccount?: { signedIn: boolean; detail: string; email?: string; organization?: string };
   /** The sign-in step to render while signed out. Absent when this CLI cannot sign in from the page. */
   signIn?: WizardSignIn;
+  /**
+   * The Console after a successful deploy. `linked`: the deploy ran signed in, so the stage is already there. Any other
+   * status belongs to a deploy that ran without an account, and says how far connecting it has got.
+   */
+  consoleConnection?:
+    | { status: 'linked' | 'offered' | 'dismissed' | 'signing-in' | 'connecting' | 'connected' }
+    | { status: 'failed'; detail: string };
   /**
    * Connecting the coding agent picked on the Start step to Stacktape, offered once a deploy has succeeded. It changes
    * that agent's user-level configuration, outside the repository, so it happens only on a click.
@@ -316,6 +324,11 @@ export type Session = {
   setRegion: (region: string) => Promise<WizardState>;
   /** Take one step of signing in to Stacktape. What it led to is in the returned state's `signIn`. */
   signIn: (request: SignInRequest) => Promise<WizardState>;
+  /**
+   * Accept the Console offer after a deploy (sign in when needed, then connect the AWS account), or set it aside.
+   * Accepting while signed out starts the sign-in, so the returned state carries its first step.
+   */
+  consoleConnection: (action: 'connect' | 'dismiss') => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
   /** Calls back on every server-pushed update and connection transition. */
   subscribe: (
@@ -502,6 +515,19 @@ export const connect = async (): Promise<Session> => {
         throw new SessionError(problem.error ?? 'That sign-in step could not be sent.');
       }
       publish((await stepped.json()) as WizardState);
+      return current;
+    },
+    consoleConnection: async (action) => {
+      const changed = await fetch(`/api/console-connection/${action}`, {
+        method: 'POST',
+        headers: { 'x-csrf-token': csrfToken }
+      });
+      if (!changed.ok) {
+        throw new SessionError(
+          action === 'connect' ? 'Connecting to the Console could not be started.' : 'Could not set the offer aside.'
+        );
+      }
+      publish((await changed.json()) as WizardState);
       return current;
     },
     answer: async (questionId, value) => {

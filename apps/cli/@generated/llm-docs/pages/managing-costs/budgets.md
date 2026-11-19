@@ -1,108 +1,126 @@
 # Budgets
 
-Stacktape budget alerts notify you before AWS spending exceeds a threshold you define. Created and managed in the Stacktape Console, budget alerts track actual and forecasted spend at the whole-organization scope in the selected AWS account, or filtered by project and stage for per-stack budgets. When costs cross a percentage of your configured threshold, alerts are delivered through your configured [alert channels](/observability/alert-channels). AWS infrastructure costs are billed directly to your AWS account; the Stacktape subscription fee is separate. Budgets help you catch runaway AWS spend before it becomes a surprise invoice.
+A budget sets a monthly spending limit for one connected AWS account. When the account's spend, or the month's forecast,
+crosses a percentage of that limit, Stacktape sends an alert to the [alert channels](/observability/alert-channels) you
+choose. AWS bills your account directly; the Stacktape subscription fee is separate.
 
-## Creating a budget alert
+Budgets alert you. They do not stop spend.
 
-Budget alerts are created in the Stacktape Console on the Budgets page. The list shows name, scope, threshold, alert percentages, project/stage filters, and created date. Click the Show details icon on any row to open a detail modal that additionally shows the Include forecast setting and attached alert channels. Budget alerts in the Console include these properties:
+## Before you start
 
-| Property | Description |
-|----------|-------------|
-| **Name** | A descriptive label for the budget (e.g. "Production spend limit"). |
-| **Scope** | **Whole organization** (monitors the entire AWS account) or **Per stack** (filtered by specific projects and stages). |
-| **Threshold** | The dollar amount and currency that defines your spending threshold. |
-| **Alert at percentages** | One or more percentage values. An alert fires when actual (or forecasted) spend crosses each percentage of the threshold. |
-| **Include forecast** | When enabled, also alerts when AWS predicts spend will exceed the threshold. |
-| **For projects** | When scope is Per stack, which projects to monitor — individual project names or all projects. |
-| **For stages** | When scope is Per stack, which stages to monitor — individual stage names or all stages. |
-| **Alert channels** | Where alerts are delivered, using channels configured on the [alert channels](/observability/alert-channels) page. |
+- You need the `org:manage-budgets` permission. By default, only owners and admins have it, and the **Budgets** item in
+  the Console's Alerting group is hidden from other members.
+- The AWS account must be [connected](/stacktape-console/connecting-your-aws-account) with deployment access. Accounts
+  connected as read-only cannot be selected.
+- Create at least one [alert channel](/observability/alert-channels). A budget needs a channel to send to.
 
+## Creating a budget
 
-> Screenshot: Stacktape Console Budgets page showing a list of budget alerts with columns for name, scope, threshold, alert percentages, projects, stages, and created date Caption: The Budgets page lists all budget alerts with their scope, threshold, and alert configuration.
+1. Open **Budgets** in the Console and click **New budget**.
+2. Fill in the form:
 
+| Field | What it does |
+|-------|--------------|
+| **Name** | A label for the budget, for example "Production account". |
+| **Monthly limit (USD)** | The spend limit for the calendar month. The minimum is $1. |
+| **Alert at percentages** | Percentages of the limit that trigger an alert, separated by commas. Use up to five whole numbers from 1 to 100, in ascending order. The default is `80, 100`. |
+| **Also alert when the month's forecast goes over a percentage** | Also alerts when AWS forecasts that this month's spend will cross one of the percentages. On by default. |
+| **AWS account** | The connected account whose spend the budget watches. |
+| **Alert channels** | Where the alerts go. Choose one or more. |
 
-> **Info:** Organization-wide budget alerts are created in the selected AWS account when you save them. Stack-scoped budget alerts depend on Stacktape deployment metadata — deploy matching stacks after creating or changing a stack-scoped alert so the Console can track their spend.
+3. Click **Create budget**.
 
+Stacktape creates a monthly AWS cost budget in the selected account. It counts the account's whole spend, not only
+spend from Stacktape stacks. Credits and refunds are not subtracted.
 
-## Scoping
+You cannot edit a budget after creating it. To change the limit, percentages, account or channels, delete the budget and
+create a new one.
 
-Stacktape budget alerts support two scope levels. Choosing the right scope depends on whether you need a single cost ceiling or per-team accountability.
+## When alerts arrive
 
-| Scope | Monitors | Project/stage filters | Best for |
-|-------|----------|----------------------|----------|
-| **Whole organization** | Total AWS account spend | Not applicable — covers everything | A single safety net across all stacks |
-| **Per stack** | Spend attributed to matching stacks | Filter by specific projects and/or stages, or select all | Separate budgets for production vs. development, or per-team cost tracking |
+AWS updates budget data a few times a day, so an alert can arrive hours after spend crosses a percentage. Do not rely
+on budgets for real-time cost control.
 
-**Whole organization** is the simpler option. It catches any spike regardless of which project caused it. Start here if you want a single ceiling for your AWS account.
+Each percentage alerts at most once a month for actual spend and, with forecast alerts on, once for the forecast. For
+example, with `80, 100` you can get up to four alerts in a month: spend reached 80%, spend reached 100%, forecast
+reaches 80%, forecast reaches 100%. A new month starts again with no alerts.
 
-**Per stack** gives you granular control. Select individual project names or all projects, and individual stage names or all stages. For example, you can create one budget for your production stage across all projects and a separate, lower budget for development stages. When scope is "Whole organization", the project and stage filter columns display "Whole organization" and are not configurable.
+AWS needs some usage history before it can forecast. On a newly created account, forecast alerts may not arrive until
+AWS has enough data.
 
+## Checking budgets
 
-> **Tip:** Most teams benefit from having both: one Whole organization budget as a safety net, plus Per stack budgets for production stacks where cost accountability matters.
+The **Budgets** page lists every budget with its state this month, monthly limit, alert percentages and what it applies
+to. The state is the most serious alert of the month: **Over limit**, **Forecast over**, **Reached 80%**,
+**Forecast 80%**, or **No alerts this month**.
 
+Click a budget to open its page. It shows the alert percentages, whether forecast alerts are on, the alert channels, a
+link to this month's costs per stage for the account, and the alerts the budget sent.
 
-## Forecast alerts
+The **Alerts sent** section on the Budgets page lists the alerts all budgets sent. The same alerts also appear in
+[Sent alerts](/observability/alert-history). Deleting a budget removes its AWS budget and stops its alerts; its past
+alerts stay in Sent alerts.
 
-When "Include forecast" is enabled on a budget alert, Stacktape delivers an additional alert when AWS predicts spend will exceed your threshold — even if actual spend is still below it. This gives you lead time to investigate and react before costs actually cross the limit.
+The **Budgets** row on the Console Overview turns red when a budget is over its limit or forecast to go over it this
+month.
 
-Enable forecast alerts on production budgets where early warning matters. For development or short-lived stages, threshold-exceeded alerts on actual spend are usually sufficient.
+## Budgets in Slack
 
-AWS Budgets forecasts are produced by AWS based on historical usage patterns. For newly created accounts or recently deployed stacks, there may not be enough usage history for AWS to generate a meaningful forecast. As usage data accumulates over time, forecast predictions become available and more accurate. If your forecast alert isn't firing on a new stack, this is the most likely reason.
+When a budget sends to a [Slack app channel](/observability/alert-channels), each budget gets one card per month. The
+card is updated as higher percentages are crossed and shows the spending pace and the days left in the month.
 
-## Managing budgets
+- **Show drivers** replies privately with the stacks behind the month's spend and how each changed since the previous
+  month.
+- **Snooze until month end** stops all alerts from that budget until the month is over. It needs the
+  `org:manage-budgets` permission. The budget's page in the Console shows the snooze and has a **Resume alerts** button.
 
-The Budgets page in the Console shows all budget alerts in a table. Use the Show details icon on any row to inspect a budget's full configuration. Each row also includes a delete button to remove the budget alert.
+## Budgets created before v4
 
-## Budget history
+Stacktape v3 could filter a budget by project and stage. Stacktape v4 cannot create these budgets. If an older one
+still exists, its **Applies to** column shows the projects and stages instead of **Whole AWS account**. Delete it and
+create a budget for the AWS account instead.
 
-Budget history in the Console is a log of budget alert events, including threshold-exceeded and forecasted-overspend events. Check budget history to see when budget alerts were triggered.
+## Recommended setup
 
-## When to use
+- Create one budget for each AWS account that runs production stages. Set the limit to your expected monthly bill and
+  keep the default 80% and 100% alerts.
+- Keep forecast alerts on. They give you warning before the spend actually crosses the limit.
+- To separate production and development spend, run them in separate AWS accounts and give each account its own
+  budget. A budget cannot filter by project or stage.
 
-Set up at least one budget alert before going to production. AWS spend can increase quickly when traffic spikes, a runaway process loops, or someone deploys a resource larger than intended. Budgets are the fastest way to detect cost anomalies early.
+Budgets work with the other cost tools in the Console:
 
-- **Start with a Whole organization budget** at 80% and 100% of your expected AWS bill. This catches any stack that misbehaves.
-- **Add Per stack budgets** for production stacks where you need tighter accountability per team or project.
-- **Enable forecast alerts** on production budgets so you get advance warning before overruns.
-- **Connect alert channels** such as Slack, email, or a webhook so budget alerts reach the tools your team already monitors. In a channel of the connected Slack workspace, a budget card shows the spending pace, answers **Show drivers** with the stacks behind the spend, and can be snoozed until the end of the month (`org:manage-budgets` permission); the budget's details in the Console show the snooze and can resume the alerts.
-
-Budgets complement other cost management tools in the Console:
-
-| Tool | Purpose | When to use |
-|------|---------|-------------|
-| [Dashboards](/managing-costs/dashboards) | View spending trends over time | Understanding what you're spending |
-| **Budget alerts** (this page) | Get notified when spend crosses a threshold | Controlling and reacting to spend |
-| [Per-resource breakdown](/managing-costs/per-resource-breakdown) | Attribute costs to individual resources | Identifying which resources drive costs |
-| [Optimization tips](/managing-costs/optimization-tips) | Reduce baseline spend | Lowering costs proactively |
-
-## When NOT to use
-
-Budget alerts notify you — they do not stop spend. AWS Budgets cannot automatically scale down or terminate resources when a threshold is crossed. If you need preventive cost controls that block expensive deployments, use [guardrails](/guardrails/overview) to restrict resource sizes, instance types, and regions.
-
-Budget alerts are also not a substitute for right-sizing resources. If baseline spend is already higher than it should be, the [per-resource breakdown](/managing-costs/per-resource-breakdown) helps identify which specific resources are driving costs, and [optimization tips](/managing-costs/optimization-tips) offers concrete ways to reduce spend directly.
+| Tool | Use it to |
+|------|-----------|
+| [Dashboards](/managing-costs/dashboards) | See spending trends over time. |
+| **Budgets** (this page) | Get alerted when an account's spend crosses a limit. |
+| [Per-resource breakdown](/managing-costs/per-resource-breakdown) | Find the projects, stages and resources that drive costs. |
+| [Optimization tips](/managing-costs/optimization-tips) | Lower your baseline spend. |
 
 ## FAQ
 
 ### Do budget alerts stop AWS from charging me?
 
-No. AWS Budgets is an alerting mechanism, not a spending cap. When a threshold is crossed, you receive a notification — AWS does not automatically shut down or throttle resources. You need to respond to the alert by scaling down, removing unused resources, or adjusting your configuration. For preventive cost controls, combine budgets with [guardrails](/guardrails/overview) that restrict what can be deployed.
+No. A budget sends alerts; AWS does not shut down or throttle anything when a limit is crossed. To prevent expensive
+deployments, use [guardrails](/guardrails/overview) to restrict resource sizes, instance types and regions.
 
-### Can I set a budget alert for a single resource like one database?
+### Can I set a budget for one stage, project or database?
 
-Stacktape budget alerts scope to projects and stages (stacks), not individual resources within a stack. For per-resource cost visibility, use the [per-resource breakdown](/managing-costs/per-resource-breakdown) in the Console.
+No. A budget watches a whole AWS account. To see spend per project, stage or resource, use the
+[per-resource breakdown](/managing-costs/per-resource-breakdown). To alert on one stage's spend, deploy that stage to its
+own AWS account and create a budget for that account.
 
 ### How much do AWS Budgets cost?
 
-AWS may charge for AWS Budgets depending on your account and usage — check the [AWS Budgets pricing page](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/) for current rates.
+AWS may charge for AWS Budgets depending on your account and usage. Check the
+[AWS Budgets pricing page](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/) for current rates.
 
-### Why isn't my forecast alert firing?
+### Why isn't my forecast alert arriving?
 
-AWS Budgets forecasts rely on historical usage data. For newly created AWS accounts or recently deployed stacks, there may not be enough usage history for AWS to generate a meaningful forecast yet. As usage data accumulates over time, forecast-based alerts become available and more accurate. Verify that "Include forecast" is enabled on the budget alert in question, and that the budget's scope matches the stacks generating spend.
+Check that the budget's page says it alerts "when the forecast goes over one of them". If it does, AWS probably does
+not have enough usage history for this account yet. Forecasts become available as usage data accumulates.
 
-### Should I use budgets, guardrails, or both for cost control?
+### Should I use budgets, guardrails, or both?
 
-Use both — they serve different purposes. Budget alerts are reactive: they notify you when spend crosses a threshold so you can investigate. [Guardrails](/guardrails/overview) are preventive: they block deployments that violate your rules (e.g. oversized instances, unauthorized regions, restricted resource types). Start with budget alerts for cost visibility, then layer in guardrails once you know which constraints protect your team from common mistakes.
-
-### Why isn't my stack-scoped budget tracking any spend?
-
-Stack-scoped budget alerts depend on Stacktape deployment metadata to attribute spend to matching stacks. If you create or change a stack-scoped alert but haven't deployed matching stacks since, the Console has nothing to track. Deploy (or redeploy) the stacks whose projects and stages match the budget's filters, and confirm the filters actually match your project and stage names.
+Both. Budgets tell you when spend crosses a limit so you can investigate. [Guardrails](/guardrails/overview) block
+deployments that break your rules, such as oversized instances or unapproved regions.

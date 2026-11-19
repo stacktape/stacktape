@@ -28,8 +28,10 @@ export type AwsQualificationScenario = {
     | 'container-fast-deploy'
     | 'release-command'
     | 'scoped-access'
+    | 'alarm-notifications'
     | 'static-site'
-    | 'batch-job';
+    | 'batch-job'
+    | 'v3-upgrade';
   fixture?: 'express-basic' | 'express-postgres-migration' | 'vite-static' | 'fastapi-basic';
   policy: 'routine' | 'periodic' | 'deep';
   costClass: 'negligible' | 'low' | 'medium' | 'high';
@@ -128,6 +130,24 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     reason: 'Only real IAM shows that connectTo grants exactly its targets and that an update revokes a removed target.'
   },
   {
+    id: 'alarm-inline-channels-in-account',
+    runner: 'alarm-notifications',
+    policy: 'routine',
+    costClass: 'negligible',
+    coverage: [
+      'lambda',
+      'cloudwatch-alarm',
+      'eventbridge',
+      'service-lambda',
+      'notification-delivery',
+      'secret-dynamic-reference',
+      'console-report',
+      'cleanup'
+    ],
+    reason:
+      'Only a real alarm, EventBridge rule and service Lambda role show that inline channels are delivered from the account once per event and that the Console report carries no channel credentials.'
+  },
+  {
     id: 'hosting-bucket-cdn-update',
     runner: 'static-site',
     policy: 'routine',
@@ -144,6 +164,27 @@ export const AWS_QUALIFICATION_SCENARIOS: readonly AwsQualificationScenario[] = 
     coverage: ['batch-job', 'compute-environment', 'sqs-trigger', 'pre-deployment-validation', 'cleanup'],
     reason:
       'Only AWS Batch shows which compute environment images it still accepts; it refused Amazon Linux 2 with no change on our side.'
+  },
+  {
+    id: 'v3-upgrade-customer-shapes',
+    runner: 'v3-upgrade',
+    policy: 'deep',
+    costClass: 'medium',
+    coverage: [
+      'v3-upgrade',
+      'web-service',
+      'multi-container-workload',
+      'relational-database',
+      'raw-cloudformation',
+      'cdn',
+      'edge-functions',
+      'batch-job',
+      'alarms',
+      'fast-deploy',
+      'cleanup'
+    ],
+    reason:
+      'Only a real update of stacks that the released 3.x CLIs created shows what the first v4 deploy replaces and whether the applications and their data survive it.'
   },
   {
     id: 'init-static-site',

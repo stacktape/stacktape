@@ -504,6 +504,8 @@ const devAgentArgs = (
   '--agent',
   '--agentPort',
   String(agentPort),
+  // --agent does not confirm creating the run's project.
+  '--autoConfirmOperation',
   ...extraArgs
 ];
 

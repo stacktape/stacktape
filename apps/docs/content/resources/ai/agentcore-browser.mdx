@@ -134,7 +134,7 @@ A realistic setup combines an [AgentCore Memory](/resources/ai/agentcore-memory)
 export default defineConfig(() => {
   const researchMemory = new AgentCoreMemory({
     description: 'Stores prior research briefs and follow-up context.',
-    expirationDays: 45
+    eventRetentionDays: 45
   });
 
   const researchBrowser = new AgentCoreBrowser({
@@ -150,8 +150,8 @@ export default defineConfig(() => {
     useBrowser: 'researchBrowser',
     endpoints: [{ name: 'production', description: 'Main research assistant endpoint.' }],
     lifecycle: {
-      idleRuntimeSessionTimeout: 3600,
-      maxLifetime: 28800
+      idleTimeoutSeconds: 3600,
+      maxLifetimeSeconds: 28800
     },
     environment: { AI_MODEL: 'eu.amazon.nova-micro-v1:0' }
   });
@@ -169,7 +169,7 @@ export default defineConfig(() => {
   ]}
 />
 
-`AgentCoreRuntimeProps` exposes `useMemory`, `useGateway`, `useBrowser`, and `useCodeInterpreter` as optional string properties for referencing the corresponding AgentCore resources by name. In this example, `useMemory: 'researchMemory'` and `useBrowser: 'researchBrowser'` match the keys in the returned `resources` object. The `expirationDays` property on `AgentCoreMemory` controls how long memory entries are retained. The `lifecycle` object on `AgentCoreRuntime` tunes session lifetime: `idleRuntimeSessionTimeout` sets how long an idle session persists, and `maxLifetime` caps the total session duration. The values `45`, `3600`, and `28800` in this example are illustrative choices — the source types expose these as `number` properties without documenting specific defaults or upper bounds. Adjust them to fit your agent's session and retention requirements.
+`AgentCoreRuntimeProps` exposes `useMemory`, `useGateway`, `useBrowser`, and `useCodeInterpreter` as optional string properties for referencing the corresponding AgentCore resources by name. In this example, `useMemory: 'researchMemory'` and `useBrowser: 'researchBrowser'` match the keys in the returned `resources` object. The `eventRetentionDays` property on `AgentCoreMemory` sets how many days raw memory events are kept. The `lifecycle` object on `AgentCoreRuntime` tunes session lifetime in seconds: `idleTimeoutSeconds` sets how long an idle session persists, and `maxLifetimeSeconds` caps the total session duration. The values `45`, `3600`, and `28800` in this example are illustrative; adjust them to your agent's session and retention requirements.
 
 ## Overrides
 

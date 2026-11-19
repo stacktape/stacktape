@@ -55,7 +55,7 @@ import type { AuroraEngine, AuroraServerlessV2Engine, DatabaseAccessibility, Rds
  *         engine:
  *           type: postgres
  *           properties:
- *             version: '16.6'
+ *             version: '16'
  *             primaryInstance:
  *               instanceSize: db.t4g.small
  *       customDomains:
@@ -91,7 +91,7 @@ import type { AuroraEngine, AuroraServerlessV2Engine, DatabaseAccessibility, Rds
  *       engine: {
  *         type: 'postgres',
  *         properties: {
- *           version: '16.6',
+ *           version: '16',
  *           primaryInstance: {
  *             instanceSize: 'db.t4g.small'
  *           }
@@ -146,7 +146,7 @@ export interface ConvexProps {
    *         engine:
    *           type: postgres
    *           properties:
-   *             version: '16.6'
+   *             version: '16'
    *             primaryInstance:
    *               instanceSize: db.t4g.small
    * ```
@@ -171,7 +171,7 @@ export interface ConvexProps {
    *       engine: {
    *         type: 'postgres',
    *         properties: {
-   *           version: '16.6',
+   *           version: '16',
    *           primaryInstance: {
    *             instanceSize: 'db.t4g.small'
    *           }
@@ -412,7 +412,7 @@ export interface ConvexProps {
    * ---
    *
    * Defaults to a single-AZ RDS PostgreSQL `db.t4g.micro` instance (cheapest production-viable
-   * option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/relational-databases/) — override only what
+   * option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/databases/relational-database/) — override only what
    * you need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable
    * multi-AZ for HA, or increase storage retention.
    *
@@ -431,7 +431,7 @@ export interface ConvexProps {
    *         engine:
    *           type: aurora-postgresql-serverless-v2
    *           properties:
-   *             version: '16.6'
+   *             version: '16'
    *             minCapacity: 0.5
    *             maxCapacity: 4
    *         automatedBackupRetentionDays: 7
@@ -451,7 +451,7 @@ export interface ConvexProps {
    *       engine: {
    *         type: 'aurora-postgresql-serverless-v2',
    *         properties: {
-   *           version: '16.6',
+   *           version: '16',
    *           minCapacity: 0.5,
    *           maxCapacity: 4
    *         }
@@ -1413,7 +1413,7 @@ export interface ConvexDashboardConfig {
  *
  * ---
  *
- * The shape is a focused subset of [`RelationalDatabase`](https://docs.stacktape.com/resources/relational-databases/)
+ * The shape is a focused subset of [`RelationalDatabase`](https://docs.stacktape.com/resources/databases/relational-database/)
  * properties — only the fields that make sense in this context are exposed. The default is a single-AZ
  * RDS PostgreSQL `db.t4g.micro` instance with 20 GB storage, 1-day backup retention, and
  * `scoping-workloads-in-vpc` accessibility (only the Convex backend can reach it).
@@ -1442,7 +1442,7 @@ export interface ConvexDatabaseConfig {
    *         engine:
    *           type: postgres
    *           properties:
-   *             version: '16.6'
+   *             version: '16'
    *             primaryInstance:
    *               instanceSize: db.t4g.medium
    *               multiAz: true
@@ -1462,7 +1462,7 @@ export interface ConvexDatabaseConfig {
    *       engine: {
    *         type: 'postgres',
    *         properties: {
-   *           version: '16.6',
+   *           version: '16',
    *           primaryInstance: {
    *             instanceSize: 'db.t4g.medium',
    *             multiAz: true

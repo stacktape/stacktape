@@ -64,7 +64,7 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
-    expirationDays: 30
+    eventRetentionDays: 30
   });
 
   const supportAgent = new AgentCoreRuntime({
@@ -75,8 +75,8 @@ export default defineConfig(() => {
     useMemory: 'agentMemory',
     endpoints: ['chat'],
     lifecycle: {
-      maxLifetime: 7200,
-      idleRuntimeSessionTimeout: 300
+      maxLifetimeSeconds: 7200,
+      idleTimeoutSeconds: 300
     }
   });
 
@@ -87,7 +87,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `300` and `maxLifetime` to `7200` — these are example values; choose durations appropriate for your agent's session patterns. The memory resource accepts an `expirationDays` number (`30` in this example); use it when you want memory retention to be bounded.
+In this example, `idleTimeoutSeconds` is set to `300` and `maxLifetimeSeconds` to `7200` — these are example values; choose durations appropriate for your agent's session patterns. The memory resource keeps raw events for `eventRetentionDays` days (`30` in this example, which is also the default).
 
 ### Agent with tools, authentication, and resource access
 
@@ -109,11 +109,12 @@ import {
 } from 'stacktape';
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({
-    expirationDays: 60
+    eventRetentionDays: 60
   });
 
   const toolGateway = new AgentCoreGateway({
     description: 'Gateway for support operations',
+    authorizer: { type: 'none' },
     supportedVersions: ['2025-03-26']
   });
 
@@ -147,8 +148,8 @@ export default defineConfig(() => {
       }
     ],
     lifecycle: {
-      maxLifetime: 14400,
-      idleRuntimeSessionTimeout: 1800
+      maxLifetimeSeconds: 14400,
+      idleTimeoutSeconds: 1800
     },
     connectTo: [conversations],
     authorizer: {
@@ -173,7 +174,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `1800` and `maxLifetime` to `14400` — these are example values; choose durations appropriate for your agent's session patterns. For documented target resource types, `connectTo` grants IAM permissions and uses the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern described in [Connecting resources](/configuration/connecting-resources). For a DynamoDB table named `conversations`, the documented parameters include `NAME`, `ARN`, and `STREAM_ARN`. The `supportedVersions` on the gateway is an optional string array — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for gateway-specific configuration. The `authorizer` property configures JWT authorizer settings: `discoveryUrl` (required) points to an OIDC discovery endpoint, while `allowedAudience`, `allowedClients`, and `allowedScopes` are optional string arrays that filter incoming tokens.
+In this example, `idleTimeoutSeconds` is set to `1800` and `maxLifetimeSeconds` to `14400` — these are example values; choose durations appropriate for your agent's session patterns. For documented target resource types, `connectTo` grants IAM permissions and uses the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern described in [Connecting resources](/configuration/connecting-resources). For a DynamoDB table named `conversations`, the documented parameters include `NAME`, `ARN`, and `STREAM_ARN`. The `supportedVersions` on the gateway is an optional string array — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for gateway-specific configuration. The `authorizer` property configures JWT authorizer settings: `discoveryUrl` (required) points to an OIDC discovery endpoint, while `allowedAudience`, `allowedClients`, and `allowedScopes` are optional string arrays that filter incoming tokens.
 
 ## Protocols
 
@@ -234,7 +235,7 @@ AgentCore Runtime can connect to managed tools that extend your agent's capabili
 
 | Property | Resource type | What it provides |
 |----------|--------------|------------------|
-| `useMemory` | [AgentCore Memory](/resources/ai/agentcore-memory) | Memory store with optional `expirationDays` retention |
+| `useMemory` | [AgentCore Memory](/resources/ai/agentcore-memory) | Memory store with optional `eventRetentionDays` retention |
 | `useGateway` | [AgentCore Gateway](/resources/ai/agentcore-gateway) | MCP-style tool gateway with governed tool definitions |
 | `useBrowser` | [AgentCore Browser](/resources/ai/agentcore-browser) | Sandboxed browser for web research |
 | `useCodeInterpreter` | [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | Sandboxed code execution environment |
@@ -263,6 +264,7 @@ import {
 export default defineConfig(() => {
   const toolGateway = new AgentCoreGateway({
     description: 'MCP tool gateway for support tools',
+    authorizer: { type: 'none' },
     supportedVersions: ['2025-03-26']
   });
 
@@ -292,14 +294,14 @@ export default defineConfig(() => {
 ```
 
 
-In the example above, `supportedVersions: ['2025-03-26']` on the gateway is an optional string array. No `tools` are configured on the gateway in this example — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for defining tool entries (each requires a `toolSchema`). See also [AgentCore Browser](/resources/ai/agentcore-browser), [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter), and [AgentCore Memory](/resources/ai/agentcore-memory).
+In the example above, the gateway uses `authorizer: { type: 'none' }` to keep the example short; protect a real gateway with a JWT authorizer. `supportedVersions: ['2025-03-26']` is an optional string array. No `tools` are configured on the gateway in this example — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for defining tool entries (each requires a `toolSchema`). See also [AgentCore Browser](/resources/ai/agentcore-browser), [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter), and [AgentCore Memory](/resources/ai/agentcore-memory).
 
 ## Lifecycle
 
 Control how long agent runtime sessions live with the `lifecycle` property. Use these settings to manage session duration and control costs.
 
-- **`maxLifetime`** — Maximum lifetime of the runtime session. After this duration, the session is terminated regardless of activity.
-- **`idleRuntimeSessionTimeout`** — How long an idle session stays alive before being reclaimed.
+- **`maxLifetimeSeconds`** — Maximum lifetime of a runtime session, in seconds. After this time, the session ends even while it is active. AWS defaults to 8 hours.
+- **`idleTimeoutSeconds`** — How long an idle session stays alive before it ends, in seconds. AWS defaults to 15 minutes.
 
 
 Example (TypeScript):
@@ -314,8 +316,8 @@ export default defineConfig(() => {
     protocol: 'HTTP',
     endpoints: ['chat'],
     lifecycle: {
-      maxLifetime: 3600,
-      idleRuntimeSessionTimeout: 300
+      maxLifetimeSeconds: 3600,
+      idleTimeoutSeconds: 300
     }
   });
 
@@ -326,7 +328,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `idleRuntimeSessionTimeout` is set to `300` and `maxLifetime` to `3600` — these are example values; choose durations appropriate for your agent's session patterns. Both properties accept a numeric value. For cost-sensitive workloads, consider a shorter `idleRuntimeSessionTimeout` to reclaim idle sessions sooner. Use a longer `maxLifetime` for agents that maintain important in-memory state across a multi-step conversation.
+In this example, `idleTimeoutSeconds` is set to `300` and `maxLifetimeSeconds` to `3600` — these are example values; choose durations appropriate for your agent's session patterns. Both properties accept a numeric value. For cost-sensitive workloads, consider a shorter `idleTimeoutSeconds` to reclaim idle sessions sooner. Use a longer `maxLifetimeSeconds` for agents that maintain important in-memory state across a multi-step conversation.
 
 ## Authentication
 
@@ -524,7 +526,7 @@ AgentCore Runtime supports four protocols: `HTTP` (standard request/response), `
 
 ### What managed tools can I attach to an agent?
 
-Attach any combination of four managed tools, each a separate AgentCore resource referenced by name: `useMemory` for [persistent memory](/resources/ai/agentcore-memory) (with optional `expirationDays` retention), `useGateway` for a governed [tool gateway](/resources/ai/agentcore-gateway), `useBrowser` for a [sandboxed browser](/resources/ai/agentcore-browser), and `useCodeInterpreter` for a [code execution environment](/resources/ai/agentcore-code-interpreter). You can attach all four at once. Skip `useBrowser` and `useCodeInterpreter` unless needed — each adds a managed sandbox and increases the resource footprint.
+Attach any combination of four managed tools, each a separate AgentCore resource referenced by name: `useMemory` for [persistent memory](/resources/ai/agentcore-memory) (with optional `eventRetentionDays` retention), `useGateway` for a governed [tool gateway](/resources/ai/agentcore-gateway), `useBrowser` for a [sandboxed browser](/resources/ai/agentcore-browser), and `useCodeInterpreter` for a [code execution environment](/resources/ai/agentcore-code-interpreter). You can attach all four at once. Skip `useBrowser` and `useCodeInterpreter` unless needed — each adds a managed sandbox and increases the resource footprint.
 
 ### How do I access other AWS resources from my agent?
 
@@ -532,7 +534,7 @@ Use `connectTo` to grant your agent access to Stacktape resources like DynamoDB 
 
 ### When should I use AgentCore Runtime vs a Lambda function for AI?
 
-Use AgentCore Runtime when your agent needs lifecycle control (`maxLifetime`, `idleRuntimeSessionTimeout`), multi-turn conversations, or tool attachments (`useMemory`, `useBrowser`, `useCodeInterpreter`, `useGateway`). Use a [Lambda function](/resources/compute/lambda-function) when you're building a stateless AI endpoint — a single model call that returns a response. Lambda is simpler and cheaper for request/response workloads; AgentCore Runtime is purpose-built for agents with longer-running sessions and tool integrations. For an always-on container with full control over scaling and networking, use a [web service](/resources/compute/web-service) instead.
+Use AgentCore Runtime when your agent needs lifecycle control (`maxLifetimeSeconds`, `idleTimeoutSeconds`), multi-turn conversations, or tool attachments (`useMemory`, `useBrowser`, `useCodeInterpreter`, `useGateway`). Use a [Lambda function](/resources/compute/lambda-function) when you're building a stateless AI endpoint — a single model call that returns a response. Lambda is simpler and cheaper for request/response workloads; AgentCore Runtime is purpose-built for agents with longer-running sessions and tool integrations. For an always-on container with full control over scaling and networking, use a [web service](/resources/compute/web-service) instead.
 
 ### How do I secure my agent endpoints?
 
@@ -540,11 +542,11 @@ Use the `authorizer` property to configure JWT-based authentication. Provide you
 
 ### How is AWS Bedrock AgentCore priced?
 
-Bedrock AgentCore pricing is session-based — you pay for active runtime sessions rather than reserved compute capacity. Because cost scales with session count and duration, a shorter `idleRuntimeSessionTimeout` reclaims idle sessions sooner and lowers cost. Pricing varies by region; check the [AWS Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current rates.
+Bedrock AgentCore pricing is session-based — you pay for active runtime sessions rather than reserved compute capacity. Because cost scales with session count and duration, a shorter `idleTimeoutSeconds` reclaims idle sessions sooner and lowers cost. Pricing varies by region; check the [AWS Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current rates.
 
 ### How does AgentCore Runtime handle concurrency?
 
-AgentCore Runtime concurrency and scaling are managed by AWS Bedrock AgentCore, not configured directly in Stacktape. You control per-session behavior through the `lifecycle` property (`idleRuntimeSessionTimeout`, `maxLifetime`) but do not set instance counts or autoscaling policies on the runtime resource itself. For detailed concurrency limits and quotas, check the AWS Bedrock AgentCore documentation.
+AgentCore Runtime concurrency and scaling are managed by AWS Bedrock AgentCore, not configured directly in Stacktape. You control per-session behavior through the `lifecycle` property (`idleTimeoutSeconds`, `maxLifetimeSeconds`) but do not set instance counts or autoscaling policies on the runtime resource itself. For detailed concurrency limits and quotas, check the AWS Bedrock AgentCore documentation.
 
 ## API Reference
 

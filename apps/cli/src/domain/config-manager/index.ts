@@ -41,6 +41,7 @@ import type { StpWebService } from '@domain-services/config-manager/resolved-typ
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { StpWebSocketApiGateway } from '@domain-services/config-manager/resolved-types/websocket-api-gateways';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
+import type { NotificationChannel } from '@stacktape/config/notification-channels';
 import { guardrailDefinitionSchema } from '@stacktape/console-api/guardrails';
 import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@stacktape/config-authoring/tooling';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
@@ -64,7 +65,8 @@ import { processAllNodesSync, traverseToMaximalExtent } from '@utils/misc';
 import { isAuroraEngine } from 'src/aws/rds-engines';
 import compose from '@utils/compose';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { getDirectiveParams, getIsDirective, getNestedDirectiveReferences } from '@utils/directives';
+import { getIsDirective, getNestedDirectiveReferences } from '@utils/directives';
+import { getNestedSecretReferences } from './secret-references';
 import { getApexDomain } from '@utils/domains';
 import { startTiming } from '@utils/timings';
 import { ConfigResolver, type ConfigResolverContext } from './config-resolver';
@@ -77,6 +79,11 @@ import { buildConvexNestedResources, getConvexSecretName } from './utils/convex'
 import { getStacktapeOriginRequestLambdaIamStatement } from './utils/iam';
 import { resolveReleaseCommand } from './utils/release-commands';
 import { RELEASE_IMAGE_CONTAINER_NAME } from '@stacktape/naming/workload-names';
+
+/** The last part of the name of the task that runs the release command of a function or a server-rendered site. */
+const RELEASE_TASK_IDENTIFIER = 'releaseTask';
+/** A migration tool that compiles TypeScript first needs more than the smallest task. */
+const RELEASE_TASK_RESOURCES = { cpu: 1, memory: 2048 } as const;
 import {
   getBatchJobTriggerLambdaAccessControl,
   getBatchJobTriggerLambdaEnvironment,
@@ -100,6 +107,7 @@ import { MAX_UPTIME_CHECKS_PER_STACK, resolveUptimeCheckRegions, validateUptimeC
 import { buildNextjsWebNestedResources } from './utils/nextjs-webs';
 import { buildSsrWebNestedResources } from './utils/ssr-webs';
 import { runInitialValidations, validateConfigStructure, validateGuardrails } from './utils/validation';
+import { consoleOnlyFeaturesError, findConsoleOnlyFeatures } from './utils/console-features';
 import {
   isResourceTypeExcludedInDevMode,
   selectWorkloadsDeployedInDevMode,
@@ -171,12 +179,17 @@ export class ConfigManager {
   #helperLambdaDetails: HelperLambdaDetails | undefined;
   #securityScanning: SecurityScanningContext = {};
   #consoleStageType: ConfigManagerInitContext['consoleStageType'];
+  #consoleConnected = true;
   #discoveredConfig: DiscoveredConfig | undefined;
   #cliRemoteResourceNames: readonly string[] = [];
   #devAutoRemoteResourceNames: readonly string[] = [];
   #devSkippedFunctionNames: ReadonlySet<string> = new Set();
-  /** Secrets `validate` reported as missing, so their references resolve to placeholders and the other checks run. */
+  /**
+   * Secrets and SSM parameters reported as missing, so their references resolve to placeholders: `validate` checks the
+   * rest of the template, and `deploy` builds the template it asks for confirmation with before it creates them.
+   */
   #secretsReportedMissing = new Set<string>();
+  #ssmParamsReportedMissing = new Set<string>();
   #devNetworkPlacement: DevNetworkPlacement | undefined;
   #devTrustStatement: DeveloperTrustStatement | undefined;
 
@@ -250,6 +263,7 @@ export class ConfigManager {
     candidate.#cliRemoteResourceNames = [...(context.resolver.builtInDirectives.cliArgs.remoteResources ?? [])];
     candidate.#securityScanning = context.securityScanning ?? {};
     candidate.#consoleStageType = context.consoleStageType;
+    candidate.#consoleConnected = context.consoleConnected ?? true;
     // Reuse what discovery loaded rather than loading the configuration again, so a TypeScript config and its
     // transform side channel are produced by exactly one execution of the user's module.
     const discoveredConfig = this.#getDiscoveredConfigFor(context.resolver);
@@ -276,6 +290,10 @@ export class ConfigManager {
       const endValidate = startTiming('config:validate');
       await validateConfigStructure({ config: candidate.config, configPath });
       runInitialValidations({ configManager: candidate, stackContext: candidate.stackContext });
+      if (!candidate.#consoleConnected) {
+        const consoleOnlyFeatures = findConsoleOnlyFeatures(candidate);
+        if (consoleOnlyFeatures.length) throw consoleOnlyFeaturesError(consoleOnlyFeatures);
+      }
       endValidate();
     }
 
@@ -284,7 +302,8 @@ export class ConfigManager {
 
     await operationReporter.finishEvent({
       eventType: 'LOAD_CONFIG_FILE',
-      data: { stackName: this.stackContext.stackName, config: this.config },
+      // Not the config itself: it can hold credentials written into it, and event details reach `--agent` output.
+      data: { stackName: this.stackContext.stackName },
       phase: 'INITIALIZE'
     });
   };
@@ -313,8 +332,17 @@ export class ConfigManager {
     this.#stackContext = candidate.#stackContext;
     this.#helperLambdaDetails = candidate.#helperLambdaDetails;
     this.#securityScanning = candidate.#securityScanning;
+    this.#consoleConnected = candidate.#consoleConnected;
     this.#cliRemoteResourceNames = candidate.#cliRemoteResourceNames;
   };
+
+  /**
+   * Whether this command uses the Stacktape Console. Without it the stack gets no `*.stacktape-app.com` default domains
+   * (HTTP APIs and CDNs use their AWS URLs) and no Console reporting.
+   */
+  get consoleConnected() {
+    return this.#consoleConnected;
+  }
 
   reset = () => {
     this.configResolver.reset();
@@ -330,10 +358,12 @@ export class ConfigManager {
     this.#stackContext = undefined;
     this.#helperLambdaDetails = undefined;
     this.#securityScanning = {};
+    this.#consoleConnected = true;
     this.#cliRemoteResourceNames = [];
     this.#devAutoRemoteResourceNames = [];
     this.#devSkippedFunctionNames = new Set();
     this.#secretsReportedMissing = new Set();
+    this.#ssmParamsReportedMissing = new Set();
     this.#devNetworkPlacement = undefined;
     this.#devTrustStatement = undefined;
     this.#discoveredConfig = undefined;
@@ -389,7 +419,9 @@ export class ConfigManager {
       stackContext: this.stackContext
     });
 
+  /** The organization's alarms, notifications and guardrails; there are none without the Console. */
   loadGlobalConfig = async () => {
+    if (!this.#consoleConnected) return;
     this.applyGlobalConfig(await stacktapeTrpcApiManager.apiClient.globalConfig());
   };
 
@@ -1691,6 +1723,9 @@ export class ConfigManager {
   get issueDetectionPolicy(): { enabled: boolean; reason: string } {
     const errorTracking = this.config?.deploymentConfig?.errorTracking;
     const stage = this.stackContext.stage;
+    if (!this.#consoleConnected) {
+      return { enabled: false, reason: 'error tracking needs the Stacktape Console' };
+    }
     if (errorTracking?.enabled === false) {
       return { enabled: false, reason: 'turned off by deploymentConfig.errorTracking.enabled' };
     }
@@ -1780,9 +1815,52 @@ export class ConfigManager {
   }
 
   /** In the order they run: the order of the resources in the config. */
+  /**
+   * The tasks that run the release commands of functions and server-rendered sites. Their packages hold only bundled
+   * code, so the command runs in an image of the whole project, with the resource's environment and connections. It
+   * runs in the stack's VPC whether or not the function does, which is where a database without a public address is.
+   */
+  get releaseTaskWorkloads(): StpContainerWorkload[] {
+    if (this.deploymentContext.command === 'dev') return [];
+    return [
+      ...this.functions,
+      ...this.nextjsWebs,
+      ...this.astroWebs,
+      ...this.nuxtWebs,
+      ...this.sveltekitWebs,
+      ...this.solidstartWebs,
+      ...this.tanstackWebs,
+      ...this.remixWebs
+    ]
+      .filter(({ releaseCommand }) => releaseCommand !== undefined)
+      .map(({ name, nameChain, releaseCommand, connectTo, iamRoleStatements, environment }) => ({
+        name: getStpNameForResource({ nameChain: [name, RELEASE_TASK_IDENTIFIER] }),
+        // Its resources belong to the function or site.
+        nameChain,
+        type: 'multi-container-workload',
+        configParentResourceType: 'multi-container-workload',
+        releaseTaskOf: name,
+        releaseCommand,
+        connectTo,
+        iamRoleStatements,
+        resources: RELEASE_TASK_RESOURCES,
+        // It has no service. The type asks every container workload for a range.
+        scaling: { minInstances: 1, maxInstances: 1 },
+        containers: [
+          {
+            name: RELEASE_IMAGE_CONTAINER_NAME,
+            // The command replaces the start command. The buildpack still needs one to accept the project.
+            packaging: { type: 'buildpack', properties: { sourceDirectoryPath: '.', startCommand: 'true' } },
+            environment,
+            essential: true
+          }
+        ]
+      }));
+  }
+
   get releaseCommands() {
     const resourceOrder = Object.keys(this.config.resources ?? {});
-    return this.allContainerWorkloads
+    return [...this.allContainerWorkloads, ...this.releaseTaskWorkloads]
       .map(resolveReleaseCommand)
       .filter((release) => release !== undefined)
       .sort(
@@ -1860,7 +1938,7 @@ export class ConfigManager {
   }
 
   get allContainerWorkloadContainers(): EnrichedCwContainerProps[] {
-    return this.allContainerWorkloads
+    return [...this.allContainerWorkloads, ...this.releaseTaskWorkloads]
       .map((workload) => {
         const { name, configParentResourceType, containers, resources } = workload;
         return [...containers, ...this.#releaseImageContainersOf(workload)].map((container) => {
@@ -2022,17 +2100,29 @@ export class ConfigManager {
     return Array.from(resultDomains);
   }
 
+  /**
+   * The notification channels of resource alarms and synthetic tests. The stack's service Lambda delivers their inline
+   * channels itself, so it needs the secrets, parameters and email senders they name.
+   */
+  get allAlarmNotificationChannels(): NotificationChannel[] {
+    return [...this.allAlarms, ...this.syntheticTests].flatMap(
+      ({ notificationChannels }) => notificationChannels || []
+    );
+  }
+
+  get hasInlineAlarmNotificationChannels() {
+    return this.allAlarmNotificationChannels.some(({ type }) => type !== 'console-channel' && type !== 'slack-app');
+  }
+
   get categorizedEmailsUsedInAlertNotifications() {
     const senders = new Set<string>();
     const recipients = new Set<string>();
-    this.allAlarms.forEach(({ notificationChannels }) =>
-      notificationChannels?.forEach(({ type, properties }) => {
-        if (type === 'email') {
-          senders.add(properties.sender);
-          recipients.add(properties.recipient);
-        }
-      })
-    );
+    this.allAlarmNotificationChannels.forEach(({ type, properties }) => {
+      if (type === 'email') {
+        senders.add(properties.sender);
+        recipients.add(properties.recipient);
+      }
+    });
     return { senders, recipients };
   }
 
@@ -2161,11 +2251,11 @@ export class ConfigManager {
 
   get allSecretNamesUsedInAlarmNotifications() {
     const secretNames: string[] = [];
-    processAllNodesSync(this.allAlarms, (node) => {
+    processAllNodesSync(this.allAlarmNotificationChannels, (node) => {
       if (typeof node === 'string') {
         // if secret is referenced using $Secret directive, on its own or inside another directive
         if (getIsDirective(node)) {
-          secretNames.push(...getNestedDirectiveReferences(node, 'Secret').map((reference) => reference.split('.')[0]));
+          secretNames.push(...getNestedSecretReferences(node).map(({ secretName }) => secretName));
           return;
         }
         // secret referenced using dynamic reference
@@ -2184,11 +2274,22 @@ export class ConfigManager {
 
   isSecretReportedMissing = (secretName: string) => this.#secretsReportedMissing.has(secretName);
 
+  reportSsmParamsMissing = (paramNames: Iterable<string>) => {
+    for (const paramName of paramNames) this.#ssmParamsReportedMissing.add(paramName);
+  };
+
+  isSsmParamReportedMissing = (paramName: string) => this.#ssmParamsReportedMissing.has(paramName);
+
+  /** Ends placeholder resolution. Runtime directive results stay cached until `invalidatePotentiallyChangedDirectiveResults`. */
+  clearReportedMissingReferences = () => {
+    this.#secretsReportedMissing = new Set();
+    this.#ssmParamsReportedMissing = new Set();
+  };
+
   get allSecretReferencesUsedInConfig() {
     const secretRefs = new Map<string, Set<string>>();
     const visit = (node: unknown) => {
-      for (const fullRef of getNestedDirectiveReferences(node, 'Secret')) {
-        const [secretName, jsonKey] = fullRef.split('.');
+      for (const { secretName, jsonKey } of getNestedSecretReferences(node)) {
         if (!secretRefs.has(secretName)) {
           secretRefs.set(secretName, new Set());
         }
@@ -2221,8 +2322,7 @@ export class ConfigManager {
     const names = new Set<string>();
     const extractSecretName = (value: unknown): string | null => {
       if (typeof value === 'string' && getIsDirective(value) && value.startsWith('$Secret')) {
-        const fullRef = getDirectiveParams('Secret', value)[0].value as string;
-        return fullRef.split('.')[0];
+        return getNestedSecretReferences(value)[0]?.secretName ?? null;
       }
       return null;
     };
@@ -2266,7 +2366,7 @@ export class ConfigManager {
 
   get allParameterNamesUsedInAlarmNotifications() {
     const paramNames: string[] = [];
-    processAllNodesSync(this.allAlarms, (node) => {
+    processAllNodesSync(this.allAlarmNotificationChannels, (node) => {
       if (typeof node === 'string') {
         // $SsmParam directive, on its own or inside another directive
         if (getIsDirective(node)) {
@@ -2374,6 +2474,7 @@ export class ConfigManager {
   get allResourcesRequiringVpc() {
     return [
       ...this.allContainerWorkloads,
+      ...this.releaseTaskWorkloads,
       ...(this.batchJobsInDevNetwork ? [] : this.batchJobs),
       ...this.allApplicationLoadBalancers,
       ...this.atlasMongoClusters,
@@ -2555,7 +2656,8 @@ export class ConfigManager {
       projectName: this.stackContext.projectName,
       globallyUniqueStackHash: this.globallyUniqueStackHash,
       stackName: this.stackContext.stackName,
-      stage: this.stackContext.stage
+      stage: this.stackContext.stage,
+      consoleConnected: this.#consoleConnected
     });
   }
 
@@ -2566,7 +2668,10 @@ export class ConfigManager {
         stackContext: this.stackContext
       }),
       ...getStacktapeServiceLambdaReleaseCommandStatements({ activeConfig: this, stackContext: this.stackContext }),
-      ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
+      ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({
+        activeConfig: this,
+        deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash)
+      }),
       ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
         activeConfig: this,
         stackName: this.stackContext.stackName
@@ -2684,12 +2789,6 @@ export class ConfigManager {
     return this.databases.filter(({ engine }) => isAuroraEngine(engine.type));
   }
 
-  get allDatabasesWithInstancies() {
-    return this.databases.filter(
-      ({ engine }) => engine.type !== 'aurora-mysql-serverless' && engine.type !== 'aurora-postgresql-serverless'
-    );
-  }
-
   get requiredCloudformationPrivateTypes(): StpCfInfrastructureModuleType[] {
     const res: StpCfInfrastructureModuleType[] = [];
     if (this.atlasMongoClusters.length) {
@@ -2764,6 +2863,8 @@ export class ConfigManager {
   }
 
   get defaultDomainsAreRequired() {
+    // Without the Console nothing gets a default domain: validation rejects what cannot fall back to an AWS URL.
+    if (!this.#consoleConnected) return false;
     return (
       this.allApplicationLoadBalancers.some(({ listeners, customDomains, cdn }) => {
         // note: alb with NO specified listeners will automatically get HTTPS listener (without custom cert)

@@ -144,7 +144,7 @@ export const ACME_CONFIG = {
     mainDatabase: {
       type: 'relational-database',
       properties: {
-        engine: { type: 'aurora-postgresql', properties: { version: '16.4', port: 5432 } },
+        engine: { type: 'aurora-postgresql', properties: { version: '16', port: 5432 } },
         accessibility: { accessibilityMode: 'vpc' }
       }
     },
@@ -975,12 +975,13 @@ export const TOPICS = ['devops-automation', 'aws', 'infrastructure-as-code', 'pa
 
 export const TRUST_CHIPS = TRUST_LINE.split(' · ');
 
-/** The three plans in one line each, then who bills you. */
+/** The open-source CLI and the three Console plans, one line each. */
 export const PRICING = {
   plans: [
-    { plan: 'Free', detail: '$0 · up to $100/mo of managed AWS spend' },
-    { plan: 'Flexible', detail: 'a % of managed AWS spend · SSO and SCIM' },
-    { plan: 'Enterprise', detail: 'Single-tenant Console in your AWS account · SOC 2 · 24×7 support' }
+    { plan: 'Open source', detail: 'the CLI, MIT · no account needed' },
+    { plan: 'Free', detail: '$0 · up to $200/mo of managed AWS spend' },
+    { plan: 'Flexible', detail: '25% of managed AWS spend, less above $2,000 · SSO and SCIM' },
+    { plan: 'Enterprise', detail: 'Single-tenant Console in your AWS account · 24×7 support' }
   ],
   more: 'See pricing'
 } as const;
@@ -1030,7 +1031,7 @@ export const SEND_TO_COMPUTER = {
 /** Two things carry the name: the CLI, which is open source, and the Console, which is hosted. */
 export const LICENSE = {
   cli: { label: 'CLI', value: 'Open source · MIT', href: 'https://github.com/stacktape/stacktape/blob/main/LICENSE' },
-  console: { label: 'Console', value: 'Hosted service · free plan', href: LINKS.pricing }
+  console: { label: 'Console', value: 'Proprietary, hosted · free plan', href: LINKS.pricing }
 } as const;
 
 /** What each screenshot shows, in plain words: the README's image caption. Section 01 has two. */

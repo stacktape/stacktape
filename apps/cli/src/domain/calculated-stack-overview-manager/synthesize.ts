@@ -44,7 +44,7 @@ import { resolveWebsocketApiGateways } from './resource-resolvers/websocket-api-
 import { resolveKinesisStreams } from './resource-resolvers/kinesis-streams';
 import { resolveKafkaClusters } from './resource-resolvers/kafka-clusters';
 import { resolveAtlasMongoClusters } from './resource-resolvers/mongo-db-atlas-clusters';
-import { resolveContainerWorkloads } from './resource-resolvers/multi-container-workloads';
+import { resolveContainerWorkloads, resolveReleaseTaskWorkloads } from './resource-resolvers/multi-container-workloads';
 import { resolveDevContainerWorkloadRoles } from './resource-resolvers/multi-container-workloads/dev-roles';
 import { resolveNetworkLoadBalancers } from './resource-resolvers/network-load-balancers';
 import { resolveNextjsWebs } from './resource-resolvers/nextjs-web';
@@ -99,6 +99,7 @@ const synthesizeResources = async () => {
     resolveDefaultEdgeLambdaBucket,
     resolveStacktapeServiceLambda,
     resolveFunctions,
+    resolveReleaseTaskWorkloads,
     resolveAgentCoreResources,
     resolveS3EventsCustomResource,
     resolveSensitiveDataCustomResource,

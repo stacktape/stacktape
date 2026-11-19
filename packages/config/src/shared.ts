@@ -371,7 +371,7 @@ export type StacktapeWorkloadDefinition =
  *       engine:
  *         type: postgres
  *         properties:
- *           version: '16.6'
+ *           version: '16'
  *           primaryInstance:
  *             instanceSize: db.t3.micro
  *     # stp-focus
@@ -390,7 +390,7 @@ export type StacktapeWorkloadDefinition =
  *   const mainDb = new RelationalDatabase({
  *     credentials: { masterUserPassword: $Secret('db-password') },
  *     engine: new RdsEnginePostgres({
- *       version: '16.6',
+ *       version: '16',
  *       primaryInstance: { instanceSize: 'db.t3.micro' }
  *     }),
  *     // stp-focus
@@ -486,7 +486,7 @@ export interface Hooks {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -499,7 +499,7 @@ export interface Hooks {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const runMigrations = new LocalScript({ executeCommand: 'npx prisma migrate deploy', connectTo: [mainDb] });
    *
@@ -547,7 +547,7 @@ export interface Hooks {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -560,7 +560,7 @@ export interface Hooks {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const exportData = new LocalScript({ executeCommand: 'node ./scripts/export-data.js', connectTo: [mainDb] });
    *
@@ -943,6 +943,65 @@ export interface LifecycleHookBase {
    * @default false
    */
   skipOnLocal?: boolean;
+  /**
+   * #### What happens when the script fails.
+   *
+   * ---
+   *
+   * - `fail`: the command stops and exits with an error, and the hooks listed after this one don't run. When an
+   *   `afterDeploy` hook fails, the deployment has already finished and stays live. The command still exits with an
+   *   error, so a CI job fails.
+   * - `continue`: the failure is printed as a warning and the command carries on.
+   *
+   * Use `continue` for work that must not fail a deploy, such as sending a notification.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * scripts:
+   *   notifyTeam:
+   *     type: local-script
+   *     properties:
+   *       executeCommand: node ./scripts/notify-team.js
+   * hooks:
+   *   afterDeploy:
+   *     # stp-focus
+   *     - scriptName: notifyTeam
+   *       onFailure: continue
+   *     # stp-end-focus
+   * resources:
+   *   web:
+   *     type: hosting-bucket
+   *     properties:
+   *       uploadDirectoryPath: ./dist
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const notifyTeam = new LocalScript({ executeCommand: 'node ./scripts/notify-team.js' });
+   *   const web = new HostingBucket({ uploadDirectoryPath: './dist' });
+   *
+   *   return {
+   *     scripts: { notifyTeam },
+   *     hooks: {
+   *       afterDeploy: [
+   *         // stp-focus
+   *         { scriptName: 'notifyTeam', onFailure: 'continue' }
+   *         // stp-end-focus
+   *       ]
+   *     },
+   *     resources: { web }
+   *   };
+   * });
+   * ```
+   *
+   * @default "fail"
+   */
+  onFailure?: 'fail' | 'continue';
 }
 
 
@@ -980,7 +1039,7 @@ export interface NamedScriptLifecycleHook extends LifecycleHookBase {
    *       engine:
    *         type: mysql
    *         properties:
-   *           version: '8.0.36'
+   *           version: '8.4'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -993,7 +1052,7 @@ export interface NamedScriptLifecycleHook extends LifecycleHookBase {
    * export default defineConfig(() => {
    *   const db = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEngineMysql({ version: '8.0.36', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEngineMysql({ version: '8.4', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const migrate = new LocalScript({ executeCommand: 'npm run migrate', connectTo: [db] });
    *
@@ -1068,7 +1127,7 @@ export interface LocalScriptWithBastionTunnelingProps extends LocalScriptProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1083,7 +1142,7 @@ export interface LocalScriptWithBastionTunnelingProps extends LocalScriptProps {
    *   const privateDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const migrateThroughTunnel = new LocalScriptWithBastionTunneling({
    *     // stp-focus
@@ -1154,7 +1213,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1169,7 +1228,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *   const privateDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const runOnBastion = new BastionScript({
    *     // stp-focus
@@ -1221,7 +1280,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1236,7 +1295,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *   const privateDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const pingDb = new BastionScript({
    *     bastionResource: 'jumpBox',
@@ -1290,7 +1349,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1305,7 +1364,7 @@ export interface BastionScriptProps extends ScriptEnvProps {
    *   const privateDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const dbMaintenance = new BastionScript({
    *     bastionResource: 'jumpBox',
@@ -1518,7 +1577,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1531,7 +1590,7 @@ export interface LocalScriptProps extends ScriptEnvProps {
    * export default defineConfig(() => {
    *   const db = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const setup = new LocalScript({
    *     // stp-focus
@@ -1655,55 +1714,6 @@ export interface LocalScriptProps extends ScriptEnvProps {
    * @default capture
    */
   stdioMode?: 'capture' | 'inherit' | 'ignore';
-  /**
-   * #### Pipe Stdio
-   *
-   * ---
-   *
-   * If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
-   * Use `stdioMode: inherit` for scripts that need interactive terminal input.
-   *
-   *
-   * **Example (YAML):**
-   *
-   * ```yaml
-   * scripts:
-   *   silentTask:
-   *     type: local-script
-   *     properties:
-   *       executeCommand: node ./scripts/background-task.js
-   *       # stp-focus
-   *       pipeStdio: false
-   *       # stp-end-focus
-   * resources:
-   *   web:
-   *     type: hosting-bucket
-   *     properties:
-   *       uploadDirectoryPath: ./dist
-   * ```
-   *
-   * **Example (TypeScript):**
-   *
-   * ```ts
-   * import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
-   *
-   * export default defineConfig(() => {
-   *   const silentTask = new LocalScript({
-   *     executeCommand: 'node ./scripts/background-task.js',
-   *     // stp-focus
-   *     pipeStdio: false
-   *     // stp-end-focus
-   *   });
-   *   const web = new HostingBucket({ uploadDirectoryPath: './dist' });
-   *
-   *   return { scripts: { silentTask }, resources: { web } };
-   * });
-   * ```
-   *
-   * @default true
-   * @deprecated Use `stdioMode`.
-   */
-  pipeStdio?: boolean;
 }
 
 
@@ -1755,7 +1765,7 @@ export interface ScriptEnvProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -1768,7 +1778,7 @@ export interface ScriptEnvProps {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const migrate = new LocalScript({
    *     executeCommand: 'npx prisma migrate deploy',
@@ -1793,7 +1803,7 @@ export interface ScriptEnvProps {
    * - A static string, number, or boolean.
    * - The result of a [custom directive](https://docs.stacktape.com/configuration/directives/#custom-directives).
    * - A reference to another resource's parameter using the [`$ResourceParam` directive](https://docs.stacktape.com/configuration/referenceable-parameters/).
-   * - A value from a [secret](https://docs.stacktape.com/resources/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret).
+   * - A value from a [secret](https://docs.stacktape.com/configuration/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret).
    *
    * **Example (YAML):**
    *
@@ -2261,7 +2271,7 @@ export interface DeploymentConfig {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.r6g.large
    * ```
@@ -2275,7 +2285,7 @@ export interface DeploymentConfig {
    *   const prodDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     deletionProtection: true,
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.r6g.large' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.r6g.large' } })
    *   });
    *
    *   return {
@@ -3765,7 +3775,7 @@ export interface EnvironmentVar {
    *         - name: MAX_CONNECTIONS
    *           value: 50
    *         - name: STRIPE_KEY
-   *           value: $Secret('stripe.secret-key')
+   *           value: $Secret('stripe', 'secret-key')
    *       # stp-end-focus
    * ```
    *
@@ -3782,7 +3792,7 @@ export interface EnvironmentVar {
    *     environment: {
    *       NODE_ENV: 'production',
    *       MAX_CONNECTIONS: 50,
-   *       STRIPE_KEY: $Secret('stripe.secret-key')
+   *       STRIPE_KEY: $Secret('stripe', 'secret-key')
    *     }
    *     // stp-end-focus
    *   });
@@ -3901,7 +3911,7 @@ export interface ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    *   uploads:
@@ -3917,7 +3927,7 @@ export interface ResourceAccessProps {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const uploads = new Bucket({});
    *   const api = new WebService({
@@ -4113,7 +4123,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    * ```
@@ -4126,7 +4136,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * export default defineConfig(() => {
    *   const mainDb = new RelationalDatabase({
    *     credentials: { masterUserPassword: $Secret('db-password') },
-   *     engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+   *     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
    *   });
    *   const api = new WebService({
    *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),

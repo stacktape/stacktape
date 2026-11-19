@@ -31,11 +31,11 @@ mainDatabase:
   properties:
     credentials:
       masterUserName: db_master_user
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -49,12 +49,12 @@ export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
   credentials: {
     masterUserName: 'db_master_user',
-    masterUserPassword: $Secret('mainDatabase.password')
+    masterUserPassword: $Secret('mainDatabase', 'password')
   },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -82,11 +82,11 @@ mainDatabase:
   properties:
     credentials:
       masterUserName: app_admin
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -100,12 +100,12 @@ export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
   credentials: {
     masterUserName: 'app_admin',
-    masterUserPassword: $Secret('mainDatabase.password')
+    masterUserPassword: $Secret('mainDatabase', 'password')
   },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }

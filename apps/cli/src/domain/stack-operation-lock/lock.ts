@@ -23,6 +23,10 @@ export type StackLockHolder = {
   renewedAtMs: number;
   /** When the holder took the lock. Missing in locks written by older CLI versions. */
   startedAtMs?: number;
+  /** Who runs the holder, as `user@host`. Missing in locks written by older CLI versions. */
+  heldBy?: string;
+  /** The random install ID of the machine that runs the holder. Missing in locks written by older CLI versions. */
+  installId?: string;
 };
 
 /** The S3 calls the lock needs. A condition that does not hold returns `conflict` and doesn't throw. */
@@ -57,7 +61,9 @@ export const parseStackLockHolder = (body: string): StackLockHolder | undefined 
         invocationId: parsed.invocationId,
         operation: String(parsed.operation),
         renewedAtMs: parsed.renewedAtMs,
-        ...(typeof parsed.startedAtMs === 'number' ? { startedAtMs: parsed.startedAtMs } : {})
+        ...(typeof parsed.startedAtMs === 'number' ? { startedAtMs: parsed.startedAtMs } : {}),
+        ...(typeof parsed.heldBy === 'string' ? { heldBy: parsed.heldBy } : {}),
+        ...(typeof parsed.installId === 'string' ? { installId: parsed.installId } : {})
       };
     }
   } catch {
@@ -106,17 +112,23 @@ export const acquireStackLock = async ({
     timer.unref?.();
     return () => clearInterval(timer);
   },
-  onLost = () => {}
+  onLost = () => {},
+  heldBy,
+  installId
 }: {
   store: StackLockStore;
   invocationId: string;
   operation: string;
+  /** Shown to an operation that waits for this one: who runs it, and on which machine. */
+  heldBy?: string;
+  installId?: string;
   now?: () => number;
   setRenewTimer?: (renew: () => void) => () => void;
   onLost?: () => void;
 }): Promise<HeldStackLock> => {
   const startedAtMs = now();
-  const bodyAt = (renewedAtMs: number) => JSON.stringify({ invocationId, operation, renewedAtMs, startedAtMs });
+  const bodyAt = (renewedAtMs: number) =>
+    JSON.stringify({ invocationId, operation, renewedAtMs, startedAtMs, heldBy, installId });
   const unknownHolder = () => ({ invocationId: 'unknown', operation: 'unknown', renewedAtMs: now() });
 
   const take = async (): Promise<{ etag: string; tookOverFrom?: StackLockHolder; previousReleaseAtMs?: number }> => {

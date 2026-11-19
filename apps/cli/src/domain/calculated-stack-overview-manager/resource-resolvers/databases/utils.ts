@@ -154,36 +154,16 @@ export const getAuroraDbCluster = ({
     DBClusterParameterGroupName: ref(cfLogicalNames.auroraDbClusterParameterGroup(stpResourceName)),
     Engine: engineType,
     DatabaseName: getDatabaseName({ resource }),
-    Port:
-      resource.engine.type === 'aurora-mysql-serverless' || resource.engine.type === 'aurora-postgresql-serverless'
-        ? undefined
-        : resolveDatabasePort({ definition: resource }),
-    EnableCloudwatchLogsExports:
-      resource.engine.type !== 'aurora-mysql-serverless' &&
-      resource.engine.type !== 'aurora-postgresql-serverless' &&
-      logExports.length
-        ? logExports
-        : undefined,
+    Port: resolveDatabasePort({ definition: resource }),
+    EnableCloudwatchLogsExports: logExports.length ? logExports : undefined,
     EngineVersion: getEngineVersionForDb({
       engineType: resource.engine.type,
-      engineVersion: resource.engine.properties?.version,
+      engineVersion: getConfiguredEngineVersion(resource),
       instanceType: null
     }),
     PreferredMaintenanceWindow: getDbBackupAndMaintenanceWindow(resource).preferredMaintenanceWindow,
     PreferredBackupWindow: getDbBackupAndMaintenanceWindow(resource).preferredBackupWindow,
-    EngineMode:
-      resource.engine.type === 'aurora-mysql-serverless' || resource.engine.type === 'aurora-postgresql-serverless'
-        ? 'serverless'
-        : 'provisioned',
-    ScalingConfiguration:
-      resource.engine.type === 'aurora-mysql-serverless' || resource.engine.type === 'aurora-postgresql-serverless'
-        ? {
-            AutoPause: !!resource.engine.properties?.pauseAfterSeconds,
-            MaxCapacity: resource.engine.properties?.maxCapacity || resource.engine.properties?.minCapacity || 4,
-            MinCapacity: resource.engine.properties?.minCapacity || 2,
-            SecondsUntilAutoPause: resource.engine.properties?.pauseAfterSeconds
-          }
-        : undefined,
+    EngineMode: 'provisioned',
     ServerlessV2ScalingConfiguration:
       resource.engine.type === 'aurora-mysql-serverless-v2' ||
       resource.engine.type === 'aurora-postgresql-serverless-v2'
@@ -288,6 +268,51 @@ export const getDbInstanceParameterGroup = ({
   });
 };
 
+/**
+ * How many leading parts of a version name a release line: `17` for PostgreSQL, `8.4` for MySQL. RDS accepts a line in
+ * place of a full version, runs the line's default minor version and upgrades it itself. A config that names the line
+ * therefore never points at a minor version that AWS retired, which the full versions in this CLI's list do in time.
+ * Checked on live AWS for these engines; Oracle and SQL Server take full versions only.
+ */
+const RELEASE_LINE_PARTS: Partial<Record<ReturnType<typeof normalizeEngineType>, number>> = {
+  postgres: 1,
+  'aurora-postgresql': 1,
+  mysql: 2,
+  mariadb: 2,
+  'aurora-mysql': 2
+};
+
+const isReleaseLine = ({
+  engineType,
+  version
+}: {
+  engineType: StpRelationalDatabase['engine']['type'];
+  version: string;
+}) =>
+  version.split('.').length === RELEASE_LINE_PARTS[normalizeEngineType(engineType)] &&
+  (versionJson.rds[engineType] ?? []).some((available: string) => available.startsWith(`${version}.`));
+
+const getDeployedEngineVersion = (resource: StpRelationalDatabase) =>
+  (
+    templateManager.oldTemplate?.Resources?.[
+      resource.engine.type.startsWith('aurora')
+        ? cfLogicalNames.auroraDbCluster(resource.name)
+        : cfLogicalNames.dbInstance(resource.name)
+    ]?.Properties as { EngineVersion?: string } | undefined
+  )?.EngineVersion;
+
+/**
+ * The version CloudFormation gets. A release line keeps the version that a deployed database of that line already has:
+ * switching a config from `16.6` to `16` then changes nothing, where sending `16` would make RDS move the running
+ * database to the line's default minor version during the deploy.
+ */
+const getConfiguredEngineVersion = (resource: StpRelationalDatabase) => {
+  const version = resource.engine.properties?.version;
+  if (!version || !isReleaseLine({ engineType: resource.engine.type, version })) return version;
+  const deployed = getDeployedEngineVersion(resource);
+  return deployed && (deployed === version || deployed.startsWith(`${version}.`)) ? deployed : version;
+};
+
 const getEngineVersionForDb = ({
   engineType,
   engineVersion,
@@ -374,7 +399,8 @@ const getLoggingParameters = ({
   return {};
 };
 
-const getEngineVersionConfigurationData = ({
+/** The parameter group family and major version of an engine version. Exported for the test that walks the version list. */
+export const getEngineVersionConfigurationData = ({
   engineType,
   engineVersion,
   instanceType
@@ -408,6 +434,7 @@ const getEngineVersionConfigurationData = ({
 const engineVersionConfigurationData = [
   { family: 'aurora-mysql5.7', majorVersion: '5.7' },
   { family: 'aurora-mysql8.0', majorVersion: '8.0' },
+  { family: 'aurora-mysql8.4', majorVersion: '8.4' },
   { family: 'aurora-postgresql10', majorVersion: '10' },
   { family: 'aurora-postgresql11', majorVersion: '11' },
   { family: 'aurora-postgresql12', majorVersion: '12' },
@@ -415,11 +442,17 @@ const engineVersionConfigurationData = [
   { family: 'aurora-postgresql14', majorVersion: '14' },
   { family: 'aurora-postgresql15', majorVersion: '15' },
   { family: 'aurora-postgresql16', majorVersion: '16' },
+  { family: 'aurora-postgresql17', majorVersion: '17' },
+  { family: 'aurora-postgresql18', majorVersion: '18' },
   { family: 'mariadb10.2', majorVersion: '10.2' },
   { family: 'mariadb10.3', majorVersion: '10.3' },
   { family: 'mariadb10.4', majorVersion: '10.4' },
   { family: 'mariadb10.5', majorVersion: '10.5' },
   { family: 'mariadb10.6', majorVersion: '10.6' },
+  { family: 'mariadb10.11', majorVersion: '10.11' },
+  { family: 'mariadb11.4', majorVersion: '11.4' },
+  { family: 'mariadb11.8', majorVersion: '11.8' },
+  { family: 'mariadb12.3', majorVersion: '12.3' },
   { family: 'mysql5.6', majorVersion: '5.6' },
   { family: 'mysql5.7', majorVersion: '5.7' },
   { family: 'mysql8.0', majorVersion: '8.0' },
@@ -443,18 +476,21 @@ const engineVersionConfigurationData = [
   { family: 'sqlserver-ee-14.0', majorVersion: '14.00' },
   { family: 'sqlserver-ee-15.0', majorVersion: '15.00' },
   { family: 'sqlserver-ee-16.0', majorVersion: '16.00' },
+  { family: 'sqlserver-ee-17.0', majorVersion: '17.00' },
   { family: 'sqlserver-ex-11.0', majorVersion: '11.00' },
   { family: 'sqlserver-ex-12.0', majorVersion: '12.00' },
   { family: 'sqlserver-ex-13.0', majorVersion: '13.00' },
   { family: 'sqlserver-ex-14.0', majorVersion: '14.00' },
   { family: 'sqlserver-ex-15.0', majorVersion: '15.00' },
   { family: 'sqlserver-ex-16.0', majorVersion: '16.00' },
+  { family: 'sqlserver-ex-17.0', majorVersion: '17.00' },
   { family: 'sqlserver-se-11.0', majorVersion: '11.00' },
   { family: 'sqlserver-se-12.0', majorVersion: '12.00' },
   { family: 'sqlserver-se-13.0', majorVersion: '13.00' },
   { family: 'sqlserver-se-14.0', majorVersion: '14.00' },
   { family: 'sqlserver-se-15.0', majorVersion: '15.00' },
   { family: 'sqlserver-se-16.0', majorVersion: '16.00' },
+  { family: 'sqlserver-se-17.0', majorVersion: '17.00' },
   { family: 'sqlserver-web-11.0', majorVersion: '11.00' },
   { family: 'sqlserver-web-12.0', majorVersion: '12.00' },
   { family: 'sqlserver-web-13.0', majorVersion: '13.00' },
@@ -497,7 +533,7 @@ export const getBasicRdsInstance = ({
       replicaNum === undefined
         ? getEngineVersionForDb({
             engineType: resource.engine.type,
-            engineVersion: resource.engine.properties?.version,
+            engineVersion: getConfiguredEngineVersion(resource),
             instanceType: instanceSize
           })
         : undefined,
@@ -582,10 +618,8 @@ export const getDbOptionGroup = ({
 const connectionStringProtocol: { [_key in StpRelationalDatabase['engine']['type']]: { basic: string; jdbc: string } } =
   {
     'aurora-mysql': { basic: 'mysql://', jdbc: 'jdbc:mysql://' },
-    'aurora-mysql-serverless': { basic: 'mysql://', jdbc: 'jdbc:mysql://' },
     'aurora-mysql-serverless-v2': { basic: 'mysql://', jdbc: 'jdbc:mysql://' },
     'aurora-postgresql': { basic: 'postgresql://', jdbc: 'jdbc:postgresql://' },
-    'aurora-postgresql-serverless': { basic: 'postgresql://', jdbc: 'jdbc:postgresql://' },
     'aurora-postgresql-serverless-v2': { basic: 'postgresql://', jdbc: 'jdbc:postgresql://' },
     mysql: { basic: 'mysql://', jdbc: 'jdbc:mysql://' },
     postgres: { basic: 'postgresql://', jdbc: 'jdbc:postgresql://' },
@@ -740,10 +774,7 @@ export const isAuroraCluster = ({ resource }: { resource: StpRelationalDatabase 
   isAuroraEngine(resource.engine.type);
 
 export const isAuroraServerlessCluster = ({ resource }: { resource: StpRelationalDatabase }) =>
-  resource.engine.type === 'aurora-mysql-serverless' ||
-  resource.engine.type === 'aurora-postgresql-serverless' ||
-  resource.engine.type === 'aurora-mysql-serverless-v2' ||
-  resource.engine.type === 'aurora-postgresql-serverless-v2';
+  resource.engine.type === 'aurora-mysql-serverless-v2' || resource.engine.type === 'aurora-postgresql-serverless-v2';
 
 const encryptionUnsupportedInstanceSizes = [
   'db.m1.small',
@@ -786,10 +817,6 @@ export const validateEngineVersion = ({ resource }: { resource: StpRelationalDat
     return foundResource;
   });
 
-  if (resource.engine?.type === 'aurora-mysql-serverless' || resource.engine?.type === 'aurora-postgresql-serverless') {
-    return;
-  }
-
   if (!resource.engine?.properties?.version) {
     throw stpErrors.e110({
       databaseStpResourceName: resource.name,
@@ -798,15 +825,11 @@ export const validateEngineVersion = ({ resource }: { resource: StpRelationalDat
     });
   }
 
-  const existingEngineVersion = (
-    templateManager.oldTemplate?.Resources?.[logicalNameOfExistingResource]?.Properties as
-      | { EngineVersion?: string }
-      | undefined
-  )?.EngineVersion;
-
+  // A database keeps the version it was deployed with, which this CLI's list may have dropped since.
   if (
-    resource.engine?.properties?.version !== existingEngineVersion &&
-    !availableVersions.includes(resource.engine?.properties?.version)
+    resource.engine.properties.version !== getDeployedEngineVersion(resource) &&
+    !availableVersions.includes(resource.engine.properties.version) &&
+    !isReleaseLine({ engineType: resource.engine.type, version: resource.engine.properties.version })
   ) {
     throw stpErrors.e111({
       databaseStpResourceName: resource.name,

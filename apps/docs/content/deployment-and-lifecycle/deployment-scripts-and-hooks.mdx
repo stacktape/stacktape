@@ -17,7 +17,7 @@ Hooks and deployment scripts serve different execution contexts. Choose based on
 |---|---|---|
 | **Runs on** | Your machine or CI runner | AWS Lambda |
 | **Triggered by** | CLI commands (deploy, delete, dev) | CloudFormation lifecycle (`after:deploy`, `before:delete`) |
-| **`after:deploy` failure** | — | CloudFormation rolls back the deployment |
+| **`after:deploy` failure** | The command fails; the deployment stays live | CloudFormation rolls back the deployment |
 | **`before:delete` failure** | — | Deletion continues |
 | **Max timeout** | — | 900 seconds (Lambda maximum) |
 | **VPC access** | Via bastion tunneling | Via `joinDefaultVpc` |
@@ -94,7 +94,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `beforeDeploy` hook runs the build script before Stacktape begins packaging. The `afterDeploy` hook runs migrations after the deployment completes. The `migrate` script uses `connectTo` to receive the database connection details as environment variables.
+The `beforeDeploy` hook runs the build script before Stacktape begins packaging. It runs only after `deploy` has asked everything it needs to ask: whether to delete or replace a database, bucket or other stateful resource, and the values of missing secrets and SSM parameters. If you decline, or the deploy runs without a terminal and without `--yes`, it stops before any hook runs and changes nothing. The `afterDeploy` hook runs migrations after the deployment completes. The `migrate` script uses `connectTo` to receive the database connection details as environment variables.
 
 ### Skipping hooks in CI or locally
 
@@ -557,7 +557,7 @@ Database migrations are the most common automation use case. Stacktape supports 
 - **Hook approach** — Attach a [local script with `connectTo`](#local-scripts) to the `afterDeploy` hook. Runs your installed migration CLI (Prisma, Drizzle, Knex) directly on your machine or CI runner. See the [basic hook example](#basic-hook-example) for a complete configuration.
 - **Deployment script approach** — Use a [deployment script](#basic-example) with `trigger: 'after:deploy'`. Runs inside AWS as a Lambda function. If the migration fails, CloudFormation rolls back all infrastructure changes from that deployment.
 
-Use a release command when the stack has a container service. Otherwise, the hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
+Use a [release command](/deployment-and-lifecycle/release-commands) when you can: it runs before any workload gets the new code. Otherwise, the hook approach is simpler — you use your existing migration tool directly. The deployment script approach is safer for production — with `deploymentConfig.autoRollback: true`, a failed migration rolls back all infrastructure changes from that deploy, keeping your database schema and application code in sync.
 
 ### Build before deploy
 

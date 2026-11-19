@@ -115,6 +115,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Configure Your Stack](/getting-started/configure-your-stack) - source: apps/docs/content/getting-started/configure-your-stack.mdx
 - [Deploy Your First Stage](/getting-started/deploy-your-first-stage) - source: apps/docs/content/getting-started/deploy-your-first-stage.mdx
 - [Going to Production](/getting-started/going-to-production) - source: apps/docs/content/getting-started/going-to-production.mdx
+- [Use the CLI Without an Account](/getting-started/open-source-cli) - source: apps/docs/content/getting-started/open-source-cli.mdx
 - [Starter Projects](/getting-started/starter-projects) - source: apps/docs/content/getting-started/starter-projects.mdx
 - [Upgrading from v3](/getting-started/upgrading-from-v3) - source: apps/docs/content/getting-started/upgrading-from-v3.mdx
 - [Use the Dev Mode](/getting-started/use-the-dev-mode) - source: apps/docs/content/getting-started/use-the-dev-mode.mdx
@@ -222,11 +223,14 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [SQS Events](/resources/triggers/sqs-events) - source: apps/docs/content/resources/triggers/sqs-events.mdx
 - [Account Settings](/stacktape-console/account-settings) - source: apps/docs/content/stacktape-console/account-settings.mdx
 - [API Keys](/stacktape-console/api-keys) - source: apps/docs/content/stacktape-console/api-keys.mdx
+- [Audit Log](/stacktape-console/audit-log) - source: apps/docs/content/stacktape-console/audit-log.mdx
 - [AWS Permissions Needed](/stacktape-console/aws-permissions) - source: apps/docs/content/stacktape-console/aws-permissions.mdx
 - [Billing and Subscription](/stacktape-console/billing-and-subscription) - source: apps/docs/content/stacktape-console/billing-and-subscription.mdx
 - [Connecting Your AWS Account](/stacktape-console/connecting-your-aws-account) - source: apps/docs/content/stacktape-console/connecting-your-aws-account.mdx
 - [Console Overview](/stacktape-console/console-overview) - source: apps/docs/content/stacktape-console/console-overview.mdx
 - [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages) - source: apps/docs/content/stacktape-console/organizations-projects-and-stages.mdx
+- [Security Scanning](/stacktape-console/security-scanning) - source: apps/docs/content/stacktape-console/security-scanning.mdx
+- [Single Sign-On](/stacktape-console/single-sign-on) - source: apps/docs/content/stacktape-console/single-sign-on.mdx
 - [Team and Access Control](/stacktape-console/team-and-access-control) - source: apps/docs/content/stacktape-console/team-and-access-control.mdx
 - [Agent Mode in Dev](/using-with-ai/agent-mode-in-dev) - source: apps/docs/content/using-with-ai/agent-mode-in-dev.mdx
 - [MCP Server Setup](/using-with-ai/mcp-server-setup) - source: apps/docs/content/using-with-ai/mcp-server-setup.mdx

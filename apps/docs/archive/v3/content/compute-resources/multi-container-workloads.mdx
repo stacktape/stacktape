@@ -1,0 +1,849 @@
+---
+title: "Multi-Container workloads"
+order: 130
+---
+
+<br />
+<br />
+
+A multi-container workload is a compute resource that runs one or more containers continuously. Unlike functions and batch jobs, which are event-driven, container workloads are designed for long-running applications and scale based on CPU and memory usage.
+
+Like other Stacktape compute resources, container workloads are _serverless_, meaning you don't need to manage the underlying infrastructure. You can provide your container image by building it from source code, using a Dockerfile, or pulling a pre-built image.
+
+Workloads run securely within a _VPC_, and you can expose container ports to the internet using integrations with HTTP API Gateways and Load Balancers.
+
+# Under the hood
+
+Stacktape uses AWS Elastic Container Service (ECS) to orchestrate containers. You can run your containers using two launch types:
+
+-   **_Fargate_**: A _serverless_ compute engine that runs containers without requiring you to manage servers.
+-   **_EC2 instances_**: Virtual machines that give you more control over the operating environment.
+
+ECS services are self-healing, automatically replacing any unhealthy container instances. They also provide auto-scaling out of the box.
+
+# When to use
+
+If you're unsure which compute resource to use, this table provides a comparison of container-based resources in Stacktape:
+
+| **Resource type**                                                         | **Description**                                                                      | **Use-cases**                                  |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------- |
+| [web-service](./web-services.mdx)                           | continuously running container with **public endpoint and URL**                      | public APIs, websites                          |
+| [private-service](./private-services.mdx)                   | continuously running container with **private endpoint**                             | private APIs, services                         |
+| [worker-service](./worker-services.mdx)                     | continuously running container **not accessible from outside**                       | continuous processing                          |
+| [multi-container-workload](./multi-container-workloads.mdx) | custom multi container workload - you can customize accessibility for each container | more complex use-cases requiring customization |
+| [batch-job](./batch-jobs.mdx)                               | simple container **job** - container is destroyed after job is done                  | one-off/scheduled processing jobs              |
+
+## Advantages
+
+-   **Control over environment**: You can run any Docker image or build from your own Dockerfile.
+-   **Cost-effective for predictable loads**: More economical than functions for applications with consistent traffic.
+-   **Load-balanced and auto-scalable**: Automatically scales horizontally based on CPU and memory utilization.
+-   **High availability**: Runs in multiple _Availability Zones_ for resilience.
+-   **Secure by default**: The underlying environment is securely managed by AWS.
+
+## Disadvantages
+
+-   **Slower scaling**: Adding new container instances takes longer than scaling functions.
+-   **Not fully serverless**: Cannot scale to zero, meaning you will always pay for at least one running instance.
+
+# Basic usage
+
+```typescript
+import express from 'express';
+
+const app = express();
+
+app.get('/', async (req, res) => {
+  res.send({ message: 'Hello' });
+});
+
+app.listen(process.env.PORT, () => {
+  console.info(`Server running on port ${process.env.PORT}`);
+});
+```
+
+> Example server container written in Typescript
+
+```yaml
+resources:
+  mainGateway:
+    type: http-api-gateway
+  apiServer:
+    type: multi-container-workload
+    properties:
+      resources:
+        cpu: 2
+        memory: 2048
+      scaling:
+        minInstances: 1
+        maxInstances: 5
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/main.ts
+          environment:
+            - name: PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                method: '*'
+                path: /{proxy+}
+                containerPort: 3000
+                httpApiGatewayName: mainGateway
+```
+
+> Container connected to HTTP API Gateway
+
+# Containers
+
+Every workload consists of one or more containers. You can configure the following properties for each container:
+
+<PropertiesTable
+  definitionName="ContainerWorkloadContainer"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+  rewriteLinksForReferencedCompositeTypes={{
+    StpBuildpackCwImagePackaging: "#image",
+    ExternalBuildpackCwImagePackaging: "#image",
+    PrebuiltCwImagePackaging: "#image",
+    CustomDockerfileCwImagePackaging: "#image"
+  }}
+/>
+
+## Image
+
+You can provide a container image in four ways:
+
+-   [stacktape-image-buildpack](../../configuration/packaging.mdx#stacktape-image-buildpack-multi-container-workload)
+-   [external-buildpack](../../configuration/packaging.mdx#external-buildpack-multi-container-workload)
+-   [custom-dockerfile](../../configuration/packaging.mdx#custom-dockerfile-multi-container-workload)
+-   [prebuilt-images](../../configuration/packaging.mdx#prebuilt-image-multi-container-workload)
+
+## Environment variables
+
+<PropDescription definitionName="LocalScriptProps" propertyName="environment" descType="ld" />
+
+```yaml
+environment:
+  - name: STATIC_ENV_VAR
+    value: my-env-var
+  - name: DYNAMICALLY_SET_ENV_VAR
+    value: $MyCustomDirective('input-for-my-directive')
+  - name: DB_HOST
+    value: $ResourceParam('myDatabase', 'host')
+  - name: DB_PASSWORD
+    value: $Secret('dbSecret.password')
+```
+
+<PropertiesTable definitionName="EnvironmentVar" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+## Dependencies between containers
+
+You can define dependencies between containers to control their startup order.
+
+<PropertiesTable definitionName="ContainerDependency" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<br />
+
+For example, the **frontend** container will only start after the **backend** container is running successfully.
+
+```yaml
+resources:
+  myApiGateway:
+    type: http-api-gateway
+
+  myMultiContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: frontend-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/client/index.ts
+          # {start-highlight}
+          dependsOn:
+            - containerName: backend
+              condition: START
+          # {stop-highlight}
+          environment:
+            - name: PORT
+              value: 80
+            - name: API_COINTAINER_PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: myApiGateway
+                containerPort: 80
+                path: '*'
+                method: '*'
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/server/index.ts
+          environment:
+            - name: PORT
+              value: 3000
+          events:
+            - type: workload-internal
+              properties:
+                containerPort: 3000
+      resources:
+        cpu: 2
+        memory: 2048
+```
+
+<Divider />
+
+## Healthcheck
+
+A health check monitors the container from within. If an essential container becomes unhealthy, the entire instance is automatically replaced.
+
+<PropertiesTable definitionName="ContainerHealthCheck" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<br />
+
+```yaml
+resources:
+  myContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+          # {start-highlight}
+          internalHealthCheck:
+            healthCheckCommand: ['CMD-SHELL', 'curl -f http://localhost/ || exit 1']
+            intervalSeconds: 20
+            timeoutSeconds: 5
+            startPeriodSeconds: 150
+            retries: 2
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048
+```
+
+> This example uses a shell command to send a `curl` request every 20 seconds. If the request fails or times out, the health check fails.
+
+## Shutdown
+
+When a container instance is shut down, all containers receive a `SIGTERM` signal, giving them a chance to clean up gracefully. By default, they have 2 seconds before a `SIGKILL` signal is sent. You can adjust this with the `stopTimeout` property.
+
+```typescript
+process.on('SIGTERM', () => {
+  console.info('Received SIGTERM signal. Cleaning up and exiting process...');
+
+  // Finish any outstanding requests, or close a database connection...
+
+  process.exit(0);
+});
+```
+
+> Example of cleaning up before container shutdown.
+
+## Logging
+
+Any output to `stdout` or `stderr` is captured and stored in a CloudWatch log group. You can view logs through the [Stacktape Console](https://console.stacktape.com/), the `stacktape stack-info` command, or by streaming them with the `stacktape logs` command.
+
+### Forwarding logs
+
+You can forward logs to third-party services. See the [Log Forwarding documentation](../../configuration/log-forwarding.mdx) for more details.
+
+<Divider />
+
+## Events
+
+Events route traffic from an integration to a specified port on your container.
+
+### HTTP API event
+
+Forwards requests from an [HTTP API Gateway](../../other-resources/http-api-gateways.mdx).
+
+<PropertiesTable
+  definitionName="ContainerWorkloadHttpApiIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+<br />
+
+```yaml
+resources:
+  myApiGateway:
+    type: http-api-gateway
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+          # {start-highlight}
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: myApiGateway
+                containerPort: 80
+                path: '/my-path'
+                method: GET
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048
+```
+
+> Incoming `GET` requests to `/my-path` on `myApiGateway` are routed to port `80` of the `api-container`.
+
+<Divider />
+
+### Application Load Balancer event
+
+Forwards requests from an [Application Load Balancer](../../other-resources/application-load-balancers.mdx). This allows for advanced routing based on path, query parameters, headers, and more.
+
+<PropertiesTable
+  definitionName="ContainerWorkloadLoadBalancerIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+<PropertiesTable definitionName="LbHeaderCondition" searchForReferencesInDefinition="ContainerWorkloadProps" />
+<PropertiesTable definitionName="LbQueryParamCondition" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+```yaml
+resources:
+  myLoadBalancer:
+    type: application-load-balancer
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+          # {start-highlight}
+          events:
+            - type: application-load-balancer
+              properties:
+                loadBalancerName: myLoadBalancer
+                containerPort: 80
+                priority: 1
+                paths: ['*']
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048
+```
+
+<Divider />
+
+### Network Load Balancer event
+
+Forwards traffic from a [Network Load Balancer](../../other-resources/network-load-balancers.mdx).
+
+<PropertiesTable
+  definitionName="ContainerWorkloadLoadNetworkBalancerIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+```yaml
+resources:
+  myLoadBalancer:
+    type: 'network-load-balancer'
+    properties:
+      listeners:
+        - port: 8080
+          protocol: TLS
+
+  myWorkload:
+    type: 'multi-container-workload'
+    properties:
+      containers:
+        - name: container1
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: containers/ts-container.ts
+          # {start-highlight}
+          events:
+            - type: network-load-balancer
+              properties:
+                loadBalancerName: myLoadBalancer
+                listenerPort: 8080
+                containerPort: 8080
+          # {stop-highlight}
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+<Divider />
+
+### Internal port (workload-internal)
+
+Opens a port for communication with other containers within the same workload.
+
+<PropertiesTable
+  definitionName="ContainerWorkloadInternalIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+```yaml
+resources:
+  myApiGateway:
+    type: http-api-gateway
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: frontend
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/frontend/index.ts
+          dependsOn:
+            - containerName: backend
+              condition: START
+          environment:
+            - name: PORT
+              value: 80
+            - name: BACKEND_PORT
+              value: 3000
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: myApiGateway
+                containerPort: 80
+                path: /my-path
+                method: GET
+        - name: backend
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/backend/index.ts
+          environment:
+            - name: PORT
+              value: 3000
+          # {start-highlight}
+          events:
+            - type: workload-internal
+              properties:
+                containerPort: 3000
+          # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048
+```
+
+<Divider />
+
+### Private port (service-connect)
+
+Opens a port for communication with other workloads in the same stack.
+
+<PropDescription definitionName="ContainerWorkloadServiceConnectIntegrationProps" propertyName="alias" descType="ld" />
+
+<PropertiesTable
+  definitionName="ContainerWorkloadServiceConnectIntegration"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+```yaml
+resources:
+  internalService:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/private/index.ts
+          events:
+            - type: service-connect
+              properties:
+                containerPort: 3000
+      resources:
+        cpu: 2
+        memory: 2048
+
+  publicService:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/public/index.ts
+      resources:
+        cpu: 2
+        memory: 2048
+```
+
+<Divider />
+
+# Resources
+
+You can specify the CPU, memory, and _EC2 instance_ types for your workload.
+
+<PropDescription definitionName="ContainerWorkloadProps" propertyName="resources" descType="ld" />
+
+<Info>
+
+If your workload has multiple containers, the assigned resources are shared between them.
+
+</Info>
+
+<PropertiesTable
+  definitionName="ContainerWorkloadResourcesConfig"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+## Using Fargate
+
+If you omit the `instanceTypes` property, your workload will run on _Fargate_.
+
+```yaml
+resources:
+  myContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+      # {start-highlight}
+      resources:
+        cpu: 0.25
+        memory: 512
+      # {stop-highlight}
+```
+
+## Using EC2 instances
+
+If you specify `instanceTypes`, your workload will run on _EC2 instances_.
+
+<PropDescription definitionName="ContainerWorkloadResourcesConfig" propertyName="instanceTypes" descType="ld" />
+
+```yaml
+resources:
+  myContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+      # {start-highlight}
+      resources:
+        instanceTypes:
+          - c5.large
+      # {stop-highlight}
+```
+
+### Placing containers on EC2
+
+Stacktape optimizes for 100% utilization of your _EC2 instances_. If you specify `cpu` and `memory`, AWS uses a `binpack` strategy to place as many workload instances as possible onto the available _EC2 instances_.
+
+### Using warm pool
+
+Enable a warm pool to keep pre-initialized _EC2 instances_ in a stopped state, ready for faster scaling. This is only supported for workloads with a single instance type.
+
+```yaml
+resources:
+  myWebService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      resources:
+        instanceTypes:
+          - c5.large
+        # {start-highlight}
+        enableWarmPool: true
+      # {stop-highlight}
+```
+
+# Scaling
+
+Configure the minimum and maximum number of concurrent workload instances and define a scaling policy based on CPU and memory utilization.
+
+<PropertiesTable definitionName="ContainerWorkloadScaling" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+## Scaling policy
+
+A scaling policy triggers scaling actions when CPU or memory thresholds are crossed. The workload scales out aggressively when metrics are high and scales in more cautiously when they are low.
+
+<PropertiesTable
+  definitionName="ContainerWorkloadScalingPolicy"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+```yaml
+resources:
+  myContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: container-1
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/cont1/index.ts
+          events:
+            - type: http-api-gateway
+              properties:
+                httpApiGatewayName: myApiGateway
+                containerPort: 80
+                method: '*'
+                path: '*'
+        - name: container-2
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/cont1/index.ts
+          events:
+            - type: workload-internal
+              properties:
+                containerPort: 3000
+      resources:
+        cpu: 0.5
+        memory: 1024
+      # {start-highlight}
+      scaling:
+        minInstances: 1
+        maxInstances: 5
+        scalingPolicy:
+          keepAvgMemoryUtilizationUnder: 80
+          keepAvgCpuUtilizationUnder: 80
+      # {stop-highlight}
+```
+
+# Storage
+
+Each workload instance has 20GB of _ephemeral storage_, which is shared among all containers within that instance. This storage is deleted when the instance is removed. For persistent storage, use [Buckets](../../other-resources/buckets.mdx).
+
+# Accessing other resources
+
+By default, workloads cannot access other AWS resources. You must grant permissions using _IAM_.
+
+## Using connectTo
+
+The `connectTo` property is a simplified way to grant access to other Stacktape-managed resources.
+
+```yaml
+resources:
+  photosBucket:
+    type: bucket
+
+  myContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: apiContainer
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: sr/index.ts
+      # {start-highlight}
+      connectTo:
+        # access to the bucket
+        - photosBucket
+        # access to AWS SES
+        - aws:ses
+      # {stop-highlight}
+      resources:
+        cpu: 0.25
+        memory: 512
+```
+
+<PropDescription definitionName="LambdaFunctionProps" propertyName="connectTo" descType="ld" />
+
+## Using iamRoleStatements
+
+For fine-grained control, you can provide raw _IAM_ role statements.
+
+```yaml
+resources:
+  myContainerWorkload:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: apiContainer
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: server/index.ts
+      # {start-highlight}
+      iamRoleStatements:
+        - Resource:
+            - $CfResourceParam('NotificationTopic', 'Arn')
+          Effect: 'Allow'
+          Action:
+            - 'sns:Publish'
+      # {stop-highlight}
+      resources:
+        cpu: 2
+        memory: 2048
+
+cloudformationResources:
+  NotificationTopic:
+    Type: 'AWS::SNS::Topic'
+```
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+# Deployment strategies
+
+By default, Stacktape uses a rolling update strategy. You can choose a different strategy using the `deployment` property.
+
+<PropDescription definitionName="ContainerWorkloadProps" propertyName="deployment" descType="ld" />
+
+<PropertiesTable
+  definitionName="ContainerWorkloadDeploymentConfig"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+```yaml
+resources:
+  myLoadBalancer:
+    type: application-load-balancer
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+          events:
+            - type: application-load-balancer
+              properties:
+                loadBalancerName: myLoadBalancer
+                containerPort: 80
+                priority: 1
+                paths: ['*']
+      resources:
+        cpu: 2
+        memory: 2048
+      # {start-highlight}
+      deployment:
+        strategy: Canary10Percent5Minutes
+      # {stop-highlight}
+```
+
+## Hook functions
+
+You can use hook functions to perform checks during deployment, including sending test traffic to a new version before it receives production traffic.
+
+```yaml
+resources:
+  myLoadBalancer:
+    type: application-load-balancer
+
+  myApp:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: api-container
+          packaging:
+            type: stacktape-image-buildpack
+            properties:
+              entryfilePath: src/index.ts
+          events:
+            - type: application-load-balancer
+              properties:
+                loadBalancerName: myLoadBalancer
+                containerPort: 80
+                priority: 1
+                paths: ['*']
+      resources:
+        cpu: 2
+        memory: 2048
+      # {start-highlight}
+      deployment:
+        strategy: Canary10Percent5Minutes
+        afterTrafficShiftFunction: validateDeployment
+      # {stop-highlight}
+
+  validateDeployment:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/validate-deployment.ts
+```
+
+```typescript
+import { CodeDeployClient, PutLifecycleEventHookExecutionStatusCommand } from '@aws-sdk/client-codedeploy';
+
+const client = new CodeDeployClient({});
+
+export default async (event) => {
+  // read DeploymentId and LifecycleEventHookExecutionId from payload
+  const { DeploymentId, LifecycleEventHookExecutionId } = event;
+
+  // performing validations here
+
+  await client.send(
+    new PutLifecycleEventHookExecutionStatusCommand({
+      deploymentId: DeploymentId,
+      lifecycleEventHookExecutionId: LifecycleEventHookExecutionId,
+      status: 'Succeeded' // status can be 'Succeeded' or 'Failed'
+    })
+  );
+};
+```
+
+# Default VPC connection
+
+Container workloads are connected to the default _VPC_ of your stack by default. This allows them to communicate with other VPC-enabled resources without extra configuration.
+
+# Referenceable parameters
+
+Currently, no parameters can be referenced.
+
+# Pricing
+
+You are charged for:
+
+-   **Virtual CPU per hour**
+-   **Memory per hour**
+
+Pricing is rounded to the nearest second with a one-minute minimum. For details, see the [_Fargate_ pricing page](https://aws.amazon.com/fargate/pricing/).
+
+# API reference
+
+<PropertiesTable definitionName="ContainerWorkload" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<PropertiesTable
+  definitionName="ContainerLanguageSpecificConfig"
+  searchForReferencesInDefinition="ContainerWorkloadProps"
+/>
+
+<PropertiesTable definitionName="CognitoAuthorizer" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<PropertiesTable definitionName="LambdaAuthorizer" searchForReferencesInDefinition="ContainerWorkloadProps" />
+
+<PropertiesTable definitionName="StpIamRoleStatement" searchForReferencesInDefinition="ContainerWorkloadProps" />

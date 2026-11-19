@@ -42,6 +42,10 @@ export const normalizeCliError = (value: unknown): HandledError => {
   return error;
 };
 
+/** Shell convention for a process ended by a signal: 128 + the signal number (SIGINT 130, SIGTERM 143). */
+const SIGNAL_EXIT_CODES = { SIGHUP: 129, SIGINT: 130, SIGQUIT: 131, SIGTERM: 143 } as const;
+export type ExitSignal = keyof typeof SIGNAL_EXIT_CODES;
+
 class ApplicationManager {
   cleanUpHooks: CleanupHookFunction[] = [];
   finalCleanUpHooks: (() => Promise<void>)[] = [];
@@ -49,6 +53,8 @@ class ApplicationManager {
   isErrored: boolean;
   // by SIGINT, etc.
   isInterrupted = false;
+  /** Set when the process is asked to stop on purpose (`dev stop`); its stop then succeeds instead of being interrupted. */
+  private stopRequested = false;
   usesStdinWatch = false;
   private signalHandlers: { signal: string; handler: (...args: any[]) => void }[] = [];
 
@@ -73,6 +79,21 @@ class ApplicationManager {
     await this.reportTelemetryEvent({ outcome: 'SUCCESS' });
     await this.cleanUp({ success: true });
     killPythonBridge();
+  };
+
+  /**
+   * The command did its work, and a hook that runs after it failed. Nothing is undone, so cleanup runs as after a
+   * success: a failure cleanup would treat a finished deployment as an interrupted one. The error is printed, and the
+   * command still ends as failed.
+   */
+  failAfterCompletedCommand = async (err: unknown) => {
+    const stacktapeError = normalizeCliError(err);
+    await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
+    await tuiManager.stop();
+    tuiManager.error(stacktapeError);
+    await this.cleanUp({ success: true, hookFailure: stacktapeError });
+    killPythonBridge();
+    return getReturnableError(stacktapeError);
   };
 
   gracefullyHandleError = async (err: any) => {
@@ -125,22 +146,43 @@ class ApplicationManager {
     return returnableError;
   };
 
-  handleExitSignal = async (signal: 'SIGINT' | 'SIGTERM' | 'SIGQUIT' | 'SIGHUP') => {
+  /**
+   * Stops the process on purpose, as `dev stop` does: the same cleanup as an interruption, but it ends with exit code 0
+   * and a successful result.
+   */
+  requestStop = () => {
+    this.stopRequested = true;
+    // On Windows, process.kill(pid, 'SIGINT') doesn't emit the SIGINT event properly, so the handlers are run directly.
+    process.emit('SIGINT');
+  };
+
+  /** The final result of a command that was interrupted, or stopped on request. */
+  interruptionResult = () =>
+    this.stopRequested
+      ? { ok: true, code: 'STOPPED', message: 'Stopped on request' }
+      : { ok: false, code: 'USER_INTERRUPTION', message: 'Operation interrupted by user' };
+
+  handleExitSignal = async (signal: ExitSignal) => {
     tuiDebug('APP', 'handleExitSignal()', { signal, alreadyInterrupted: this.isInterrupted });
     if (this.isInterrupted) {
       return;
     }
     this.isInterrupted = true;
+    const stopped = this.stopRequested;
+    // An interrupted command did not finish, so it must not report shell success. Set first: any path that ends the
+    // process while cleanup still runs exits with it too.
+    const exitCode = stopped ? 0 : SIGNAL_EXIT_CODES[signal];
+    process.exitCode = exitCode;
     const wasDevTuiActive = tuiManager.devTuiActive;
 
     if (!wasDevTuiActive) {
       await tuiManager.stop();
-      tuiManager.info(`Received ${signal}. Exiting.`);
+      tuiManager.info(stopped ? 'Stopping on request.' : `Received ${signal}. Exiting.`);
     }
     if (globalStateManager.isInitialized) {
       // This exit ends the CLI's whole process tree below, a detached telemetry sender included, so the report is sent
       // from this process.
-      await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION', waitForDelivery: true });
+      await this.reportTelemetryEvent({ outcome: stopped ? 'SUCCESS' : 'USER_INTERRUPTION', waitForDelivery: true });
     }
     if (this.usesStdinWatch) {
       try {
@@ -163,12 +205,7 @@ class ApplicationManager {
       tuiManager.forceRestoreTerminal();
     }
 
-    tuiManager.emitJsonlResult({
-      ok: false,
-      code: 'USER_INTERRUPTION',
-      message: 'Operation interrupted by user'
-    });
-    process.exitCode = 0;
+    tuiManager.emitJsonlResult(this.interruptionResult());
 
     if (globalStateManager.command === 'dev') {
       // Drain stdout before exiting so cleanup messages are fully flushed
@@ -179,14 +216,14 @@ class ApplicationManager {
         setTimeout(resolve, 500);
       });
       this.removeOwnProcessListeners();
-      process.exit(0);
+      process.exit(exitCode);
       return;
     }
     return kill(process.pid, () => {
       // tree-kill signals this process as well as its descendants. Keep our handlers installed until its callback
-      // runs, otherwise the default SIGTERM handler exits with 143 before we can preserve the interruption status.
+      // runs, otherwise the default SIGTERM handler ends the process before cleanup has finished.
       this.removeOwnProcessListeners();
-      process.exit(0);
+      process.exit(exitCode);
     });
   };
 
@@ -207,11 +244,13 @@ class ApplicationManager {
   private cleanUp = async ({
     success,
     interrupted = false,
-    err
+    err,
+    hookFailure
   }: {
     success: boolean;
     interrupted?: boolean;
     err?: Error;
+    hookFailure?: Error;
   }) => {
     const { command, args } = globalStateManager;
     globalStateManager.stopCredentialRefresh();
@@ -220,7 +259,7 @@ class ApplicationManager {
       'cleanup:run',
       () =>
         Promise.allSettled([
-          ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err })),
+          ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err, hookFailure })),
           shouldCleanTemp && deleteTempFolder()
         ]),
       { hooks: this.cleanUpHooks.length, deleteTemp: Boolean(shouldCleanTemp) }

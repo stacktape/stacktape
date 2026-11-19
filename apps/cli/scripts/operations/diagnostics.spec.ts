@@ -439,7 +439,7 @@ test('denied AWS reads fail and cancelling a pending diagnostic read ends with a
     }
     child.child.kill('SIGINT');
     const stopped = await child.finished;
-    expect(stopped.exitCode).toBe(0);
+    expect(stopped.exitCode).toBe(130);
     expect(parseCliJsonl(stopped.stdout, 'metrics').result).toMatchObject({ ok: false, code: 'USER_INTERRUPTION' });
     expect(stopped.stderr).toBe('');
     expect(fixture.aws.unexpected).toEqual([]);

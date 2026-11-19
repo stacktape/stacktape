@@ -154,7 +154,10 @@ const describeOwned = (resources: StackResource[]): Owned => {
 };
 
 /** The edge functions the deployed template asks its custom resources for, with the role and log group of each. */
-const readEdgeFunctions = async (clients: Clients, stackName: string): Promise<EdgeFunction[]> => {
+export const readEdgeFunctions = async (
+  clients: Pick<Clients, 'cloudFormation'>,
+  stackName: string
+): Promise<EdgeFunction[]> => {
   const body = (await clients.cloudFormation.send(new GetTemplateCommand({ StackName: stackName }))).TemplateBody;
   const template = parseYaml(body ?? '{}') as { Resources?: Record<string, { Properties?: Record<string, unknown> }> };
   return Object.values(template.Resources ?? {}).flatMap(({ Properties }) => {

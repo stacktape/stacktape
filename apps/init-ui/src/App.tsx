@@ -277,8 +277,21 @@ export function App() {
                     'The coding agent could not be connected.'
                   )
                 }
-                onRecheck={() => void run('recheck', () => session.recheck(), 'Could not re-check the sign-ins.')}
+                onRecheck={() => void run('recheck', () => session.recheck(), 'Could not check again.')}
                 onSignIn={(request) => session.signIn(request)}
+                onConsoleConnection={async (action) => {
+                  let next: WizardState | undefined;
+                  await run(
+                    `console-${action}`,
+                    async () => {
+                      next = await session.consoleConnection(action);
+                    },
+                    action === 'connect'
+                      ? 'Connecting to the Console could not be started.'
+                      : 'Could not set the offer aside.'
+                  );
+                  return next;
+                }}
                 onVerify={() => void run('verify', () => session.verify(), 'The local try-out could not be started.')}
                 state={state}
               />

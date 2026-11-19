@@ -1,3 +1,4 @@
+import { SENSITIVE_REFERENCEABLE_PARAM_NAMES } from '@stacktape/config-authoring/resource-metadata';
 import { scrubSensitiveText } from '@stacktape/console-api/sensitive-text';
 
 const REDACTED = '[redacted]';
@@ -8,11 +9,18 @@ const SENSITIVE_NAME =
 const CAMEL_CASE_KEY = /[a-z0-9]Key(?![a-z])/;
 
 const SECRET_DIRECTIVE = /\$(?:Secret|SsmParam)\(/;
+/** `$ResourceParam('db', 'password')`, with the arguments quoted or not. */
+const RESOURCE_PARAM_DIRECTIVE = /\$ResourceParam\(\s*['"]?[^'",)]*['"]?\s*,\s*['"]?([^'",)\s]+)['"]?\s*\)/g;
+
+/** A `$Secret` or `$SsmParam` directive, or a `$ResourceParam` of a parameter that holds a credential (`password`). */
+export const readsSecret = (value: string) =>
+  SECRET_DIRECTIVE.test(value) ||
+  [...value.matchAll(RESOURCE_PARAM_DIRECTIVE)].some(([, param]) => SENSITIVE_REFERENCEABLE_PARAM_NAMES.has(param!));
 
 /**
- * Names of the variables whose configured value reads a secret: a `$Secret` or `$SsmParam` directive anywhere in the
- * value, or a container's `secrets` entry. Their resolved values look like any other string, so only the configuration
- * tells them apart.
+ * Names of the variables whose configured value reads a secret: a `$Secret`, `$SsmParam` or sensitive `$ResourceParam`
+ * directive anywhere in the value, or a container's `secrets` entry. Their resolved values look like any other string,
+ * so only the configuration tells them apart.
  */
 export const getSecretSourcedEnvNames = (resource: unknown): Set<string> => {
   const names = new Set<string>();
@@ -21,13 +29,13 @@ export const getSecretSourcedEnvNames = (resource: unknown): Set<string> => {
     if (Array.isArray(environment)) {
       for (const entry of environment) {
         if (!entry || typeof entry.name !== 'string') continue;
-        if (valueKey === 'valueFrom' || (typeof entry.value === 'string' && SECRET_DIRECTIVE.test(entry.value))) {
+        if (valueKey === 'valueFrom' || (typeof entry.value === 'string' && readsSecret(entry.value))) {
           names.add(entry.name);
         }
       }
     } else if (environment && typeof environment === 'object') {
       for (const [name, value] of Object.entries(environment)) {
-        if (typeof value === 'string' && SECRET_DIRECTIVE.test(value)) names.add(name);
+        if (typeof value === 'string' && readsSecret(value)) names.add(name);
       }
     }
   };

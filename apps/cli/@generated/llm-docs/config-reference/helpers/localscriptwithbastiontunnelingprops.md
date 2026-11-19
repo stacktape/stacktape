@@ -24,8 +24,6 @@ type LocalScriptWithBastionTunnelingProps = {
   executeScript?: string;
   /** Execute Scripts */
   executeScripts?: Array<string>;
-  /** Pipe Stdio */
-  pipeStdio?: boolean;
   /** Standard I/O Mode */
   stdioMode?: "capture" | "ignore" | "inherit";
 };
@@ -141,7 +139,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -156,7 +154,7 @@ export default defineConfig(() => {
   const privateDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrateThroughTunnel = new LocalScriptWithBastionTunneling({
     bastionResource: 'jumpBox',
@@ -216,7 +214,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -229,7 +227,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({
     executeCommand: 'npx prisma migrate deploy',
@@ -296,7 +294,7 @@ Values can be:
 A static string, number, or boolean.
 The result of a [custom directive](https://docs.stacktape.com/configuration/directives/#custom-directives).
 A reference to another resource's parameter using the [`$ResourceParam` directive](https://docs.stacktape.com/configuration/referenceable-parameters/).
-A value from a [secret](https://docs.stacktape.com/resources/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret).
+A value from a [secret](https://docs.stacktape.com/configuration/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret).
 
 ### Example 1 (yaml)
 
@@ -504,7 +502,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -517,7 +515,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const db = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const setup = new LocalScript({
     executeScripts: ['scripts/migrate.ts', 'scripts/seed.ts'],
@@ -525,49 +523,6 @@ export default defineConfig(() => {
   });
 
   return { scripts: { setup }, resources: { db } };
-});
-```
-
-## Property: `pipeStdio`
-
-- Required: no
-- Type: `boolean`
-- Default: `true`
-
-Pipe Stdio
-
-If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
-Use `stdioMode: inherit` for scripts that need interactive terminal input.
-
-### Example 1 (yaml)
-
-```yaml
-scripts:
-  silentTask:
-    type: local-script
-    properties:
-      executeCommand: node ./scripts/background-task.js
-      pipeStdio: false
-resources:
-  web:
-    type: hosting-bucket
-    properties:
-      uploadDirectoryPath: ./dist
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { HostingBucket, LocalScript, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const silentTask = new LocalScript({
-    executeCommand: 'node ./scripts/background-task.js',
-    pipeStdio: false
-  });
-  const web = new HostingBucket({ uploadDirectoryPath: './dist' });
-
-  return { scripts: { silentTask }, resources: { web } };
 });
 ```
 

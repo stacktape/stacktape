@@ -49,7 +49,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
 ```
 
 ### Example 2 (typescript)
@@ -68,7 +68,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret')
+        clientSecret: $Secret('google-oauth', 'client-secret')
       }
     ]
   });
@@ -104,7 +104,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
 ```
 
 ### Example 2 (typescript)
@@ -123,7 +123,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret')
+        clientSecret: $Secret('google-oauth', 'client-secret')
       }
     ]
   });
@@ -163,7 +163,7 @@ resources:
         -
           type: Facebook
           clientId: my-facebook-app-id
-          clientSecret: $Secret('facebook-oauth.client-secret')
+          clientSecret: $Secret('facebook-oauth', 'client-secret')
 ```
 
 ### Example 2 (typescript)
@@ -182,7 +182,7 @@ export default defineConfig(() => {
       {
         type: 'Facebook',
         clientId: 'my-facebook-app-id',
-        clientSecret: $Secret('facebook-oauth.client-secret')
+        clientSecret: $Secret('facebook-oauth', 'client-secret')
       }
     ]
   });
@@ -220,7 +220,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
           attributeMapping:
             email: email
             given_name: given_name
@@ -242,7 +242,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret'),
+        clientSecret: $Secret('google-oauth', 'client-secret'),
         attributeMapping: {
           email: 'email',
           given_name: 'given_name'
@@ -285,7 +285,7 @@ resources:
       identityProviders:
         - type: Google
           clientId: my-google-client-id.apps.googleusercontent.com
-          clientSecret: $Secret('google-oauth.client-secret')
+          clientSecret: $Secret('google-oauth', 'client-secret')
           authorizeScopes:
             - openid
             - email
@@ -308,7 +308,7 @@ export default defineConfig(() => {
       {
         type: 'Google',
         clientId: 'my-google-client-id.apps.googleusercontent.com',
-        clientSecret: $Secret('google-oauth.client-secret'),
+        clientSecret: $Secret('google-oauth', 'client-secret'),
         authorizeScopes: ['openid', 'email', 'profile']
       }
     ]
@@ -348,7 +348,7 @@ resources:
       identityProviders:
         - type: OIDC
           clientId: my-oidc-client-id
-          clientSecret: $Secret('oidc-provider.client-secret')
+          clientSecret: $Secret('oidc-provider', 'client-secret')
           authorizeScopes:
             - openid
             - email
@@ -373,7 +373,7 @@ export default defineConfig(() => {
       {
         type: 'OIDC',
         clientId: 'my-oidc-client-id',
-        clientSecret: $Secret('oidc-provider.client-secret'),
+        clientSecret: $Secret('oidc-provider', 'client-secret'),
         authorizeScopes: ['openid', 'email'],
         providerDetails: {
           oidc_issuer: 'https://idp.example.com',

@@ -72,9 +72,14 @@ export interface AlarmDefinitionBase {
    */
   evaluation?: AlarmEvaluation;
   /**
-   * #### Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+   * #### Where to send notifications when the alarm fires and when it recovers.
    *
    * ---
+   *
+   * Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+   * Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+   * `$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+   * channels are delivered by the Stacktape Console, which keeps their credentials.
    *
    * **Example (YAML):**
    *
@@ -149,6 +154,10 @@ export interface AlarmDefinitionBase {
    *
    * ---
    *
+   * When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+   * appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+   * `slack-app` channels are delivered by the Console, so they need this to stay `true`.
+   *
    * **Example (YAML):**
    *
    * ```yaml
@@ -213,7 +222,7 @@ export interface AlarmDefinitionBase {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -240,7 +249,7 @@ export interface AlarmDefinitionBase {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1203,7 +1212,7 @@ export interface RelationalDatabaseFreeMemoryTriggerProps extends TriggerWithCus
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1230,7 +1239,7 @@ export interface RelationalDatabaseFreeMemoryTriggerProps extends TriggerWithCus
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1282,7 +1291,7 @@ export interface RelationalDatabaseReadLatencyTriggerProps extends TriggerWithCu
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1309,7 +1318,7 @@ export interface RelationalDatabaseReadLatencyTriggerProps extends TriggerWithCu
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1362,7 +1371,7 @@ export interface RelationalDatabaseWriteLatencyTriggerProps
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1389,7 +1398,7 @@ export interface RelationalDatabaseWriteLatencyTriggerProps
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1442,7 +1451,7 @@ export interface RelationalDatabaseCPUUtilizationTriggerProps
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1469,7 +1478,7 @@ export interface RelationalDatabaseCPUUtilizationTriggerProps
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1523,7 +1532,7 @@ export interface RelationalDatabaseFreeStorageTriggerProps extends TriggerWithCu
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1550,7 +1559,7 @@ export interface RelationalDatabaseFreeStorageTriggerProps extends TriggerWithCu
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1603,7 +1612,7 @@ export interface RelationalDatabaseConnectionCountTriggerProps
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1630,7 +1639,7 @@ export interface RelationalDatabaseConnectionCountTriggerProps
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
@@ -1739,7 +1748,7 @@ export interface TriggerWithCustomComparison {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       alarms:
@@ -1767,7 +1776,7 @@ export interface TriggerWithCustomComparison {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },

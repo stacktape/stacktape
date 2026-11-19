@@ -1,6 +1,6 @@
 # From scratch to production-grade AWS infra in a day. No DevOps knowledge required.
 
-Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and own every byte — it all runs in the AWS account you control.
+Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and run it in the AWS account you control. The CLI is open source and needs no Stacktape account. Your infrastructure and application data stay in your AWS account; if you add the Stacktape Console, operational data such as error events, check results and security findings goes to it.
 
 
 - [Get started](/getting-started/configure-your-stack/)
@@ -159,7 +159,8 @@ stacktape init
 ### Deploy to AWS
 
 
-    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account.
+    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
+    local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
 
 
 Example (bash):
@@ -173,17 +174,19 @@ That's it — your app is now running on AWS. 🎉
 
 ## Configuration in TypeScript, YAML or JSON
 
-Stacktape supports three configuration formats. Use TypeScript for full type-safety and autocomplete, or YAML/JSON if you prefer.
+Stacktape supports three configuration formats. Use TypeScript for full type-safety and autocomplete, or YAML/JSON if you prefer. Each tab below defines the same deployable function.
 
 
 Example (stacktape.ts (recommended)):
 
 ```typescript
-import { defineConfig } from 'stacktape';
+import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
-export default defineConfig(({ stage }) => ({
+export default defineConfig(() => ({
   resources: {
-    // Your resources here
+    myFunction: new LambdaFunction({
+      packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' })
+    })
   }
 }));
 ```
@@ -210,12 +213,21 @@ Example (stacktape.json):
   "resources": {
     "myFunction": {
       "type": "function",
-      "properties": {}
+      "properties": {
+        "packaging": {
+          "type": "js-bundle",
+          "properties": {
+            "entryfilePath": "./src/index.ts"
+          }
+        }
+      }
     }
   }
 }
 ```
 
+
+Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `stacktape deploy --config stacktape.json --stage dev --region us-east-1`.
 
 ## A development workflow built for speed
 
@@ -244,7 +256,7 @@ import { defineConfig, LocalScript, RelationalDatabase, RdsEnginePostgres, $Secr
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   return {
@@ -285,7 +297,7 @@ export default defineConfig(({ stage }) => {
         instanceSize: stage === 'production' ? 'db.t4g.medium' : 'db.t4g.micro',
         multiAz: stage === 'production'
       },
-      version: '18.1'
+      version: '18'
     }),
     credentials: {
       masterUserName: 'master-user',
@@ -309,7 +321,7 @@ import { Bastion, LocalScriptWithBastionTunneling, RelationalDatabase, RdsEngine
 
 const mainDatabase = new RelationalDatabase({
   engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-  credentials: { masterUserPassword: $Secret('database.password') }
+  credentials: { masterUserPassword: $Secret('database', 'password') }
 });
 
 const bastion = new Bastion({});
@@ -370,9 +382,9 @@ export default defineConfig(() => {
 ```
 
 
-## Open-source core, paid Console
+## Open-source CLI, optional Console
 
-Use Stacktape core completely free, or add the hosted Console when you want CI/CD, GitOps and observability.
+The CLI is open source (MIT) and works without an account. Add the hosted Console when your team wants deploy history, costs, alerts and Git deployments; it is free up to $200 a month of managed AWS spend. See [Billing and subscription](/stacktape-console/billing-and-subscription).
 
 
 See current pricing at https://stacktape.com/pricing.

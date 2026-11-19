@@ -36,6 +36,7 @@ stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
 | `--region`      | Session AWS region; `/aws/sdk` rejects any different region   |
 | `--resources`   | Which workloads to run (`all` or comma-separated names)                                  |
 | `--fresh-db`     | Reset local database data on startup                                                     |
+| `--yes`         | Confirms creating a project that does not exist yet. `--agent` never confirms it; without `--yes` the start fails with `CONFIRMATION_REQUIRED` |
 
 Once ready, Stacktape prints the agent URL and a summary of available endpoints. Local database data persists in `.stacktape/dev-data/{stage}/` between runs — see [reset scope](/local-development/local-databases#resetting-local-data) before using `--fresh-db`. It resets prepared databases, including relay dependencies, and DynamoDB Local tables share storage.
 
@@ -244,7 +245,7 @@ curl -H "$AUTH" $AGENT/env/api
 
 Secret values are masked. The agent replaces the values of variables read from `$Secret` or `$SsmParam`, of variables whose names mark them as secret (such as `PASSWORD`, `TOKEN`, `KEY`, `SECRET` or `AUTHORIZATION`, which includes the AWS credentials of container workloads), and the password inside connection strings, for example `postgresql://[redacted:credentials]@localhost:5432/app`. Host names, private IP addresses, ports, database names and plain settings stay readable. A deployed dev function reaches a local database at the private address of the dev box, such as `10.230.4.17`, so its `/env` shows that address. Public IP addresses are masked as `[redacted:ip]`. Your workloads still receive the real values.
 
-Local databases never use the deployed database's secret. When the configured password is a directive such as `$Secret('db.password')`, dev mode generates a local password, keeps it in `.stacktape/dev-data/{stage}/{resource}/password`, and gives that same password to the container, the deployed dev functions and local workloads.
+Local databases never use the deployed database's secret. When the configured password is a directive such as `$Secret('db', 'password')`, dev mode generates a local password, keeps it in `.stacktape/dev-data/{stage}/{resource}/password`, and gives that same password to the container, the deployed dev functions and local workloads.
 
 This endpoint is useful for debugging [`connectTo`](/configuration/connecting-resources) wiring. If an expected `STP_*` variable is missing, the workload's `connectTo` array likely doesn't reference the target resource. The response also includes the `source` field — `"aws"` for Lambda functions (fetched from the deployed function configuration) or `"local"` for other tracked workload types (currently container, hosting-bucket, and nextjs-web workloads, read from the local runner state).
 

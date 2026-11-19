@@ -1,6 +1,6 @@
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import { cfnResource } from '@stacktape/cloudformation/resource';
-import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
+import { getAtt, join, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -245,12 +245,18 @@ export const transformIntegrationsForResourceOutput = ({
     url: join('', [
       resource?.customDomains?.length
         ? `https://${resource.customDomains[0].domainName}`
-        : `https://${domainManager.getDefaultDomainForResource({ stpResourceName: resource.name })}`,
+        : configManager.consoleConnected
+          ? `https://${domainManager.getDefaultDomainForResource({ stpResourceName: resource.name })}`
+          : getAtt(cfLogicalNames.httpApi(resource.name), 'ApiEndpoint'),
       normalizePathForLink(path)
     ]),
     resourceName: workloadName
   }));
 };
+
+/** The API's own AWS domain, `<api-id>.execute-api.<region>.amazonaws.com`. */
+export const getHttpApiAwsDomain = (stpResourceName: string) =>
+  sub('${ApiId}.execute-api.${AWS::Region}.${AWS::URLSuffix}', { ApiId: ref(cfLogicalNames.httpApi(stpResourceName)) });
 
 export const getHttpApiGatewayDefaultDomainCustomResource = ({ resource }: { resource: StpHttpApiGateway }) => {
   return getStpServiceCustomResource<'defaultDomain'>({

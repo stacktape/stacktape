@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackAppIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';
+import type { BodyContainsAssertion, ConsoleChannelIntegration, EmailIntegration, SlackAppIntegration, StatusCodeAssertion, UptimeCheckEvaluation } from 'stacktape';
 
 type UptimeCheckProps = {
   /** The URL to monitor. */
@@ -34,12 +34,8 @@ type UptimeCheckAssertions =
   | BodyContainsAssertion;
 
 type UptimeCheckNotificationChannels =
-  | SlackIntegration
   | SlackAppIntegration
-  | MsTeamsIntegration
   | EmailIntegration
-  | DiscordIntegration
-  | WebhookIntegration
   | ConsoleChannelIntegration;
 ```
 
@@ -338,21 +334,19 @@ export default defineConfig(() => {
 ## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
+- Type: `Array<slack-app | email | console-channel>`
 
 Where to send notifications when the check goes down or recovers.
 
-Accepts inline destinations (`slack`, `ms-teams`, `discord`, `email`, `webhook`) and references to
-channels configured in the Stacktape Console (`console-channel`). State changes always appear in the
-Console's monitoring history, even with no channels configured.
+The Stacktape Console decides when a check is down and delivers its notifications, so an uptime check accepts
+only destinations that hold no credentials: channels configured in the Console (`console-channel`), channels of
+the Slack workspace connected through the Stacktape Slack app (`slack-app`), and `email`. To notify a Slack bot,
+MS Teams, Discord or a webhook, create the channel in the Console and reference it with `console-channel`.
+State changes always appear in the Console's monitoring history, even with no channels configured.
 
 Choices:
-- `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
 - `slack-app` (`SlackAppIntegration`). Properties: `channel: string`.
-- `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
-- `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
-- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: unknown`.
 - `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)

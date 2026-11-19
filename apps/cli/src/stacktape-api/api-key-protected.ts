@@ -28,6 +28,8 @@ import type {
   Ec2DeployStatusFromCliResponse,
   ExchangeGithubActionsTokenParams,
   ExchangeGithubActionsTokenResponse,
+  FindExistingStacksFromCliInput,
+  FindExistingStacksFromCliResponse,
   GetAwsConnectionStatusInput,
   GetAwsConnectionStatusResponse,
   GetGitProviderConnectionStatusInput,
@@ -93,6 +95,8 @@ export type {
   Ec2DeployFromCliResponse,
   Ec2DeployStatusFromCliParams,
   Ec2DeployStatusFromCliResponse,
+  FindExistingStacksFromCliInput,
+  FindExistingStacksFromCliResponse,
   GetAwsConnectionStatusInput,
   GetAwsConnectionStatusResponse,
   GetGitProviderConnectionStatusInput,
@@ -280,6 +284,14 @@ export class ApiKeyProtectedClient {
 
   getAwsConnectionStatus = async (args: GetAwsConnectionStatusInput): Promise<GetAwsConnectionStatusResponse> => {
     return this.#request('getAwsConnectionStatus', () => this.#ensureInitialized().getAwsConnectionStatus.query(args));
+  };
+
+  findExistingStacksFromCli = async (
+    args: FindExistingStacksFromCliInput
+  ): Promise<FindExistingStacksFromCliResponse> => {
+    return this.#request('findExistingStacksFromCli', () =>
+      this.#ensureInitialized().findExistingStacksFromCli.mutate(args)
+    );
   };
 
   getGitProviderConnectionStatus = async (

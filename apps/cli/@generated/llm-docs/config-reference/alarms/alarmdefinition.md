@@ -20,7 +20,7 @@ type AlarmDefinition = {
   forStages?: Array<string>;
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
-  /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
+  /** Where to send notifications when the alarm fires and when it recovers. */
   notificationChannels?: Array<AlarmDefinitionNotificationChannels>;
 };
 
@@ -105,7 +105,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
       alarms:
@@ -130,7 +130,7 @@ export default defineConfig(() => {
     engine: {
       type: 'postgres',
       properties: {
-        version: '16.2',
+        version: '16',
         primaryInstance: { instanceSize: 'db.t3.micro' }
       }
     },
@@ -236,6 +236,10 @@ Only activate this alarm for these stages (e.g., `production`). If omitted, appl
 
 Whether alarm state changes should appear in monitoring history.
 
+When `false`, the alarm's state changes are not reported to the Stacktape Console, so they open no incident and
+appear in no history. Inline notification channels are still delivered from your account. `console-channel` and
+`slack-app` channels are delivered by the Console, so they need this to stay `true`.
+
 ### Example 1 (yaml)
 
 ```yaml
@@ -280,7 +284,12 @@ export default defineConfig(() => {
 - Required: no
 - Type: `Array<slack | slack-app | ms-teams | email | discord | webhook | console-channel>`
 
-Where to send notifications when the alarm fires — Slack, MS Teams, or email.
+Where to send notifications when the alarm fires and when it recovers.
+
+Inline channels (`slack`, `ms-teams`, `discord`, `email`, `webhook`) are delivered by the stack's own service
+Lambda, from your AWS account. Their tokens, webhook URLs, signing secrets and headers, including values from
+`$Secret` and secure SSM parameters, are read there and never sent to Stacktape. `console-channel` and `slack-app`
+channels are delivered by the Stacktape Console, which keeps their credentials.
 
 Choices:
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.

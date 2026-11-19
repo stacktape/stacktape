@@ -1,0 +1,110 @@
+[
+ {
+  "title": "Nextjs Web",
+  "url": "/compute-resources/nextjs-webs"
+ },
+ {
+  "title": "Function",
+  "url": "/compute-resources/functions"
+ },
+ {
+  "title": "Web Service",
+  "url": "/compute-resources/web-services"
+ },
+ {
+  "title": "Multi Container Workload",
+  "url": "/compute-resources/multi-container-workloads"
+ },
+ {
+  "title": "Batch Job",
+  "url": "/compute-resources/batch-jobs"
+ },
+ {
+  "title": "Private Service",
+  "url": "/compute-resources/private-services"
+ },
+ {
+  "title": "Worker Service",
+  "url": "/compute-resources/worker-services"
+ },
+ {
+  "title": "Edge Lambda Function",
+  "url": "/compute-resources/edge-lambda-functions"
+ },
+ {
+  "title": "Hosting Bucket",
+  "url": "/other-resources/hosting-buckets"
+ },
+ {
+  "title": "SQL database",
+  "url": "/database-resources/relational-databases"
+ },
+ {
+  "title": "DynamoDb Table",
+  "url": "/database-resources/dynamo-db-tables"
+ },
+ {
+  "title": "MongoDb Atlas Cluster",
+  "url": "/3rd-party-resources/mongo-db-atlas-clusters"
+ },
+ {
+  "title": "Redis Cluster",
+  "url": "/database-resources/redis-clusters"
+ },
+ {
+  "title": "Load Balancer",
+  "url": "/other-resources/application-load-balancers"
+ },
+ {
+  "title": "Network Load Balancer",
+  "url": "/other-resources/network-load-balancers"
+ },
+ {
+  "title": "Http Api Gateway",
+  "url": "/other-resources/http-api-gateways"
+ },
+ {
+  "title": "Bucket",
+  "url": "/other-resources/buckets"
+ },
+ {
+  "title": "User Auth Pool",
+  "url": "/security-resources/user-auth-pools"
+ },
+ {
+  "title": "Event Bus (EventBridge)",
+  "url": "/other-resources/event-buses"
+ },
+ {
+  "title": "Bastion (Jump Host)",
+  "url": "/security-resources/bastions"
+ },
+ {
+  "title": "State Machine",
+  "url": "/other-resources/state-machines"
+ },
+ {
+  "title": "Upstash Redis",
+  "url": "/3rd-party-resources/upstash-redises"
+ },
+ {
+  "title": "Deployment Script",
+  "url": "/other-resources/deployment-scripts"
+ },
+ {
+  "title": "SQS Queue",
+  "url": "/other-resources/sqs-queues"
+ },
+ {
+  "title": "SNS Topic",
+  "url": "/other-resources/sns-topics"
+ },
+ {
+  "title": "Web App Firewall",
+  "url": "/security-resources/web-app-firewalls"
+ },
+ {
+  "title": "OpenSearch (Elastic)",
+  "url": "/database-resources/open-search-domains"
+ }
+]

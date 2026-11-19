@@ -1,0 +1,161 @@
+---
+title: 'Quick Start'
+order: 0
+---
+
+Get from zero to a deployed application in 5 minutes.
+
+## 1. Install Stacktape
+
+<CodeBlock
+  tabs={[
+    { lang: 'bash', code: 'npm install -g stacktape', label: 'npm' },
+    { lang: 'bash', code: 'iwr https://installs.stacktape.com/windows.ps1 -useb | iex', label: 'Windows (PowerShell)' },
+    { lang: 'bash', code: 'curl -L https://installs.stacktape.com/macos.sh | sh', label: 'macOS' },
+    { lang: 'bash', code: 'curl -L https://installs.stacktape.com/linux.sh | sh', label: 'Linux' }
+  ]}
+/>
+
+Verify the installation:
+
+```bash
+stacktape --version
+```
+
+## 2. Log In
+
+```bash
+stacktape login
+```
+
+This opens your browser to authenticate. If you don't have an account, you'll be prompted to create one.
+
+<Info>
+
+You'll need to connect an AWS account to your Stacktape organization. You can do this in the [Stacktape console](https://console.stacktape.com/).
+
+</Info>
+
+## 3. Initialize a Project
+
+Run the init command in your project directory:
+
+```bash
+stacktape init
+```
+
+You'll be prompted to choose how to initialize:
+
+- **Create new config using Interactive Config Editor** - Opens a web-based editor to visually build your configuration
+- **Use a starter** - Choose from 30+ pre-configured starter projects
+
+### Using a Starter (Recommended for First-Time Users)
+
+Starters include working code and a pre-configured `stacktape.ts` file:
+
+```bash
+stacktape init --starterId nextjs-prisma-postgres
+```
+
+Popular starters:
+
+- `nextjs-prisma-postgres` - Full-stack Next.js with Prisma and PostgreSQL
+- `express-api` - REST API with Express.js
+- `lambda-api` - Serverless API with Lambda functions
+- `sveltekit` - SvelteKit application
+
+See all starters: [Starter Projects](/starter-projects/)
+
+### Creating a Config Manually
+
+Create a `stacktape.ts` file in your project root:
+
+```typescript
+import { defineConfig, LambdaFunction, HttpApiGateway } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new HttpApiGateway({});
+
+  const hello = new LambdaFunction({
+    packaging: { entryfilePath: './src/handler.ts' },
+    events: [{ httpApi: api, method: 'GET', path: '/hello' }]
+  });
+
+  return { resources: { api, hello } };
+});
+```
+
+And a simple handler at `src/handler.ts`:
+
+```typescript
+export const handler = async () => ({
+  statusCode: 200,
+  body: JSON.stringify({ message: 'Hello from Stacktape!' })
+});
+```
+
+## 4. Deploy
+
+```bash
+stacktape deploy --stage dev --region us-east-1
+```
+
+- `--stage` - Environment name (e.g., `dev`, `staging`, `production`). Each stage is an isolated copy of your app.
+- `--region` - AWS region to deploy to (e.g., `us-east-1`, `eu-west-1`)
+
+Stacktape will:
+
+1. Build and package your code
+2. Create all necessary AWS resources
+3. Deploy your application
+
+The first deployment takes 2-5 minutes. Subsequent deployments are much faster.
+
+<Info>
+
+**Hot-swap deployments**: When only your code changes (not infrastructure), Stacktape can update Lambda functions in seconds by bypassing CloudFormation.
+
+</Info>
+
+## 5. View Your App
+
+After deployment, Stacktape outputs the URLs for your resources:
+
+```
+Deployment complete!
+
+Resources:
+  api: https://abc123.execute-api.us-east-1.amazonaws.com
+```
+
+You can also view your deployed stack in the [Stacktape console](https://console.stacktape.com/).
+
+## Next Steps
+
+<NavBoxGrid columns={2}>
+  <NavBox
+    url="/getting-started/development-mode/"
+    text="Development Mode"
+    description="Run your app locally with hot-reload while connected to cloud resources."
+  />
+  <NavBox
+    url="/getting-started/configuration/"
+    text="Configuration Guide"
+    description="Deep dive into TypeScript configuration and all available options."
+  />
+  <NavBox
+    url="/getting-started/deployment/"
+    text="Deployment Options"
+    description="Set up CI/CD, GitOps, or deploy from the web console."
+  />
+  <NavBox
+    url="/starter-projects/"
+    text="Starter Projects"
+    description="Browse 30+ ready-to-deploy application templates."
+  />
+</NavBoxGrid>
+
+<PreviousNext
+  left={{ url: '/', title: 'Introduction' }}
+  right={{ url: '/getting-started/configuration/', title: 'Configuration' }}
+/>

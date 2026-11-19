@@ -1,6 +1,6 @@
 {
   "description": "A batch job and an AgentCore runtime that connect to a scoped database, a bastion, and NAT instances for a private worker.",
-  "config": "stackConfig:\n  nat: ec2\nresources:\n  importer:\n    type: batch-job\n    properties:\n      container:\n        packaging:\n          type: prebuilt-image\n          properties:\n            image: example.invalid/importer:v1\n      resources:\n        cpu: 1\n        memory: 2048\n      connectTo: [db]\n  jumpHost:\n    type: bastion\n  agent:\n    type: agentcore-runtime\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/agent:v1\n      connectTo: [db]\n  privateWorker:\n    type: worker-service\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/app:v1\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true\n  db:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16.9'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n",
+  "config": "stackConfig:\n  nat: ec2\nresources:\n  importer:\n    type: batch-job\n    properties:\n      container:\n        packaging:\n          type: prebuilt-image\n          properties:\n            image: example.invalid/importer:v1\n      resources:\n        cpu: 1\n        memory: 2048\n      connectTo: [db]\n  jumpHost:\n    type: bastion\n  agent:\n    type: agentcore-runtime\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/agent:v1\n      connectTo: [db]\n  privateWorker:\n    type: worker-service\n    properties:\n      packaging:\n        type: prebuilt-image\n        properties:\n          image: example.invalid/app:v1\n      resources:\n        cpu: 0.25\n        memory: 512\n      usePrivateSubnetsWithNAT: true\n  db:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: synthetic-password\n      engine:\n        type: postgres\n        properties:\n          version: '16'\n          primaryInstance:\n            instanceSize: db.t4g.micro\n      accessibility:\n        accessibilityMode: scoping-workloads-in-vpc\n",
   "stacktapeResources": [
     {
       "name": "importer",
@@ -1741,7 +1741,7 @@
         "AutoMinorVersionUpgrade": true,
         "DBName": "defdb",
         "Engine": "postgres",
-        "EngineVersion": "16.9",
+        "EngineVersion": "16",
         "EnableCloudwatchLogsExports": [
           "postgresql"
         ],

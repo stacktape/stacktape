@@ -4,7 +4,8 @@
  * The real wizard server and session run here, serving the built `apps/init-ui` bundle, so the page goes through the
  * real handshake, CSRF checks, event stream, recomposition and file writes. Only what lies outside this machine or
  * would spend money is scripted: the scan replays facts recorded from a real repository (`projects/*.json`), and the
- * coding agent, AWS identity, Stacktape sign-in, price estimate, target check, local try-out and deploy child answer
+ * coding agent, AWS identity, Stacktape sign-in, price estimate, target check, local try-out, deploy child and
+ * `stacktape connect` answer
  * from the scenario below. Every network request that is not loopback is refused (run with the network guard).
  *
  *   bun --preload scripts/network-guard-preload.ts scripts/init-wizard-fixture/server.ts '<scenario JSON>'
@@ -42,6 +43,8 @@ export type WizardFixtureScenario = {
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** What connecting the coding agent to Stacktape does after a successful deploy. */
   agentSetup?: 'succeed' | 'fail';
+  /** What `stacktape connect` does when the Console is accepted after an account-free deploy. */
+  connect?: 'succeed' | 'fail';
   /** A project name other than the recorded scan's, e.g. a long one for heavy-data captures. */
   projectName?: string;
 };
@@ -422,7 +425,8 @@ const main = async () => {
         available: true,
         accountId: ACCOUNT_ID,
         arn: `arn:aws:iam::${ACCOUNT_ID}:user/dev`,
-        region: 'eu-west-1'
+        region: 'eu-west-1',
+        profile: 'default'
       };
     },
     stacktapeAccount: async () => {
@@ -430,6 +434,16 @@ const main = async () => {
       return scenario.account === 'signed-out' || scenario.account === 'no-page-sign-in'
         ? { signedIn: false, detail: 'This machine is not signed in to Stacktape.' }
         : { signedIn: true, detail: 'Signed in.', email: 'dev@acme.io', organization: 'Acme' };
+    },
+    connectConsole: async () => {
+      // Long enough to see "Connecting…"; the real one waits for a CloudFormation stack.
+      await sleep(1200);
+      return scenario.connect === 'fail'
+        ? {
+            ok: false,
+            detail: 'User: arn:aws:iam::481516234200:user/dev is not authorized to perform: cloudformation:CreateStack.'
+          }
+        : { ok: true, detail: `Connected AWS account ${ACCOUNT_ID} to Acme.` };
     },
     ...(scenario.account === 'no-page-sign-in'
       ? {}
@@ -503,6 +517,8 @@ const main = async () => {
       return { ...identity, status: 'absent' };
     },
     deploy: async ({ configFile, stage, region, onEvent, onCommand }) => {
+      // Signed out, the deploy runs on AWS credentials alone and gets AWS addresses, not Stacktape default domains.
+      const accountFree = scenario.account === 'signed-out' || scenario.account === 'no-page-sign-in';
       onCommand(deployCommandLine({ repositoryRoot, configPath: configFile.filename, stage, region, projectName }));
       const resources = Object.entries(
         composeConfig({ facts, projectName, engineVersions: versionJson.rds }).config.resources
@@ -535,7 +551,9 @@ const main = async () => {
                 .filter(([, resource]) => /^(web-service|hosting-bucket|[a-z-]+-web)$/.test(resource.type))
                 .map(([resourceName], index) => ({
                   resourceName,
-                  url: `https://${projectName}-dev-${['7f3a9c', '2b81e4', 'c05d17'][index % 3]}.stacktape-app.com`
+                  url: accountFree
+                    ? `https://${['d3k9x2a7b1c4qe', 'd1f6m0zr8t5wyb', 'd2p4h7ns3c9kvu'][index % 3]}.cloudfront.net`
+                    : `https://${projectName}-dev-${['7f3a9c', '2b81e4', 'c05d17'][index % 3]}.stacktape-app.com`
                 }))
             }
           : {})

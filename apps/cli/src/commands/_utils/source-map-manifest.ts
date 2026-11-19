@@ -1,6 +1,7 @@
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { SourceMapManifest } from '@stacktape/console-api/source-maps';
 import { recordSourceMapManifest } from '@application-services/stacktape-trpc-api-manager/operation-recording';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { getFunctionAliases } from '@domain-services/deployment-artifact-manager/source-maps';
@@ -13,6 +14,8 @@ const parseLambdaTimestamp = (value: string | undefined) =>
   value ? Date.parse(value.replace(/([+-]\d\d)(\d\d)$/, '$1:$2')) : Number.NaN;
 
 const record = async (manifest: SourceMapManifest) => {
+  // The manifest maps errors for the Console's error tracking.
+  if (globalStateManager.isAccountFree) return;
   try {
     await recordSourceMapManifest(manifest);
   } catch (error) {

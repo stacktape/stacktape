@@ -168,7 +168,8 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
       agentPort: devAgentPort.optional(),
       agentChild: agentChild.optional(),
       freshDb: freshDb.optional(),
-      takeOver: takeOver.optional()
+      takeOver: takeOver.optional(),
+      autoConfirmOperation: autoConfirmOperation.optional()
     },
     requiredArgs: ['region', 'stage'] as const
   },
@@ -319,9 +320,10 @@ You will be prompted to enter the name of the profile to delete.`,
   },
 
   'aws-profile:list': {
-    description: `Lists all AWS profiles configured on your system.`,
+    description: `Lists all AWS profiles configured on your system. Secret access keys are masked unless you pass \`--show-secrets\`.`,
     args: {
-      logLevel: logLevel.optional()
+      logLevel: logLevel.optional(),
+      showSensitiveValues: showSensitiveValues.optional()
     },
     requiredArgs: [] as const
   },
@@ -329,7 +331,7 @@ You will be prompted to enter the name of the profile to delete.`,
   'domain:add': {
     description: `Adds a domain to your AWS account.
 
-Once added, the domain and its subdomains can be used with various resources, such as Web Services, Hosting Buckets, and API Gateways. Before adding a domain, please review the [Domains and Certificates documentation](https://docs.stacktape.com/other-resources/domains-and-certificates/#adding-domain).`,
+Once added, the domain and its subdomains can be used with various resources, such as Web Services, Hosting Buckets, and API Gateways. Before adding a domain, please review the [custom domains documentation](https://docs.stacktape.com/resources/networking/custom-domains/).`,
     args: {
       ...universalArgs,
       region: awsRegion.optional()
@@ -366,13 +368,14 @@ In agent mode, use --secret-name with either --value or --file. Use --force-upda
   },
 
   'secret:get': {
-    description: `Prints details about a specified secret to the console.
+    description: `Prints details about a specified secret. The value itself is printed only with \`--show-secrets\`.
 
 In agent mode, use --secret-name to specify the secret.`,
     args: {
       ...universalArgs,
       region: awsRegion.optional(),
-      secretName: secretName.optional()
+      secretName: secretName.optional(),
+      showSensitiveValues: showSensitiveValues.optional()
     },
     requiredArgs: ['region'] as const
   },
@@ -512,12 +515,13 @@ Supported metrics by resource type:
   init: {
     description: `Initializes a new Stacktape project and guides you through deployment.
 
-By default, runs an interactive wizard that:
-1. Analyzes your project with AI and generates a configuration
-2. Helps you sign up or log in to Stacktape
-3. Connects your AWS account
-4. Creates a project and optionally sets up CI/CD
-5. Offers to deploy immediately
+By default, opens a wizard in your browser that:
+1. Reads your project (with your own coding agent, or files only) and proposes a configuration
+2. Writes the configuration file once you have reviewed it
+3. Deploys it to the AWS account of the credentials on this machine, after showing the exact account and stack
+
+No Stacktape account is needed. After a successful deploy, the wizard offers the Stacktape Console (deploy history,
+costs, alerts and team access) and a CI/CD pipeline.
 
 Alternative modes:
 - **Starter project:** Use \`--starter-project\` or \`--starter-id\` to initialize from a pre-configured template.`,
@@ -565,7 +569,7 @@ Files in the bucket that are not present in the source directory will be removed
 
 Your stack must include a \`bastion\` resource. If you have multiple bastions, you can specify which one to connect to with the \`--bastion-resource\` argument. The session is established over a secure SSM connection.
 
-For more information, refer to the [bastion documentation](https://docs.stacktape.com/bastion-servers/#connecting-to-bastion-interactive-session).`,
+For more information, refer to the [bastion shell documentation](https://docs.stacktape.com/cli/bastion-session/).`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -580,7 +584,7 @@ For more information, refer to the [bastion documentation](https://docs.stacktap
 
 Your stack must include a \`bastion\` resource. This is useful for accessing resources in a private VPC. If you have multiple bastions, you can specify one with the \`--bastion-resource\` argument. The command will print the tunneled endpoints to the terminal.
 
-For more information, refer to the [bastion tunnel documentation](https://docs.stacktape.com/bastion-servers/#creating-bastion-tunnel).`,
+For more information, refer to the [bastion tunnel documentation](https://docs.stacktape.com/cli/bastion-tunnel/).`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -597,7 +601,7 @@ For more information, refer to the [bastion tunnel documentation](https://docs.s
 
 The session is established using ECS Exec and a secure SSM connection. If your service has multiple containers, you can choose which one to connect to. This is useful for debugging and inspecting running containers.
 
-For more information, refer to the [container session documentation](https://docs.stacktape.com/bastion-servers/#connecting-to-bastion-interactive-session).`,
+For more information, refer to the [container shell documentation](https://docs.stacktape.com/cli/container-session/).`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -787,7 +791,7 @@ You can also configure default executables for resolving Node.js directives.`,
 
 You can pass environment variables to the script using the \`--env\` option (e.g., \`--env MY_VAR=my_value\`).
 
-To learn more, refer to the [scripts documentation](https://docs.stacktape.com/configuration/scripts/).`,
+To learn more, refer to the [scripts documentation](https://docs.stacktape.com/configuration/hooks-and-scripts/).`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -856,6 +860,22 @@ Revokes the CLI login session on the Stacktape API and removes it from this syst
     requiredArgs: [] as const
   },
 
+  connect: {
+    description: `Connects this machine's AWS account to the Stacktape Console, without redeploying anything.
+
+Signs you in first if needed (the same browser sign-in as \`stacktape login\`). Then it connects the AWS account of your current local AWS credentials (\`--profile\`, \`AWS_PROFILE\` or the standard AWS credential chain) to your organization and prints the Console address where the account's stacks appear. Your stacks keep their names, resources and URLs. The Console is free up to $200 a month of AWS spend it manages.
+
+To return the CLI to working without the Console, run \`stacktape logout\`. Nothing deployed changes.`,
+    args: {
+      profile: universalArgs.profile,
+      logLevel: logLevel.optional(),
+      agent: agent.optional(),
+      outputFormat: outputFormat.optional(),
+      noBrowser: noBrowser.optional()
+    },
+    requiredArgs: [] as const
+  },
+
   'org:create': {
     description: `Creates a new organization in your Stacktape account.
 
@@ -886,14 +906,15 @@ Shows organization name, role, number of connected AWS accounts, and whether it'
   'org:delete': {
     description: `Deletes the organization of your API key.
 
-In interactive mode, you'll confirm the deletion. In agent mode, provide --organization-id with the ID of that organization.
+In interactive mode, you'll confirm the deletion. Without a terminal or with --agent, add --yes; agent mode also needs --organization-id with the ID of that organization.
 
 This operation is allowed only for organization OWNER and only when there are no other non-service users and no active connected AWS accounts. To delete another organization, log in with an API key of that organization first.`,
     args: {
       logLevel: logLevel.optional(),
       agent: agent.optional(),
       outputFormat: outputFormat.optional(),
-      organizationId: organizationId.optional()
+      organizationId: organizationId.optional(),
+      autoConfirmOperation: autoConfirmOperation.optional()
     },
     requiredArgs: [] as const
   },
@@ -1201,26 +1222,30 @@ export const commandsWithDisabledAnnouncements: StacktapeCommand[] = [
   'info:stack'
 ];
 
-// Commands that don't require API key
-export const commandsNotRequiringApiKey: StacktapeCommand[] = [
-  'login',
-  'logout',
-  'mcp',
-  'mcp:add',
-  'mcp:remove',
-  'version',
-  'help',
-  'defaults:list',
-  'defaults:configure',
-  'aws-profile:list',
-  'aws-profile:create',
-  'aws-profile:update',
-  'aws-profile:delete',
-  // Stops a local dev agent and removes local containers; it never calls the Stacktape API.
-  'dev:stop',
-  'upgrade',
-  'init',
-  'package',
-  'synth',
-  'validate'
-];
+/**
+ * Commands that are Console features by nature, with the reason shown when they run without a Stacktape API key.
+ * Every other command works without an account: stack commands run on local AWS credentials.
+ */
+export const consoleOnlyCommands: Partial<Record<StacktapeCommand, string>> = {
+  'org:create': 'organizations are kept in the Stacktape Console',
+  'org:list': 'organizations are kept in the Stacktape Console',
+  'org:delete': 'organizations are kept in the Stacktape Console',
+  'project:create': 'projects are kept in the Stacktape Console',
+  'project:list': 'projects are kept in the Stacktape Console',
+  'project:delete': 'projects are kept in the Stacktape Console',
+  'errors:list': 'error tracking runs in the Stacktape Console',
+  'errors:resolve': 'error tracking runs in the Stacktape Console',
+  'errors:ignore': 'error tracking runs in the Stacktape Console',
+  'errors:reopen': 'error tracking runs in the Stacktape Console',
+  incidents: 'incidents are kept in the Stacktape Console',
+  'incidents:show': 'incidents are kept in the Stacktape Console',
+  'incidents:watch': 'incidents are kept in the Stacktape Console',
+  'incidents:ack': 'incidents are kept in the Stacktape Console',
+  'incidents:resolve': 'incidents are kept in the Stacktape Console',
+  'ai:connect': 'hosted AI runs use the Stacktape Console',
+  'ai:disconnect': 'hosted AI runs use the Stacktape Console',
+  'info:whoami': 'it shows your Stacktape Console user and organization',
+  'info:operations': 'the deploy history is kept in the Stacktape Console',
+  'info:stack': 'it reads the stack record kept in the Stacktape Console',
+  'alarms:export': 'it exports alarms defined in the Stacktape Console'
+};

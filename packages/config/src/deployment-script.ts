@@ -38,7 +38,7 @@ import type { LambdaRuntime } from './primitives';
  *         properties:
  *           primaryInstance:
  *             instanceSize: db.t4g.micro
- *           version: '16.2'
+ *           version: '16'
  * ```
  *
  * **Example (TypeScript):**
@@ -51,7 +51,7 @@ import type { LambdaRuntime } from './primitives';
  *     credentials: { masterUserPassword: $Secret('db-password') },
  *     engine: new RdsEnginePostgres({
  *       primaryInstance: { instanceSize: 'db.t4g.micro' },
- *       version: '16.2'
+ *       version: '16'
  *     })
  *   });
  *
@@ -424,7 +424,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *         properties:
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
-   *           version: '16.2'
+   *           version: '16'
    * ```
    *
    * **Example (TypeScript):**
@@ -437,7 +437,7 @@ export interface DeploymentScriptProps extends ResourceAccessProps {
    *     credentials: { masterUserPassword: $Secret('db-password') },
    *     engine: new RdsEnginePostgres({
    *       primaryInstance: { instanceSize: 'db.t4g.micro' },
-   *       version: '16.2'
+   *       version: '16'
    *     })
    *   });
    *

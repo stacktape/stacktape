@@ -29,7 +29,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - slowquery
@@ -38,7 +38,7 @@ mainDatabase:
     engine:
       type: mysql
       properties:
-        version: '8.0.36'
+        version: '8.4'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -50,7 +50,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['slowquery'],
     engineSpecificOptions: {
@@ -60,7 +60,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'mysql',
     properties: {
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -85,7 +85,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       logTypes:
         - audit
@@ -96,7 +96,7 @@ mainDatabase:
     engine:
       type: mysql
       properties:
-        version: '8.0.36'
+        version: '8.4'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -108,7 +108,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     logTypes: ['audit'],
     engineSpecificOptions: {
@@ -118,7 +118,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'mysql',
     properties: {
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }

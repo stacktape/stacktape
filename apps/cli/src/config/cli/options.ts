@@ -26,7 +26,8 @@ The stage for the operation (e.g., \`production\`, \`staging\`, \`dev-john\`). Y
 
 export const configPath = z.string().describe(`#### Config File Path
 ---
-The path to your Stacktape configuration file, relative to the current working directory.`);
+The path to your Stacktape configuration file, relative to the current working directory.
+Without it, Stacktape uses the one \`stacktape.ts\`, \`stacktape.yml\`, \`stacktape.yaml\` or \`stacktape.js\` in the working directory. When there are several, the command stops and asks you to choose one with this option.`);
 
 const profile = z.string().describe(`#### AWS Profile
 ---
@@ -126,7 +127,8 @@ If \`true\`, a failed deploy rolls back instead of keeping what it created. Over
 
 export const autoConfirmOperation = z.boolean().describe(`#### Auto-Confirm Operation
 ---
-If \`true\`, automatically confirms prompts during \`deploy\` or \`delete\` operations, skipping the manual confirmation step.`);
+Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask.
+Without a terminal to ask in (CI, \`--agent\`, machine-readable output), such an operation fails with \`CONFIRMATION_REQUIRED\` unless this flag is set. \`--agent\` does not confirm anything.`);
 
 export const deployRunner = z.enum(['local', 'ec2']).describe(`#### Deploy Runner
 ---
@@ -134,9 +136,9 @@ Controls where deployment build and packaging work runs.
 - \`local\`: Run deployment locally.
 - \`ec2\`: Run deployment on a configured EC2 runner in your AWS account.`);
 
-export const showSensitiveValues = z.boolean().describe(`#### Show Sensitive Values
+export const showSensitiveValues = z.boolean().describe(`#### Show Secrets
 ---
-If \`true\`, includes sensitive values in the output of commands such as \`status\`, \`deploy\`, and \`param get\`. Be cautious when using this flag, as mishandling sensitive data can create security risks.`);
+If \`true\`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a \`secret get\` reads. Without it, each of them is \`<<OMITTED>>\` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs.`);
 
 export const fullDeploy = z.boolean().describe(`#### Full Deploy
 ---
@@ -199,18 +201,18 @@ export const agent = z.boolean().describe(`#### Agent Mode
 ---
 Optimizes CLI output for programmatic/LLM consumption:
 - Uses strict JSONL/NDJSON output (one JSON object per line)
-- Disables interactive terminal UI
-- Automatically confirms operations (equivalent to --yes)
+- Disables interactive terminal UI and prompts
+- Does not confirm operations: an operation that needs confirmation fails with \`CONFIRMATION_REQUIRED\` unless you add \`--yes\`
 For dev command: also enables HTTP server for programmatic control.`);
 
 export const agentPort = z.number().describe(`#### Agent Port
 ---
-The port for the agent HTTP server. Providing this option enables agent mode.`);
+The port for the agent HTTP server. Providing this option enables agent mode, which does not confirm operations.`);
 
 export const devAgent = z.boolean().describe(`#### Agent Mode
 ---
 For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries.
-The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until \`stacktape dev stop\`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/).`);
+The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until \`stacktape dev stop\`. Agent mode does not confirm anything: when the project does not exist yet, creating it fails with \`CONFIRMATION_REQUIRED\` unless you add \`--yes\`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/).`);
 
 export const devAgentPort = z.number().describe(`#### Agent Port
 ---

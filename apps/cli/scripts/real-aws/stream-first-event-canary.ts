@@ -434,7 +434,9 @@ export const runStreamEventCanary = async (cleanupOnly = false) => {
       'all',
       '--agent',
       '--agentPort',
-      String(port)
+      String(port),
+      // --agent does not confirm creating the run's project.
+      '--autoConfirmOperation'
     ]);
     check(run.exitCode === 0 && run.result?.ok === true, `dev --agent failed (${run.exitCode}):\n${tail(run.output)}`);
     const tokenFile = (run.result?.data?.result as { tokenFile?: string } | undefined)?.tokenFile;

@@ -171,7 +171,7 @@ export const ACME_CONFIG = {
     mainDatabase: {
       type: 'relational-database',
       properties: {
-        engine: { type: 'aurora-postgresql', properties: { version: '16.4', port: 5432 } },
+        engine: { type: 'aurora-postgresql', properties: { version: '16', port: 5432 } },
         accessibility: { accessibilityMode: 'vpc' }
       }
     },
@@ -267,7 +267,7 @@ export const SECTIONS: readonly Section[] = [
     gets: [
       'Costs per project, stage and resource, from AWS Cost and Usage Reports.',
       'Budgets with threshold and forecast alerts, for the organization or for one stack.',
-      'Free up to $100 of managed AWS spend a month, then a percentage of what you run. Never per seat.'
+      'Free up to $200 of managed AWS spend a month, then a percentage of what you run. Never per seat.'
     ]
   }
 ];

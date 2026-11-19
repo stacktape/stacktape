@@ -1,0 +1,67 @@
+---
+import { getCollection, render } from 'astro:content';
+
+import CodeBlock from '@/components/mdx-islands/CodeBlock.astro';
+import { V3Banner } from '@/components/v3/V3Banner';
+import { hasV3Table } from '@/components/v3/V3PropertiesTable';
+import { createV3MdxComponents } from '@/components/v3/v3-mdx-components';
+import DocsLayout from '@/layouts/DocsLayout.astro';
+
+import { getAllV3DocPages, getTitleFromSlug, type TableOfContentsItem } from '@/utils/docs-data';
+import { entryToUrlSlug, slugToUrl } from '@/utils/route-slugs';
+import { SITE_URL, type DocsSeo } from '@/utils/seo';
+import { V3_RELEASE, v3Url, v4EquivalentOf } from '@/utils/v3-archive-routes';
+
+// The frozen v3.7.1 documentation. See archive/v3/README.md.
+export async function getStaticPaths() {
+  const entries = await getCollection('v3');
+  return entries.map((entry) => {
+    const slug = entryToUrlSlug(entry.id);
+    return { params: { slug: slug.length ? slug.join('/') : undefined }, props: { entry } };
+  });
+}
+
+const { entry } = Astro.props;
+const slug = entryToUrlSlug(entry.id);
+const v3Path = slugToUrl(slug);
+
+const { Content, headings } = await render(entry);
+const allDocPages = await getAllV3DocPages();
+const pageTitle = (entry.data as { title?: string }).title || getTitleFromSlug(slug);
+
+const tableOfContents: TableOfContentsItem[] = headings.map((heading) => ({
+  level: heading.depth,
+  text: heading.text,
+  href: `#${heading.slug}`
+}));
+
+// Kept out of search engines; the layout's noindex branch also drops the canonical link and JSON-LD.
+const seo: DocsSeo = {
+  title: `${pageTitle} | Stacktape v3 Docs`,
+  description: `Stacktape v${V3_RELEASE} documentation (no longer maintained): ${pageTitle}.`,
+  canonical: `${SITE_URL}${v3Url(v3Path)}`,
+  faqItems: [],
+  breadcrumb: [],
+  noindex: true
+};
+
+// Type badges link to another table only when that table is on this page, as in v3.
+const tableDefinitions = new Set(
+  [...(entry.body ?? '').replace(/\{\/\*[\s\S]*?\*\/\}/g, '').matchAll(/<PropertiesTable\b[^>]*?\bdefinitionName="([^"]+)"/g)]
+    .map((match) => match[1])
+    .filter(hasV3Table)
+);
+const components = { ...createV3MdxComponents({ path: v3Path, tableDefinitions }), CodeBlock };
+---
+
+<DocsLayout
+  title={pageTitle}
+  seo={seo}
+  allDocPages={allDocPages}
+  tableOfContents={tableOfContents}
+  currentPath={Astro.url.pathname}
+  version="v3"
+>
+  <V3Banner slot="before-title" v4Url={v4EquivalentOf(v3Path)} />
+  <Content components={components} />
+</DocsLayout>

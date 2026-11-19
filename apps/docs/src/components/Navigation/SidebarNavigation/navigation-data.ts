@@ -1,4 +1,4 @@
-import config, { type SidebarIcon } from '@/site-config';
+import config, { type DocsVersion, type SidebarIcon } from '@/site-config';
 import type { DocPage } from '@/utils/docs-data';
 
 /** localStorage key used to persist the user's explicit collapse/expand toggles. */
@@ -73,22 +73,26 @@ const sortItems = (items: NavItem[]) => {
   }
 };
 
-export const getNavigationTree = (allDocPages: DocPage[]): NavGroup[] => {
+export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion = 'v4'): NavGroup[] => {
+  // The v3 archive has its own taxonomy; its URLs carry a `/v3` prefix that grouping ignores.
+  const sidebar = version === 'v3' ? config.v3Sidebar : config.sidebar;
+  const basePath = version === 'v3' ? config.v3Sidebar.basePath : '';
   // Initialize groups from config + build a virtual-subgroup-path → icon lookup so virtual
   // nodes in the tree can render with a meaningful icon next to their label.
   const groupMap = new Map<string, NavGroup>();
   const subgroupIconByPath = new Map<string, SidebarIcon>();
-  for (const g of config.sidebar.groups) {
+  for (const g of sidebar.groups) {
     const id = g.path.replace(/^\//, '');
     groupMap.set(id, {
-      id,
+      // Prefixed in the archive so its expand/collapse state is kept apart from the v4 groups.
+      id: basePath ? `${basePath}/${id}` : id,
       title: g.title,
       icon: g.icon,
       order: g.order,
-      defaultOpen: g.defaultOpen ?? false,
+      defaultOpen: ('defaultOpen' in g && g.defaultOpen) || false,
       children: []
     });
-    for (const sub of g.subgroups ?? []) {
+    for (const sub of 'subgroups' in g ? (g.subgroups ?? []) : []) {
       subgroupIconByPath.set(sub.path, sub.icon);
     }
   }
@@ -152,10 +156,10 @@ export const getNavigationTree = (allDocPages: DocPage[]): NavGroup[] => {
 
   for (const page of allDocPages) {
     const url = page.url;
-    if (url === '/') {
+    if (url === (basePath || '/')) {
       const node: NavItem = {
-        url: '/',
-        key: '/',
+        url,
+        key: url,
         title: page.title,
         order: page.order ?? 999,
         icon: null,
@@ -165,7 +169,7 @@ export const getNavigationTree = (allDocPages: DocPage[]): NavGroup[] => {
       continue;
     }
 
-    const segments = url.split('/').filter(Boolean);
+    const segments = url.slice(basePath.length).split('/').filter(Boolean);
     const groupId = segments[0];
     const group = groupMap.get(groupId) || rootGroup;
 
@@ -173,7 +177,7 @@ export const getNavigationTree = (allDocPages: DocPage[]): NavGroup[] => {
     // segments[1..] to build the tree underneath. Pages whose URL is exactly the group root
     // (e.g. /configuration with no further segment) become the group's first child.
     let parentChildren = group.children;
-    let pathSoFar = '/' + segments[0];
+    let pathSoFar = basePath + '/' + segments[0];
     if (segments.length === 1) {
       // Bare-group page (rare — e.g. would be /configuration as a real page).
       ensureNode({
@@ -211,7 +215,7 @@ export const getNavigationTree = (allDocPages: DocPage[]): NavGroup[] => {
   if (rootGroup.children.length > 0) {
     result.push(rootGroup);
   }
-  const orderedPaths = config.sidebar.forcedNavOrder;
+  const orderedPaths = sidebar.forcedNavOrder;
   for (const path of orderedPaths) {
     const id = path.replace(/^\//, '');
     const group = groupMap.get(id);

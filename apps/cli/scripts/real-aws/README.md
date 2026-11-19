@@ -145,15 +145,21 @@ removing the setting, `--skipReleaseCommand`, and a deploy that races a stack de
 
 The `lock` stack (`_test-stacks/stack-lock`, one function) covers the stack lock in about 20 minutes: racing first
 deploys of a new stage, fast and CloudFormation deploys, a rollback and a delete that wait for a running deploy, Ctrl+C
-while waiting, deploys killed during CloudFormation and during a fast deploy and taken over after the lease, and a
-`beforeDeploy` hook that runs a command on its own stack. A second copy of the project plays a second CI job, and a
+while waiting, deploys killed during CloudFormation and during a fast deploy and taken over after the lease, a
+`beforeDeploy` hook that runs a command on its own stack, and a failing `afterDeploy` hook, which fails the command but
+leaves the finished deployment live and unlocked. A second copy of the project plays a second CI job, and a
 `beforeDeploy` hook that sleeps holds the lock long enough for the second command to find it held. Every command's full
 output is kept in `<owner>-logs` next to the state file.
 
+The `function` stack (`_test-stacks/release-command-function`, a function in the VPC and a private Postgres database)
+covers a function's release command: a first deploy where the function answers only when its tables exist, a code change
+that skips the command and its image on the fast path, a migration that builds the image and runs through CloudFormation
+before the new code, and a failing command that leaves the old code serving.
+
 It uses the alias canary's guardrails and environment contract with the `STP_AWS_RELEASE_CANARY_` prefix. The stacks run
 in parallel and a full run takes about an hour, which is the `database` stack.
-`STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock` runs one stack. The canary builds the CLI's development
-artifacts once before its first command, so concurrent commands don't rebuild them in the same folder.
+`STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock|function` runs one stack. The canary builds the CLI's
+development artifacts once before its first command, so concurrent commands don't rebuild them in the same folder.
 `STP_AWS_RELEASE_CANARY_LONG=1` adds a wait past the 15-minute Lambda limit to the `variants` stack, which finishes
 early enough to absorb it.
 
@@ -241,6 +247,30 @@ export STP_AWS_SCOPED_CANARY_STATE_FILE="$(pwd)/.stacktape-scoped-canary-${STP_A
 pnpm test:aws --aws-scenario=lambda-http-api-scoped-access
 ```
 
+## Alarm notifications canary
+
+`test:real-aws-alarm-notifications-canary` (scenario `alarm-inline-channels-in-account`) deploys
+`_test-stacks/alarm-notifications`: a function whose `lambda-error-rate` alarm notifies Microsoft Teams, Discord and a
+signed webhook with a header, all pointing at a receiver function URL that stores each request in a bucket. The canary
+points the stack's service Lambda at the same receiver as its Console API. It makes the function fail, waits for the
+alarm to fire and to recover on its own, and requires one firing and one recovery message per channel, the webhook
+signed with the `$Secret` value, and Console reports that name no channel and carry none of the run's random channel
+values. It then replays the firing event to the service Lambda as EventBridge built it and requires no channel to hear
+it again, checks the six "sent" delivery markers in the deployment bucket, and deletes the stack and the secret. A run
+takes about 12 minutes; it uses only Lambda, S3, CloudWatch and EventBridge. Slack and email are covered by the helper
+Lambda's tests, not here. Delete the Console project afterwards with
+`pnpm dev:cli project:delete --projectName <project> --yes`.
+
+```sh
+export STP_AWS_ALARM_CANARY_DEPLOY=1
+export STP_AWS_ALARM_CANARY_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_ALARM_CANARY_PROFILE='<profile>'
+export STP_AWS_ALARM_CANARY_OWNER="local-alarm-$(date -u +%s)"
+export STP_AWS_ALARM_CANARY_STATE_FILE="$(pwd)/.stacktape-alarm-canary-${STP_AWS_ALARM_CANARY_OWNER}.json"
+export STP_AWS_ALARM_CANARY_REPORT="$(pwd)/.stacktape-alarm-canary-${STP_AWS_ALARM_CANARY_OWNER}.report.json"
+pnpm test:aws --aws-scenario=alarm-inline-channels-in-account
+```
+
 ## Static site canary
 
 This deploys `_test-stacks/static-site`: one hosting bucket behind CloudFront, with no build step. The canary writes the
@@ -286,6 +316,44 @@ export STP_AWS_BATCH_CANARY_OWNER="local-batch-$(date -u +%s)"
 export STP_AWS_BATCH_CANARY_STATE_FILE="$(pwd)/.stacktape-batch-canary-${STP_AWS_BATCH_CANARY_OWNER}.json"
 pnpm test:aws --aws-scenario=batch-job-sqs-run
 ```
+
+## v3 upgrade canary
+
+`test:real-aws-v3-upgrade` (scenario `v3-upgrade-customer-shapes`) proves that stacks created by the released 3.x CLIs
+the customers run upgrade to the current CLI as the
+[upgrade guide](../../../docs/content/getting-started/upgrading-from-v3.mdx) says. It runs two fixtures from
+`_test-stacks/v3-upgrade` in parallel, shaped like the paying customers' stacks: `agency` (YAML, eu-central-1: a PHP
+container on EC2 behind a CDN with a firewall and an edge function, MySQL, a Nixpacks site, DynamoDB, a function with an
+alarm, an afterDeploy migration) and `saas` (TypeScript with the `stacktape` npm package, us-east-1: a container
+workload behind a load balancer, a CDN-routed single-page app, functions with webhook alarms, a raw-CloudFormation
+Aurora cluster, an afterDeploy migration).
+
+For each fixture it installs the customer's 3.x CLI (the 3.7.1 release binary for `agency`, the `stacktape@3.5.7` npm
+package for `saas`) and deploys twice against the dev Stacktape API, which runs the v4 Console, the second time a
+code-only change (`--hotSwap` for `agency`). `STP_AWS_V3_UPGRADE_SAAS_V3_VERSION=3.7.1` starts `saas` from 3.7.1
+instead. 3.7.1 runs in agent mode; 3.5.7 has no agent result record, so it runs as a CI script and its exit code
+decides. 3.5.7 has no webhook alarm channel, so a 3.5.7 run gives the `saas` alarms an MS Teams channel pointed at the
+same sink, in both configs. It then applies the documented migration (`stacktape.v3.*` → `stacktape.yml`/`.ts`, and for
+`saas` the package built from this checkout), deploys with the source CLI using the customers' v3 command lines, and
+fails if a stateful resource was replaced or deleted, a site stopped serving, a database row an earlier deploy wrote is
+missing, or a function, the batch job or the alarm webhook stopped working. A code-only change must then take the fast
+path. Deletion is verified for the stacks, the secrets, the final Aurora snapshots and the Console projects; edge
+function replicas that AWS has not released are left for `--cleanup-only`. The batch jobs exist only in the migrated
+`saas` config: AWS Batch no longer creates the Amazon Linux 2 compute environments 3.x asks for. A run takes about 70
+minutes, needs Docker and costs a few dollars (RDS, Aurora, an EC2 instance, two load balancers, CloudFront).
+
+```sh
+export STP_AWS_V3_UPGRADE_DEPLOY=1
+export STP_AWS_V3_UPGRADE_EXPECTED_ACCOUNT_ID='<12-digit account id>'
+export STP_AWS_V3_UPGRADE_PROFILE='<profile>'
+export STP_AWS_V3_UPGRADE_OWNER="u$(date -u +%m%d%H%M)"
+export STP_AWS_V3_UPGRADE_STATE_FILE="$HOME/.stacktape-v3-upgrade-${STP_AWS_V3_UPGRADE_OWNER}.json"
+export STP_AWS_V3_UPGRADE_REPORT="$HOME/.stacktape-v3-upgrade-${STP_AWS_V3_UPGRADE_OWNER}.report.json"
+pnpm test:aws --aws-scenario=v3-upgrade-customer-shapes
+```
+
+The runner keeps its working copies under a `v3-upgrade-<owner>` folder next to the state file. Keep the state file
+until `--cleanup-only` has deleted the deferred edge functions.
 
 These canaries share their guardrails through `source-cli-canary.ts`. Each prints one exact `--cleanup-only` command
 when cleanup does not finish.

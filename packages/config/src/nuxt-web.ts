@@ -1,4 +1,4 @@
-import type { DomainConfiguration, EnvironmentVar, ResourceAccessProps, ResourceOverrides } from './shared';
+import type { DomainConfiguration, EnvironmentVar, ReleaseCommand, ResourceAccessProps, ResourceOverrides } from './shared';
 import type { DirectoryUploadFilter } from './buckets';
 import type { SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig } from './ssr-web-shared';
 /**
@@ -102,11 +102,11 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *     type: relational-database
    *     properties:
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.6'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *   web:
@@ -119,7 +119,7 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *         - name: DATABASE_URL
    *           value: $ResourceParam('db', 'connectionString')
    *         - name: SESSION_SECRET
-   *           value: $Secret('session.secret')
+   *           value: $Secret('session', 'secret')
    *       # stp-end-focus
    * ```
    *
@@ -130,11 +130,11 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *
    * export default defineConfig(() => {
    *   const db = new RelationalDatabase({
-   *     credentials: { masterUserPassword: $Secret('db.password') },
+   *     credentials: { masterUserPassword: $Secret('db', 'password') },
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.6',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     }
@@ -144,7 +144,7 @@ export interface NuxtWebProps extends ResourceAccessProps {
    *     environment: {
    *       NUXT_PUBLIC_API_BASE: 'https://api.example.com',
    *       DATABASE_URL: $ResourceParam('db', 'connectionString'),
-   *       SESSION_SECRET: $Secret('session.secret')
+   *       SESSION_SECRET: $Secret('session', 'secret')
    *     }
    *     // stp-end-focus
    *   });
@@ -153,6 +153,24 @@ export interface NuxtWebProps extends ResourceAccessProps {
    * ```
    */
   environment?: EnvironmentVar[];
+  /**
+   * #### Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+   *
+   * ---
+   *
+   * Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+   * the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+   * access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+   * prints its logs, and stops if the command fails, so the running version keeps serving.
+   *
+   * Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+   * command. Building the image needs Docker on the machine that deploys.
+   *
+   * The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+   * with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+   * reverses what the command changed.
+   */
+  releaseCommand?: string | ReleaseCommand;
   /**
    * #### Attach custom domains with auto-managed DNS records and TLS certificates.
    *

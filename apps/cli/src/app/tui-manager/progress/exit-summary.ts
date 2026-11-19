@@ -25,16 +25,19 @@ const phaseLines = (phases: TuiPhase[]): string[] => {
  *   phases started but no summary -> interrupted summary
  *   nothing meaningful            -> no output
  */
+/** The noun the summary uses for each command header, so a failed `validate` does not report a failed deployment. */
+const summaryActions: Record<string, string> = {
+  DELETING: 'Deletion',
+  'COMPILING TEMPLATE': 'Template compilation',
+  'PREVIEWING CHANGES': 'Change preview',
+  VALIDATING: 'Validation'
+};
+
 export const renderExitSummaryLines = (state: TuiState): string[] => {
   const { summary, header, phases } = state;
   const elapsed = formatDuration(sessionElapsedMs(state, Date.now()));
   const headerText = header ? `${header.projectName} → ${header.stageName} (${header.region})` : '';
-  const action =
-    header?.action === 'DELETING'
-      ? 'Deletion'
-      : header?.action === 'COMPILING TEMPLATE'
-        ? 'Template compilation'
-        : 'Deployment';
+  const action = summaryActions[header?.action ?? ''] ?? 'Deployment';
 
   if (summary) {
     const icon = summary.success ? colorize('green', '✓') : colorize('red', '✗');

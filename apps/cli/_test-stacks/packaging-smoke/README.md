@@ -34,8 +34,10 @@ account_args=(--profile '<disposable-profile>') # or --awsAccount '<connected-ac
 pnpm dev:cli deploy \
   --configPath _test-stacks/packaging-smoke/stacktape.ts \
   --projectName "$project_name" --stage dev --region eu-west-1 \
-  "${account_args[@]}" --agent
+  "${account_args[@]}" --agent --yes
 ```
+
+`--yes` confirms creating the new project; `--agent` alone does not.
 
 Use `param:get` for `retryAdvisor.url`, `catalogReport.url` and `catalogNote.url`, invoke all three, then compare their
 fingerprint with:
@@ -52,7 +54,7 @@ carry `"notice": "packaged-by-the-per-function-path"`. Redeploy unchanged, then 
 pnpm dev:cli delete \
   --configPath _test-stacks/packaging-smoke/stacktape.ts \
   --projectName "$project_name" --stage dev --region eu-west-1 \
-  "${account_args[@]}" --agent
+  "${account_args[@]}" --agent --yes
 ```
 
 The credential-free fixture contract runs in the normal suite:

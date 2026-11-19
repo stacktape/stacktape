@@ -4,7 +4,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { resetDomainServiceInitialization } from '@utils/decorators';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -666,7 +666,10 @@ describe('configuration runtime contract', () => {
         configProjectName: configManager.configResolver.rawConfig.projectName
       });
       const stackContext = getStackContext();
-      await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+      await configManager.init({
+        configRequired: true,
+        context: { ...getConfigManagerContext(stackContext), consoleConnected: true }
+      });
 
       const getExecutionCounts = getTypescriptExport({
         filePath: executionFixturePath,
@@ -713,6 +716,61 @@ describe('configuration runtime contract', () => {
         process.env.STACKTAPE_CONFIG_EXECUTION_MARKER = previousMarkerPath;
       }
       await rm(tempDirectory, { recursive: true, force: true });
+    }
+  });
+
+  test('names an installed v3 `stacktape` package as the cause, and every removed v3 class a config imports', async () => {
+    const projectDirectory = await mkdtemp(join(tmpdir(), 'stacktape-v3-config-'));
+    // Release builds inject the CLI version; the error names it in the install command.
+    Object.assign(globalThis, { STACKTAPE_VERSION: '4.0.0-test' });
+    try {
+      // A v3 config with the v3 package still installed: v3's defineConfig returns a plain factory.
+      const v3Package = join(projectDirectory, 'with-v3-package');
+      await mkdir(join(v3Package, 'node_modules', 'stacktape'), { recursive: true });
+      await writeFile(
+        join(v3Package, 'node_modules', 'stacktape', 'package.json'),
+        JSON.stringify({ name: 'stacktape', version: '3.7.1', main: 'index.js' })
+      );
+      await writeFile(
+        join(v3Package, 'node_modules', 'stacktape', 'index.js'),
+        'exports.defineConfig = (configFn) => (params) => configFn(params);\n'
+      );
+      await writeFile(
+        join(v3Package, 'stacktape.ts'),
+        "import { defineConfig } from 'stacktape';\nexport default defineConfig(() => ({ resources: {} }));\n"
+      );
+      const outdated = new ConfigResolver().loadTypescriptConfig({
+        filePath: join(v3Package, 'stacktape.ts'),
+        authoringParams: fixtureAuthoringParams
+      });
+      await expect(outdated).rejects.toMatchObject({ code: 'CONFIG_STACKTAPE_PACKAGE_OUTDATED' });
+      expect(await outdated.catch((error: Error) => error.message)).toContain('`3.7.1`');
+      expect(await outdated.catch((error: { hints?: string[] }) => error.hints?.join('\n'))).toContain(
+        'npm install stacktape@4.0.0-test'
+      );
+
+      // The same config after only the package was upgraded still imports v3 class names.
+      const renamedClasses = join(projectDirectory, 'with-v3-classes');
+      await mkdir(renamedClasses);
+      await writeFile(
+        join(renamedClasses, 'stacktape.ts'),
+        [
+          "import { CustomDockerfilePackaging, defineConfig, StacktapeLambdaBuildpackPackaging } from 'stacktape';",
+          'export default defineConfig(() => ({ resources: {} }));',
+          'export const unused = [CustomDockerfilePackaging, StacktapeLambdaBuildpackPackaging];',
+          ''
+        ].join('\n')
+      );
+      const removedExports = new ConfigResolver().loadTypescriptConfig({
+        filePath: join(renamedClasses, 'stacktape.ts'),
+        authoringParams: fixtureAuthoringParams
+      });
+      await expect(removedExports).rejects.toMatchObject({ code: 'CONFIG_TYPESCRIPT_V3_EXPORT' });
+      const hints = await removedExports.catch((error: { hints?: string[] }) => error.hints?.join('\n'));
+      expect(hints).toContain('Use `DockerfilePackaging`');
+      expect(hints).toContain('Use `JsBundleLambdaPackaging`');
+    } finally {
+      await rm(projectDirectory, { recursive: true, force: true });
     }
   });
 

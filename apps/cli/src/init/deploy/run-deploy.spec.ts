@@ -84,6 +84,7 @@ describe('the deploy command line', () => {
       '--projectName',
       'orders',
       '--autoRollback',
+      '--autoConfirmOperation',
       '--agent'
     ]);
   });

@@ -21,6 +21,7 @@ export type WizardScenario = {
   deploy?: 'succeed' | 'fail' | 'held';
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   agentSetup?: 'succeed' | 'fail';
+  connect?: 'succeed' | 'fail';
   projectName?: string;
 };
 

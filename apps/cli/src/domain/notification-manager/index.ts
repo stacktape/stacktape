@@ -187,6 +187,20 @@ class NotificationManager {
     });
   };
 
+  /**
+   * The deployment is live and was already reported as succeeded. This second event goes to whoever is told about
+   * failed deploys, because the command failed; `afterDeployHook` lets the Console word it as a live release.
+   */
+  reportFailedAfterDeployHook = async ({ scriptName, errorMessage }: { scriptName: string; errorMessage: string }) => {
+    const stackName = globalStateManager.targetStack?.stackName;
+    await this.reportEvent({
+      type: 'DEPLOY_FAILED',
+      title: `Deployed${stackName ? ` ${stackName}` : ''}, but the afterDeploy hook ${scriptName} failed`,
+      severity: 'ERROR',
+      details: { afterDeployHook: scriptName, error: scrubSensitiveText(errorMessage).slice(0, 1000) }
+    });
+  };
+
   // Resolve the event type based on the current command and message type
   #resolveEventType = (message: ProgressMessage): string | null => {
     return resolveOperationNotificationEventType({

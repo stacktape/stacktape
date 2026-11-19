@@ -1126,7 +1126,11 @@ const cleanup = async (
     let cliDeleteError: unknown;
     try {
       assert(configPath !== undefined, 'No generated config is available for Stacktape cleanup.');
-      await runJsonlCli(options, ['delete', ...deployedStackArgs(options, configPath), '--agent'], env);
+      await runJsonlCli(
+        options,
+        ['delete', ...deployedStackArgs(options, configPath), '--autoConfirmOperation', '--agent'],
+        env
+      );
       await waitForStackAbsence(clients.cloudFormation, stackId, state.stackName, abortSignal);
     } catch (error) {
       cliDeleteError = error;

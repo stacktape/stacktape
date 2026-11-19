@@ -29,11 +29,11 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         storage:
           initialSize: 100
           maxSize: 500
@@ -48,11 +48,11 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       storage: {
         initialSize: 100,
         maxSize: 500
@@ -81,11 +81,11 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         storage:
           initialSize: 100
           maxSize: 1000
@@ -100,11 +100,11 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       storage: {
         initialSize: 100,
         maxSize: 1000

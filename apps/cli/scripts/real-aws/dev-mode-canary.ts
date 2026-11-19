@@ -335,6 +335,8 @@ const startAgent = async ({
       '--agent',
       '--agentPort',
       String(agentPort),
+      // The run's project does not exist yet; --agent alone does not confirm creating it.
+      '--autoConfirmOperation',
       ...extraArgs
     ]
   });
@@ -1046,7 +1048,11 @@ const cleanup = async (clients: Clients, options: Options) => {
     await writeState(options, state);
     // `stacktape delete` reads the config and empties the deployment bucket, which a bare DeleteStack cannot.
     await resetProject(state);
-    const deletion = await runCli({ options, state, args: ['delete', ...stackArgs(options, state), '--agent'] });
+    const deletion = await runCli({
+      options,
+      state,
+      args: ['delete', ...stackArgs(options, state), '--autoConfirmOperation', '--agent']
+    });
     if (deletion.exitCode === 0) {
       verification.deletedBy = 'stacktape delete';
     } else {

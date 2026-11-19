@@ -352,7 +352,8 @@ const runStackCommand = async ({
       '--profile',
       options.profile,
       '--awsAccount',
-      awsAccountName
+      awsAccountName,
+      '--autoConfirmOperation'
     ],
     instanceSize,
     natKind,

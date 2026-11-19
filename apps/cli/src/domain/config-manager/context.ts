@@ -28,4 +28,9 @@ export type ConfigManagerInitContext = Readonly<{
   securityScanning?: SecurityScanningContext;
   resolver: ConfigResolverContext;
   stack: StackContext;
+  /**
+   * False when the command runs without a Stacktape API key. Console features in the config then fail validation, and
+   * the stack gets nothing that reports to the Console. Absent means connected.
+   */
+  consoleConnected?: boolean;
 }>;

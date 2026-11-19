@@ -14,6 +14,9 @@ import { rehypeDocsLinks } from './src/utils/rehype-docs-links.ts';
 import { remarkCodeToComponent } from './src/utils/remark-code-to-component.ts';
 import { remarkDocsTransforms } from './src/utils/remark-docs-transforms.ts';
 import { remarkFixJsxTemplateIndent } from './src/utils/remark-fix-jsx-template-indent.ts';
+import { remarkV3Archive } from './src/utils/remark-v3-archive.ts';
+import { SITE_REDIRECTS } from './src/utils/site-redirects.ts';
+import { isV3Path } from './src/utils/v3-archive-routes.ts';
 
 const SITE_URL = 'https://docs.stacktape.com';
 const posthogSourceMapsEnabled = Boolean(process.env.POSTHOG_API_KEY && process.env.POSTHOG_PROJECT_ID);
@@ -33,17 +36,8 @@ const posthogSourceMapPlugin = posthogSourceMapsEnabled
 export default defineConfig({
   site: SITE_URL,
   trailingSlash: 'always',
-  // Pages renamed or merged in v4. The old URLs are linked from older blog posts, issues and search results.
-  redirects: {
-    '/packaging/containers/nixpacks/': '/packaging/containers/buildpack/',
-    '/packaging/containers/external-buildpack/': '/packaging/containers/buildpack/',
-    '/packaging/containers/custom-dockerfile/': '/packaging/containers/dockerfile/',
-    '/packaging/containers/stacktape-buildpack/': '/packaging/containers/js-bundle/',
-    '/packaging/function/stacktape-buildpack/': '/packaging/function/js-bundle/',
-    '/stacktape-console/visual-config-editor/': '/stacktape-console/console-overview/',
-    '/using-with-ai/config-generation-from-repository/': '/cli/init/',
-    '/using-with-ai/ai-coding-assistant-integrations/': '/using-with-ai/mcp-server-setup/'
-  },
+  // Old URLs (v4 renames and v3 pages): src/utils/site-redirects.ts. The production CDN serves them as 301s.
+  redirects: SITE_REDIRECTS,
   prefetch: {
     prefetchAll: true,
     defaultStrategy: 'hover'
@@ -61,8 +55,9 @@ export default defineConfig({
       // Astro auto-injects heading ids and collects `headings` (used for the TOC), so no
       // slug/autolink plugins are needed. remark order matters: fix-jsx-template-indent (restores
       // verbatim code in `<CodeBlock tabs>` template literals, undoing MDX's multi-line dedent) →
-      // docs transforms → code-to-component (last, so it converts every resulting code node).
-      remarkPlugins: [remarkFixJsxTemplateIndent, remarkDocsTransforms, remarkCodeToComponent],
+      // v3 archive adaptation (archive pages only) → docs transforms → code-to-component (last, so
+      // it converts every resulting code node).
+      remarkPlugins: [remarkFixJsxTemplateIndent, remarkV3Archive, remarkDocsTransforms, remarkCodeToComponent],
       rehypePlugins: [rehypeDocsLinks]
     })
   },
@@ -71,6 +66,8 @@ export default defineConfig({
     mdx(),
     generatedRuntimeAssets(),
     sitemap({
+      // The v3 archive is noindex and stays out of the sitemap.
+      filter: (page) => !isV3Path(new URL(page).pathname),
       serialize(item) {
         const pathname = new URL(item.url).pathname;
         const sourcePath = pathname === '/' ? 'content/index.mdx' : `content${pathname.replace(/\/$/, '')}.mdx`;

@@ -1,0 +1,235 @@
+# Single Sign-On
+
+Single sign-on lets your team sign in to Stacktape through your company's identity provider: Okta, Microsoft Entra ID,
+Google Workspace, or any SAML 2.0 or OIDC provider. With SCIM, your directory also adds and removes members, so
+disabling someone in the directory removes them from your Stacktape organization.
+
+An organization Owner sets it up on the **Single sign-on** page in the Organization group of the sidebar. The page has
+five steps, in this order: email domains, identity provider, test sign-in, access, and SCIM.
+
+## Before you start
+
+- **Plan.** Single sign-on and SCIM are part of the Flexible and Enterprise plans. On the Free plan the page shows an
+  upgrade prompt. See [Billing and subscription](/stacktape-console/billing-and-subscription).
+- **Role.** Only Owners can see and change the page. Admins do not see it.
+- **Access you need.** You must be able to add a DNS record for your company's email domain, and to create an
+  application in your identity provider.
+
+## What your members will see
+
+After setup, people sign in like this:
+
+1. On the Stacktape sign-in page, they click **Sign in with SSO** and enter their work email.
+2. Stacktape sends them to your identity provider, and they sign in there.
+3. They return to the Console, signed in.
+
+Starting from the identity provider also works, for example from a Stacktape tile in the Okta dashboard.
+
+The first SSO sign-in links the person to the Stacktape account with the same email address, or creates one. If they
+are not a member of your organization yet, they join it with the [role for new people](#role-of-new-people). Existing members keep
+their role.
+
+An SSO sign-in counts as two-factor sign-in, because your provider enforces its own factors. `stacktape login` works
+with SSO too: the CLI opens a browser page where the person signs in with SSO and approves the login.
+
+
+> **Warning:** Anyone with an address in a verified domain whom your identity provider lets sign in to the Stacktape application
+joins your organization. If you remove a
+member on the Members page, they join again at their next SSO sign-in. To remove someone for good, remove them from the
+Stacktape application in your identity provider, and remove them on the Members page or let [SCIM](#5-scim-provisioning)
+do it.
+
+
+## 1. Verify your email domains
+
+People can sign in through your provider only with an address in a verified domain. You prove that your organization
+owns a domain with a DNS record.
+
+1. Under **1. Email domains**, enter the part after @ in your team's addresses, such as `acme.com`, and click
+   **Add domain**.
+2. The domain appears as **Not verified**, with a TXT record to create. Copy its **Name** and **Value** and add the
+   record at your DNS provider. The name has the form `_stacktape-verification.acme.com`.
+3. Click **Verify**. DNS changes can take up to an hour to appear. If Stacktape does not find the record yet, try again
+   later.
+
+The domain then shows **Verified**.
+
+Keep the TXT record in place. Stacktape checks it daily. If the record is missing, the domain shows **Record missing**
+with the date sign-ins will stop. After 7 days without the record, the domain is no longer verified, and people with
+addresses in it can no longer sign in through your provider.
+
+A few rules apply to domains:
+
+- Public email providers, such as gmail.com or outlook.com, are refused.
+- A subdomain is a separate domain. Add `eu.acme.com` on its own if your team uses it.
+- A verified domain belongs to one Stacktape organization. An organization can claim at most 20 domains.
+
+Removing a verified domain stops sign-ins through your provider for addresses in it, and SCIM can no longer add them.
+Their Stacktape accounts and memberships stay.
+
+## 2. Connect your identity provider
+
+An organization has one connection. Under **2. Identity provider**, choose the **Protocol**: **SAML 2.0** suits Okta,
+Entra ID and Google Workspace; **OIDC** suits providers that offer it.
+
+### SAML 2.0
+
+1. In your identity provider, create a SAML application for Stacktape.
+2. Copy these values from the Stacktape page into the application:
+   - **ACS URL**, also called the single sign-on URL or reply URL.
+   - **Entity ID**, also called the audience URI or identifier.
+
+   If your provider can import service provider metadata, click **Download metadata** instead.
+3. Configure the application to send the person's email address as the Name ID, in the `emailAddress` format. The
+   attributes `email`, `givenName`, `surname` and `groups` are optional. Microsoft Entra ID's default claims also work.
+4. Make sure the provider signs its assertions with SHA-256 or stronger, and that it does not require signed
+   authentication requests. Stacktape does not sign its requests.
+5. Back in Stacktape, enter the application's **Metadata URL**, or paste the downloaded file into **Metadata XML** when
+   the provider has no metadata URL.
+6. Click **Save connection**.
+
+Stacktape downloads a metadata URL once, when you save. When your provider changes its signing certificate, save the
+connection again.
+
+### OIDC
+
+1. In your identity provider, create an OIDC web application for Stacktape. Set its redirect URI to the
+   **Redirect URI** shown on the Stacktape page.
+2. Allow client-secret authentication for the application (`client_secret_basic` or `client_secret_post`).
+3. In Stacktape, enter the provider's **Issuer URL**, such as `https://acme.okta.com`, and the application's
+   **Client ID** and **Client secret**.
+4. Click **Save connection**.
+
+Stacktape stores the client secret encrypted and never shows it again. When you edit the connection later, leave
+**Client secret** empty to keep the saved one.
+
+### Change or delete the connection
+
+Saving a changed connection asks for a new successful test sign-in before you can turn enforcement on again. If
+enforcement is already on, it stays on.
+
+**Delete connection** stops all sign-ins through your provider and turns enforcement off. People keep their Stacktape
+accounts and memberships and sign in another way.
+
+## 3. Test the sign-in
+
+**Test sign-in** checks the connection without signing anyone in. It needs a saved connection and at least one verified
+domain.
+
+1. Under **3. Test sign-in**, click **Test sign-in**.
+2. Sign in at your identity provider as any person from a verified domain. Finish within 10 minutes.
+3. You return to the Single sign-on page, still signed in as yourself.
+
+**Last test** shows **Succeeded** or **Failed**. It shows what the provider sent (name, email, groups and attribute
+names) or the exact error. You cannot require single sign-on until a test has succeeded.
+
+## 4. Access
+
+### Role of new people
+
+**Role of new people** is the role a person gets when they first sign in through your provider or your directory adds
+them: **Viewer** (the default), **Developer** or **Admin**. Owners and Admins can change anyone's role later on the
+Members page.
+
+
+> **Info:** A Developer or Viewer who joins through SSO or SCIM starts without projects or AWS accounts. An Owner or Admin gives
+them access with **Edit access** on the [Members](/stacktape-console/team-and-access-control#project-and-aws-account-access)
+page. An Admin reaches everything from the start.
+
+
+### Require single sign-on
+
+**Require single sign-on** makes your provider the only way into the organization for members whose address is in a
+verified domain. It is off until you turn it on, and it needs a successful test sign-in first. Turn it on and confirm
+with **Require SSO**.
+
+While it is on:
+
+- Members in your verified domains who signed in another way (password, passkey, Google or GitHub) see a
+  **Sign in with SSO** screen instead of the organization. Their other organizations keep working.
+- The password form refuses their address and tells them to use SSO.
+- `stacktape login` for this organization works only when the login is approved from an SSO sign-in.
+- API keys and CLI logins created before you turned it on keep working until they expire or are revoked.
+- Members whose address is outside your verified domains, such as contractors, are not affected.
+
+
+> **Tip:** Owners are exempt from the requirement, so a broken identity provider cannot lock the organization out. An Owner can
+still sign in another way and fix or delete the connection.
+
+
+## 5. SCIM provisioning
+
+SCIM is optional. It lets your directory add and remove members, so that leaving the company also removes Stacktape
+access.
+
+1. Under **5. SCIM provisioning (optional)**, copy the **SCIM base URL** into your directory's provisioning settings.
+2. Click **Create SCIM token**. Copy the token from the **Your SCIM token** dialog into your directory as the bearer
+   token or secret token, then click **Done**. Stacktape keeps only a digest of the token and cannot show it again.
+3. Assign people to the Stacktape application in your directory.
+
+What the directory's changes do:
+
+- **Assigning a person** adds them as a member with the [role for new people](#role-of-new-people). Only addresses in
+  verified domains are accepted. If Stacktape already has an account with that address, the directory uses it and does
+  not change its name or address.
+- **Unassigning, deactivating or deleting a person** removes their membership, exactly as an Owner removing them on the
+  Members page. Their CLI logins and personal API keys for the organization stop working. Stacks they deployed keep
+  running. When no directory keeps them active any more, they are also signed out of every Console session.
+- **Groups** are stored and shown in the test result, but they do not change roles yet.
+
+The last Owner of an organization is never removed this way; the directory gets an error instead.
+
+The **Bearer token** row shows when the token was created and last used.
+
+- **Rotate token** creates a new token that replaces the old one at once. Update your directory immediately, or its
+  next changes fail.
+- **Revoke** stops your directory from adding or removing people. Everyone it added stays a member.
+
+## If the organization moves to the Free plan
+
+The connection keeps working, so nobody is locked out. You cannot change it until you upgrade again, but you can still
+remove domains, delete the connection, revoke the SCIM token and turn enforcement off.
+
+## Audit log
+
+Every change on this page is recorded in the [audit log](/stacktape-console/audit-log), including refused attempts.
+Members that SSO or SCIM add or remove appear as `member.provisioned` and `member.deprovisioned`, with Stacktape as the
+actor and SSO or SCIM as the source.
+
+## Troubleshooting
+
+### Verify says no TXT record holds the value
+
+The record is not visible yet, or its name or value differs. DNS changes can take up to an hour. Some DNS providers add
+your domain to the name automatically: then enter only `_stacktape-verification` as the name.
+
+### "is verified by another Stacktape organization"
+
+Another Stacktape organization verified the domain first. A domain belongs to one organization. Use that organization,
+or ask its Owner to remove the domain.
+
+### The test sign-in fails with "is not a verified domain"
+
+The provider sent an address outside your verified domains. Check which address it sent in **Last test**. With
+Microsoft Entra ID, make sure the address is the person's email address and not a sign-in name from another domain.
+Otherwise, add and verify that domain.
+
+### The test sign-in fails at the provider
+
+Check the error under **Last test**. Common causes are unsigned assertions, SHA-1 signatures, a provider that requires
+signed authentication requests, or an ACS URL or entity ID copied incorrectly.
+
+### A member sees "requires single sign-on"
+
+They signed in another way. They sign out, click **Sign in with SSO** on the sign-in page and enter their work email.
+
+### A removed member is back
+
+Your identity provider still lets them sign in to the Stacktape application. Remove them there.
+
+## Related features
+
+- [Team and access control](/stacktape-console/team-and-access-control): roles, project and AWS account access
+- [Audit log](/stacktape-console/audit-log): who changed what in your organization
+- [Account settings](/stacktape-console/account-settings): each person's own ways to sign in
+- [Billing and subscription](/stacktape-console/billing-and-subscription): plans that include single sign-on

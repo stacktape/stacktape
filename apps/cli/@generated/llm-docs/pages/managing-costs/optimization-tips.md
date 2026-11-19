@@ -243,7 +243,7 @@ For databases that support running locally during development, see [local databa
 
 AWS costs can spike unexpectedly — a misconfigured auto-scaling policy, a traffic surge, or a forgotten stack. [Budget alerts](/managing-costs/budgets) notify you when spending exceeds a threshold, giving you time to react before the bill grows.
 
-Start with two thresholds: 80% (early warning) and 100% (immediate action). Set up budget alerts for the spend you want to monitor.
+Create a budget for each AWS account you want to watch, with the monthly limit set to your expected bill. Keep the default alerts at 80% (early warning) and 100% (act now). A budget covers the whole account, so put stages with different spending expectations in separate AWS accounts if you need separate limits.
 
 ## Cost optimization checklist
 

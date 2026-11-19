@@ -17,7 +17,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | Resource type | Local emulation |
 |---|---|
 | [Relational database](/resources/databases/relational-database) (PostgreSQL, MySQL, MariaDB) | Docker container |
-| RDS Aurora (PostgreSQL, MySQL — including Serverless v1/v2) | Mapped to standard PostgreSQL or MySQL container |
+| RDS Aurora (PostgreSQL, MySQL — including Serverless v2) | Mapped to standard PostgreSQL or MySQL container |
 | RDS Oracle, RDS SQL Server | Not supported — set `dev.remote: true` |
 | [Redis](/resources/databases/redis) | Docker container |
 | [DynamoDB table](/resources/databases/dynamodb) | `amazon/dynamodb-local` container |
@@ -25,9 +25,9 @@ Dev mode can run the following database resource types locally. Each runs as a D
 | [MongoDB Atlas](/resources/databases/mongodb-atlas) | Not supported — third-party managed service |
 | [Upstash Redis](/resources/databases/upstash-redis) | Not supported — third-party managed service |
 
-For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db.password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Every worktree or copy of the project on your machine gives new local data the same password for a stage, so moving the stage between worktrees does not have to update the dev stack. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
+For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db', 'password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Every worktree or copy of the project on your machine gives new local data the same password for a stage, so moving the stage between worktrees does not have to update the dev stack. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
-Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
+Aurora engine types — Aurora PostgreSQL, Aurora MySQL and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
 
 > **Info:** Dev mode needs Docker to start local database containers. If Docker is not running, dev mode cannot proceed with local databases.
@@ -57,10 +57,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -74,7 +74,7 @@ export default defineConfig(() => {
 ```
 
 
-In dev mode, this starts a PostgreSQL container using image tag `16.6`. The `instanceSize` only applies to the deployed AWS resource — it is ignored locally. Referenceable parameters available for the database include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`, accessible via `$ResourceParam()`. When the database is listed in a workload's `connectTo`, the documented environment variables are injected following the pattern described in [Connecting resources](/configuration/connecting-resources).
+In dev mode, this starts a PostgreSQL container using image tag `16`. The `instanceSize` only applies to the deployed AWS resource — it is ignored locally. Referenceable parameters available for the database include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`, accessible via `$ResourceParam()`. When the database is listed in a workload's `connectTo`, the documented environment variables are injected following the pattern described in [Connecting resources](/configuration/connecting-resources).
 
 ### MySQL and MariaDB
 
@@ -88,10 +88,10 @@ import { defineConfig, RelationalDatabase, RdsEngineMysql } from 'stacktape';
 export default defineConfig(() => {
   const appDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEngineMysql({
-      version: '8.0.36',
+      version: '8.4',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -109,12 +109,12 @@ Referenceable parameters available for MySQL and MariaDB include `host`, `port`,
 
 ### Aurora engines
 
-All Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v1, Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. The mapping is:
+All Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. The mapping is:
 
 | Aurora engine type | Local container |
 |---|---|
-| `aurora-postgresql`, `aurora-postgresql-serverless`, `aurora-postgresql-serverless-v2` | PostgreSQL |
-| `aurora-mysql`, `aurora-mysql-serverless`, `aurora-mysql-serverless-v2` | MySQL |
+| `aurora-postgresql`, `aurora-postgresql-serverless-v2` | PostgreSQL |
+| `aurora-mysql`, `aurora-mysql-serverless-v2` | MySQL |
 
 This is a pragmatic tradeoff: the SQL interface, schema behavior, and connection string format match the deployed database, which is sufficient for application development. Aurora-specific behavior — ACU scaling, multi-AZ replication, reader endpoints, pause-after-inactivity — is only available on the deployed AWS resource. Test these features against a deployed stage using `dev.remote: true`.
 
@@ -133,7 +133,7 @@ Example (TypeScript):
 import { defineConfig, Redis } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
 
@@ -210,10 +210,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('db.password')"
+      masterUserPassword: "$Secret('db', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -293,7 +293,7 @@ No. The `amazon/dynamodb-local` image used by dev mode does not include Streams,
 
 ### How does Stacktape handle Aurora Serverless locally?
 
-Aurora Serverless v1 and v2 engine types are mapped to standard PostgreSQL or MySQL containers locally. Serverless scaling (ACU-based), pause-after-inactivity, and automatic failover are AWS-only features. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
+Aurora Serverless v2 engine types are mapped to standard PostgreSQL or MySQL containers locally. Serverless scaling (ACU-based) and automatic failover are AWS-only features. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
 ### Can I use the local database for running migrations?
 

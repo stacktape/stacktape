@@ -1487,20 +1487,15 @@ const getPricingInformationForResource = async ({
       dynamoDbTableName,
       region,
       products:
-        resource.properties.engine.type === 'aurora-mysql-serverless' ||
-        resource.properties.engine.type === 'aurora-postgresql-serverless'
+        resource.properties.engine.type === 'aurora-mysql-serverless-v2' ||
+        resource.properties.engine.type === 'aurora-postgresql-serverless-v2'
           ? [
               {
-                ...productsInfo.AmazonRDS.serverless({
+                ...productsInfo.AmazonRDS.serverlessV2({
                   databaseEngine: normalizeEngineType(resource.properties.engine.type)
                 }),
-                multiplier: resource.properties.engine.properties?.pauseAfterSeconds
-                  ? 0
-                  : resource.properties.engine.properties?.minCapacity || 2,
-                upperThresholdMultiplier:
-                  resource.properties.engine.properties?.maxCapacity ||
-                  resource.properties.engine.properties?.minCapacity ||
-                  4
+                multiplier: resource.properties.engine.properties?.minCapacity || 0,
+                upperThresholdMultiplier: resource.properties.engine.properties?.maxCapacity || 10
               },
               {
                 ...productsInfo.AmazonRDS.storage({
@@ -1508,98 +1503,78 @@ const getPricingInformationForResource = async ({
                 }),
                 multiplier: 1,
                 upperThresholdMultiplier: 64000
-              }
+              },
+              ...(resource.properties.accessibility?.forceDisablePublicIp ? [] : [productsInfo.AmazonEC2.publicIp()])
             ]
-          : resource.properties.engine.type === 'aurora-mysql-serverless-v2' ||
-              resource.properties.engine.type === 'aurora-postgresql-serverless-v2'
+          : resource.properties.engine.type === 'aurora-mysql' ||
+              resource.properties.engine.type === 'aurora-postgresql'
             ? [
-                {
-                  ...productsInfo.AmazonRDS.serverlessV2({
-                    databaseEngine: normalizeEngineType(resource.properties.engine.type)
-                  }),
-                  multiplier: resource.properties.engine.properties?.minCapacity || 0,
-                  upperThresholdMultiplier: resource.properties.engine.properties?.maxCapacity || 10
-                },
+                ...resource.properties.engine.properties.instances.flatMap(({ instanceSize }) => [
+                  {
+                    ...productsInfo.AmazonRDS.instance({
+                      databaseEngine: normalizeEngineType(resource.properties.engine.type),
+                      instanceType: instanceSize
+                    })
+                  },
+                  ...(resource.properties.accessibility?.forceDisablePublicIp
+                    ? []
+                    : [productsInfo.AmazonEC2.publicIp()])
+                ]),
                 {
                   ...productsInfo.AmazonRDS.storage({
                     databaseEngine: normalizeEngineType(resource.properties.engine.type)
                   }),
                   multiplier: 1,
                   upperThresholdMultiplier: 64000
-                },
-                ...(resource.properties.accessibility?.forceDisablePublicIp ? [] : [productsInfo.AmazonEC2.publicIp()])
+                }
               ]
-            : resource.properties.engine.type === 'aurora-mysql' ||
-                resource.properties.engine.type === 'aurora-postgresql'
-              ? [
-                  ...resource.properties.engine.properties.instances.flatMap(({ instanceSize }) => [
+            : [
+                {
+                  ...productsInfo.AmazonRDS.instance({
+                    databaseEngine: normalizeEngineType(resource.properties.engine.type),
+                    instanceType: (resource.properties.engine as RdsEngine).properties.primaryInstance.instanceSize
+                  }),
+                  multiplier: (resource.properties.engine as RdsEngine).properties.primaryInstance.multiAz ? 2 : 1
+                },
+                ...(resource.properties.accessibility?.forceDisablePublicIp ? [] : [productsInfo.AmazonEC2.publicIp()]),
+                {
+                  ...productsInfo.AmazonRDS.storage({
+                    databaseEngine: normalizeEngineType(resource.properties.engine.type)
+                  }),
+                  multiplier:
+                    ((resource.properties.engine as RdsEngine).properties.primaryInstance.multiAz ? 2 : 1) *
+                    ((resource.properties.engine as RdsEngine).properties.storage?.initialSize || 20),
+                  upperThresholdMultiplier:
+                    ((resource.properties.engine as RdsEngine).properties.primaryInstance.multiAz ? 2 : 1) *
+                    ((resource.properties.engine as RdsEngine).properties.storage?.maxSize || 200)
+                },
+                // oxlint-disable-next-line oxc/no-map-spread -- append zero-to-many price products for each replica
+                ...((resource.properties.engine as RdsEngine).properties.readReplicas || []).flatMap(
+                  ({ instanceSize, multiAz }) => [
                     {
                       ...productsInfo.AmazonRDS.instance({
                         databaseEngine: normalizeEngineType(resource.properties.engine.type),
                         instanceType: instanceSize
-                      })
+                      }),
+                      multiplier: multiAz ? 2 : 1
                     },
                     ...(resource.properties.accessibility?.forceDisablePublicIp
                       ? []
-                      : [productsInfo.AmazonEC2.publicIp()])
-                  ]),
-                  {
-                    ...productsInfo.AmazonRDS.storage({
-                      databaseEngine: normalizeEngineType(resource.properties.engine.type)
-                    }),
-                    multiplier: 1,
-                    upperThresholdMultiplier: 64000
-                  }
-                ]
-              : [
-                  {
-                    ...productsInfo.AmazonRDS.instance({
-                      databaseEngine: normalizeEngineType(resource.properties.engine.type),
-                      instanceType: (resource.properties.engine as RdsEngine).properties.primaryInstance.instanceSize
-                    }),
-                    multiplier: (resource.properties.engine as RdsEngine).properties.primaryInstance.multiAz ? 2 : 1
-                  },
-                  ...(resource.properties.accessibility?.forceDisablePublicIp
-                    ? []
-                    : [productsInfo.AmazonEC2.publicIp()]),
-                  {
-                    ...productsInfo.AmazonRDS.storage({
-                      databaseEngine: normalizeEngineType(resource.properties.engine.type)
-                    }),
-                    multiplier:
-                      ((resource.properties.engine as RdsEngine).properties.primaryInstance.multiAz ? 2 : 1) *
-                      ((resource.properties.engine as RdsEngine).properties.storage?.initialSize || 20),
-                    upperThresholdMultiplier:
-                      ((resource.properties.engine as RdsEngine).properties.primaryInstance.multiAz ? 2 : 1) *
-                      ((resource.properties.engine as RdsEngine).properties.storage?.maxSize || 200)
-                  },
-                  // oxlint-disable-next-line oxc/no-map-spread -- append zero-to-many price products for each replica
-                  ...((resource.properties.engine as RdsEngine).properties.readReplicas || []).flatMap(
-                    ({ instanceSize, multiAz }) => [
-                      {
-                        ...productsInfo.AmazonRDS.instance({
-                          databaseEngine: normalizeEngineType(resource.properties.engine.type),
-                          instanceType: instanceSize
-                        }),
-                        multiplier: multiAz ? 2 : 1
-                      },
-                      ...(resource.properties.accessibility?.forceDisablePublicIp
-                        ? []
-                        : [productsInfo.AmazonEC2.publicIp()]),
-                      {
-                        ...productsInfo.AmazonRDS.storage({
-                          databaseEngine: normalizeEngineType(resource.properties.engine.type)
-                        }),
-                        multiplier:
-                          (multiAz ? 2 : 1) *
-                          ((resource.properties.engine as RdsEngine).properties.storage?.initialSize || 20),
-                        upperThresholdMultiplier:
-                          (multiAz ? 2 : 1) *
-                          ((resource.properties.engine as RdsEngine).properties.storage?.maxSize || 200)
-                      }
-                    ]
-                  )
-                ]
+                      : [productsInfo.AmazonEC2.publicIp()]),
+                    {
+                      ...productsInfo.AmazonRDS.storage({
+                        databaseEngine: normalizeEngineType(resource.properties.engine.type)
+                      }),
+                      multiplier:
+                        (multiAz ? 2 : 1) *
+                        ((resource.properties.engine as RdsEngine).properties.storage?.initialSize || 20),
+                      upperThresholdMultiplier:
+                        (multiAz ? 2 : 1) *
+                        ((resource.properties.engine as RdsEngine).properties.storage?.maxSize || 200)
+                    }
+                  ]
+                )
+              ]
     });
 
     return {

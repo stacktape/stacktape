@@ -499,7 +499,7 @@ export default defineConfig(() => {
       version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }),
-    credentials: { masterUserPassword: $Secret('database.password') }
+    credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
   const api = new LambdaFunction({
@@ -797,6 +797,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `logging` | no | `LambdaFunctionLogging` | - |
 | `memory` | no | `number` | - |
 | `provisionedConcurrency` | no | `number` | - |
+| `releaseCommand` | no | `ReleaseCommand \| option-2` | - |
 | `reservedConcurrency` | no | `number` | - |
 | `runtime` | no | `string: "dotnet10" \| "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java21" \| "java25" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.14" \| "python3.8" \| "python3.9" \| "ruby3.3" \| "ruby3.4" \| "ruby4.0"` | - |
 | `storage` | no | `number` | `512` |

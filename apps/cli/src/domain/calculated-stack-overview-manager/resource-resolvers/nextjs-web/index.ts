@@ -10,6 +10,7 @@ import { resolveDynamoDbTable } from '../dynamo-db-tables';
 import { resolveEdgeLambdaFunction } from '../edge-lambda-functions';
 import { resolveFunction } from '../functions';
 import { resolveSqsQueue } from '../sqs-queues';
+import { getWebsiteUrlParams } from '../_utils/ssr-web-shared';
 import {
   getAssetReplacerResource,
   getAssetReplacerTemplateOverride,
@@ -90,9 +91,10 @@ export const resolveNextjsWebs = async () => {
     const resource = calculatedStackOverviewManager.getStpResource({ nameChain: nextjsWeb.nameChain });
     const cdnResource = resource._nestedResources.serverFunction || resource._nestedResources.bucket;
 
-    resource.referencableParams = {
-      url: cdnResource.referencableParams.cdnCustomDomainUrls || cdnResource.referencableParams.cdnUrl
-    };
+    resource.referencableParams = getWebsiteUrlParams({
+      customDomains: nextjsWeb.customDomains,
+      cdnUrl: cdnResource.referencableParams.cdnUrl
+    });
 
     if (resource._nestedResources.serverEdgeFunction) {
       Object.entries(resource._nestedResources.serverEdgeFunction.links).forEach(([linkName, linkValue]) => {

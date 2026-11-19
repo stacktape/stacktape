@@ -44,13 +44,14 @@ with Ctrl+C.
    failed, was inconclusive, or could not be checked. A proven startup failure holds the Deploy
    button until you fix it or explicitly set the result aside; a skipped check is never shown as a
    pass.
-5. **Deploy.** The wizard checks that the CLI is signed in to Stacktape. The first click is read-only:
-   a short-lived CLI process resolves the same connected AWS account or profile that deploy will use,
+5. **Deploy.** No Stacktape account is needed: without one, the wizard deploys with your local AWS
+   credentials. The first click is read-only:
+   a short-lived CLI process resolves the same AWS credentials or connected AWS account that deploy will use,
    then shows the exact account, region and stack name. You separately confirm creating a new stack or
    updating a specific existing Stacktape stack. Foreign, mismatched and unsafe stacks are blocked. The
    deploy child checks that target again before it creates secrets or changes AWS, then reports progress,
    warnings and typed HTTPS URLs. This step is optional and clearly marked as the one that costs money.
-   If your Stacktape organization has multiple connected AWS accounts and no saved default, start with
+   If you are signed in and your Stacktape organization has multiple connected AWS accounts and no saved default, start with
    `stacktape init --aws-account <account-name>`. That account selection is carried through the target check,
    deploy, and typed URL lookup.
    If the deploy fails for a reason that could be our reading of your code — a wrong start
@@ -221,9 +222,12 @@ deploy command will use and shows the exact account, region and stack target for
 
 ### Do I need a Stacktape account?
 
-Not to analyze your project or to get the file — that all happens on your machine, with no account
-and nothing sent to us. Deploying from the wizard does go through Stacktape, so the Deploy step
-checks whether this machine is signed in and tells you to run `stacktape login` if it is not.
+No. Analyzing your project and writing the file happen on your machine, with nothing sent to us.
+The deploy uses your local AWS credentials. After a successful deploy, the wizard offers the
+Stacktape Console (free up to $200 a month of AWS spend) for deploy history, costs, alerts and team
+access. You can connect it there or later with `stacktape connect`, or skip it. If this machine is
+already signed in, the wizard deploys through your Stacktape organization and links to the stage in
+the Console.
 
 ### What does “Try it here first” run?
 

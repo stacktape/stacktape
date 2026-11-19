@@ -33,10 +33,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -58,22 +58,21 @@ This creates a PostgreSQL 16 database on a `db.t4g.micro` instance (~$12/month, 
 
 ## Engine types
 
-Stacktape supports four database engine families, each backed by a different AWS service tier. Pick the one that matches your workload's performance, cost, and operational requirements.
+Stacktape supports three database engine families, each backed by a different AWS service tier. Pick the one that matches your workload's performance, cost, and operational requirements.
 
 
 ## Feature Comparison
 
-| Feature | RDS | Aurora | Aurora Serverless v2 | Aurora Serverless v1 |
-| --- | --- | --- | --- | --- |
-| Scaling | Fixed instance | Fixed instances | Auto (0.5–128 ACUs) | Auto (MySQL: 1–256, PostgreSQL: 2–256 ACUs, powers of 2) |
-| High availability | Multi-AZ (doubles cost) | Built-in (3-AZ replication) | Built-in (3-AZ replication) | Built-in |
-| Read replicas | yes | yes | yes | no |
-| Pause when idle | no | no | no | yes |
-| Starting cost | ~$12/month | ~$35/month | Pay per ACU-hour | Pay per ACU-hour |
-| PostgreSQL | yes | yes | yes | yes |
-| MySQL | yes | yes | yes | yes |
-| MariaDB, Oracle, SQL Server | yes | no | no | no |
-| Best for | Predictable workloads, non-Aurora engines | High-performance production | Most new projects | Legacy (use v2 instead) |
+| Feature | RDS | Aurora | Aurora Serverless v2 |
+| --- | --- | --- | --- |
+| Scaling | Fixed instance | Fixed instances | Auto (0.5–128 ACUs) |
+| High availability | Multi-AZ (doubles cost) | Built-in (3-AZ replication) | Built-in (3-AZ replication) |
+| Read replicas | yes | yes | yes |
+| Starting cost | ~$12/month | ~$35/month | Pay per ACU-hour |
+| PostgreSQL | yes | yes | yes |
+| MySQL | yes | yes | yes |
+| MariaDB, Oracle, SQL Server | yes | no | no |
+| Best for | Predictable workloads, non-Aurora engines | High-performance production | Most new projects |
 
 
 ### Standard RDS
@@ -90,10 +89,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -131,10 +130,10 @@ import { defineConfig, RelationalDatabase, AuroraEnginePostgresql } from 'stackt
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new AuroraEnginePostgresql({
-      version: '16.11',
+      version: '16',
       instances: [{ instanceSize: 'db.r6g.large' }, { instanceSize: 'db.r6g.large' }]
     })
   });
@@ -162,10 +161,10 @@ import { defineConfig, RelationalDatabase, AuroraServerlessV2EnginePostgresql } 
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new AuroraServerlessV2EnginePostgresql({
-      version: '16.11',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 16
     }),
@@ -184,47 +183,12 @@ export default defineConfig(() => {
 The `minCapacity` (default `0.5`) controls how far down the database scales during idle periods. The `maxCapacity` (default `10`) caps both compute scaling and cost. A `maxCapacity` of `16` provides up to ~32 GB RAM — enough for most production workloads. You can add read replicas with `serverlessReadersCount` (default `0`, meaning writer only); each reader scales independently between the same min/max bounds.
 
 
-> **Info:** Aurora Serverless engines (v1 and v2) only support `vpc` or `scoping-workloads-in-vpc` accessibility modes. The global default is `internet`, which is not valid for Aurora Serverless — you must set one of the VPC modes explicitly. Standard RDS and provisioned Aurora support all four modes including `internet`.
+> **Info:** Aurora Serverless v2 engines only support `vpc` or `scoping-workloads-in-vpc` accessibility modes. The global default is `internet`, which is not valid for Aurora Serverless v2 — you must set one of the VPC modes explicitly. Standard RDS and provisioned Aurora support all four modes including `internet`.
 
 
-### Aurora Serverless v1
+### Aurora Serverless v1 is retired
 
-Aurora Serverless v1 can pause the database after a period of inactivity, so you pay only for storage while paused. Available engine types: `aurora-postgresql-serverless` and `aurora-mysql-serverless`, with corresponding classes `AuroraServerlessEnginePostgresql` and `AuroraServerlessEngineMysql`. Capacity scales in powers of 2: MySQL supports 1–256 ACUs, PostgreSQL supports 2–256 ACUs.
-
-
-> **Warning:** For new projects, use Aurora Serverless v2 instead. It has faster scaling and more granular capacity control (0.5-ACU increments vs powers of 2).
-
-
-The only advantage of Serverless v1 over v2 is the ability to **pause when idle** — useful for dev/test databases that sit unused for hours and where a 30+ second cold-start on resume is acceptable. If you need the database always ready, Serverless v2 is strictly better.
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, RelationalDatabase, AuroraServerlessEnginePostgresql } from 'stacktape';
-export default defineConfig(() => {
-  const mainDatabase = new RelationalDatabase({
-    credentials: {
-      masterUserPassword: "$Secret('database.password')"
-    },
-    engine: new AuroraServerlessEnginePostgresql({
-      minCapacity: 2,
-      maxCapacity: 8,
-      pauseAfterSeconds: 300
-    }),
-    accessibility: {
-      accessibilityMode: 'vpc'
-    }
-  });
-
-  return {
-    resources: { mainDatabase }
-  };
-});
-```
-
-
-The `pauseAfterSeconds` property pauses the cluster after the specified seconds of inactivity (range 300–86400). Omit it to keep the database always running. When paused, you pay only for storage. Resume time can take 30 seconds or more, which causes the first connection attempt to time out — your application code should handle this with a retry. Like Serverless v2, Serverless v1 requires `vpc` or `scoping-workloads-in-vpc` accessibility.
+AWS retired Aurora Serverless v1 on 31 March 2025, and Stacktape v4 no longer deploys it. The `aurora-postgresql-serverless` and `aurora-mysql-serverless` engine types fail validation with a migration error. Use the Serverless v2 engines above. Serverless v2 does not pause when idle; it scales down to `minCapacity` (0.5 ACU at the lowest). To move a deployed v1 database, follow [Upgrading from v3](/getting-started/upgrading-from-v3/#aurora-serverless-v1).
 
 ## Database name and port
 
@@ -239,7 +203,7 @@ The `port` property overrides the default listening port. Most users should leav
 | Oracle | 1521 |
 | SQL Server | 1433 |
 
-Aurora Serverless engines (v1 and v2) do not expose a configurable `port` property — they use the default port for the underlying engine.
+Aurora Serverless v2 engines do not expose a configurable `port` property — they use the default port for the underlying engine.
 
 ## Supported versions
 
@@ -255,7 +219,7 @@ The `version` property on each engine specifies the database compatibility versi
 | Aurora PostgreSQL Serverless v2 | `16.11`, `15.15`, `14.20` |
 | Aurora MySQL Serverless v2 | `8.0.mysql_aurora.3.11.1` |
 
-Aurora Serverless v1 manages its version automatically — the `version` property is optional. By default, minor version upgrades are applied automatically (e.g., PostgreSQL 16.10 to 16.11). Set `disableAutoMinorVersionUpgrade: true` on the engine to control upgrade timing manually.
+By default, minor version upgrades are applied automatically (e.g., PostgreSQL 16.10 to 16.11). Set `disableAutoMinorVersionUpgrade: true` on the engine to control upgrade timing manually.
 
 ## Accessibility
 
@@ -278,10 +242,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -337,10 +301,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.r6g.large',
         multiAz: true
@@ -376,10 +340,10 @@ import {
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -431,10 +395,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.medium'
       },
@@ -477,10 +441,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -528,10 +492,10 @@ import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
-      version: '16.11',
+      version: '16',
       primaryInstance: {
         instanceSize: 'db.t4g.micro'
       }
@@ -604,7 +568,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
 | `credentials` | yes | `RelationalDatabaseCredentials` | - |
-| `engine` | yes | `AuroraEngine \| AuroraServerlessEngine \| AuroraServerlessV2Engine \| RdsEngine` | - |
+| `engine` | yes | `AuroraEngine \| AuroraServerlessV2Engine \| RdsEngine` | - |
 | `accessibility` | no | `DatabaseAccessibility` | - |
 | `alarms` | no | `Array<RelationalDatabaseAlarm>` | - |
 | `automatedBackupRetentionDays` | no | `number` | `1` |

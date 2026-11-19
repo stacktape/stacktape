@@ -62,7 +62,6 @@ import type {
 import type { ContainerEfsMountProps } from '@stacktape/config/multi-container-workloads';
 import type {
   AuroraEngineProperties,
-  AuroraServerlessEngineProperties,
   AuroraServerlessV2EngineProperties,
   RdsEngineProperties
 } from '@stacktape/config/relational-databases';
@@ -106,8 +105,6 @@ type TypePropertyProperties = CompletePropertiesMap<{
   RdsEngineSqlServerWeb: RdsEngineProperties;
   AuroraEnginePostgresql: AuroraEngineProperties;
   AuroraEngineMysql: AuroraEngineProperties;
-  AuroraServerlessEnginePostgresql: AuroraServerlessEngineProperties;
-  AuroraServerlessEngineMysql: AuroraServerlessEngineProperties;
   AuroraServerlessV2EnginePostgresql: AuroraServerlessV2EngineProperties;
   AuroraServerlessV2EngineMysql: AuroraServerlessV2EngineProperties;
   JsBundleLambdaPackaging: JsBundleLambdaPackagingProps;
@@ -238,8 +235,6 @@ export const {
   RdsEngineSqlServerWeb,
   AuroraEnginePostgresql,
   AuroraEngineMysql,
-  AuroraServerlessEnginePostgresql,
-  AuroraServerlessEngineMysql,
   AuroraServerlessV2EnginePostgresql,
   AuroraServerlessV2EngineMysql,
   JsBundleLambdaPackaging,

@@ -1,0 +1,91 @@
+---
+title: "Budget Control"
+order: 5
+---
+
+<br />
+<br />
+
+Budget control helps you monitor your spending and sends email notifications when predefined limits are exceeded.
+
+To use budget control, you must first [enable Stacktape cost allocation tags](/user-guides/enabling-budgeting/).
+
+<Warning>
+
+Budget control currently only tracks costs for AWS resources. It does not include costs for third-party provider
+resources, such as [MongoDB Atlas Clusters](/3rd-party-resources/mongo-db-atlas-clusters) or
+[Upstash for Redis](/3rd-party-resources/upstash-redises).
+
+</Warning>
+
+<Warning>
+
+If you use custom-defined _Cloudformation_ resources (in the `cloudformationResources` section), their costs might not
+be correctly attributed to your stack and, therefore, not included in the budget.
+
+This is because _Cloudformation_ does not propagate tags to all resources in a stack. All Stacktape-managed resources
+are correctly attributed.
+
+</Warning>
+
+## How to use budget control
+
+<PropertiesTable definitionName="BudgetControl" />
+
+```yml
+# {start-highlight}
+budgetControl:
+  limit: 100 # USD
+# {stop-highlight}
+```
+
+## Notifications
+
+You can configure notifications to be sent when your actual or forecasted spending exceeds a certain threshold.
+
+<PropertiesTable definitionName="BudgetNotification" searchForReferencesInDefinition="BudgetControl" />
+
+<PropDescription definitionName="BudgetControl" propertyName="notifications" descType="ld" />
+
+### Actual budget notifications
+
+If you set `budgetType` to `ACTUAL` (or omit it), a notification is triggered when your actual spending exceeds the
+budget limit.
+
+```yml
+# {start-highlight}
+budgetControl:
+  limit: 100 # USD
+  notifications:
+    - emails:
+        - mail1@example.com
+        - mail2@example.com
+# {stop-highlight}
+```
+
+### Forecasted budget notifications
+
+If you set `budgetType` to `FORECASTED`, a notification is triggered when your forecasted spending exceeds the budget
+limit.
+
+```yml
+# {start-highlight}
+budgetControl:
+  limit: 100
+  notifications:
+    - budgetType: FORECASTED
+      thresholdPercentage: 80
+      emails:
+        - mail1@example.com
+# {stop-highlight}
+```
+
+<Warning>
+
+AWS requires approximately five weeks of usage data to generate budget forecasts. If you set a notification to trigger
+based on a **forecasted** amount, it will not be sent until you have enough historical usage data.
+
+We recommend using forecasted notifications for long-running production stacks. For more information, refer to the
+[AWS documentation](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-best-practices.html#budgets-best-practices-alerts).
+
+</Warning>

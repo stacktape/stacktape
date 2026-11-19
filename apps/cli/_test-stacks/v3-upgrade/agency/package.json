@@ -1,0 +1,9 @@
+{
+  "name": "v3-upgrade-agency-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.1169.0",
+    "mysql2": "3.11.5"
+  }
+}

@@ -23,8 +23,9 @@ You need the `projects:delete` permission on the project. Owners and Admins have
 stacktape project delete my-api
 ```
 
-In a terminal, you confirm by typing the project name. Without a terminal, for example in CI, add `--yes`. Agent mode
-(`--agent`) and the Stacktape MCP server confirm the deletion themselves, as they do for `stacktape delete`.
+In a terminal, you confirm by typing the project name. Without a terminal, for example in CI or with `--agent`, add
+`--yes`; otherwise the command fails with `CONFIRMATION_REQUIRED`. The Stacktape MCP server passes `--yes` only after
+you confirm the deletion.
 
 ## CLI reference
 

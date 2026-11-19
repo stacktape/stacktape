@@ -153,7 +153,9 @@ When running commands programmatically, always use \`--agent\` flag:
 npx stacktape deploy --stage prod --region us-east-1 --agent
 \`\`\`
 
-This disables interactive prompts and outputs machine-readable data.
+This disables interactive prompts and outputs machine-readable data. It does not confirm anything: a delete, an
+update that may delete stateful resources or a new project fails with \`CONFIRMATION_REQUIRED\` until the user approves
+it and you run the command again with \`--yes\`.
 `;
 };
 
@@ -2480,7 +2482,8 @@ npx stacktape secret get <name> --region <region>
 | \`--stage\` | Environment name (dev, staging, prod) |
 | \`--region\` | AWS region (us-east-1, eu-west-1, etc.) |
 | \`--config\` | Path to config file (default: stacktape.yml) |
-| \`--agent\` | Machine-readable output, no prompts |
+| \`--agent\` | Machine-readable output, no prompts. Does not confirm operations |
+| \`--yes\` | Confirms an operation that would ask first (delete, an update that may delete stateful resources, a new project) |
 | \`--profile\` | AWS profile to use |
 
 ## All Commands

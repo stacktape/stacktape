@@ -133,7 +133,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -148,7 +148,7 @@ export default defineConfig(() => {
   const privateDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const runOnBastion = new BastionScript({
     bastionResource: 'jumpBox',
@@ -208,7 +208,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -221,7 +221,7 @@ import { RelationalDatabase, RdsEnginePostgres, LocalScript, $Secret, defineConf
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const migrate = new LocalScript({
     executeCommand: 'npx prisma migrate deploy',
@@ -290,7 +290,7 @@ Values can be:
 A static string, number, or boolean.
 The result of a [custom directive](https://docs.stacktape.com/configuration/directives/#custom-directives).
 A reference to another resource's parameter using the [`$ResourceParam` directive](https://docs.stacktape.com/configuration/referenceable-parameters/).
-A value from a [secret](https://docs.stacktape.com/resources/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret).
+A value from a [secret](https://docs.stacktape.com/configuration/secrets/) using the [`$Secret` directive](https://docs.stacktape.com/configuration/directives/#secret).
 
 ### Example 1 (yaml)
 
@@ -371,7 +371,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -386,7 +386,7 @@ export default defineConfig(() => {
   const privateDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const pingDb = new BastionScript({
     bastionResource: 'jumpBox',
@@ -437,7 +437,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
 ```
@@ -452,7 +452,7 @@ export default defineConfig(() => {
   const privateDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const dbMaintenance = new BastionScript({
     bastionResource: 'jumpBox',

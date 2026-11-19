@@ -133,6 +133,27 @@
       ]
     },
     {
+      "id": "config-reference:AgentCoreGatewayJwtAuthorizer",
+      "title": "AgentCoreGatewayJwtAuthorizer API Reference",
+      "route": "/config-reference/agentcore",
+      "sourcePath": "packages/config/src/agentcore.ts",
+      "outputPath": "config-reference/agentcore/agentcoregatewayjwtauthorizer.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AgentCoreGatewayJwtAuthorizer"
+      ],
+      "tags": [
+        "config-reference",
+        "AgentCoreGatewayJwtAuthorizer",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:AgentCoreGatewayJwtAuthorizer#agentcoregatewayjwtauthorizer-api-reference",
+        "config-reference:AgentCoreGatewayJwtAuthorizer#typescript-definition",
+        "config-reference:AgentCoreGatewayJwtAuthorizer#property-properties"
+      ]
+    },
+    {
       "id": "config-reference:AgentCoreGatewayProps",
       "title": "AgentCoreGatewayProps API Reference",
       "route": "/config-reference/agentcore",
@@ -263,8 +284,7 @@
         "AgentCoreMemoryProps",
         "description",
         "encryptionKeyArn",
-        "eventExpiryDuration",
-        "expirationDays",
+        "eventRetentionDays",
         "memoryStrategies",
         "tags"
       ],
@@ -273,8 +293,7 @@
         "config-reference:AgentCoreMemoryProps#typescript-definition",
         "config-reference:AgentCoreMemoryProps#property-description",
         "config-reference:AgentCoreMemoryProps#property-encryptionkeyarn",
-        "config-reference:AgentCoreMemoryProps#property-eventexpiryduration",
-        "config-reference:AgentCoreMemoryProps#property-expirationdays",
+        "config-reference:AgentCoreMemoryProps#property-eventretentiondays",
         "config-reference:AgentCoreMemoryProps#property-memorystrategies",
         "config-reference:AgentCoreMemoryProps#property-tags"
       ]
@@ -342,14 +361,14 @@
       "tags": [
         "config-reference",
         "AgentCoreRuntimeLifecycleConfig",
-        "idleRuntimeSessionTimeout",
-        "maxLifetime"
+        "idleTimeoutSeconds",
+        "maxLifetimeSeconds"
       ],
       "chunks": [
         "config-reference:AgentCoreRuntimeLifecycleConfig#agentcoreruntimelifecycleconfig-api-reference",
         "config-reference:AgentCoreRuntimeLifecycleConfig#typescript-definition",
-        "config-reference:AgentCoreRuntimeLifecycleConfig#property-idleruntimesessiontimeout",
-        "config-reference:AgentCoreRuntimeLifecycleConfig#property-maxlifetime"
+        "config-reference:AgentCoreRuntimeLifecycleConfig#property-idletimeoutseconds",
+        "config-reference:AgentCoreRuntimeLifecycleConfig#property-maxlifetimeseconds"
       ]
     },
     {
@@ -1891,6 +1910,7 @@
         "environment",
         "fileOptions",
         "iamRoleStatements",
+        "releaseCommand",
         "serverLambda",
         "useFirewall",
         "astro-web"
@@ -1925,6 +1945,7 @@
         "config-reference:AstroWebProps#property-iamrolestatements",
         "config-reference:AstroWebProps#example-1-yaml-9",
         "config-reference:AstroWebProps#example-2-typescript-9",
+        "config-reference:AstroWebProps#property-releasecommand",
         "config-reference:AstroWebProps#property-serverlambda",
         "config-reference:AstroWebProps#example-1-yaml-10",
         "config-reference:AstroWebProps#example-2-typescript-10",
@@ -3024,102 +3045,228 @@
       ]
     },
     {
-      "id": "config-reference:CacheKeyCookies",
-      "title": "CacheKeyCookies API Reference",
+      "id": "config-reference:CacheKeyCookiesAll",
+      "title": "CacheKeyCookiesAll API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/cachekeycookies.md",
+      "outputPath": "config-reference/cdn/cachekeycookiesall.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "CacheKeyCookies"
+        "CacheKeyCookiesAll"
       ],
       "tags": [
         "config-reference",
-        "CacheKeyCookies",
+        "CacheKeyCookiesAll",
         "all",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyCookiesAll#cachekeycookiesall-api-reference",
+        "config-reference:CacheKeyCookiesAll#typescript-definition",
+        "config-reference:CacheKeyCookiesAll#property-all",
+        "config-reference:CacheKeyCookiesAll#example-1-yaml",
+        "config-reference:CacheKeyCookiesAll#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyCookiesAllExcept",
+      "title": "CacheKeyCookiesAllExcept API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeycookiesallexcept.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyCookiesAllExcept"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyCookiesAllExcept",
         "allExcept",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyCookiesAllExcept#cachekeycookiesallexcept-api-reference",
+        "config-reference:CacheKeyCookiesAllExcept#typescript-definition",
+        "config-reference:CacheKeyCookiesAllExcept#property-allexcept",
+        "config-reference:CacheKeyCookiesAllExcept#example-1-yaml",
+        "config-reference:CacheKeyCookiesAllExcept#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyCookiesNone",
+      "title": "CacheKeyCookiesNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeycookiesnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyCookiesNone"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyCookiesNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyCookiesNone#cachekeycookiesnone-api-reference",
+        "config-reference:CacheKeyCookiesNone#typescript-definition",
+        "config-reference:CacheKeyCookiesNone#property-none",
+        "config-reference:CacheKeyCookiesNone#example-1-yaml",
+        "config-reference:CacheKeyCookiesNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyCookiesWhitelist",
+      "title": "CacheKeyCookiesWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeycookieswhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyCookiesWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyCookiesWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:CacheKeyCookies#cachekeycookies-api-reference",
-        "config-reference:CacheKeyCookies#typescript-definition",
-        "config-reference:CacheKeyCookies#property-all",
-        "config-reference:CacheKeyCookies#example-1-yaml",
-        "config-reference:CacheKeyCookies#example-2-typescript",
-        "config-reference:CacheKeyCookies#property-allexcept",
-        "config-reference:CacheKeyCookies#example-1-yaml-2",
-        "config-reference:CacheKeyCookies#example-2-typescript-2",
-        "config-reference:CacheKeyCookies#property-none",
-        "config-reference:CacheKeyCookies#example-1-yaml-3",
-        "config-reference:CacheKeyCookies#example-2-typescript-3",
-        "config-reference:CacheKeyCookies#property-whitelist",
-        "config-reference:CacheKeyCookies#example-1-yaml-4",
-        "config-reference:CacheKeyCookies#example-2-typescript-4"
+        "config-reference:CacheKeyCookiesWhitelist#cachekeycookieswhitelist-api-reference",
+        "config-reference:CacheKeyCookiesWhitelist#typescript-definition",
+        "config-reference:CacheKeyCookiesWhitelist#property-whitelist",
+        "config-reference:CacheKeyCookiesWhitelist#example-1-yaml",
+        "config-reference:CacheKeyCookiesWhitelist#example-2-typescript"
       ]
     },
     {
-      "id": "config-reference:CacheKeyHeaders",
-      "title": "CacheKeyHeaders API Reference",
+      "id": "config-reference:CacheKeyHeadersNone",
+      "title": "CacheKeyHeadersNone API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/cachekeyheaders.md",
+      "outputPath": "config-reference/cdn/cachekeyheadersnone.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "CacheKeyHeaders"
+        "CacheKeyHeadersNone"
       ],
       "tags": [
         "config-reference",
-        "CacheKeyHeaders",
+        "CacheKeyHeadersNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyHeadersNone#cachekeyheadersnone-api-reference",
+        "config-reference:CacheKeyHeadersNone#typescript-definition",
+        "config-reference:CacheKeyHeadersNone#property-none",
+        "config-reference:CacheKeyHeadersNone#example-1-yaml",
+        "config-reference:CacheKeyHeadersNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyHeadersWhitelist",
+      "title": "CacheKeyHeadersWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeyheaderswhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyHeadersWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyHeadersWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:CacheKeyHeaders#cachekeyheaders-api-reference",
-        "config-reference:CacheKeyHeaders#typescript-definition",
-        "config-reference:CacheKeyHeaders#property-none",
-        "config-reference:CacheKeyHeaders#example-1-yaml",
-        "config-reference:CacheKeyHeaders#example-2-typescript",
-        "config-reference:CacheKeyHeaders#property-whitelist",
-        "config-reference:CacheKeyHeaders#example-1-yaml-2",
-        "config-reference:CacheKeyHeaders#example-2-typescript-2"
+        "config-reference:CacheKeyHeadersWhitelist#cachekeyheaderswhitelist-api-reference",
+        "config-reference:CacheKeyHeadersWhitelist#typescript-definition",
+        "config-reference:CacheKeyHeadersWhitelist#property-whitelist",
+        "config-reference:CacheKeyHeadersWhitelist#example-1-yaml",
+        "config-reference:CacheKeyHeadersWhitelist#example-2-typescript"
       ]
     },
     {
-      "id": "config-reference:CacheKeyQueryString",
-      "title": "CacheKeyQueryString API Reference",
+      "id": "config-reference:CacheKeyQueryStringAll",
+      "title": "CacheKeyQueryStringAll API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/cachekeyquerystring.md",
+      "outputPath": "config-reference/cdn/cachekeyquerystringall.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "CacheKeyQueryString"
+        "CacheKeyQueryStringAll"
       ],
       "tags": [
         "config-reference",
-        "CacheKeyQueryString",
+        "CacheKeyQueryStringAll",
         "all",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyQueryStringAll#cachekeyquerystringall-api-reference",
+        "config-reference:CacheKeyQueryStringAll#typescript-definition",
+        "config-reference:CacheKeyQueryStringAll#property-all",
+        "config-reference:CacheKeyQueryStringAll#example-1-yaml",
+        "config-reference:CacheKeyQueryStringAll#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyQueryStringNone",
+      "title": "CacheKeyQueryStringNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeyquerystringnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyQueryStringNone"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyQueryStringNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:CacheKeyQueryStringNone#cachekeyquerystringnone-api-reference",
+        "config-reference:CacheKeyQueryStringNone#typescript-definition",
+        "config-reference:CacheKeyQueryStringNone#property-none",
+        "config-reference:CacheKeyQueryStringNone#example-1-yaml",
+        "config-reference:CacheKeyQueryStringNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:CacheKeyQueryStringWhitelist",
+      "title": "CacheKeyQueryStringWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/cachekeyquerystringwhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "CacheKeyQueryStringWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "CacheKeyQueryStringWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:CacheKeyQueryString#cachekeyquerystring-api-reference",
-        "config-reference:CacheKeyQueryString#typescript-definition",
-        "config-reference:CacheKeyQueryString#property-all",
-        "config-reference:CacheKeyQueryString#example-1-yaml",
-        "config-reference:CacheKeyQueryString#example-2-typescript",
-        "config-reference:CacheKeyQueryString#property-none",
-        "config-reference:CacheKeyQueryString#example-1-yaml-2",
-        "config-reference:CacheKeyQueryString#example-2-typescript-2",
-        "config-reference:CacheKeyQueryString#property-whitelist",
-        "config-reference:CacheKeyQueryString#example-1-yaml-3",
-        "config-reference:CacheKeyQueryString#example-2-typescript-3"
+        "config-reference:CacheKeyQueryStringWhitelist#cachekeyquerystringwhitelist-api-reference",
+        "config-reference:CacheKeyQueryStringWhitelist#typescript-definition",
+        "config-reference:CacheKeyQueryStringWhitelist#property-whitelist",
+        "config-reference:CacheKeyQueryStringWhitelist#example-1-yaml",
+        "config-reference:CacheKeyQueryStringWhitelist#example-2-typescript"
       ]
     },
     {
@@ -3690,110 +3837,278 @@
       ]
     },
     {
-      "id": "config-reference:ForwardCookies",
-      "title": "ForwardCookies API Reference",
+      "id": "config-reference:ForwardCookiesAll",
+      "title": "ForwardCookiesAll API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/forwardcookies.md",
+      "outputPath": "config-reference/cdn/forwardcookiesall.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "ForwardCookies"
+        "ForwardCookiesAll"
       ],
       "tags": [
         "config-reference",
-        "ForwardCookies",
+        "ForwardCookiesAll",
         "all",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardCookiesAll#forwardcookiesall-api-reference",
+        "config-reference:ForwardCookiesAll#typescript-definition",
+        "config-reference:ForwardCookiesAll#property-all",
+        "config-reference:ForwardCookiesAll#example-1-yaml",
+        "config-reference:ForwardCookiesAll#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardCookiesNone",
+      "title": "ForwardCookiesNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardcookiesnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardCookiesNone"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardCookiesNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardCookiesNone#forwardcookiesnone-api-reference",
+        "config-reference:ForwardCookiesNone#typescript-definition",
+        "config-reference:ForwardCookiesNone#property-none",
+        "config-reference:ForwardCookiesNone#example-1-yaml",
+        "config-reference:ForwardCookiesNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardCookiesWhitelist",
+      "title": "ForwardCookiesWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardcookieswhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardCookiesWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardCookiesWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:ForwardCookies#forwardcookies-api-reference",
-        "config-reference:ForwardCookies#typescript-definition",
-        "config-reference:ForwardCookies#property-all",
-        "config-reference:ForwardCookies#example-1-yaml",
-        "config-reference:ForwardCookies#example-2-typescript",
-        "config-reference:ForwardCookies#property-none",
-        "config-reference:ForwardCookies#example-1-yaml-2",
-        "config-reference:ForwardCookies#example-2-typescript-2",
-        "config-reference:ForwardCookies#property-whitelist",
-        "config-reference:ForwardCookies#example-1-yaml-3",
-        "config-reference:ForwardCookies#example-2-typescript-3"
+        "config-reference:ForwardCookiesWhitelist#forwardcookieswhitelist-api-reference",
+        "config-reference:ForwardCookiesWhitelist#typescript-definition",
+        "config-reference:ForwardCookiesWhitelist#property-whitelist",
+        "config-reference:ForwardCookiesWhitelist#example-1-yaml",
+        "config-reference:ForwardCookiesWhitelist#example-2-typescript"
       ]
     },
     {
-      "id": "config-reference:ForwardHeaders",
-      "title": "ForwardHeaders API Reference",
+      "id": "config-reference:ForwardHeadersAllExcept",
+      "title": "ForwardHeadersAllExcept API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/forwardheaders.md",
+      "outputPath": "config-reference/cdn/forwardheadersallexcept.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "ForwardHeaders"
+        "ForwardHeadersAllExcept"
       ],
       "tags": [
         "config-reference",
-        "ForwardHeaders",
+        "ForwardHeadersAllExcept",
         "allExcept",
-        "allViewer",
-        "allViewerAndWhitelistCloudFront",
-        "none",
-        "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:ForwardHeaders#forwardheaders-api-reference",
-        "config-reference:ForwardHeaders#typescript-definition",
-        "config-reference:ForwardHeaders#property-allexcept",
-        "config-reference:ForwardHeaders#example-1-yaml",
-        "config-reference:ForwardHeaders#example-2-typescript",
-        "config-reference:ForwardHeaders#property-allviewer",
-        "config-reference:ForwardHeaders#example-1-yaml-2",
-        "config-reference:ForwardHeaders#example-2-typescript-2",
-        "config-reference:ForwardHeaders#property-allviewerandwhitelistcloudfront",
-        "config-reference:ForwardHeaders#example-1-yaml-3",
-        "config-reference:ForwardHeaders#example-2-typescript-3",
-        "config-reference:ForwardHeaders#property-none",
-        "config-reference:ForwardHeaders#example-1-yaml-4",
-        "config-reference:ForwardHeaders#example-2-typescript-4",
-        "config-reference:ForwardHeaders#property-whitelist",
-        "config-reference:ForwardHeaders#example-1-yaml-5",
-        "config-reference:ForwardHeaders#example-2-typescript-5"
+        "config-reference:ForwardHeadersAllExcept#forwardheadersallexcept-api-reference",
+        "config-reference:ForwardHeadersAllExcept#typescript-definition",
+        "config-reference:ForwardHeadersAllExcept#property-allexcept",
+        "config-reference:ForwardHeadersAllExcept#example-1-yaml",
+        "config-reference:ForwardHeadersAllExcept#example-2-typescript"
       ]
     },
     {
-      "id": "config-reference:ForwardQueryString",
-      "title": "ForwardQueryString API Reference",
+      "id": "config-reference:ForwardHeadersAllViewer",
+      "title": "ForwardHeadersAllViewer API Reference",
       "route": "/config-reference/cdn",
       "sourcePath": "packages/config/src/cdn.ts",
-      "outputPath": "config-reference/cdn/forwardquerystring.md",
+      "outputPath": "config-reference/cdn/forwardheadersallviewer.md",
       "docKind": "config-reference",
       "resourceType": "cdn",
       "definitionNames": [
-        "ForwardQueryString"
+        "ForwardHeadersAllViewer"
       ],
       "tags": [
         "config-reference",
-        "ForwardQueryString",
-        "all",
+        "ForwardHeadersAllViewer",
+        "allViewer",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardHeadersAllViewer#forwardheadersallviewer-api-reference",
+        "config-reference:ForwardHeadersAllViewer#typescript-definition",
+        "config-reference:ForwardHeadersAllViewer#property-allviewer",
+        "config-reference:ForwardHeadersAllViewer#example-1-yaml",
+        "config-reference:ForwardHeadersAllViewer#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront",
+      "title": "ForwardHeadersAllViewerAndWhitelistCloudFront API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardheadersallviewerandwhitelistcloudfront.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardHeadersAllViewerAndWhitelistCloudFront"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardHeadersAllViewerAndWhitelistCloudFront",
+        "allViewerAndWhitelistCloudFront",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#forwardheadersallviewerandwhitelistcloudfront-api-reference",
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#typescript-definition",
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#property-allviewerandwhitelistcloudfront",
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#example-1-yaml",
+        "config-reference:ForwardHeadersAllViewerAndWhitelistCloudFront#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardHeadersNone",
+      "title": "ForwardHeadersNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardheadersnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardHeadersNone"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardHeadersNone",
         "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardHeadersNone#forwardheadersnone-api-reference",
+        "config-reference:ForwardHeadersNone#typescript-definition",
+        "config-reference:ForwardHeadersNone#property-none",
+        "config-reference:ForwardHeadersNone#example-1-yaml",
+        "config-reference:ForwardHeadersNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardHeadersWhitelist",
+      "title": "ForwardHeadersWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardheaderswhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardHeadersWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardHeadersWhitelist",
         "whitelist",
         "cdn"
       ],
       "chunks": [
-        "config-reference:ForwardQueryString#forwardquerystring-api-reference",
-        "config-reference:ForwardQueryString#typescript-definition",
-        "config-reference:ForwardQueryString#property-all",
-        "config-reference:ForwardQueryString#example-1-yaml",
-        "config-reference:ForwardQueryString#example-2-typescript",
-        "config-reference:ForwardQueryString#property-none",
-        "config-reference:ForwardQueryString#example-1-yaml-2",
-        "config-reference:ForwardQueryString#example-2-typescript-2",
-        "config-reference:ForwardQueryString#property-whitelist",
-        "config-reference:ForwardQueryString#example-1-yaml-3",
-        "config-reference:ForwardQueryString#example-2-typescript-3"
+        "config-reference:ForwardHeadersWhitelist#forwardheaderswhitelist-api-reference",
+        "config-reference:ForwardHeadersWhitelist#typescript-definition",
+        "config-reference:ForwardHeadersWhitelist#property-whitelist",
+        "config-reference:ForwardHeadersWhitelist#example-1-yaml",
+        "config-reference:ForwardHeadersWhitelist#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardQueryStringAll",
+      "title": "ForwardQueryStringAll API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardquerystringall.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardQueryStringAll"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardQueryStringAll",
+        "all",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardQueryStringAll#forwardquerystringall-api-reference",
+        "config-reference:ForwardQueryStringAll#typescript-definition",
+        "config-reference:ForwardQueryStringAll#property-all",
+        "config-reference:ForwardQueryStringAll#example-1-yaml",
+        "config-reference:ForwardQueryStringAll#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardQueryStringNone",
+      "title": "ForwardQueryStringNone API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardquerystringnone.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardQueryStringNone"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardQueryStringNone",
+        "none",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardQueryStringNone#forwardquerystringnone-api-reference",
+        "config-reference:ForwardQueryStringNone#typescript-definition",
+        "config-reference:ForwardQueryStringNone#property-none",
+        "config-reference:ForwardQueryStringNone#example-1-yaml",
+        "config-reference:ForwardQueryStringNone#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:ForwardQueryStringWhitelist",
+      "title": "ForwardQueryStringWhitelist API Reference",
+      "route": "/config-reference/cdn",
+      "sourcePath": "packages/config/src/cdn.ts",
+      "outputPath": "config-reference/cdn/forwardquerystringwhitelist.md",
+      "docKind": "config-reference",
+      "resourceType": "cdn",
+      "definitionNames": [
+        "ForwardQueryStringWhitelist"
+      ],
+      "tags": [
+        "config-reference",
+        "ForwardQueryStringWhitelist",
+        "whitelist",
+        "cdn"
+      ],
+      "chunks": [
+        "config-reference:ForwardQueryStringWhitelist#forwardquerystringwhitelist-api-reference",
+        "config-reference:ForwardQueryStringWhitelist#typescript-definition",
+        "config-reference:ForwardQueryStringWhitelist#property-whitelist",
+        "config-reference:ForwardQueryStringWhitelist#example-1-yaml",
+        "config-reference:ForwardQueryStringWhitelist#example-2-typescript"
       ]
     },
     {
@@ -7397,6 +7712,7 @@
         "logging",
         "memory",
         "provisionedConcurrency",
+        "releaseCommand",
         "reservedConcurrency",
         "runtime",
         "storage",
@@ -7458,29 +7774,31 @@
         "config-reference:LambdaFunctionProps#property-provisionedconcurrency",
         "config-reference:LambdaFunctionProps#example-1-yaml-16",
         "config-reference:LambdaFunctionProps#example-2-typescript-16",
-        "config-reference:LambdaFunctionProps#property-reservedconcurrency",
+        "config-reference:LambdaFunctionProps#property-releasecommand",
         "config-reference:LambdaFunctionProps#example-1-yaml-17",
+        "config-reference:LambdaFunctionProps#property-reservedconcurrency",
+        "config-reference:LambdaFunctionProps#example-1-yaml-18",
         "config-reference:LambdaFunctionProps#example-2-typescript-17",
         "config-reference:LambdaFunctionProps#property-runtime",
-        "config-reference:LambdaFunctionProps#example-1-yaml-18",
+        "config-reference:LambdaFunctionProps#example-1-yaml-19",
         "config-reference:LambdaFunctionProps#example-2-typescript-18",
         "config-reference:LambdaFunctionProps#property-storage",
-        "config-reference:LambdaFunctionProps#example-1-yaml-19",
+        "config-reference:LambdaFunctionProps#example-1-yaml-20",
         "config-reference:LambdaFunctionProps#example-2-typescript-19",
         "config-reference:LambdaFunctionProps#property-tags",
-        "config-reference:LambdaFunctionProps#example-1-yaml-20",
+        "config-reference:LambdaFunctionProps#example-1-yaml-21",
         "config-reference:LambdaFunctionProps#example-2-typescript-20",
         "config-reference:LambdaFunctionProps#property-timeout",
-        "config-reference:LambdaFunctionProps#example-1-yaml-21",
+        "config-reference:LambdaFunctionProps#example-1-yaml-22",
         "config-reference:LambdaFunctionProps#example-2-typescript-21",
         "config-reference:LambdaFunctionProps#property-tracing",
-        "config-reference:LambdaFunctionProps#example-1-yaml-22",
+        "config-reference:LambdaFunctionProps#example-1-yaml-23",
         "config-reference:LambdaFunctionProps#example-2-typescript-22",
         "config-reference:LambdaFunctionProps#property-url",
-        "config-reference:LambdaFunctionProps#example-1-yaml-23",
+        "config-reference:LambdaFunctionProps#example-1-yaml-24",
         "config-reference:LambdaFunctionProps#example-2-typescript-23",
         "config-reference:LambdaFunctionProps#property-volumemounts",
-        "config-reference:LambdaFunctionProps#example-1-yaml-24",
+        "config-reference:LambdaFunctionProps#example-1-yaml-25",
         "config-reference:LambdaFunctionProps#example-2-typescript-24"
       ]
     },
@@ -7997,7 +8315,6 @@
         "executeCommands",
         "executeScript",
         "executeScripts",
-        "pipeStdio",
         "stdioMode"
       ],
       "chunks": [
@@ -8027,9 +8344,6 @@
         "config-reference:LocalScriptProps#property-executescripts",
         "config-reference:LocalScriptProps#example-1-yaml-8",
         "config-reference:LocalScriptProps#example-2-typescript-8",
-        "config-reference:LocalScriptProps#property-pipestdio",
-        "config-reference:LocalScriptProps#example-1-yaml-9",
-        "config-reference:LocalScriptProps#example-2-typescript-9",
         "config-reference:LocalScriptProps#property-stdiomode"
       ]
     },
@@ -8076,7 +8390,6 @@
         "executeCommands",
         "executeScript",
         "executeScripts",
-        "pipeStdio",
         "stdioMode"
       ],
       "chunks": [
@@ -8109,9 +8422,6 @@
         "config-reference:LocalScriptWithBastionTunnelingProps#property-executescripts",
         "config-reference:LocalScriptWithBastionTunnelingProps#example-1-yaml-9",
         "config-reference:LocalScriptWithBastionTunnelingProps#example-2-typescript-9",
-        "config-reference:LocalScriptWithBastionTunnelingProps#property-pipestdio",
-        "config-reference:LocalScriptWithBastionTunnelingProps#example-1-yaml-10",
-        "config-reference:LocalScriptWithBastionTunnelingProps#example-2-typescript-10",
         "config-reference:LocalScriptWithBastionTunnelingProps#property-stdiomode"
       ]
     },
@@ -8129,6 +8439,7 @@
         "config-reference",
         "NamedScriptLifecycleHook",
         "scriptName",
+        "onFailure",
         "skipOnCI",
         "skipOnLocal"
       ],
@@ -8138,12 +8449,15 @@
         "config-reference:NamedScriptLifecycleHook#property-scriptname",
         "config-reference:NamedScriptLifecycleHook#example-1-yaml",
         "config-reference:NamedScriptLifecycleHook#example-2-typescript",
-        "config-reference:NamedScriptLifecycleHook#property-skiponci",
+        "config-reference:NamedScriptLifecycleHook#property-onfailure",
         "config-reference:NamedScriptLifecycleHook#example-1-yaml-2",
         "config-reference:NamedScriptLifecycleHook#example-2-typescript-2",
-        "config-reference:NamedScriptLifecycleHook#property-skiponlocal",
+        "config-reference:NamedScriptLifecycleHook#property-skiponci",
         "config-reference:NamedScriptLifecycleHook#example-1-yaml-3",
-        "config-reference:NamedScriptLifecycleHook#example-2-typescript-3"
+        "config-reference:NamedScriptLifecycleHook#example-2-typescript-3",
+        "config-reference:NamedScriptLifecycleHook#property-skiponlocal",
+        "config-reference:NamedScriptLifecycleHook#example-1-yaml-4",
+        "config-reference:NamedScriptLifecycleHook#example-2-typescript-4"
       ]
     },
     {
@@ -10033,6 +10347,7 @@
         "environment",
         "fileOptions",
         "iamRoleStatements",
+        "releaseCommand",
         "serverLambda",
         "streamingEnabled",
         "useEdgeLambda",
@@ -10068,6 +10383,7 @@
         "config-reference:NextjsWebProps#property-iamrolestatements",
         "config-reference:NextjsWebProps#example-1-yaml-8",
         "config-reference:NextjsWebProps#example-2-typescript-8",
+        "config-reference:NextjsWebProps#property-releasecommand",
         "config-reference:NextjsWebProps#property-serverlambda",
         "config-reference:NextjsWebProps#example-1-yaml-9",
         "config-reference:NextjsWebProps#example-2-typescript-9",
@@ -10179,6 +10495,7 @@
         "environment",
         "fileOptions",
         "iamRoleStatements",
+        "releaseCommand",
         "serverLambda",
         "useFirewall",
         "nuxt-web"
@@ -10213,6 +10530,7 @@
         "config-reference:NuxtWebProps#property-iamrolestatements",
         "config-reference:NuxtWebProps#example-1-yaml-9",
         "config-reference:NuxtWebProps#example-2-typescript-9",
+        "config-reference:NuxtWebProps#property-releasecommand",
         "config-reference:NuxtWebProps#property-serverlambda",
         "config-reference:NuxtWebProps#example-1-yaml-10",
         "config-reference:NuxtWebProps#example-2-typescript-10",
@@ -11103,76 +11421,6 @@
       ]
     },
     {
-      "id": "config-reference:AuroraServerlessEngine",
-      "title": "AuroraServerlessEngine API Reference",
-      "route": "/config-reference/relational-database",
-      "sourcePath": "packages/config/src/relational-databases.ts",
-      "outputPath": "config-reference/relational-database/auroraserverlessengine.md",
-      "docKind": "config-reference",
-      "resourceType": "relational-database",
-      "definitionNames": [
-        "AuroraServerlessEngine"
-      ],
-      "tags": [
-        "config-reference",
-        "AuroraServerlessEngine",
-        "type",
-        "properties",
-        "relational-database"
-      ],
-      "chunks": [
-        "config-reference:AuroraServerlessEngine#auroraserverlessengine-api-reference",
-        "config-reference:AuroraServerlessEngine#typescript-definition",
-        "config-reference:AuroraServerlessEngine#property-type",
-        "config-reference:AuroraServerlessEngine#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:AuroraServerlessEngineProperties",
-      "title": "AuroraServerlessEngineProperties API Reference",
-      "route": "/config-reference/relational-database",
-      "sourcePath": "packages/config/src/relational-databases.ts",
-      "outputPath": "config-reference/relational-database/auroraserverlessengineproperties.md",
-      "docKind": "config-reference",
-      "resourceType": "relational-database",
-      "definitionNames": [
-        "AuroraServerlessEngineProperties"
-      ],
-      "tags": [
-        "config-reference",
-        "AuroraServerlessEngineProperties",
-        "dbName",
-        "disableAutoMinorVersionUpgrade",
-        "maxCapacity",
-        "minCapacity",
-        "pauseAfterSeconds",
-        "version",
-        "relational-database"
-      ],
-      "chunks": [
-        "config-reference:AuroraServerlessEngineProperties#auroraserverlessengineproperties-api-reference",
-        "config-reference:AuroraServerlessEngineProperties#typescript-definition",
-        "config-reference:AuroraServerlessEngineProperties#property-dbname",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript",
-        "config-reference:AuroraServerlessEngineProperties#property-disableautominorversionupgrade",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-2",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-2",
-        "config-reference:AuroraServerlessEngineProperties#property-maxcapacity",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-3",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-3",
-        "config-reference:AuroraServerlessEngineProperties#property-mincapacity",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-4",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-4",
-        "config-reference:AuroraServerlessEngineProperties#property-pauseafterseconds",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-5",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-5",
-        "config-reference:AuroraServerlessEngineProperties#property-version",
-        "config-reference:AuroraServerlessEngineProperties#example-1-yaml-6",
-        "config-reference:AuroraServerlessEngineProperties#example-2-typescript-6"
-      ]
-    },
-    {
       "id": "config-reference:AuroraServerlessV2Engine",
       "title": "AuroraServerlessV2Engine API Reference",
       "route": "/config-reference/relational-database",
@@ -11718,6 +11966,7 @@
         "environment",
         "fileOptions",
         "iamRoleStatements",
+        "releaseCommand",
         "serverLambda",
         "useFirewall",
         "remix-web"
@@ -11752,6 +12001,7 @@
         "config-reference:RemixWebProps#property-iamrolestatements",
         "config-reference:RemixWebProps#example-1-yaml-9",
         "config-reference:RemixWebProps#example-2-typescript-9",
+        "config-reference:RemixWebProps#property-releasecommand",
         "config-reference:RemixWebProps#property-serverlambda",
         "config-reference:RemixWebProps#example-1-yaml-10",
         "config-reference:RemixWebProps#example-2-typescript-10",
@@ -12082,6 +12332,7 @@
         "environment",
         "fileOptions",
         "iamRoleStatements",
+        "releaseCommand",
         "serverLambda",
         "useFirewall",
         "solidstart-web"
@@ -12116,6 +12367,7 @@
         "config-reference:SolidStartWebProps#property-iamrolestatements",
         "config-reference:SolidStartWebProps#example-1-yaml-9",
         "config-reference:SolidStartWebProps#example-2-typescript-9",
+        "config-reference:SolidStartWebProps#property-releasecommand",
         "config-reference:SolidStartWebProps#property-serverlambda",
         "config-reference:SolidStartWebProps#example-1-yaml-10",
         "config-reference:SolidStartWebProps#example-2-typescript-10",
@@ -12721,6 +12973,33 @@
       ]
     },
     {
+      "id": "config-reference:StateMachineBranch",
+      "title": "StateMachineBranch API Reference",
+      "route": "/config-reference/state-machine",
+      "sourcePath": "packages/config/src/state-machines.ts",
+      "outputPath": "config-reference/state-machine/statemachinebranch.md",
+      "docKind": "config-reference",
+      "resourceType": "state-machine",
+      "definitionNames": [
+        "StateMachineBranch"
+      ],
+      "tags": [
+        "config-reference",
+        "StateMachineBranch",
+        "StartAt",
+        "States",
+        "Comment",
+        "state-machine"
+      ],
+      "chunks": [
+        "config-reference:StateMachineBranch#statemachinebranch-api-reference",
+        "config-reference:StateMachineBranch#typescript-definition",
+        "config-reference:StateMachineBranch#property-startat",
+        "config-reference:StateMachineBranch#property-states",
+        "config-reference:StateMachineBranch#property-comment"
+      ]
+    },
+    {
       "id": "config-reference:StateMachineDefinition",
       "title": "StateMachineDefinition API Reference",
       "route": "/config-reference/state-machine",
@@ -12762,6 +13041,35 @@
       ]
     },
     {
+      "id": "config-reference:StateMachineItemProcessor",
+      "title": "StateMachineItemProcessor API Reference",
+      "route": "/config-reference/state-machine",
+      "sourcePath": "packages/config/src/state-machines.ts",
+      "outputPath": "config-reference/state-machine/statemachineitemprocessor.md",
+      "docKind": "config-reference",
+      "resourceType": "state-machine",
+      "definitionNames": [
+        "StateMachineItemProcessor"
+      ],
+      "tags": [
+        "config-reference",
+        "StateMachineItemProcessor",
+        "StartAt",
+        "States",
+        "Comment",
+        "ProcessorConfig",
+        "state-machine"
+      ],
+      "chunks": [
+        "config-reference:StateMachineItemProcessor#statemachineitemprocessor-api-reference",
+        "config-reference:StateMachineItemProcessor#typescript-definition",
+        "config-reference:StateMachineItemProcessor#property-startat",
+        "config-reference:StateMachineItemProcessor#property-states",
+        "config-reference:StateMachineItemProcessor#property-comment",
+        "config-reference:StateMachineItemProcessor#property-processorconfig"
+      ]
+    },
+    {
       "id": "config-reference:StateMachineMap",
       "title": "StateMachineMap API Reference",
       "route": "/config-reference/state-machine",
@@ -12775,13 +13083,14 @@
       "tags": [
         "config-reference",
         "StateMachineMap",
-        "Iterator",
         "Type",
         "Catch",
         "Comment",
         "End",
         "InputPath",
+        "ItemProcessor",
         "ItemsPath",
+        "Iterator",
         "MaxConcurrency",
         "Next",
         "OutputPath",
@@ -12793,13 +13102,14 @@
       "chunks": [
         "config-reference:StateMachineMap#statemachinemap-api-reference",
         "config-reference:StateMachineMap#typescript-definition",
-        "config-reference:StateMachineMap#property-iterator",
         "config-reference:StateMachineMap#property-type",
         "config-reference:StateMachineMap#property-catch",
         "config-reference:StateMachineMap#property-comment",
         "config-reference:StateMachineMap#property-end",
         "config-reference:StateMachineMap#property-inputpath",
+        "config-reference:StateMachineMap#property-itemprocessor",
         "config-reference:StateMachineMap#property-itemspath",
+        "config-reference:StateMachineMap#property-iterator",
         "config-reference:StateMachineMap#property-maxconcurrency",
         "config-reference:StateMachineMap#property-next",
         "config-reference:StateMachineMap#property-outputpath",
@@ -12831,33 +13141,6 @@
         "config-reference:StateMachineProps#property-definition",
         "config-reference:StateMachineProps#example-1-yaml",
         "config-reference:StateMachineProps#example-2-typescript"
-      ]
-    },
-    {
-      "id": "config-reference:StpStateMachine",
-      "title": "StpStateMachine API Reference",
-      "route": "/config-reference/state-machine",
-      "sourcePath": "packages/config/src/state-machines.ts",
-      "outputPath": "config-reference/state-machine/stpstatemachine.md",
-      "docKind": "config-reference",
-      "resourceType": "state-machine",
-      "definitionNames": [
-        "StpStateMachine"
-      ],
-      "tags": [
-        "config-reference",
-        "StpStateMachine",
-        "configParentResourceType",
-        "name",
-        "nameChain",
-        "state-machine"
-      ],
-      "chunks": [
-        "config-reference:StpStateMachine#stpstatemachine-api-reference",
-        "config-reference:StpStateMachine#typescript-definition",
-        "config-reference:StpStateMachine#property-configparentresourcetype",
-        "config-reference:StpStateMachine#property-name",
-        "config-reference:StpStateMachine#property-namechain"
       ]
     },
     {
@@ -13023,6 +13306,7 @@
         "environment",
         "fileOptions",
         "iamRoleStatements",
+        "releaseCommand",
         "serverLambda",
         "useFirewall",
         "sveltekit-web"
@@ -13057,6 +13341,7 @@
         "config-reference:SvelteKitWebProps#property-iamrolestatements",
         "config-reference:SvelteKitWebProps#example-1-yaml-9",
         "config-reference:SvelteKitWebProps#example-2-typescript-9",
+        "config-reference:SvelteKitWebProps#property-releasecommand",
         "config-reference:SvelteKitWebProps#property-serverlambda",
         "config-reference:SvelteKitWebProps#example-1-yaml-10",
         "config-reference:SvelteKitWebProps#example-2-typescript-10",
@@ -13265,6 +13550,7 @@
         "environment",
         "fileOptions",
         "iamRoleStatements",
+        "releaseCommand",
         "serverLambda",
         "useFirewall",
         "tanstack-web"
@@ -13306,6 +13592,7 @@
         "config-reference:TanStackWebProps#property-iamrolestatements",
         "config-reference:TanStackWebProps#example-1-yaml-9",
         "config-reference:TanStackWebProps#example-2-typescript-9",
+        "config-reference:TanStackWebProps#property-releasecommand",
         "config-reference:TanStackWebProps#property-serverlambda",
         "config-reference:TanStackWebProps#example-1-yaml-10",
         "config-reference:TanStackWebProps#serverlambda",
@@ -15381,6 +15668,8 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#when-to-use-custom-ci-cd",
         "page:/ci-cd-and-gitops/custom-ci-cd#when-not-to-use-custom-ci-cd",
         "page:/ci-cd-and-gitops/custom-ci-cd#authentication",
+        "page:/ci-cd-and-gitops/custom-ci-cd#without-a-stacktape-account",
+        "page:/ci-cd-and-gitops/custom-ci-cd#with-the-console",
         "page:/ci-cd-and-gitops/custom-ci-cd#essential-cli-flags-for-ci",
         "page:/ci-cd-and-gitops/custom-ci-cd#yes",
         "page:/ci-cd-and-gitops/custom-ci-cd#stage-and-region",
@@ -15427,27 +15716,25 @@
       "chunks": [
         "page:/ci-cd-and-gitops/gitops-with-console#gitops-with-console",
         "page:/ci-cd-and-gitops/gitops-with-console#when-to-use",
-        "page:/ci-cd-and-gitops/gitops-with-console#when-not-to-use",
-        "page:/ci-cd-and-gitops/gitops-with-console#prerequisites",
+        "page:/ci-cd-and-gitops/gitops-with-console#before-you-start",
+        "page:/ci-cd-and-gitops/gitops-with-console#connect-your-git-provider",
+        "page:/ci-cd-and-gitops/gitops-with-console#github",
+        "page:/ci-cd-and-gitops/gitops-with-console#gitlab",
+        "page:/ci-cd-and-gitops/gitops-with-console#bitbucket",
+        "page:/ci-cd-and-gitops/gitops-with-console#connections-from-stacktape-v3",
+        "page:/ci-cd-and-gitops/gitops-with-console#link-a-project-to-its-repository",
+        "page:/ci-cd-and-gitops/gitops-with-console#create-a-git-deployment",
+        "page:/ci-cd-and-gitops/gitops-with-console#what-triggers-a-deployment",
+        "page:/ci-cd-and-gitops/gitops-with-console#several-rules-and-several-pushes",
+        "page:/ci-cd-and-gitops/gitops-with-console#following-a-deployment",
+        "page:/ci-cd-and-gitops/gitops-with-console#runner-cost",
         "page:/ci-cd-and-gitops/gitops-with-console#provider-permissions-for-security-fix-pull-requests",
-        "page:/ci-cd-and-gitops/gitops-with-console#push-to-deploy",
-        "page:/ci-cd-and-gitops/gitops-with-console#setting-up-push-to-deploy",
-        "page:/ci-cd-and-gitops/gitops-with-console#multiple-configurations-per-branch",
-        "page:/ci-cd-and-gitops/gitops-with-console#pr-preview-environments",
-        "page:/ci-cd-and-gitops/gitops-with-console#setting-up-pr-previews",
-        "page:/ci-cd-and-gitops/gitops-with-console#auto-delete-on-pr-close",
-        "page:/ci-cd-and-gitops/gitops-with-console#build-runners",
-        "page:/ci-cd-and-gitops/gitops-with-console#webhook-flow",
-        "page:/ci-cd-and-gitops/gitops-with-console#flow",
-        "page:/ci-cd-and-gitops/gitops-with-console#managing-configurations",
         "page:/ci-cd-and-gitops/gitops-with-console#typical-setup",
         "page:/ci-cd-and-gitops/gitops-with-console#faq",
-        "page:/ci-cd-and-gitops/gitops-with-console#how-is-gitops-with-console-different-from-custom-ci-cd",
-        "page:/ci-cd-and-gitops/gitops-with-console#can-i-run-tests-before-deploying-with-gitops",
-        "page:/ci-cd-and-gitops/gitops-with-console#how-are-pr-preview-environments-cleaned-up",
-        "page:/ci-cd-and-gitops/gitops-with-console#can-a-single-push-deploy-to-multiple-accounts-or-regions",
-        "page:/ci-cd-and-gitops/gitops-with-console#how-much-does-it-cost-to-run-gitops-deployments",
-        "page:/ci-cd-and-gitops/gitops-with-console#a-push-isn-t-triggering-a-deployment-what-should-i-check"
+        "page:/ci-cd-and-gitops/gitops-with-console#how-is-this-different-from-custom-ci-cd",
+        "page:/ci-cd-and-gitops/gitops-with-console#can-i-run-tests-before-deploying",
+        "page:/ci-cd-and-gitops/gitops-with-console#can-one-push-deploy-to-several-accounts-or-regions",
+        "page:/ci-cd-and-gitops/gitops-with-console#a-push-did-not-deploy-what-should-i-check"
       ]
     },
     {
@@ -15478,7 +15765,7 @@
         "page:/ci-cd-and-gitops/overview#choosing-the-right-approach",
         "page:/ci-cd-and-gitops/overview#faq",
         "page:/ci-cd-and-gitops/overview#do-i-need-aws-credentials-in-my-ci-pipeline",
-        "page:/ci-cd-and-gitops/overview#how-do-gitops-pr-preview-environments-show-their-stage-name",
+        "page:/ci-cd-and-gitops/overview#what-stage-does-a-gitops-pr-preview-deploy-to",
         "page:/ci-cd-and-gitops/overview#can-i-run-tests-before-deploying-with-gitops",
         "page:/ci-cd-and-gitops/overview#what-stage-names-should-i-use-for-branch-derived-stages",
         "page:/ci-cd-and-gitops/overview#how-much-do-automated-deployments-cost",
@@ -15550,7 +15837,7 @@
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#how-pr-previews-work-with-gitops",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#how-pr-previews-work-with-custom-ci-cd",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close",
-        "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#gitlab-and-other-git-providers",
+        "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#ci-variables-for-custom-pipelines",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#feature-branch-stages",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#stage-naming-best-practices",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#recommended-naming-patterns",
@@ -16620,6 +16907,7 @@
         "page:/cli/login#what-happens-if-i-log-in-with-an-invalid-api-key",
         "page:/cli/login#how-do-i-switch-between-organizations",
         "page:/cli/login#does-login-expire",
+        "page:/cli/login#do-i-need-to-log-in-to-deploy",
         "page:/cli/login#does-login-connect-my-aws-account",
         "page:/cli/login#should-team-members-share-one-api-key"
       ]
@@ -17397,6 +17685,7 @@
         "page:/configuration/configuration-files#when-to-use-yaml",
         "page:/configuration/configuration-files#typescript-configuration",
         "page:/configuration/configuration-files#the-defineconfig-callback",
+        "page:/configuration/configuration-files#command-line-options-in-the-config",
         "page:/configuration/configuration-files#project-name-and-region",
         "page:/configuration/configuration-files#conditional-logic-and-loops",
         "page:/configuration/configuration-files#splitting-config-across-files",
@@ -17549,6 +17838,7 @@
         "page:/configuration/hooks-and-scripts#running-scripts-manually",
         "page:/configuration/hooks-and-scripts#hooks",
         "page:/configuration/hooks-and-scripts#lifecycle-events",
+        "page:/configuration/hooks-and-scripts#when-a-hook-fails",
         "page:/configuration/hooks-and-scripts#conditional-execution",
         "page:/configuration/hooks-and-scripts#environment-variables-in-scripts",
         "page:/configuration/hooks-and-scripts#deployment-scripts",
@@ -17761,7 +18051,7 @@
         "page:/configuration/secrets#referencing-secrets-with-secret",
         "page:/configuration/secrets#native-secret-injection-for-containers",
         "page:/configuration/secrets#basic-usage",
-        "page:/configuration/secrets#json-secrets-with-dot-notation",
+        "page:/configuration/secrets#json-secrets",
         "page:/configuration/secrets#how-secret-resolution-works",
         "page:/configuration/secrets#retrieving-and-managing-secrets",
         "page:/configuration/secrets#view-a-secret-value",
@@ -18200,6 +18490,7 @@
         "page:/deployment-and-lifecycle/release-commands#how-it-affects-deploy-time",
         "page:/deployment-and-lifecycle/release-commands#options",
         "page:/deployment-and-lifecycle/release-commands#several-commands",
+        "page:/deployment-and-lifecycle/release-commands#functions-and-server-rendered-sites",
         "page:/deployment-and-lifecycle/release-commands#js-bundle-services",
         "page:/deployment-and-lifecycle/release-commands#skipping-and-interrupting",
         "page:/deployment-and-lifecycle/release-commands#logs",
@@ -18259,7 +18550,7 @@
         "page:/getting-started/ci-cd#pr-preview-environments",
         "page:/getting-started/ci-cd#connecting-your-repository",
         "page:/getting-started/ci-cd#custom-ci-cd-integration",
-        "page:/getting-started/ci-cd#required-environment-variables",
+        "page:/getting-started/ci-cd#credentials",
         "page:/getting-started/ci-cd#github-actions-example",
         "page:/getting-started/ci-cd#gitlab-ci-example",
         "page:/getting-started/ci-cd#pr-previews-in-custom-ci",
@@ -18306,19 +18597,19 @@
       "chunks": [
         "page:/getting-started/deploy-your-first-stage#deploy-your-first-stage",
         "page:/getting-started/deploy-your-first-stage#prerequisites",
-        "page:/getting-started/deploy-your-first-stage#step-1-log-in-to-stacktape",
-        "page:/getting-started/deploy-your-first-stage#step-2-connect-your-aws-account",
-        "page:/getting-started/deploy-your-first-stage#what-the-connection-creates",
-        "page:/getting-started/deploy-your-first-stage#step-3-deploy",
+        "page:/getting-started/deploy-your-first-stage#step-1-set-up-aws-credentials",
+        "page:/getting-started/deploy-your-first-stage#step-2-deploy",
         "page:/getting-started/deploy-your-first-stage#what-happens-during-deploy",
         "page:/getting-started/deploy-your-first-stage#flow",
         "page:/getting-started/deploy-your-first-stage#deploy-output",
+        "page:/getting-started/deploy-your-first-stage#add-the-console-optional",
         "page:/getting-started/deploy-your-first-stage#what-gets-created-in-aws",
         "page:/getting-started/deploy-your-first-stage#verifying-the-deploy",
         "page:/getting-started/deploy-your-first-stage#redeploying-after-changes",
         "page:/getting-started/deploy-your-first-stage#code-only-changes-deploy-in-seconds",
         "page:/getting-started/deploy-your-first-stage#deploying-multiple-stages",
         "page:/getting-started/deploy-your-first-stage#troubleshooting",
+        "page:/getting-started/deploy-your-first-stage#no-aws-credentials-found",
         "page:/getting-started/deploy-your-first-stage#no-connected-aws-accounts",
         "page:/getting-started/deploy-your-first-stage#belongs-to-aws-account-which-is-not-connected",
         "page:/getting-started/deploy-your-first-stage#deploy-takes-longer-than-expected",
@@ -18328,7 +18619,7 @@
         "page:/getting-started/deploy-your-first-stage#how-long-does-a-first-deploy-take",
         "page:/getting-started/deploy-your-first-stage#does-stacktape-cost-money-to-use-with-aws",
         "page:/getting-started/deploy-your-first-stage#can-i-deploy-to-any-aws-region",
-        "page:/getting-started/deploy-your-first-stage#is-the-connection-between-stacktape-and-my-aws-account-secure",
+        "page:/getting-started/deploy-your-first-stage#is-the-connection-between-the-stacktape-console-and-my-aws-account-secure",
         "page:/getting-started/deploy-your-first-stage#what-happens-if-i-lose-internet-during-a-deploy",
         "page:/getting-started/deploy-your-first-stage#what-s-the-difference-between-stages-and-aws-accounts",
         "page:/getting-started/deploy-your-first-stage#can-i-preview-what-a-deploy-will-change-before-running-it",
@@ -18362,6 +18653,36 @@
       ]
     },
     {
+      "id": "page:/getting-started/open-source-cli",
+      "title": "Use the CLI Without an Account",
+      "route": "/getting-started/open-source-cli",
+      "sourcePath": "apps/docs/content/getting-started/open-source-cli.mdx",
+      "outputPath": "pages/getting-started/open-source-cli.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "open-source-cli"
+      ],
+      "chunks": [
+        "page:/getting-started/open-source-cli#use-the-cli-without-an-account",
+        "page:/getting-started/open-source-cli#how-the-cli-chooses-its-mode",
+        "page:/getting-started/open-source-cli#deploy-without-an-account",
+        "page:/getting-started/open-source-cli#what-works-without-an-account",
+        "page:/getting-started/open-source-cli#when-the-configuration-uses-a-console-feature",
+        "page:/getting-started/open-source-cli#connect-the-console-later",
+        "page:/getting-started/open-source-cli#go-back-to-working-without-an-account",
+        "page:/getting-started/open-source-cli#ci-cd-without-an-account",
+        "page:/getting-started/open-source-cli#hints-about-the-console",
+        "page:/getting-started/open-source-cli#telemetry",
+        "page:/getting-started/open-source-cli#license",
+        "page:/getting-started/open-source-cli#faq",
+        "page:/getting-started/open-source-cli#do-i-need-a-stacktape-account-to-deploy",
+        "page:/getting-started/open-source-cli#will-connecting-the-console-change-my-stacks",
+        "page:/getting-started/open-source-cli#does-the-cli-contact-stacktape-when-i-m-not-signed-in"
+      ]
+    },
+    {
       "id": "page:/getting-started/starter-projects",
       "title": "Starter Projects",
       "route": "/getting-started/starter-projects",
@@ -18391,25 +18712,57 @@
       ],
       "chunks": [
         "page:/getting-started/upgrading-from-v3#upgrading-from-v3",
-        "page:/getting-started/upgrading-from-v3#deployed-stacks",
-        "page:/getting-started/upgrading-from-v3#cli-command-and-flag-names",
-        "page:/getting-started/upgrading-from-v3#error-tracking-names",
-        "page:/getting-started/upgrading-from-v3#failed-deployments-keep-what-they-created",
-        "page:/getting-started/upgrading-from-v3#security-findings-in-agent-output",
-        "page:/getting-started/upgrading-from-v3#target-aws-account",
+        "page:/getting-started/upgrading-from-v3#before-you-upgrade",
+        "page:/getting-started/upgrading-from-v3#which-sections-apply-to-you",
+        "page:/getting-started/upgrading-from-v3#the-upgrade-step-by-step",
+        "page:/getting-started/upgrading-from-v3#going-back-to-v3",
+        "page:/getting-started/upgrading-from-v3#configuration-changes",
+        "page:/getting-started/upgrading-from-v3#project-name",
+        "page:/getting-started/upgrading-from-v3#alarm-notifications",
+        "page:/getting-started/upgrading-from-v3#nat",
         "page:/getting-started/upgrading-from-v3#redis-caches",
+        "page:/getting-started/upgrading-from-v3#aurora-serverless-v1",
+        "page:/getting-started/upgrading-from-v3#cdn-cache-and-forwarding-options",
+        "page:/getting-started/upgrading-from-v3#website-urls",
+        "page:/getting-started/upgrading-from-v3#secrets-with-a-json-key",
+        "page:/getting-started/upgrading-from-v3#automatic-rollback",
+        "page:/getting-started/upgrading-from-v3#typescript-configurations",
+        "page:/getting-started/upgrading-from-v3#sending-email-with-ses",
+        "page:/getting-started/upgrading-from-v3#values-that-v4-rejects",
+        "page:/getting-started/upgrading-from-v3#scripts",
         "page:/getting-started/upgrading-from-v3#removed-resource-parameters",
         "page:/getting-started/upgrading-from-v3#user-auth-pool-token-lifetimes",
         "page:/getting-started/upgrading-from-v3#packaging",
-        "page:/getting-started/upgrading-from-v3#javascript-and-typescript-lambda-functions",
-        "page:/getting-started/upgrading-from-v3#python-java-go-ruby-and-net-lambda-functions",
-        "page:/getting-started/upgrading-from-v3#rust-lambda-functions",
-        "page:/getting-started/upgrading-from-v3#javascript-and-typescript-container-services",
-        "page:/getting-started/upgrading-from-v3#python-and-other-non-javascript-container-services",
-        "page:/getting-started/upgrading-from-v3#nixpacks",
-        "page:/getting-started/upgrading-from-v3#external-buildpacks",
-        "page:/getting-started/upgrading-from-v3#custom-dockerfiles",
-        "page:/getting-started/upgrading-from-v3#removed-packaging-properties"
+        "page:/getting-started/upgrading-from-v3#cli-changes",
+        "page:/getting-started/upgrading-from-v3#command-and-flag-spelling",
+        "page:/getting-started/upgrading-from-v3#removed-flags",
+        "page:/getting-started/upgrading-from-v3#target-aws-account",
+        "page:/getting-started/upgrading-from-v3#agent-no-longer-confirms-operations",
+        "page:/getting-started/upgrading-from-v3#interrupted-commands-exit-with-a-non-zero-code",
+        "page:/getting-started/upgrading-from-v3#several-configuration-files-in-one-directory",
+        "page:/getting-started/upgrading-from-v3#secrets-in-command-output",
+        "page:/getting-started/upgrading-from-v3#scripts-that-read-cli-output",
+        "page:/getting-started/upgrading-from-v3#environment-variables",
+        "page:/getting-started/upgrading-from-v3#what-the-first-v4-deployment-changes",
+        "page:/getting-started/upgrading-from-v3#your-data-is-kept",
+        "page:/getting-started/upgrading-from-v3#lambda-functions",
+        "page:/getting-started/upgrading-from-v3#container-services",
+        "page:/getting-started/upgrading-from-v3#batch-jobs",
+        "page:/getting-started/upgrading-from-v3#error-tracking-and-security-scanning",
+        "page:/getting-started/upgrading-from-v3#helper-resources-that-are-removed",
+        "page:/getting-started/upgrading-from-v3#what-changes-after-the-first-deployment",
+        "page:/getting-started/upgrading-from-v3#failed-deployments-keep-what-they-created",
+        "page:/getting-started/upgrading-from-v3#after-deploy-hooks-fail-the-deployment",
+        "page:/getting-started/upgrading-from-v3#fast-deployments-are-automatic",
+        "page:/getting-started/upgrading-from-v3#new-non-production-stages-share-a-network",
+        "page:/getting-started/upgrading-from-v3#deploy-each-upgraded-stack-only-with-v4",
+        "page:/getting-started/upgrading-from-v3#stacktape-console-changes",
+        "page:/getting-started/upgrading-from-v3#configuration-templates-and-generation-are-removed",
+        "page:/getting-started/upgrading-from-v3#signing-in-to-the-console",
+        "page:/getting-started/upgrading-from-v3#cli-logins-expire",
+        "page:/getting-started/upgrading-from-v3#developers-and-viewers-reach-only-their-aws-accounts",
+        "page:/getting-started/upgrading-from-v3#removed-console-features",
+        "page:/getting-started/upgrading-from-v3#upgrading-from-a-v4-preview"
       ]
     },
     {
@@ -18663,7 +19016,7 @@
         "page:/#scripts-migrations",
         "page:/#private-networking",
         "page:/#override-extend",
-        "page:/#open-source-core-paid-console",
+        "page:/#open-source-cli-optional-console",
         "page:/#loved-by-teams-shipping-on-aws",
         "page:/#ready-to-simplify-your-aws-deployments"
       ]
@@ -18899,20 +19252,19 @@
       ],
       "chunks": [
         "page:/managing-costs/budgets#budgets",
-        "page:/managing-costs/budgets#creating-a-budget-alert",
-        "page:/managing-costs/budgets#scoping",
-        "page:/managing-costs/budgets#forecast-alerts",
-        "page:/managing-costs/budgets#managing-budgets",
-        "page:/managing-costs/budgets#budget-history",
-        "page:/managing-costs/budgets#when-to-use",
-        "page:/managing-costs/budgets#when-not-to-use",
+        "page:/managing-costs/budgets#before-you-start",
+        "page:/managing-costs/budgets#creating-a-budget",
+        "page:/managing-costs/budgets#when-alerts-arrive",
+        "page:/managing-costs/budgets#checking-budgets",
+        "page:/managing-costs/budgets#budgets-in-slack",
+        "page:/managing-costs/budgets#budgets-created-before-v4",
+        "page:/managing-costs/budgets#recommended-setup",
         "page:/managing-costs/budgets#faq",
         "page:/managing-costs/budgets#do-budget-alerts-stop-aws-from-charging-me",
-        "page:/managing-costs/budgets#can-i-set-a-budget-alert-for-a-single-resource-like-one-database",
+        "page:/managing-costs/budgets#can-i-set-a-budget-for-one-stage-project-or-database",
         "page:/managing-costs/budgets#how-much-do-aws-budgets-cost",
-        "page:/managing-costs/budgets#why-isn-t-my-forecast-alert-firing",
-        "page:/managing-costs/budgets#should-i-use-budgets-guardrails-or-both-for-cost-control",
-        "page:/managing-costs/budgets#why-isn-t-my-stack-scoped-budget-tracking-any-spend"
+        "page:/managing-costs/budgets#why-isn-t-my-forecast-alert-arriving",
+        "page:/managing-costs/budgets#should-i-use-budgets-guardrails-or-both"
       ]
     },
     {
@@ -18933,7 +19285,7 @@
         "page:/managing-costs/dashboards#aws-costs-kpi",
         "page:/managing-costs/dashboards#aws-costs-by-project",
         "page:/managing-costs/dashboards#aws-costs-by-resource",
-        "page:/managing-costs/dashboards#budget-alerts",
+        "page:/managing-costs/dashboards#budgets",
         "page:/managing-costs/dashboards#costs-per-stack",
         "page:/managing-costs/dashboards#filters",
         "page:/managing-costs/dashboards#cost-table",
@@ -19014,7 +19366,7 @@
         "page:/managing-costs/overview#faq",
         "page:/managing-costs/overview#how-long-does-it-take-for-cost-data-to-appear-and-how-often-does-it-refresh",
         "page:/managing-costs/overview#are-aws-costs-billed-through-stacktape",
-        "page:/managing-costs/overview#what-s-the-difference-between-organization-wide-and-stack-scoped-budgets",
+        "page:/managing-costs/overview#can-a-budget-watch-a-single-project-or-stage",
         "page:/managing-costs/overview#what-aws-services-typically-cost-the-most-in-stacktape-deployments",
         "page:/managing-costs/overview#what-s-the-difference-between-the-overview-dashboard-and-the-costs-per-stack-page"
       ]
@@ -19084,6 +19436,7 @@
         "page:/observability/alarms#notification-targets",
         "page:/observability/alarms#alarm-description",
         "page:/observability/alarms#history-tracking",
+        "page:/observability/alarms#what-leaves-your-aws-account",
         "page:/observability/alarms#migrating-legacy-console-alarm-rules",
         "page:/observability/alarms#viewing-alarm-states",
         "page:/observability/alarms#cli",
@@ -19459,6 +19812,7 @@
         "page:/observability/synthetic-tests#configuration",
         "page:/observability/synthetic-tests#writing-the-script",
         "page:/observability/synthetic-tests#failure-alerts",
+        "page:/observability/synthetic-tests#what-leaves-your-aws-account",
         "page:/observability/synthetic-tests#cost",
         "page:/observability/synthetic-tests#limits"
       ]
@@ -19507,6 +19861,7 @@
         "page:/observability/uptime-checks#when-not-to-use",
         "page:/observability/uptime-checks#configuration",
         "page:/observability/uptime-checks#how-it-works",
+        "page:/observability/uptime-checks#what-leaves-your-aws-account",
         "page:/observability/uptime-checks#limits",
         "page:/observability/uptime-checks#viewing-results"
       ]
@@ -19893,14 +20248,16 @@
       "docKind": "docs-page",
       "resourceType": "custom-resource",
       "definitionNames": [
-        "CustomResourceDefinitionProps"
+        "CustomResourceDefinitionProps",
+        "CustomResourceInstanceProps"
       ],
       "tags": [
         "resources",
         "advanced",
         "custom-resources",
         "custom-resource",
-        "CustomResourceDefinitionProps"
+        "CustomResourceDefinitionProps",
+        "CustomResourceInstanceProps"
       ],
       "chunks": [
         "page:/resources/advanced/custom-resources#custom-resources",
@@ -19920,7 +20277,10 @@
         "page:/resources/advanced/custom-resources#connecting-to-resources",
         "page:/resources/advanced/custom-resources#outputs",
         "page:/resources/advanced/custom-resources#api-reference",
+        "page:/resources/advanced/custom-resources#custom-resource-definition",
         "page:/resources/advanced/custom-resources#definition-customresourcedefinitionprops",
+        "page:/resources/advanced/custom-resources#custom-resource-instance",
+        "page:/resources/advanced/custom-resources#definition-customresourceinstanceprops",
         "page:/resources/advanced/custom-resources#faq",
         "page:/resources/advanced/custom-resources#can-i-use-connectto-with-custom-resources",
         "page:/resources/advanced/custom-resources#what-happens-if-my-custom-resource-lambda-fails-or-the-stack-rolls-back",
@@ -20550,6 +20910,7 @@
         "page:/resources/compute/web-service#connecting-to-other-resources",
         "page:/resources/compute/web-service#health-checks",
         "page:/resources/compute/web-service#how-deploys-replace-containers",
+        "page:/resources/compute/web-service#old-containers-behind-api-gateway",
         "page:/resources/compute/web-service#side-containers",
         "page:/resources/compute/web-service#efs-storage",
         "page:/resources/compute/web-service#gradual-deployments",
@@ -20879,7 +21240,7 @@
         "page:/resources/databases/relational-database#standard-rds",
         "page:/resources/databases/relational-database#aurora",
         "page:/resources/databases/relational-database#aurora-serverless-v2",
-        "page:/resources/databases/relational-database#aurora-serverless-v1",
+        "page:/resources/databases/relational-database#aurora-serverless-v1-is-retired",
         "page:/resources/databases/relational-database#database-name-and-port",
         "page:/resources/databases/relational-database#supported-versions",
         "page:/resources/databases/relational-database#accessibility",
@@ -21567,18 +21928,23 @@
       "sourcePath": "apps/docs/content/resources/networking/appsync-api.mdx",
       "outputPath": "pages/resources/networking/appsync-api.md",
       "docKind": "docs-page",
-      "definitionNames": [],
+      "definitionNames": [
+        "AppSyncApiProps"
+      ],
       "tags": [
         "resources",
         "networking",
-        "appsync-api"
+        "appsync-api",
+        "AppSyncApiProps"
       ],
       "chunks": [
         "page:/resources/networking/appsync-api#appsync-api",
         "page:/resources/networking/appsync-api#basic-example",
         "page:/resources/networking/appsync-api#authentication",
         "page:/resources/networking/appsync-api#operational-defaults",
-        "page:/resources/networking/appsync-api#custom-domains"
+        "page:/resources/networking/appsync-api#custom-domains",
+        "page:/resources/networking/appsync-api#api-reference",
+        "page:/resources/networking/appsync-api#definition-appsyncapiprops"
       ]
     },
     {
@@ -22539,27 +22905,27 @@
       ],
       "chunks": [
         "page:/stacktape-console/account-settings#account-settings",
-        "page:/stacktape-console/account-settings#overview",
-        "page:/stacktape-console/account-settings#full-name",
+        "page:/stacktape-console/account-settings#if-you-used-the-console-before-v4",
+        "page:/stacktape-console/account-settings#profile",
+        "page:/stacktape-console/account-settings#ways-to-sign-in",
         "page:/stacktape-console/account-settings#password",
-        "page:/stacktape-console/account-settings#changing-your-password",
-        "page:/stacktape-console/account-settings#password-requirements",
-        "page:/stacktape-console/account-settings#multi-factor-authentication",
-        "page:/stacktape-console/account-settings#enable-mfa",
-        "page:/stacktape-console/account-settings#disable-mfa",
-        "page:/stacktape-console/account-settings#account-deletion",
+        "page:/stacktape-console/account-settings#change-your-password",
+        "page:/stacktape-console/account-settings#add-a-password-or-reset-a-forgotten-one",
+        "page:/stacktape-console/account-settings#authenticator-app-and-backup-codes",
+        "page:/stacktape-console/account-settings#turn-it-on",
+        "page:/stacktape-console/account-settings#turn-it-off",
+        "page:/stacktape-console/account-settings#passkeys",
+        "page:/stacktape-console/account-settings#google-and-github",
+        "page:/stacktape-console/account-settings#sessions",
+        "page:/stacktape-console/account-settings#delete-your-account",
+        "page:/stacktape-console/account-settings#what-organizations-see",
         "page:/stacktape-console/account-settings#troubleshooting",
-        "page:/stacktape-console/account-settings#password-change-fails",
-        "page:/stacktape-console/account-settings#mfa-setup-qr-code-does-not-appear",
-        "page:/stacktape-console/account-settings#mfa-code-is-rejected",
-        "page:/stacktape-console/account-settings#google-login-shows-limited-options",
-        "page:/stacktape-console/account-settings#related-features",
-        "page:/stacktape-console/account-settings#faq",
-        "page:/stacktape-console/account-settings#how-do-i-change-my-email-address",
-        "page:/stacktape-console/account-settings#which-authenticator-apps-work-with-stacktape-mfa",
-        "page:/stacktape-console/account-settings#what-happens-if-i-lose-access-to-my-authenticator-app",
-        "page:/stacktape-console/account-settings#why-does-my-password-or-mfa-section-show-go-to-your-google-account-settings",
-        "page:/stacktape-console/account-settings#is-mfa-configured-per-user-or-per-organization"
+        "page:/stacktape-console/account-settings#the-authenticator-code-is-rejected",
+        "page:/stacktape-console/account-settings#i-lost-the-phone-with-my-authenticator-app",
+        "page:/stacktape-console/account-settings#google-was-not-connected-or-github-was-not-connected",
+        "page:/stacktape-console/account-settings#this-organization-requires-two-factor-sign-in",
+        "page:/stacktape-console/account-settings#this-organization-requires-single-sign-on",
+        "page:/stacktape-console/account-settings#related-features"
       ]
     },
     {
@@ -22592,6 +22958,37 @@
         "page:/stacktape-console/api-keys#when-should-i-use-api-keys-vs-interactive-login",
         "page:/stacktape-console/api-keys#are-api-keys-scoped-to-a-specific-organization",
         "page:/stacktape-console/api-keys#related-features"
+      ]
+    },
+    {
+      "id": "page:/stacktape-console/audit-log",
+      "title": "Audit Log",
+      "route": "/stacktape-console/audit-log",
+      "sourcePath": "apps/docs/content/stacktape-console/audit-log.mdx",
+      "outputPath": "pages/stacktape-console/audit-log.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "stacktape-console",
+        "audit-log"
+      ],
+      "chunks": [
+        "page:/stacktape-console/audit-log#audit-log",
+        "page:/stacktape-console/audit-log#who-can-see-it",
+        "page:/stacktape-console/audit-log#what-stacktape-records",
+        "page:/stacktape-console/audit-log#reading-the-table",
+        "page:/stacktape-console/audit-log#filters",
+        "page:/stacktape-console/audit-log#aws-events-are-read-live",
+        "page:/stacktape-console/audit-log#who-did-it-in-aws",
+        "page:/stacktape-console/audit-log#older-aws-account-connections",
+        "page:/stacktape-console/audit-log#how-long-events-are-kept",
+        "page:/stacktape-console/audit-log#export",
+        "page:/stacktape-console/audit-log#troubleshooting",
+        "page:/stacktape-console/audit-log#there-are-no-aws-events",
+        "page:/stacktape-console/audit-log#an-account-shows-access-denied",
+        "page:/stacktape-console/audit-log#an-account-shows-throttled-by-aws",
+        "page:/stacktape-console/audit-log#an-aws-event-shows-a-role-instead-of-a-person",
+        "page:/stacktape-console/audit-log#related-features"
       ]
     },
     {
@@ -22668,7 +23065,7 @@
         "page:/stacktape-console/billing-and-subscription#how-does-stacktape-pricing-work",
         "page:/stacktape-console/billing-and-subscription#what-counts-as-managed-aws-costs",
         "page:/stacktape-console/billing-and-subscription#who-can-manage-billing-in-my-organization",
-        "page:/stacktape-console/billing-and-subscription#what-happens-if-i-exceed-the-free-plan-s-100-month-limit",
+        "page:/stacktape-console/billing-and-subscription#what-happens-if-i-exceed-the-free-plan-s-200-month-limit",
         "page:/stacktape-console/billing-and-subscription#can-i-downgrade-from-flexible-to-free",
         "page:/stacktape-console/billing-and-subscription#how-do-i-get-enterprise-pricing",
         "page:/stacktape-console/billing-and-subscription#where-can-i-find-my-invoices"
@@ -22796,6 +23193,78 @@
         "page:/stacktape-console/organizations-projects-and-stages#what-is-the-difference-between-a-stacktape-organization-and-an-aws-account",
         "page:/stacktape-console/organizations-projects-and-stages#when-should-i-create-multiple-organizations",
         "page:/stacktape-console/organizations-projects-and-stages#related-features"
+      ]
+    },
+    {
+      "id": "page:/stacktape-console/security-scanning",
+      "title": "Security Scanning",
+      "route": "/stacktape-console/security-scanning",
+      "sourcePath": "apps/docs/content/stacktape-console/security-scanning.mdx",
+      "outputPath": "pages/stacktape-console/security-scanning.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "stacktape-console",
+        "security-scanning"
+      ],
+      "chunks": [
+        "page:/stacktape-console/security-scanning#security-scanning",
+        "page:/stacktape-console/security-scanning#what-is-checked",
+        "page:/stacktape-console/security-scanning#configuration-checks",
+        "page:/stacktape-console/security-scanning#dependency-checks",
+        "page:/stacktape-console/security-scanning#the-security-pages",
+        "page:/stacktape-console/security-scanning#when-results-appear",
+        "page:/stacktape-console/security-scanning#how-a-finding-changes-over-time",
+        "page:/stacktape-console/security-scanning#production-and-non-production-stages",
+        "page:/stacktape-console/security-scanning#choosing-what-is-scanned",
+        "page:/stacktape-console/security-scanning#for-an-aws-account",
+        "page:/stacktape-console/security-scanning#for-a-stack-or-some-stages",
+        "page:/stacktape-console/security-scanning#which-setting-wins",
+        "page:/stacktape-console/security-scanning#ignoring-and-reopening-a-finding",
+        "page:/stacktape-console/security-scanning#fixing-a-finding",
+        "page:/stacktape-console/security-scanning#blocking-deploys-with-a-guardrail",
+        "page:/stacktape-console/security-scanning#notifications",
+        "page:/stacktape-console/security-scanning#permissions",
+        "page:/stacktape-console/security-scanning#what-leaves-your-aws-account",
+        "page:/stacktape-console/security-scanning#related-pages"
+      ]
+    },
+    {
+      "id": "page:/stacktape-console/single-sign-on",
+      "title": "Single Sign-On",
+      "route": "/stacktape-console/single-sign-on",
+      "sourcePath": "apps/docs/content/stacktape-console/single-sign-on.mdx",
+      "outputPath": "pages/stacktape-console/single-sign-on.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "stacktape-console",
+        "single-sign-on"
+      ],
+      "chunks": [
+        "page:/stacktape-console/single-sign-on#single-sign-on",
+        "page:/stacktape-console/single-sign-on#before-you-start",
+        "page:/stacktape-console/single-sign-on#what-your-members-will-see",
+        "page:/stacktape-console/single-sign-on#1-verify-your-email-domains",
+        "page:/stacktape-console/single-sign-on#2-connect-your-identity-provider",
+        "page:/stacktape-console/single-sign-on#saml-2-0",
+        "page:/stacktape-console/single-sign-on#oidc",
+        "page:/stacktape-console/single-sign-on#change-or-delete-the-connection",
+        "page:/stacktape-console/single-sign-on#3-test-the-sign-in",
+        "page:/stacktape-console/single-sign-on#4-access",
+        "page:/stacktape-console/single-sign-on#role-of-new-people",
+        "page:/stacktape-console/single-sign-on#require-single-sign-on",
+        "page:/stacktape-console/single-sign-on#5-scim-provisioning",
+        "page:/stacktape-console/single-sign-on#if-the-organization-moves-to-the-free-plan",
+        "page:/stacktape-console/single-sign-on#audit-log",
+        "page:/stacktape-console/single-sign-on#troubleshooting",
+        "page:/stacktape-console/single-sign-on#verify-says-no-txt-record-holds-the-value",
+        "page:/stacktape-console/single-sign-on#is-verified-by-another-stacktape-organization",
+        "page:/stacktape-console/single-sign-on#the-test-sign-in-fails-with-is-not-a-verified-domain",
+        "page:/stacktape-console/single-sign-on#the-test-sign-in-fails-at-the-provider",
+        "page:/stacktape-console/single-sign-on#a-member-sees-requires-single-sign-on",
+        "page:/stacktape-console/single-sign-on#a-removed-member-is-back",
+        "page:/stacktape-console/single-sign-on#related-features"
       ]
     },
     {

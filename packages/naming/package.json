@@ -3,6 +3,7 @@
   "version": "4.0.0-dev.0",
   "private": true,
   "description": "Compatibility-sensitive Stacktape names, ARNs, AWS Console links, and parameter paths shared by the CLI and Console.",
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./alarm-names": "./src/alarm-names.ts",

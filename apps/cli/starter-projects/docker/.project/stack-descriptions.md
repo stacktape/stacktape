@@ -55,7 +55,7 @@ out. Uncomment it to provision a managed PostgreSQL instance and connect it to t
 #     engine:
 #       type: postgres
 #       properties:
-#         version: '16.6'
+#         version: '16'
 #         primaryInstance:
 #           instanceSize: db.t3.micro
 ```

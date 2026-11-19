@@ -33,6 +33,8 @@ import { validateApplicationLoadBalancerConfig } from './application-load-balanc
 import { validateAgentCoreRuntimeConfig } from './agentcore';
 import { validateAppSyncApiConfig, validateAppSyncIntegrations } from './appsync-apis';
 import { validateHostingBucketConfig } from './buckets';
+import { findInvalidCdnSelector } from './cdn';
+import { AURORA_SERVERLESS_V1_ENGINES, AURORA_SERVERLESS_V1_GUIDE_URL } from './v3-config-names';
 import { validateConvexConfig } from './convex';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
 import { validateWebsocketApiGatewayConfig } from './websocket-api-gateways';
@@ -274,6 +276,10 @@ export const validateConfigStructure = async ({
   configPath: string;
 }) => {
   validateNoLegacyRedisClusters({ config });
+  validateNoPipeStdio({ config });
+  validateCdnSelectors({ config });
+  validateNoAuroraServerlessV1({ config });
+  validateAgentCoreGatewayAuthorizers({ config });
   // The generated validator is large to evaluate, so it is loaded here, when a configuration is validated, rather than
   // at startup by every command. Use Zod validator for better error messages (especially for discriminated unions)
   const { validateConfigWithZod } = await import('./zod-validator');
@@ -284,6 +290,85 @@ export const validateConfigStructure = async ({
       code: 'CONFIG_SCHEMA_INVALID',
       message: zodResult.errorMessage
     });
+  }
+};
+
+/**
+ * A gateway exposes every tool it lists, so its authentication is an explicit choice: `jwt`, or `none` for a gateway
+ * that is meant to be open. The schema error for a missing property does not say that.
+ */
+const validateAgentCoreGatewayAuthorizers = ({ config }: { config: StacktapeConfig }) => {
+  for (const [name, resource] of Object.entries(config?.resources || {})) {
+    if (resource?.type !== 'agentcore-gateway') continue;
+    const authorizer = (resource as { properties?: { authorizer?: unknown } }).properties?.authorizer;
+    if (authorizer === undefined) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_AGENTCORE_GATEWAY_AUTHORIZER_MISSING',
+        message:
+          `AgentCore gateway \`${name}\` has no \`authorizer\`. The gateway exposes all of its tools, so choose who ` +
+          'can call them.',
+        hints: [
+          'To require a JSON Web Token: `authorizer: { type: jwt, properties: { discoveryUrl: <your OIDC discovery URL> } }`.',
+          'To let anyone who can reach the gateway call its tools: `authorizer: { type: none }`.'
+        ]
+      });
+    }
+    if (authorizer && typeof authorizer === 'object' && 'discoveryUrl' in authorizer) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_SCHEMA_INVALID',
+        message: `AgentCore gateway \`${name}\` sets the JWT settings directly under \`authorizer\`.`,
+        hints: [
+          'Move them under `properties` and add `type: jwt`: `authorizer: { type: jwt, properties: { discoveryUrl, ... } }`.'
+        ]
+      });
+    }
+  }
+};
+
+/**
+ * AWS retired Aurora Serverless v1 on 31 March 2025, so v4 does not synthesize it. v2 has different capacity units and
+ * creates a new cluster, so the error points to the migration guide instead of reading the config as v2.
+ */
+const validateNoAuroraServerlessV1 = ({ config }: { config: StacktapeConfig }) => {
+  for (const [name, resource] of Object.entries(config?.resources || {})) {
+    const engineType = (resource as { type?: string; properties?: { engine?: { type?: unknown } } } | undefined)
+      ?.properties?.engine?.type;
+    if (resource?.type !== 'relational-database' || typeof engineType !== 'string') continue;
+    const replacement = AURORA_SERVERLESS_V1_ENGINES[engineType];
+    if (!replacement) continue;
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_AURORA_SERVERLESS_V1_RETIRED',
+      message:
+        `Database \`${name}\` uses \`${engineType}\` (Aurora Serverless v1). AWS retired Aurora Serverless v1 on ` +
+        '31 March 2025, and Stacktape v4 no longer deploys it.',
+      hints: [
+        `For a new database, use \`${replacement}\` and set \`minCapacity\` and \`maxCapacity\` (0.5–128 ACUs). v2 does not pause when idle.`,
+        'For a deployed database, do not only change the type: the new engine creates a new cluster without your data. ' +
+          `Follow ${AURORA_SERVERLESS_V1_GUIDE_URL} to migrate it.`
+      ]
+    });
+  }
+};
+
+/**
+ * CDN cookie, header and query-string selectors set exactly one option, and boolean options must be `true`. v3 accepted
+ * `{ all: false }` and used the `all` behaviour anyway, so an explicit error tells the user to write what they mean.
+ */
+const validateCdnSelectors = ({ config }: { config: StacktapeConfig }) => {
+  for (const [name, resource] of Object.entries(config?.resources || {})) {
+    const error = findInvalidCdnSelector((resource as { properties?: unknown } | undefined)?.properties, [
+      'properties'
+    ]);
+    if (error) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_SCHEMA_INVALID',
+        message: `Resource \`${name}\`: ${error}`
+      });
+    }
   }
 };
 
@@ -331,6 +416,33 @@ const validateNoLegacyRedisClusters = ({ config }: { config: StacktapeConfig }) 
   });
 };
 
+/**
+ * Stacktape v4 removed the deprecated `pipeStdio` script property; `stdioMode` is the only control. The schema error
+ * alone would only call it an unknown property, so the script gets the exact replacement.
+ */
+const validateNoPipeStdio = ({ config }: { config: StacktapeConfig }) => {
+  for (const [name, script] of Object.entries(config?.scripts || {})) {
+    const properties = (script as unknown as { properties?: Record<string, unknown> } | undefined)?.properties;
+    if (!properties || !('pipeStdio' in properties)) continue;
+    const { pipeStdio } = properties;
+    const replacement =
+      properties.stdioMode !== undefined
+        ? `Delete \`pipeStdio\`; the script already sets \`stdioMode: ${String(properties.stdioMode)}\`.`
+        : pipeStdio === false
+          ? 'Replace it with `stdioMode: ignore`.'
+          : 'Replace it with `stdioMode: capture`, or delete it: `capture` is the default.';
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SCRIPT_PIPE_STDIO_REMOVED',
+      message: `Script \`${name}\` uses \`pipeStdio\`, which Stacktape v4 removed. ${replacement}`,
+      hints: [
+        '`pipeStdio: true` becomes `stdioMode: capture` and `pipeStdio: false` becomes `stdioMode: ignore`.',
+        'Use `stdioMode: inherit` for a script that needs interactive terminal input.'
+      ]
+    });
+  }
+};
+
 const validateResourceNameUniqueness = ({ configManager }: { configManager: ConfigManager }) => {
   const resourceNames = configManager.allConfigResources.map(({ name }) => name);
   const duplicates = getUniqueDuplicates(resourceNames);
@@ -340,6 +452,18 @@ const validateResourceNameUniqueness = ({ configManager }: { configManager: Conf
       code: 'CONFIG_RESOURCE_NAME_DUPLICATE',
       message: `Resource names must be unique. Duplicates: ${duplicates.map((name) => `\`${name}\``).join(', ')}.`
     });
+  }
+  // The task that runs a function's or site's release command gets a name of its own, and with it AWS resource names.
+  for (const { name: taskName, releaseTaskOf } of configManager.releaseTaskWorkloads) {
+    const taken = resourceNames.find((name) => name.toLowerCase() === taskName.toLowerCase());
+    if (taken) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_RESOURCE_NAME_RESERVED',
+        message: `Resource name \`${taken}\` is the name Stacktape gives the release command task of \`${releaseTaskOf}\`.`,
+        hints: `Rename \`${taken}\`.`
+      });
+    }
   }
 };
 
@@ -723,7 +847,6 @@ export const validateGuardrails = ({
 const getDbInstanceSizes = (engine: StpRelationalDatabase['engine']): string[] => {
   if (!engine) return [];
   const engineType = engine.type;
-  if (engineType === 'aurora-mysql-serverless' || engineType === 'aurora-postgresql-serverless') return [];
   if (engineType === 'aurora-mysql-serverless-v2' || engineType === 'aurora-postgresql-serverless-v2') return [];
   if (engineType === 'aurora-mysql' || engineType === 'aurora-postgresql') {
     return ((engine as AuroraEngine).properties?.instances || []).map((i) => i.instanceSize).filter(Boolean);

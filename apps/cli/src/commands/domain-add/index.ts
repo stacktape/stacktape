@@ -51,7 +51,7 @@ export const commandDomainAdd = async () => {
         `DNS for ${tuiManager.makeBold(apexDomain)} is managed outside AWS.`,
         'To let Stacktape manage DNS/certs, move DNS to Route 53.',
         `To learn more about options, visit: ${tuiManager.terminalLink(
-          'https://docs.stacktape.com/other-resources/domains-and-certificates/',
+          'https://docs.stacktape.com/resources/networking/custom-domains/',
           'docs'
         )}\n`
       ].join('\n')

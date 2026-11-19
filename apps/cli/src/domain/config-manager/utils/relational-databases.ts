@@ -2,7 +2,6 @@ import type {
   NormalizedSQLEngine,
   StpRelationalDatabase
 } from '@domain-services/config-manager/resolved-types/relational-databases';
-import { resolveCloudwatchLogExports } from '@domain-services/config-manager/database-engine';
 import { normalizeEngineType } from '@stacktape/config/relational-database-engines';
 import { CliError } from '@utils/errors';
 import type { MysqlLoggingOptions, PostgresLoggingOptions } from '@stacktape/config/relational-databases';
@@ -31,22 +30,6 @@ const validEngineSpecificLogOptions: {
 };
 
 const validateLogOptions = ({ resource }: { resource: StpRelationalDatabase }) => {
-  const logExports = resolveCloudwatchLogExports({ resource });
-  if (resource.engine.type === 'aurora-mysql-serverless' && !logExports.includes('error')) {
-    throw new CliError({
-      category: 'CONFIG_VALIDATION',
-      code: 'CONFIG_DATABASE_REQUIRED_LOG_DISABLED',
-      message: `Database \`${resource.name}\` cannot disable the \`error\` log when using engine \`${resource.engine.type}\`.`
-    });
-  }
-  if (resource.engine.type === 'aurora-postgresql-serverless' && !logExports.includes('postgresql')) {
-    throw new CliError({
-      category: 'CONFIG_VALIDATION',
-      code: 'CONFIG_DATABASE_REQUIRED_LOG_DISABLED',
-      message: `Database \`${resource.name}\` cannot disable the \`postgresql\` log when using engine \`${resource.engine.type}\`.`
-    });
-  }
-
   const validOptions = validEngineSpecificLogOptions[normalizeEngineType(resource.engine.type)];
   if (resource.logging?.engineSpecificOptions) {
     const invalidOption = Object.keys(resource.logging.engineSpecificOptions).find(

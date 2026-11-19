@@ -1,5 +1,4 @@
 import {
-  $CfFormat,
   HttpApiGateway,
   HttpApiIntegration,
   JsBundleLambdaPackaging,
@@ -21,7 +20,6 @@ export default defineConfig(() => {
       minimumLength: 8
     },
     enableHostedUi: true,
-    hostedUiDomainPrefix: $CfFormat('{stage()}-{projectName()}-auth'),
     allowedOAuthFlows: ['code'],
     allowedOAuthScopes: ['openid', 'email', 'profile'],
     callbackURLs: ['https://example.com/callback'],

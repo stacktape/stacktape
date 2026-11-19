@@ -127,8 +127,8 @@ const resolveAgentCoreRuntimes = () => {
         ProtocolConfiguration: runtime.protocol || 'HTTP',
         EnvironmentVariables: environmentVariables,
         LifecycleConfiguration: runtime.lifecycle && {
-          MaxLifetime: runtime.lifecycle.maxLifetime,
-          IdleRuntimeSessionTimeout: runtime.lifecycle.idleRuntimeSessionTimeout
+          MaxLifetime: runtime.lifecycle.maxLifetimeSeconds,
+          IdleRuntimeSessionTimeout: runtime.lifecycle.idleTimeoutSeconds
         },
         RequestHeaderConfiguration: runtime.requestHeaders?.length && {
           RequestHeaderAllowlist: runtime.requestHeaders
@@ -240,7 +240,7 @@ const resolveAgentCoreMemories = () => {
       resource: cfnResource('AWS::BedrockAgentCore::Memory', {
         Name: awsResourceNames.agentCoreMemory(calculatedStackOverviewManager.context.stackName, memory.name),
         Description: memory.description,
-        EventExpiryDuration: memory.eventExpiryDuration || memory.expirationDays || 30,
+        EventExpiryDuration: memory.eventRetentionDays ?? 30,
         EncryptionKeyArn: memory.encryptionKeyArn,
         MemoryStrategies: memory.memoryStrategies,
         Tags: getAgentCoreTags(memory.tags)
@@ -356,8 +356,10 @@ export const getAgentCoreGatewayResource = ({
   cfnResource('AWS::BedrockAgentCore::Gateway', {
     Name: awsResourceNames.agentCoreGateway(stackName, gateway.name),
     Description: gateway.description,
-    AuthorizerType: gateway.authorizer ? 'CUSTOM_JWT' : 'NONE',
-    AuthorizerConfiguration: getAuthorizerConfiguration(gateway.authorizer),
+    AuthorizerType: gateway.authorizer.type === 'jwt' ? 'CUSTOM_JWT' : 'NONE',
+    AuthorizerConfiguration: getAuthorizerConfiguration(
+      gateway.authorizer.type === 'jwt' ? gateway.authorizer.properties : undefined
+    ),
     ProtocolType: 'MCP',
     ProtocolConfiguration: {
       Mcp: {

@@ -161,7 +161,7 @@ const DEV_TOOL_ARGS_SCHEMA = z.looseObject({
     .boolean()
     .optional()
     .describe(
-      'query: set true for a statement that can delete or change data in bulk (DROP, TRUNCATE, ALTER, FLUSHALL, UPDATE/DELETE without WHERE) or that Stacktape cannot classify. Reads that call no application function, INSERT ... VALUES, CREATE TABLE or INDEX, and UPDATE/DELETE whose WHERE refers to a column need none. reset_db, invoke: required'
+      'query: set true for a statement that can delete or change data in bulk (DROP, TRUNCATE, ALTER, FLUSHALL, UPDATE/DELETE without WHERE) or that Stacktape cannot classify. Reads that call no application function, INSERT ... VALUES, CREATE TABLE or INDEX, and UPDATE/DELETE whose WHERE refers to a column need none. reset_db, invoke: required. start: set true only after a start failed with CONFIRMATION_REQUIRED and the user approved what it named (creating a project that does not exist yet)'
     ),
   pk: z
     .record(z.string(), z.unknown())

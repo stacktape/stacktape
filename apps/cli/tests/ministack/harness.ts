@@ -169,7 +169,7 @@ const parseTerminalResult = (stdout: string) =>
     .findLast((record) => record?.type === 'result');
 
 /** The environment of a source CLI child: the emulator, the control-plane fake and nothing of the developer's. */
-const sourceCliEnvironment = ({
+export const sourceCliEnvironment = ({
   project,
   ministack,
   invocationName,
@@ -209,7 +209,8 @@ export const runSourceCliCommand = async ({
   logName,
   deadlineMs = CLI_DEADLINE_MS,
   env = {},
-  targetArgs = true
+  targetArgs = true,
+  stdin
 }: {
   project: FamilyProject;
   ministack: MiniStack;
@@ -219,6 +220,8 @@ export const runSourceCliCommand = async ({
   env?: Record<string, string>;
   /** False for a command that takes no stage target, such as `dev:stop`. */
   targetArgs?: boolean;
+  /** Text the command reads from standard input; without it, standard input is closed. */
+  stdin?: string;
 }) => {
   const child = Bun.spawn(
     [
@@ -245,7 +248,7 @@ export const runSourceCliCommand = async ({
     {
       cwd: cliRoot,
       env: { ...sourceCliEnvironment({ project, ministack, invocationName: logName }), ...env },
-      stdin: 'ignore',
+      stdin: stdin === undefined ? 'ignore' : new Blob([stdin]),
       stdout: 'pipe',
       stderr: 'pipe'
     }

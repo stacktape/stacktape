@@ -108,8 +108,9 @@ export const deployArgs = (request: DeployRequest): string[] => [
   ...(request.profile === undefined ? [] : ['--profile', request.profile]),
   ...(request.awsAccount === undefined ? [] : ['--awsAccount', request.awsAccount]),
   ...(request.keepPartialProgress === true ? [] : ['--autoRollback']),
-  // Agent mode is the machine-readable contract: JSONL on stdout, and no interactive confirmation
-  // to answer — the user already confirmed by pressing the button.
+  // The user confirmed by pressing the button, so the deploy may create the project and replace what the
+  // update needs. `--agent` only selects the machine-readable contract (JSONL on stdout); it confirms nothing.
+  '--autoConfirmOperation',
   '--agent'
 ];
 

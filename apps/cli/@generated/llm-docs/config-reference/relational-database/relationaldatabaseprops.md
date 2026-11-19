@@ -5,7 +5,7 @@ Resource type: `relational-database`
 ## TypeScript definition
 
 ```typescript
-import type { AuroraEngine, AuroraServerlessEngine, AuroraServerlessV2Engine, DatabaseAccessibility, DevModeConfig, RdsEngine, RelationalDatabaseAlarm, RelationalDatabaseCredentials, RelationalDatabaseLogging } from 'stacktape';
+import type { AuroraEngine, AuroraServerlessV2Engine, DatabaseAccessibility, DevModeConfig, RdsEngine, RelationalDatabaseAlarm, RelationalDatabaseCredentials, RelationalDatabaseLogging } from 'stacktape';
 
 type RelationalDatabaseProps = {
   /** Master user credentials (username and password). */
@@ -33,7 +33,6 @@ type RelationalDatabaseProps = {
 /** Union choices used by the properties above. */
 type RelationalDatabaseEngine =
   | AuroraEngine
-  | AuroraServerlessEngine
   | AuroraServerlessV2Engine
   | RdsEngine;
 ```
@@ -57,11 +56,11 @@ mainDatabase:
   properties:
     credentials:
       masterUserName: db_master_user
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -75,12 +74,12 @@ export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
   credentials: {
     masterUserName: 'db_master_user',
-    masterUserPassword: $Secret('mainDatabase.password')
+    masterUserPassword: $Secret('mainDatabase', 'password')
   },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -92,7 +91,7 @@ return { resources: { mainDatabase } };
 ## Property: `engine`
 
 - Required: yes
-- Type: `AuroraEngine | AuroraServerlessEngine | AuroraServerlessV2Engine | RdsEngine`
+- Type: `AuroraEngine | AuroraServerlessV2Engine | RdsEngine`
 
 Database engine: what type of database and how it runs.
 
@@ -104,7 +103,6 @@ Up to 5x faster than standard MySQL / 3x faster than standard PostgreSQL.
 
 Choices:
 - `AuroraEngine` (`AuroraEngine`) — Aurora: high-performance clustered database with auto-failover.. Properties: `dbName?: string`, `port?: number`, `instances: Array<AuroraEngineInstance>`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
-- `AuroraServerlessEngine` (`AuroraServerlessEngine`) — Aurora Serverless v1: auto-scaling database that can pause when idle.. Properties: `version?: string`, `dbName?: string`, `minCapacity?: number`, `maxCapacity?: number`, `pauseAfterSeconds?: number`, `disableAutoMinorVersionUpgrade?: boolean`.
 - `AuroraServerlessV2Engine` (`AuroraServerlessV2Engine`) — Aurora Serverless v2: recommended for most new projects.. Properties: `dbName?: string`, `minCapacity?: number`, `maxCapacity?: number`, `serverlessReadersCount?: number`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
 - `RdsEngine` (`RdsEngine`) — Standard RDS: single-instance database with predictable pricing.. Properties: `dbName?: string`, `port?: number`, `storage?: RdsEngineStorage`, `primaryInstance: RdsEnginePrimaryInstance`, `readReplicas?: Array<RdsEngineReadReplica>`, `version: string`, `disableAutoMinorVersionUpgrade?: boolean`.
 
@@ -116,11 +114,11 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     engine:
       type: aurora-postgresql-serverless-v2
       properties:
-        version: '16.6'
+        version: '16'
         minCapacity: 0.5
         maxCapacity: 8
 ```
@@ -132,11 +130,11 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   engine: {
     type: 'aurora-postgresql-serverless-v2',
     properties: {
-      version: '16.6',
+      version: '16',
       minCapacity: 0.5,
       maxCapacity: 8
     }
@@ -165,13 +163,13 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     accessibility:
       accessibilityMode: scoping-workloads-in-vpc
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -183,12 +181,12 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -212,7 +210,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     alarms:
       - trigger:
           type: database-cpu-utilization
@@ -226,7 +224,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -238,7 +236,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   alarms: [
     {
       trigger: {
@@ -256,7 +254,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -281,12 +279,12 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     automatedBackupRetentionDays: 7
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -298,12 +296,12 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   automatedBackupRetentionDays: 7,
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -328,12 +326,12 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     deletionProtection: true
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -345,12 +343,12 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   deletionProtection: true,
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -374,13 +372,13 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     dev:
       remote: true
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.micro
 ```
@@ -392,12 +390,12 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   dev: { remote: true },
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }
   }
@@ -421,13 +419,13 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     disabledGlobalAlarms:
       - db-cpu-high
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -439,12 +437,12 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   disabledGlobalAlarms: ['db-cpu-high'],
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -471,7 +469,7 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     logging:
       retentionDays: 30
       logTypes:
@@ -479,7 +477,7 @@ mainDatabase:
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -491,7 +489,7 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   logging: {
     retentionDays: 30,
     logTypes: ['postgresql']
@@ -499,7 +497,7 @@ const mainDatabase = new RelationalDatabase({
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }
@@ -526,12 +524,12 @@ mainDatabase:
   type: relational-database
   properties:
     credentials:
-      masterUserPassword: $Secret('mainDatabase.password')
+      masterUserPassword: $Secret('mainDatabase', 'password')
     preferredMaintenanceWindow: Sun:02:00-Sun:04:00
     engine:
       type: postgres
       properties:
-        version: '16.6'
+        version: '16'
         primaryInstance:
           instanceSize: db.t4g.medium
 ```
@@ -543,12 +541,12 @@ import { RelationalDatabase, defineConfig, $Secret } from 'stacktape';
 
 export default defineConfig(() => {
 const mainDatabase = new RelationalDatabase({
-  credentials: { masterUserPassword: $Secret('mainDatabase.password') },
+  credentials: { masterUserPassword: $Secret('mainDatabase', 'password') },
   preferredMaintenanceWindow: 'Sun:02:00-Sun:04:00',
   engine: {
     type: 'postgres',
     properties: {
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.medium' }
     }
   }

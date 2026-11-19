@@ -39,6 +39,10 @@ pnpm --filter @stacktape/cli run refresh:catalog:rds
 ```
 
 Run them only when deliberately updating their upstream catalog, then review and test the resulting committed diff.
+Refresh them before each release candidate ([release procedure](releasing.md#qualify-a-release-candidate)). The RDS list
+ages fastest: AWS retires minor engine versions within months, and a CLI with an old list then offers versions that can
+no longer be created and refuses the current ones. Examples, starters and init name the release line (`17`, `8.4`) for
+that reason, so they keep working between refreshes.
 
 There is deliberately no second central generator registry. Package scripts plus the Turbo graph are the executable
 source of truth; a separate manifest would duplicate paths and task names and could drift.

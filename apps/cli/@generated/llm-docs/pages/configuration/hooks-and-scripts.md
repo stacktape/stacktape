@@ -60,7 +60,7 @@ export default defineConfig(() => {
 ```
 
 
-The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. Local scripts include a `pipeStdio` property that controls whether script output is piped to your terminal.
+The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. A local script's `stdioMode` controls its terminal: `capture` (the default) shows its output in Stacktape's progress output, `inherit` hands it the terminal, including input, for interactive programs, and `ignore` discards its output. In captured output and in a failed script's error, Stacktape replaces the secret values it injected into the script, from `$Secret`, `$SsmParam` or the secret parameters of `connectTo` resources, with `[redacted]`.
 
 ### Local script with bastion tunneling
 
@@ -73,7 +73,7 @@ Example (TypeScript):
 import { defineConfig, Redis, Bastion } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});
@@ -108,7 +108,7 @@ Example (TypeScript):
 import { defineConfig, Redis, Bastion } from 'stacktape';
 export default defineConfig(() => {
   const cache = new Redis({
-    defaultUserPassword: "$Secret('redis.password')",
+    defaultUserPassword: "$Secret('redis', 'password')",
     engine: { type: 'valkey-serverless' }
   });
   const bastion = new Bastion({});
@@ -198,7 +198,7 @@ export default defineConfig(() => {
 
 The `buildFrontend` script runs before every deployment, compiling the frontend into `./frontend/dist` where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `openDocs` script opens the deployed URL after deploy but skips in CI environments (using `skipOnCI`). Note: the `open` command is macOS-specific — replace with `xdg-open` on Linux or `start` on Windows.
 
-To run database migrations on a container service, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. A failed `afterDeploy` hook does not fail the deploy.
+To run database migrations, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. An `afterDeploy` hook runs after the new code is live, so its failure fails the command but does not undo the deployment.
 
 ### Lifecycle events
 
@@ -219,8 +219,25 @@ Hooks correspond to the before and after phases of the deploy, delete, dev, and 
 > **Info:** Delete hook behavior depends on how the delete command is invoked. See the <a href="/cli/delete">delete CLI reference</a> for details.
 
 
-> **Warning:** Post-deploy hooks (like database migrations) run after infrastructure changes are complete. If a script fails, re-run it manually with <code>stacktape script run</code>. Check the CLI output for error details.
+### When a hook fails
 
+A failed hook stops the command with an error, and the hooks listed after it don't run. A `beforeDeploy` failure therefore stops the deploy before anything changes.
+
+An `afterDeploy` hook runs after the deployment finished. When it fails, the stack stays deployed on the new version and nothing is rolled back, but `stacktape deploy` exits with an error, so a CI job fails. Fix the problem and run the script again with [`stacktape script run`](/cli/script-run).
+
+In the Console, Slack and email, the deploy is still reported as succeeded, because the new version is live. Everyone who is notified about failed deploys also gets a "Deployed, but a hook failed" message that names the hook.
+
+Set `onFailure: continue` on a hook whose failure should not fail the command, such as a notification. The failure is then printed as a warning:
+
+```yaml
+hooks:
+  afterDeploy:
+    - scriptName: migrate
+    - scriptName: notifyTeam
+      onFailure: continue
+```
+
+A hook cannot roll a deployment back. To keep the old version when a check fails, run the check where it can stop the rollout: a [release command](/deployment-and-lifecycle/release-commands) runs before any workload gets the new code, and a [deployment script](/resources/advanced/deployment-scripts) with `deploymentConfig.autoRollback: true` rolls back the infrastructure changes of its deploy.
 
 ### Conditional execution
 
@@ -249,7 +266,9 @@ Scripts commonly receive environment variables from `connectTo` and `environment
 
 ### How do I run a database migration on deploy?
 
-On a container service, set [`releaseCommand`](/deployment-and-lifecycle/release-commands). In a stack with only functions, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
+Set [`releaseCommand`](/deployment-and-lifecycle/release-commands) on a container service, a function or a server-rendered site. It runs inside the VPC before any workload gets the new code. On a function or site it builds an image of the project, which needs Docker on the machine that deploys.
+
+Without Docker, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
 
 ### Can I run multiple scripts in a single hook?
 
@@ -257,7 +276,7 @@ Yes. Each hook (`beforeDeploy`, `afterDeploy`, etc.) accepts an array of script 
 
 ### What happens if my afterDeploy hook fails?
 
-Your infrastructure is deployed and running, but the post-deploy task needs attention. Re-run the script with [`stacktape script run`](/cli/script-run) to address the issue. Check the CLI output for error details and confirm the fix before the next deployment.
+The stack stays deployed on the new version, and `stacktape deploy` exits with an error, so a CI job fails. Hooks listed after the failed one don't run. Fix the problem and run the script again with [`stacktape script run`](/cli/script-run). To let a hook fail without failing the deploy, set `onFailure: continue` on it. See [When a hook fails](#when-a-hook-fails).
 
 ### When should I use hooks vs deployment scripts?
 

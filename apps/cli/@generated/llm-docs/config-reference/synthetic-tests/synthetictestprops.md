@@ -92,7 +92,7 @@ export default defineConfig(() => {
 Environment variables available to the test script.
 
 Available via `process.env` in the script. Values are limited to 4 KB in total and are not
-encrypted — put secrets in [Stacktape secrets](https://docs.stacktape.com/resources/secrets/)
+encrypted — put secrets in [Stacktape secrets](https://docs.stacktape.com/configuration/secrets/)
 and reference them with `$Secret()` instead of pasting them here.
 
 ### Example 1 (yaml)
@@ -110,7 +110,7 @@ resources:
         - name: BASE_URL
           value: https://app.example.com
         - name: TEST_USER_PASSWORD
-          value: $Secret('synthetic-test-user.password')
+          value: $Secret('synthetic-test-user', 'password')
 ```
 
 ### Example 2 (typescript)
@@ -123,7 +123,7 @@ export default defineConfig(() => {
     test: { type: 'browser', properties: { scriptPath: './e2e/checkout.canary.ts' } },
     environment: [
       { name: 'BASE_URL', value: 'https://app.example.com' },
-      { name: 'TEST_USER_PASSWORD', value: "$Secret('synthetic-test-user.password')" }
+      { name: 'TEST_USER_PASSWORD', value: "$Secret('synthetic-test-user', 'password')" }
     ]
   });
   return { resources: { checkoutFlow } };

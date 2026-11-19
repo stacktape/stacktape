@@ -23,6 +23,11 @@ export const COMMENT_FOR_STACKTAPE_ZONE = 'STACKTAPE';
 
 export const CF_ESCAPED_DYNAMIC_REFERENCE_START = '#stp-sec#';
 export const CF_ESCAPED_DYNAMIC_REFERENCE_END = '#!stp-sec#';
+/**
+ * Deployment-bucket prefix where a stack's service Lambda records the alarm notifications it sent, so a retried
+ * invocation does not send them again. Deploys delete markers older than a day.
+ */
+export const ALARM_DELIVERY_MARKER_PREFIX = 'alarm-notification-deliveries/';
 
 export const MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID = 'MONGODB_DEFAULT';
 export const UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID = 'UPSTASH_DEFAULT';

@@ -34,11 +34,11 @@ resources:
     type: relational-database
     properties:
       credentials:
-        masterUserPassword: $Secret('database.password')
+        masterUserPassword: $Secret('database', 'password')
       engine:
         type: postgres
         properties:
-          version: '16.6'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
       accessibility:
@@ -64,10 +64,10 @@ import { NuxtWeb, RelationalDatabase, $Secret, $ResourceParam, defineConfig } fr
 
 export default defineConfig(() => {
   const database = new RelationalDatabase({
-    credentials: { masterUserPassword: $Secret('database.password') },
+    credentials: { masterUserPassword: $Secret('database', 'password') },
     engine: {
       type: 'postgres',
-      properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } }
+      properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }
     },
     accessibility: { accessibilityMode: 'scoping-workloads-in-vpc' }
   });

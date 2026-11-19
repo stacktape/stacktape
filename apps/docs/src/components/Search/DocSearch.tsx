@@ -1,6 +1,7 @@
 import type { DocSearchProps } from '@docsearch/react';
 import * as docSearchNs from '@docsearch/react';
 import config from '@/site-config';
+import { isV3Path } from '@/utils/v3-archive-routes';
 
 // The package points ESM builds at its named export but SSR at a UMD/CJS entry. Read the default
 // export reflectively so Vite does not warn about a statically impossible ESM `.default` access.
@@ -30,6 +31,8 @@ export function DocSearch(props: DocSearchOwnProps) {
       indexName={config.algolia.indexName}
       apiKey={config.algolia.apiKey}
       insights={false}
+      // The v3 archive is noindex; drop any of its pages the crawler indexed anyway.
+      transformItems={(items) => items.filter((item) => !isV3Path(new URL(item.url, config.metadata.url).pathname))}
     />
   );
 }

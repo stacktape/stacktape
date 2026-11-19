@@ -1,3 +1,4 @@
+import { UserCancelledError } from '@application-services/tui-manager';
 import { stageConsoleUrl } from 'src/config/params';
 import { prepareStageNetwork } from '@domain-services/shared-network';
 import { resolveAllResources } from '@domain-services/calculated-stack-overview-manager/synthesize';
@@ -49,7 +50,8 @@ export const deployWithEc2Runner = async () => {
   const cfTemplateDiff = templateManager.getOldTemplateDiff();
   const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });
   if (abort) {
-    return;
+    // A declined update is a cancellation: exit code 130, as for a local deploy.
+    throw new UserCancelledError();
   }
 
   const gitInfo = await gitInfoManager.getGitInfo(stackContext.workingDir);
@@ -124,13 +126,10 @@ export const deployWithEc2Runner = async () => {
     budgetInfo: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: stackContext.stackName })
   });
 
+  // The stack-info file and the command result (`--agent` output, MCP) hold secret values only with --show-secrets.
   const detailedStackInfo = getDetailedStackInfoMap({
     deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
-    showSensitiveValues: args.showSensitiveValues
-  });
-  const detailedStackInfoSensitive = getDetailedStackInfoMap({
-    deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
-    showSensitiveValues: true
+    showSensitiveValues: Boolean(args.showSensitiveValues)
   });
   if (configManager.stackInfoDirPath) {
     await saveDetailedStackInfoMap({
@@ -155,7 +154,7 @@ export const deployWithEc2Runner = async () => {
 
   return {
     invocationId,
-    stackInfo: detailedStackInfoSensitive
+    stackInfo: detailedStackInfo
   };
 };
 

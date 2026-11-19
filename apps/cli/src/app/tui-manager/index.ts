@@ -628,7 +628,7 @@ class TuiManager {
     tuiState.setPendingCompletion(params);
   }
 
-  commitPendingCompletion(options?: { hookFailureCount?: number }) {
+  commitPendingCompletion(options?: { failedHookName?: string }) {
     tuiState.commitPendingCompletion(options);
   }
 

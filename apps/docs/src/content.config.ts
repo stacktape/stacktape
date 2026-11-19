@@ -19,4 +19,19 @@ const docs = defineCollection({
     .passthrough()
 });
 
-export const collections = { docs };
+/**
+ * The frozen Stacktape v3.7.1 documentation, served under `/v3/`. It lives outside `content/` so
+ * the CLI's LLM corpus, the sitemap and search never include it. See `archive/v3/README.md`.
+ */
+const v3 = defineCollection({
+  loader: glob({ pattern: '**/*.mdx', base: './archive/v3/content' }),
+  schema: z
+    .object({
+      title: z.string().optional(),
+      order: z.number().optional(),
+      nestedTo: z.string().optional()
+    })
+    .passthrough()
+});
+
+export const collections = { docs, v3 };

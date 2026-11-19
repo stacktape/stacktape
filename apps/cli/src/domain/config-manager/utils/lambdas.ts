@@ -7,6 +7,7 @@ import type { StackContext } from '@domain-services/stack-context';
 import { shouldDeployResourceInDevMode } from '@domain-services/config-manager/dev-mode';
 import { IS_DEV } from '../../../config/random';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
+import { ALARM_DELIVERY_MARKER_PREFIX } from '../../../config/constants';
 import { sesManager } from '@domain-services/ses-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { arns } from '@stacktape/naming/arns';
@@ -72,12 +73,15 @@ export const getStacktapeServiceLambdaEnvironment = ({
   projectName,
   stackName,
   globallyUniqueStackHash,
-  stage
+  stage,
+  consoleConnected
 }: {
   stackName: string;
   projectName: string;
   globallyUniqueStackHash: string;
   stage: string;
+  /** Without the Console the service Lambda gets no Stacktape API endpoint, so it never calls the API. */
+  consoleConnected: boolean;
 }) => {
   return [
     {
@@ -104,10 +108,7 @@ export const getStacktapeServiceLambdaEnvironment = ({
       name: 'GLOBALLY_UNIQUE_STACK_HASH',
       value: globallyUniqueStackHash
     },
-    {
-      name: 'STACKTAPE_TRPC_API_ENDPOINT',
-      value: STACKTAPE_TRPC_API_ENDPOINT
-    },
+    ...(consoleConnected ? [{ name: 'STACKTAPE_TRPC_API_ENDPOINT', value: STACKTAPE_TRPC_API_ENDPOINT }] : []),
     {
       name: 'NODE_OPTIONS',
       value: '--enable-source-maps'
@@ -135,7 +136,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
   activeConfig: ConfigManager;
   stackContext: StackContext;
 }): StpIamRoleStatement[] => {
-  const { allAuroraDatabases, allDatabasesWithInstancies, allResourcesRequiringVpc, deploymentScripts } = activeConfig;
+  const { allAuroraDatabases, databases, allResourcesRequiringVpc, deploymentScripts } = activeConfig;
   const { accountId, globallyUniqueStackHash, region, stackName } = stackContext;
   const hasDeployedVpcResources = allResourcesRequiringVpc.some(
     (resource) =>
@@ -304,10 +305,10 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
           }
         ]
       : []),
-    ...(allDatabasesWithInstancies.length
+    ...(databases.length
       ? [
           {
-            Resource: allDatabasesWithInstancies.map(
+            Resource: databases.map(
               ({ name, engine }) =>
                 sub(
                   `arn:\${AWS::Partition}:rds:\${AWS::Region}:\${AWS::AccountId}:db:${
@@ -500,17 +501,27 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
 };
 
 export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
-  activeConfig
+  activeConfig,
+  deploymentBucketName
 }: {
   activeConfig: ConfigManager;
+  deploymentBucketName: string;
 }): StpIamRoleStatement[] => {
   const {
     allSecretNamesUsedInAlarmNotifications,
     allParameterNamesUsedInAlarmNotifications,
-    categorizedEmailsUsedInAlertNotifications: { senders }
+    categorizedEmailsUsedInAlertNotifications: { senders },
+    hasInlineAlarmNotificationChannels
   } = activeConfig;
   const allEmailSenders = Array.from(senders);
   return [
+    // Records which notifications of an alarm event were sent, so a retried invocation sends each one once.
+    hasInlineAlarmNotificationChannels && {
+      Resource: [
+        sub(`arn:\${AWS::Partition}:s3:::${deploymentBucketName}/${ALARM_DELIVERY_MARKER_PREFIX}*`) as unknown as string
+      ],
+      Action: ['s3:GetObject', 's3:PutObject']
+    },
     allParameterNamesUsedInAlarmNotifications.length && {
       Resource: allParameterNamesUsedInAlarmNotifications
         .map((paramName) => (paramName.startsWith('/') ? paramName : `/${paramName}`))
@@ -554,7 +565,9 @@ export const getStacktapeServiceLambdaReleaseCommandStatements = ({
   stackContext: StackContext;
 }): StpIamRoleStatement[] => {
   if (stackContext.command === 'dev') return [];
-  const workloads = activeConfig.allContainerWorkloads.filter(({ releaseCommand }) => releaseCommand !== undefined);
+  const workloads = [...activeConfig.allContainerWorkloads, ...activeConfig.releaseTaskWorkloads].filter(
+    ({ releaseCommand }) => releaseCommand !== undefined
+  );
   if (!workloads.length) return [];
   const { accountId, stackName, region } = stackContext;
   const ecsArn = (resource: string) =>

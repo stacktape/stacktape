@@ -5,7 +5,7 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, BuildpackLambdaPackaging, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, JsBundleLambdaPackaging, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';
+import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, BuildpackLambdaPackaging, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, JsBundleLambdaPackaging, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, ReleaseCommand, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';
 
 type LambdaFunctionProps = {
   /** How your code is built and packaged for deployment. */
@@ -40,6 +40,8 @@ type LambdaFunctionProps = {
   memory?: number;
   /** Eliminates cold starts by keeping function instances warm and ready. */
   provisionedConcurrency?: number;
+  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */
+  releaseCommand?: LambdaFunctionReleaseCommand;
   /** Cap the maximum number of concurrent instances for this function. */
   reservedConcurrency?: number;
   /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */
@@ -79,6 +81,10 @@ type LambdaFunctionEvents =
   | AppSyncApiIntegration
   | WebSocketApiIntegration
   | EventBusIntegration;
+
+type LambdaFunctionReleaseCommand =
+  | ReleaseCommand
+  | "option-2";
 
 type LambdaFunctionTracing =
   | TracingOptions
@@ -359,7 +365,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t4g.micro
   uploads:
@@ -375,7 +381,7 @@ import { WebService, RelationalDatabase, Bucket, RdsEnginePostgres, $Secret, def
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: new RdsEnginePostgres({ version: '16.2', primaryInstance: { instanceSize: 'db.t4g.micro' } })
+    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } })
   });
   const uploads = new Bucket({});
   const api = new WebService({
@@ -737,7 +743,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -750,7 +756,7 @@ import { LambdaFunction, RelationalDatabase, defineConfig, $Secret } from 'stack
 export default defineConfig(() => {
   const mainDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const dbMigrator = new LambdaFunction({
     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/migrate.ts' } },
@@ -943,6 +949,59 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `releaseCommand`
+
+- Required: no
+- Type: `ReleaseCommand | option-2`
+
+Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+
+Use it for database migrations. A function's package holds only its bundled code, so Stacktape builds an image of
+the whole project and runs the command in a one-off ECS task, with this function's environment variables and its
+access to the resources in `connectTo`. The deploy waits for the task, prints its logs, and stops if the command
+fails, so the running version keeps serving.
+
+Set `runWhenChanged` to your migration folder. Without it, each code change builds the image and runs the command.
+Building the image needs Docker on the machine that deploys.
+
+The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+reverses what the command changed.
+
+Choices:
+- `ReleaseCommand` (`ReleaseCommand`) — A command that runs once on each deploy, before any workload gets the new code.. Properties: `command: string`, `runWhenChanged?: Array<string>`, `timeout?: number`, `container?: string`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '17'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+  api:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: src/api.ts
+      connectTo:
+        - mainDb
+      releaseCommand:
+        command: npx prisma migrate deploy
+        runWhenChanged:
+          - prisma/migrations
+```
+
 ## Property: `reservedConcurrency`
 
 - Required: no
@@ -981,7 +1040,7 @@ resources:
       engine:
         type: postgres
         properties:
-          version: '16.2'
+          version: '16'
           primaryInstance:
             instanceSize: db.t3.micro
 ```
@@ -994,7 +1053,7 @@ import { LambdaFunction, RelationalDatabase, defineConfig, $Secret } from 'stack
 export default defineConfig(() => {
   const legacyDb = new RelationalDatabase({
     credentials: { masterUserPassword: $Secret('db-password') },
-    engine: { type: 'postgres', properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } } }
+    engine: { type: 'postgres', properties: { version: '16', primaryInstance: { instanceSize: 'db.t3.micro' } } }
   });
   const legacyDbWriter = new LambdaFunction({
     packaging: { type: 'js-bundle', properties: { entryfilePath: 'src/write.ts' } },

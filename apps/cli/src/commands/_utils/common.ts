@@ -13,7 +13,8 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { stpErrors } from '@errors';
+import { confirmationRequiredError } from '@utils/errors';
+import { canAskForConfirmation } from './agent-mode';
 
 import { stringifyToYaml } from '@utils/yaml';
 import { getCriticalResourcesPotentiallyEndangeredByOperation } from '@utils/stack-info-map-diff';
@@ -24,16 +25,40 @@ import { merge } from 'lodash';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import { getAllFilesInDir } from '@stacktape/packaging/fs/files';
 
+export type EndangeredResources = ReturnType<typeof getCriticalResourcesPotentiallyEndangeredByOperation>;
+
+/** One entry per stateful CloudFormation resource and what the operation does to it. */
+const describeEndangeredResources = (resources: EndangeredResources) =>
+  resources.flatMap(({ stpResourceName, impactedCfResources }) =>
+    Object.entries(impactedCfResources).map(([logicalId, { impact }]) => `${stpResourceName}/${logicalId}/${impact}`)
+  );
+
+/**
+ * Asks before an operation that deletes or replaces stateful resources, or deletes the stack. `confirmed` lists what
+ * was already confirmed for this operation: a deploy asks before its hooks and packaging, from a template built without
+ * them, and asks again here only when the final template endangers something that one did not.
+ */
 export const potentiallyPromptBeforeOperation = async ({
-  cfTemplateDiff
+  cfTemplateDiff,
+  confirmed
 }: {
   cfTemplateDiff: TemplateDiff;
-}): Promise<{ abort: boolean }> => {
+  confirmed?: EndangeredResources;
+}): Promise<{ abort: boolean; possiblyImpactedResources: EndangeredResources }> => {
   const possiblyImpactedResources = getCriticalResourcesPotentiallyEndangeredByOperation({
     calculatedStackInfoMap: calculatedStackOverviewManager.stackInfoMap,
     deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
     cfTemplateDiff
   });
+  if (confirmed) {
+    const alreadyConfirmed = new Set(describeEndangeredResources(confirmed));
+    if (describeEndangeredResources(possiblyImpactedResources).every((entry) => alreadyConfirmed.has(entry))) {
+      return { abort: false, possiblyImpactedResources };
+    }
+    tuiManager.warn(
+      'The template built after the beforeDeploy hooks and packaging endangers resources that the check before them did not list.'
+    );
+  }
   if (isPromptBeforeOperationNeeded({ possiblyImpactedResources, operation: stackManager.stackActionType })) {
     const stackName = stackManager.existingStackDetails.StackName;
     const created = stackManager.existingStackDetails.CreationTime?.toLocaleString();
@@ -62,8 +87,13 @@ export const potentiallyPromptBeforeOperation = async ({
     if (possiblyImpactedResourcesPart) {
       tuiManager.warn(possiblyImpactedResourcesPart);
     }
-    if (!process.stdout.isTTY) {
-      throw stpErrors.e108({ reason: possiblyImpactedResourcesPart, command: globalStateManager.command });
+    if (!canAskForConfirmation()) {
+      throw confirmationRequiredError({
+        message: `${tuiManager.prettyCommand(globalStateManager.command)} needs confirmation, and this run cannot ask for it.${
+          possiblyImpactedResourcesPart ? `\n${possiblyImpactedResourcesPart}` : ''
+        }`,
+        hints: `Review the operation, then run it again with ${tuiManager.prettyOption('autoConfirmOperation')}. --agent and machine-readable output do not confirm an operation.`
+      });
     }
     // The active prompt is what the user's eyes are on — it must carry the
     // stakes itself, not just reference warnings that scrolled by above.
@@ -77,11 +107,11 @@ export const potentiallyPromptBeforeOperation = async ({
     });
     if (!proceed) {
       tuiManager.info('Operation canceled.');
-      return { abort: true };
+      return { abort: true, possiblyImpactedResources };
     }
   }
 
-  return { abort: false };
+  return { abort: false, possiblyImpactedResources };
 };
 
 const isPromptBeforeOperationNeeded = ({
@@ -101,8 +131,8 @@ const isPromptBeforeOperationNeeded = ({
   operation: StackActionType;
 }) => {
   const args = globalStateManager.args as StacktapeCliArgs;
-  // Skip prompts if auto-confirm is set or agent mode is enabled
-  if (!args.autoConfirmOperation && !args.agent) {
+  // Only --yes confirms. Agent mode selects output and interaction; it does not approve the operation.
+  if (!args.autoConfirmOperation) {
     if (operation === 'update' && possiblyImpactedResources.length) {
       return true;
     }

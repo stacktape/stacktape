@@ -23,9 +23,9 @@ Custom resource handlers receive Create, Update, and Delete events as part of Cl
 
 | | Custom resource | Deployment script | Raw CloudFormation | CDK construct |
 |---|---|---|---|---|
-| Runs code during deploy | Yes (Lambda) | Yes (local or bastion) | No | No (build-time only) |
+| Runs code during deploy | Yes (Lambda) | Yes (Lambda) | No | No (build-time only) |
 | Manages external services | Yes | Yes | No | No |
-| Stack-aware lifecycle | Create / Update / Delete | Before / After hooks | Declarative | Declarative |
+| Stack-aware lifecycle | Create / Update / Delete | After deploy / before delete | Declarative | Declarative |
 | CloudFormation response protocol | Required | Not needed | N/A | N/A |
 
 ## How it works
@@ -403,6 +403,8 @@ Custom resources are not listed among Stacktape [referenceable parameters](/conf
 
 ## API Reference
 
+### Custom resource definition
+
 
 ### Definition: `CustomResourceDefinitionProps`
 
@@ -417,6 +419,19 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `memory` | no | `number` | - |
 | `runtime` | no | `string: "dotnet10" \| "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java21" \| "java25" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.14" \| "python3.8" \| "python3.9" \| "ruby3.3" \| "ruby3.4" \| "ruby4.0"` | - |
 | `timeout` | no | `number` | `10` |
+
+
+### Custom resource instance
+
+
+### Definition: `CustomResourceInstanceProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/custom-resource` with definition name `CustomResourceInstanceProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `definitionName` | yes | `string` | - |
+| `resourceProperties` | yes | `unknown` | - |
 
 
 ## FAQ

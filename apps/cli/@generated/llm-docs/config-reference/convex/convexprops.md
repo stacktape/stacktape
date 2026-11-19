@@ -67,7 +67,7 @@ resources:
         engine:
           type: postgres
           properties:
-            version: '16.6'
+            version: '16'
             primaryInstance:
               instanceSize: db.t4g.small
 ```
@@ -90,7 +90,7 @@ export default defineConfig(() => {
       engine: {
         type: 'postgres',
         properties: {
-          version: '16.6',
+          version: '16',
           primaryInstance: {
             instanceSize: 'db.t4g.small'
           }
@@ -336,7 +336,7 @@ export default defineConfig(() => {
 Override the PostgreSQL database that backs the Convex deployment.
 
 Defaults to a single-AZ RDS PostgreSQL `db.t4g.micro` instance (cheapest production-viable
-option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/relational-databases/) — override only what
+option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/databases/relational-database/) — override only what
 you need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable
 multi-AZ for HA, or increase storage retention.
 
@@ -354,7 +354,7 @@ resources:
         engine:
           type: aurora-postgresql-serverless-v2
           properties:
-            version: '16.6'
+            version: '16'
             minCapacity: 0.5
             maxCapacity: 4
         automatedBackupRetentionDays: 7
@@ -372,7 +372,7 @@ export default defineConfig(() => {
       engine: {
         type: 'aurora-postgresql-serverless-v2',
         properties: {
-          version: '16.6',
+          version: '16',
           minCapacity: 0.5,
           maxCapacity: 4
         }

@@ -202,7 +202,12 @@ const orderReleaseCommandsInTemplate = () => {
       ...configManager.allContainerWorkloads.map(({ name, deployment }) =>
         cfLogicalNames.ecsService(name, !!deployment)
       ),
-      ...configManager.allLambdasEligibleForHotswap.map(({ cfLogicalName }) => cfLogicalName)
+      ...configManager.allLambdasEligibleForHotswap.map(({ cfLogicalName }) => cfLogicalName),
+      // An edge function gets its code through a custom resource, and CloudFront serves the new version from then on.
+      ...[
+        ...configManager.edgeLambdaFunctions,
+        ...configManager.allNextjsLambdaFunctions.filter(({ type }) => (type as string) === 'edge-lambda-function')
+      ].map(({ name }) => cfLogicalNames.customResourceEdgeLambda(name))
     ]
   });
   if (notHeldBack.length) {
@@ -353,7 +358,7 @@ export const assertNoUnresolvedPlaceholders = (template: CloudFormationTemplate)
  * New queues, queue policies and rules are created by the service Lambda. This depends on the deployed stack, so it is
  * part of what a deploy sends rather than of the synthesized template that `synth` and `validate` show.
  */
-const createNewResourcesThroughServiceLambda = () => {
+export const createNewResourcesThroughServiceLambda = () => {
   // Dev stacks keep CloudFormation's own resource types; `stacktape dev` manages them separately.
   if (calculatedStackOverviewManager.context.command === 'dev') return;
   createNewQueuesAndRulesThroughServiceLambda({

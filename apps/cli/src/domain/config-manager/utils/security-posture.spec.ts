@@ -62,7 +62,7 @@ describe('security posture through authored configuration', () => {
           automatedBackupRetentionDays: 0,
           engine: {
             type: 'postgres',
-            properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.medium' } }
+            properties: { version: '16', primaryInstance: { instanceSize: 'db.t4g.medium' } }
           }
         }
       },

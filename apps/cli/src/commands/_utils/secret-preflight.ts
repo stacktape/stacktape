@@ -51,34 +51,28 @@ const buildSecretValue = (jsonKeys: Set<string>): string => {
   return JSON.stringify(jsonObject);
 };
 
-/**
- * Prompts the user to enter values for secrets that can't be auto-generated
- * (e.g. API tokens, third-party credentials). Creates each secret in AWS Secrets Manager.
- */
-const promptAndCreateUserInputSecrets = async (secrets: [string, Set<string>][]) => {
+/** Asks for the values of secrets that can't be generated (API tokens, third-party credentials). Creates nothing. */
+const promptForUserInputSecrets = async (secrets: [string, Set<string>][]) => {
+  const values: { name: string; value: string }[] = [];
   for (const [secretName, jsonKeys] of secrets) {
     if (jsonKeys.size) {
       const jsonObject: Record<string, string> = {};
       for (const key of jsonKeys) {
-        const value = await tuiManager.promptText({
+        jsonObject[key] = await tuiManager.promptText({
           message: `Enter value for ${tuiManager.makeBold(secretName)}.${tuiManager.makeBold(key)}:`,
           isPassword: true
         });
-        jsonObject[key] = value;
       }
-      const spinner = tuiManager.createSpinner({ text: `Creating secret ${tuiManager.makeBold(secretName)}` });
-      await awsSdkManager.secrets.create({ name: secretName, value: JSON.stringify(jsonObject) });
-      spinner.success({ text: `Secret ${tuiManager.makeBold(secretName)} created` });
+      values.push({ name: secretName, value: JSON.stringify(jsonObject) });
     } else {
       const value = await tuiManager.promptText({
         message: `Enter value for secret ${tuiManager.makeBold(secretName)}:`,
         isPassword: true
       });
-      const spinner = tuiManager.createSpinner({ text: `Creating secret ${tuiManager.makeBold(secretName)}` });
-      await awsSdkManager.secrets.create({ name: secretName, value });
-      spinner.success({ text: `Secret ${tuiManager.makeBold(secretName)} created` });
+      values.push({ name: secretName, value });
     }
   }
+  return values;
 };
 
 /** `$Secret` references whose secret does not exist in the target region, with the JSON keys the config reads. */
@@ -243,8 +237,27 @@ const adoptConcurrentlyCreatedSecret = async ({
   }
 };
 
+type SecretPreflightTarget = {
+  /** Recorded on the secrets this command generates, so a command of another project never takes one over. */
+  projectName: string;
+  generatedSecretDescription?: string;
+  /** Set by `stacktape dev`: the secrets it generates are tagged with this dev stack (see `releaseDevGeneratedSecrets`). */
+  devStackName?: string;
+};
+
+export type MissingSecretsPlan = SecretPreflightTarget & {
+  /** Secrets this command needs that are scheduled for deletion. */
+  toRestore: TaggedSecret[];
+  /** Existing dev-generated secrets whose dev-stage tags change. */
+  ownershipUpdates: TaggedSecret[];
+  userInput: { name: string; value: string }[];
+  autoGenerable: [string, Set<string>][];
+};
+
 /**
- * Checks all `$Secret` references in the config against existing secrets in the region.
+ * Checks all `$Secret` references in the config against the secrets in the region and asks every question about the
+ * missing ones. It changes nothing in AWS; `createMissingSecrets` does that, so a command can ask all its questions
+ * before it changes anything.
  *
  * Missing secrets are split into two categories:
  * - **Auto-generable**: used in known database password fields (relational-database masterUserPassword,
@@ -254,44 +267,27 @@ const adoptConcurrentlyCreatedSecret = async ({
  *   The user is prompted to enter the value interactively. In non-interactive mode,
  *   deployment is aborted with a hint to use `secret:set`.
  */
-export const ensureMissingSecretsCreated = async ({
-  projectName,
-  generatedSecretDescription,
-  devStackName
-}: {
-  /** Recorded on the secrets this command generates, so a command of another project never takes one over. */
-  projectName: string;
-  generatedSecretDescription?: string;
-  /** Set by `stacktape dev`: the secrets it generates are tagged with this dev stack (see `releaseDevGeneratedSecrets`). */
-  devStackName?: string;
-}) => {
+export const planMissingSecrets = async (target: SecretPreflightTarget): Promise<MissingSecretsPlan | undefined> => {
   const secretRefs = configManager.allSecretReferencesUsedInConfig;
   if (!secretRefs.size) {
-    return;
+    return undefined;
   }
 
   const listed = await awsSdkManager.secrets.list({ includePlannedDeletion: true });
   // A secret this command needs that is scheduled for deletion is restored, whatever its tags say: a CLI up to
   // 4.0.0-preview.11 schedules the secrets dev mode generated for a dev stage it deletes, and another stage or a
   // deployment may still need one.
-  const restored = new Set<string>();
-  for (const secret of listed) {
-    if (!secret.DeletedDate || !secret.Name || !secretRefs.has(secret.Name)) continue;
-    await awsSdkManager.secrets.restore({ secretId: secret.ARN || secret.Name });
-    restored.add(secret.Name);
-    tuiManager.info(`Restored secret ${tuiManager.makeBold(secret.Name)}, which was scheduled for deletion.`);
-    secret.DeletedDate = undefined;
-  }
-  const existingSecrets = listed.filter(({ DeletedDate }) => !DeletedDate);
+  const toRestore = listed.filter((secret) => secret.DeletedDate && secret.Name && secretRefs.has(secret.Name));
+  const existingSecrets = listed.filter((secret) => !secret.DeletedDate || toRestore.includes(secret));
   const existingSecretNames = new Set(existingSecrets.map(({ Name }) => Name));
   const missingSecrets = [...secretRefs.entries()].filter(([name]) => !existingSecretNames.has(name));
-  for (const secret of existingSecrets) {
-    if (!secret.Name || !secretRefs.has(secret.Name) || !isDevOwnedSecret(secret)) continue;
-    await updateDevSecretOwnership({ secret, devStackName, restored: restored.has(secret.Name) });
-  }
+  const ownershipUpdates = existingSecrets.filter(
+    (secret) => secret.Name && secretRefs.has(secret.Name) && isDevOwnedSecret(secret)
+  );
+  const plan: MissingSecretsPlan = { ...target, toRestore, ownershipUpdates, userInput: [], autoGenerable: [] };
 
   if (!missingSecrets.length) {
-    return;
+    return plan;
   }
 
   const autoGenerableNames = configManager.autoGenerableSecretNames;
@@ -311,7 +307,7 @@ export const ensureMissingSecretsCreated = async ({
     );
 
     if (!isAgentMode() && process.stdout.isTTY) {
-      await promptAndCreateUserInputSecrets(userInput);
+      plan.userInput = await promptForUserInputSecrets(userInput);
     } else {
       throw new ExpectedError(
         'CONFIG',
@@ -349,7 +345,30 @@ export const ensureMissingSecretsCreated = async ({
         );
       }
     }
+    plan.autoGenerable = autoGenerable;
+  }
+  return plan;
+};
 
+/** Restores, tags and creates what `planMissingSecrets` found and was told. */
+export const createMissingSecrets = async (plan: MissingSecretsPlan | undefined) => {
+  if (!plan) return;
+  const { projectName, generatedSecretDescription, devStackName, autoGenerable } = plan;
+  const restored = new Set<string>();
+  for (const secret of plan.toRestore) {
+    await awsSdkManager.secrets.restore({ secretId: secret.ARN || secret.Name! });
+    restored.add(secret.Name!);
+    tuiManager.info(`Restored secret ${tuiManager.makeBold(secret.Name!)}, which was scheduled for deletion.`);
+  }
+  for (const secret of plan.ownershipUpdates) {
+    await updateDevSecretOwnership({ secret, devStackName, restored: restored.has(secret.Name!) });
+  }
+  for (const { name, value } of plan.userInput) {
+    const spinner = tuiManager.createSpinner({ text: `Creating secret ${tuiManager.makeBold(name)}` });
+    await awsSdkManager.secrets.create({ name, value });
+    spinner.success({ text: `Secret ${tuiManager.makeBold(name)} created` });
+  }
+  if (autoGenerable.length) {
     const spinner = tuiManager.createSpinner({ text: `Creating ${autoGenerable.length} database secret(s)` });
     const adopted: string[] = [];
     for (const [secretName, jsonKeys] of autoGenerable) {
@@ -392,6 +411,10 @@ export const ensureMissingSecretsCreated = async ({
     });
   }
 };
+
+/** Asks about and creates the missing secrets in one step, for commands that ask nothing else before they change things. */
+export const ensureMissingSecretsCreated = async (target: SecretPreflightTarget) =>
+  createMissingSecrets(await planMissingSecrets(target));
 
 export type DevSecretRelease = {
   name: string;

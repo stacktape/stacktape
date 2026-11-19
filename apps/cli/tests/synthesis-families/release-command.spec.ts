@@ -156,6 +156,141 @@ describe('release command synthesis', () => {
   });
 });
 
+describe('release command of a function', () => {
+  const database = (accessibilityMode: string) => ({
+    type: 'relational-database',
+    properties: {
+      credentials: { masterUserPassword: 'not-a-real-password' },
+      engine: { type: 'postgres', properties: { version: '17', primaryInstance: { instanceSize: 'db.t4g.micro' } } },
+      accessibility: { accessibilityMode }
+    }
+  });
+  const lambda = (extra: Record<string, unknown>) => ({
+    type: 'function',
+    properties: { packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } }, ...extra }
+  });
+  const task = 'apiReleaseTask';
+
+  test("runs in a task with the function's environment and connections, before any function", async () => {
+    const template = await synthesize({
+      db: database('scoping-workloads-in-vpc'),
+      api: lambda({
+        connectTo: ['db'],
+        joinDefaultVpc: true,
+        environment: [{ name: 'MODE', value: 'production' }],
+        iamRoleStatements: [{ Resource: ['*'], Action: ['ses:SendEmail'] }],
+        releaseCommand: { command: 'npx prisma migrate deploy', runWhenChanged: ['src'] }
+      }),
+      other: lambda({})
+    });
+    const [container, ...others] = template.Resources[cfLogicalNames.ecsReleaseTaskDefinition(task)]!.Properties!
+      .ContainerDefinitions as { Name: string; Command: string[]; Environment: { Name: string }[] }[];
+    expect(others).toEqual([]);
+    expect(container!.Command).toEqual(['npx prisma migrate deploy']);
+    expect(container!.Environment.map(({ Name }) => Name)).toEqual(
+      expect.arrayContaining(['MODE', 'STP_DB_CONNECTION_STRING'])
+    );
+    expect(JSON.stringify(template.Resources[cfLogicalNames.ecsTaskRole(task)]!.Properties)).toContain('ses:SendEmail');
+
+    // A task of its own: no service runs between deploys.
+    expect(template.Resources[cfLogicalNames.ecsCluster(task)]!.Type).toBe('AWS::ECS::Cluster');
+    expect(Object.values(template.Resources).filter(({ Type }) => Type === 'AWS::ECS::Service')).toEqual([]);
+    expect(template.Resources[cfLogicalNames.ecsTaskDefinition(task)]).toBeUndefined();
+
+    // The database admits the task as it admits the function.
+    expect(template.Resources[cfLogicalNames.dbSecurityGroup('db')]!.Properties!.SecurityGroupIngress).toContainEqual(
+      expect.objectContaining({ SourceSecurityGroupId: { Ref: cfLogicalNames.workloadSecurityGroup(task) } })
+    );
+
+    const customResource = cfLogicalNames.releaseCommandCustomResource(task);
+    expect(template.Resources[customResource]!.Properties!.releaseCommand).toMatchObject({
+      cluster: { Ref: cfLogicalNames.ecsCluster(task) },
+      taskDefinition: { Ref: cfLogicalNames.ecsReleaseTaskDefinition(task) },
+      awsvpcConfiguration: { securityGroups: [{ Ref: cfLogicalNames.workloadSecurityGroup(task) }] }
+    });
+    expect(dependsOn(template, customResource)).toContain(cfLogicalNames.dbInstance('db'));
+    for (const name of ['api', 'other']) {
+      expect(dependsOn(template, cfLogicalNames.lambda(name))).toContain(customResource);
+    }
+    const serviceLambdaRole = JSON.stringify(
+      template.Resources[cfLogicalNames.lambdaRole('stacktapeServiceLambda')]?.Properties
+    );
+    expect(serviceLambdaRole).toContain('ecs:RunTask');
+    expect(serviceLambdaRole).toContain(`-${task}-release`);
+  });
+
+  test('creates the VPC it runs in for a stack that has none', async () => {
+    const template = await synthesize({ api: lambda({ releaseCommand: 'node migrate.js' }) });
+    const { awsvpcConfiguration } =
+      template.Resources[cfLogicalNames.releaseCommandCustomResource(task)]!.Properties!.releaseCommand;
+    expect(awsvpcConfiguration.assignPublicIp).toBe('ENABLED');
+    expect(awsvpcConfiguration.subnets.length).toBeGreaterThan(0);
+    for (const { Ref } of awsvpcConfiguration.subnets) expect(template.Resources[Ref]!.Type).toBe('AWS::EC2::Subnet');
+  });
+
+  test("runs with services' commands in config order", async () => {
+    const template = await synthesize({
+      web: service({ releaseCommand: 'first' }),
+      api: lambda({ releaseCommand: 'second' })
+    });
+    expect(dependsOn(template, cfLogicalNames.releaseCommandCustomResource(task))).toContain(
+      cfLogicalNames.releaseCommandCustomResource('web')
+    );
+    expect(dependsOn(template, cfLogicalNames.ecsService('web', false))).toContain(
+      cfLogicalNames.releaseCommandCustomResource(task)
+    );
+  });
+
+  test('runs for a server-rendered site before its functions get new code', async () => {
+    for (const type of ['nextjs-web', 'astro-web']) {
+      const template = await synthesize({
+        web: { type, properties: { appDirectory: './web', releaseCommand: 'npx prisma migrate deploy' } }
+      });
+      const customResource = cfLogicalNames.releaseCommandCustomResource('webReleaseTask');
+      expect(template.Resources[customResource]!.Properties!.releaseCommand.taskDefinition).toEqual({
+        Ref: cfLogicalNames.ecsReleaseTaskDefinition('webReleaseTask')
+      });
+      const functions = Object.entries(template.Resources).filter(
+        ([logicalId, { Type }]) => Type === 'AWS::Lambda::Function' && /^Web/.test(logicalId)
+      );
+      expect(functions.length).toBeGreaterThan(0);
+      for (const [logicalId] of functions) expect(dependsOn(template, logicalId)).toContain(customResource);
+    }
+  });
+
+  test('holds back the edge function that serves a site', async () => {
+    const template = await synthesize({
+      web: {
+        type: 'nextjs-web',
+        properties: { appDirectory: './web', useEdgeLambda: true, releaseCommand: 'npx prisma migrate deploy' }
+      }
+    });
+    const customResource = cfLogicalNames.releaseCommandCustomResource('webReleaseTask');
+    const edgeFunctions = Object.keys(template.Resources).filter((logicalId) =>
+      /^WebServerEdgeFunction.*EdgeLambda/i.test(logicalId)
+    );
+    expect(edgeFunctions.length).toBeGreaterThan(0);
+    for (const logicalId of edgeFunctions) expect(dependsOn(template, logicalId)).toContain(customResource);
+  });
+
+  test('rejects a resource that has the name of the task', async () => {
+    await expect(
+      synthesize({ api: lambda({ releaseCommand: 'migrate' }), apiReleaseTask: service({}) })
+    ).rejects.toThrow(/release command task of `api`/);
+  });
+
+  test('rejects a container name, because the task has one container', async () => {
+    await expect(
+      synthesize({ api: lambda({ releaseCommand: { command: 'migrate', container: 'main' } }) })
+    ).rejects.toThrow(/runs in a task of its own/);
+  });
+
+  test('leaves a function without the setting untouched', async () => {
+    const template = await synthesize({ api: lambda({}) });
+    expect(Object.keys(template.Resources).filter((logicalId) => /release|ecs/i.test(logicalId))).toEqual([]);
+  });
+});
+
 describe('orderReleaseCommands', () => {
   const resource = (Type: string, Properties: Record<string, unknown> = {}, DependsOn?: string[]) => ({
     Type,

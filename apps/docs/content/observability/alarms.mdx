@@ -164,7 +164,7 @@ export default defineConfig(() => {
       masterUserPassword: '$Secret(db-password)'
     },
     engine: new RdsEnginePostgres({
-      version: '16.6',
+      version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }),
     alarms: [
@@ -285,9 +285,13 @@ For database storage alarms, the defaults (`period: 60`, `evaluationPeriods: 1`,
 
 ## Notification targets
 
-Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationChannels` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
+Stacktape alarms can send notifications to one or more targets when they fire and when they recover. Configure the `notificationChannels` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
 
-To reuse a named Console [alert channel](/observability/alert-channels), add a `console-channel` reference to the alarm's `notificationChannels`:
+Inline targets (`slack`, `ms-teams`, `discord`, `email` and `webhook`) are sent by the stack's own service Lambda, from your AWS account. The Lambda reads `$Secret` and secure SSM values when it sends the notification. Tokens, webhook URLs, signing secrets and headers are never sent to Stacktape. Email goes through Amazon SES in your account from the `sender` address. Microsoft Teams, Discord and webhook receivers get the same request format as from a Console [alert channel](/observability/alert-channels). A webhook request carries the alarm's EventBridge event ID as `id`, so a receiver can drop a repeated delivery.
+
+Each target receives one message when the alarm fires and one when it returns to OK after firing. A new alarm's first evaluation to OK sends nothing. If a target fails, the Lambda retries it without resending the targets that already received the message. Muting an incident in the Console does not silence inline targets, because the Console does not deliver them.
+
+To reuse a named Console [alert channel](/observability/alert-channels), add a `console-channel` reference to the alarm's `notificationChannels`. The Console delivers `console-channel` and `slack-app` targets with the credentials it keeps:
 
 <CodeBlock configExample="fragment" tabs={[
   { label: 'YAML', lang: 'yaml', code: `notificationChannels:
@@ -304,7 +308,11 @@ Use the optional `description` property on an alarm to include a custom message 
 
 ### History tracking
 
-The `includeInHistory` property controls whether alarm state changes should appear in monitoring history. It defaults to `true`. Set it to `false` on noisy development-stage alarms that would clutter the history view.
+The `includeInHistory` property controls whether alarm state changes should appear in monitoring history. It defaults to `true`. Set it to `false` on noisy development-stage alarms that would clutter the history view. Such an alarm is not reported to the Console, so it opens no incident. Its inline targets are still notified. `console-channel` and `slack-app` targets need history, and the deploy refuses an alarm that combines them with `includeInHistory: false`.
+
+### What leaves your AWS account
+
+When an alarm with history changes state, the stack's service Lambda sends the Console the alarm event: the alarm name and trigger type, the project, stage and region, the new state and its time, the alarm's description, ARN and condition (comparison, statistic and unit), the stack name, the affected resource with its AWS console link, a link to the alarm, and the EventBridge event ID. It also sends the `console-channel` names and resolved `slack-app` channel IDs, which the Console delivers. Inline targets and their settings stay in your account.
 
 ## Migrating legacy Console alarm rules
 

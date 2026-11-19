@@ -2,19 +2,20 @@
   "name": "@stacktape/console-api",
   "version": "4.0.0-dev.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "exports": {
     "./anonymous": "./src/anonymous.ts",
     "./api-key": "./src/api-key.ts",
     "./aws-identity": "./src/aws-identity.ts",
+    "./billing": "./src/billing.ts",
     "./failure-explanations": "./src/failure-explanations.ts",
     "./guardrails": "./src/guardrails.ts",
     "./permissions": "./src/permissions.ts",
     "./security": "./src/security.ts",
     "./sensitive-text": "./src/sensitive-text.ts",
     "./source-maps": "./src/source-maps.ts",
-    "./stages": "./src/stages.ts",
-    "./billing": "./src/billing.ts"
+    "./stages": "./src/stages.ts"
   },
   "scripts": {
     "test": "node --import=tsx --test src/*.test.ts",

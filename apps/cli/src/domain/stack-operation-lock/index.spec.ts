@@ -65,6 +65,33 @@ describe('the stack lock of a command', () => {
     expect(JSON.parse(object!.body).invocationId).toBe('parent-deploy');
   });
 
+  test('says who holds the lock of another machine, and records who holds its own', async () => {
+    globalStateManager.systemId = 'this-machine';
+    write(
+      JSON.stringify({
+        invocationId: 'colleague-deploy',
+        operation: 'deploy',
+        renewedAtMs: Date.now(),
+        heldBy: 'jane@laptop',
+        installId: 'other-machine'
+      })
+    );
+    // The colleague's deploy finishes while this one waits.
+    const released = setTimeout(() => write(JSON.stringify({ released: true, releasedAtMs: Date.now() })), 100);
+    const messages: string[] = [];
+    await lockModule.holdStackLock({
+      bucketName: 'bucket',
+      operation: 'deploy',
+      onWaiting: (message) => messages.push(message)
+    });
+    clearTimeout(released);
+    expect(messages[0]).toContain(
+      'Waiting for another deploy of this stack to finish (by jane@laptop, invocation colleague-deploy'
+    );
+    expect(lockModule.waitedForStackLockOfAnotherMachine()).toBe(true);
+    expect(JSON.parse(object!.body)).toMatchObject({ installId: 'this-machine', heldBy: expect.stringContaining('@') });
+  }, 15_000);
+
   test('tells the commands it starts which invocation holds the lock', async () => {
     await lockModule.holdStackLock({ bucketName: 'bucket', operation: 'deploy' });
     expect(process.env.STP_STACK_LOCK_HOLDERS).toBe(globalStateManager.invocationId);

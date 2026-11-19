@@ -45,7 +45,7 @@ export interface RedisProps {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       # stp-focus
    *       engine:
    *         type: valkey-serverless
@@ -70,7 +70,7 @@ export interface RedisProps {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     // stp-focus
    *     engine: { type: 'valkey-serverless' }
    *     // stp-end-focus
@@ -98,7 +98,7 @@ export interface RedisProps {
    * Clients connect as user `default` with this password; all traffic is encrypted in transit (TLS).
    * Allowed special characters: `!`, `&`, `#`, `$`, `^`, `<`, `>`, `-`. Use `$Secret()` instead of hardcoding:
    * ```yml
-   * defaultUserPassword: $Secret('cache.password')
+   * defaultUserPassword: $Secret('cache', 'password')
    * ```
    *
    * **Example (YAML):**
@@ -109,7 +109,7 @@ export interface RedisProps {
    *     type: redis
    *     properties:
    *       # stp-focus
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       # stp-end-focus
    *       engine:
    *         type: valkey-serverless
@@ -123,7 +123,7 @@ export interface RedisProps {
    * export default defineConfig(() => {
    *   const cache = new Redis({
    *     // stp-focus
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     // stp-end-focus
    *     engine: { type: 'valkey-serverless' }
    *   });
@@ -145,7 +145,7 @@ export interface RedisProps {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey-serverless
    *       # stp-focus
@@ -172,7 +172,7 @@ export interface RedisProps {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: { type: 'valkey-serverless' },
    *     // stp-focus
    *     accessibility: {
@@ -207,7 +207,7 @@ export interface RedisProps {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey-serverless
    *       # stp-focus
@@ -222,7 +222,7 @@ export interface RedisProps {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: { type: 'valkey-serverless' },
    *     // stp-focus
    *     automatedBackupRetentionDays: 7
@@ -252,7 +252,7 @@ export interface RedisProps {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey-serverless
    *       # stp-focus
@@ -268,7 +268,7 @@ export interface RedisProps {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: { type: 'valkey-serverless' },
    *     // stp-focus
    *     dev: {
@@ -340,7 +340,7 @@ export interface ValkeyServerlessEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey-serverless
    *         properties:
@@ -356,7 +356,7 @@ export interface ValkeyServerlessEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey-serverless',
    *       properties: {
@@ -388,7 +388,7 @@ export interface ValkeyServerlessEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey-serverless
    *         properties:
@@ -404,7 +404,7 @@ export interface ValkeyServerlessEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey-serverless',
    *       properties: {
@@ -436,7 +436,7 @@ export interface ValkeyServerlessEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey-serverless
    *         properties:
@@ -452,7 +452,7 @@ export interface ValkeyServerlessEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey-serverless',
    *       properties: {
@@ -495,7 +495,7 @@ export interface NodeBasedRedisEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey
    *         properties:
@@ -511,7 +511,7 @@ export interface NodeBasedRedisEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey',
    *       properties: {
@@ -602,7 +602,7 @@ export interface NodeBasedRedisEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey
    *         properties:
@@ -620,7 +620,7 @@ export interface NodeBasedRedisEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey',
    *       properties: {
@@ -656,7 +656,7 @@ export interface NodeBasedRedisEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey
    *         properties:
@@ -674,7 +674,7 @@ export interface NodeBasedRedisEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey',
    *       properties: {
@@ -709,7 +709,7 @@ export interface NodeBasedRedisEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey
    *         properties:
@@ -728,7 +728,7 @@ export interface NodeBasedRedisEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey',
    *       properties: {
@@ -759,7 +759,7 @@ export interface NodeBasedRedisEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey
    *         properties:
@@ -778,7 +778,7 @@ export interface NodeBasedRedisEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey',
    *       properties: {
@@ -811,7 +811,7 @@ export interface NodeBasedRedisEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey
    *         properties:
@@ -828,7 +828,7 @@ export interface NodeBasedRedisEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey',
    *       properties: {
@@ -859,7 +859,7 @@ export interface NodeBasedRedisEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey
    *         properties:
@@ -878,7 +878,7 @@ export interface NodeBasedRedisEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey',
    *       properties: {
@@ -917,7 +917,7 @@ export interface ValkeyEngineProperties extends NodeBasedRedisEngineProperties {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: valkey
    *         properties:
@@ -934,7 +934,7 @@ export interface ValkeyEngineProperties extends NodeBasedRedisEngineProperties {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'valkey',
    *       properties: {
@@ -970,7 +970,7 @@ export interface RedisOssEngineProperties extends NodeBasedRedisEngineProperties
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('cache.password')
+   *       defaultUserPassword: $Secret('cache', 'password')
    *       engine:
    *         type: redis
    *         properties:
@@ -987,7 +987,7 @@ export interface RedisOssEngineProperties extends NodeBasedRedisEngineProperties
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('cache.password'),
+   *     defaultUserPassword: $Secret('cache', 'password'),
    *     engine: {
    *       type: 'redis',
    *       properties: {

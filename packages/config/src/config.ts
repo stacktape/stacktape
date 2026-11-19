@@ -112,7 +112,7 @@ export interface StacktapeConfig {
    *   mongoDbAtlas:
    *     organizationId: 5f1e9b2c4a7d3e0011223344
    *     publicKey: abcdefgh
-   *     privateKey: $Secret('mongo-atlas.private-key')
+   *     privateKey: $Secret('mongo-atlas', 'private-key')
    *     accessibility:
    *       accessibilityMode: scoping-workloads-in-vpc
    *       whitelistedIps:
@@ -139,7 +139,7 @@ export interface StacktapeConfig {
    *       mongoDbAtlas: {
    *         organizationId: '5f1e9b2c4a7d3e0011223344',
    *         publicKey: 'abcdefgh',
-   *         privateKey: $Secret('mongo-atlas.private-key'),
+   *         privateKey: $Secret('mongo-atlas', 'private-key'),
    *         accessibility: {
    *           accessibilityMode: 'scoping-workloads-in-vpc',
    *           whitelistedIps: ['203.0.113.7/32']
@@ -269,11 +269,11 @@ export interface StacktapeConfig {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    * ```
    *
    * **Example (TypeScript):**
@@ -286,11 +286,11 @@ export interface StacktapeConfig {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
-   *     credentials: { masterUserPassword: $Secret('db.password') }
+   *     credentials: { masterUserPassword: $Secret('db', 'password') }
    *   });
    *
    *   return {
@@ -359,11 +359,11 @@ export interface StacktapeConfig {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.2'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t4g.micro
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    *       accessibility:
    *         accessibilityMode: vpc
    * ```
@@ -379,11 +379,11 @@ export interface StacktapeConfig {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.2',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t4g.micro' }
    *       }
    *     },
-   *     credentials: { masterUserPassword: $Secret('db.password') },
+   *     credentials: { masterUserPassword: $Secret('db', 'password') },
    *     accessibility: { accessibilityMode: 'vpc' }
    *   });
    *

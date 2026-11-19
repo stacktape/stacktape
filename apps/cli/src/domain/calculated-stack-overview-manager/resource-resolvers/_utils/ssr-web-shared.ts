@@ -1,3 +1,5 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import type { StacktapeResourceReferenceableParam } from '@domain-services/config-manager/resolved-types/resources';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type {
   CacheBehavior,
@@ -248,4 +250,30 @@ export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFramewo
     handlerPath: 'index.js',
     wrapperType: 'web-fetch'
   }
+};
+
+type WebsiteReferenceableParam = NonNullable<
+  StackInfoMapResource['referencableParams'][StacktapeResourceReferenceableParam]
+>;
+
+/**
+ * The URL parameters of a website resource. `url` is one URL: the first custom domain in the order they are configured,
+ * or the CDN URL without custom domains. `customDomainUrls` lists every custom domain URL, comma-separated.
+ */
+export const getWebsiteUrlParams = ({
+  customDomains,
+  cdnUrl
+}: {
+  customDomains: { domainName: string }[] | undefined;
+  cdnUrl: WebsiteReferenceableParam;
+}): StackInfoMapResource['referencableParams'] => {
+  const domainNames = [...new Set((customDomains || []).map(({ domainName }) => domainName))];
+  if (!domainNames.length) {
+    return { url: cdnUrl };
+  }
+  const urls = domainNames.map((domainName) => `https://${domainName}`);
+  return {
+    url: { showDuringPrint: true, value: urls[0] },
+    customDomainUrls: { showDuringPrint: urls.length > 1, value: urls.join(', ') }
+  };
 };

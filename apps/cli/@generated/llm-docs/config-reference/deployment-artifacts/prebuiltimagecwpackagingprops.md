@@ -195,7 +195,7 @@ resources:
        type: prebuilt-image
        properties:
          image: registry.example.com/my-org/my-app:latest
-         repositoryCredentialsSecretArn: $Secret('registry-credentials.arn')
+         repositoryCredentialsSecretArn: $Secret('registry-credentials', 'arn')
      resources:
        cpu: 0.5
        memory: 1024
@@ -212,7 +212,7 @@ export default defineConfig(() => {
      type: 'prebuilt-image',
      properties: {
        image: 'registry.example.com/my-org/my-app:latest',
-       repositoryCredentialsSecretArn: $Secret('registry-credentials.arn')
+       repositoryCredentialsSecretArn: $Secret('registry-credentials', 'arn')
      }
    },
    resources: {

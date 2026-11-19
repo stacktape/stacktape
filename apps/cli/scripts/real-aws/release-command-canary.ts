@@ -12,10 +12,13 @@
  * - `extras` (`_test-stacks/release-command-extras`): a Python service with code swap, including recovery from a killed
  *   deploy, a blue/green service, and a deploy that races a stack delete.
  * - `lock` (`_test-stacks/stack-lock`): one function, for the stack lock itself. Racing first deploys, deploys,
- *   a rollback and a delete that wait for each other, a cancelled wait, killed deploys taken over, and a hook that runs a
- *   command on the stack its deploy holds. A second copy of the project plays a second CI job.
+ *   a rollback and a delete that wait for each other, a cancelled wait, killed deploys taken over, a hook that runs a
+ *   command on the stack its deploy holds, and a failing `afterDeploy` hook. A second copy of the project plays a second
+ *   CI job.
+ * - `function` (`_test-stacks/release-command-function`): a function in the VPC and a private Postgres database. The
+ *   function reads tables that only its release command creates, so it answers only when the command ran first.
  *
- * `STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock` runs one stack. `STP_AWS_RELEASE_CANARY_LONG=1` adds the wait
+ * `STP_AWS_RELEASE_CANARY_ONLY=database|variants|extras|lock|function` runs one stack. `STP_AWS_RELEASE_CANARY_LONG=1` adds the wait
  * past the 15-minute Lambda limit to the `variants` stack, which ends well before the `database` stack without it.
  *
  * Guardrails (docs/testing/live-aws.md): an explicit opt-in; STS must resolve the profile to the expected account, and
@@ -64,7 +67,7 @@ const assert: (condition: unknown, message: string) => asserts condition = (cond
 };
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const STACK_KINDS = ['database', 'variants', 'extras', 'lock'] as const;
+const STACK_KINDS = ['database', 'variants', 'extras', 'lock', 'function'] as const;
 type StackKind = (typeof STACK_KINDS)[number];
 
 type Options = {
@@ -833,6 +836,74 @@ const runVariantScenarios = async (
   }
 };
 
+const FUNCTION_FILE = 'src/app.mjs';
+const FUNCTION_TASK = 'appReleaseTask';
+
+/**
+ * A function's package can't run a migration tool, so its release command runs in an image of the whole project. The
+ * function answers only when its tables exist, which the command creates in a database only the VPC reaches.
+ */
+const runFunctionScenarios = async (stack: CanaryStack, record: (scenario: Scenario) => Promise<void>) => {
+  const first = await stack.deployOk('function first deploy');
+  await stack.recordOwnedResources();
+  assert(
+    first.output.includes('release-command-finished'),
+    `function first deploy: the output has no command logs:\n${first.output.slice(-2000)}`
+  );
+  await stack.expectApp('function first deploy', { release: 'initial', runs: 1, migrations: ['001-items.sql'] });
+  const [firstTask] = await stack.releaseTasks(FUNCTION_TASK);
+  assert(firstTask?.containers?.[0]?.exitCode === 0, 'function first deploy: no release task exited with 0.');
+  await record({
+    name: "a function's command runs in the VPC before the function gets its code",
+    seconds: first.seconds
+  });
+
+  await stack.setRelease(FUNCTION_FILE, 'f2');
+  const codeOnly = await stack.deployOk('function code-only deploy');
+  assert(
+    !usesCloudFormation(codeOnly.output),
+    `a function code change used CloudFormation: ${whyCloudFormation(codeOnly.output)}`
+  );
+  assert(!codeOnly.output.includes('release-command-started'), 'an unchanged folder should not run the command.');
+  await stack.expectApp('function code-only deploy', { release: 'f2', runs: 1 });
+  await record({
+    name: 'a function code change skips the command and its image, on the fast path',
+    seconds: codeOnly.seconds
+  });
+
+  await stack.setRelease(FUNCTION_FILE, 'f3');
+  await stack.write('migrations/002-more.sql', 'ALTER TABLE items ADD COLUMN note text;\n');
+  const withMigration = await stack.deployOk('function migration');
+  assert(
+    /the release command of app runs/.test(withMigration.output),
+    `a function migration should go through CloudFormation: ${whyCloudFormation(withMigration.output)}`
+  );
+  assert(withMigration.output.includes('applying 002-more.sql'), 'the output has no command logs.');
+  await stack.expectApp('function migration', {
+    release: 'f3',
+    runs: 2,
+    migrations: ['001-items.sql', '002-more.sql']
+  });
+  await record({
+    name: "a function's migration builds the image and runs before the new code",
+    seconds: withMigration.seconds
+  });
+
+  await stack.setRelease(FUNCTION_FILE, 'f4-must-not-serve');
+  await stack.write('migrations/003-bad.sql', 'THIS IS NOT SQL;\n');
+  const failed = await stack.deployFails('failing function command', /exit code 1/);
+  // The CLI reports the failure as soon as it happens, while CloudFormation still rolls back.
+  await stack.waitForStackToSettle('failing function command', 'UPDATE_ROLLBACK_COMPLETE');
+  await stack.expectApp('failing function command', { release: 'f3', runs: 3 });
+  await record({ name: 'a failing function command stops the deploy, old code serves', seconds: failed.seconds });
+
+  await stack.remove('migrations/003-bad.sql');
+  await stack.setRelease(FUNCTION_FILE, 'f5');
+  await stack.deployOk('function deploy after a failed command');
+  await stack.expectApp('function deploy after a failed command', { release: 'f5', runs: 3 });
+  await record({ name: 'a function deploys again once its migrations are fixed' });
+};
+
 const RAN_PYTHON = /\[release pyswap\] variant-python/;
 const RAN_BLUE_GREEN = /\[release bluegreen\] variant-bluegreen/;
 const PY_URL = 'pyUrl';
@@ -1051,7 +1122,7 @@ const runLockScenarios = async (stack: CanaryStack, record: (scenario: Scenario)
       .join('\n\n');
   // A `beforeDeploy` hook runs while its deploy holds the lock. Sleeping in one holds the lock long enough for a second
   // command, whose start takes a few seconds, to find it held, however quick the deploy itself is.
-  const setHook = (command: string) =>
+  const setHook = (command: string, event = 'beforeDeploy', onFailure?: 'continue') =>
     stack.editConfig(
       (config) => `${config}
 scripts:
@@ -1061,8 +1132,8 @@ scripts:
       executeCommand: ${JSON.stringify(command)}
 
 hooks:
-  beforeDeploy:
-    - scriptName: canaryHook
+  ${event}:
+    - scriptName: canaryHook${onFailure ? `\n      onFailure: ${onFailure}` : ''}
 `
     );
   const removeHook = () => stack.editConfig((config) => `${config.slice(0, config.indexOf('\nscripts:\n'))}\n`);
@@ -1279,6 +1350,40 @@ hooks:
     seconds: withHook.seconds
   });
 
+  // A failed `afterDeploy` hook fails the command, which is what stops a CI job. The deployment before it is finished:
+  // the new release serves, the lock is free and the next deploy is an ordinary one. With `onFailure: continue` the
+  // failure is only a warning.
+  await setHook('exit 7', 'afterDeploy');
+  await stack.setRelease(APP_FILE, 'a8');
+  const failedAfter = await stack.deploy();
+  await removeHook();
+  assert(failedAfter.exitCode !== 0, 'a failed afterDeploy hook should fail the deploy.');
+  assert(
+    failedAfter.output.includes('AFTER_DEPLOY_HOOK_FAILED') &&
+      failedAfter.output.includes('The deployment finished, but the afterDeploy hook canaryHook failed.'),
+    `the deploy did not say that its afterDeploy hook failed:\n${failedAfter.output.slice(-2000)}`
+  );
+  // The command also tells the Console about the failed hook, after its cleanup.
+  assert(
+    !failedAfter.output.includes("Couldn't record this event"),
+    `the Console refused an event of the deploy whose afterDeploy hook failed:\n${failedAfter.output.slice(-2000)}`
+  );
+  await expectServed('failed afterDeploy hook', { release: 'a8', feature: 'five' });
+  assert(!(await stack.lockHolder()), 'the lock is still held after the deploy whose afterDeploy hook failed.');
+  await setHook('exit 7', 'afterDeploy', 'continue');
+  await stack.setRelease(APP_FILE, 'a8-continued');
+  const continuedAfter = await stack.deploy();
+  await removeHook();
+  assert(
+    continuedAfter.exitCode === 0,
+    `a failed hook with onFailure: continue failed the deploy:\n${continuedAfter.output.slice(-2000)}`
+  );
+  await expectServed('continued afterDeploy hook', { release: 'a8-continued', feature: 'five' });
+  await record({
+    name: 'a failed afterDeploy hook fails the command and leaves the finished deployment live and unlocked',
+    seconds: failedAfter.seconds
+  });
+
   // A delete started during a deploy waits for it, then deletes the stack and its bucket.
   await stack.setRelease(APP_FILE, 'a9');
   await holdingTheLock(async () => {
@@ -1440,7 +1545,8 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
     database: 'release-command',
     variants: 'release-command-variants',
     extras: 'release-command-extras',
-    lock: 'stack-lock'
+    lock: 'stack-lock',
+    function: 'release-command-function'
   };
   for (const kind of STACK_KINDS) {
     if (!options.only || options.only === kind) stacks.push(await prepare(kind, fixtures[kind]));
@@ -1463,6 +1569,7 @@ export const runReleaseCommandCanary = async ({ cleanupOnly = false }: { cleanup
         if (stackState.projectName.endsWith('-da')) return runDatabaseScenarios(stack, record);
         if (stackState.projectName.endsWith('-ex')) return runExtraScenarios(stack, record);
         if (stackState.projectName.endsWith('-lo')) return runLockScenarios(stack, record);
+        if (stackState.projectName.endsWith('-fu')) return runFunctionScenarios(stack, record);
         return runVariantScenarios(stack, record, options.long);
       })
     );

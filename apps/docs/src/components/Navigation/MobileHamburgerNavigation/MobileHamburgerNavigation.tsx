@@ -3,9 +3,18 @@ import clsx from 'clsx';
 import { $mobileNavOpen } from '@/stores/mobile-nav';
 import { DocSearch } from '../../Search/DocSearch';
 import { SidebarNavigation } from '../SidebarNavigation/Sidebar';
+import type { DocsVersion } from '@/site-config';
 import type { DocPage } from '@/utils/docs-data';
 
-export function MobileHamburgerNavigation({ allDocPages, pathname }: { allDocPages: DocPage[]; pathname?: string }) {
+export function MobileHamburgerNavigation({
+  allDocPages,
+  pathname,
+  version = 'v4'
+}: {
+  allDocPages: DocPage[];
+  pathname?: string;
+  version?: DocsVersion;
+}) {
   const isOpen = useStore($mobileNavOpen);
 
   const mobileDividerClassName = 'border-none border-t border-t-border-light ml-[26px] mr-[26px]';
@@ -15,7 +24,7 @@ export function MobileHamburgerNavigation({ allDocPages, pathname }: { allDocPag
       <hr className={mobileDividerClassName} />
       <DocSearch />
       <hr className={mobileDividerClassName} />
-      <SidebarNavigation allDocPages={allDocPages} pathname={pathname} showOnSm />
+      <SidebarNavigation allDocPages={allDocPages} pathname={pathname} version={version} showOnSm />
     </div>
   );
 }

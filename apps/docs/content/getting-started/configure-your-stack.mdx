@@ -113,7 +113,7 @@ export default defineConfig(({ stage }) => {
 
   const database = new RelationalDatabase({
     credentials: {
-      masterUserPassword: "$Secret('database.password')"
+      masterUserPassword: "$Secret('database', 'password')"
     },
     engine: new RdsEnginePostgres({
       version: '16',
@@ -165,9 +165,9 @@ The context object passed to the `defineConfig` callback includes:
 | `region`      | `string`                                         | AWS region (e.g., `us-east-1`, `eu-west-1`)                |
 | `projectName` | `string`                                         | Project name, always set when the config declares it ([project settings](/configuration/configuration-files#project-name-and-region)) |
 | `command`     | `string`                                         | CLI command being run (`deploy`, `delete`, `dev`, etc.)     |
-| `cliArgs`     | `Record<string, string \| number \| boolean>`    | Key-value arguments passed via the `--arg` CLI flag        |
+| `cliArgs`     | `Readonly<Record<string, unknown>>`              | Options of the current command, such as `stage` or `configPath` |
 
-See [configuration files](/configuration/configuration-files) for the complete config reference.
+The [defineConfig callback](/configuration/configuration-files#the-defineconfig-callback) reference lists every context property and explains how command-line options and your own values reach the config.
 
 ## Quick-start with stacktape init
 

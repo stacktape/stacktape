@@ -113,6 +113,8 @@ Multi-container workloads do not currently expose referenceable parameters. Use 
 
 The following frontend resources expose referenceable parameters. Static [hosting buckets](/resources/frontend/static-hosting) additionally expose bucket identifiers and — when a CDN is attached — CDN-related parameters. See each resource's parameter table for the exact set of available values.
 
+A website's `url` is always one URL: the first of its `customDomains`, or its default Stacktape URL when it has none. `customDomainUrls` lists every custom domain URL, comma-separated, in the order they are configured. It exists only when the website has custom domains.
+
 ### Next.js
 
 

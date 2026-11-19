@@ -15,20 +15,24 @@ export const $ResourceParam = (resourceName: string, property: string) => {
  * If you are referencing a resource defined in the cloudformationResources section, use its name.
  * To reference a child resource of a Stacktape resource, you can get a list of child resources with the `stacktape status` command
  * @param property - The parameter of the Cloudformation resource to reference.
- * For a list of all referenceable parameters, refer to the [Referencing parameters](https://docs.stacktape.com/configuration/referencing-parameters#parameters-of-cloudformation-resources) section in the Stacktape docs.
+ * See the [`$CfResourceParam` directive](https://docs.stacktape.com/configuration/directives/#cfresourceparam) in the Stacktape docs.
  */
 export const $CfResourceParam = (cloudformationResourceLogicalId: string, property: string) => {
   return `$CfResourceParam('${cloudformationResourceLogicalId}','${property}')`;
 };
 
 /**
- * Returns a reference to a secret.
- * @param secretName - The name of the secret. Must be a valid secret name in the AWS Secrets Manager in the region you're deploying to.
- * If the secret is in JSON format, you can extract nested properties using dot notation.
- * Example: `$Secret('my-secret.api-key')` will return the value of the `api-key` property in the `my-secret` secret.
+ * Returns a reference to a secret in AWS Secrets Manager, in the region you deploy to.
+ * @param secretName - The name of the secret, taken literally, dots included, when `jsonKey` is given.
+ * @param jsonKey - For a secret that stores a JSON object, the top-level key whose value to use. Omit it to use the whole
+ * secret.
+ * Example: `$Secret('payments', 'apiKey')` returns the `apiKey` value of the `payments` secret.
+ *
+ * The one-argument form `$Secret('payments.apiKey')` from Stacktape 3 still works: the text before the first dot is the
+ * secret name and the rest is the JSON key.
  */
-export const $Secret = (secretName: string) => {
-  return `$Secret('${secretName}')`;
+export const $Secret = (secretName: string, jsonKey?: string) => {
+  return jsonKey === undefined ? `$Secret('${secretName}')` : `$Secret('${secretName}', '${jsonKey}')`;
 };
 
 /**

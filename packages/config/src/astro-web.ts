@@ -1,4 +1,4 @@
-import type { DomainConfiguration, EnvironmentVar, ResourceAccessProps, ResourceOverrides } from './shared';
+import type { DomainConfiguration, EnvironmentVar, ReleaseCommand, ResourceAccessProps, ResourceOverrides } from './shared';
 import type { DirectoryUploadFilter } from './buckets';
 import type { LambdaFunctionLogging } from './functions';
 import type { SsrWebCdnConfig } from './ssr-web-shared';
@@ -104,11 +104,11 @@ export interface AstroWebProps extends ResourceAccessProps {
    *       engine:
    *         type: postgres
    *         properties:
-   *           version: '16.6'
+   *           version: '16'
    *           primaryInstance:
    *             instanceSize: db.t3.micro
    *       credentials:
-   *         masterUserPassword: $Secret('db.password')
+   *         masterUserPassword: $Secret('db', 'password')
    *   web:
    *     type: astro-web
    *     properties:
@@ -119,7 +119,7 @@ export interface AstroWebProps extends ResourceAccessProps {
    *         - name: DATABASE_URL
    *           value: $ResourceParam('marketingDb', 'connectionString')
    *         - name: STRIPE_SECRET
-   *           value: $Secret('stripe.secretKey')
+   *           value: $Secret('stripe', 'secretKey')
    *       # stp-end-focus
    * ```
    *
@@ -133,18 +133,18 @@ export interface AstroWebProps extends ResourceAccessProps {
    *     engine: {
    *       type: 'postgres',
    *       properties: {
-   *         version: '16.6',
+   *         version: '16',
    *         primaryInstance: { instanceSize: 'db.t3.micro' }
    *       }
    *     },
-   *     credentials: { masterUserPassword: $Secret('db.password') }
+   *     credentials: { masterUserPassword: $Secret('db', 'password') }
    *   });
    *   const web = new AstroWeb({
    *     // stp-focus
    *     environment: [
    *       { name: 'PUBLIC_SITE_NAME', value: 'My Store' },
    *       { name: 'DATABASE_URL', value: $ResourceParam('marketingDb', 'connectionString') },
-   *       { name: 'STRIPE_SECRET', value: $Secret('stripe.secretKey') }
+   *       { name: 'STRIPE_SECRET', value: $Secret('stripe', 'secretKey') }
    *     ]
    *     // stp-end-focus
    *   });
@@ -153,6 +153,24 @@ export interface AstroWebProps extends ResourceAccessProps {
    * ```
    */
   environment?: EnvironmentVar[];
+  /**
+   * #### Run a command once on each deploy, inside the VPC, before any workload gets the new code.
+   *
+   * ---
+   *
+   * Use it for database migrations. The site's server functions hold only bundled code, so Stacktape builds an image of
+   * the whole project and runs the command in a one-off ECS task, with this resource's environment variables and its
+   * access to the resources in `connectTo`. The command runs from the project root. The deploy waits for the task,
+   * prints its logs, and stops if the command fails, so the running version keeps serving.
+   *
+   * Set `runWhenChanged` to your migration folder. Without it, each change of the project builds the image and runs the
+   * command. Building the image needs Docker on the machine that deploys.
+   *
+   * The old code keeps running against the new schema until the deploy finishes, so migrations must stay compatible
+   * with it. A retry runs the command again, so it must be idempotent. Neither a failed deploy nor `stacktape rollback`
+   * reverses what the command changed.
+   */
+  releaseCommand?: string | ReleaseCommand;
   /**
    * #### Attach custom domains with auto-managed DNS records and TLS certificates.
    *
@@ -495,7 +513,7 @@ export interface AstroWebServerLambdaConfig {
    *   cache:
    *     type: redis
    *     properties:
-   *       defaultUserPassword: $Secret('redis.password')
+   *       defaultUserPassword: $Secret('redis', 'password')
    *       engine:
    *         type: valkey-serverless
    *   web:
@@ -516,7 +534,7 @@ export interface AstroWebServerLambdaConfig {
    *
    * export default defineConfig(() => {
    *   const cache = new Redis({
-   *     defaultUserPassword: $Secret('redis.password'),
+   *     defaultUserPassword: $Secret('redis', 'password'),
    *     engine: { type: 'valkey-serverless' }
    *   });
    *   const web = new AstroWeb({

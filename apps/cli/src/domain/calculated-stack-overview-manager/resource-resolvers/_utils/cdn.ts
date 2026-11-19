@@ -37,7 +37,7 @@ import type {
 } from '@domain-services/config-manager/resolved-types/resources';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { bucketNeedsOriginRequestLambda } from '@domain-services/config-manager/utils/cdn';
+import { bucketNeedsOriginRequestLambda, readCdnSelector } from '@domain-services/config-manager/utils/cdn';
 import { resolveReferenceToApplicationLoadBalancer } from '@domain-services/config-manager/utils/application-load-balancers';
 import { resolveReferenceToBucket } from '@domain-services/config-manager/utils/buckets';
 import { resolveReferenceToEdgeLambdaFunction } from '@domain-services/config-manager/utils/edge-functions';
@@ -737,177 +737,76 @@ const determineLoadBalancerOriginProperties = (
   };
 };
 
+// The config schema and `findInvalidCdnSelector` reject invalid selectors earlier; this guards configs that bypass them.
+const resolveCdnSelector = (
+  selector: object,
+  kind: Parameters<typeof readCdnSelector>[1],
+  property: Parameters<typeof readCdnSelector>[2],
+  stpResourceName: string
+) => {
+  const result = readCdnSelector(selector, kind, property);
+  if ('error' in result) {
+    throw new ExpectedError('CONFIG_VALIDATION', `Error in ${stpResourceName}: ${kind}.${property} ${result.error}`);
+  }
+  return result;
+};
+
 const formatCacheCookiesConfig = (
   cookiesConfig: CdnCachingOptions['cacheKeyParameters']['cookies'],
-  stpResourceNameName: string
+  stpResourceName: string
 ): CacheCookiesConfig => {
-  const allowedValuesInCookieConfig: (keyof CdnCachingOptions['cacheKeyParameters']['cookies'])[] = [
-    'all',
-    'allExcept',
-    'none',
-    'whitelist'
-  ];
-  if (
-    Object.keys(cookiesConfig).length !== 1 ||
-    !allowedValuesInCookieConfig.includes(
-      getConfigBehaviour(cookiesConfig) as keyof CdnCachingOptions['cacheKeyParameters']['cookies']
-    )
-  ) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${stpResourceNameName}.\n` +
-        `You have to define exactly one of ${allowedValuesInCookieConfig.map(
-          (allowedValue) => `"${allowedValue}", `
-        )}properties in cacheOptions.cacheKeyParameters.cookies`
-    );
-  }
-  const cookieBehaviour = Object.keys(cookiesConfig)[0];
-  return {
-    CookieBehavior: cookieBehaviour,
-    Cookies:
-      cookieBehaviour === 'allExcept' || cookieBehaviour === 'whitelist' ? cookiesConfig[cookieBehaviour] : undefined
-  };
+  const { behaviour, names } = resolveCdnSelector(cookiesConfig, 'cacheKeyParameters', 'cookies', stpResourceName);
+  return { CookieBehavior: behaviour, Cookies: names };
 };
 
 const formatCacheHeadersConfig = (
   headersConfig: CdnCachingOptions['cacheKeyParameters']['headers'],
-  stpResourceNameName: string
+  stpResourceName: string
 ): CacheHeadersConfig => {
-  const allowedValuesInHeadersConfig: (keyof CdnCachingOptions['cacheKeyParameters']['headers'])[] = [
-    'none',
-    'whitelist'
-  ];
-  if (
-    Object.keys(headersConfig).length !== 1 ||
-    !allowedValuesInHeadersConfig.includes(
-      getConfigBehaviour(headersConfig) as keyof CdnCachingOptions['cacheKeyParameters']['headers']
-    )
-  ) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${stpResourceNameName}.\n` +
-        `You have to define exactly one of ${allowedValuesInHeadersConfig.map(
-          (allowedValue) => `"${allowedValue}", `
-        )}properties in cacheOptions.cacheKeyParameters.headers`
-    );
-  }
-  const headerBehaviour = Object.keys(headersConfig)[0];
-  return {
-    HeaderBehavior: headerBehaviour,
-    Headers: headerBehaviour === 'whitelist' ? headersConfig[headerBehaviour] : undefined
-  };
+  const { behaviour, names } = resolveCdnSelector(headersConfig, 'cacheKeyParameters', 'headers', stpResourceName);
+  return { HeaderBehavior: behaviour, Headers: names };
 };
 
 const formatCacheQueryStringConfig = (
   queryStringsConfig: CdnCachingOptions['cacheKeyParameters']['queryString'],
-  stpResourceNameName: string
+  stpResourceName: string
 ): CacheQueryStringsConfig => {
-  const allowedValuesInQueryStringsConfig: (keyof CdnCachingOptions['cacheKeyParameters']['queryString'])[] = [
-    'none',
-    'whitelist',
-    'all'
-  ];
-  if (
-    Object.keys(queryStringsConfig).length !== 1 ||
-    !allowedValuesInQueryStringsConfig.includes(
-      getConfigBehaviour(queryStringsConfig) as keyof CdnCachingOptions['cacheKeyParameters']['queryString']
-    )
-  ) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${stpResourceNameName}.\n` +
-        `You have to define exactly one of ${allowedValuesInQueryStringsConfig.map(
-          (allowedValue) => `"${allowedValue}", `
-        )}properties in cacheOptions.cacheKeyParameters.queryString`
-    );
-  }
-  const queryStringBehaviour = Object.keys(queryStringsConfig)[0];
-  return {
-    QueryStringBehavior: queryStringBehaviour,
-    QueryStrings: queryStringBehaviour === 'whitelist' ? queryStringsConfig[queryStringBehaviour] : undefined
-  };
+  const { behaviour, names } = resolveCdnSelector(
+    queryStringsConfig,
+    'cacheKeyParameters',
+    'queryString',
+    stpResourceName
+  );
+  return { QueryStringBehavior: behaviour, QueryStrings: names };
 };
 
 const formatOriginRequestCookiesConfig = (
   cookiesConfig: CdnForwardingOptions['cookies'],
-  stpResourceNameName: string
+  stpResourceName: string
 ): OriginRequestCookiesConfig => {
-  const allowedValuesInCookieConfig: (keyof CdnForwardingOptions['cookies'])[] = ['all', 'none', 'whitelist'];
-  if (
-    Object.keys(cookiesConfig).length !== 1 ||
-    !allowedValuesInCookieConfig.includes(getConfigBehaviour(cookiesConfig) as keyof CdnForwardingOptions['cookies'])
-  ) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${stpResourceNameName}.\n` +
-        `You have to define exactly one of ${allowedValuesInCookieConfig.map(
-          (allowedValue) => `"${allowedValue}", `
-        )}properties in forwardingOptions.cookies`
-    );
-  }
-  const cookieBehaviour = Object.keys(cookiesConfig)[0];
-  return {
-    CookieBehavior: cookieBehaviour,
-    Cookies: cookieBehaviour === 'whitelist' ? cookiesConfig[cookieBehaviour] : undefined
-  };
+  const { behaviour, names } = resolveCdnSelector(cookiesConfig, 'forwardingOptions', 'cookies', stpResourceName);
+  return { CookieBehavior: behaviour, Cookies: names };
 };
 
 const formatOriginRequestHeadersConfig = (
   headersConfig: CdnForwardingOptions['headers'],
-  stpResourceNameName: string
+  stpResourceName: string
 ): OriginRequestHeadersConfig => {
-  const allowedValuesInHeadersConfig: (keyof CdnForwardingOptions['headers'])[] = [
-    'none',
-    'whitelist',
-    'allViewer',
-    'allViewerAndWhitelistCloudFront'
-  ];
-  if (
-    Object.keys(headersConfig).length !== 1 ||
-    !allowedValuesInHeadersConfig.includes(getConfigBehaviour(headersConfig) as keyof CdnForwardingOptions['headers'])
-  ) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${stpResourceNameName}.\n` +
-        `You have to define exactly one of ${allowedValuesInHeadersConfig.map(
-          (allowedValue) => `"${allowedValue}", `
-        )}properties in forwardingOptions.headers`
-    );
-  }
-  const headerBehaviour = Object.keys(headersConfig)[0];
-  return {
-    HeaderBehavior: headerBehaviour,
-    Headers:
-      headerBehaviour === 'allViewerAndWhitelistCloudFront' || headerBehaviour === 'whitelist'
-        ? headersConfig[headerBehaviour]
-        : undefined
-  };
+  const { behaviour, names } = resolveCdnSelector(headersConfig, 'forwardingOptions', 'headers', stpResourceName);
+  return { HeaderBehavior: behaviour, Headers: names };
 };
 
 const formatOriginRequestQueryStringConfig = (
   queryStringsConfig: CdnForwardingOptions['queryString'],
-  stpResourceNameName: string
+  stpResourceName: string
 ): OriginRequestQueryStringsConfig => {
-  const allowedValuesInQueryStringsConfig: (keyof CdnForwardingOptions['queryString'])[] = ['none', 'whitelist', 'all'];
-  if (
-    Object.keys(queryStringsConfig).length !== 1 ||
-    !allowedValuesInQueryStringsConfig.includes(
-      getConfigBehaviour(queryStringsConfig) as keyof CdnForwardingOptions['queryString']
-    )
-  ) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${stpResourceNameName}.\n` +
-        `You have to define exactly one of ${allowedValuesInQueryStringsConfig.map(
-          (allowedValue) => `"${allowedValue}", `
-        )}properties in forwardingOptions.queryString`
-    );
-  }
-  const queryStringBehaviour = Object.keys(queryStringsConfig)[0];
-  return {
-    QueryStringBehavior: queryStringBehaviour,
-    QueryStrings: queryStringBehaviour === 'whitelist' ? queryStringsConfig[queryStringBehaviour] : undefined
-  };
+  const { behaviour, names } = resolveCdnSelector(
+    queryStringsConfig,
+    'forwardingOptions',
+    'queryString',
+    stpResourceName
+  );
+  return { QueryStringBehavior: behaviour, QueryStrings: names };
 };
 
 export const getCloudfrontOriginAccessIdentityResource = (stpResourceNameName: string) =>

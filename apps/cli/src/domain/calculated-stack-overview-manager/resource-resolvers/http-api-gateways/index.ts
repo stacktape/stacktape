@@ -37,6 +37,7 @@ import {
   getHttpApiDomainMapping,
   getHttpApiDomainNameResource,
   getHttpApiGatewayDefaultDomainCustomResource,
+  getHttpApiAwsDomain,
   getHttpApiGatewayVpcLinkResource,
   getHttpApiGatewayVpcLinkSecurityGroupResource,
   getHttpApiLogGroup,
@@ -180,6 +181,20 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
         allCustomDomains.map((domainName) => getAtt(cfLogicalNames.httpApiDomain(domainName), 'RegionalDomainName'))
       ),
       showDuringPrint: definition.customDomains?.some(({ disableDnsRecordCreation }) => disableDnsRecordCreation)
+    });
+  } else if (!configManager.consoleConnected) {
+    // Without the Console there is no `*.stacktape-app.com` default domain: the API keeps its own AWS URL.
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      nameChain,
+      paramName: 'domain',
+      paramValue: getHttpApiAwsDomain(name),
+      showDuringPrint: false
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      nameChain,
+      paramName: 'url',
+      paramValue: getAtt(cfLogicalNames.httpApi(name), 'ApiEndpoint'),
+      showDuringPrint: true
     });
   } else {
     const defaultDomainName = domainManager.getDefaultDomainForResource({ stpResourceName: name });
@@ -410,7 +425,10 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
 
     // actual distributions START
     if (!definition.cdn.customDomains?.length) {
-      const cdnDefaultDomainName = domainManager.getDefaultDomainForResource({ stpResourceName: name, cdn: true });
+      // Without the Console the distribution keeps its own cloudfront.net domain.
+      const cdnDefaultDomainName =
+        configManager.consoleConnected &&
+        domainManager.getDefaultDomainForResource({ stpResourceName: name, cdn: true });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.cloudfrontDistribution(name, 0),
         nameChain,
@@ -418,25 +436,31 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
           stpResourceName: name,
           cdnCompatibleResource: definition,
           defaultOriginType: definition.type,
-          customDomains: [cdnDefaultDomainName],
-          certificateArn: getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
+          customDomains: cdnDefaultDomainName ? [cdnDefaultDomainName] : undefined,
+          certificateArn: cdnDefaultDomainName
+            ? getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
+            : undefined
         })
       });
-      calculatedStackOverviewManager.addCfChildResource({
-        cfLogicalName: cfLogicalNames.customResourceDefaultDomain(name, true),
-        nameChain,
-        resource: getCdnDefaultDomainCustomResource({ resource: definition, domainName: cdnDefaultDomainName })
-      });
+      if (cdnDefaultDomainName) {
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: cfLogicalNames.customResourceDefaultDomain(name, true),
+          nameChain,
+          resource: getCdnDefaultDomainCustomResource({ resource: definition, domainName: cdnDefaultDomainName })
+        });
+      }
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         nameChain,
         paramName: 'cdnUrl',
-        paramValue: `https://${cdnDefaultDomainName}`,
+        paramValue: cdnDefaultDomainName
+          ? `https://${cdnDefaultDomainName}`
+          : join('', ['https://', getAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName')]),
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnDomain',
         nameChain,
-        paramValue: cdnDefaultDomainName,
+        paramValue: cdnDefaultDomainName || getAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
         showDuringPrint: false
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
