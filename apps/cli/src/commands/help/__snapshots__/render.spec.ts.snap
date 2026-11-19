@@ -69,6 +69,7 @@ Account:
   upgrade                   Upgrades Stacktape to the latest version.
   login                     Authenticates this system with Stacktape.
   logout                    Signs this system out of Stacktape.
+  connect                   Connects this machine's AWS account to the Stacktape Console, without redeploying anything.
   org create                Creates a new organization in your Stacktape account.
   org list                  Lists organizations accessible with your current Stacktape user.
   org delete                Deletes the organization of your API key.
