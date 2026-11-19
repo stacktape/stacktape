@@ -1506,7 +1506,8 @@
     position: absolute;
     top: 24px;
     right: 22px;
-    z-index: 1;
+    /* Above the title row, which stays over the scrolled body. */
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1530,9 +1531,18 @@
     outline-offset: var(--stp-focus-outline-offset);
   }
 
+  /* The title stays in place while a long body scrolls under it, so the close button never sits on the content.
+   * It reaches up over the body's top inset, on the dialog's own surface, and its bottom space is padding, so what
+   * scrolls under it disappears 22px before the title. */
   .stp-ui-dialog__header {
-    margin-bottom: 22px;
-    padding-right: 40px;
+    position: sticky;
+    /* Sticky offsets count from inside the body's inset. */
+    top: calc(-1 * var(--stp-dialog-padding, 28px));
+    z-index: 1;
+    margin: calc(-1 * var(--stp-dialog-padding, 28px)) calc(-1 * var(--stp-dialog-padding, 28px)) 0;
+    padding: var(--stp-dialog-padding, 28px) calc(var(--stp-dialog-padding, 28px) + 40px) 22px
+      var(--stp-dialog-padding, 28px);
+    background: var(--stp-dialog-background, var(--stp-surface-modal));
   }
 
   .stp-ui-dialog__title,
