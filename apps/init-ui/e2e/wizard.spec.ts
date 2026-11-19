@@ -21,9 +21,12 @@ const waitForTarget = async (page: Page) => {
   await expect(page.getByText(/Creates the stack .*\. Nothing is there yet\./)).toBeVisible({ timeout: 10_000 });
 };
 
+/** The ui-react radio hides its input; the label is what gets clicked. */
+const choose = (page: Page, name: RegExp) => page.locator('label.stp-ui-radio', { hasText: name }).click();
+
 /** The migration section holds the deploy until one of its two choices is made. */
 const skipMigration = async (page: Page) => {
-  await page.getByRole('tab', { name: /run it myself/ }).click();
+  await choose(page, /I run it myself/);
 };
 
 const liveHeading = (page: Page) => page.getByRole('heading', { name: 'Your app is live' });
@@ -76,7 +79,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(page.locator('.w-account')).toContainText('us-east-1');
   await expect(deployButton(page)).toBeDisabled();
   // The bar names the next thing to do; the first section that needs it is open.
-  await expect(page.locator('.w-bar')).toContainText('Next: 3 secrets');
+  await expect(page.locator('.w-bar')).toContainText('Next: generate AUTH_SECRET');
   // Review stays one click away in the header while on Deploy.
   await expect(
     page.getByRole('navigation', { name: 'Progress' }).getByRole('button', { name: /Review/ })
@@ -91,8 +94,15 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   // The app's own session key is generated in the page and saved in one click; the value is never shown.
   const authRow = page.locator('#secret-auth_secret');
   await authRow.getByRole('button', { name: 'Generate' }).click();
+  // Done, its group folds to one line; opened again, the row says it was generated and shows no value.
+  const generatedGroup = page.getByRole('region', { name: 'Generated for you' });
+  await expect(generatedGroup).toContainText('Saved');
+  await generatedGroup.getByRole('button', { name: /Generated for you/ }).click();
   await expect(authRow).toContainText('generated');
   await expect(authRow.getByRole('textbox')).toHaveCount(0);
+  // The group of keys the person provides opens next, and names what is left.
+  await expect(page.locator('.w-bar')).toContainText('Next: 2 values you provide');
+  await expect(page.locator('#secret-stripe_secret_key').getByRole('textbox')).toBeVisible();
   // Third-party keys have no Generate: only the person has them.
   await expect(page.locator('#secret-stripe_secret_key').getByRole('button', { name: 'Generate' })).toHaveCount(0);
   // One after another, as a person would: each save is its own request to the CLI.
@@ -100,8 +110,10 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await saveSecret('stripe_webhook_secret');
   // Done, the section folds to one line and the next one opens.
   await expect(page.locator('#deploy-secrets')).toContainText('All 3 saved in your AWS account');
-  await page.getByRole('tab', { name: 'Run after every deploy' }).click();
-  await expect(page.locator('#deploy-migrations')).toContainText('Runs npx drizzle-kit migrate after every deploy.');
+  await choose(page, /Stacktape runs it after every deploy/);
+  await expect(page.locator('#deploy-migrations')).toContainText(
+    'Stacktape runs npx drizzle-kit migrate after every deploy.'
+  );
   await waitForTarget(page);
   await expect(deployButton(page)).toBeEnabled();
   // Ready, the bar says what the click does.
@@ -271,13 +283,15 @@ test('a failed deploy names the fix in this project, keeps the retry, and a stop
   await skipMigration(page);
   await waitForTarget(page);
   await deployButton(page).click();
-  await expect(page.getByRole('heading', { name: 'The deploy to dev stopped' })).toBeVisible({ timeout: 15_000 });
+  // The failed part leads, then that AWS rolled the deploy back.
+  await expect(page.getByRole('heading', { name: 'app did not start on AWS' })).toBeVisible({ timeout: 15_000 });
   // What happened, why and the fix use this project's names, not a hypothetical database.
   const failure = page.locator('.w-fail');
   await expect(failure).toContainText('could not reach a database at localhost:5432');
   await expect(failure).toContainText('mainDatabase');
   await expect(failure).not.toContainText('myDatabase');
-  await expect(page.getByText(/AWS rolled it back/)).toBeVisible();
+  await expect(page.getByText(/AWS rolled back the deploy to dev/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Update your code to read POSTGRES_URL/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Deploy again' })).toBeEnabled();
   await page.getByRole('button', { name: 'Show the full error' }).click();
   await expect(page.locator('pre', { hasText: 'Stack action create failed.' })).toBeVisible();
@@ -294,24 +308,23 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await page.goto(wizard.url);
   await analyzeAndReview(page);
   await continueToDeploy(page);
-  await expect(page.getByRole('heading', { name: /Connect AWS to deploy/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Connect AWS to deploy to dev/ })).toBeVisible();
   await expect(page.locator('.w-bar')).toContainText('Next: connect AWS');
   // Secrets are saved in the AWS account, so they wait for it.
   await expect(page.locator('#deploy-secrets')).toContainText('Available after AWS is connected');
   await expect(page.getByRole('textbox', { name: 'Value for auth_secret' })).toHaveCount(0);
   // The way in is chosen first; no field shows before that.
   await expect(page.getByRole('textbox', { name: 'Access key ID' })).toHaveCount(0);
-  // The ui-react radio hides its input; the label is what gets clicked.
-  const choosePath = (name: RegExp) => page.locator('label.stp-ui-radio', { hasText: name }).click();
+  const choosePath = (name: RegExp) => choose(page, name);
   await choosePath(/SSO/);
   await expect(page.getByRole('radio', { name: /SSO/ })).toBeChecked();
   await expect(page.getByText('aws configure sso', { exact: true })).toBeVisible();
-  await choosePath(/Create an AWS account/);
+  await choosePath(/AWS account yet/);
   await expect(page.getByRole('link', { name: /Create an AWS account/ })).toHaveAttribute(
     'href',
     /portal\.aws\.amazon\.com/
   );
-  await choosePath(/access keys/);
+  await choosePath(/Access keys/);
   await page.getByRole('textbox', { name: 'Access key ID' }).fill('AKIAIOSFODNN7EXAMPLE');
   await page.getByRole('textbox', { name: 'Secret access key' }).fill('wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY');
   await page.getByRole('button', { name: 'Save on this machine' }).click();
@@ -322,6 +335,39 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await page.getByRole('textbox', { name: 'Value for auth_secret' }).press('Enter');
   await expect(page.getByText(/not authorized to perform: secretsmanager:CreateSecret on auth_secret/)).toBeVisible();
   await expect(deployButton(page)).toBeDisabled();
+});
+
+test("values the project's .env sets are offered for checking: local ones are flagged, the rest saved in one click", async ({
+  page,
+  startWizard
+}) => {
+  const wizard = await startWizard({ project: 'full-stack-fastapi' });
+  await page.goto(wizard.url);
+  await analyzeAndReview(page);
+  await continueToDeploy(page);
+  await waitForTarget(page);
+  // The analysis notes are one folded row; opened, each says what it means for the deploy.
+  await page.getByRole('button', { name: /Worth a look/ }).click();
+  await expect(page.getByRole('region', { name: 'Worth a look' })).toContainText(
+    'backend runs without a health check on AWS'
+  );
+
+  const imports = page.getByRole('region', { name: 'Imported from .env' });
+  await imports.getByRole('button', { name: /Values in \.env/ }).click();
+  // Nothing is filled before the user asks for it.
+  await expect(page.getByRole('textbox', { name: 'Value for project_name' })).toHaveValue('');
+  await imports.getByRole('button', { name: /^Use the \d+ values from \.env$/ }).click();
+  await expect(page.getByRole('textbox', { name: 'Value for project_name' })).toHaveValue('Full Stack FastAPI Project');
+  // A value that points at this machine is flagged and stays out of the one-click save.
+  await expect(page.locator('#secret-domain')).toContainText('Local value: change before deploying');
+  await imports.getByRole('button', { name: /^Save \d+ checked values$/ }).click();
+  await expect(page.locator('#secret-project_name')).toContainText('Saved');
+  await expect(page.getByRole('textbox', { name: 'Value for domain' })).toHaveValue('localhost');
+  // Changed to a real address, it is saved like any other.
+  await page.getByRole('textbox', { name: 'Value for domain' }).fill('app.acme.io');
+  await expect(page.locator('#secret-domain')).not.toContainText('Local value');
+  await page.getByRole('textbox', { name: 'Value for domain' }).press('Enter');
+  await expect(page.locator('#secret-domain')).toContainText('Saved');
 });
 
 test('a stack left behind by a failed first deploy says how to clear it, and can be checked again', async ({
@@ -385,10 +431,11 @@ test('signed out, it deploys without an account, then offers the Console and con
   await expect(liveHeading(page)).toBeVisible({ timeout: 15_000 });
 
   const live = page.getByRole('region', { name: 'Live' });
-  await expect(live.getByRole('link', { name: 'Open app' })).toHaveAttribute('href', /cloudfront\.net/);
-  // Two addresses, each named for what it is.
+  // Two addresses, each named for what it is, each with its own Open and Copy.
+  await expect(live.getByRole('link', { name: 'Open frontend' })).toHaveAttribute('href', /cloudfront\.net/);
+  await expect(live.getByRole('link', { name: 'Open the API' })).toHaveAttribute('href', /cloudfront\.net/);
+  await expect(live.getByRole('button', { name: 'Copy the API address' })).toBeVisible();
   await expect(live).toContainText('Frontend');
-  await expect(live).toContainText('API');
 
   const offer = page.getByRole('region', { name: 'Stacktape Console' });
   await expect(offer).toContainText('Free while your AWS spend stays under $200/month');

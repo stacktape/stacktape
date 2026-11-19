@@ -354,3 +354,20 @@ export const localValueReason = (value: string): 'local' | 'example' | undefined
   if (/@example\.(com|org|net)\b|\bexample\.(com|org|net)$/i.test(trimmed)) return 'example';
   return undefined;
 };
+
+/** "Next: …" for the first group with something left: the concrete action, in the user's words. */
+export const taskNextText = (
+  group: SecretTaskGroup,
+  remaining: readonly SecretEntry[],
+  file: string | undefined
+): string => {
+  if (group.task === 'generate') {
+    return remaining.length === 1 ? `generate ${remaining[0]!.variable}` : `generate ${remaining.length} secrets`;
+  }
+  if (group.task === 'import')
+    return `check ${remaining.length} ${remaining.length === 1 ? 'value' : 'values'} from ${file ?? '.env'}`;
+  if (remaining.every((entry) => entry.kind === 'outside')) {
+    return `${remaining.length} service ${remaining.length === 1 ? 'URL' : 'URLs'}`;
+  }
+  return remaining.length === 1 ? `enter ${remaining[0]!.variable}` : `${remaining.length} values you provide`;
+};

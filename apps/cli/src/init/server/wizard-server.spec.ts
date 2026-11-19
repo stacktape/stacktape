@@ -211,6 +211,51 @@ describe('showing a repository file', () => {
   });
 });
 
+describe("reading the project's .env values", () => {
+  let calls = 0;
+  const startWithValues = () =>
+    start({
+      hooks: {
+        onAnswer: () => baseState,
+        onMode: () => baseState,
+        onPreference: () => baseState,
+        onStart: () => {},
+        onWrite: () => {},
+        onDeploy: () => {},
+        onVerify: () => {},
+        onVerifyDismiss: () => baseState,
+        onPipeline: () => {},
+        onCodingAgentSetup: () => {},
+        onRecheck: () => baseState,
+        onSignIn: () => {},
+        onConsoleConnection: () => {},
+        onEnvironmentValues: async () => {
+          calls += 1;
+          return { file: '.env', values: [{ name: 'DOMAIN', value: 'example.org' }] };
+        }
+      }
+    });
+
+  it('needs the session cookie, the page origin and the CSRF token', async () => {
+    const { origin, token } = await startWithValues();
+    const { cookie, body } = await handshake(origin, token);
+    const url = `${origin}/api/environment-values`;
+
+    expect((await fetch(url, { headers: { Origin: origin } })).status).toBe(401);
+    expect((await fetch(url, { headers: { Origin: origin, Cookie: cookie } })).status).toBe(403);
+    expect(
+      (await fetch(url, { headers: { Origin: 'http://evil.test', Cookie: cookie, 'x-csrf-token': body.csrfToken! } }))
+        .status
+    ).toBe(403);
+    expect(calls).toBe(0);
+
+    const response = await fetch(url, { headers: { Origin: origin, Cookie: cookie, 'x-csrf-token': body.csrfToken! } });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ file: '.env', values: [{ name: 'DOMAIN', value: 'example.org' }] });
+  });
+});
+
 describe('resuming after a reload', () => {
   it('continues on the cookie once the token has been spent', async () => {
     const { origin, token } = await start();

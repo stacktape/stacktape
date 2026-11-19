@@ -20,6 +20,7 @@ import {
   localValueReason,
   planSecrets,
   taskGroups,
+  taskNextText,
   type EnvironmentValues,
   type SecretEntry,
   type SecretTask,
@@ -810,23 +811,6 @@ const TASK_WORDS: Record<SecretTask, { title: string; help: string }> = {
     title: 'Imported from .env',
     help: 'Your .env sets these on your machine. Check each value: it goes from this page to AWS Secrets Manager in your account, nowhere else.'
   }
-};
-
-/** "Next: …" for the first group with something left: the concrete action, in the user's words. */
-export const taskNextText = (
-  group: SecretTaskGroup,
-  remaining: readonly SecretEntry[],
-  file: string | undefined
-): string => {
-  if (group.task === 'generate') {
-    return remaining.length === 1 ? `generate ${remaining[0]!.variable}` : `generate ${remaining.length} secrets`;
-  }
-  if (group.task === 'import')
-    return `check ${remaining.length} ${remaining.length === 1 ? 'value' : 'values'} from ${file ?? '.env'}`;
-  if (remaining.every((entry) => entry.kind === 'outside')) {
-    return `${remaining.length} service ${remaining.length === 1 ? 'URL' : 'URLs'}`;
-  }
-  return remaining.length === 1 ? `enter ${remaining[0]!.variable}` : `${remaining.length} values you provide`;
 };
 
 /**

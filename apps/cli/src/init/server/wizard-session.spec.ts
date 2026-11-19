@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { composeConfig } from '@stacktape/config-inference/compose';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema, type ProjectFacts } from '@stacktape/config-inference/facts';
 import type { GreenfieldResult } from '../missions/greenfield';
@@ -1820,8 +1823,38 @@ describe('what the page sets besides choices', () => {
       const response = await fetch(`${origin}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
       return { status: response.status, state: (await response.json()) as PageState };
     };
-    return { post };
+    const get = async (path: string) => (await fetch(`${origin}${path}`, { headers })).json();
+    return { post, get };
   };
+
+  it('reads from .env only the variables the configuration reads as secrets', async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), 'stacktape-session-env-'));
+    try {
+      await writeFile(
+        join(repositoryRoot, '.env'),
+        'DOMAIN=localhost\nPLAIN=not-a-secret\nAWS_SECRET_ACCESS_KEY=never-sent\n'
+      );
+      session = await startWizardSession({ projectName: 'demo', result: factsFor(), repositoryRoot });
+      const { post, get } = await connect();
+      await post('/api/config-text', {
+        yaml: [
+          'resources:',
+          '  api:',
+          '    type: web-service',
+          '    properties:',
+          '      environment:',
+          '        - { name: DOMAIN, value: "$Secret(\'domain\')" }',
+          '        - { name: PLAIN, value: plain }'
+        ].join('\n')
+      });
+      expect(await get('/api/environment-values')).toEqual({
+        file: '.env',
+        values: [{ name: 'DOMAIN', value: 'localhost' }]
+      });
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
 
   it('writes and deploys hand-edited YAML, keeps settings off while edited, and goes back to generated', async () => {
     const written: Array<{ contents?: string; replaces?: string }> = [];

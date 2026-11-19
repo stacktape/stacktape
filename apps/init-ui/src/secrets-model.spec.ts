@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'bun:test';
 import type { WizardState } from './session';
-import { canGenerateSecret, firstSentence, generateSecretValue, planSecrets } from './secrets-model';
+import {
+  canGenerateSecret,
+  firstSentence,
+  generateSecretValue,
+  localValueReason,
+  planSecrets,
+  taskGroups,
+  taskNextText,
+  type SecretEntry,
+  type SecretsPlan
+} from './secrets-model';
 
 describe('which secrets the page may generate', () => {
   it.each([
@@ -205,5 +215,89 @@ describe('planSecrets', () => {
     ]);
     expect(plan.explainedGaps).toEqual(['messageBroker']);
     expect(plan.notNeeded).toEqual(['SENTRY_AUTH_TOKEN']);
+  });
+});
+
+describe('values from .env that should not reach AWS as they are', () => {
+  it.each([
+    ['localhost', 'local'],
+    ['http://localhost:5173', 'local'],
+    ['http://localhost,http://localhost:5173,https://localhost', 'local'],
+    ['postgres://127.0.0.1:5432/app', 'local'],
+    ['0.0.0.0', 'local'],
+    ['local', 'local'],
+    ['changethis', 'example'],
+    ['change-me', 'example'],
+    ['your_api_key', 'example'],
+    ['admin@example.com', 'example'],
+    ['https://dashboard.example.com', 'example'],
+    ['587', undefined],
+    ['True', undefined],
+    ['Full Stack FastAPI Project', undefined],
+    ['full-stack-fastapi-project', undefined],
+    ['production', undefined],
+    ['https://api.acme.io', undefined],
+    ['localization', undefined]
+  ])('%s → %p', (value, expected) => {
+    expect(localValueReason(value)).toBe(expected);
+  });
+});
+
+const entry = (name: string, kind: SecretEntry['kind'], canGenerate = false): SecretEntry => ({
+  name: name.toLowerCase(),
+  variable: name,
+  kind,
+  canGenerate
+});
+
+const planOf = (entries: SecretEntry[]): SecretsPlan => ({
+  groups: [],
+  entries,
+  setByStacktape: [],
+  notNeeded: [],
+  explainedGaps: []
+});
+
+describe('the secrets by what the user does about them', () => {
+  const entries = [
+    entry('SECRET_KEY', 'secret', true),
+    entry('SMTP_PASSWORD', 'secret'),
+    entry('DOMAIN', 'setting'),
+    entry('SENTRY_DSN', 'setting'),
+    entry('STRIPE_SECRET_KEY', 'secret')
+  ];
+
+  it('generates what the app owns, imports what .env sets, and asks for the rest', () => {
+    const environment = {
+      file: '.env',
+      values: new Map([
+        ['SECRET_KEY', 'changethis'],
+        ['DOMAIN', 'localhost'],
+        ['SENTRY_DSN', ''],
+        ['STRIPE_SECRET_KEY', 'sk_test_123']
+      ])
+    };
+    expect(
+      taskGroups(planOf(entries), environment).map((group) => [group.task, group.entries.map((one) => one.variable)])
+    ).toEqual([
+      ['generate', ['SECRET_KEY']],
+      ['provide', ['SMTP_PASSWORD', 'SENTRY_DSN']],
+      ['import', ['DOMAIN', 'STRIPE_SECRET_KEY']]
+    ]);
+  });
+
+  it('has no import group without a .env', () => {
+    expect(taskGroups(planOf(entries), undefined).map((group) => group.task)).toEqual(['generate', 'provide']);
+  });
+
+  it.each([
+    ['generate', [entry('AUTH_SECRET', 'secret', true)], 'generate AUTH_SECRET'],
+    ['generate', [entry('A_SECRET', 'secret', true), entry('B_SECRET', 'secret', true)], 'generate 2 secrets'],
+    ['provide', [entry('SMTP_PASSWORD', 'secret')], 'enter SMTP_PASSWORD'],
+    ['provide', [entry('NATS_URL', 'outside'), entry('RMQ_URL', 'outside')], '2 service URLs'],
+    ['provide', [entry('NATS_URL', 'outside'), entry('SMTP_PASSWORD', 'secret')], '2 values you provide'],
+    ['import', [entry('DOMAIN', 'setting'), entry('PORT', 'setting')], 'check 2 values from .env']
+  ] as const)('next for %s: %p', (task, remaining, expected) => {
+    expect(taskNextText({ task, entries: [...remaining] }, remaining, '.env')).toBe(expected);
   });
 });
