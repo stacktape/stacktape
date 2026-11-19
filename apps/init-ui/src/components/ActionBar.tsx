@@ -70,8 +70,19 @@ export function BarPrice({
   );
 }
 
-/** The bar's price for this session's file: the fixed monthly amount, and what the estimate covers. */
-export function MonthlyPrice({ state }: { state: WizardState }) {
+const perMonth = (usage: boolean) => `/month${usage ? ' + usage' : ''}`;
+
+/**
+ * The bar's price for this session's file: the fixed monthly amount, and what the estimate covers. `suffix` words what
+ * follows the amount ("/month estimated AWS cost + usage" on Review).
+ */
+export function MonthlyPrice({
+  state,
+  suffix = perMonth
+}: {
+  state: WizardState;
+  suffix?: (usage: boolean) => string;
+}) {
   const price = state.composition?.price;
   if (price === undefined) {
     return <BarPrice amount={undefined} pending={state.composition?.priceUnavailable !== true} />;
@@ -86,7 +97,7 @@ export function MonthlyPrice({ state }: { state: WizardState }) {
           {usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
         </>
       }
-      suffix={amount === undefined ? undefined : `/month${usage ? ' + usage' : ''}`}
+      suffix={amount === undefined ? undefined : suffix(usage)}
     />
   );
 }

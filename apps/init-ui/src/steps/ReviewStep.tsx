@@ -9,7 +9,7 @@ import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { BiChevronDown, BiCodeAlt, BiInfoCircle, BiLinkExternal, BiPointer, BiX } from 'react-icons/bi';
 import { InfoTip } from '../components/InfoTip';
@@ -18,21 +18,8 @@ import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
 import { evidenceSays, lineRange, quoteLabel, type Citation, type ResourceStory } from '../workspace/resource-story';
 import { EvidenceLine } from '../workspace/EvidenceLine';
+import { useMediaQuery } from '../workspace/use-media-query';
 import { deploymentPreferenceKeysFor, NOT_CREATED_KINDS, plainList } from './review-model';
-
-/** Whether a media query matches now, following changes. */
-const useMediaQuery = (query: string): boolean => {
-  const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches === true);
-  useEffect(() => {
-    const list = window.matchMedia?.(query);
-    if (list === undefined) return;
-    const update = () => setMatches(list.matches);
-    update();
-    list.addEventListener('change', update);
-    return () => list.removeEventListener('change', update);
-  }, [query]);
-  return matches;
-};
 
 /** Heavy on purpose, light on arrival: the diagram loads after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));

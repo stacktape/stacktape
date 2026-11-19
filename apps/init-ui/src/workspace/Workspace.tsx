@@ -6,12 +6,12 @@ import { Tabs } from '@stacktape/ui-react/tabs';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BiKey, BiLinkExternal } from 'react-icons/bi';
 import { parse as parseYaml } from 'yaml';
-import { ActionBar, BarPrice } from '../components/ActionBar';
+import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { AnimatedPrice } from '../components/AnimatedPrice';
 import type { ConfigEditorHandle, EditorLens, EditorProblems } from '../editor/ConfigFileEditor';
 import type { FileView, Session, WizardState } from '../session';
 import { ReviewPane } from '../steps/ReviewStep';
-import { filenameFor, monthlySuffix, splitMonthly, summarise } from '../steps/review-model';
+import { filenameFor, monthlySuffix, summarise } from '../steps/review-model';
 import { CodeWindow, LINE_HEIGHT } from './CodeWindow';
 import { FileIcon } from './FileIcon';
 import {
@@ -31,6 +31,7 @@ import {
 } from './resource-story';
 import { EvidenceLine } from './EvidenceLine';
 import { scanActivity } from './scan-activity';
+import { useMediaQuery } from './use-media-query';
 import './workspace.css';
 
 const ConfigFileEditor = lazy(() => import('../editor/ConfigFileEditor'));
@@ -39,20 +40,6 @@ const loadDiagram = () => import('../components/Diagram');
 
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
 type Phase = 'scan' | 'reveal' | 'review';
-
-/** Whether a media query matches now, following changes. */
-export const useMediaQuery = (query: string): boolean => {
-  const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches === true);
-  useEffect(() => {
-    const list = window.matchMedia?.(query);
-    if (list === undefined) return;
-    const update = () => setMatches(list.matches);
-    update();
-    list.addEventListener('change', update);
-    return () => list.removeEventListener('change', update);
-  }, [query]);
-  return matches;
-};
 
 /** The width at which the two panes stack (`.ws` in `workspace.css`). */
 const STACKED = '(max-width: 1020px)';
@@ -867,7 +854,7 @@ export function Workspace({
 
       {phase === 'review' && (
         <div className="ws-bar-slot" data-arrived={arrived ? 'true' : undefined}>
-          <ActionBar note={barNote} price={<ReviewPrice state={state} />}>
+          <ActionBar note={barNote} price={<MonthlyPrice state={state} suffix={monthlySuffix} />}>
             <Button
               disabled={isLocked || parseError !== undefined || busy !== undefined}
               isLoading={busy === 'write'}
@@ -880,30 +867,6 @@ export function Workspace({
         </div>
       )}
     </>
-  );
-}
-
-/**
- * The bar's price on Review: "$31 /month estimated AWS cost + usage", what the reveal ended on, with what the estimate
- * covers behind the help mark.
- */
-function ReviewPrice({ state }: { state: WizardState }) {
-  const price = state.composition?.price;
-  if (price === undefined) {
-    return <BarPrice amount={undefined} pending={state.composition?.priceUnavailable !== true} />;
-  }
-  const { amount, usage } = splitMonthly(price.monthly);
-  return (
-    <BarPrice
-      amount={amount ?? price.monthly}
-      help={
-        <>
-          AWS list prices in {price.region}, for what runs all month.
-          {usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
-        </>
-      }
-      suffix={amount === undefined ? undefined : monthlySuffix(usage)}
-    />
   );
 }
 
