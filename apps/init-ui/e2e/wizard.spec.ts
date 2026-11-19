@@ -101,7 +101,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(authRow).toContainText('generated');
   await expect(authRow.getByRole('textbox')).toHaveCount(0);
   // The group of keys the person provides opens next, and names what is left.
-  await expect(page.locator('.w-bar')).toContainText('Next: 2 values you provide');
+  await expect(page.locator('.w-bar')).toContainText('Next: enter 2 values');
   await expect(page.locator('#secret-stripe_secret_key').getByRole('textbox')).toBeVisible();
   // Third-party keys have no Generate: only the person has them.
   await expect(page.locator('#secret-stripe_secret_key').getByRole('button', { name: 'Generate' })).toHaveCount(0);
@@ -110,19 +110,25 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await saveSecret('stripe_webhook_secret');
   // Done, the section folds to one line and the next one opens.
   await expect(page.locator('#deploy-secrets')).toContainText('All 3 saved in your AWS account');
-  await choose(page, /Stacktape runs it after every deploy/);
+  await choose(page, /Stacktape runs it/);
+  // The choice and the finished row give the same timing: a Next.js app migrates right after the deploy.
   await expect(page.locator('#deploy-migrations')).toContainText(
-    'Stacktape runs npx drizzle-kit migrate after every deploy.'
+    'Stacktape runs npx drizzle-kit migrate on every deploy, right after the new version goes live.'
   );
   await waitForTarget(page);
   await expect(deployButton(page)).toBeEnabled();
-  // Ready, the bar says what the click does.
-  await expect(page.locator('.w-bar')).toContainText('in your AWS account');
-  await expect(page.locator('.w-bar')).toContainText('AWS bills them from now on · about 10–15 min');
+  // Ready, a block under the checklist says what the click creates, where, and what it costs.
+  const commitment = page.getByRole('region', { name: 'What Deploy does' });
+  // Private network was chosen on Review, so the access server is part of it.
+  await expect(commitment).toContainText('Creates a Next.js site, a Postgres database and a database access server');
+  await expect(commitment).toContainText('Region us-east-1');
+  await expect(commitment).toContainText('Stage dev');
+  await expect(commitment).toContainText('Takes about 10–15 min');
+  await expect(page.locator('.w-bar')).toContainText('estimated AWS cost');
 
   await deployButton(page).click();
   await expect(page.getByRole('heading', { name: 'Deploying to dev' })).toBeVisible();
-  // The reviewed diagram fills in as AWS creates it; the phases have times, and the tab question is answered.
+  // The reviewed diagram fills in as AWS creates it; one clock for the deploy, and the tab question is answered.
   await expect(page.locator('.stp-diagram__node[data-progress]').first()).toBeVisible();
   await expect(page.getByRole('complementary', { name: 'Deploy progress' })).toContainText('Creating AWS resources');
   await expect(page.getByText(/Closing this tab does not stop the deploy/)).toBeVisible();
@@ -319,7 +325,7 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await page.goto(wizard.url);
   await analyzeAndReview(page);
   await continueToDeploy(page);
-  await expect(page.getByRole('heading', { name: /Connect AWS to deploy to dev/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Connect AWS to deploy' })).toBeVisible();
   await expect(page.locator('.w-bar')).toContainText('Next: connect AWS');
   // Secrets are saved in the AWS account, so they wait for it.
   await expect(page.locator('#deploy-secrets')).toContainText('Available after AWS is connected');
@@ -330,12 +336,14 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await choosePath(/SSO/);
   await expect(page.getByRole('radio', { name: /SSO/ })).toBeChecked();
   await expect(page.getByText('aws configure sso', { exact: true })).toBeVisible();
-  await choosePath(/AWS account yet/);
+  // Without an account: a quieter way below the two ways in, ending back on this page.
+  await page.getByRole('button', { name: 'No AWS account yet?' }).click();
   await expect(page.getByRole('link', { name: /Create an AWS account/ })).toHaveAttribute(
     'href',
     /portal\.aws\.amazon\.com/
   );
-  await choosePath(/Access keys/);
+  await expect(page.getByText(/Come back to this page/)).toBeVisible();
+  await choosePath(/existing AWS access key/);
   await page.getByRole('textbox', { name: 'Access key ID' }).fill('AKIAIOSFODNN7EXAMPLE');
   await page.getByRole('textbox', { name: 'Secret access key' }).fill('wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY');
   await page.getByRole('button', { name: 'Save on this machine' }).click();
@@ -363,15 +371,20 @@ test("values the project's .env sets are offered for checking: local ones are fl
     'backend runs without a health check on AWS'
   );
 
-  const imports = page.getByRole('region', { name: 'Imported from .env' });
+  const imports = page.getByRole('region', { name: 'Values in .env' });
   await imports.getByRole('button', { name: /Values in \.env/ }).click();
   // Nothing is filled before the user asks for it.
   await expect(page.getByRole('textbox', { name: 'Value for project_name' })).toHaveValue('');
   await imports.getByRole('button', { name: /^Use the \d+ values from \.env$/ }).click();
   await expect(page.getByRole('textbox', { name: 'Value for project_name' })).toHaveValue('Full Stack FastAPI Project');
-  // A value that points at this machine is flagged and stays out of the one-click save.
+  // A value that points at this machine is flagged, under Review before saving, and stays out of the one-click save.
   await expect(page.locator('#secret-domain')).toContainText('Local value: change before deploying');
-  await imports.getByRole('button', { name: /^Save \d+ checked values$/ }).click();
+  await expect(imports).toContainText('Review before saving');
+  // The bar's Next names the same action as the button.
+  const save = imports.getByRole('button', { name: /^Save \d+ values$/ });
+  const saveLabel = (await save.textContent()) ?? '';
+  await expect(page.locator('.w-bar')).toContainText(`Next: ${saveLabel.toLowerCase()}`);
+  await save.click();
   await expect(page.locator('#secret-project_name')).toContainText('Saved');
   await expect(page.getByRole('textbox', { name: 'Value for domain' })).toHaveValue('localhost');
   // Changed to a real address, it is saved like any other.
@@ -443,10 +456,11 @@ test('signed out, it deploys without an account, then offers the Console and con
 
   const live = page.getByRole('region', { name: 'Live' });
   // Two addresses, each named for what it is, each with its own Open and Copy.
-  await expect(live.getByRole('link', { name: 'Open frontend' })).toHaveAttribute('href', /cloudfront\.net/);
-  await expect(live.getByRole('link', { name: 'Open the API' })).toHaveAttribute('href', /cloudfront\.net/);
+  await expect(live.getByRole('link', { name: 'Open site' })).toHaveAttribute('href', /cloudfront\.net/);
+  await expect(live.getByRole('link', { name: 'Open API' })).toHaveAttribute('href', /cloudfront\.net/);
   await expect(live.getByRole('button', { name: 'Copy the API address' })).toBeVisible();
-  await expect(live).toContainText('Frontend');
+  await expect(live).toContainText('Site');
+  await expect(live).toContainText('Region eu-west-1');
 
   const offer = page.getByRole('region', { name: 'Stacktape Console' });
   await expect(offer).toContainText('Free while your AWS spend stays under $200/month');

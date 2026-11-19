@@ -1885,6 +1885,11 @@
     right: 60px;
   }
 
+  /* The legend says what faint and pulsing mean: it has to be read, not just seen. */
+  .w-run-diagram .stp-diagram__hint {
+    color: var(--w-muted);
+  }
+
   .w-run-diagram .stp-diagram {
     border: none;
     border-radius: var(--w-radius);
@@ -2000,7 +2005,7 @@
 
   .w-phase {
     display: grid;
-    grid-template-columns: 20px minmax(0, 1fr) auto;
+    grid-template-columns: 20px minmax(0, 1fr);
     gap: 0 12px;
     align-items: center;
     padding: 7px 20px;
@@ -2061,18 +2066,6 @@
   }
 
   .w-phase.is-done .w-phase-label {
-    color: var(--w-muted);
-  }
-
-  .w-phase-time {
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 20px;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
-  .w-phase.is-running .w-phase-time {
     color: var(--w-muted);
   }
 
@@ -2141,7 +2134,6 @@
     animation: w-beacon 2.2s ease-out infinite;
   }
 
-  /* One address: set large on its own line, the thing to open. */
   .w-live-url {
     min-width: 0;
     color: var(--w-text);
@@ -2152,43 +2144,31 @@
     overflow-wrap: anywhere;
   }
 
-  .w-live-url.is-hero {
-    display: block;
-    margin-top: 14px;
-    color: var(--w-text-strong);
-    font-size: 19px;
-    line-height: 28px;
-  }
-
   .w-live-url:hover {
     text-decoration: underline;
     text-decoration-color: var(--w-brand-line);
     text-underline-offset: 5px;
   }
 
-  .w-live-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-    margin-top: 20px;
-  }
-
-  /* Several addresses: a row each, its label, the address, and its own Open and Copy. */
+  /* Each address is one row, the same for one or several: what it is over the address, and its own Open and Copy.
+   * The first is the one to open, so it is set larger with the primary button. */
   .w-live-addresses {
     display: flex;
     flex-direction: column;
-    margin: 18px 0 0;
+    margin: 14px 0 0;
     padding: 0;
     list-style: none;
   }
 
   .w-live-addresses li {
     display: grid;
-    grid-template-columns: 76px minmax(0, 1fr) auto;
-    gap: 6px 14px;
+    grid-template-areas:
+      'label actions'
+      'url actions';
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px 16px;
     align-items: center;
-    padding: 10px 0;
+    padding: 12px 0;
   }
 
   .w-live-addresses li + li {
@@ -2196,51 +2176,46 @@
   }
 
   .w-live-label {
-    color: var(--w-muted);
+    grid-area: label;
+    color: var(--w-subtle);
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
   }
 
+  .w-live-addresses .w-live-url {
+    grid-area: url;
+  }
+
+  .w-live-addresses li.is-primary .w-live-url {
+    color: var(--w-text-strong);
+    font-size: 18px;
+    line-height: 26px;
+  }
+
   .w-live-row-actions {
     display: inline-flex;
+    grid-area: actions;
     gap: 8px;
   }
 
-  .w-live-row-actions .stp-ui-button {
+  .w-live-row-actions .stp-ui-button:not(.w-big) {
     --stp-control-height: 32px;
     --stp-button-padding-x: 12px;
     font-size: 13px;
   }
 
-  /* Where it runs and what it costs, each with its label. */
+  /* Where it runs and what it costs, each part with its label, as on the Deploy step. */
   .w-live-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px 32px;
-    margin: 22px 0 0;
-    padding: 16px 0 0;
+    margin: 10px 0 0;
+    padding: 14px 0 0;
     border-top: 1px solid var(--w-line);
+    font-size: 13px;
+    line-height: 20px;
   }
 
-  .w-live-meta dt {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--w-subtle);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 16px;
-  }
-
-  .w-live-meta dd {
-    margin: 2px 0 0;
-    color: var(--w-text);
-    font-weight: 600;
-  }
-
-  .w-live-addresses + .w-live-meta {
-    margin-top: 10px;
+  .w-live-meta .w-info {
+    margin-left: -2px;
   }
 
   .w-live-details {
@@ -3056,31 +3031,18 @@
       align-self: flex-end;
     }
 
-    .w-live-url.is-hero {
-      font-size: 16px;
-      line-height: 24px;
-    }
-
     /* Each address: its name and its buttons on one line, the address under them at full width. */
     .w-live-addresses li {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        'label actions'
+        'url url';
       gap: 6px 12px;
     }
 
-    .w-live-addresses .w-live-label {
-      grid-row: 1;
-      grid-column: 1;
-    }
-
-    .w-live-addresses .w-live-row-actions {
-      grid-row: 1;
-      grid-column: 2;
-    }
-
-    .w-live-addresses .w-live-url {
-      grid-row: 2;
-      grid-column: 1 / -1;
-      font-size: 14px;
+    .w-live-addresses .w-live-url,
+    .w-live-addresses li.is-primary .w-live-url {
+      font-size: 15px;
+      line-height: 22px;
     }
 
     /* A long action label wraps here instead of being cut. */
@@ -3093,12 +3055,6 @@
     .w-fix-actions .stp-ui-button__label {
       white-space: normal;
       text-align: left;
-    }
-
-    .w-live-meta {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 12px 16px;
     }
 
     .w-manage-head {

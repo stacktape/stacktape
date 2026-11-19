@@ -44,6 +44,8 @@ type DeployPhase = {
   startedAt?: number;
   /** When it was over: the next phase's start, or the deploy's last event for the last one. */
   endedAt?: number;
+  /** Where in `log` this phase's own lines begin, so its latest lines can be shown without the earlier phases'. */
+  logStart: number;
   /** CloudFormation's own progress, when this phase is the one talking to it. */
   cloudformation?: {
     percent: number;
@@ -125,7 +127,8 @@ export const buildDeployModel = (
       id: event.phase,
       label: labelFor(event.phase),
       status: 'running' as const,
-      message: ''
+      message: '',
+      logStart: log.length
     };
 
     existing.message = event.message ?? existing.message;

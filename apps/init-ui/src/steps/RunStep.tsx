@@ -10,11 +10,13 @@ import { FailureExplanationText } from '../components/FailureExplanation';
 import { InfoTip } from '../components/InfoTip';
 import { PipelineCard } from '../components/PipelineCard';
 import { Row } from '../components/RowList';
+import { groupedAccount, TargetFacts } from '../components/TargetFacts';
 import { resourcesOf, type ConfigResources } from '../config-resources';
 import { stackCommand } from '../deploy-commands';
 import type { DeployModel } from '../deploy-model';
+import { partName } from '../part-names';
 import type { SignInRequest, WizardState } from '../session';
-import { plainList, plainResourceName, splitMonthly } from './review-model';
+import { plainList, splitMonthly } from './review-model';
 
 const Diagram = lazy(() => import('../components/Diagram'));
 
@@ -126,18 +128,13 @@ function RunDiagram({
   );
 }
 
-/** "Next.js app" → "the Next.js app", "Web service" → "the web service": a resource inside a sentence. */
-const inSentence = (resource: { type: string; properties: Record<string, unknown> }): string => {
-  const name = plainResourceName(resource);
-  return `the ${/^[A-Z][a-z]+ [a-z]/.test(name) && !/^(Postgres|MySQL|MariaDB|Redis|MongoDB|DynamoDB|HTTP)/.test(name) ? `${name.charAt(0).toLowerCase()}${name.slice(1)}` : name}`;
-};
-
 /** What the deploy is doing right now, in one line, and one line of why it takes as long as it does. */
 const activeOperation = (
   model: DeployModel,
   resources: ConfigResources,
   creating: readonly string[],
-  repairing: boolean
+  repairing: boolean,
+  services: ReadonlyArray<{ name: string; framework?: string; language?: string }>
 ): { title: string; detail?: string } => {
   if (repairing) return { title: 'Working out what went wrong' };
   const running = model.phases.find((phase) => phase.status === 'running');
@@ -146,7 +143,7 @@ const activeOperation = (
     return { title: running.label, ...(running.message === '' ? {} : { detail: running.message }) };
   }
   if (creating.length === 0) return { title: 'Waiting on AWS' };
-  const nouns = creating.map((name) => inSentence(resources[name]!));
+  const nouns = creating.map((name) => `the ${partName(name, resources[name]!, services)}`);
   // Two of the same kind are told apart by their names.
   const named = new Set(nouns).size === nouns.length ? nouns : creating;
   const database = creating.find((name) => resources[name]?.type === 'relational-database');
@@ -157,6 +154,9 @@ const activeOperation = (
       : { detail: 'A new database takes AWS 8–10 minutes. It is usually the longest part.' })
   };
 };
+
+/** "11/24 resources (46%)": CloudFormation's count, which the progress bar already shows. */
+const isProgressCount = (line: string) => /^\s*\d+\s*\/\s*\d+\s+resources\b/i.test(line);
 
 /** Seconds since the log last grew: the tail goes quiet when nothing new arrives. */
 function useQuietFor(length: number): number {
@@ -183,7 +183,6 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
   const creating = names.filter((name) => progress[name] === 'creating');
   const startedAt = deployment.startedAt ?? (deployment.events[0] as { ts?: string } | undefined)?.ts;
   const elapsed = useElapsed(startedAt, undefined);
-  const now = useNow(true);
   const hasDatabase = Object.values(resources).some((resource) => resource.type === 'relational-database');
   const identity = state.awsIdentity;
   const phases = model.phases.filter((phase) => phase.id !== 'SUMMARY');
@@ -196,10 +195,15 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
   const quietFor = useQuietFor(model.log.length);
   const repairing = deployment.status === 'repairing';
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
-  const operation = activeOperation(model, resources, creating, repairing);
+  const operation = activeOperation(model, resources, creating, repairing, state.facts?.services ?? []);
   // The log's tail belongs to the phase that is running, or the last one that started.
   const current =
     phases.find((phase) => phase.status === 'running') ?? phases.findLast((phase) => phase.status !== 'pending');
+  // Its own latest lines, without the counts the progress bar already shows.
+  const tail = model.log
+    .slice(current?.logStart ?? 0)
+    .filter((line) => line.trim() !== '' && !isProgressCount(line))
+    .slice(-3);
   const logToggle = (
     <button aria-expanded={showLog} className="w-link w-small" onClick={() => setShowLog(!showLog)} type="button">
       {showLog ? 'Hide the deploy log' : `Show the deploy log (${model.log.length} lines)`}
@@ -211,11 +215,21 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
       <div className="w-pane">
         <header className="w-run-head">
           <h1 className="w-title">{repairing ? 'Fixing what went wrong' : `Deploying to ${deployment.stage}`}</h1>
-          <p className="w-lede">
-            {repairing
-              ? `The first attempt failed. ${agent === undefined || agent.id === 'none' ? 'The agent' : agent.label} is reading your code again and deploys once more if it finds the cause.`
-              : `Into AWS account ${identity?.available === true ? identity.accountId.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3') : 'on this machine'}, ${deployment.region}.`}
-          </p>
+          {repairing ? (
+            <p className="w-lede">
+              The first attempt failed. {agent === undefined || agent.id === 'none' ? 'The agent' : agent.label} is
+              reading your code again and deploys once more if it finds the cause.
+            </p>
+          ) : (
+            <TargetFacts
+              className="w-lede"
+              facts={[
+                identity?.available === true && { label: 'AWS account', value: groupedAccount(identity.accountId) },
+                { label: 'Region', value: deployment.region },
+                { label: 'Stage', value: deployment.stage }
+              ]}
+            />
+          )}
         </header>
         <RunDiagram
           caption={
@@ -238,7 +252,7 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
           </p>
           {operation.detail !== undefined && <p className="w-run-op-detail">{operation.detail}</p>}
           <p className="w-run-time">
-            Total <strong>{elapsed === undefined ? '—' : clock(elapsed)}</strong>
+            <strong>{elapsed === undefined ? '—' : clock(elapsed)}</strong> elapsed
             {repairing ? '' : ` · usually ${hasDatabase ? '10–15' : '3–6'} min`}
           </p>
           <div className="w-run-progress">
@@ -270,15 +284,7 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
             </li>
           )}
           {phases.map((phase) => {
-            const seconds =
-              phase.startedAt === undefined
-                ? undefined
-                : Math.max(
-                    0,
-                    Math.round(
-                      ((phase.endedAt ?? (phase.status === 'running' ? now : phase.startedAt)) - phase.startedAt) / 1000
-                    )
-                  );
+            // One clock for the deploy, at the top: the phases say only where it is.
             const isCurrent = phase === current && !showLog;
             return (
               <li className={`w-phase is-${phase.status}${isCurrent ? ' is-current' : ''}`} key={phase.id}>
@@ -294,14 +300,11 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
                   )}
                 </span>
                 <p className="w-phase-label">{phase.label}</p>
-                <span className="w-phase-time">
-                  {seconds === undefined || (seconds < 1 && phase.status !== 'running') ? '' : clock(seconds)}
-                </span>
                 {isCurrent && (
                   <div className={`w-phase-log${quietFor > 8 ? ' is-quiet' : ''}`}>
-                    {model.log.length > 0 && (
+                    {tail.length > 0 && (
                       <pre aria-label="Latest from the deploy log" className="w-log is-tail">
-                        {model.log.slice(-3).join('\n')}
+                        {tail.join('\n')}
                       </pre>
                     )}
                     {logToggle}
@@ -340,29 +343,36 @@ const isFrontend = (type: string | undefined) => type === 'hosting-bucket' || (t
 const isApi = (type: string | undefined) =>
   type === 'web-service' || type === 'http-api-gateway' || type === 'function' || type === 'application-load-balancer';
 
-/** Which deployed address is which, when there are several: the site people open, then the API it calls. */
+export type Address = { resourceName: string; url: string; label: string; action: string };
+
+/** A label inside a sentence: "the site", "the API", "the adminPanel". */
+const spoken = (label: string) => (label === 'App' || label === 'Site' ? label.toLowerCase() : label);
+
+/**
+ * Which deployed address is which, and the words for opening it: one address is the app; of several, the site people
+ * open comes first, then the API it calls. Two of the same kind go by their names in the file.
+ */
 export const addressLabels = (
   urls: ReadonlyArray<{ resourceName: string; url: string }>,
   resources: ConfigResources
-): Array<{ resourceName: string; url: string; label?: string }> => {
+): Address[] => {
   const ordered = urls.toSorted(
     (left, right) =>
       Number(isFrontend(resources[right.resourceName]?.type)) - Number(isFrontend(resources[left.resourceName]?.type))
   );
-  if (ordered.length < 2) return ordered;
-  const types = ordered.map((entry) => resources[entry.resourceName]?.type);
-  const split = types.some(isFrontend) && types.some(isApi);
+  const kinds = ordered.map((entry) => {
+    const type = resources[entry.resourceName]?.type;
+    return ordered.length === 1 ? 'App' : isFrontend(type) ? 'Site' : isApi(type) ? 'API' : entry.resourceName;
+  });
   return ordered.map((entry, index) => {
-    const type = types[index];
-    const label =
-      split && isFrontend(type)
-        ? 'Frontend'
-        : split && isApi(type)
-          ? 'API'
-          : resources[entry.resourceName] === undefined
-            ? entry.resourceName
-            : plainResourceName(resources[entry.resourceName]!);
-    return { resourceName: entry.resourceName, url: entry.url, label };
+    const kind = kinds[index]!;
+    const label = kinds.filter((other) => other === kind).length > 1 ? entry.resourceName : kind;
+    return {
+      resourceName: entry.resourceName,
+      url: entry.url,
+      label,
+      action: `Open ${spoken(label)}`
+    };
   });
 };
 
@@ -409,6 +419,7 @@ export function LiveStep({
     .flatMap((repair) => repair.changedResources ?? []);
   const [showRemoval, setShowRemoval] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  const identity = state.awsIdentity;
 
   return (
     <div className="w-enter">
@@ -419,48 +430,28 @@ export function LiveStep({
         </h1>
         {primary === undefined ? (
           <p className="w-live-note">Everything was created. None of it has a public address.</p>
-        ) : addresses.length === 1 ? (
-          <>
-            <a className="w-live-url is-hero" href={primary.url} rel="noreferrer" target="_blank" title={primary.url}>
-              {primary.url.replace(/^https:\/\//, '')}
-            </a>
-            <div className="w-live-actions">
-              <ButtonLink
-                className="w-big"
-                href={primary.url}
-                icon={<BiLinkExternal size={15} />}
-                iconPosition="end"
-                rel="noreferrer"
-                target="_blank"
-                variant="primary"
-              >
-                Open app
-              </ButtonLink>
-              <CopyAddress isBig url={primary.url} />
-            </div>
-          </>
         ) : (
-          // Several addresses: each row is one of them, with its own Open and Copy.
+          // One row per address, the same for one or several: what it is, the address, Open and Copy.
           <ul aria-label="Addresses" className="w-live-addresses">
             {addresses.map((entry, index) => (
-              <li key={entry.url}>
+              <li className={index === 0 ? 'is-primary' : undefined} key={entry.url}>
                 <span className="w-live-label">{entry.label}</span>
                 <a className="w-live-url" href={entry.url} rel="noreferrer" target="_blank" title={entry.url}>
                   {entry.url.replace(/^https:\/\//, '')}
                 </a>
                 <span className="w-live-row-actions">
                   <ButtonLink
-                    aria-label={`Open ${entry.label === 'API' ? 'the API' : (entry.label ?? 'it').toLowerCase()}`}
+                    className={index === 0 ? 'w-big' : undefined}
                     href={entry.url}
-                    icon={<BiLinkExternal size={14} />}
+                    icon={<BiLinkExternal size={index === 0 ? 15 : 14} />}
                     iconPosition="end"
                     rel="noreferrer"
                     target="_blank"
                     variant={index === 0 ? 'primary' : 'secondary'}
                   >
-                    Open
+                    {entry.action}
                   </ButtonLink>
-                  <CopyAddress label={entry.label} url={entry.url} />
+                  <CopyAddress isBig={index === 0} label={entry.label} url={entry.url} />
                 </span>
               </li>
             ))}
@@ -472,36 +463,26 @@ export function LiveStep({
             the version that is live.
           </p>
         )}
-        <dl className="w-live-meta">
-          <div>
-            <dt>Stage</dt>
-            <dd>{deployment.stage}</dd>
-          </div>
-          <div>
-            <dt>Region</dt>
-            <dd>{deployment.region}</dd>
-          </div>
+        <TargetFacts
+          className="w-live-meta"
+          facts={[
+            identity?.available === true && { label: 'AWS account', value: groupedAccount(identity.accountId) },
+            { label: 'Region', value: deployment.region },
+            { label: 'Stage', value: deployment.stage },
+            monthly?.amount !== undefined && {
+              label: 'Estimated',
+              value: `${monthly.amount}/month${monthly.usage ? ' + usage' : ''}`
+            },
+            elapsed !== undefined && elapsed > 0 && { label: 'Deployed in', value: duration(elapsed) }
+          ]}
+        >
           {monthly?.amount !== undefined && (
-            <div>
-              <dt>
-                Estimated AWS cost
-                <InfoTip about="the price">
-                  AWS list prices in {deployment.region}, for what runs all month.
-                  {monthly.usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
-                </InfoTip>
-              </dt>
-              <dd>
-                {monthly.amount}/month{monthly.usage ? ' + usage' : ''}
-              </dd>
-            </div>
+            <InfoTip about="the price">
+              AWS list prices in {deployment.region}, for what runs all month.
+              {monthly.usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
+            </InfoTip>
           )}
-          {elapsed !== undefined && elapsed > 0 && (
-            <div>
-              <dt>Deployed in</dt>
-              <dd>{duration(elapsed)}</dd>
-            </div>
-          )}
-        </dl>
+        </TargetFacts>
         <div className="w-live-details">
           <button aria-expanded={showLog} className="w-link w-small" onClick={() => setShowLog(!showLog)} type="button">
             {showLog ? 'Hide the deploy log' : 'Show the deploy log'}
@@ -582,11 +563,11 @@ export function LiveStep({
   );
 }
 
-function CopyAddress({ url, label, isBig = false }: { url: string; label?: string | undefined; isBig?: boolean }) {
+function CopyAddress({ url, label, isBig = false }: { url: string; label: string; isBig?: boolean }) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
-      aria-label={label === undefined ? undefined : `Copy the ${label === 'API' ? 'API' : label.toLowerCase()} address`}
+      aria-label={`Copy the ${spoken(label)} address`}
       className={isBig ? 'w-big' : undefined}
       icon={copied ? <BiCheck size={15} /> : <BiCopy size={14} />}
       onClick={() =>
@@ -602,7 +583,7 @@ function CopyAddress({ url, label, isBig = false }: { url: string; label?: strin
       }
       variant="secondary"
     >
-      {copied ? 'Copied' : isBig ? 'Copy address' : 'Copy'}
+      {copied ? 'Copied' : 'Copy'}
     </Button>
   );
 }
