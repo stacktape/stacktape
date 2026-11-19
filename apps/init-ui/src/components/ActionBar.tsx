@@ -1,0 +1,54 @@
+import type { ReactNode } from 'react';
+import { InfoTip } from './InfoTip';
+
+/**
+ * The bar along the bottom of Review and Deploy: the monthly price on the left, the step's actions on the right, and
+ * one short note beside them (what the action does, or what still blocks it).
+ *
+ * It spans the window and stays put while the page scrolls; the page leaves room for it by itself.
+ */
+export function ActionBar({ price, note, children }: { price?: ReactNode; note?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="w-bar">
+      <div className="w-bar-inner">
+        <div className="w-bar-price">{price}</div>
+        <div className="w-bar-end">
+          {note !== undefined && note !== null && note !== false && <div className="w-bar-note">{note}</div>}
+          <div className="w-bar-actions">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The price as the bar shows it: "$31 /month + usage", with what the estimate covers behind the help mark.
+ *
+ * `amount` is undefined while there is no estimate; `pending` then says whether one is still coming.
+ */
+export function BarPrice({
+  amount,
+  suffix,
+  help,
+  pending = false
+}: {
+  amount: ReactNode | undefined;
+  suffix?: string | undefined;
+  help?: ReactNode;
+  pending?: boolean;
+}) {
+  if (amount === undefined) {
+    return (
+      <span className="w-bar-amount">
+        <small>{pending ? 'Pricing…' : 'Price unavailable offline'}</small>
+      </span>
+    );
+  }
+  return (
+    <span aria-live="polite" className="w-bar-amount">
+      {amount}
+      {suffix !== undefined && <small>{suffix}</small>}
+      {help !== undefined && <InfoTip about="the price">{help}</InfoTip>}
+    </span>
+  );
+}

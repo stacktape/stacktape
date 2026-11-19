@@ -1,14 +1,20 @@
 import { Button } from '@stacktape/ui-react/button';
+import { Tabs } from '@stacktape/ui-react/tabs';
+import { useState } from 'react';
+import { BiFolder, BiSearchAlt } from 'react-icons/bi';
 import { CopyableCommand } from '../components/CopyableCommand';
+import { Row } from '../components/RowList';
 import type { WizardState } from '../session';
 
 /** Starter projects people most often want, by the ids `stacktape init --starterId` takes. */
 const STARTERS = [
-  { id: 'fullstack-nextjs-drizzle', name: 'Next.js with Postgres', text: 'A full-stack Next.js app with Drizzle.' },
-  { id: 'expressjs-api-postgres', name: 'Express API with Postgres', text: 'A TypeScript REST API with Prisma.' },
-  { id: 'fastapi-api-postgres', name: 'FastAPI with Postgres', text: 'A Python REST API.' },
-  { id: 'gin-api-postgres', name: 'Go (Gin) with Postgres', text: 'A Go REST API.' }
-];
+  { id: 'fullstack-nextjs-drizzle', name: 'Next.js', text: 'A full-stack Next.js app with Postgres and Drizzle.' },
+  { id: 'expressjs-api-postgres', name: 'Express', text: 'A TypeScript REST API with Postgres and Prisma.' },
+  { id: 'fastapi-api-postgres', name: 'FastAPI', text: 'A Python REST API with Postgres.' },
+  { id: 'gin-api-postgres', name: 'Go (Gin)', text: 'A Go REST API with Postgres.' }
+] as const;
+
+type StarterId = (typeof STARTERS)[number]['id'];
 
 /**
  * The analysis found nothing to run here. Not a dead end: the app may be one folder down, or there is no app yet and a
@@ -26,57 +32,59 @@ export function EmptyStep({
   const nearby = state.nearbyApps ?? [];
   const usedAgent = state.choice !== undefined && state.choice.agentId !== 'none';
   const agent = (state.agents ?? []).find((option) => option.id !== 'none');
+  const [starterId, setStarterId] = useState<StarterId>(STARTERS[0].id);
+  const starter = STARTERS.find((entry) => entry.id === starterId) ?? STARTERS[0];
+
   return (
-    <div className="w-enter mx-auto max-w-[880px]">
+    <div className="w-enter">
       <header className="w-hero">
-        <p className="w-eyebrow">Review</p>
-        <h1 className="w-title">No app at this folder's root</h1>
-        <p className="w-lede">
-          Nothing here runs as a server, worker or website
-          {state.repositoryPath === undefined ? '' : ` (${state.repositoryPath})`}, so there is nothing to deploy yet.
-        </p>
+        <h1 className="w-title">No app in this folder</h1>
+        <p className="w-lede">Nothing here runs as a server, worker or website, so there is nothing to deploy yet.</p>
       </header>
 
-      {nearby.length > 0 && (
-        <section className="mb-8">
-          <h2 className="w-section-title">These folders look like apps</h2>
-          <div className="w-options-grid">
+      {(nearby.length > 0 || (!usedAgent && agent !== undefined)) && (
+        <section className="w-section">
+          <h2 className="w-section-title">{nearby.length > 0 ? 'These folders look like apps' : 'Look again'}</h2>
+          <ul className="w-card w-next">
             {nearby.map((folder) => (
-              <div className="w-card w-option" key={folder}>
-                <h3 className="w-code self-start">{folder}/</h3>
-                <p>Run init there instead:</p>
+              <Row
+                description="Run init there instead."
+                icon={<BiFolder size={17} />}
+                key={folder}
+                title={<span className="w-mono">{folder}/</span>}
+              >
                 <CopyableCommand command={`cd ${folder} && stacktape init`} />
-              </div>
+              </Row>
             ))}
-          </div>
+            {!usedAgent && agent !== undefined && (
+              <Row
+                action={
+                  <Button isLoading={busy === 'start'} onClick={() => onAnalyzeWithAgent(agent.id)} variant="secondary">
+                    Analyze with {agent.label}
+                  </Button>
+                }
+                description={`Only manifests and Dockerfiles were read. ${agent.label} reads the source too.`}
+                icon={<BiSearchAlt size={17} />}
+                title={`Read it again with ${agent.label}`}
+              />
+            )}
+          </ul>
         </section>
       )}
 
-      {!usedAgent && agent !== undefined && (
-        <section className="mb-8">
-          <h2 className="w-section-title">Or read it again with {agent.label}</h2>
-          <p className="w-muted mt-0 mb-3 text-[13px]">
-            Without AI only manifests and Dockerfiles were read. {agent.label} reads the source too.
-          </p>
-          <Button isLoading={busy === 'start'} onClick={() => onAnalyzeWithAgent(agent.id)} variant="primary">
-            Analyze with {agent.label}
-          </Button>
-        </section>
-      )}
-
-      <section>
+      <section className="w-section">
         <h2 className="w-section-title">No app yet? Start from a working one</h2>
-        <p className="w-muted mt-0 mb-3 text-[13px]">
-          Each starter is a small app that deploys as it is. Run the command in an empty folder.
-        </p>
-        <div className="w-options-grid">
-          {STARTERS.map((starter) => (
-            <div className="w-card w-option" key={starter.id}>
-              <h3>{starter.name}</h3>
-              <p>{starter.text}</p>
-              <CopyableCommand command={`stacktape init --starterId ${starter.id}`} />
-            </div>
-          ))}
+        <div className="w-card flex flex-col gap-3 p-5">
+          <Tabs
+            appearance="segmented"
+            ariaLabel="Starter project"
+            onValueChange={setStarterId}
+            tabs={STARTERS.map((entry) => ({ value: entry.id, label: entry.name }))}
+            value={starterId}
+            width="fit"
+          />
+          <p className="w-quiet">{starter.text} It deploys as it is. Run this in an empty folder:</p>
+          <CopyableCommand command={`stacktape init --starterId ${starter.id}`} />
         </div>
       </section>
     </div>

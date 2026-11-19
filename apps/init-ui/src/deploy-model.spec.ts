@@ -79,4 +79,22 @@ describe('the deploy model', () => {
     expect(model.log).toContain('Using profile default');
     expect(model.log).toContain('a line straight from stderr');
   });
+
+  it('times each phase from its first event to the next phase, and the last one to the end of the deploy', () => {
+    const events = [
+      event({ phase: 'INITIALIZE', ts: '2026-11-19T10:00:00.000Z' }),
+      event({ phase: 'INITIALIZE', ts: '2026-11-19T10:00:04.000Z' }),
+      event({ phase: 'DEPLOY', ts: '2026-11-19T10:00:10.000Z' }),
+      { type: 'result', ts: '2026-11-19T10:06:10.000Z', ok: true }
+    ];
+
+    const running = buildDeployModel(events.slice(0, 3), []);
+    expect(running.phases.map((phase) => [phase.id, phase.startedAt, phase.endedAt])).toEqual([
+      ['INITIALIZE', Date.parse('2026-11-19T10:00:00.000Z'), Date.parse('2026-11-19T10:00:10.000Z')],
+      // Still running: no end yet.
+      ['DEPLOY', Date.parse('2026-11-19T10:00:10.000Z'), undefined]
+    ]);
+    const finished = buildDeployModel(events, [], 'succeeded');
+    expect(finished.phases.at(-1)?.endedAt).toBe(Date.parse('2026-11-19T10:06:10.000Z'));
+  });
 });

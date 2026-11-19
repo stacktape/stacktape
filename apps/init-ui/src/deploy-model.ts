@@ -40,6 +40,10 @@ type DeployPhase = {
   status: 'pending' | 'running' | 'done' | 'failed';
   /** The most recent thing this phase said it was doing. */
   message: string;
+  /** When the phase's first event arrived, in epoch milliseconds, if the stream said. */
+  startedAt?: number;
+  /** When it was over: the next phase's start, or the deploy's last event for the last one. */
+  endedAt?: number;
   /** CloudFormation's own progress, when this phase is the one talking to it. */
   cloudformation?: {
     percent: number;
@@ -94,8 +98,11 @@ export const buildDeployModel = (
   const log: string[] = [];
   const seenInProgress = new Set<string>();
   let latestPhaseId: string | undefined;
+  let lastTime: number | undefined;
 
   for (const event of events) {
+    const time = event.ts === undefined ? Number.NaN : Date.parse(event.ts);
+    if (!Number.isNaN(time)) lastTime = time;
     if (event.type === 'log') {
       if (event.message !== undefined) {
         log.push(event.message);
@@ -122,6 +129,7 @@ export const buildDeployModel = (
     };
 
     existing.message = event.message ?? existing.message;
+    if (existing.startedAt === undefined && !Number.isNaN(time)) existing.startedAt = time;
     if (event.message !== undefined) log.push(event.message);
 
     // CloudFormation is the long part, and the only part with a real percentage. Everything else is
@@ -150,6 +158,9 @@ export const buildDeployModel = (
   const currentIndex = ordered.findIndex((phase) => phase.id === latestPhaseId);
 
   for (const [index, phase] of ordered.entries()) {
+    const next = ordered[index + 1]?.startedAt;
+    const ended = next ?? (stopped === undefined ? undefined : lastTime);
+    if (ended !== undefined && phase.startedAt !== undefined) phase.endedAt = Math.max(phase.startedAt, ended);
     phase.status =
       stopped === 'failed' && index === currentIndex
         ? 'failed'

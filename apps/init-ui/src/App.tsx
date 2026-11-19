@@ -6,7 +6,8 @@ import { CopyableCommand } from './components/CopyableCommand';
 import { StepPath, type PathStep, type PathStepStatus } from './components/StepPath';
 import { buildDeployModel, type DeployEvent } from './deploy-model';
 import { connect, SessionError, type Session, type WizardState } from './session';
-import { AnalyzeFailed, AnalyzeStep } from './steps/AnalyzeStep';
+import { AnalyzeStep } from './steps/AnalyzeStep';
+import { AnalyzeFailedStep } from './steps/AnalyzeFailedStep';
 import { DeployStep } from './steps/DeployStep';
 import { EmptyStep } from './steps/EmptyStep';
 import { ReviewStep } from './steps/ReviewStep';
@@ -14,6 +15,8 @@ import { DeployFailedStep, DeployingStep, LiveStep } from './steps/RunStep';
 import { StartStep } from './steps/StartStep';
 
 type Screen = 'start' | 'analyze' | 'analyze-failed' | 'empty' | 'review' | 'deploy' | 'deploying' | 'live' | 'failed';
+
+type Layout = 'form' | 'wide' | 'workspace';
 
 /** Which of Review and Deploy the user is on, and whether a deploy's progress or result is in front. */
 type View = 'review' | 'deploy' | 'run';
@@ -30,7 +33,7 @@ const screenFor = (state: WizardState, view: View): Screen => {
   return view === 'deploy' ? 'deploy' : 'review';
 };
 
-const pathFor = (screen: Screen): PathStep[] => {
+const pathFor = (screen: Screen, onReview: () => void): PathStep[] => {
   const position: Record<Screen, [number, PathStepStatus]> = {
     start: [0, 'current'],
     analyze: [0, 'working'],
@@ -40,14 +43,33 @@ const pathFor = (screen: Screen): PathStep[] => {
     deploy: [2, 'current'],
     deploying: [2, 'working'],
     failed: [2, 'failed'],
-    live: [3, 'done']
+    live: [3, 'current']
   };
   const [at, status] = position[screen];
+  // Review can be opened again from Deploy, and after a deploy that stopped; not while one runs or once it is live.
+  const reviewIsOpen = screen === 'deploy' || screen === 'failed';
   return (['analyze', 'review', 'deploy', 'live'] as const).map((id, index) => ({
     id,
     title: { analyze: 'Analyze', review: 'Review', deploy: 'Deploy', live: 'Live' }[id],
-    status: index < at ? 'done' : index === at ? status : 'pending'
+    status: index < at ? 'done' : index === at ? status : 'pending',
+    onSelect: id === 'review' && reviewIsOpen ? onReview : undefined
   }));
+};
+
+/**
+ * How each screen sits under the header. Start, Deploy, Live and the failures are one centred column; Deploying is the
+ * two-pane workspace. Analyze and Review keep their own wide page until they become one workspace screen.
+ */
+const LAYOUT: Record<Screen, Layout> = {
+  start: 'form',
+  analyze: 'wide',
+  'analyze-failed': 'form',
+  empty: 'form',
+  review: 'wide',
+  deploy: 'form',
+  deploying: 'workspace',
+  live: 'form',
+  failed: 'form'
 };
 
 /**
@@ -152,14 +174,13 @@ export function App() {
 
   if (failure !== undefined) {
     return (
-      <Frame>
-        <div className="w-enter mx-auto max-w-[640px]">
+      <Frame layout="form">
+        <div className="w-enter">
           <header className="w-hero">
-            <p className="w-eyebrow">Session ended</p>
             <h1 className="w-title">This wizard is no longer running</h1>
             <p className="w-lede">{failure}</p>
           </header>
-          <p className="w-muted mb-2 text-[13px]">In your project’s folder, run:</p>
+          <p className="w-field-label">Start it again in your project’s folder</p>
           <CopyableCommand command="stacktape init" />
         </div>
       </Frame>
@@ -168,7 +189,7 @@ export function App() {
 
   if (state === undefined || session === undefined || screen === undefined) {
     return (
-      <Frame>
+      <Frame layout="form">
         <div className="flex items-center gap-3 text-[var(--w-muted)]">
           <Spinner /> Connecting to stacktape init…
         </div>
@@ -192,6 +213,10 @@ export function App() {
       'The deploy could not be started.'
     );
   };
+  const backToReview = () => {
+    setView('review');
+    window.scrollTo({ top: 0 });
+  };
   const retryExpectation = (): Parameters<Session['deploy']>[2] => {
     const target = state.deployTarget;
     return target?.status === 'absent'
@@ -202,17 +227,28 @@ export function App() {
   };
 
   return (
-    <Frame path={pathFor(screen)} projectName={state.projectName} connectionState={connectionState}>
-      {isLocked && (
-        <Alert className="mb-6" tone="warning" title="Lost the connection to stacktape init">
-          If it is still running in your terminal, this page reconnects by itself. If you stopped it, run{' '}
-          <span className="w-code">stacktape init</span> again; a saved file stays in your project.
-        </Alert>
-      )}
-      {actionFailure !== undefined && (
-        <Alert className="mb-6" tone="danger" title={actionFailure}>
-          Nothing else changed. Try again, or check the terminal running <span className="w-code">stacktape init</span>.
-        </Alert>
+    <Frame
+      connectionState={connectionState}
+      layout={LAYOUT[screen]}
+      path={pathFor(screen, backToReview)}
+      projectName={state.projectName}
+      repositoryPath={state.repositoryPath}
+    >
+      {(isLocked || actionFailure !== undefined) && (
+        <div className="w-banners">
+          {isLocked && (
+            <Alert tone="warning" title="Lost the connection to stacktape init">
+              It reconnects by itself while <span className="w-code">stacktape init</span> runs in your terminal. If you
+              stopped it, run it again. A saved file stays in your project.
+            </Alert>
+          )}
+          {actionFailure !== undefined && (
+            <Alert tone="danger" title={actionFailure}>
+              Nothing else changed. Try again, or look at the terminal running{' '}
+              <span className="w-code">stacktape init</span>.
+            </Alert>
+          )}
+        </div>
       )}
 
       {screen === 'start' && (
@@ -224,7 +260,7 @@ export function App() {
       )}
       {screen === 'analyze' && <AnalyzeStep startedAt={startedAt} state={state} />}
       {screen === 'analyze-failed' && (
-        <AnalyzeFailed
+        <AnalyzeFailedStep
           busy={busy}
           onRetry={() => startAnalysis(state.choice?.agentId ?? 'none', state.choice?.modelId ?? 'default')}
           onWithoutAi={() => startAnalysis('none', 'default', 'start-plain')}
@@ -275,10 +311,6 @@ export function App() {
           onAwsKeys={(id, secret) =>
             void run('aws-keys', () => session.saveAwsKeys(id, secret), 'The keys could not be saved.')
           }
-          onBack={() => {
-            setView('review');
-            window.scrollTo({ top: 0 });
-          }}
           onCheckTarget={async (checkStage, region) => {
             try {
               await session.deploy(checkStage, region, { kind: 'check' });
@@ -357,12 +389,16 @@ export function App() {
 function Frame({
   path,
   projectName,
+  repositoryPath,
   connectionState,
+  layout,
   children
 }: {
   path?: PathStep[];
   projectName?: string;
+  repositoryPath?: string | undefined;
   connectionState?: 'connected' | 'reconnecting';
+  layout: Layout;
   children: React.ReactNode;
 }) {
   return (
@@ -371,16 +407,25 @@ function Frame({
         <div className="w-top-inner">
           <div className="w-brand">
             <img alt="" src={logo} />
-            <span>Stacktape</span>
-            {projectName !== undefined && <span className="w-brand-project">{projectName}</span>}
+            <span className="w-brand-name">Stacktape</span>
+            {projectName !== undefined && (
+              <span className="w-brand-project" title={repositoryPath ?? projectName}>
+                {projectName}
+              </span>
+            )}
           </div>
           {path !== undefined ? <StepPath steps={path} /> : <span />}
-          <span className="w-top-side">
-            {connectionState === 'reconnecting' ? 'Reconnecting to stacktape init…' : 'Running on this machine'}
-          </span>
+          {connectionState === undefined ? (
+            <span />
+          ) : (
+            <span className={`w-top-side${connectionState === 'reconnecting' ? ' is-reconnecting' : ''}`}>
+              <span aria-hidden className="w-top-dot" />
+              {connectionState === 'reconnecting' ? 'Reconnecting to stacktape init…' : 'Running on this machine'}
+            </span>
+          )}
         </div>
       </header>
-      <main className="w-main">{children}</main>
+      <main className={`w-main is-${layout}`}>{children}</main>
     </>
   );
 }
