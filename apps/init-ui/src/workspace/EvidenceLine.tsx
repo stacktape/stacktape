@@ -21,7 +21,7 @@ export function EvidenceLine({ story, citation }: { story: ResourceStory; citati
   if (story.designChoice !== undefined) {
     return (
       <span className="ws-evidence">
-        <span className="ws-evidence-tag">Added by Stacktape</span>
+        <span className="ws-evidence-tag">Added by Stacktape</span>{' '}
         <span className="ws-evidence-says">{story.designChoice}</span>
       </span>
     );
@@ -40,7 +40,7 @@ export function EvidenceLine({ story, citation }: { story: ResourceStory; citati
     <span className="ws-evidence">
       <span className="ws-evidence-says">
         {says === undefined ? <code>{citation?.text[0] ?? quoteLabel(evidence.quote)}</code> : <Ticks text={says} />}
-      </span>
+      </span>{' '}
       <span className="ws-evidence-where">
         in {evidence.file}:{lineRange(citation, evidence)}
       </span>

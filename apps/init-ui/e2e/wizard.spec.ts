@@ -186,8 +186,8 @@ test('the analysis shows the files it reads, then ties each resource to the line
   wizard.release('scan');
   const finding = page.locator('.ws-finding');
   await expect(finding).toContainText('Postgres database', { timeout: 15_000 });
-  await expect(finding).toContainText('"postgres": "^3.4.5"');
-  await expect(finding).toContainText('package.json:29');
+  // It says what the line shows, in plain words, and where.
+  await expect(finding).toContainText('Postgres driver in package.json:29');
   await expect(codeWindow.locator('.ws-line[data-focus]')).toContainText('"postgres"');
   await expect(page.getByRole('list', { name: 'Found so far' })).toContainText('3 secrets');
   // The cited line and the first line of the block written for it sit at the same height.
@@ -213,11 +213,22 @@ test('the analysis shows the files it reads, then ties each resource to the line
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.locator('.ws-peek')).toHaveCount(0);
 
-  // Clicking a resource in the diagram finds its block in the file, and keeps its card open with the way to its code.
+  // The row under the diagram says what the resource under the pointer is and why, with its line of code; nothing
+  // floats over the picture.
+  const selection = page.locator('.ws-selection');
+  await expect(selection).toContainText('Select a resource to see why it is here');
+  await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').hover();
+  await expect(selection).toContainText('Postgres database');
+  await expect(selection).toContainText('Postgres driver in package.json:29');
+  await expect(selection.locator('.ws-selection-line')).toContainText('"postgres": "^3.4.5"');
+  await expect(page.locator('.stp-diagram__tooltip')).toHaveCount(0);
+  // Clicking it picks it: its key in the file carries the same accent, and the row keeps the way to it.
   await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
-  await expect(page.locator('.monaco-editor .ws-editor-picked').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Show the code' }).click();
-  await expect(page.locator('.ws-peek-row[data-focus]')).toContainText('"postgres"');
+  await expect(page.locator('.monaco-editor .ws-editor-key')).toHaveCount(1);
+  await page.mouse.move(5, 5);
+  await expect(selection).toContainText('Postgres database');
+  await selection.getByRole('button', { name: 'Show in stacktape.yml' }).click();
+  await expect(page.locator('.monaco-editor .view-line', { hasText: 'mainDatabase:' })).toBeInViewport();
 
   // The reveal plays once: a reload lands on Review.
   await page.reload();

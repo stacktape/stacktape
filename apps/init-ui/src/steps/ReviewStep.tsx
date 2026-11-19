@@ -219,6 +219,8 @@ export function ReviewPane({
               config={config}
               // The row under the picture says what to do and what each resource is.
               focusDimming="soft"
+              // The frame is what the title, the row and the settings leave: the picture fills it, not its margin.
+              framePadding={32}
               hint=""
               // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can be.
               layerChoices={[]}

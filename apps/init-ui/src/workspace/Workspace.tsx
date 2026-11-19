@@ -664,7 +664,7 @@ export function Workspace({
                 <PhoneFinding
                   citation={focusedCitation}
                   file={focusedEvidence === undefined ? undefined : files.get(focusedEvidence.file)}
-                  story={focusedStory}
+                  story={stories[focusedStory.name] ?? focusedStory}
                   typed={typedBlock}
                 />
               ) : (

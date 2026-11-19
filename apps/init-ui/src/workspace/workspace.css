@@ -279,7 +279,7 @@
   }
 
   .ws-window-path-empty {
-    color: var(--w-subtle);
+    color: var(--w-muted);
   }
 
   .ws-window-list-toggle {
@@ -325,7 +325,7 @@
   .ws-files-title {
     margin: 0 0 8px;
     font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
@@ -345,7 +345,7 @@
     gap: 8px;
     min-width: 0;
     height: 24px;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-family: var(--w-mono);
     font-size: 12px;
   }
@@ -379,7 +379,7 @@
   .ws-window-path-note {
     margin-left: auto;
     padding-left: 12px;
-    color: var(--w-subtle);
+    color: var(--w-muted);
   }
 
   .ws-window-body {
@@ -468,7 +468,7 @@
 
   .ws-window-more {
     padding: 8px 0 0 calc(var(--ws-gutter-digits, 2) * 1ch + 36px);
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
     font-size: 12px;
   }
@@ -1046,7 +1046,7 @@
 
   .ws-editor-price small {
     margin-left: 3px;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     font-weight: 500;
   }
@@ -1066,7 +1066,7 @@
     margin: 0;
     padding: 10px 16px;
     border-bottom: 1px solid var(--w-line);
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     line-height: 16px;
   }
@@ -1126,7 +1126,7 @@
     justify-content: center;
     gap: 10px;
     height: 100%;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 13px;
   }
 
@@ -1254,7 +1254,7 @@
   }
 
   .ws-peek-line {
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-weight: 500;
   }
 
@@ -1285,7 +1285,7 @@
   .ws-peek-row {
     display: flex;
     white-space: pre;
-    color: var(--w-subtle);
+    color: var(--w-muted);
   }
 
   .ws-peek-row[data-focus] {
@@ -1366,7 +1366,7 @@
     align-items: center;
     gap: 8px;
     margin: 0;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     line-height: 16px;
   }
@@ -1671,13 +1671,13 @@
     gap: 14px;
     min-width: 0;
     overflow: hidden;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 13px;
     white-space: nowrap;
   }
 
   .ws-more-values strong {
-    color: var(--w-muted);
+    color: var(--w-text);
     font-weight: 600;
   }
 
@@ -1731,7 +1731,7 @@
   }
 
   .ws-option-delta {
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-weight: 500;
   }
 
@@ -1858,16 +1858,16 @@
       border-bottom: 0;
     }
 
-    /* The running total keeps its words; they wrap under the amount rather than squeezing the filename. */
+    /* The running total keeps its words, on a line under the amount rather than squeezing the filename. */
     .ws-editor[data-collapsed] .ws-editor-price {
-      display: inline-block;
-      max-width: 190px;
-      text-align: right;
+      display: grid;
+      justify-items: end;
+      line-height: 20px;
     }
 
     .ws-editor[data-collapsed] .ws-editor-price small {
-      margin-left: 4px;
-      white-space: normal;
+      margin: 0;
+      line-height: 16px;
     }
 
     .ws-editor[data-collapsed] .ws-editor-hint {
@@ -1899,7 +1899,7 @@
 
     @media (max-width: 760px) {
       .ws-diagram-canvas {
-        height: 232px;
+        height: 204px;
       }
     }
 
@@ -1938,6 +1938,11 @@
       grid-column: 1 / -1;
       grid-row: 3;
       justify-self: start;
+    }
+
+    .ws-selection-why .ws-evidence {
+      flex-wrap: wrap;
+      white-space: normal;
     }
 
     .ws-chips {
@@ -2024,7 +2029,7 @@
     display: flex;
     min-width: 0;
     padding: 0 12px 0 0;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     white-space: pre;
   }
 
@@ -2106,6 +2111,28 @@
 
     .ws-skip kbd {
       display: none;
+    }
+
+    .ws-window[data-bare] .ws-window-empty {
+      padding: 20px 16px;
+    }
+
+    .ws-manifests-list,
+    .ws-manifests-line,
+    .ws-manifests .ws-files-title {
+      margin-left: 0;
+    }
+
+    /* Each kind on its line, the files it covers under it. */
+    .ws-manifests-list li {
+      grid-template-columns: 16px minmax(0, 1fr);
+      row-gap: 0;
+      padding: 8px 0;
+    }
+
+    .ws-manifests-list span:last-child {
+      grid-column: 2;
+      padding: 0;
     }
 
     .ws-save-note {
