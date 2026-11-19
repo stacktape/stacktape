@@ -8,6 +8,7 @@ import {
   quoteLabel,
   quotedOn,
   revealPlan,
+  resourcePrice,
   runningPrice,
   stepDuration,
   storyOf,
@@ -149,14 +150,14 @@ describe('the reveal', () => {
     const plan = revealPlan(state())!;
     expect(plan.steps.map((step) => step.story.name)).toEqual(['app', 'mainDatabase', 'databaseBastion']);
     expect(plan.steps[0]!.story).toMatchObject({
-      plainName: 'Next.js app',
+      plainName: 'Next.js site',
       reason: 'Runs your Next.js app, built the way Next.js expects.',
       priceLabel: 'Pay per use',
       monthly: 0
     });
     expect(plan.steps[1]!.story).toMatchObject({ plainName: 'Postgres database', priceLabel: '$15/mo', monthly: 15 });
     expect(plan.steps.flatMap((step) => step.chips.map((chip) => chip.label))).toEqual([
-      'Next.js app',
+      'Next.js site',
       '2 secrets',
       'Postgres',
       'Database access server',
@@ -290,14 +291,14 @@ describe('the price while the file is written', () => {
         { priceLabel: 'Pay per use', monthly: 0 },
         { priceLabel: '$15/mo', monthly: 15.33 }
       ],
-      '$15 /month estimated AWS cost + usage'
+      '$15/mo + usage'
     ],
     [
       [
         { priceLabel: '$18/mo', monthly: 18.07 },
         { priceLabel: '$15/mo', monthly: 15.33 }
       ],
-      '$33 /month estimated AWS cost'
+      '$33/mo'
     ]
   ])('says %j as %p', (written, text) => {
     expect(runningPrice(written).text).toBe(text);
@@ -309,13 +310,21 @@ describe('the price while the file is written', () => {
       { priceLabel: '$18/mo', monthly: 18.07 },
       { priceLabel: '$3.80/mo', monthly: 3.8 }
     ];
-    expect(runningPrice(parts, '$52.53/mo + pay-per-use costs')).toEqual({
-      text: '$52.53 /month estimated AWS cost + usage',
-      amount: 52.53
-    });
-    expect(runningPrice(parts, '$31/mo')).toEqual({ text: '$31 /month estimated AWS cost', amount: 31 });
+    expect(runningPrice(parts, '$52.53/mo + pay-per-use costs')).toEqual({ text: '$52.53/mo + usage', amount: 52.53 });
+    expect(runningPrice(parts, '$31/mo')).toEqual({ text: '$31/mo', amount: 31 });
     // A total that is not an amount leaves the running sum.
-    expect(runningPrice(parts, 'pay-per-use costs').text).toBe('$53 /month estimated AWS cost');
+    expect(runningPrice(parts, 'pay-per-use costs').text).toBe('$53/mo');
+  });
+
+  it.each([
+    [{ type: 'relational-database', priceLabel: '$31/mo' }, '$31/mo for this database'],
+    [{ type: 'nextjs-web', priceLabel: '$4/mo' }, '$4/mo for this site'],
+    [{ type: 'bastion', priceLabel: '$3.80/mo' }, '$3.80/mo for this server'],
+    [{ type: 'efs-filesystem', priceLabel: 'Pay per use' }, 'Pay per use'],
+    [{ type: 'event-bus', priceLabel: '$1/mo' }, '$1/mo for this resource'],
+    [{ type: 'web-service' }, undefined]
+  ])('says the price of %j as %p, apart from the total', (story, text) => {
+    expect(resourcePrice(story)).toBe(text);
   });
 });
 

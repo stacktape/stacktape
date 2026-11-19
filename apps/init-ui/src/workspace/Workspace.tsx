@@ -4,7 +4,7 @@ import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BiKey, BiLinkExternal } from 'react-icons/bi';
+import { BiInfoCircle, BiKey, BiLinkExternal } from 'react-icons/bi';
 import { parse as parseYaml } from 'yaml';
 import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { AnimatedPrice } from '../components/AnimatedPrice';
@@ -19,6 +19,7 @@ import {
   citationOf,
   lineRange,
   quoteLabel,
+  resourcePrice,
   revealPlan,
   runningPrice,
   storiesOf,
@@ -99,6 +100,8 @@ export function Workspace({
 }) {
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const stacked = useMediaQuery(STACKED);
+  // Nothing to hover with: a tap on a key opens its docs.
+  const isTouch = useMediaQuery('(hover: none), (max-width: 760px)');
   const stackedRef = useRef(stacked);
   stackedRef.current = stacked;
 
@@ -541,6 +544,11 @@ export function Workspace({
   const usesAgent = agent !== undefined && agent.id !== 'none';
   const lastTool = state.timeline.findLast((entry) => entry.kind === 'tool');
   const scanActive = phase === 'scan' ? opened.at(-1) : undefined;
+  // The file the agent is reading this moment: the last thing it did was open it.
+  const liveFile =
+    phase === 'scan' && lastTool?.label.startsWith('read_file ') === true
+      ? lastTool.label.slice('read_file '.length)
+      : undefined;
   const focusedStory = plannedStep?.story;
   const focusedCitation = focusedStory === undefined ? undefined : citations[focusedStory.name];
   // A resource Stacktape adds for another points at no code of its own: the last highlight goes out.
@@ -555,15 +563,15 @@ export function Workspace({
   const parseError = draft === undefined ? edit?.error : undefined;
   const [problems, setProblems] = useState<EditorProblems>({ count: 0 });
   const showTypeScript = phase === 'review' && format === 'typescript' && !isEdited;
-  // A block's price counts up while it is typed, so the count has settled by the time it is written; the last one
-  // brings the estimate's own total, the number Review's bar shows.
+  // One beat per resource: when its block is written, its own price shows beside it and the estimate takes it in. The
+  // last one brings the estimate's own total, the number Review's bar shows.
   const wholePrice = state.composition?.price?.monthly;
   const price = useMemo(() => {
     const steps = plan.current?.steps ?? [];
-    const told = Math.max(written, step + 1);
-    const sofar = steps.slice(0, told).map((entry) => stories[entry.story.name] ?? entry.story);
-    return runningPrice(sofar, told >= steps.length && steps.length > 0 ? wholePrice : undefined);
-  }, [written, step, stories, wholePrice]);
+    const sofar = steps.slice(0, written).map((entry) => stories[entry.story.name] ?? entry.story);
+    return runningPrice(sofar, written >= steps.length && steps.length > 0 ? wholePrice : undefined);
+  }, [written, stories, wholePrice]);
+  const focusedPriced = phase === 'reveal' && written > step;
   const filesRead = new Set(opened).size;
   const receipt = !usesAgent
     ? 'Read without AI'
@@ -598,11 +606,13 @@ export function Workspace({
           {phase === 'scan' ? (
             <>
               <h1 className="ws-title">Reading {state.projectName}</h1>
-              <ScanStatus
-                agentLabel={usesAgent ? agent.label : undefined}
-                lastTool={lastTool?.label}
-                startedAt={startedAt}
-              />
+              <ScanStatus agentLabel={usesAgent ? agent.label : undefined} lastTool={lastTool?.label} />
+              {/* Without an agent nothing is read file by file, and the code window has no header for the time. */}
+              {!usesAgent && (
+                <p className="ws-head-side ws-status-meta">
+                  <ScanMeta startedAt={startedAt} />
+                </p>
+              )}
             </>
           ) : phase === 'reveal' ? (
             <>
@@ -613,6 +623,7 @@ export function Workspace({
               {focusedStory !== undefined && (
                 <Finding
                   citation={focusedCitation}
+                  isPriced={focusedPriced}
                   key={focusedStory.name}
                   story={stories[focusedStory.name] ?? focusedStory}
                 />
@@ -651,6 +662,7 @@ export function Workspace({
                 <PhoneFinding
                   citation={focusedCitation}
                   file={focusedEvidence === undefined ? undefined : files.get(focusedEvidence.file)}
+                  isPriced={focusedPriced}
                   story={stories[focusedStory.name] ?? focusedStory}
                   typed={typedBlock}
                 />
@@ -670,6 +682,8 @@ export function Workspace({
                   }
                   isBare={phase === 'scan' && !usesAgent}
                   isScanning={phase === 'scan'}
+                  live={liveFile}
+                  meta={phase === 'scan' ? <ScanMeta startedAt={startedAt} /> : undefined}
                   reducedMotion={reducedMotion}
                   tabs={phase === 'scan' ? opened : revealTabs}
                 />
@@ -719,12 +733,19 @@ export function Workspace({
                 </span>
               ) : phase !== 'review' ? (
                 phase === 'reveal' && (
-                  <AnimatedPrice
-                    className={`ws-editor-price${price.amount === undefined ? ' is-quiet' : ''}`}
-                    countFromZero
-                    text={price.text}
-                    title="What this file costs per month so far, at AWS list prices"
-                  />
+                  <span
+                    className="ws-editor-estimate"
+                    title="What the file written so far costs per month, at AWS list prices"
+                  >
+                    {price.text === 'estimating…' ? (
+                      <span className="ws-editor-estimate-label">Estimating…</span>
+                    ) : (
+                      <>
+                        <span className="ws-editor-estimate-label">Estimate so far</span>
+                        <AnimatedPrice className="ws-editor-price" countFromZero duration={420} text={price.text} />
+                      </>
+                    )}
+                  </span>
                 )
               ) : (
                 <Tabs
@@ -756,12 +777,32 @@ export function Workspace({
               'Saved as stacktape.ts. Switch to YAML to edit it here.'
             ) : (
               <>
-                Edit freely
-                <span className="ws-editor-hint-keys">
-                  {' '}
-                  <span aria-hidden>·</span> hover a key for docs <span aria-hidden>·</span> <kbd>Ctrl</kbd>{' '}
-                  <kbd>Space</kbd> for suggestions
-                </span>
+                Edit freely <span aria-hidden>·</span>{' '}
+                <button
+                  className="ws-docs-button"
+                  disabled={editorHandle === undefined}
+                  onClick={() =>
+                    editorHandle?.showDocs(
+                      (selected === undefined ? undefined : blockLines[selected]?.from) ??
+                        Object.values(blockLines)[0]?.from
+                    )
+                  }
+                  title="Shows what the key on the cursor's line does"
+                  type="button"
+                >
+                  <BiInfoCircle aria-hidden size={13} />
+                  Docs
+                </button>{' '}
+                {isTouch ? (
+                  'or tap a key'
+                ) : (
+                  <>
+                    or hover a key <span aria-hidden>·</span>{' '}
+                    <span className="ws-editor-hint-keys">
+                      <kbd>Ctrl</kbd> <kbd>Space</kbd> for suggestions
+                    </span>
+                  </>
+                )}
               </>
             )}
           </p>
@@ -789,6 +830,7 @@ export function Workspace({
                       ? undefined
                       : { ...blockLines[selected], reveal: revealCount }
                   }
+                  docsOnTap={isTouch}
                   key="yaml"
                   language="yaml"
                   lenses={lenses}
@@ -874,20 +916,24 @@ export function Workspace({
 const chipCount = (plan: RevealPlan | undefined, step: number): number =>
   plan?.steps.slice(0, step + 1).reduce((sum, entry) => sum + entry.chips.length, 0) ?? 0;
 
-function ScanStatus({
-  agentLabel,
-  lastTool,
-  startedAt
-}: {
-  agentLabel: string | undefined;
-  lastTool: string | undefined;
-  startedAt: number;
-}) {
+/** "Read-only · 0:06": what the analysis may do, and how long it has been at it. */
+function ScanMeta({ startedAt }: { startedAt: number }) {
   const [elapsed, setElapsed] = useState(() => Math.max(0, Math.round((Date.now() - startedAt) / 1000)));
   useEffect(() => {
     const timer = setInterval(() => setElapsed(Math.max(0, Math.round((Date.now() - startedAt) / 1000))), 1000);
     return () => clearInterval(timer);
   }, [startedAt]);
+  return (
+    <>
+      Read-only <span aria-hidden>·</span>{' '}
+      <span className="ws-elapsed">
+        {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
+      </span>
+    </>
+  );
+}
+
+function ScanStatus({ agentLabel, lastTool }: { agentLabel: string | undefined; lastTool: string | undefined }) {
   const activity = lastTool === undefined ? undefined : scanActivity(lastTool);
   return (
     <>
@@ -911,18 +957,25 @@ function ScanStatus({
           )}
         </span>
       </p>
-      <p className="ws-head-side ws-status-meta">
-        Read-only <span aria-hidden>·</span> {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
-      </p>
     </>
   );
 }
 
 /**
  * The finding the reveal is on, across both panes: the line of code on the left, what it became on the right, with
- * its price once the block is written. A resource Stacktape adds for another says so instead of quoting code.
+ * its own price ("$31/mo for this database") once the block is written, in the same beat as the estimate takes it. A
+ * resource Stacktape adds for another says so instead of quoting code.
  */
-function Finding({ story, citation }: { story: ResourceStory; citation: Citation | undefined }) {
+function Finding({
+  story,
+  citation,
+  isPriced
+}: {
+  story: ResourceStory;
+  citation: Citation | undefined;
+  isPriced: boolean;
+}) {
+  const ownPrice = resourcePrice(story);
   return (
     <div className="ws-finding" data-design-choice={story.designChoice === undefined ? undefined : 'true'}>
       <p className="ws-finding-from">
@@ -932,7 +985,11 @@ function Finding({ story, citation }: { story: ResourceStory; citation: Citation
       <p className="ws-finding-to">
         <ResourceIcon resourceType={story.type} size={16} />
         <strong>{story.plainName}</strong>
-        {story.priceLabel !== undefined && <span className="ws-finding-price">{story.priceLabel}</span>}
+        {ownPrice !== undefined && (
+          <span className="ws-finding-price" data-shown={isPriced ? 'true' : undefined}>
+            {ownPrice}
+          </span>
+        )}
       </p>
     </div>
   );
@@ -946,14 +1003,17 @@ function PhoneFinding({
   story,
   citation,
   file,
-  typed
+  typed,
+  isPriced
 }: {
   story: ResourceStory;
   citation: Citation | undefined;
   file: FileView | undefined;
   typed: string;
+  isPriced: boolean;
 }) {
   const evidence = story.evidence;
+  const ownPrice = resourcePrice(story);
   const lines = file?.status === 'shown' ? file.text.split('\n') : undefined;
   const lit = new Set(citation?.lines ?? (evidence === undefined ? [] : [evidence.line]));
   const first = citation?.lines[0] ?? evidence?.line ?? 1;
@@ -966,7 +1026,11 @@ function PhoneFinding({
       <p className="ws-phone-finding-head">
         <ResourceIcon resourceType={story.type} size={16} />
         <strong>{story.plainName}</strong>
-        {story.priceLabel !== undefined && <span className="ws-phone-finding-price">{story.priceLabel}</span>}
+        {ownPrice !== undefined && (
+          <span className="ws-phone-finding-price" data-shown={isPriced ? 'true' : undefined}>
+            {ownPrice}
+          </span>
+        )}
       </p>
       <p className="ws-phone-finding-why">
         <EvidenceLine citation={citation} story={story} />

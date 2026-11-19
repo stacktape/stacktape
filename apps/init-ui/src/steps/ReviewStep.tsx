@@ -148,7 +148,8 @@ export function ReviewPane({
   const [hovered, setHovered] = useState<string | undefined>(undefined);
   const shown = hovered !== undefined && stories[hovered] !== undefined ? hovered : selected;
   const story = shown === undefined ? undefined : stories[shown];
-  // The row keeps one height for the app, so a resource with three cited lines never resizes the picture.
+  // The row keeps one height for the app, so a resource with three cited lines never resizes the picture: room for
+  // the most lines of code any resource cites, and for a why line long enough to wrap beside them.
   const codeRows = Math.min(
     3,
     Math.max(
@@ -160,17 +161,24 @@ export function ReviewPane({
       )
     )
   );
+  const whyRows = Math.max(
+    1,
+    ...Object.values(stories).map((entry) =>
+      entry.designChoice === undefined &&
+      entry.evidence !== undefined &&
+      (whyText(entry, citations[entry.name])?.length ?? 0) > WHY_LINE_CHARS
+        ? 2
+        : 1
+    )
+  );
   // One object per file: a new one is a new picture, and the diagram forgets what the pointer was on.
   const config = useMemo(() => ({ resources }) as unknown as StacktapeConfig, [resources]);
-  // A disk that holds the app's SQLite file says so in the picture.
-  const typeLabels = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.values(stories)
-          .filter((entry) => entry.type === 'efs-filesystem' && entry.hint === 'sqlite')
-          .map((entry) => [entry.name, 'SQLite data'])
-      ),
-    [stories]
+  // The picture names each resource the way this page does ("Postgres database"), its key in the file under it. One
+  // object per set of names, so the picture is laid out again only when a name changes.
+  const titleKey = JSON.stringify(Object.values(stories).map((entry) => [entry.name, entry.plainName]));
+  const titles = useMemo(
+    () => Object.fromEntries(JSON.parse(titleKey) as Array<[string, string]>) as Record<string, string>,
+    [titleKey]
   );
 
   return (
@@ -191,7 +199,10 @@ export function ReviewPane({
       <section
         aria-label="Diagram"
         className="ws-panel ws-diagram"
-        style={{ ['--ws-selection-rows' as string]: codeRows }}
+        style={{
+          ['--ws-selection-rows' as string]: Math.max(codeRows, whyRows),
+          ['--ws-code-rows' as string]: codeRows
+        }}
       >
         <div className="ws-diagram-canvas">
           <Suspense
@@ -207,7 +218,7 @@ export function ReviewPane({
               // The row under the picture says what to do and what each resource is.
               focusDimming="soft"
               // The frame is what the title, the row and the settings leave: the picture fills it, not its margin.
-              framePadding={32}
+              framePadding={12}
               hint=""
               // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can be.
               layerChoices={[]}
@@ -217,7 +228,9 @@ export function ReviewPane({
               onHoverResource={(name) => setHovered(name ?? undefined)}
               onSelectResource={onSelect}
               resourceProgress={progress}
-              resourceTypeLabels={typeLabels}
+              resourceTitles={titles}
+              // The database access server is drawn reaching the private database it is there for.
+              bastionTunnels
               selectedResource={selected ?? null}
               style={{ width: '100%', height: '100%' }}
               volumeMounts
@@ -251,6 +264,9 @@ export function ReviewPane({
   );
 }
 
+/** About as many characters of the why line as fit on one line beside the lines of code at 1280 px. */
+const WHY_LINE_CHARS = 48;
+
 /** The why line as plain text, for its tooltip when a narrow row cuts it short. */
 const whyText = (story: ResourceStory, citation: Citation | undefined): string | undefined => {
   if (story.designChoice !== undefined) return `Added by Stacktape ${story.designChoice}`;
@@ -262,8 +278,9 @@ const whyText = (story: ResourceStory, citation: Citation | undefined): string |
 
 /**
  * The row under the picture: what to do while nothing is picked; then the resource the pointer is on, or the one
- * picked: its plain name and price, what in the code called for it with those lines, and the way to its block in
- * stacktape.yml. It keeps one place and one height, so it never covers the picture or moves it.
+ * picked. Its first line is the plain name and price, with the way to its block in stacktape.yml at the end; under it,
+ * what in the code called for it beside those lines of code, wide enough for the whole line. It keeps one place and one
+ * height whatever it shows, so it never covers the picture or moves what is under it.
  */
 function SelectionRow({
   story,
@@ -285,7 +302,12 @@ function SelectionRow({
       <div className="ws-selection" data-empty="true">
         <p className="ws-selection-empty">
           <BiPointer aria-hidden size={15} />
-          {isTouch ? 'Tap a resource to see why it is here' : 'Select a resource to see why it is here'}
+          <span>
+            <strong>
+              {isTouch ? 'Tap a resource to see why it is here' : 'Select a resource to see why it is here'}
+            </strong>
+            <span>The line of code that asked for it, and what it costs</span>
+          </span>
         </p>
       </div>
     );
@@ -305,38 +327,31 @@ function SelectionRow({
       data-picked={isPicked ? 'true' : undefined}
       key={story.name}
     >
-      <div className="ws-selection-main">
-        <p className="ws-selection-name">
-          <ResourceIcon resourceType={story.type} size={16} />
-          <strong>{story.plainName}</strong>
-          {story.priceLabel !== undefined && <span className="ws-selection-price">{story.priceLabel}</span>}
-        </p>
-        <p className="ws-selection-why" title={whyText(story, citation)}>
-          <EvidenceLine citation={citation} story={story} />
-        </p>
-      </div>
+      <p className="ws-selection-name">
+        <ResourceIcon resourceType={story.type} size={16} />
+        <strong>{story.plainName}</strong>
+        {story.priceLabel !== undefined && <span className="ws-selection-price">{story.priceLabel}</span>}
+      </p>
+      <p className="ws-selection-why" title={whyText(story, citation)}>
+        <EvidenceLine citation={citation} story={story} />
+      </p>
       {lines.length > 0 && (
         <div className="ws-selection-code">
           {lines.map((line) => (
-            <div className="ws-selection-line" key={line.number}>
+            <div className="ws-selection-line" key={line.number} title={line.text}>
               <span className="ws-selection-number">{line.number}</span>
               <span className="ws-selection-text">{line.text}</span>
             </div>
           ))}
         </div>
       )}
-      {/* One slot for both states, so the lines beside it never move when a resource is picked. */}
+      {/* One slot for both states, so nothing beside it moves when a resource is picked. */}
       <div className="ws-selection-actions">
         {isPicked ? (
           <>
-            <button
-              className="ws-selection-show"
-              onClick={() => onShowInFile(story.name)}
-              title="Show in stacktape.yml"
-              type="button"
-            >
+            <button className="ws-selection-show" onClick={() => onShowInFile(story.name)} type="button">
               <BiCodeAlt aria-hidden size={15} />
-              <span className="ws-selection-show-label">Show in stacktape.yml</span>
+              Show in stacktape.yml
             </button>
             <button aria-label="Clear the selection" className="ws-selection-clear" onClick={onClear} type="button">
               <BiX aria-hidden size={18} />

@@ -7,7 +7,7 @@
  */
 
 import type { FileView, WizardState } from '../session';
-import { monthlySuffix, plainResourceName, splitMonthly, technologyOf } from '../steps/review-model';
+import { resourceTitle, splitMonthly, technologyOf } from '../steps/review-model';
 
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
 type Service = NonNullable<WizardState['facts']>['services'][number];
@@ -16,7 +16,7 @@ export type Evidence = { file: string; line: number; quote: string };
 export type ResourceStory = {
   name: string;
   type: string;
-  /** "Postgres database", "Next.js app", "Web service (FastAPI)". */
+  /** "Postgres database", "Next.js site", "FastAPI service": the diagram's name for it too (`resourceTitle`). */
   plainName: string;
   /** Why it is there, in our words (never the agent's). Absent for a resource added by hand. */
   reason?: string;
@@ -206,7 +206,7 @@ export const storyOf = (state: WizardState, name: string, resource: Resources[st
   const service = serviceFor(state, name);
   const technology = technologyOf(service);
   const provenance = state.composition?.provenance[name];
-  const plainName = plainResourceName(resource, technology);
+  const plainName = resourceTitle(resource, technology);
   // A runtime's own reason is about Stacktape ("first-class support for Next.js"); say what it runs instead.
   const reason =
     provenance === undefined
@@ -242,11 +242,11 @@ export const storyOf = (state: WizardState, name: string, resource: Resources[st
 };
 
 /**
- * What stacktape.yml costs so far while the reveal writes it, in the editor's header and in the words of Review's bar:
- * "estimating…" until every resource written has a price (never "$0" beside a database), "Pay per use" when nothing
- * has a fixed price, then the fixed amount with "+ usage" once something is billed by use. Once every resource is told,
- * it is the estimate's own total (`whole`, "$31/mo + pay-per-use costs"), so the reveal ends on Review's number rather
- * than on a sum of rounded parts.
+ * What stacktape.yml written so far costs, for the editor's header while the reveal writes it ("Estimate so far ·
+ * $31/mo + usage"): "estimating…" until every resource written has a price (never "$0" beside a database), "Pay per
+ * use" when nothing has a fixed price, then the fixed amount with "+ usage" once something is billed by use. Once every
+ * resource is told, it is the estimate's own total (`whole`, "$31/mo + pay-per-use costs"), so the reveal ends on
+ * Review's number rather than on a sum of rounded parts.
  */
 export const runningPrice = (
   written: ReadonlyArray<Pick<ResourceStory, 'priceLabel' | 'monthly'>>,
@@ -255,14 +255,39 @@ export const runningPrice = (
   const total = whole === undefined ? undefined : splitMonthly(whole);
   const totalAmount = total?.amount === undefined ? undefined : Number(total.amount.slice(1).replaceAll(',', ''));
   if (total !== undefined && totalAmount !== undefined && Number.isFinite(totalAmount)) {
-    return { text: `${total.amount} ${monthlySuffix(total.usage)}`, amount: totalAmount };
+    return { text: `${total.amount}/mo${total.usage ? ' + usage' : ''}`, amount: totalAmount };
   }
   if (written.length === 0 || written.some((story) => story.monthly === undefined)) return { text: 'estimating…' };
   const amount = written.reduce((sum, story) => sum + (story.monthly ?? 0), 0);
   const usage = written.some((story) => story.priceLabel === 'Pay per use');
   if (amount === 0) return { text: 'Pay per use' };
   const rounded = Math.round(amount);
-  return { text: `$${rounded.toLocaleString('en-US')} ${monthlySuffix(usage)}`, amount: rounded };
+  return { text: `$${rounded.toLocaleString('en-US')}/mo${usage ? ' + usage' : ''}`, amount: rounded };
+};
+
+/** What a resource is, in the one word its own price is said with: "for this database". */
+const PRICE_NOUNS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^(relational-database|mongo-db-atlas-cluster)$/, 'database'],
+  [/-web$|^hosting-bucket$/, 'site'],
+  [/^(web-service|private-service|multi-container-workload)$/, 'service'],
+  [/^worker-service$/, 'worker'],
+  [/^(function|batch-job)$/, 'job'],
+  [/^bastion$/, 'server'],
+  [/^efs-filesystem$/, 'disk'],
+  [/^(redis-cluster|upstash-redis)$/, 'cache'],
+  [/^bucket$/, 'bucket'],
+  [/^dynamo-db-table$/, 'table'],
+  [/^sqs-queue$/, 'queue']
+];
+
+/**
+ * A resource's own price, said so it cannot be read as the total: "$31/mo for this database", "Pay per use". Undefined
+ * until the estimate has it.
+ */
+export const resourcePrice = (story: Pick<ResourceStory, 'type' | 'priceLabel'>): string | undefined => {
+  if (story.priceLabel === undefined || story.priceLabel === 'Pay per use') return story.priceLabel;
+  const noun = PRICE_NOUNS.find(([pattern]) => pattern.test(story.type))?.[1] ?? 'resource';
+  return `${story.priceLabel} for this ${noun}`;
 };
 
 const MANIFEST =
@@ -348,12 +373,11 @@ export const yamlSegments = (
   return { header, blocks, trailer: yaml.slice(end) };
 };
 
-/** One line per resource in the chips row: "Next.js app", "Postgres", "3 secrets". */
-const chipLabel = (story: ResourceStory, resource: Resources[string], technology: string | undefined): string => {
+/** One line per resource in the chips row, in the words the diagram uses: "Next.js site", "Postgres", "3 secrets". */
+const chipLabel = (story: ResourceStory, resource: Resources[string]): string => {
   if (resource.type === 'relational-database') return story.plainName.replace(/ database$/, '');
   if (story.plainName === 'Disk for SQLite data') return 'SQLite data';
-  if (technology === undefined || resource.type.endsWith('-web')) return story.plainName;
-  return resource.type === 'hosting-bucket' ? `${technology} site` : `${technology} app`;
+  return story.plainName;
 };
 
 /** The secrets a service reads that only the user can supply: API keys and the like, not generated passwords. */
@@ -402,7 +426,7 @@ export const revealPlan = (state: WizardState): RevealPlan | undefined => {
     const service = serviceFor(state, name);
     const secrets = secretsOf(service);
     const chips: Chip[] = [
-      { id: name, label: chipLabel(story, resource, technologyOf(service)), kind: 'resource', type: resource.type },
+      { id: name, label: chipLabel(story, resource), kind: 'resource', type: resource.type },
       ...(secrets.length === 0
         ? []
         : [

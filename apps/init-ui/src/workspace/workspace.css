@@ -158,6 +158,7 @@
   }
 
   .ws-window {
+    position: relative;
     display: flex;
     flex: 1;
     flex-direction: column;
@@ -282,13 +283,51 @@
     color: var(--w-muted);
   }
 
+  /* Whether the file shown is the one being read: "Reading" with the live pulse, or "Viewing" an earlier one. */
+  .ws-window-state {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font-weight: 600;
+  }
+
+  .ws-window-state[data-state='reading'] {
+    background: var(--ws-accent);
+    color: var(--w-text-strong);
+  }
+
+  .ws-window-state .ws-pulse {
+    margin: 0 6px 0 0;
+  }
+
+  /* The header's end on every size: read-only, the time so far and the files read. */
+  .ws-window-meta {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    padding-left: 12px;
+    color: var(--w-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ws-elapsed {
+    color: var(--w-text);
+  }
+
   .ws-window-list-toggle {
     display: inline-flex;
     flex: none;
     align-items: center;
     gap: 2px;
-    margin-left: auto;
-    padding: 4px 4px 4px 8px;
+    height: 24px;
+    padding: 0 4px 0 8px;
     border: 0;
     border-radius: var(--w-radius-chip);
     background: var(--w-code-fill);
@@ -298,28 +337,68 @@
     cursor: pointer;
   }
 
+  .ws-window-list-toggle:hover {
+    background: var(--w-hover);
+  }
+
+  .ws-window-list-toggle svg {
+    transition: transform 150ms var(--w-ease);
+  }
+
   .ws-window-list-toggle[aria-expanded='true'] svg {
     transform: rotate(180deg);
   }
 
+  /* "Read so far", opened from the header: over the top right of the code, under the button that opened it. */
   .ws-window-list {
-    flex: none;
-    padding: 10px 16px 12px;
-    border-bottom: 1px solid var(--w-line);
+    position: absolute;
+    top: 89px;
+    right: 8px;
+    z-index: 4;
+    width: min(380px, calc(100% - 16px));
+    max-height: calc(100% - 100px);
+    box-sizing: border-box;
+    padding: 10px 14px 12px;
+    overflow: auto;
+    border: 1px solid var(--ws-code-popup-border);
+    border-radius: var(--w-radius-small);
     background: var(--ws-code-popup);
+    box-shadow: var(--w-shadow-rest);
+    animation: ws-fade-in 160ms var(--w-ease) both;
   }
 
-  /* Under a short file: the files read so far, quietly, so the window is never half dead. */
-  .ws-window-trail {
-    position: absolute;
-    right: 0;
-    left: 0;
-    margin: 0 24px 0 calc(var(--ws-gutter-digits, 2) * 1ch + 36px);
-    padding: 16px 0 0;
-    border-top: 1px dashed var(--w-line-strong);
-    font-family: var(--w-mono);
-    font-size: 13px;
-    animation: ws-fade-in 400ms var(--w-ease) both;
+  /* The phone's window: no tabs; its first row is the time and the files read. */
+  .ws-window-bar {
+    display: flex;
+    flex: none;
+    align-items: center;
+    height: 40px;
+    padding: 0 12px 0 16px;
+    border-bottom: 1px solid var(--w-line);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .ws-window-bar .ws-window-meta {
+    width: 100%;
+    padding-left: 0;
+  }
+
+  .ws-window-bar .ws-window-list-toggle {
+    margin-left: auto;
+  }
+
+  .ws-window-bar .ws-window-meta-sep {
+    display: none;
+  }
+
+  .ws-window[data-compact] .ws-window-list {
+    position: static;
+    width: auto;
+    max-height: none;
+    border-width: 0 0 1px;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .ws-files-title {
@@ -377,9 +456,13 @@
   }
 
   .ws-window-path-note {
-    margin-left: auto;
-    padding-left: 12px;
+    flex: none;
     color: var(--w-muted);
+  }
+
+  .ws-window-path-note::before {
+    margin-right: 8px;
+    content: '·';
   }
 
   .ws-window-body {
@@ -771,13 +854,19 @@
     text-overflow: ellipsis;
   }
 
-  /* The resource's own estimate, beside its name; the file's total is in the editor's header. */
+  /* The resource's own price ("$31/mo for this database"), beside its name once its block is written, in the beat the
+   * estimate in the editor's header takes it in. Its room is kept, so nothing moves when it shows. */
   .ws-finding-price {
     flex: none;
     color: var(--w-muted);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
-    animation: ws-fade-in 300ms var(--w-ease) both;
+    opacity: 0;
+    transition: opacity 240ms var(--w-ease);
+  }
+
+  .ws-finding-price[data-shown] {
+    opacity: 1;
   }
 
   .ws-finding-price::before {
@@ -1036,6 +1125,20 @@
     margin-right: -8px;
   }
 
+  /* "Estimate so far · $31/mo + usage": the draft's total, said apart from any one resource's price. */
+  .ws-editor-estimate {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .ws-editor-estimate-label {
+    color: var(--w-muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
   .ws-editor-price {
     color: var(--w-text);
     font-size: 15px;
@@ -1045,15 +1148,9 @@
   }
 
   .ws-editor-price small {
-    margin-left: 3px;
+    margin-left: 1px;
     color: var(--w-muted);
     font-size: 12px;
-    font-weight: 500;
-  }
-
-  .ws-editor-price.is-quiet {
-    color: var(--w-muted);
-    font-size: 13px;
     font-weight: 500;
   }
 
@@ -1073,6 +1170,34 @@
 
   .ws-editor-hint kbd {
     margin: 0 1px;
+  }
+
+  /* "Docs": the hover card for the key on the cursor's line, for whoever has no pointer to hover with. */
+  .ws-docs-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    margin: -3px 0;
+    padding: 0 8px 0 6px;
+    border: 0;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-code-fill);
+    box-shadow: inset 0 0 0 1px var(--w-line-strong);
+    color: var(--w-text);
+    font: inherit;
+    font-weight: 600;
+    vertical-align: baseline;
+    cursor: pointer;
+  }
+
+  .ws-docs-button:hover:not(:disabled) {
+    background: var(--w-hover);
+  }
+
+  .ws-docs-button:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .ws-editor-body {
@@ -1392,31 +1517,42 @@
     height: 100%;
   }
 
-  /* One height for the app (its longest citation), so hovering never resizes the picture above it. */
+  /* One height for the app (its longest citation), so hovering or picking never resizes the picture above it. The
+   * name and the way to the file on the first line; the why beside its lines of code under it, which take most of the
+   * width so a cited line shows whole. */
   .ws-selection {
     display: grid;
     flex: none;
-    /* The name and why first; the lines take what is left, up to about a quarter. */
-    grid-template-columns: minmax(240px, 1fr) fit-content(26%) 200px;
+    grid-template-areas:
+      'name actions'
+      'why code';
+    grid-template-columns: fit-content(50%) minmax(0, 1fr);
+    grid-template-rows: 28px minmax(0, 1fr);
     align-items: center;
-    gap: 16px;
+    gap: 6px 20px;
     box-sizing: border-box;
-    height: calc(max(44px, var(--ws-selection-rows, 1) * 20px + 12px) + 20px);
-    padding: 0 12px 0 16px;
+    height: calc(60px + var(--ws-selection-rows, 1) * 20px);
+    padding: 8px 12px 10px 16px;
     border-top: 1px solid var(--w-line);
     background: var(--w-well);
   }
 
   .ws-selection[data-empty] {
     display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
+  /* Without lines of code (a resource Stacktape adds for another), the why takes the whole line. */
   .ws-selection:not([data-code]) {
-    grid-template-columns: minmax(0, 1fr) 200px;
+    grid-template-areas:
+      'name actions'
+      'why why';
   }
 
   .ws-selection-actions {
     display: flex;
+    grid-area: actions;
     align-items: center;
     justify-content: flex-end;
     gap: 2px;
@@ -1429,47 +1565,33 @@
     white-space: nowrap;
   }
 
-  /* A narrow pane beside the editor: the way to the file is its icon (named in its tooltip), so the resource's name
-   * and why keep their room. */
-  @container ws-diagram (max-width: 760px) {
-    .ws:not([data-stacked]) .ws-selection {
-      grid-template-columns: minmax(240px, 1fr) fit-content(36%) 64px;
-    }
-
-    .ws:not([data-stacked]) .ws-selection:not([data-code]) {
-      grid-template-columns: minmax(0, 1fr) 64px;
-    }
-
-    .ws:not([data-stacked]) .ws-selection-show {
-      width: 30px;
-      padding: 0;
-      justify-content: center;
-    }
-
-    .ws:not([data-stacked]) .ws-selection-show-label,
-    .ws:not([data-stacked]) .ws-selection-hint {
-      display: none;
-    }
-  }
-
   .ws-selection-empty {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 10px;
     margin: 0;
     color: var(--w-muted);
     font-size: 13px;
+    line-height: 20px;
   }
 
-  .ws-selection-main {
+  .ws-selection-empty svg {
+    flex: none;
+    margin-top: 2px;
+  }
+
+  .ws-selection-empty > span {
     display: grid;
-    gap: 4px;
-    min-width: 0;
-    animation: ws-fade-in 160ms var(--w-ease) both;
+  }
+
+  .ws-selection-empty strong {
+    color: var(--w-text);
+    font-weight: 500;
   }
 
   .ws-selection-name {
     display: flex;
+    grid-area: name;
     align-items: center;
     gap: 8px;
     min-width: 0;
@@ -1477,6 +1599,7 @@
     font-size: 14px;
     line-height: 20px;
     white-space: nowrap;
+    animation: ws-fade-in 160ms var(--w-ease) both;
   }
 
   .ws-selection-name svg {
@@ -1504,26 +1627,33 @@
     content: '·';
   }
 
+  /* Two lines at most: a long path wraps rather than being cut. */
   .ws-selection-why {
-    display: flex;
+    display: -webkit-box;
+    grid-area: why;
+    align-self: start;
     min-width: 0;
     margin: 0;
+    overflow: hidden;
     font-size: 13px;
     line-height: 20px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    animation: ws-fade-in 160ms var(--w-ease) both;
+  }
+
+  .ws-selection-why .ws-evidence {
+    white-space: normal;
   }
 
   .ws-selection-why .ws-evidence-says {
     font-weight: 500;
   }
 
-  .ws-selection-why .ws-evidence-tag + .ws-evidence-says {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
   /* The cited lines, as the file has them, in the accent of a picked resource. */
   .ws-selection-code {
+    grid-area: code;
+    align-self: start;
     min-width: 0;
     padding: 6px 0;
     border-radius: var(--w-radius-chip);
@@ -1551,6 +1681,7 @@
 
   .ws-selection-text {
     min-width: 0;
+    padding-right: 10px;
     overflow: hidden;
     color: var(--ws-code-text);
     text-overflow: ellipsis;
@@ -1560,7 +1691,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 30px;
+    height: 28px;
     padding: 0 10px;
     border: 0;
     border-radius: var(--w-radius-chip);
@@ -1581,8 +1712,8 @@
   .ws-selection-clear {
     display: grid;
     flex: none;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: 0;
     border-radius: var(--w-radius-chip);
@@ -1889,18 +2020,16 @@
       border-bottom: 0;
     }
 
-    /* The running total keeps its words, on a line under the amount rather than squeezing the filename. */
-    .ws-editor[data-collapsed] .ws-editor-price {
+    /* The estimate's label sits over its amount rather than squeezing the filename. */
+    .ws-editor[data-collapsed] .ws-editor-estimate {
       display: grid;
       justify-items: end;
+      gap: 0;
       line-height: 20px;
     }
 
-    .ws-editor[data-collapsed] .ws-editor-price small {
-      margin: 0;
+    .ws-editor[data-collapsed] .ws-editor-estimate-label {
       line-height: 16px;
-      text-align: right;
-      text-wrap: balance;
     }
 
     .ws-editor[data-collapsed] .ws-editor-hint {
@@ -1936,20 +2065,22 @@
       }
     }
 
-    /* In the page's flow under the picture, as tall as what it says: the resource and a way to clear it, its lines,
-     * then the way to its block. */
+    /* In the page's flow under the picture: the resource and a way to clear it, why, its lines, then the way to its
+     * block. It keeps the height a picked resource needs whatever it shows, so a tap never moves the settings. */
     .ws-selection,
     .ws-selection:not([data-code]) {
+      grid-template-areas:
+        'name clear'
+        'why why'
+        'code code'
+        'show show';
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px 8px;
-      height: auto;
-      min-height: 56px;
+      grid-template-rows: 30px auto auto 30px;
+      align-content: start;
+      gap: 8px;
+      /* The name, two lines of why, the code and the button, with their gaps and padding. */
+      height: calc(150px + var(--ws-code-rows, 1) * 20px);
       padding: 12px 8px 14px 16px;
-    }
-
-    .ws-selection-main {
-      grid-column: 1;
-      grid-row: 1;
     }
 
     .ws-selection-actions {
@@ -1957,27 +2088,16 @@
     }
 
     .ws-selection-clear {
-      grid-column: 2;
-      grid-row: 1;
-      align-self: start;
-      margin: -4px 0 0;
+      grid-area: clear;
     }
 
     .ws-selection-code {
-      grid-column: 1 / -1;
-      grid-row: 2;
       margin-right: 8px;
     }
 
     .ws-selection-show {
-      grid-column: 1 / -1;
-      grid-row: 3;
+      grid-area: show;
       justify-self: start;
-    }
-
-    .ws-selection-why .ws-evidence {
-      flex-wrap: wrap;
-      white-space: normal;
     }
 
     .ws-chips {
@@ -2036,6 +2156,12 @@
   .ws-phone-finding-price {
     color: var(--w-muted);
     font-size: 13px;
+    opacity: 0;
+    transition: opacity 240ms var(--w-ease);
+  }
+
+  .ws-phone-finding-price[data-shown] {
+    opacity: 1;
   }
 
   /* The block typed so far is the start of the file, not all of it. */
