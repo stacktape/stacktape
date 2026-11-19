@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { composeConfig } from '@stacktape/config-inference/compose';
@@ -1850,6 +1850,27 @@ describe('what the page sets besides choices', () => {
       expect(await get('/api/environment-values')).toEqual({
         file: '.env',
         values: [{ name: 'DOMAIN', value: 'localhost' }]
+      });
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("lists the repository's file names for the page, without dependencies or ignored files", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), 'stacktape-session-tree-'));
+    try {
+      await mkdir(join(repositoryRoot, 'src'), { recursive: true });
+      await mkdir(join(repositoryRoot, 'node_modules', 'pg'), { recursive: true });
+      await writeFile(join(repositoryRoot, '.gitignore'), '*.log\n');
+      await writeFile(join(repositoryRoot, 'package.json'), '{}');
+      await writeFile(join(repositoryRoot, 'src', 'server.ts'), 'listen(3000)');
+      await writeFile(join(repositoryRoot, 'debug.log'), 'noise');
+      await writeFile(join(repositoryRoot, 'node_modules', 'pg', 'index.js'), '');
+      session = await startWizardSession({ projectName: 'demo', result: factsFor(), repositoryRoot });
+      const { get } = await connect();
+      expect(await get('/api/tree')).toEqual({
+        files: ['.gitignore', 'package.json', 'src/server.ts'],
+        truncated: false
       });
     } finally {
       await rm(repositoryRoot, { recursive: true, force: true });

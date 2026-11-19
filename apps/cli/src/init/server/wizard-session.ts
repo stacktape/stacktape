@@ -35,6 +35,7 @@ import { renderTypeScript, renderYaml } from '../write-config';
 import type { PreflightResult } from '../preflight/preflight';
 import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
 import { readSeenFile, seenFilePaths } from './file-view';
+import { readRepositoryTree, type RepositoryTree } from './repository-tree';
 import { readEnvironmentValues } from './environment-values';
 import { requiredSecretVariables } from '@stacktape/config-inference/compose/required-secrets';
 import {
@@ -856,6 +857,9 @@ export const startWizardSession = async ({
     });
   }
 
+  /** The repository's file names, listed on the page's first request for them. */
+  let repositoryTree: Promise<RepositoryTree> | undefined;
+
   const server = await startWizardServer({
     initialState: buildState(),
     ...(staticRoot === undefined ? {} : { staticRoot }),
@@ -1372,6 +1376,8 @@ export const startWizardSession = async ({
       ...(repositoryRoot === undefined
         ? {}
         : {
+            // Walked once: the page asks while the analysis reads, and nothing it lists changes meanwhile.
+            onTree: () => (repositoryTree ??= readRepositoryTree({ repositoryRoot })),
             onFile: (path: string) =>
               readSeenFile({
                 repositoryRoot,

@@ -18,6 +18,7 @@ import { AddressInfo, type Socket } from 'node:net';
 import { extname, join, normalize } from 'node:path';
 import type { DeployTargetObservation } from '../deploy/stack-expectation';
 import type { FileView } from './file-view';
+import type { RepositoryTree } from './repository-tree';
 import type { EnvironmentValues } from './environment-values';
 import {
   isDeploymentPreferenceChange,
@@ -337,6 +338,11 @@ export type WizardServerHooks = {
    */
   onFile?: (path: string) => Promise<FileView>;
   /**
+   * The repository's file names (see `repository-tree.ts`), for the page to draw the project while it is read. Names
+   * only. Absent when the session has no repository on disk.
+   */
+  onTree?: () => Promise<RepositoryTree>;
+  /**
    * The values the project's `.env` sets for the secrets the configuration reads, for the Deploy step's "Use the values
    * from .env" (see `environment-values.ts`). They go to the page on this machine and, when the user saves them, into
    * their AWS account; never into a log. Absent when the session has no repository on disk.
@@ -641,6 +647,16 @@ export const startWizardServer = async ({
           return;
         }
         json(response, 200, await hooks.onFile(path));
+        return;
+      }
+
+      // The repository's file names: same cookie and CSRF token as the file route. The session decides what is listed.
+      if (url.pathname === '/api/tree' && request.method === 'GET' && hooks.onTree !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        json(response, 200, await hooks.onTree());
         return;
       }
 

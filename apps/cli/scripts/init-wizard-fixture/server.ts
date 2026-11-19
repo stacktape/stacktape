@@ -5,7 +5,7 @@
  * real handshake, CSRF checks, event stream, recomposition and file writes. Only what lies outside this machine or
  * would spend money is scripted: the scan replays facts recorded from a real repository (`projects/*.json`), with the
  * files it read recorded beside them (`projects/*.files.json`, written into the fixture's repository so the page can
- * show them), and the
+ * show them, with the rest of the recorded tree as empty files), and the
  * coding agent, AWS identity, Stacktape sign-in, price estimate, target check, local try-out, deploy child and
  * `stacktape connect` answer
  * from the scenario below. Every network request that is not loopback is refused (run with the network guard).
@@ -283,12 +283,22 @@ const main = async () => {
          * the code window still shows them masked.
          */
         localValues?: Record<string, string[]>;
+        /** Every file name in the recorded repository, as the tree route lists it. */
+        tree?: string[];
       };
     } catch {
       return undefined;
     }
   })();
-  for (const [path, lines] of Object.entries({ ...recordedFiles?.files, ...recordedFiles?.localValues })) {
+  const recordedText = { ...recordedFiles?.files, ...recordedFiles?.localValues };
+  // The rest of the recorded tree as empty files, so the real tree route draws the real project. The page never shows
+  // their text: only files the scan read or cited can be opened.
+  for (const path of recordedFiles?.tree ?? []) {
+    if (recordedText[path] !== undefined) continue;
+    await mkdir(dirname(join(repositoryRoot, path)), { recursive: true });
+    await writeFile(join(repositoryRoot, path), '');
+  }
+  for (const [path, lines] of Object.entries(recordedText)) {
     await mkdir(dirname(join(repositoryRoot, path)), { recursive: true });
     await writeFile(join(repositoryRoot, path), lines.join('\n'));
   }

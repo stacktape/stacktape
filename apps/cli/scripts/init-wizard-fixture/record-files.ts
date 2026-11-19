@@ -8,15 +8,18 @@
  *
  *   bun scripts/init-wizard-fixture/record-files.ts <name> <repository-directory>
  *
- * Writes `projects/<name>.files.json`: the source, the scan timeline and each file as its lines. The files are stored
- * already masked the way the page shows them (`.env` values and URL credentials as `••••`, see `file-view.ts`), so no
- * example password is committed. The fixture writes them into its temporary repository at start.
+ * Writes `projects/<name>.files.json`: the source, the scan timeline, each file as its lines, and the repository's
+ * tree (`tree`: every file name the wizard's tree route lists for that checkout, see `repository-tree.ts`; names only).
+ * The files are stored already masked the way the page shows them (`.env` values and URL credentials as `••••`, see
+ * `file-view.ts`), so no example password is committed. The fixture writes them into its temporary repository at
+ * start, and an empty file for every other name in the tree, so the page draws the real project.
  */
 
 import { readFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { maskEnvironmentText, maskUrlCredentials } from '../../src/init/server/file-view';
+import { readRepositoryTree } from '../../src/init/server/repository-tree';
 
 /**
  * Where each recording comes from, and the order a coding agent plausibly reads it in. The timeline entries are the
@@ -132,6 +135,9 @@ const main = async () => {
     );
   }
 
+  const tree = await readRepositoryTree({ repositoryRoot });
+  if (tree.truncated) throw new Error(`${repositoryRoot} has more files than the tree route lists.`);
+
   const target = join(import.meta.dir, 'projects', `${name}.files.json`);
   // `localValues` is recorded by hand (a template's public `.env` values for the Deploy step's import); a new
   // recording keeps it.
@@ -144,9 +150,9 @@ const main = async () => {
   })();
   await writeFile(
     target,
-    `${JSON.stringify({ source: project.source, timeline, files, ...(previous.localValues === undefined ? {} : { localValues: previous.localValues }) }, null, 2)}\n`
+    `${JSON.stringify({ source: project.source, timeline, files, tree: tree.files, ...(previous.localValues === undefined ? {} : { localValues: previous.localValues }) }, null, 2)}\n`
   );
-  console.log(`Wrote ${target}: ${paths.size} files`);
+  console.log(`Wrote ${target}: ${paths.size} files, a tree of ${tree.files.length}`);
 };
 
 void main();
