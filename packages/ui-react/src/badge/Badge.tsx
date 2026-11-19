@@ -50,9 +50,10 @@ export function Badge({
 }
 
 /**
- * How loud a count is, by what it counts: `danger` for something failing now (a critical incident), `warning` for what
- * needs a look soon (another open incident, a firing alarm, a finding to fix), `neutral` for a number that is only a
- * number (open errors: most running apps have a few, and a red count for each teaches people to ignore red).
+ * How loud a count is. Only a count of incidents nobody has taken is coloured, by the worst one: `danger` when one is
+ * critical, `warning` otherwise, the colours of a project's status dot. Every other count is `neutral`, a number of
+ * things waiting in a list (open errors, firing alarms, findings to fix): each has its own severity on its row, and a
+ * second colour beside the incident that a firing alarm already opened leaves people guessing which one matters.
  */
 export type CountBadgeTone = 'danger' | 'warning' | 'neutral';
 
