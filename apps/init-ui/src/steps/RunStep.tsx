@@ -89,9 +89,8 @@ function RunDiagram({ resources, progress }: { resources: ConfigResources; progr
           config={{ resources } as unknown as StacktapeConfig}
           hint="Faint: not created yet · pulsing: being created"
           initialZoom={1.1}
-          // The same picture as Review: no layer switches or search box in the way.
+          // The same picture as Review, without layer switches.
           layerChoices={[]}
-          searchable={false}
           resourceProgress={progress}
           statuses={Object.fromEntries(
             Object.entries(progress).map(([name, value]) => [

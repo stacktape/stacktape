@@ -9,7 +9,7 @@
  * closes a cycle.
  */
 
-type ColumnNode = { id: string; rank?: 'first' | 'last' | undefined };
+type ColumnNode = { id: string; rank?: 'first' | 'last' | undefined; zone?: string | undefined };
 type ColumnEdge = { from: string; to: string; flow: boolean };
 
 export const assignFlowColumns = ({ nodes, edges }: { nodes: ColumnNode[]; edges: ColumnEdge[] }) => {
@@ -75,6 +75,26 @@ export const assignFlowColumns = ({ nodes, edges }: { nodes: ColumnNode[]; edges
       column[index] = Math.max(column[index], column[predecessor] + 1);
     }
   }
+
+  // A node with no connector at all in a zone (a bastion in the VPC) would wait next to the sources, where its zone's
+  // band crosses the flow and blocks the connectors that run past. It joins the last column its zone's connected
+  // members span instead, inside the band they already form.
+  const connected = new Uint8Array(count);
+  for (const edge of edges) {
+    const from = indexById.get(edge.from);
+    const to = indexById.get(edge.to);
+    if (from === undefined || to === undefined || from === to) continue;
+    connected[from] = 1;
+    connected[to] = 1;
+  }
+  const isolated = (index: number) => !nodes[index].rank && !connected[index];
+  nodes.forEach((node, index) => {
+    if (!node.zone || !isolated(index)) return;
+    const zoneColumns = nodes.flatMap((other, otherIndex) =>
+      other.zone === node.zone && !other.rank && !isolated(otherIndex) ? [column[otherIndex]] : []
+    );
+    if (zoneColumns.length > 0) column[index] = Math.max(...zoneColumns);
+  });
 
   const middleColumns = nodes.flatMap((node, index) => (node.rank ? [] : [column[index]]));
   const lastColumn = middleColumns.length > 0 ? Math.max(...middleColumns) + 1 : firstColumn;

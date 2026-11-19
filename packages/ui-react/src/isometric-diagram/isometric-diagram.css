@@ -29,9 +29,17 @@
     box-shadow: inset 0 0 0 var(--stp-focus-outline-width) color-mix(in srgb, var(--stp-color-brand) 40%, transparent);
   }
 
+  /*
+   * The canvas fills the frame, except that a small picture is not enlarged past the scale its shapes and text were
+   * drawn for (the renderer caps its size); it is then centred, and the grid runs on past its edges.
+   */
   .stp-diagram__canvas {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
+    margin: auto;
+    overflow: visible;
     transform-origin: center center;
   }
 

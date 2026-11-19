@@ -17,6 +17,7 @@ import {
 } from '../node-appearance.js';
 import { buildIsometricScene } from '../scene-builder.js';
 import { buildDiagramTopology } from '../topology.js';
+import { NO_LAYERS } from '../views.js';
 import { assignFlowColumns } from './columns.js';
 import { layoutDiagram } from './diagram-layout.js';
 import { solveDifferenceConstraints } from './network-simplex.js';
@@ -70,14 +71,28 @@ const allGroups = (config: unknown) => {
   return new Set(topology ? findRoleGroups({ topology }).map((group) => group.id) : []);
 };
 
+/**
+ * Which picture a case checks: the full picture every layer selects from, the application picture selected from it
+ * (folded connectors take their own routes), or the application picture laid out alone for a host without the
+ * Infrastructure switch.
+ */
+type Picture = 'every layer' | 'application' | 'application only';
+const PICTURES: Picture[] = ['every layer', 'application', 'application only'];
+
 /** Each configuration as it opens (groups collapsed) and, when it has groups, with every group expanded. */
-const cases: { id: string; config: any; expand: boolean }[] = [
-  ...configs.map(({ id, config }) => ({ id, config, expand: false })),
-  ...configs
-    .filter(({ config }) => allGroups(config).size > 0)
-    .map(({ id, config }) => ({ id: `${id} (expanded)`, config, expand: true })),
-  { id: 'final-column-loops', config: finalColumnLoops, expand: true }
-];
+type Case = { id: string; config: any; expand: boolean; picture: Picture };
+const casesOf = (picture: Picture): Case[] => {
+  const suffix = picture === 'every layer' ? '' : `: ${picture} picture`;
+  return configs
+    .map(({ id, config }) => ({ id: `${id}${suffix}`, config, expand: false, picture }))
+    .concat(
+      configs
+        .filter(({ config }) => allGroups(config).size > 0)
+        .map(({ id, config }) => ({ id: `${id} (expanded)${suffix}`, config, expand: true, picture })),
+      [{ id: `final-column-loops${suffix}`, config: finalColumnLoops, expand: true, picture }]
+    );
+};
+const cases = PICTURES.flatMap(casesOf);
 
 const DATA_STORES = new Set([
   'relational-database',
@@ -97,10 +112,12 @@ const SOURCES = new Set(['user', 'schedule']);
 const HALF_FOOTPRINT = 0.66;
 const EPSILON = 1e-6;
 
-const buildScene = (config: unknown, expand = false) => {
+const buildScene = (config: unknown, expand = false, picture: Picture = 'every layer') => {
   const scene = buildIsometricScene({
     parsedConfig: config as never,
-    expandedGroups: expand ? allGroups(config) : undefined
+    expandedGroups: expand ? allGroups(config) : undefined,
+    infrastructure: picture !== 'application only',
+    ...(picture === 'every layer' ? {} : { layers: NO_LAYERS })
   });
   if (!scene) throw new Error('Expected a scene');
   return scene;
@@ -238,9 +255,9 @@ const closesCycle = ({ scene, from, to }: { scene: IsoScene; from: string; to: s
 };
 
 describe('diagram layout', () => {
-  for (const { id, config, expand } of cases) {
+  for (const { id, config, expand, picture } of cases) {
     describe(id, () => {
-      const scene = buildScene(config, expand);
+      const scene = buildScene(config, expand, picture);
       const nodes = new Map(scene.nodes.map((node) => [node.id, node]));
 
       test('keeps node footprints apart', () => {
@@ -319,7 +336,9 @@ describe('diagram layout', () => {
           const flows =
             (connector.semantic === 'request' || connector.semantic === 'event' || connector.semantic === 'egress') &&
             !DATA_STORES.has(from.resourceType ?? '');
-          if (flows && !closesCycle({ scene, from: connector.from, to: connector.to })) {
+          // The application picture keeps the full picture's places, where a folded connector's ends can sit in either
+          // order: an edge function after its hidden CDN can come before the API the CDN folds into.
+          if (flows && picture !== 'application' && !closesCycle({ scene, from: connector.from, to: connector.to })) {
             expect(to.tile.x, `${connector.id} runs backwards`).toBeGreaterThan(from.tile.x);
           }
           // Every route, back edges included, keeps heading the same way along the flow.
@@ -377,7 +396,7 @@ describe('diagram layout', () => {
       });
 
       test('is deterministic', () => {
-        expect(buildScene(structuredClone(config), expand)).toEqual(scene);
+        expect(buildScene(structuredClone(config), expand, picture)).toEqual(scene);
       });
     });
   }
@@ -421,9 +440,12 @@ describe('diagram layout', () => {
  */
 describe('live status lines', () => {
   // A host showing live status gets room for a pill under every declared resource, whatever it reports.
-  for (const { id, config } of configs) {
+  const pictures = configs
+    .map(({ id, config }) => ({ id, config, infrastructure: true }))
+    .concat(configs.map(({ id, config }) => ({ id: `${id} (application only)`, config, infrastructure: false })));
+  for (const { id, config, infrastructure } of pictures) {
     test(`${id}: every pill stays clear of bodies, chips, zone tags and other text`, () => {
-      const scene = buildIsometricScene({ parsedConfig: config as never, statusLines: true })!;
+      const scene = buildIsometricScene({ parsedConfig: config as never, statusLines: true, infrastructure })!;
       const pills = scene.nodes.filter((node) => !node.isImplicit).map((node) => ({ node, box: statusPill(node) }));
       for (const { node, box } of pills) {
         for (const other of scene.nodes) {
@@ -483,7 +505,7 @@ describe('layout performance', () => {
 });
 
 const columns = (
-  nodes: { id: string; rank?: 'first' | 'last' }[],
+  nodes: { id: string; rank?: 'first' | 'last'; zone?: string }[],
   edges: { from: string; to: string; flow?: boolean }[]
 ) => assignFlowColumns({ nodes, edges: edges.map((edge) => ({ flow: true, ...edge })) });
 
@@ -540,6 +562,27 @@ describe('flow columns', () => {
       ]
     );
     expect(result.get('job')).toBe(result.get('fn'));
+  });
+
+  test('moves a node with no connector in a zone beside its zone’s connected members, off the sources’ column', () => {
+    const result = columns(
+      [
+        { id: 'user', rank: 'first' },
+        { id: 'gateway' },
+        { id: 'bastion', zone: 'vpc' },
+        { id: 'service', zone: 'vpc' },
+        { id: 'db', rank: 'last', zone: 'vpc' },
+        { id: 'unused' }
+      ],
+      [
+        { from: 'user', to: 'gateway' },
+        { from: 'gateway', to: 'service' },
+        { from: 'service', to: 'db', flow: false }
+      ]
+    );
+    expect(result.get('bastion')).toBe(result.get('service'));
+    // Outside a zone, it stays where it was, so it does not crowd a busy column.
+    expect(result.get('unused')).toBe(result.get('gateway'));
   });
 });
 

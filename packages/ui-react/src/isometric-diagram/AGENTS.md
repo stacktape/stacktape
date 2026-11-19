@@ -38,12 +38,14 @@ itself, with no icon packs or images.
 
 `layers`/`defaultLayers` and `onLayersChange` let a host keep the layers that are on (Console keeps them in the stage
 tab's `layers` search parameter); `layerChoices` limits the switches, and with none there are no layer controls (the
-website islands show the application picture only). `deployment` carries the deployed CloudFormation template and each
-Stacktape resource's logical IDs (in Console, the `cf` template query and `getUserResourcesFromStackInfoMap`). It is
-untrusted and read at the boundary. Omit it where there is no deployed stage, and the Access layer is not offered; pass
-`null` for a deployed stage whose template could not be read, and its switch is disabled and says so.
-`deployment-fixtures.ts` exports three configurations with their synthesized templates for Console's `/diagram-test` and
-offline browser test.
+website islands and the init wizard's deploy step show the application picture only). Without an Infrastructure switch
+the application picture is laid out on its own (see "Layers"). `layout="shown-layers"` asks for that compact layout
+while a host's Infrastructure switch is off, and the full one when it is on; the init wizard's review uses it.
+`deployment` carries the deployed CloudFormation template and each Stacktape resource's logical IDs (in Console, the
+`cf` template query and `getUserResourcesFromStackInfoMap`). It is untrusted and read at the boundary. Omit it where
+there is no deployed stage, and the Access layer is not offered; pass `null` for a deployed stage whose template could
+not be read, and its switch is disabled and says so. `deployment-fixtures.ts` exports three configurations with their
+synthesized templates for Console's `/diagram-test` and offline browser test.
 
 Console members who may not view secrets never receive the config or template. Console's API gives them a document of
 the same shape holding only the fields `topology.ts` and `security-groups.ts` read, from an allow-list
@@ -162,20 +164,37 @@ its exact tile whichever layers are on, and the renderer fits the frame of the w
 switching a layer neither moves nor rescales anything. Do not lay out per combination; `views.test.ts` checks positions
 across all four for every fixture, test config and template config, collapsed and expanded.
 
+Two exceptions keep a small application picture from looking sparse, and both are about the Infrastructure layer only:
+
+- **No Infrastructure switch, no room for it.** A host that does not offer the switch (`layerChoices` without it) gets a
+  model built with `infrastructure: false`: the layout never sees Stacktape-created nodes, zones, outbound connectors,
+  load balancer badges or the "VPC Link" chip, and connectors are folded before it runs (`foldInfrastructure`). A web
+  service is then one column from the user instead of two, and a Next.js site and its database sit on one row.
+- **`layout="shown-layers"`.** A host may ask for that same model whenever the Infrastructure layer is off, and the full
+  one when it is on. Switching the layer then rearranges and refits the picture. It is meant for a small frame whose
+  application picture is much smaller than the full one (the init wizard's review of a new app), where the shared layout
+  leaves most of the frame empty. Console keeps the default (`every-layer`): its browser test compares positions across
+  layers.
+
 - **A layer is offered only where the stage has something for it.** Infrastructure has no switch on a stack of
   functions, APIs, queues and tables (`hasInfrastructure`). Access has none where there is no deployed stage or the
   template has no security groups (nothing runs in a VPC). A deployed stage whose template could not be read keeps the
   Access switch, disabled, with the reason, so it does not vanish on a failed request. A host that asks for a layer the
   stage has nothing for gets the picture without it.
 - **Hidden Stacktape-created nodes fold into their owner** (the `<owner>` of an `<owner>--<part>` ID): their connectors
-  move to the owner and are routed through the hidden node's spot, and the owner's panel lists their connections. A
-  hidden node with no owner (the NAT) drops its connectors. The schedule node and any implicit node that is `isPublic`
-  are in every picture: a public data store keeps its badge whatever is hidden.
+  move to the owner, and the owner's panel lists their connections. A folded connector first joins the routes through
+  the hidden nodes' spots (following hidden connectors, never a diagonal), then takes the simplest route those spots
+  leave free (`layout/direct-route.ts`): straight, else out along the flow, one jog and in, else two jogs, clear of
+  every shown body, name and chip and staying between its ends on screen where it can. Its chip moves onto the new route
+  when it fell off. The frame covers these routes too. A hidden node with no owner (the NAT) drops its connectors. The
+  schedule node and any implicit node that is `isPublic` are in every picture: a public data store keeps its badge
+  whatever is hidden.
 - **Room for every layer is reserved in every picture:** the layout gives load balancers badge room and reserves the
   "VPC Link" chip, so nothing moves when the Infrastructure layer shows them. Access tags are not known to the layout
   (they come from the deployed template, which loads later); they are placed afterwards, in free room above their nodes.
-- **Toolbar.** The layer checkboxes come first, then Find, the "need attention" chip and collapse chips; host `notices`
-  take their own row under them. The Access layer's note (`viewNote`) replaces the usage hint at the bottom left.
+- **Toolbar.** The layer checkboxes come first, then Find (on pictures of more than eight nodes), the "need attention"
+  chip and collapse chips; host `notices` take their own row under them. The Access layer's note (`viewNote`) replaces
+  the usage hint at the bottom left.
 
 ### Access tags
 
@@ -313,7 +332,8 @@ and its subnet tiers end up side by side, which turns ALB → service → databa
   edges, a firewall's `security` edge, and `connectTo` into a channel (queue, topic, bus, stream, Kafka, email) or
   another workload. Users and schedules come first; data stores share the last column, so events they emit (streams,
   bucket triggers) are drawn as back edges. Cycles are cut deterministically. A node nothing feeds moves next to the
-  first node it reaches.
+  first node it reaches. A node with no connector at all inside a zone (a bastion) joins the last column its zone's
+  connected members span, so it does not sit in the sources' column, where its band would block the user's connectors.
 - **Zones are bands.** The edge zone and the VPC, with its public tier behind the private one, span the columns of their
   members. Members stay inside, and every other node in those columns stays above or below the band.
 - **Live status lines.** With `statusLines`, every name tag but an implicit node's is taller and at least as wide as a
@@ -345,8 +365,10 @@ tags.
   container tasks as cubes for the minimum and dashed cubes up to the maximum, with a small range badge. A group is a
   `deck` of three slabs in its members' colour with their glyph, a filled count badge and a round "+" to expand it.
 - Name tags have two lines: the resource name and a muted type line from the topology.
-- A data store reachable from the internet by its accessibility mode carries a red `public` badge. Keep it visible in
-  every picture.
+- A data store reachable from the internet by its accessibility mode carries a `public` badge: a globe and "public" in
+  the amber of an internet-facing load balancer. Keep it visible in every picture. It is a notice, not an error (it is
+  the default for a new app's database, which its password and TLS protect); red is the Access layer's, for a deployed
+  stage whose security groups let the internet in.
 - Zone tags are rotated to the edge the layout chose. Other text stays flat in screen space. Connector labels say
   something specific (schedule rate, poll, push, stream, HTTPS, an authorizer); a plain synchronous call needs none.
 
@@ -355,6 +377,10 @@ pointer capture supports mouse and touch.
 
 Reset pan/zoom only when the sorted node-ID set changes (expanding a group refits the view). Hover is a graph focus
 operation, so related nodes, edges and the explanation must agree; keyboard focus on a node does the same.
+
+The fitted picture is enlarged at most `MAX_FIT_SCALE` (1.15) times and centred, so two or three resources are not blown
+up past the size their shapes and text were drawn for; the canvas's grid runs on past its edges. A host's `initialZoom`
+still applies on top.
 
 ## Interaction rules
 
@@ -365,6 +391,9 @@ operation, so related nodes, edges and the explanation must agree; keyboard focu
   panel.
 - "Find resource" dims everything that does not match by name and rings what does, without moving anything; a group
   matches when one of its members does. Enter opens the first match.
+- A picture of at most `COMPACT_NODES` (8) nodes, counted over every layer so switching one does not change it, has no
+  search box and no zoom buttons: it is taken in at a glance. The wheel, a drag and the keyboard still pan and zoom, and
+  a "Reset view" button appears once the view has moved.
 - Hovering a security group's outline or tab explains what it allows and focuses its members and the nodes its rules
   connect them with; hovering a rule arrow focuses its two ends.
 
@@ -375,12 +404,15 @@ semantic tests for nodes, edges, zones and routes over whole-SVG snapshots; `syn
 synthesizer-checked rules for resource types and relations, `grouping.test.ts` the grouping rules, `views.test.ts` what
 each layer shows and position stability, and `security-view.test.ts` the Access layer against real templates.
 `layout/diagram-layout.test.ts` checks the layout rules over every fixture and the larger configs in `test-configs/`,
-each collapsed and with every group expanded, and the room for status pills; `status.test.tsx` holds the status rules.
+each collapsed and with every group expanded, in three pictures (every layer, the application picture selected from it,
+and the application picture laid out alone), and the room for status pills; `status.test.tsx` holds the status rules.
 Console's `e2e/diagram-ui.spec.ts` (offline browser lane) drives the panel, expand and collapse, search, the stage tab's
 live statuses (refreshed in place), the layer checkboxes in every combination with positions compared on screen, the
 `layers` search parameter, a stage with no layers to offer, the Access panel and a redeploy that drops rules in
 Chromium. When layout spacing or routing changes, render the fixtures and those configs and look at them at a 16:10
-size; tests do not judge legibility.
+size, and small apps (a Next.js site and a database, a web service and a database, a single static site) in a frame the
+size of the init wizard's (about 760 × 440) without layers, with `layout="shown-layers"` and with no layer switches;
+tests do not judge legibility.
 
 ```sh
 pnpm --filter @stacktape/ui-react run test

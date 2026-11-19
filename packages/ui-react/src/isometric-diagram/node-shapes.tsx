@@ -967,6 +967,35 @@ const AccessTag = ({ access }: { access: IsoNodeAccess }) => {
   );
 };
 
+/**
+ * A data store its configuration opens to the internet: a globe, as on the Access layer's tags, and "public", in the
+ * amber of an internet-facing load balancer. It is a notice, not an error: the default for a new app's database, whose
+ * password and TLS keep it closed to anyone without them. The Access layer's red tag is for a deployed stage whose
+ * security groups really let the internet in.
+ */
+const PublicBadge = ({ x, y }: { x: number; y: number }) => {
+  const width = 56;
+  const left = x - width / 2;
+  return (
+    <g data-iso-kind="public-badge">
+      <rect x={left} y={y - 8.5} width={width} height={17} rx={8.5} fill="#3A2A0C" stroke="#E8B03A" strokeWidth={1.2} />
+      <AccessIcon reach="public" x={left + 10.5} y={y} color="#F5D58A" />
+      <text
+        x={left + 19}
+        y={y + 0.5}
+        textAnchor="start"
+        dominantBaseline="central"
+        fill="#F1F4F8"
+        fontFamily={FONT}
+        fontSize={10}
+        fontWeight={700}
+      >
+        public
+      </text>
+    </g>
+  );
+};
+
 export function NodeBadges({ node }: { node: IsoNode }) {
   const center = t2s(node.tile.x, node.tile.y);
   const badgeY = center.y - SHAPE_HEIGHT_PX[node.shape] - BADGE_OFFSET_PX;
@@ -992,11 +1021,7 @@ export function NodeBadges({ node }: { node: IsoNode }) {
         )
       )}
       {node.access && <AccessTag access={node.access} />}
-      {node.isPublic && !node.access && (
-        <g data-iso-kind="public-badge">
-          <Pill x={center.x - 30} y={badgeY} text="public" fill="#C9363C" stroke="#F06A6F" />
-        </g>
-      )}
+      {node.isPublic && !node.access && <PublicBadge x={center.x - 32} y={badgeY} />}
       {node.exposure && !node.isPublic && !node.access && (
         <g data-iso-kind="exposure-badge" data-iso-exposure={node.exposure}>
           <Pill

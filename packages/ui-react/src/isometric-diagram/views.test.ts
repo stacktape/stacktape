@@ -70,6 +70,14 @@ const passesThrough = (points: { x: number; y: number }[], point: { x: number; y
   });
 
 const nodeIds = (scene: IsoScene) => scene.nodes.map((node) => node.id);
+
+/** How far a frame reaches on screen, as the sum of its projected width and height in tile units. */
+const extent = (frame: ReturnType<typeof diagramFrame>) => {
+  const points = [...(frame?.nodeTiles ?? []), ...(frame?.points ?? [])];
+  const us = points.map((point) => point.x - point.y);
+  const vs = points.map((point) => point.x + point.y);
+  return Math.max(...us) - Math.min(...us) + (Math.max(...vs) - Math.min(...vs));
+};
 const connector = (scene: IsoScene, from: string, to: string) =>
   scene.connectors.find((candidate) => candidate.from === from && candidate.to === to);
 
@@ -108,6 +116,67 @@ describe('without layers', () => {
     const webApp = scene.nodes.find((node) => node.id === 'webApp');
     expect(webApp?.connections).toContainEqual(expect.objectContaining({ direction: 'in', nodeId: 'user' }));
     expect(webApp?.connections.some((connection) => connection.nodeId.includes('--'))).toBe(false);
+  });
+
+  test('a connector folded through hidden nodes takes the simplest route they leave free', () => {
+    // A Next.js site that reaches its database from its hidden server function, as the init wizard composes it.
+    const config = {
+      resources: {
+        mainDatabase: {
+          type: 'relational-database',
+          properties: {
+            engine: { type: 'postgres', properties: { primaryInstance: { instanceSize: 'db.t4g.small' } } }
+          }
+        },
+        app: { type: 'nextjs-web', properties: { appDirectory: '.', connectTo: ['mainDatabase'] } }
+      }
+    };
+    const model = buildDiagramModel({ parsedConfig: config as never });
+    if (!model) throw new Error('No model');
+    const full = selectDiagramView({ model, layers: INFRASTRUCTURE });
+    const scene = selectDiagramView({ model, layers: NO_LAYERS });
+    expect(connector(full, 'app--server', 'mainDatabase')).toBeDefined();
+    const folded = connector(scene, 'app', 'mainDatabase');
+    // Straight, or out along the flow, one jog across it and in: never a zigzag around the server's empty spot.
+    expect(folded?.route.points.length).toBeLessThanOrEqual(4);
+    for (const [index, point] of (folded?.route.points ?? []).slice(1).entries()) {
+      const previous = folded?.route.points[index] as { x: number; y: number };
+      expect(Math.abs(point.x - previous.x) < 1e-9 || Math.abs(point.y - previous.y) < 1e-9).toBe(true);
+    }
+  });
+
+  test('a host without the Infrastructure switch gets the application picture laid out on its own', () => {
+    for (const id of ['web-service-rds', 'nextjs-hosting', 'default-microservices', 'private-subnets']) {
+      const config = parseFixtureConfig({ fixture: getFixtureById({ id }) });
+      const shared = buildDiagramModel({ parsedConfig: config });
+      const alone = buildDiagramModel({ parsedConfig: config, infrastructure: false });
+      if (!shared || !alone) throw new Error(`No model for ${id}`);
+      const application = selectDiagramView({ model: shared, layers: NO_LAYERS });
+      // The same nodes and connectors as the application picture of the shared layout, and no layer can add more.
+      expect(nodeIds(alone.scene).sort()).toEqual(nodeIds(application).sort());
+      expect(alone.scene.connectors.map((edge) => `${edge.from}>${edge.to}`).sort()).toEqual(
+        application.connectors.map((edge) => `${edge.from}>${edge.to}`).sort()
+      );
+      expect(selectDiagramView({ model: alone, layers: ALL_LAYERS })).toEqual(
+        selectDiagramView({ model: alone, layers: NO_LAYERS })
+      );
+      expect(alone.scene.rectangles).toEqual([]);
+      // A panel still lists what hidden nodes connect it to, under the visible node's name.
+      for (const node of application.nodes) {
+        const own = alone.scene.nodes.find((candidate) => candidate.id === node.id);
+        expect(own?.connections.map((link) => `${link.direction}|${link.nodeId}`).sort()).toEqual(
+          node.connections.map((link) => `${link.direction}|${link.nodeId}`).sort()
+        );
+      }
+      // Without room kept for what it never draws, the picture is smaller.
+      expect(extent(diagramFrame({ model: alone }))).toBeLessThan(extent(diagramFrame({ model: shared })));
+    }
+    // The user's request reaches a web service straight, where the shared layout keeps its gateway's place.
+    const alone = buildDiagramModel({
+      parsedConfig: parseFixtureConfig({ fixture: getFixtureById({ id: 'web-service-rds' }) }),
+      infrastructure: false
+    });
+    expect(connector(alone!.scene, 'user', 'webApp')?.route.points).toHaveLength(2);
   });
 
   test('an SSR site keeps the access its hidden server function has', () => {

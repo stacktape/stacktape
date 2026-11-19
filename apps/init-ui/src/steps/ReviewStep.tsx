@@ -194,12 +194,12 @@ export function ReviewPane({
                 ? 'Tap a resource to find it in stacktape.yml'
                 : 'Hover for why it is here · click to find it in stacktape.yml'
             }
-            // A wizard's picture has a handful of resources: no layer switches or search box in the way.
+            // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can be.
             layerChoices={[]}
+            layout="shown-layers"
             onSelectResource={onSelect}
             resourceProgress={progress}
             resourceTooltip={cardsFor(stories)}
-            searchable={false}
             selectedResource={selected ?? null}
             style={{ width: '100%', height: '100%' }}
           />
