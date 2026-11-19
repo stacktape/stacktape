@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'bun:test';
 import type { WizardState } from '../session';
-import { bestEvidence, quoteLabel, revealPlan, stepDuration, tellingOrder, yamlSegments } from './resource-story';
+import {
+  bestEvidence,
+  citationOf,
+  locate,
+  quoteLabel,
+  quotedOn,
+  revealPlan,
+  runningPrice,
+  stepDuration,
+  storyOf,
+  tellingOrder,
+  yamlSegments
+} from './resource-story';
 
 const YAML = `projectName: shop
 region: eu-west-1
@@ -163,5 +175,130 @@ describe('the reveal', () => {
     [20, 700]
   ])('gives %p resources %p ms each', (count, duration) => {
     expect(stepDuration(count)).toBe(duration);
+  });
+});
+
+describe('checking a citation against its file', () => {
+  const GO_MOD = [
+    'module github.com/evrone/go-clean-template',
+    '',
+    'require (',
+    '\tgithub.com/exaring/otelpgx v0.11.1',
+    '\tgithub.com/jackc/pgx/v5 v5.10.0',
+    ')'
+  ];
+  const PRISMA = [
+    'generator client {',
+    '  provider        = "prisma-client-js"',
+    '}',
+    '',
+    'datasource db {',
+    '  provider = "sqlite"',
+    '  url      = env("DATABASE_URL")',
+    '}'
+  ];
+
+  it.each([
+    ['pgx', 'github.com/jackc/pgx/v5 v5.10.0', true],
+    ['pgx', 'github.com/exaring/otelpgx v0.11.1', false],
+    ['"postgres"', '    "postgres": "^3.4.5",', true],
+    ['provider        =', '  provider = "sqlite"', true],
+    ['url      = env(', '  url      = env("DATABASE_URL")', true],
+    ['app:', '  webapp:', false]
+  ])('finds %p in %p: %p', (quote, line, expected) => {
+    expect(quotedOn(line, quote)).toBe(expected);
+  });
+
+  it('moves a citation to the line that says it as a word, nearest first', () => {
+    expect(locate(GO_MOD, { file: 'go.mod', line: 4, quote: 'pgx' })).toBe(5);
+  });
+
+  it('keeps a citation whose line says it', () => {
+    expect(locate(PRISMA, { file: 'schema.prisma', line: 7, quote: 'url      = env(' })).toBe(7);
+  });
+
+  it('prefers the line with the hint when the quote is on several', () => {
+    expect(locate(PRISMA, { file: 'schema.prisma', line: 2, quote: 'provider        =' }, 'sqlite')).toBe(6);
+    expect(locate(PRISMA, { file: 'schema.prisma', line: 2, quote: 'provider        =' })).toBe(2);
+  });
+
+  it('keeps the cited line when the quote is nowhere in the file', () => {
+    expect(locate(GO_MOD, { file: 'go.mod', line: 3, quote: 'lib/pq' })).toBe(3);
+  });
+
+  it('lights cited lines next to the main one together, with their text', () => {
+    const story = {
+      name: 'sqliteData',
+      type: 'efs-filesystem',
+      plainName: 'Persistent disk',
+      hint: 'sqlite',
+      evidence: { file: 'prisma/schema.prisma', line: 7, quote: 'url      = env(' },
+      citations: [
+        { file: 'prisma/schema.prisma', line: 7, quote: 'url      = env(' },
+        { file: 'prisma/schema.prisma', line: 2, quote: 'provider        =' },
+        { file: '.env.example', line: 3, quote: 'DATABASE_URL=' }
+      ]
+    };
+    story.evidence = story.citations[0]!;
+    const file = {
+      path: 'prisma/schema.prisma',
+      status: 'shown' as const,
+      text: PRISMA.join('\n'),
+      lineCount: PRISMA.length,
+      truncated: false,
+      masked: false
+    };
+    expect(citationOf(story, file)).toEqual({
+      file: 'prisma/schema.prisma',
+      line: 7,
+      lines: [6, 7],
+      text: ['provider = "sqlite"', 'url      = env("DATABASE_URL")']
+    });
+    expect(citationOf(story, undefined)).toBeUndefined();
+  });
+
+  it('knows the dependency a resource stands for, and the resources Stacktape adds for another', () => {
+    const shop = state();
+    expect(storyOf(shop, 'app', shop.composition!.resources.app!).hint).toBe('next');
+    expect(storyOf(shop, 'databaseBastion', shop.composition!.resources.databaseBastion!).designChoice).toBeUndefined();
+    const withBastion = state({
+      composition: {
+        ...shop.composition!,
+        provenance: {
+          ...shop.composition!.provenance,
+          databaseBastion: {
+            reason: 'A jump box.',
+            evidence: [{ file: 'package.json', line: 29, quote: '"postgres"' }]
+          }
+        }
+      }
+    });
+    expect(
+      storyOf(withBastion, 'databaseBastion', withBastion.composition!.resources.databaseBastion!).designChoice
+    ).toBe('Added so you can reach the private database');
+  });
+});
+
+describe('the price while the file is written', () => {
+  it.each([
+    [[], 'estimating…'],
+    [[{ priceLabel: 'Pay per use', monthly: 0 }], 'Pay per use'],
+    [[{ priceLabel: 'Pay per use', monthly: 0 }, {}], 'estimating…'],
+    [
+      [
+        { priceLabel: 'Pay per use', monthly: 0 },
+        { priceLabel: '$15/mo', monthly: 15.33 }
+      ],
+      '$15 /mo + usage'
+    ],
+    [
+      [
+        { priceLabel: '$18/mo', monthly: 18.07 },
+        { priceLabel: '$15/mo', monthly: 15.33 }
+      ],
+      '$33 /mo'
+    ]
+  ])('says %j as %p', (written, text) => {
+    expect(runningPrice(written).text).toBe(text);
   });
 });

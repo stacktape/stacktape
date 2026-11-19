@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { parse } from 'yaml';
-import { buildIsometricScene } from './scene-builder.js';
+import { buildDiagramModel, buildIsometricScene } from './scene-builder.js';
 import { groupTopology } from './grouping.js';
 import { buildDiagramTopology } from './topology.js';
 import { getDiagramFixtures, getSceneForFixture, parseFixtureConfig } from './fixture-scenes.js';
@@ -123,6 +123,57 @@ describe('diagram scene model', () => {
       expect(offenders.map((node) => node.id)).toEqual([]);
     });
   }
+
+  test('draws a resource mounting an EFS file system when the host asks, and only then', () => {
+    const parsedConfig = parse(`resources:
+  sqliteData:
+    type: efs-filesystem
+  web:
+    type: web-service
+    properties:
+      volumeMounts:
+        - type: efs
+          properties:
+            efsFilesystemName: sqliteData
+            mountPath: /data
+  worker:
+    type: multi-container-workload
+    properties:
+      containers:
+        - name: job
+          volumeMounts:
+            - type: efs
+              properties:
+                efsFilesystemName: sqliteData
+`) as any;
+    const mounts = (volumeMounts: boolean) =>
+      buildDiagramTopology({ parsedConfig, volumeMounts })!
+        .edges.filter((edge) => edge.to === 'sqliteData')
+        .map((edge) => `${edge.from}:${edge.description}`);
+
+    expect(mounts(false)).toEqual([]);
+    expect(mounts(true)).toEqual([
+      'web:Mounts this file system at /data: files written there outlive deploys and restarts.',
+      'worker:Mounts this file system: files written there outlive deploys and restarts.'
+    ]);
+  });
+
+  test('keeps room for larger names when a host sets them larger', () => {
+    const parsedConfig = parse(`resources:
+  mainDatabase:
+    type: relational-database
+  backend:
+    type: web-service
+    properties:
+      connectTo:
+        - mainDatabase
+`) as any;
+    const tag = (textScale: number) =>
+      buildDiagramModel({ parsedConfig, infrastructure: false, textScale })!.layoutNodes.get('backend')!.tag!;
+
+    expect(tag(1.5).halfWidth).toBeCloseTo(tag(1).halfWidth * 1.5);
+    expect(tag(1.5).height).toBeGreaterThan(tag(1).height);
+  });
 
   test('gives every web service its own dedicated implicit gateway', () => {
     const topology = buildDiagramTopology({

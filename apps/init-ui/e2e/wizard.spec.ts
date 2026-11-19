@@ -53,6 +53,9 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   const settings = page.getByRole('region', { name: 'Settings' });
   await expect(settings.getByRole('tab', { name: /Stay online/ })).toContainText(/\+\$\d+/);
   const before = await page.locator('.w-bar-amount').textContent();
+  // The settings that change less are folded, with their current answers on the one row.
+  await expect(settings.getByRole('button', { name: /More settings/ })).toContainText('Internet');
+  await settings.getByRole('button', { name: /More settings/ }).click();
   await settings.getByRole('tab', { name: /Private network/ }).click();
   await expect(page.locator('[data-iso-kind="node"][data-iso-id="databaseBastion"]')).toBeVisible();
   await expect(page.locator('.w-bar-amount')).not.toHaveText(before ?? '');
@@ -175,15 +178,32 @@ test('the analysis shows the files it reads, then ties each resource to the line
   await expect(codeWindow.locator('.ws-window-tab[data-active]')).toHaveText('.env.example');
   await expect(codeWindow).toContainText('POSTGRES_URL=••••');
   await expect(page.locator('.ws-status')).toContainText('Claude Code is reading .env.example');
-  await expect(page.getByText('Resources appear here as they’re found')).toBeVisible();
+  // The file already has its first lines, and says it is waiting for the rest.
+  await expect(page.getByText('Waiting for the first finding')).toBeVisible();
+  await expect(page.locator('.ws-editor .view-lines')).toContainText('projectName: saas-starter');
 
-  // The result is told one resource at a time: the line, the callout, the chips, the block in the file.
+  // The result is told one resource at a time: the finding across both panes, the line, the block level with it.
   wizard.release('scan');
-  await expect(page.locator('.ws-callout')).toContainText(/postgres\s*in package\.json\s*→\s*Postgres database/, {
-    timeout: 15_000
-  });
+  const finding = page.locator('.ws-finding');
+  await expect(finding).toContainText('Postgres database', { timeout: 15_000 });
+  await expect(finding).toContainText('"postgres": "^3.4.5"');
+  await expect(finding).toContainText('package.json:29');
   await expect(codeWindow.locator('.ws-line[data-focus]')).toContainText('"postgres"');
   await expect(page.getByRole('list', { name: 'Found so far' })).toContainText('3 secrets');
+  // The cited line and the first line of the block written for it sit at the same height.
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const line = document.querySelector('.ws-line[data-focus]')?.getBoundingClientRect().top;
+          const block = [...document.querySelectorAll('.ws-editor .view-line')].find((node) =>
+            node.textContent?.includes('mainDatabase:')
+          );
+          return line === undefined || block === undefined ? 999 : Math.abs(block.getBoundingClientRect().top - line);
+        }),
+      { timeout: 5_000, intervals: [50] }
+    )
+    .toBeLessThan(3);
 
   // Then Review, without a skip: the diagram, an editable file, and the evidence one click away.
   await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible({ timeout: 15_000 });
@@ -193,14 +213,38 @@ test('the analysis shows the files it reads, then ties each resource to the line
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.locator('.ws-peek')).toHaveCount(0);
 
-  // Clicking a resource in the diagram finds its block in the file.
+  // Clicking a resource in the diagram finds its block in the file, and keeps its card open with the way to its code.
   await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
   await expect(page.locator('.monaco-editor .ws-editor-picked').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Show the code' }).click();
+  await expect(page.locator('.ws-peek-row[data-focus]')).toContainText('"postgres"');
 
   // The reveal plays once: a reload lands on Review.
   await page.reload();
   await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible();
   await expect(page.locator('.ws-window')).toHaveCount(0);
+});
+
+test('skipping the reveal at once leaves the generated file exactly as it is, not an edit', async ({
+  page,
+  startWizard
+}) => {
+  // The price and other state arrive while the reveal plays; neither they nor a skip may leave anything in the file.
+  const wizard = await startWizard({
+    project: 'saas-starter',
+    projectName: 'a-very-long-project-name-for-the-acme-corporation-billing-service',
+    scan: 'held'
+  });
+  await page.goto(wizard.url);
+  await page.getByRole('button', { name: 'Analyze my project' }).click();
+  // The scan has written the file's first lines into the editor before anything is found.
+  await expect(page.locator('.ws-editor .view-lines')).toContainText('projectName:');
+  wizard.release('scan');
+  await page.getByRole('button', { name: /^Skip/ }).click({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: / on AWS$/ })).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.ws-editor .view-line').first()).toContainText('projectName:');
+  await expect(page.locator('.ws-badge', { hasText: 'Edited' })).toHaveCount(0);
+  await expect(page.getByText('Paused while you edit stacktape.yml by hand.')).toHaveCount(0);
 });
 
 test('a failed deploy names the fix in this project, keeps the retry, and a stopped CLI says what to do', async ({

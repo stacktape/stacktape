@@ -11,17 +11,21 @@ import { AnimatedPrice } from '../components/AnimatedPrice';
 import type { ConfigEditorHandle, EditorLens, EditorProblems } from '../editor/ConfigFileEditor';
 import type { FileView, Session, WizardState } from '../session';
 import { ReviewPane } from '../steps/ReviewStep';
-import { filenameFor, splitMonthly } from '../steps/review-model';
-import { CodeWindow } from './CodeWindow';
+import { filenameFor, summarise } from '../steps/review-model';
+import { CodeWindow, LINE_HEIGHT } from './CodeWindow';
 import { FileIcon } from './FileIcon';
 import {
   allChips,
+  citationOf,
+  lineRange,
   quoteLabel,
   revealPlan,
+  runningPrice,
   storiesOf,
   tellingOrder,
   yamlSegments,
   type Chip,
+  type Citation,
   type RevealPlan,
   type ResourceStory
 } from './resource-story';
@@ -35,30 +39,41 @@ const loadDiagram = () => import('../components/Diagram');
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
 type Phase = 'scan' | 'reveal' | 'review';
 
-const usePrefersReducedMotion = (): boolean => {
-  const query = '(prefers-reduced-motion: reduce)';
-  const [reduced, setReduced] = useState(() => window.matchMedia?.(query).matches === true);
+/** Whether a media query matches now, following changes. */
+export const useMediaQuery = (query: string): boolean => {
+  const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches === true);
   useEffect(() => {
     const list = window.matchMedia?.(query);
     if (list === undefined) return;
-    const update = () => setReduced(list.matches);
+    const update = () => setMatches(list.matches);
+    update();
     list.addEventListener('change', update);
     return () => list.removeEventListener('change', update);
-  }, []);
-  return reduced;
+  }, [query]);
+  return matches;
 };
+
+/** The width at which the two panes stack (`.ws` in `workspace.css`). */
+const STACKED = '(max-width: 1020px)';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const nextFrame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
 const lineCount = (text: string) => text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+const easeOut = (progress: number) => 1 - (1 - progress) ** 3;
+
+/** The first lines of stacktape.yml, known before anything is found: what the scan shows above the waiting rows. */
+const fileHeader = (state: WizardState) =>
+  `projectName: ${state.projectName}\n${state.region === undefined ? '' : `region: ${state.region}\n`}resources:\n`;
 
 /**
  * Analyze and Review as one screen, so the page never jumps between them.
  *
- * While the analysis runs, the left side shows the code being read (a scanner line sweeping each file the agent opens)
- * and the right side is stacktape.yml, empty. When the result arrives, it is told one resource at a time: the line of
- * code that called for it lights up on the left, its block is typed into the file on the right, and the price counts
- * up. Then the code window gives way to the diagram, the settings rise in under it and the file becomes editable.
+ * One head row spans both panes and says what is happening: the file being read, then each finding, then what the
+ * app is. While the analysis runs, the left pane shows the code being read (a scanner line sweeping each file the agent
+ * opens) and the right one is stacktape.yml with its first lines and room for what comes. When the result arrives it
+ * is told one resource at a time: the head names the finding, the lines of code that called for it light up on the
+ * left, level with its block being typed on the right, and the price counts up. Then the code window gives way to the
+ * diagram, the settings rise in under it and the file becomes editable.
  *
  * The reveal plays once, for the page that watched the analysis: a reload lands on Review directly, and so does
  * anyone who prefers reduced motion.
@@ -94,7 +109,10 @@ export function Workspace({
   /** The reveal is playing: the step navigation still says Analyze. */
   onRevealing: (isRevealing: boolean) => void;
 }) {
-  const reducedMotion = usePrefersReducedMotion();
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const stacked = useMediaQuery(STACKED);
+  const stackedRef = useRef(stacked);
+  stackedRef.current = stacked;
 
   // ── Phase ───────────────────────────────────────────────────────────────────────────────────────
   const watchedAnalysis = useRef(state.phase === 'analysing');
@@ -199,6 +217,23 @@ export function Workspace({
     return composition?.resources ?? {};
   }, [draft, edit?.yaml, composition?.resources]);
   const stories = useMemo(() => storiesOf(state, resources), [state, resources]);
+  // Every resource's "why" reads its file, so the lines it shows are the file's own, checked.
+  useEffect(() => {
+    if (phase !== 'review') return;
+    for (const story of Object.values(stories)) if (story.evidence !== undefined) load(story.evidence.file);
+  }, [phase, stories, load]);
+  const citations = useMemo(() => {
+    const all: Record<string, Citation> = {};
+    for (const [name, story] of Object.entries(stories)) {
+      const citation = story.evidence === undefined ? undefined : citationOf(story, files.get(story.evidence.file));
+      if (citation !== undefined) all[name] = citation;
+    }
+    return all;
+  }, [stories, files]);
+  const citationsRef = useRef(citations);
+  citationsRef.current = citations;
+  const filesRef = useRef(files);
+  filesRef.current = files;
 
   // ── The reveal ──────────────────────────────────────────────────────────────────────────────────
   const [editorHandle, setEditorHandle] = useState<ConfigEditorHandle | undefined>(undefined);
@@ -206,6 +241,20 @@ export function Workspace({
   const [written, setWritten] = useState(0);
   const [nodeProgress, setNodeProgress] = useState<Record<string, 'pending' | 'ready'> | undefined>(undefined);
   const cancelTyping = useRef<(() => void) | undefined>(undefined);
+  const codeBodyRef = useRef<HTMLDivElement>(null);
+  /** The YAML being typed for the current step, as the phone's reveal shows it beside its source lines. */
+  const [typedBlock, setTypedBlock] = useState('');
+
+  // While the analysis reads, the file already has the lines it will start with.
+  const header = fileHeader(state);
+  useEffect(() => {
+    if (phase !== 'scan' || editorHandle === undefined) return;
+    const model = editorHandle.editor.getModel();
+    if (model !== null && model.getValue() !== header) model.setValue(header);
+    // The waiting rows start where the text does.
+    const node = editorHandle.editor.getDomNode()?.closest<HTMLElement>('.ws-editor-body');
+    node?.style.setProperty('--ws-content-left', `${editorHandle.editor.getLayoutInfo().contentLeft}px`);
+  }, [phase, editorHandle, header]);
 
   const finishReveal = useCallback(
     (handle: ConfigEditorHandle | undefined, text: string | undefined) => {
@@ -234,11 +283,14 @@ export function Workspace({
     },
     [state.composition?.resources]
   );
+  const finishRevealRef = useRef(finishReveal);
+  finishRevealRef.current = finishReveal;
 
   useEffect(() => {
     if (phase !== 'reveal' || editorHandle === undefined || plan.current === undefined) return;
     const current = plan.current;
-    const model = editorHandle.editor.getModel();
+    const editor = editorHandle.editor;
+    const model = editor.getModel();
     if (model === null) return;
     const run = { cancelled: false };
     cancelTyping.current = () => {
@@ -261,13 +313,68 @@ export function Workspace({
       ]);
     };
     /**
-     * Types `text` at `offset` over `duration`, a few characters a frame, keeping the newest line in view. A block that
-     * ends in a newline gets its own empty line first, so the text below it moves down once and is never pulled onto
-     * the line being typed.
+     * Brings the cited line on the left and the block's first line on the right to the same height, together: about a
+     * third of the way down, higher when the block would not fit under it, and never lower than either can come.
      */
-    const type = async (whole: string, offset: number, duration: number, onLine?: (line: number) => void) => {
+    const align = async (citedLine: number | undefined, blockLine: number, blockLines: number) => {
+      const body = codeBodyRef.current;
+      const editorNode = editor.getDomNode();
+      if (stackedRef.current || editorNode === null) return;
+      const editorTop = editorNode.getBoundingClientRect().top;
+      const height = editor.getLayoutInfo().height;
+      const blockAt = editor.getTopForLineNumber(blockLine);
+      const lineNode =
+        citedLine === undefined || body === null ? null : body.querySelector<HTMLElement>(`[data-line="${citedLine}"]`);
+      const bodyTop = body?.getBoundingClientRect().top ?? editorTop;
+      const top = Math.max(editorTop, bodyTop) + 12;
+      // A block that fits starts where all of it shows; a longer one a few lines down, the rest typed below the fold.
+      const room = Math.max(top + 3 * LINE_HEIGHT, editorTop + height - blockLines * LINE_HEIGHT - 16);
+      const y = Math.max(
+        top,
+        Math.min(
+          editorTop + height * 0.3,
+          room,
+          editorTop + blockAt,
+          lineNode === null ? Number.POSITIVE_INFINITY : bodyTop + lineNode.offsetTop
+        )
+      );
+      const fromEditor = editor.getScrollTop();
+      const toEditor = Math.max(0, blockAt - (y - editorTop));
+      const fromCode = body?.scrollTop ?? 0;
+      const toCode = lineNode === null || body === null ? fromCode : Math.max(0, lineNode.offsetTop - (y - bodyTop));
+      const started = performance.now();
+      const duration = 380;
+      for (;;) {
+        const now = await nextFrame();
+        if (run.cancelled) return;
+        const progress = Math.min(1, (now - started) / duration);
+        const eased = easeOut(progress);
+        editor.setScrollTop(
+          fromEditor + (toEditor - fromEditor) * eased,
+          1 as Parameters<ConfigEditorHandle['editor']['setScrollTop']>[1]
+        );
+        if (body !== null) body.scrollTop = fromCode + (toCode - fromCode) * eased;
+        if (progress >= 1) return;
+      }
+    };
+    /**
+     * Types `text` at `offset` over `duration`, a few characters a frame. A block that ends in a newline gets its own
+     * empty line first, so the text below it moves down once and is never pulled onto the line being typed. The view
+     * stays where `align` put it, level with the code, so the end of a long block is typed below the fold; on the
+     * phone the card shows the block's first lines instead.
+     */
+    const type = async (
+      whole: string,
+      offset: number,
+      duration: number,
+      onLine?: (line: number) => void,
+      before?: (firstLine: number) => Promise<void>
+    ) => {
+      // A skip may have finished the file while this step waited: nothing more goes into it.
+      if (run.cancelled) return;
       const text = whole.endsWith('\n') ? whole.slice(0, -1) : whole;
       if (whole.endsWith('\n')) insert(offset, '\n');
+      await before?.(model.getPositionAt(offset).lineNumber);
       const started = performance.now();
       let done = 0;
       while (done < text.length && !run.cancelled) {
@@ -280,18 +387,34 @@ export function Workspace({
         // The line of the last character typed, not the line after a trailing newline (the next block's).
         const line = model.getPositionAt(offset + done - 1).lineNumber;
         onLine?.(line);
-        editorHandle.editor.revealLineInCenterIfOutsideViewport(line);
+        if (stackedRef.current) setTypedBlock(text.slice(0, done));
       }
     };
     void (async () => {
-      if (model.getValueLength() > 0) model.applyEdits([{ range: model.getFullModelRange(), text: '' }]);
-      await sleep(350);
-      await type(current.header, 0, 420);
+      // The first finding is lined up with its code, so its file is read first (it is local: a moment at most).
+      const deadline = performance.now() + 900;
+      while (
+        performance.now() < deadline &&
+        current.steps.some((entry) => entry.story.evidence && !filesRef.current.has(entry.story.evidence.file))
+      ) {
+        await sleep(40);
+      }
+      if (run.cancelled) return;
+      // The scan already wrote the file's first lines; the reveal starts from them when they match.
+      if (model.getValue() !== current.header) {
+        if (model.getValueLength() > 0) model.applyEdits([{ range: model.getFullModelRange(), text: '' }]);
+        await sleep(350);
+        await type(current.header, 0, 420);
+      }
       const typed: number[] = [];
       for (const [index, entry] of current.steps.entries()) {
         if (run.cancelled) return;
         setStep(index);
-        await sleep(300);
+        setTypedBlock('');
+        // The left window opens the cited file before anything is lined up with it.
+        await nextFrame();
+        await nextFrame();
+        if (run.cancelled) return;
         const block = current.blocks[entry.blockIndex]!;
         // The block goes where it sits in the file: after the header and the blocks above it typed so far.
         const offset = current.blocks.reduce(
@@ -300,36 +423,45 @@ export function Workspace({
           current.header.length
         );
         const firstLine = model.getPositionAt(offset).lineNumber;
-        await type(block, offset, Math.max(420, entry.durationMs - 560), (line) =>
-          editorHandle.markWriting(firstLine, Math.max(firstLine, line))
+        const citedLine = citationsRef.current[entry.story.name]?.lines[0] ?? entry.story.evidence?.line;
+        await type(
+          block,
+          offset,
+          Math.max(420, entry.durationMs - 560),
+          (line) => editorHandle.markWriting(firstLine, Math.max(firstLine, line)),
+          async (line) => {
+            editorHandle.markWriting(line, line);
+            await align(entry.story.evidence === undefined ? undefined : citedLine, line, lineCount(block));
+          }
         );
         if (run.cancelled) return;
         editorHandle.markWriting(firstLine, firstLine + lineCount(block) - 1);
         editorHandle.markWritten();
         typed.push(entry.blockIndex);
         setWritten(index + 1);
-        await sleep(260);
+        await sleep(420);
       }
       if (run.cancelled) return;
       await type(current.trailer, model.getValueLength(), 300);
       if (run.cancelled) return;
       await sleep(500);
-      if (!run.cancelled) finishReveal(editorHandle, current.text);
+      if (!run.cancelled) finishRevealRef.current(editorHandle, current.text);
     })();
     /* oxlint-enable no-await-in-loop */
     return () => {
       run.cancelled = true;
       cancelTyping.current = undefined;
     };
-  }, [phase, editorHandle, finishReveal]);
+    // The reveal plays once: a new state while it plays (the price arriving) must not start it over.
+  }, [phase, editorHandle]);
 
   const editorHandleRef = useRef(editorHandle);
   editorHandleRef.current = editorHandle;
   const skipReveal = useCallback(() => {
     if (phaseRef.current !== 'reveal') return;
     cancelTyping.current?.();
-    finishReveal(editorHandleRef.current, plan.current?.text);
-  }, [finishReveal]);
+    finishRevealRef.current(editorHandleRef.current, plan.current?.text);
+  }, []);
   // An editor that has not loaded after a few seconds does not hold the review back.
   useEffect(() => {
     if (phase !== 'reveal' || editorHandle !== undefined) return;
@@ -337,7 +469,7 @@ export function Workspace({
     return () => clearTimeout(timer);
   }, [phase, editorHandle, skipReveal]);
 
-  // Esc skips the reveal, like the Skip link.
+  // Esc skips the reveal, like the "Skip to review" button.
   useEffect(() => {
     if (phase !== 'reveal') return;
     const onKey = (event: KeyboardEvent) => {
@@ -350,6 +482,8 @@ export function Workspace({
   // ── Review: selection, lenses, the evidence peek ─────────────────────────────────────────────────
   const [selected, setSelected] = useState<string | undefined>(undefined);
   const [peek, setPeek] = useState<string | undefined>(undefined);
+  /** Stacked screens show the picture or the file, one at a time. */
+  const [stackedView, setStackedView] = useState<'architecture' | 'file'>('architecture');
   const segments = useMemo(() => (editorText === undefined ? undefined : yamlSegments(editorText)), [editorText]);
   const blockLines = useMemo(() => {
     const lines: Record<string, { from: number; to: number }> = {};
@@ -366,6 +500,17 @@ export function Workspace({
     (name: string) => setSelected((current) => (current === name || resources[name] === undefined ? undefined : name)),
     [resources]
   );
+  const showWhy = useCallback(
+    (name: string) => {
+      const evidence = stories[name]?.evidence;
+      if (evidence === undefined) return;
+      load(evidence.file);
+      setSelected(name);
+      setPeek(name);
+      if (stackedRef.current) setStackedView('file');
+    },
+    [stories, load]
+  );
   const lenses = useMemo((): EditorLens[] => {
     if (phase !== 'review') return [];
     const all: EditorLens[] = [];
@@ -378,7 +523,7 @@ export function Workspace({
       if (evidence !== undefined) {
         all.push({
           line: lines.from,
-          title: `why: ${evidence.file}:${evidence.line}`,
+          title: `why: ${evidence.file}:${lineRange(citations[name], evidence)}`,
           onClick: () => {
             setPeek((current) => (current === name ? undefined : name));
             load(evidence.file);
@@ -387,7 +532,7 @@ export function Workspace({
       }
     }
     return all;
-  }, [phase, blockLines, stories, select, load]);
+  }, [phase, blockLines, stories, citations, select, load]);
   const peekStory = peek === undefined ? undefined : stories[peek];
   const peekLines = peek === undefined ? undefined : blockLines[peek];
 
@@ -404,22 +549,38 @@ export function Workspace({
   const usesAgent = agent !== undefined && agent.id !== 'none';
   const lastTool = state.timeline.findLast((entry) => entry.kind === 'tool');
   const scanActive = phase === 'scan' ? opened.at(-1) : undefined;
-  const focusedEvidence = plannedStep?.story.evidence;
+  const focusedStory = plannedStep?.story;
+  const focusedCitation = focusedStory === undefined ? undefined : citations[focusedStory.name];
+  const focusedEvidence = focusedStory?.evidence;
   const activeFile = phase === 'scan' ? scanActive : (focusedEvidence?.file ?? revealTabs.at(-1));
   const chips = phase === 'scan' ? [] : allChips(plan.current).slice(0, chipCount(plan.current, step));
   const filename = filenameFor(isEdited ? 'yaml' : format, state.existingConfig !== undefined);
   const parseError = draft === undefined ? edit?.error : undefined;
   const [problems, setProblems] = useState<EditorProblems>({ count: 0 });
   const showTypeScript = phase === 'review' && format === 'typescript' && !isEdited;
-  const total = splitMonthly(state.composition?.price?.monthly ?? '').amount;
-  const runningPrice = useMemo(() => {
+  const price = useMemo(() => {
     const steps = plan.current?.steps ?? [];
-    // Once everything is written, the total the estimate gave, not the sum of rounded parts.
-    if (steps.length > 0 && written >= steps.length && total !== undefined) {
-      return Number(total.replace(/[$,]/g, ''));
-    }
-    return steps.slice(0, written).reduce((sum, entry) => sum + (stories[entry.story.name]?.monthly ?? 0), 0);
-  }, [written, stories, total]);
+    const sofar = steps.slice(0, written).map((entry) => stories[entry.story.name] ?? entry.story);
+    return runningPrice(sofar);
+  }, [written, stories]);
+  const filesRead = new Set(opened).size;
+  const receipt = !usesAgent
+    ? 'Read without AI'
+    : `Read by ${agent.label}${filesRead > 0 ? ` · ${filesRead} ${filesRead === 1 ? 'file' : 'files'}` : ''}`;
+  const showFile = !stacked || phase !== 'review' || stackedView === 'file';
+  const showLeft = !stacked || phase !== 'review' || stackedView === 'architecture';
+
+  const emptyState = usesAgent ? (
+    <EmptyCode
+      line="The files it opens show up here, with what it is reading marked."
+      title={`${agent.label} is starting`}
+    />
+  ) : (
+    <EmptyCode
+      line="Manifests, Dockerfiles and config files. Nothing leaves this machine."
+      title="Stacktape is reading project manifests"
+    />
+  );
 
   return (
     <>
@@ -432,76 +593,94 @@ export function Workspace({
         data-reveal-written={phase === 'reveal' ? written : undefined}
         // The half second in which the code window gives way and the bar slides up: the page makes room for it slowly.
         data-settling={leaving ? 'true' : undefined}
+        data-stacked={stacked ? 'true' : undefined}
       >
-        <div className="ws-left">
+        <header className="ws-head" data-phase={phase}>
+          {phase === 'scan' ? (
+            <>
+              <h1 className="ws-title">Reading {state.projectName}</h1>
+              <ScanStatus
+                agentLabel={usesAgent ? agent.label : undefined}
+                lastTool={lastTool?.label}
+                startedAt={startedAt}
+              />
+            </>
+          ) : phase === 'reveal' ? (
+            <>
+              <h1 className="ws-title">Writing stacktape.yml</h1>
+              <button className="ws-skip" onClick={skipReveal} type="button">
+                Skip to review <kbd>Esc</kbd>
+              </button>
+              {focusedStory !== undefined && (
+                <Finding
+                  citation={focusedCitation}
+                  isWritten={written > step}
+                  key={focusedStory.name}
+                  story={stories[focusedStory.name] ?? focusedStory}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <h1 className="ws-title">{state.projectName} on AWS</h1>
+              <p className="ws-head-line ws-summary" title={summarise(state, { external: false })}>
+                {summarise(state, { external: false })}
+              </p>
+              <p className="ws-head-side ws-receipt">{receipt}</p>
+            </>
+          )}
+        </header>
+
+        {stacked && phase === 'review' && (
+          <Tabs
+            appearance="segmented"
+            ariaLabel="Show"
+            className="ws-switch"
+            onValueChange={(value) => setStackedView(value as 'architecture' | 'file')}
+            tabs={[
+              { value: 'architecture', label: 'Architecture' },
+              { value: 'file', label: filename }
+            ]}
+            value={stackedView}
+            width="fill"
+          />
+        )}
+
+        <div className="ws-left" hidden={!showLeft}>
           {(phase !== 'review' || leaving) && (
             <div className="ws-scan" data-leaving={phase === 'review' ? 'true' : undefined}>
-              <CodeWindow
-                active={activeFile}
-                emptyState={
-                  usesAgent ? (
-                    <span>{agent.label} is starting. The files it opens show up here.</span>
-                  ) : (
-                    <span>Stacktape’s own scanner reads your manifests and config files.</span>
-                  )
-                }
-                files={files}
-                focus={
-                  focusedEvidence === undefined || plannedStep === undefined
-                    ? undefined
-                    : {
-                        line: focusedEvidence.line,
-                        callout: (
-                          <Callout
-                            // A line that already explained a resource explains this one through it.
-                            alongside={
-                              plan.current?.steps
-                                .slice(0, step)
-                                .find(
-                                  (earlier) =>
-                                    earlier.story.evidence?.file === focusedEvidence.file &&
-                                    earlier.story.evidence.line === focusedEvidence.line
-                                )?.story.plainName
-                            }
-                            story={plannedStep.story}
-                          />
-                        )
-                      }
-                }
-                isScanning={phase === 'scan'}
-                reducedMotion={reducedMotion}
-                tabs={phase === 'scan' ? opened : revealTabs}
-              />
-              <div aria-live="polite" className="ws-status">
-                {phase === 'scan' ? (
-                  <ScanStatus
-                    agentLabel={usesAgent ? agent.label : undefined}
-                    lastTool={lastTool?.label}
-                    startedAt={startedAt}
-                  />
-                ) : (
-                  <>
-                    <span className="ws-status-text">
-                      {plannedStep === undefined ? (
-                        'Writing stacktape.yml'
-                      ) : (
-                        <>
-                          Adding <strong>{plannedStep.story.plainName}</strong> to stacktape.yml
-                        </>
-                      )}
-                    </span>
-                    <button className="ws-skip" onClick={skipReveal} type="button">
-                      Skip <kbd>Esc</kbd>
-                    </button>
-                  </>
-                )}
-              </div>
-              {(phase !== 'scan' || chips.length > 0) && <Chips chips={chips} />}
+              {stacked && phase === 'reveal' && focusedStory !== undefined ? (
+                <PhoneFinding
+                  citation={focusedCitation}
+                  file={focusedEvidence === undefined ? undefined : files.get(focusedEvidence.file)}
+                  story={focusedStory}
+                  typed={typedBlock}
+                />
+              ) : (
+                <CodeWindow
+                  active={activeFile}
+                  bodyRef={stacked ? undefined : codeBodyRef}
+                  compact={stacked}
+                  emptyState={emptyState}
+                  files={files}
+                  focus={
+                    phase === 'reveal' && focusedEvidence !== undefined
+                      ? { lines: focusedCitation?.lines ?? [focusedEvidence.line] }
+                      : undefined
+                  }
+                  isBare={phase === 'scan' && !usesAgent}
+                  isScanning={phase === 'scan'}
+                  reducedMotion={reducedMotion}
+                  tabs={phase === 'scan' ? opened : revealTabs}
+                />
+              )}
+              {phase !== 'scan' && chips.length > 0 && <Chips chips={chips} />}
             </div>
           )}
           {phase === 'review' && (
             <ReviewPane
               busy={busy}
+              citations={citations}
               isEdited={isEdited}
               isLocked={isLocked}
               onDecision={onDecision}
@@ -509,6 +688,7 @@ export function Workspace({
               onPreference={onPreference}
               onRegion={onRegion}
               onSelect={select}
+              onShowWhy={showWhy}
               progress={nodeProgress}
               resources={resources}
               selected={selected}
@@ -518,7 +698,13 @@ export function Workspace({
           )}
         </div>
 
-        <section aria-label={filename} className="ws-panel ws-editor" id="config-file">
+        <section
+          aria-label={filename}
+          className="ws-panel ws-editor"
+          data-collapsed={stacked && phase !== 'review' ? 'true' : undefined}
+          hidden={!showFile}
+          id="config-file"
+        >
           <header className="ws-editor-head">
             <span className="ws-editor-file">
               <FileIcon path={filename} />
@@ -526,9 +712,19 @@ export function Workspace({
             </span>
             {phase === 'review' && isEdited && <span className="ws-badge">Edited</span>}
             <span className="ws-editor-head-end">
-              {phase !== 'review' ? (
+              {phase === 'scan' && stacked ? (
+                <span className="ws-editor-wait">
+                  <span aria-hidden className="ws-pulse" />
+                  Waiting for findings
+                </span>
+              ) : phase !== 'review' ? (
                 phase === 'reveal' && (
-                  <AnimatedPrice className="ws-editor-price" text={`$${Math.round(runningPrice)} /mo`} />
+                  <AnimatedPrice
+                    className={`ws-editor-price${price.amount === undefined ? ' is-quiet' : ''}`}
+                    countFromZero
+                    text={price.text}
+                    title="What this file costs per month so far, at AWS list prices"
+                  />
                 )
               ) : (
                 <Tabs
@@ -570,7 +766,7 @@ export function Workspace({
             )}
           </p>
           <div className="ws-editor-body">
-            {phase === 'scan' && <p className="ws-editor-placeholder">Resources appear here as they’re found</p>}
+            {phase === 'scan' && !stacked && <Waiting lines={lineCount(header)} />}
             <Suspense fallback={<EditorLoading />}>
               {showTypeScript ? (
                 generated?.typescript === undefined ? (
@@ -603,6 +799,7 @@ export function Workspace({
                           height: 166,
                           content: (
                             <EvidencePeek
+                              citation={citations[peekStory.name]}
                               file={files.get(peekStory.evidence.file)}
                               onClose={() => setPeek(undefined)}
                               story={peekStory}
@@ -611,12 +808,13 @@ export function Workspace({
                         }
                   }
                   readOnly={phase !== 'review' || isLocked}
-                  showLineNumbers={phase !== 'scan'}
                   readOnlyMessage={
                     phase === 'review'
                       ? 'Not editable while stacktape init is disconnected or deploying.'
                       : 'Editable in a moment, once it is written.'
                   }
+                  // The reveal lines a block up with its code, which can need the last lines higher than the bottom.
+                  scrollBeyondLastLine={phase === 'reveal'}
                   value={phase === 'review' ? (editorText ?? '') : undefined}
                 />
               )}
@@ -690,46 +888,182 @@ function ScanStatus({
   const activity = lastTool === undefined ? undefined : scanActivity(lastTool);
   return (
     <>
-      <span className="ws-status-text">
+      <p aria-live="polite" className="ws-head-line ws-status">
         <span aria-hidden className="ws-pulse" />
-        {agentLabel === undefined ? (
-          'Reading your project’s files, without AI'
-        ) : activity === undefined ? (
-          `${agentLabel} is starting`
-        ) : (
-          <>
-            {agentLabel} {activity.text}
-            {activity.subject !== undefined && (
-              <>
-                {' '}
-                <code>{activity.subject}</code>
-              </>
-            )}
-          </>
-        )}
-      </span>
-      <span className="ws-status-meta">
+        <span className="ws-status-text">
+          {agentLabel === undefined ? (
+            'Stacktape’s own scanner, without AI'
+          ) : activity === undefined ? (
+            `${agentLabel} is starting`
+          ) : (
+            <>
+              {agentLabel} {activity.text}
+              {activity.subject !== undefined && (
+                <>
+                  {' '}
+                  <code>{activity.subject}</code>
+                </>
+              )}
+            </>
+          )}
+        </span>
+      </p>
+      <p className="ws-head-side ws-status-meta">
         Read-only <span aria-hidden>·</span> {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
-      </span>
+      </p>
     </>
   );
 }
 
-function Callout({ story, alongside }: { story: ResourceStory; alongside?: string | undefined }) {
+/**
+ * The finding the reveal is on, across both panes: the line of code on the left, what it became on the right, with
+ * its price once the block is written. A resource Stacktape adds for another says so instead of quoting code.
+ */
+function Finding({
+  story,
+  citation,
+  isWritten
+}: {
+  story: ResourceStory;
+  citation: Citation | undefined;
+  isWritten: boolean;
+}) {
+  const evidence = story.evidence;
+  const where = evidence === undefined ? undefined : `${evidence.file}:${lineRange(citation, evidence)}`;
   return (
-    <span className="ws-callout-tag">
-      <span className="ws-callout-group">
-        <code>{quoteLabel(story.evidence!.quote)}</code>
-        <span className="ws-callout-in">in {story.evidence!.file.split('/').at(-1)}</span>
-      </span>
-      <span className="ws-callout-group">
-        <span aria-hidden className="ws-callout-arrow">
-          →
-        </span>
+    <div className="ws-finding" data-design-choice={story.designChoice === undefined ? undefined : 'true'}>
+      <p className="ws-finding-from">
+        {story.designChoice !== undefined || evidence === undefined ? (
+          <span className="ws-finding-choice">{story.designChoice ?? 'Added to the file'}</span>
+        ) : (
+          <>
+            {(citation?.text ?? [quoteLabel(evidence.quote)]).map((text) => (
+              <code key={text}>{text}</code>
+            ))}
+            <span className="ws-finding-where">{where}</span>
+          </>
+        )}
+        <span aria-hidden className="ws-finding-leader" />
+      </p>
+      <p className="ws-finding-to">
+        <ResourceIcon resourceType={story.type} size={16} />
         <strong>{story.plainName}</strong>
-        {alongside !== undefined && <span className="ws-callout-in">for the {alongside}</span>}
+        {isWritten && story.priceLabel !== undefined && <span className="ws-finding-price">{story.priceLabel}</span>}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * The phone's reveal: the finding, a few lines of the file around it and the YAML it became, together, where the
+ * desktop has two panes side by side.
+ */
+function PhoneFinding({
+  story,
+  citation,
+  file,
+  typed
+}: {
+  story: ResourceStory;
+  citation: Citation | undefined;
+  file: FileView | undefined;
+  typed: string;
+}) {
+  const evidence = story.evidence;
+  const lines = file?.status === 'shown' ? file.text.split('\n') : undefined;
+  const lit = new Set(citation?.lines ?? (evidence === undefined ? [] : [evidence.line]));
+  const first = citation?.lines[0] ?? evidence?.line ?? 1;
+  const last = citation?.lines.at(-1) ?? first;
+  const from = Math.max(1, first - 1);
+  const to = Math.min(lines?.length ?? last, Math.max(last + 1, from + 2));
+  const yaml = typed.split('\n').slice(0, 5);
+  return (
+    <div className="ws-phone-finding ws-panel" key={story.name}>
+      <p className="ws-phone-finding-head">
+        <ResourceIcon resourceType={story.type} size={16} />
+        <strong>{story.plainName}</strong>
+        {evidence !== undefined && story.designChoice === undefined && (
+          <span>
+            {evidence.file}:{lineRange(citation, evidence)}
+          </span>
+        )}
+      </p>
+      {story.designChoice !== undefined || evidence === undefined ? (
+        <p className="ws-phone-finding-choice">{story.designChoice ?? 'Added to the file'}</p>
+      ) : (
+        <div className="ws-excerpt">
+          {lines === undefined ? (
+            <div className="ws-excerpt-row" data-focus="true">
+              <span className="ws-excerpt-number">{evidence.line}</span>
+              <span className="ws-excerpt-text">{quoteLabel(evidence.quote)}</span>
+            </div>
+          ) : (
+            lines.slice(from - 1, to).map((text, index) => (
+              <div
+                className="ws-excerpt-row"
+                data-focus={lit.has(from + index) ? 'true' : undefined}
+                // oxlint-disable-next-line react/no-array-index-key -- consecutive lines of one file; the number is identity.
+                key={from + index}
+              >
+                <span className="ws-excerpt-number">{from + index}</span>
+                <span className="ws-excerpt-text">{text || ' '}</span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      <p aria-hidden className="ws-phone-finding-arrow">
+        ↓ stacktape.yml
+      </p>
+      <div className="ws-excerpt" data-kind="yaml">
+        {(yaml.length === 0 || yaml[0] === '' ? ['  '] : yaml).map((text, index) => (
+          // oxlint-disable-next-line react/no-array-index-key -- consecutive lines being typed; position is identity.
+          <div className="ws-excerpt-row" data-focus="true" key={index}>
+            <span className="ws-excerpt-text">{text || ' '}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Before the first finding: the file's first lines are there, and faint rows hold the place of what comes. */
+function Waiting({ lines }: { lines: number }) {
+  return (
+    <div aria-hidden className="ws-waiting" style={{ top: 12 + lines * LINE_HEIGHT }}>
+      <p className="ws-waiting-label">
+        <span className="ws-pulse" />
+        Waiting for the first finding
+      </p>
+      {[
+        [2, 14],
+        [4, 22],
+        [4, 12],
+        [6, 26],
+        [6, 18],
+        [4, 16],
+        [6, 30]
+      ].map(([indent, width], index) => (
+        <span
+          className="ws-ghost-row"
+          // oxlint-disable-next-line react/no-array-index-key -- a fixed set of placeholder rows.
+          key={index}
+          style={{ marginLeft: `${indent}ch`, width: `${width}ch`, animationDelay: `${index * 90}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function EmptyCode({ title, line }: { title: string; line: string }) {
+  return (
+    <div className="ws-empty-code">
+      <span aria-hidden className="ws-empty-code-mark">
+        <Spinner />
       </span>
-    </span>
+      <strong>{title}</strong>
+      <span>{line}</span>
+    </div>
   );
 }
 
@@ -752,27 +1086,31 @@ function Chips({ chips }: { chips: readonly Chip[] }) {
   );
 }
 
-/** The inline "why": the lines around the evidence in the real file, the cited one lit. */
+/** The inline "why": the lines around the evidence in the real file, the cited ones lit. */
 function EvidencePeek({
   story,
+  citation,
   file,
   onClose
 }: {
   story: ResourceStory;
+  citation: Citation | undefined;
   file: FileView | undefined;
   onClose: () => void;
 }) {
   const evidence = story.evidence!;
+  const line = citation?.line ?? evidence.line;
+  const lit = new Set(citation?.lines ?? [line]);
   const lines = file?.status === 'shown' ? file.text.split('\n') : undefined;
-  const from = Math.max(1, evidence.line - 2);
-  const shown = lines?.slice(from - 1, evidence.line + 2) ?? [];
+  const from = Math.max(1, (citation?.lines[0] ?? line) - 2);
+  const shown = lines?.slice(from - 1, from + 4) ?? [];
   return (
     <div className="ws-peek">
       <div className="ws-peek-head">
         <span className="ws-peek-title">
           <FileIcon path={evidence.file} />
           {evidence.file}
-          <span className="ws-peek-line">line {evidence.line}</span>
+          <span className="ws-peek-line">line {line}</span>
         </span>
         <button aria-label="Close" className="ws-peek-close" onClick={onClose} type="button">
           ×
@@ -787,7 +1125,7 @@ function EvidencePeek({
           {shown.map((text, index) => (
             <div
               className="ws-peek-row"
-              data-focus={from + index === evidence.line ? 'true' : undefined}
+              data-focus={lit.has(from + index) ? 'true' : undefined}
               // oxlint-disable-next-line react/no-array-index-key -- consecutive lines of one file; the number is identity.
               key={from + index}
             >
@@ -797,7 +1135,9 @@ function EvidencePeek({
           ))}
         </div>
       )}
-      {story.reason !== undefined && <p className="ws-peek-reason">{story.reason}</p>}
+      {(story.designChoice ?? story.reason) !== undefined && (
+        <p className="ws-peek-reason">{story.designChoice ?? story.reason}</p>
+      )}
     </div>
   );
 }

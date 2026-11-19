@@ -6,7 +6,7 @@
  * functions over the session state, so the words and the order can be tested without a browser.
  */
 
-import type { WizardState } from '../session';
+import type { FileView, WizardState } from '../session';
 import { plainResourceName, technologyOf } from '../steps/review-model';
 
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
@@ -22,10 +22,95 @@ export type ResourceStory = {
   reason?: string;
   /** The one line of code that best shows why: the framework or the dependency, when one is cited. */
   evidence?: Evidence;
+  /** Every citation behind the resource, so lines next to the best one can be shown with it. */
+  citations?: Evidence[];
+  /** A word the right line contains (`sqlite`, `postgres`), for finding it when a citation's line number is off. */
+  hint?: string;
+  /**
+   * Stacktape adds it for another resource rather than because the code asks for it: "Added so you can reach the
+   * private database". Its citations are the other resource's.
+   */
+  designChoice?: string;
   /** `$15/mo`, `Pay per use`, or absent until the price arrives. */
   priceLabel?: string;
   /** The fixed monthly amount, for adding up. Absent when unknown; 0 for pay-per-use. */
   monthly?: number;
+};
+
+/**
+ * A citation checked against the file it names: the lines that really say it, and their text.
+ *
+ * Citations come from the scan and from the agent, and their line numbers are not always right: a probe that matched
+ * `pgx` inside `otelpgx`, or the first `provider =` of a Prisma schema rather than the datasource's. The page shows
+ * what the file really says, so it looks for the quote on the cited line, then as a whole word elsewhere in the file
+ * (nearest first, preferring a line that also has the hint), and keeps the cited line when the quote is nowhere.
+ */
+export type Citation = {
+  file: string;
+  /** The line the finding points at, 1-based. */
+  line: number;
+  /** Every line to light up, ascending: the line and cited lines right next to it in the same file. */
+  lines: number[];
+  /** Each lit line's text, trimmed. */
+  text: string[];
+};
+
+const squashSpaces = (text: string) => text.trim().replace(/\s+/g, ' ');
+const isWordCharacter = (character: string | undefined) => character !== undefined && /[A-Za-z0-9_]/.test(character);
+
+/** Whether `line` contains `quote` as written, not as part of a longer word: `pgx` is in `jackc/pgx/v5`, not `otelpgx`. */
+export const quotedOn = (line: string, quote: string): boolean => {
+  const needle = squashSpaces(quote).toLowerCase();
+  if (needle === '') return false;
+  const haystack = squashSpaces(line).toLowerCase();
+  for (let at = haystack.indexOf(needle); at >= 0; at = haystack.indexOf(needle, at + 1)) {
+    const startsClean = !isWordCharacter(needle[0]) || !isWordCharacter(haystack[at - 1]);
+    const endsClean = !isWordCharacter(needle.at(-1)) || !isWordCharacter(haystack[at + needle.length]);
+    if (startsClean && endsClean) return true;
+  }
+  return false;
+};
+
+/** The line (1-based) that really holds `evidence`, in a file split into lines. */
+export const locate = (lines: readonly string[], evidence: Evidence, hint?: string): number => {
+  const found = lines.flatMap((text, index) => (quotedOn(text, evidence.quote) ? [index + 1] : []));
+  if (found.length === 0) return evidence.line;
+  const hinted = hint === undefined ? [] : found.filter((line) => lines[line - 1]!.toLowerCase().includes(hint));
+  const candidates = hinted.length > 0 ? hinted : found;
+  if (candidates.includes(evidence.line)) return evidence.line;
+  return candidates.reduce((best, line) =>
+    Math.abs(line - evidence.line) < Math.abs(best - evidence.line) ? line : best
+  );
+};
+
+/** "29", or "10–11" for a citation lit with the line next to it. */
+export const lineRange = (citation: Citation | undefined, evidence: { line: number }): string =>
+  citation === undefined || citation.lines.length < 2
+    ? String(citation?.line ?? evidence.line)
+    : `${citation.lines[0]}–${citation.lines.at(-1)}`;
+
+/** How close another citation in the same file has to be to be lit with the main one. */
+const NEARBY_LINES = 3;
+
+/** The story's citation as its file shows it. Undefined until the file's text is there. */
+export const citationOf = (story: ResourceStory, file: FileView | undefined): Citation | undefined => {
+  const evidence = story.evidence;
+  if (evidence === undefined || file === undefined || file.status !== 'shown' || file.path !== evidence.file) {
+    return undefined;
+  }
+  const lines = file.text.split('\n');
+  const line = locate(lines, evidence, story.hint);
+  const nearby = (story.citations ?? [])
+    .filter((entry) => entry.file === evidence.file && entry !== evidence)
+    .map((entry) => locate(lines, entry, story.hint))
+    .filter((other) => Math.abs(other - line) <= NEARBY_LINES);
+  const lit = [...new Set([line, ...nearby])].filter((entry) => entry >= 1 && entry <= lines.length).toSorted();
+  return {
+    file: evidence.file,
+    line,
+    lines: lit.length > 0 ? lit : [line],
+    text: lit.map((entry) => lines[entry - 1]!.trim())
+  };
 };
 
 export type Chip = { id: string; label: string; kind: 'resource' | 'secrets' | 'external'; type?: string };
@@ -84,6 +169,24 @@ const parseMonthly = (label: string | undefined): number | undefined => {
   return amount === undefined ? undefined : Number(amount.replaceAll(',', ''));
 };
 
+/** Resources Stacktape adds for another one, and why, in a developer's words. */
+const DESIGN_CHOICES: Readonly<Record<string, string>> = {
+  bastion: 'Added so you can reach the private database'
+};
+
+const sameCitation = (left: Evidence | undefined, right: Evidence | undefined) =>
+  left !== undefined &&
+  right !== undefined &&
+  left.file === right.file &&
+  left.line === right.line &&
+  left.quote === right.quote;
+
+/** The word the cited line should contain: the framework's (`next`), or the dependency's kind (`sqlite`). */
+const hintFor = (state: WizardState, service: Service | undefined, citations: readonly Evidence[]) => {
+  if (service !== undefined) return service.framework?.toLowerCase().replace(/js$/, '');
+  return state.facts?.dependencies.find((dependency) => sameCitation(dependency.evidence[0], citations[0]))?.kind;
+};
+
 export const storyOf = (state: WizardState, name: string, resource: Resources[string]): ResourceStory => {
   const service = serviceFor(state, name);
   const technology = technologyOf(service);
@@ -97,18 +200,42 @@ export const storyOf = (state: WizardState, name: string, resource: Resources[st
         ? `Runs your ${technology} app, built the way ${technology} expects.`
         : provenance.reason;
   const evidence = bestEvidence(state, name);
+  const citations = [...(service?.evidence ?? []), ...(provenance?.evidence ?? [])];
+  const hint = hintFor(state, service, provenance?.evidence ?? []);
+  // A disk added for a SQLite file is named for what it keeps.
+  const named = resource.type === 'efs-filesystem' && hint === 'sqlite' ? 'Disk for SQLite data' : plainName;
+  const designChoice = provenance === undefined ? undefined : DESIGN_CHOICES[resource.type];
   const raw = state.composition?.price?.byResource[name];
   const priceLabel = raw === undefined ? undefined : raw === 'pay-per-use' ? 'Pay per use' : raw;
   const monthly = parseMonthly(raw);
   return {
     name,
     type: resource.type,
-    plainName,
+    plainName: named,
     ...(reason === undefined ? {} : { reason }),
     ...(evidence === undefined ? {} : { evidence }),
+    ...(citations.length === 0 ? {} : { citations }),
+    ...(hint === undefined ? {} : { hint }),
+    ...(designChoice === undefined ? {} : { designChoice }),
     ...(priceLabel === undefined ? {} : { priceLabel }),
     ...(monthly === undefined ? {} : { monthly })
   };
+};
+
+/**
+ * What stacktape.yml costs so far while the reveal writes it, in the editor's header: "estimating…" until every
+ * resource written has a price (never "$0 /mo" beside a database), "Pay per use" when nothing has a fixed price, then
+ * the fixed amount with "+ usage" once something is billed by use.
+ */
+export const runningPrice = (
+  written: ReadonlyArray<Pick<ResourceStory, 'priceLabel' | 'monthly'>>
+): { text: string; amount?: number } => {
+  if (written.length === 0 || written.some((story) => story.monthly === undefined)) return { text: 'estimating…' };
+  const amount = written.reduce((sum, story) => sum + (story.monthly ?? 0), 0);
+  const usage = written.some((story) => story.priceLabel === 'Pay per use');
+  if (amount === 0) return { text: 'Pay per use' };
+  const rounded = Math.round(amount);
+  return { text: `$${rounded.toLocaleString('en-US')} /mo${usage ? ' + usage' : ''}`, amount: rounded };
 };
 
 export const storiesOf = (state: WizardState, resources: Resources): Record<string, ResourceStory> =>
@@ -161,6 +288,7 @@ export const yamlSegments = (
 /** One line per resource in the chips row: "Next.js app", "Postgres", "3 secrets". */
 const chipLabel = (story: ResourceStory, resource: Resources[string], technology: string | undefined): string => {
   if (resource.type === 'relational-database') return story.plainName.replace(/ database$/, '');
+  if (story.plainName === 'Disk for SQLite data') return 'SQLite data';
   if (technology === undefined || resource.type.endsWith('-web')) return story.plainName;
   return resource.type === 'hosting-bucket' ? `${technology} site` : `${technology} app`;
 };

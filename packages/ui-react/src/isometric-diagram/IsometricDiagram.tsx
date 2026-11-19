@@ -70,7 +70,22 @@ export type IsometricDiagramProps = DiagramViewProps & {
    * template could not be read, and the layer is offered disabled, saying so.
    */
   deployment?: DiagramDeployment | null | undefined;
+  /**
+   * The host's own words for what a declared resource is, by its name, in place of the type line under its name: an
+   * EFS file system the host knows holds SQLite data can say "SQLite data". Resources it does not name keep the
+   * diagram's words.
+   */
+  resourceTypeLabels?: Readonly<Record<string, string>> | undefined;
+  /**
+   * Draws a connector from a resource to each EFS file system it mounts. Off by default: Console's Viewer projection
+   * does not carry `volumeMounts` yet, and a Viewer's picture must match everyone else's.
+   */
+  volumeMounts?: boolean | undefined;
 };
+
+/** A name's size at the picture's own scale, and the most `minLabelSize` enlarges text. */
+const BASE_NAME_PX = 12;
+const MAX_TEXT_SCALE = 1.7;
 
 const DEFAULT_EMPTY_MESSAGE = 'No resources to display. Add resources to your config to see the diagram.';
 
@@ -190,7 +205,10 @@ export function IsometricDiagram({
   selectedResource,
   resourceProgress,
   hint,
+  minLabelSize,
   resourceTooltip,
+  resourceTypeLabels,
+  volumeMounts = false,
   layers,
   defaultLayers,
   onLayersChange,
@@ -210,6 +228,22 @@ export function IsometricDiagram({
   // A host that passes statuses at all gets room for a status line under every declared resource. The room depends
   // only on that, never on what the statuses say, so a refresh redraws pills and rings without moving a node.
   const statusLines = statuses !== undefined;
+  // A host that asks for a minimum label size gets names, type lines and chips set larger when the picture is scaled
+  // down to fit, and a layout with room for them. Laying it out again with larger text makes the picture larger, so the
+  // scale settles in a step or two; small changes are ignored so it does not hunt.
+  const [textScale, setTextScale] = useState(1);
+  const onFitScale = useCallback(
+    (fit: number) => {
+      if (minLabelSize === undefined) return;
+      setTextScale((current) => {
+        // Names are drawn at BASE_NAME_PX × scale × fit on screen.
+        const wanted = Math.max(1, Math.min(MAX_TEXT_SCALE, minLabelSize / (BASE_NAME_PX * fit)));
+        return Math.abs(wanted - current) < 0.04 ? current : Math.round(wanted * 100) / 100;
+      });
+    },
+    [minLabelSize]
+  );
+  const scale = minLabelSize === undefined ? 1 : textScale;
 
   // The diagram keeps its own copy of the layers. A layer the reader switches shows at once, before a host that keeps
   // the layers has passed them back; layers that change from outside (the host's URL, the back button) replace it.
@@ -230,9 +264,16 @@ export function IsometricDiagram({
   const fullModel = useMemo(
     () =>
       offersInfrastructure
-        ? buildDiagramModel({ parsedConfig: config, expandedGroups, statusLines, infrastructure: true })
+        ? buildDiagramModel({
+            parsedConfig: config,
+            expandedGroups,
+            statusLines,
+            infrastructure: true,
+            textScale: scale,
+            volumeMounts
+          })
         : null,
-    [config, expandedGroups, statusLines, offersInfrastructure]
+    [config, expandedGroups, statusLines, offersInfrastructure, scale, volumeMounts]
   );
   const security = useMemo(() => {
     const input = readDiagramDeployment(deployment);
@@ -247,9 +288,16 @@ export function IsometricDiagram({
   const applicationModel = useMemo(
     () =>
       needsApplicationModel
-        ? buildDiagramModel({ parsedConfig: config, expandedGroups, statusLines, infrastructure: false })
+        ? buildDiagramModel({
+            parsedConfig: config,
+            expandedGroups,
+            statusLines,
+            infrastructure: false,
+            textScale: scale,
+            volumeMounts
+          })
         : null,
-    [config, expandedGroups, statusLines, needsApplicationModel]
+    [config, expandedGroups, statusLines, needsApplicationModel, scale, volumeMounts]
   );
   const model = needsApplicationModel ? applicationModel : fullModel;
   const showAccess = wantsAccess && canShowAccess;
@@ -267,20 +315,22 @@ export function IsometricDiagram({
     [showInfrastructure, showAccess, onLayersChange]
   );
   const frame = useMemo(() => (model ? diagramFrame({ model, security }) : undefined), [model, security]);
-  const scene: IsoScene | null = useMemo(
-    () =>
-      model
-        ? {
-            ...selectDiagramView({
-              model,
-              layers: { infrastructure: showInfrastructure, access: showAccess },
-              security
-            }),
-            frame
-          }
-        : null,
-    [model, showInfrastructure, showAccess, security, frame]
-  );
+  const scene: IsoScene | null = useMemo(() => {
+    if (!model) return null;
+    const view = selectDiagramView({
+      model,
+      layers: { infrastructure: showInfrastructure, access: showAccess },
+      security
+    });
+    const nodes = resourceTypeLabels
+      ? view.nodes.map((node) =>
+          !node.isImplicit && !node.memberCount && resourceTypeLabels[node.id]
+            ? { ...node, typeLabel: resourceTypeLabels[node.id] }
+            : node
+        )
+      : view.nodes;
+    return { ...view, nodes, frame };
+  }, [model, showInfrastructure, showAccess, security, frame, resourceTypeLabels]);
 
   if (!scene || scene.nodes.length === 0) {
     if (emptyState === null) return null;
@@ -317,6 +367,8 @@ export function IsometricDiagram({
       selectedResource={selectedResource}
       resourceProgress={resourceProgress}
       hint={hint}
+      labelScale={scale}
+      onFitScale={minLabelSize === undefined ? undefined : onFitScale}
       resourceTooltip={resourceTooltip}
       onToggleGroup={toggleGroup}
       toolbar={

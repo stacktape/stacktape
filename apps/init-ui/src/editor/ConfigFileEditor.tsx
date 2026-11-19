@@ -56,7 +56,8 @@ export default function ConfigFileEditor({
   lenses,
   highlight,
   peek,
-  showLineNumbers = true
+  showLineNumbers = true,
+  scrollBeyondLastLine = false
 }: {
   /** The text. Undefined while the host types it in itself (the reveal), through `onReady`. */
   value: string | undefined;
@@ -74,6 +75,8 @@ export default function ConfigFileEditor({
   peek?: { afterLine: number; height: number; content: ReactNode } | undefined;
   /** Off while the file is still empty: a lone "1" is noise. */
   showLineNumbers?: boolean;
+  /** Lets the last lines scroll up past the bottom, for a host that positions lines itself. */
+  scrollBeyondLastLine?: boolean;
 }) {
   const [path] = useState(() => (language === 'yaml' ? YAML_PATH : 'file:///stacktape.ts'));
   const [editor, setEditor] = useState<MonacoEditorTypes.IStandaloneCodeEditor | null>(null);
@@ -302,7 +305,10 @@ export default function ConfigFileEditor({
           fontSize: 13,
           lineHeight: 20,
           minimap: { enabled: false },
-          scrollBeyondLastLine: false,
+          scrollBeyondLastLine,
+          // Long values wrap under their key rather than running off the edge.
+          wordWrap: 'on',
+          wrappingIndent: 'indent',
           renderLineHighlight: readOnly ? 'none' : 'line',
           padding: { top: 12, bottom: 12 },
           quickSuggestions: { other: true, strings: true, comments: false },
