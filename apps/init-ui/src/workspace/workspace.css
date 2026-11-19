@@ -47,8 +47,62 @@
     display: grid;
     flex: 1;
     grid-template-columns: minmax(0, 1fr) var(--w-pane-right);
-    gap: var(--w-gap);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 16px var(--w-gap);
     min-height: 0;
+  }
+
+  .ws-left[hidden],
+  .ws-editor[hidden] {
+    display: none !important;
+  }
+
+  /* ── The head: what is happening, across both panes ──────────────────────────────────────────── *
+   * The same two lines in every phase, so the panes under it never move: the title, then the file being read, the
+   * finding being written (its code over the code, what it became over the file) or what the app is. */
+
+  .ws-head {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    grid-template-rows: 34px 22px;
+    row-gap: 4px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .ws-head > .ws-title {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-head-line {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .ws-head-side {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    margin: 0;
+  }
+
+  .ws-head > .ws-skip {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .ws-head[data-phase='scan'] > .ws-title,
+  .ws-head[data-phase='reveal'] > .ws-title {
+    animation: ws-fade-in 260ms var(--w-ease) both;
   }
 
   .ws-left {
@@ -77,6 +131,7 @@
   /* ── The scan: code window, status line, chips ──────────────────────────────────────────────── */
 
   .ws-scan {
+    position: relative;
     display: flex;
     flex: 1;
     flex-direction: column;
@@ -108,7 +163,7 @@
     flex: none;
     align-items: flex-end;
     gap: 2px;
-    height: 40px;
+    height: 49px;
     padding: 0 8px;
     overflow-x: auto;
     scrollbar-width: none;
@@ -131,6 +186,11 @@
     mask-image: linear-gradient(to right, transparent, black 32px, black calc(100% - 40px), transparent);
   }
 
+  .ws-window[data-bare] .ws-window-tabs,
+  .ws-window[data-bare] .ws-window-path {
+    display: none;
+  }
+
   .ws-window-tab-ghost span {
     width: 88px;
     height: 8px;
@@ -145,10 +205,10 @@
     flex: none;
     align-items: center;
     gap: 7px;
-    height: 32px;
+    height: 34px;
     padding: 0 14px 0 12px;
     border-radius: var(--w-radius-small) var(--w-radius-small) 0 0;
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
@@ -173,19 +233,126 @@
   }
 
   .ws-window-path {
+    position: relative;
     display: flex;
     flex: none;
     align-items: center;
-    gap: 2px;
-    height: 30px;
+    gap: 8px;
+    height: 36px;
     padding: 0 16px;
     overflow: hidden;
     border-bottom: 1px solid var(--w-line);
     background: var(--ws-code-bg);
-    color: var(--w-subtle);
+    color: var(--w-muted);
     font-size: 12px;
     line-height: 16px;
     white-space: nowrap;
+  }
+
+  .ws-window-path-segments {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-window-path-segments .ws-file-icon {
+    margin-right: 6px;
+  }
+
+  .ws-window-path-empty {
+    color: var(--w-subtle);
+  }
+
+  .ws-window-list-toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    margin-left: auto;
+    padding: 4px 4px 4px 8px;
+    border: 0;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-code-fill);
+    color: var(--w-text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ws-window-list-toggle[aria-expanded='true'] svg {
+    transform: rotate(180deg);
+  }
+
+  .ws-window-list {
+    flex: none;
+    padding: 10px 16px 12px;
+    border-bottom: 1px solid var(--w-line);
+    background: var(--ws-code-popup);
+  }
+
+  /* Under a short file: the files read so far, quietly, so the window is never half dead. */
+  .ws-window-trail {
+    position: absolute;
+    right: 0;
+    left: 0;
+    margin: 0 24px 0 calc(var(--ws-gutter-digits, 2) * 1ch + 36px);
+    padding: 16px 0 0;
+    border-top: 1px dashed var(--w-line-strong);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    animation: ws-fade-in 400ms var(--w-ease) both;
+  }
+
+  .ws-files-title {
+    margin: 0 0 8px;
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  .ws-files {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ws-files li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    height: 24px;
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 12px;
+  }
+
+  .ws-files li[data-active] {
+    color: var(--w-text);
+  }
+
+  .ws-files-path {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-files-state {
+    color: var(--w-brand);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .ws-files-done {
+    flex: none;
+    color: var(--w-ok);
   }
 
   .ws-window-path-sep {
@@ -268,6 +435,44 @@
     font-size: 12px;
   }
 
+  /* Room under the last line, so the reveal can bring any line up level with the block beside it. */
+  .ws-window-runway {
+    height: 70vh;
+  }
+
+  .ws-empty-code {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    max-width: 360px;
+    text-align: center;
+  }
+
+  .ws-window-empty .ws-empty-code strong {
+    margin-top: 8px;
+    color: var(--w-text);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .ws-empty-code span {
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .ws-empty-code-mark {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--w-brand-soft);
+    color: var(--w-brand);
+    place-items: center;
+  }
+
   .ws-window-empty {
     display: flex;
     align-items: center;
@@ -334,14 +539,14 @@
     left: 0;
     z-index: 1;
     height: 0;
-    background: color-mix(in srgb, var(--ws-code-bg) 42%, transparent);
+    background: color-mix(in srgb, var(--ws-code-bg) 24%, transparent);
     pointer-events: none;
     will-change: transform;
   }
 
   /* The reveal points at one line: the rest steps back, the line lights up, a callout says what it led to. */
   .ws-window[data-focus] .ws-line {
-    opacity: 0.34;
+    opacity: 0.5;
   }
 
   .ws-window[data-focus] .ws-line[data-focus] {
@@ -421,12 +626,7 @@
 
   .ws-status {
     display: flex;
-    flex: none;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-height: 22px;
-    padding: 0 4px;
     color: var(--w-muted);
     font-size: 14px;
     line-height: 22px;
@@ -439,23 +639,111 @@
     text-overflow: ellipsis;
   }
 
-  .ws-status-text strong {
-    color: var(--w-text);
-    font-weight: 600;
-  }
-
   .ws-status code {
-    overflow: hidden;
     color: var(--w-text);
     font-family: var(--w-mono);
     font-size: 13px;
-    text-overflow: ellipsis;
   }
 
   .ws-status-meta {
+    color: var(--w-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* The finding: its code over the code pane, a leader across the gap, what it became over the file. */
+  .ws-finding {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: subgrid;
+    align-items: center;
+    min-width: 0;
+    animation: ws-fade-in 240ms var(--w-ease) both;
+  }
+
+  .ws-finding p {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    margin: 0;
+    font-size: 14px;
+    line-height: 22px;
+    white-space: nowrap;
+  }
+
+  .ws-finding-from {
+    position: relative;
+  }
+
+  .ws-finding-from code {
+    min-width: 0;
+    padding: 0 8px;
+    overflow: hidden;
+    border-radius: var(--w-radius-chip);
+    background: color-mix(in srgb, var(--w-brand) 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--w-brand) 30%, transparent);
+    color: var(--w-text-strong);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    line-height: 22px;
+    text-overflow: ellipsis;
+  }
+
+  .ws-finding-where {
     flex: none;
-    color: var(--w-subtle);
-    font-size: 12px;
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  .ws-finding-choice {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-text);
+    text-overflow: ellipsis;
+  }
+
+  /* The leader runs from the code to the pane's edge and on across the gap, ending in an arrowhead. */
+  .ws-finding-leader {
+    position: relative;
+    flex: 1 0 24px;
+    height: 1px;
+    margin-right: calc(-1 * var(--w-gap) + 6px);
+    background: linear-gradient(90deg, transparent, var(--w-brand-line) 24px);
+  }
+
+  .ws-finding-leader::after {
+    position: absolute;
+    top: -3px;
+    right: -1px;
+    border-top: 3.5px solid transparent;
+    border-bottom: 3.5px solid transparent;
+    border-left: 6px solid var(--w-brand);
+    content: '';
+  }
+
+  .ws-finding-to {
+    padding-left: 2px;
+  }
+
+  .ws-finding-to svg {
+    flex: none;
+  }
+
+  .ws-finding-to strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-text-strong);
+    font-weight: 600;
+    text-overflow: ellipsis;
+  }
+
+  .ws-finding-price {
+    margin-left: auto;
+    color: var(--w-muted);
+    font-size: 13px;
     font-variant-numeric: tabular-nums;
   }
 
@@ -484,7 +772,7 @@
     flex: none;
     align-items: center;
     gap: 8px;
-    padding: 2px 4px;
+    padding: 4px 6px;
     border: 0;
     border-radius: var(--w-radius-chip);
     background: none;
@@ -516,15 +804,23 @@
     text-align: center;
   }
 
+  /* What was found so far, on a tray over the bottom of the code window: the code above it is stepped back anyway,
+   * and the window keeps its size from the scan to the reveal. */
   .ws-chips {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    left: 1px;
+    z-index: 4;
     display: flex;
-    flex: none;
     flex-wrap: wrap;
     gap: 8px;
-    min-height: 28px;
     margin: 0;
-    padding: 0;
+    padding: 28px 16px 14px;
+    border-radius: 0 0 var(--w-radius) var(--w-radius);
+    background: linear-gradient(to top, var(--ws-code-bg) 55%, transparent);
     list-style: none;
+    pointer-events: none;
   }
 
   .ws-chip {
@@ -534,7 +830,7 @@
     height: 28px;
     padding: 0 11px 0 9px;
     border-radius: var(--w-radius-chip);
-    background: var(--stp-control-surface);
+    background: var(--w-panel-raised);
     box-shadow: var(--w-shadow-rest);
     color: var(--w-text);
     font-size: 12px;
@@ -548,7 +844,7 @@
   }
 
   .ws-chip[data-kind='external'] {
-    background: none;
+    background: var(--ws-code-bg);
     box-shadow: inset 0 0 0 1px var(--w-line-strong);
     color: var(--w-muted);
     font-weight: 500;
@@ -654,6 +950,12 @@
     font-weight: 500;
   }
 
+  .ws-editor-price.is-quiet {
+    color: var(--w-muted);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
   .ws-editor-price.is-changed {
     color: var(--w-brand);
   }
@@ -689,6 +991,44 @@
     font-size: 13px;
     pointer-events: none;
     place-items: center;
+  }
+
+  /* Before the first finding: the file's first lines are written, and faint rows hold the place of what comes. */
+  .ws-waiting {
+    position: absolute;
+    right: 24px;
+    left: var(--ws-content-left, 52px);
+    z-index: 2;
+    display: grid;
+    justify-items: start;
+    font-family: var(--w-mono);
+    font-size: 13px;
+    pointer-events: none;
+  }
+
+  .ws-waiting-label {
+    display: flex;
+    align-items: center;
+    height: 20px;
+    margin: 0 0 4px 2ch;
+    color: var(--w-muted);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .ws-waiting-label .ws-pulse {
+    margin-left: 0;
+  }
+
+  .ws-ghost-row {
+    display: block;
+    max-width: calc(100% - 4ch);
+    height: 8px;
+    margin: 6px 0;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    animation: ws-ghost 1.8s ease-in-out infinite alternate both;
   }
 
   .ws-editor-loading {
@@ -914,18 +1254,18 @@
   }
 
   .ws-summary {
-    margin: 4px 0 0;
+    overflow: hidden;
     color: var(--w-muted);
     font-size: 14px;
     line-height: 22px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .ws-receipt {
-    flex: none;
-    margin: 0 0 3px;
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 16px;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 22px;
     white-space: nowrap;
   }
 
@@ -934,7 +1274,7 @@
     flex: none;
     align-items: center;
     gap: 8px;
-    margin: -8px 0 0;
+    margin: 0;
     color: var(--w-subtle);
     font-size: 12px;
     line-height: 16px;
@@ -956,9 +1296,177 @@
     right: 60px;
   }
 
+  /* A resource picked in the picture: its card stays, with a way into its code, until it is closed. */
+  .ws-picked {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    z-index: 3;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    max-width: calc(100% - 24px);
+    padding: 12px 8px 12px 14px;
+    border-radius: var(--w-radius-small);
+    background: var(--ws-code-popup);
+    box-shadow:
+      var(--w-shadow-float),
+      inset 0 0 0 1px var(--ws-code-popup-border);
+    animation: ws-rise-small 200ms var(--w-ease) both;
+  }
+
+  .ws-picked .ws-node-card {
+    min-width: 0;
+  }
+
+  .ws-picked-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .ws-picked-why {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-brand-soft);
+    color: var(--w-text-strong);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ws-picked-why:hover {
+    background: color-mix(in srgb, var(--w-brand) 22%, transparent);
+  }
+
+  .ws-picked-close {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--w-radius-chip);
+    background: none;
+    color: var(--w-subtle);
+    cursor: pointer;
+    place-items: center;
+  }
+
+  .ws-picked-close:hover {
+    background: var(--w-hover);
+    color: var(--w-text);
+  }
+
+  /* What the app needs that this deploy does not create, right under the picture. */
+  .ws-external {
+    display: grid;
+    flex: none;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 16px;
+    row-gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .ws-external-list {
+    grid-column: 1 / -1;
+  }
+
+  .ws-external-title {
+    margin: 0;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .ws-external-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ws-external-list li {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 14px;
+  }
+
+  .ws-external-list strong {
+    font-weight: 600;
+  }
+
+  .ws-external-list code {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--w-code-fill);
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 12px;
+  }
+
+  .ws-external-icon {
+    color: var(--w-muted);
+  }
+
+  .ws-external-note {
+    justify-self: end;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
   .ws-settings {
     flex: none;
     padding: 2px 16px;
+  }
+
+  /* The settings that change less, folded: their current answers stay readable on the one row. */
+  .ws-more {
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--w-line);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ws-more:hover .ws-setting-label {
+    color: var(--w-brand);
+  }
+
+  .ws-more-values {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-subtle);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .ws-more-values strong {
+    color: var(--w-muted);
+    font-weight: 600;
+  }
+
+  .ws-more-values svg {
+    flex: none;
+    color: var(--w-muted);
   }
 
   .ws-settings-paused {
@@ -1041,28 +1549,29 @@
   }
 
   .ws-node-card-evidence {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    display: grid;
+    gap: 2px;
+    min-width: 0;
     margin: 2px 0 0;
-    padding: 6px 8px;
+    padding: 7px 10px;
     border-radius: var(--w-radius-chip);
     background: var(--ws-code-bg);
+    box-shadow: inset 2px 0 0 var(--w-brand);
     font-size: 12px;
+    line-height: 18px;
   }
 
   .ws-node-card-evidence code {
+    min-width: 0;
     overflow: hidden;
-    color: var(--ws-code-key);
+    color: var(--w-text);
     font-family: var(--w-mono);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
 
   .ws-node-card-evidence span {
-    flex: none;
-    color: var(--w-subtle);
+    color: var(--w-muted);
   }
 
   /* ── The bar ─────────────────────────────────────────────────────────────────────────────────── */
@@ -1101,7 +1610,41 @@
     .ws {
       display: flex;
       flex-direction: column;
-      gap: var(--w-gap);
+      gap: 16px;
+    }
+
+    .ws-head {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+    }
+
+    .ws-head > .ws-title {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .ws-head > .ws-skip {
+      align-self: flex-start;
+      margin-left: -6px;
+    }
+
+    /* The phone's reveal card names the finding itself. */
+    .ws-finding {
+      display: none;
+    }
+
+    .ws-head-side {
+      align-self: flex-start;
+    }
+
+    .ws-head[data-phase='review'] .ws-summary {
+      white-space: normal;
+    }
+
+    .ws-switch {
+      flex: none;
     }
 
     .ws-left,
@@ -1111,12 +1654,39 @@
 
     .ws-window {
       flex: none;
-      height: 360px;
+      height: 300px;
+    }
+
+    /* While it reads, the code is all there is to watch: it takes the screen. */
+    .ws[data-phase='scan'] .ws-window {
+      height: max(300px, calc(100dvh - var(--w-header-h) - 300px));
     }
 
     .ws-editor {
       flex: none;
-      height: 460px;
+      height: max(440px, calc(100dvh - var(--w-header-h) - var(--w-bar-h) - 220px));
+    }
+
+    /* Until something is found, the file is one row that says it is waiting. */
+    .ws-editor[data-collapsed] {
+      height: auto;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-head {
+      border-bottom: 0;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-hint {
+      display: none;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-body {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
     }
 
     .ws-review {
@@ -1125,19 +1695,110 @@
 
     .ws-diagram {
       flex: none;
-      height: 320px;
+      height: 300px;
       min-height: 0;
     }
+
+    .ws-chips {
+      position: static;
+      padding: 0;
+      background: none;
+    }
+  }
+
+  /* The phone's reveal: the finding, its lines and the YAML they became, in one card. */
+  .ws-phone-finding {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    animation: ws-fade-in 220ms var(--w-ease) both;
+  }
+
+  .ws-phone-finding-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin: 0;
+    font-size: 15px;
+    line-height: 20px;
+  }
+
+  .ws-phone-finding-head strong {
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  .ws-phone-finding-head span {
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  .ws-phone-finding-choice {
+    margin: 0;
+    color: var(--w-text);
+    font-size: 14px;
+  }
+
+  .ws-phone-finding-arrow {
+    margin: 0;
+    color: var(--w-brand);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ws-excerpt {
+    padding: 6px 0;
+    overflow: hidden;
+    border-radius: var(--w-radius-small);
+    background: var(--ws-code-bg);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  .ws-excerpt-row {
+    display: flex;
+    min-width: 0;
+    padding: 0 12px 0 0;
+    color: var(--w-subtle);
+    white-space: pre;
+  }
+
+  .ws-excerpt-row[data-focus] {
+    background: color-mix(in srgb, var(--w-brand) 13%, transparent);
+    box-shadow: inset 2px 0 0 var(--w-brand);
+    color: var(--w-text);
+  }
+
+  .ws-excerpt[data-kind='yaml'] .ws-excerpt-row {
+    padding-left: 12px;
+    color: var(--ws-code-key);
+  }
+
+  .ws-excerpt-number {
+    flex: none;
+    width: 36px;
+    padding-right: 10px;
+    color: var(--ws-code-line-number);
+    text-align: right;
+  }
+
+  .ws-excerpt-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-editor-wait {
+    display: inline-flex;
+    align-items: center;
+    color: var(--w-muted);
+    font-size: 13px;
   }
 
   /* Phones: labels above their controls, one line of status. */
   @media (max-width: 760px) {
-    .ws-review-head {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 4px;
-    }
-
     .ws-title {
       font-size: 24px;
       line-height: 30px;
@@ -1154,19 +1815,20 @@
       max-width: 100%;
     }
 
-    .ws-status-meta,
+    .ws-more {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    .ws-more-values span {
+      display: none;
+    }
+
     .ws-editor-hint-keys {
       display: none;
     }
 
-    .ws-status {
-      align-items: flex-start;
-    }
-
-    /* A wrapped status line hangs under its text, not under the pulse. */
     .ws-status-text {
-      padding-left: 19px;
-      text-indent: -19px;
       white-space: normal;
     }
 
@@ -1174,10 +1836,25 @@
       display: none;
     }
 
-    .ws-callout-tag {
-      flex-wrap: wrap;
-      row-gap: 4px;
-      max-width: calc(100vw - 32px - var(--ws-gutter-digits, 2) * 1ch - 64px);
+    .ws-external {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ws-external-note {
+      justify-self: start;
+    }
+
+    .ws-picked {
+      right: 8px;
+      bottom: 8px;
+      left: 8px;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ws-picked-actions {
+      width: 100%;
+      justify-content: space-between;
     }
   }
 
@@ -1214,6 +1891,13 @@
   from {
     opacity: 0;
     transform: translateY(14px);
+  }
+}
+
+@keyframes ws-rise-small {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
   }
 }
 

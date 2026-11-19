@@ -80,8 +80,15 @@ const named = (
   return `${article} ${technology} ${noun}`;
 };
 
-/** Exported only so the sentence users rely on can be tested without mounting the diagram. */
-export const summarise = (state: WizardState): string => {
+/**
+ * Exported only so the sentence users rely on can be tested without mounting the diagram.
+ *
+ * `external: false` leaves out what Stacktape does not create, for a page that lists those on their own.
+ */
+export const summarise = (
+  state: WizardState,
+  { external: withExternal = true }: { external?: boolean } = {}
+): string => {
   const services = state.facts?.services ?? [];
   const dependencies = state.facts?.dependencies ?? [];
 
@@ -156,13 +163,15 @@ export const summarise = (state: WizardState): string => {
   const phrase = (entries: typeof dependencies) => entries.map((entry) => DEPENDENCY_PHRASES[entry.kind] ?? entry.kind);
   const list = created.length === 0 ? '' : `, using ${plainList(phrase(created))}`;
   const elsewhere =
-    external.length === 0 ? '' : ` It also needs ${plainList(phrase(external))}, which Stacktape does not create.`;
+    external.length === 0 || !withExternal
+      ? ''
+      : ` It also needs ${plainList(phrase(external))}, which Stacktape does not create.`;
 
   return `${opening}${list}.${elsewhere}`;
 };
 
 /** Dependency kinds `composeDependency` answers with `unsupported`. */
-const NOT_CREATED_KINDS = new Set(['email', 'kafka', 'nats', 'amqp']);
+export const NOT_CREATED_KINDS: ReadonlySet<string> = new Set(['email', 'kafka', 'nats', 'amqp']);
 
 const ENGINE_LABELS: Readonly<Record<string, string>> = {
   postgres: 'Postgres',
