@@ -158,7 +158,10 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
             <strong>
               {ready} of {names.length} {names.length === 1 ? 'resource' : 'resources'} ready
             </strong>
-            <span>{elapsed === undefined ? '' : duration(elapsed)}</span>
+            <span>
+              {elapsed === undefined ? '' : duration(elapsed)}
+              {repairing ? '' : ` · usually ${database === undefined ? '3–6' : '10–15'} min`}
+            </span>
           </div>
           <progress
             aria-label="Creating AWS resources"

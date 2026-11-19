@@ -16,11 +16,14 @@ import type { WizardAgentOption, WizardState } from '../session';
 export function StartStep({
   state,
   onStart,
-  isBusy
+  isBusy,
+  isLocked
 }: {
   state: WizardState;
   onStart: (agentId: string, modelId: string) => void;
   isBusy: boolean;
+  /** Disconnected from the CLI: the analysis cannot start until it is back. */
+  isLocked: boolean;
 }) {
   const agents = state.agents ?? [];
   const [showOptions, setShowOptions] = useState(false);
@@ -47,39 +50,54 @@ export function StartStep({
         <li className="w-fact">
           <BiSearchAlt aria-hidden size={18} />
           <p className="w-fact-text">
-            {usesAi ? `${agent.label} reads your code, read-only` : 'Stacktape reads your manifests, without AI'}
-            <InfoTip about="who reads the code">
-              {usesAi
-                ? `It runs on this machine${where}, under your own ${agent.label} plan. Stacktape never receives your code.`
-                : `Only manifests, Dockerfiles and config files${where} are read. Nothing leaves this machine.`}
-            </InfoTip>
+            {usesAi ? `${agent.label} reads your code, ` : 'Stacktape reads your manifests, '}
+            <span className="whitespace-nowrap">
+              {usesAi ? 'read-only' : 'without AI'}
+              <InfoTip about="who reads the code">
+                {usesAi
+                  ? `It runs on this machine${where}, under your own ${agent.label} plan. Stacktape never receives your code.`
+                  : `Only manifests, Dockerfiles and config files${where} are read. Nothing leaves this machine.`}
+              </InfoTip>
+            </span>
           </p>
         </li>
         <li className="w-fact">
           <BiFileBlank aria-hidden size={18} />
           <p className="w-fact-text">
-            You review the setup, then <span className="w-code">stacktape.yml</span> is saved
-            <InfoTip about="what gets saved">
-              {state.existingConfig === undefined
-                ? 'One new file in this folder. Nothing else in your project changes.'
-                : `A new file beside your ${state.existingConfig}, which stays as it is. Nothing else changes.`}
-            </InfoTip>
+            You review the setup, then <span className="w-code">stacktape.yml</span>{' '}
+            <span className="whitespace-nowrap">
+              is saved
+              <InfoTip about="what gets saved">
+                {state.existingConfig === undefined
+                  ? 'One new file in this folder. Nothing else in your project changes.'
+                  : `A new file beside your ${state.existingConfig}, which stays as it is. Nothing else changes.`}
+              </InfoTip>
+            </span>
           </p>
         </li>
         <li className="w-fact">
           <BiCloudUpload aria-hidden size={18} />
           <p className="w-fact-text">
-            Nothing is created on AWS until you click Deploy. No account needed.
-            <InfoTip about="AWS and accounts">
-              The deploy uses the AWS credentials on this machine and creates everything in your own AWS account. You do
-              not need a Stacktape account for it.
-            </InfoTip>
+            Nothing is created on AWS until you click Deploy. No account{' '}
+            <span className="whitespace-nowrap">
+              needed.
+              <InfoTip about="AWS and accounts">
+                The deploy uses the AWS credentials on this machine and creates everything in your own AWS account. You
+                do not need a Stacktape account for it.
+              </InfoTip>
+            </span>
           </p>
         </li>
       </ul>
 
       <div className="w-start-actions">
-        <Button className="w-big" isLoading={isBusy} onClick={() => onStart(agentId, chosenModel)} variant="primary">
+        <Button
+          className="w-big"
+          disabled={isLocked}
+          isLoading={isBusy}
+          onClick={() => onStart(agentId, chosenModel)}
+          variant="primary"
+        >
           Analyze my project
         </Button>
         <span className="w-subtle w-small">{usesAi ? 'Usually under a minute' : 'Takes a few seconds'}</span>

@@ -254,6 +254,7 @@ export function App() {
       {screen === 'start' && (
         <StartStep
           isBusy={busy === 'start'}
+          isLocked={isLocked}
           onStart={(agentId, modelId) => startAnalysis(agentId, modelId)}
           state={state}
         />

@@ -731,9 +731,9 @@ function AwsConnect({
             ariaLabel="How you sign in to AWS"
             onValueChange={(value) => setPath(value)}
             tabs={[
-              { value: 'sso' as const, label: 'AWS SSO' },
-              { value: 'keys' as const, label: 'Access keys' },
-              { value: 'none' as const, label: 'No AWS account yet' }
+              { value: 'sso' as const, label: 'AWS SSO', compactLabel: 'SSO' },
+              { value: 'keys' as const, label: 'Access keys', compactLabel: 'Keys' },
+              { value: 'none' as const, label: 'No AWS account yet', compactLabel: 'No account' }
             ]}
             value={path}
             width="fit"
@@ -777,7 +777,7 @@ function AwsConnect({
               >
                 Save on this machine
               </Button>
-              <span className="w-quiet inline-flex items-center gap-1.5">
+              <span className="w-quiet">
                 Never sent to Stacktape. Saved in <span className="w-code">~/.aws/credentials</span>
                 <InfoTip about="access keys">
                   Keys of an IAM user that may create resources; for a personal account, one with AdministratorAccess.

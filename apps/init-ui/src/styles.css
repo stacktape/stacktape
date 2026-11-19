@@ -753,12 +753,9 @@
 
   /* ── Start ─────────────────────────────────────────────────────────────────────────────────── */
 
-  /* The first screen sits a little above the middle of the window. */
+  /* The first screen sits a little above the middle of the window, and stays put when the agent options open. */
   .w-start {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-height: calc(100dvh - var(--w-header-h) - 56px - 96px - 6vh);
+    padding-top: clamp(0px, 16vh - 40px, 120px);
   }
 
   .w-facts {
@@ -1651,6 +1648,11 @@
     color: var(--w-muted);
   }
 
+  .w-quiet .w-info,
+  .w-check-meta .w-info {
+    margin-left: 6px;
+  }
+
   .w-path-tabs {
     max-width: 100%;
     overflow-x: auto;
@@ -2518,6 +2520,11 @@
       grid-template-columns: minmax(0, 1fr) auto;
     }
 
+    /* The connection status (or its placeholder) has no room here; the brand and the step take the row. */
+    .w-top-inner > :nth-child(3) {
+      display: none;
+    }
+
     /* The workspace stacks and scrolls like a page. */
     .w-main.is-workspace,
     .w-main.is-workspace:has(.w-bar) {
@@ -2579,7 +2586,19 @@
     }
 
     .w-start {
-      min-height: 0;
+      padding-top: 0;
+    }
+
+    .w-path-tabs .stp-ui-tab__label--full {
+      display: none;
+    }
+
+    .w-path-tabs .stp-ui-tab__label--compact {
+      display: inline;
+    }
+
+    .w-problem {
+      padding: 12px;
     }
 
     .w-main.is-form:has(.w-bar) {
