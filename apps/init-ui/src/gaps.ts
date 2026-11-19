@@ -103,7 +103,7 @@ export const plainNote = (gap: { subject: string; message: string }, configPath 
   return { key: subject, title, body: message.trim().slice(title.length).trim() };
 };
 
-/** "3 notes about compose.yml" when they share one file, else "3 notes worth a look". */
+/** "3 notes about compose.yml" when they share one file, else "3 notes from the analysis". */
 export const notesHeading = (notes: readonly PlainNote[]): string => {
   const count = `${notes.length} ${notes.length === 1 ? 'note' : 'notes'}`;
   const files = new Set(notes.map((note) => note.file));
@@ -111,5 +111,5 @@ export const notesHeading = (notes: readonly PlainNote[]): string => {
   const [file] = files;
   return files.size === 1 && file !== undefined && notes.every((note) => note.file !== undefined)
     ? `${count} about ${file}`
-    : `${count} worth a look`;
+    : `${count} from the analysis`;
 };

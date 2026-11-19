@@ -71,7 +71,7 @@ const duration = (seconds: number | undefined): string =>
   seconds === undefined ? '' : seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
 
 /** A running timer as a clock: "0:42", "3:12", "1:02:05". */
-export const clock = (seconds: number): string => {
+const clock = (seconds: number): string => {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const rest = String(seconds % 60).padStart(2, '0');

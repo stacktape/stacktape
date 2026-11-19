@@ -18,7 +18,7 @@ import { isAbsolute, join, relative, sep } from 'node:path';
 /** A `.env` larger than this is not read. */
 const MAX_BYTES = 200 * 1024;
 
-export const ENVIRONMENT_FILE = '.env';
+const ENVIRONMENT_FILE = '.env';
 
 export type EnvironmentValues = { file: string; values: Array<{ name: string; value: string }> } | { file: undefined };
 

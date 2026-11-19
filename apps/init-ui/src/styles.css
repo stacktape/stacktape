@@ -2160,6 +2160,10 @@
     font-weight: 600;
   }
 
+  .w-live-addresses + .w-live-meta {
+    margin-top: 10px;
+  }
+
   .w-live-details {
     margin-top: 14px;
   }
@@ -2982,13 +2986,38 @@
       line-height: 24px;
     }
 
+    /* Each address: its name and its buttons on one line, the address under them at full width. */
     .w-live-addresses li {
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 2px 12px;
+      gap: 6px 12px;
     }
 
     .w-live-addresses .w-live-label {
+      grid-row: 1;
+      grid-column: 1;
+    }
+
+    .w-live-addresses .w-live-row-actions {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .w-live-addresses .w-live-url {
+      grid-row: 2;
       grid-column: 1 / -1;
+      font-size: 14px;
+    }
+
+    /* A long action label wraps here instead of being cut. */
+    .w-fix-actions .stp-ui-button {
+      height: auto;
+      min-height: var(--stp-control-height, 36px);
+      padding-block: 8px;
+    }
+
+    .w-fix-actions .stp-ui-button__label {
+      white-space: normal;
+      text-align: left;
     }
 
     .w-live-meta {

@@ -369,7 +369,7 @@ export function DeployStep({
               section: 'aws'
             }
           : stage === ''
-            ? { text: 'a stage name', section: 'aws' }
+            ? { text: 'enter a stage name', section: 'aws' }
             : awsState === 'checking'
               ? { text: 'Checking the stack, read-only…' }
               : awsState === 'blocked'
@@ -386,7 +386,7 @@ export function DeployStep({
                         section: 'secrets'
                       }
                   : migrationNeeded
-                    ? { text: 'database migrations', section: 'migrations' }
+                    ? { text: 'choose who runs the migrations', section: 'migrations' }
                     : verificationBlocks
                       ? { text: 'the local try-out' }
                       : notDeployable
@@ -580,7 +580,7 @@ export function DeployStep({
                 </>
               }
             >
-              <p className="w-check-meta">{withCode(migrationNote.message.replace(/"([^"]+)"/g, '`$1`'))}</p>
+              <MigrationNote message={migrationNote.message} />
             </Section>
           )}
 
@@ -1711,5 +1711,24 @@ function Notes({ notes }: { notes: readonly PlainNote[] }) {
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * A migration the deploy cannot run for the user (SQLite, reachable only from inside the running app): why, then the
+ * command on its own line and where it goes. Any other wording is shown whole.
+ */
+function MigrationNote({ message }: { message: string }) {
+  const known = /^Make (\S+) run "([^"]+)" before it starts its server/.exec(message);
+  if (known === null) return <p className="w-check-meta">{withCode(message.replace(/"([^"]+)"/g, '`$1`'))}</p>;
+  const [, service, command] = known;
+  return (
+    <>
+      <p className="w-check-meta">
+        The database file is only reachable from inside the running app, so the deploy cannot run them for you. Make{' '}
+        <span className="w-code">{service}</span> run this before it starts its server:
+      </p>
+      <pre className="w-command-line">{command}</pre>
+    </>
   );
 }

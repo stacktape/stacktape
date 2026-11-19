@@ -10,7 +10,7 @@ import type { WizardAgentOption, WizardState } from '../session';
  * A project name with places to wrap after its separators: `acme-customer-portal` breaks after a dash, as a person
  * would hyphenate it, and the heading keeps one size for every name.
  */
-export const wrappableName = (name: string): string[] => name.split(/(?<=[-_./])/);
+const wrappableName = (name: string): string[] => name.split(/(?<=[-_./])/);
 
 /**
  * The first screen: what is about to happen, in three facts, and one button.

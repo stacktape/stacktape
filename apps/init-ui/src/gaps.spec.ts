@@ -93,7 +93,7 @@ describe('notes said as what they mean for the deploy', () => {
       { key: 'c', title: '', body: '', file: 'compose.yml' }
     ];
     expect(notesHeading(notes)).toBe('3 notes about compose.yml');
-    expect(notesHeading([...notes, { key: 'd', title: '', body: '' }])).toBe('4 notes worth a look');
-    expect(notesHeading([{ key: 'e', title: '', body: '' }])).toBe('1 note worth a look');
+    expect(notesHeading([...notes, { key: 'd', title: '', body: '' }])).toBe('4 notes from the analysis');
+    expect(notesHeading([{ key: 'e', title: '', body: '' }])).toBe('1 note from the analysis');
   });
 });

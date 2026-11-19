@@ -219,7 +219,7 @@ describe('planSecrets', () => {
 });
 
 describe('values from .env that should not reach AWS as they are', () => {
-  it.each([
+  it.each<[string, ReturnType<typeof localValueReason>]>([
     ['localhost', 'local'],
     ['http://localhost:5173', 'local'],
     ['http://localhost,http://localhost:5173,https://localhost', 'local'],
