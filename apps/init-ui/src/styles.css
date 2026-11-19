@@ -662,25 +662,29 @@
     text-align: right;
   }
 
-  .w-bar-note-main {
-    color: var(--w-text);
-    font-size: 13px;
-    line-height: 18px;
-  }
-
-  .w-bar-note-main .w-code {
-    font-size: 12px;
-  }
-
+  /* "Next: enter 4 values" on one line: the label and its link never part; a name too long for the bar is cut. */
   .w-bar-next {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    max-width: 100%;
+    min-width: 0;
     color: var(--w-muted);
     font-size: 13px;
     line-height: 18px;
+    white-space: nowrap;
+  }
+
+  .w-bar-next-label {
+    flex: none;
   }
 
   .w-bar-next .w-link {
+    min-width: 0;
+    overflow: hidden;
     color: var(--w-text-strong);
     font-weight: 600;
+    text-overflow: ellipsis;
   }
 
   /* While something is missing the next step carries the bar, not the button that cannot be pressed yet. */
@@ -1047,23 +1051,32 @@
     border-color: var(--w-line-strong);
   }
 
-  /* The AWS account in one line: account, identity, region, stage. */
-  .w-account {
+  /* Where a deploy goes, as labelled parts on one line: "AWS account 4815 1623 4200 · Signed in as dev · Region …".
+   * A part never breaks inside itself; the line wraps between parts. */
+  .w-target-facts {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 2px 8px;
-    margin: 4px 0 0;
+    margin: 0;
     color: var(--w-muted);
   }
 
-  .w-account strong {
+  .w-target-fact {
+    white-space: nowrap;
+  }
+
+  .w-target-fact strong {
     color: var(--w-text);
     font-weight: 600;
   }
 
-  .w-account-dot {
+  .w-target-facts-dot {
     color: var(--w-faint);
+  }
+
+  .w-account {
+    margin: 4px 0 0;
   }
 
   .w-target-edit {
@@ -1553,6 +1566,32 @@
     padding-top: 2px;
   }
 
+  /* The .env group once its values are in the fields: what can be saved as it is, then what needs a look. */
+  .w-subtask + .w-subtask {
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-subtask-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0 8px;
+    min-height: 44px;
+  }
+
+  .w-subtask-title {
+    color: var(--w-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-subtask-head + .w-secret {
+    padding-top: 2px;
+  }
+
   /* A value from .env that points at this machine or is a template's placeholder. */
   .w-secret-local {
     display: flex;
@@ -1564,6 +1603,16 @@
     font-size: 12px;
     font-weight: 500;
     line-height: 16px;
+  }
+
+  /* A long value (a list of URLs) gets the whole row under its name, so it can be read before it is saved. */
+  .w-secret.is-wide {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .w-secret.is-wide .w-secret-local {
+    grid-column: 1;
   }
 
   .w-secret.is-local .stp-ui-text-field {
@@ -1616,9 +1665,9 @@
       border-color 140ms ease;
   }
 
+  /* Hover only sharpens the outline: an unchosen row under the pointer must not look chosen. */
   .w-choices .stp-ui-radio:hover {
-    border-color: rgba(255, 255, 255, 0.24);
-    background: var(--w-hover);
+    border-color: rgba(255, 255, 255, 0.28);
   }
 
   .w-choices .stp-ui-radio:has(:checked) {
@@ -1636,6 +1685,13 @@
     font-size: 14px;
     font-weight: 600;
     line-height: 20px;
+  }
+
+  .w-choice-label {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
   }
 
   .w-choices .stp-ui-radio__description {
@@ -1669,20 +1725,43 @@
     margin-top: 2px;
   }
 
-  /* What the Deploy click commits to, said in the page where the bar has no room for it (phones). */
-  .w-deploy-summary {
-    display: none;
+  /* What the Deploy click commits to, right under the checklist it finishes: what it creates, where, the cost, the wait. */
+  .w-commit {
+    display: flex;
     flex-direction: column;
-    margin: 16px 0 0;
-    color: var(--w-muted);
+    gap: 4px;
+    margin-top: 16px;
+    padding: 16px 20px;
+    border: 1px solid var(--w-brand-line);
+    border-radius: var(--w-radius);
+    background: color-mix(in srgb, var(--w-brand) 6%, transparent);
+    animation: w-rise 220ms var(--w-ease);
+  }
+
+  .w-commit-main {
+    margin: 0 0 2px;
+    color: var(--w-text-strong);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 22px;
+  }
+
+  .w-commit .w-target-facts {
     font-size: 13px;
     line-height: 20px;
   }
 
-  .w-deploy-summary .w-bar-note-main {
-    color: var(--w-text);
-    font-size: 14px;
-    line-height: 20px;
+  /* No AWS account yet: a quiet disclosure under the two ways in, with the way there and the way back. */
+  .w-aws-new {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-aws-new .w-path-body {
+    margin-left: 2px;
   }
 
   .w-hero-price {
@@ -2901,10 +2980,6 @@
 
     .w-secret-local {
       grid-column: 1;
-    }
-
-    .w-deploy-summary {
-      display: flex;
     }
 
     .w-target-edit,

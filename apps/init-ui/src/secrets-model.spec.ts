@@ -4,8 +4,10 @@ import {
   canGenerateSecret,
   firstSentence,
   generateSecretValue,
+  importStep,
   localValueReason,
   planSecrets,
+  splitImports,
   taskGroups,
   taskNextText,
   type SecretEntry,
@@ -294,10 +296,56 @@ describe('the secrets by what the user does about them', () => {
     ['generate', [entry('AUTH_SECRET', 'secret', true)], 'generate AUTH_SECRET'],
     ['generate', [entry('A_SECRET', 'secret', true), entry('B_SECRET', 'secret', true)], 'generate 2 secrets'],
     ['provide', [entry('SMTP_PASSWORD', 'secret')], 'enter SMTP_PASSWORD'],
-    ['provide', [entry('NATS_URL', 'outside'), entry('RMQ_URL', 'outside')], '2 service URLs'],
-    ['provide', [entry('NATS_URL', 'outside'), entry('SMTP_PASSWORD', 'secret')], '2 values you provide'],
-    ['import', [entry('DOMAIN', 'setting'), entry('PORT', 'setting')], 'check 2 values from .env']
+    ['provide', [entry('NATS_URL', 'outside'), entry('RMQ_URL', 'outside')], 'enter 2 service URLs'],
+    ['provide', [entry('NATS_URL', 'outside'), entry('SMTP_PASSWORD', 'secret')], 'enter 2 values'],
+    ['import', [entry('DOMAIN', 'setting'), entry('PORT', 'setting')], 'use the 2 values from .env']
   ] as const)('next for %s: %p', (task, remaining, expected) => {
     expect(taskNextText({ task, entries: [...remaining] }, remaining, '.env')).toBe(expected);
+  });
+
+  describe('the .env group', () => {
+    const environment = {
+      file: '.env',
+      values: new Map([
+        ['DOMAIN', 'localhost'],
+        ['PROJECT_NAME', 'Shop'],
+        ['SMTP_PORT', '587'],
+        ['FIRST_SUPERUSER', 'admin@example.com']
+      ])
+    };
+    const rows = [
+      entry('DOMAIN', 'setting'),
+      entry('PROJECT_NAME', 'setting'),
+      entry('SMTP_PORT', 'setting'),
+      entry('FIRST_SUPERUSER', 'setting')
+    ];
+    const group = { task: 'import' as const, entries: rows };
+    const drafts = {
+      domain: 'localhost',
+      project_name: 'Shop',
+      smtp_port: '587',
+      first_superuser: 'admin@example.com'
+    };
+    const all = new Set(rows.map((row) => row.name));
+
+    it('splits what can be saved as it is from what points at this machine or is an example', () => {
+      const split = splitImports(rows, environment);
+      expect(split.ready.map((row) => row.variable)).toEqual(['PROJECT_NAME', 'SMTP_PORT']);
+      expect(split.review.map((row) => row.variable)).toEqual(['DOMAIN', 'FIRST_SUPERUSER']);
+    });
+
+    it('asks to use the values, then to save the ready ones, then to review the rest', () => {
+      const next = (imported: ReadonlySet<string>, remaining = rows) =>
+        taskNextText(group, remaining, '.env', importStep(remaining, environment, imported, drafts));
+      expect(next(new Set())).toBe('use the 4 values from .env');
+      expect(next(all)).toBe('save 2 values');
+      expect(next(all, [rows[0]!, rows[3]!])).toBe('review 2 values before saving');
+      expect(next(all, [rows[0]!])).toBe('review 1 value before saving');
+    });
+
+    it('does not count a ready row the user emptied or changed to a local value', () => {
+      const step = importStep(rows, environment, all, { ...drafts, project_name: '', smtp_port: 'localhost' });
+      expect(step.step).toBe('review');
+    });
   });
 });

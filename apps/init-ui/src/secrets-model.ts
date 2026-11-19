@@ -355,19 +355,64 @@ export const localValueReason = (value: string): 'local' | 'example' | undefined
   return undefined;
 };
 
-/** "Next: …" for the first group with something left: the concrete action, in the user's words. */
+/**
+ * The `.env` values split by whether they can go to AWS as they are: `ready` looks deployable, `review` points at this
+ * machine or is a template's placeholder. Decided by the value in `.env`, so a row does not move while it is edited.
+ */
+export const splitImports = (
+  entries: readonly SecretEntry[],
+  environment: EnvironmentValues | undefined
+): { ready: SecretEntry[]; review: SecretEntry[] } => {
+  const flagged = (entry: SecretEntry) => localValueReason(environment?.values.get(entry.variable) ?? '') !== undefined;
+  return { ready: entries.filter((entry) => !flagged(entry)), review: entries.filter(flagged) };
+};
+
+/**
+ * Where the `.env` group stands, which is what its "Next" asks for: `use` the values (they are not in the fields yet),
+ * `save` the ready ones in one click, or `review` the ones that would deploy a local or example value.
+ */
+export type ImportStep = { step: 'use' | 'save' | 'review'; entries: SecretEntry[] };
+
+export const importStep = (
+  remaining: readonly SecretEntry[],
+  environment: EnvironmentValues | undefined,
+  imported: ReadonlySet<string>,
+  drafts: Readonly<Record<string, string>>
+): ImportStep => {
+  const unused = remaining.filter((entry) => !imported.has(entry.name));
+  if (unused.length > 0) return { step: 'use', entries: unused };
+  const { ready, review } = splitImports(remaining, environment);
+  const saveable = ready.filter((entry) => {
+    const draft = drafts[entry.name] ?? '';
+    return draft !== '' && localValueReason(draft) === undefined;
+  });
+  if (saveable.length > 0) return { step: 'save', entries: saveable };
+  return { step: 'review', entries: review.length > 0 ? review : [...remaining] };
+};
+
+const values = (count: number) => (count === 1 ? 'value' : 'values');
+
+/**
+ * "Next: …" for the group the user is working in: a verb and a count, the same words as the control it points at.
+ * `step` is where the `.env` group stands; without it the group's first step is assumed.
+ */
 export const taskNextText = (
   group: SecretTaskGroup,
   remaining: readonly SecretEntry[],
-  file: string | undefined
+  file: string | undefined,
+  step?: ImportStep
 ): string => {
   if (group.task === 'generate') {
     return remaining.length === 1 ? `generate ${remaining[0]!.variable}` : `generate ${remaining.length} secrets`;
   }
-  if (group.task === 'import')
-    return `check ${remaining.length} ${remaining.length === 1 ? 'value' : 'values'} from ${file ?? '.env'}`;
-  if (remaining.every((entry) => entry.kind === 'outside')) {
-    return `${remaining.length} service ${remaining.length === 1 ? 'URL' : 'URLs'}`;
+  if (group.task === 'import') {
+    const current = step ?? { step: 'use', entries: [...remaining] };
+    const count = current.entries.length;
+    if (current.step === 'use') return `use the ${count} ${values(count)} from ${file ?? '.env'}`;
+    if (current.step === 'save') return `save ${count} ${values(count)}`;
+    return `review ${count} ${values(count)} before saving`;
   }
-  return remaining.length === 1 ? `enter ${remaining[0]!.variable}` : `${remaining.length} values you provide`;
+  if (remaining.length === 1) return `enter ${remaining[0]!.variable}`;
+  if (remaining.every((entry) => entry.kind === 'outside')) return `enter ${remaining.length} service URLs`;
+  return `enter ${remaining.length} values`;
 };

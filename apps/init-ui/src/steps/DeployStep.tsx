@@ -1,10 +1,11 @@
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
+import { Badge } from '@stacktape/ui-react/badge';
 import { Button } from '@stacktape/ui-react/button';
 import { RadioGroup } from '@stacktape/ui-react/radio-group';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { TextField } from '@stacktape/ui-react/text-field';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { BiCheck, BiChevronRight, BiErrorCircle, BiLinkExternal } from 'react-icons/bi';
 import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { CopyableCommand } from '../components/CopyableCommand';
@@ -12,13 +13,17 @@ import { FailureExplanationText } from '../components/FailureExplanation';
 import { InfoTip } from '../components/InfoTip';
 import { RegionPicker } from '../components/RegionPicker';
 import { StatusIcon, type CheckStatus } from '../components/StatusIcon';
-import { resourcesOf } from '../config-resources';
+import { groupedAccount, identityName, TargetFacts } from '../components/TargetFacts';
+import { resourcesOf, type ConfigResources } from '../config-resources';
 import { secretCommand, stackCommand } from '../deploy-commands';
 import { gapsToList, notesHeading, plainNote, type PlainNote } from '../gaps';
+import { createdList } from '../part-names';
 import {
   generateSecretValue,
+  importStep,
   localValueReason,
   planSecrets,
+  splitImports,
   taskGroups,
   taskNextText,
   type EnvironmentValues,
@@ -28,7 +33,7 @@ import {
 } from '../secrets-model';
 import type { WizardState } from '../session';
 import { blockedTargetCopy, stackStatusWords } from '../target-copy';
-import { plainList, splitMonthly } from './review-model';
+import { monthlySuffix, plainList, splitMonthly } from './review-model';
 
 type Expectation = { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
 
@@ -45,15 +50,24 @@ export const runnableMigration = (gap: {
   return service === undefined || command === undefined ? undefined : { service, command };
 };
 
-/** An AWS account ID as people read it off the AWS console: "4815 1623 4200". */
-const groupedAccount = (accountId: string) => accountId.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3');
+/** Services whose migration Stacktape runs as a release command, in the new image before it takes traffic. */
+const RELEASE_COMMAND_TYPES = new Set(['web-service', 'worker-service', 'private-service']);
 
-/** The name after the last slash of an IAM ARN: the user or role this machine deploys as. */
-const identityName = (arn: string) =>
-  arn
-    .split(':')
-    .at(-1)
-    ?.replace(/^(user|assumed-role)\//, '') ?? arn;
+const squash = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * When Stacktape runs the migration, in the words the choice and the finished row share. A container service runs it as
+ * its release command; anything else runs it right after the deploy. Once chosen, the file says which it got.
+ */
+const migrationTiming = (resources: ConfigResources, service: string | undefined, isOn: boolean): string => {
+  const resource = Object.entries(resources).find(
+    ([name]) => service !== undefined && squash(name) === squash(service)
+  )?.[1];
+  const release = isOn
+    ? resource?.properties.releaseCommand !== undefined
+    : RELEASE_COMMAND_TYPES.has(resource?.type ?? '');
+  return release ? 'before the new version takes traffic' : 'right after the new version goes live';
+};
 
 /** Text from the analysis with its backticked names set as code. */
 const withCode = (text: string): ReactNode =>
@@ -145,7 +159,6 @@ export function DeployStep({
   const identity = state.awsIdentity;
   const region = file?.region ?? state.region ?? 'eu-west-1';
   const resources = resourcesOf(state);
-  const resourceNames = Object.keys(resources);
   const hasDatabase = Object.values(resources).some((resource) => resource.type === 'relational-database');
   const target =
     state.deployTarget?.stage === stage && state.deployTarget.region === region ? state.deployTarget : undefined;
@@ -155,6 +168,10 @@ export function DeployStep({
   const [skipMigration, setSkipMigration] = useState(false);
   /** Secrets this page made up and saved, so their rows can say so. Never their values. */
   const [generated, setGenerated] = useState<ReadonlySet<string>>(new Set());
+  /** What is typed or filled from `.env` in each row, by secret name, until it is saved. Only in this page's memory. */
+  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
+  /** Rows filled from `.env` by "Use the values from .env". */
+  const [imported, setImported] = useState<ReadonlySet<string>>(new Set());
 
   // The read-only target check runs by itself once there is a file and an AWS identity, and again after the stage
   // changes (after a pause, so typing a stage name does not fire a check per letter).
@@ -206,12 +223,19 @@ export function DeployStep({
   }, [secretsAvailable, variablesKey, onLoadEnvironment]);
   const groups = taskGroups(plan, environment);
   const remainingIn = (group: SecretTaskGroup) => group.entries.filter((entry) => !secretsSet.has(entry.name));
-  const nextGroup = groups.find((group) => remainingIn(group).length > 0);
+  const firstGroup = groups.find((group) => remainingIn(group).length > 0);
   // The first group with something left is open; Show and Hide override that, and a group the user finished folds.
   const [taskChoice, setTaskChoice] = useState<Partial<Record<SecretTask, boolean>>>({});
   const openTasks = new Set(
-    groups.filter((group) => taskChoice[group.task] ?? (group === nextGroup && !secretsDone)).map((group) => group.task)
+    groups
+      .filter((group) => taskChoice[group.task] ?? (group === firstGroup && !secretsDone))
+      .map((group) => group.task)
   );
+  /** The group the user opened last: the bar's "Next" follows it while it has something left. */
+  const [activeTask, setActiveTask] = useState<SecretTask | undefined>();
+  const workingGroup =
+    groups.find((group) => group.task === activeTask && openTasks.has(group.task) && remainingIn(group).length > 0) ??
+    firstGroup;
   const doneKey = groups.map((group) => `${group.task}:${remainingIn(group).length === 0}`).join('|');
   const [seenDone, setSeenDone] = useState(doneKey);
   if (seenDone !== doneKey) {
@@ -225,6 +249,8 @@ export function DeployStep({
       });
     }
   }
+  const stepOf = (group: SecretTaskGroup) =>
+    group.task === 'import' ? importStep(remainingIn(group), environment, imported, drafts) : undefined;
 
   const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
   const migration = gaps.map(runnableMigration).find((entry) => entry !== undefined);
@@ -300,6 +326,8 @@ export function DeployStep({
   // A section opens by itself while it is the first that needs the user, and folds once the user has finished it. Edit
   // opens a done one, and it stays open (through a re-check, say) until Done.
   const [openChoice, setOpenChoice] = useState<Partial<Record<SectionId, boolean>>>({});
+  /** The section the user opened last: the bar's "Next" follows it while it still needs them. */
+  const [activeSection, setActiveSection] = useState<SectionId | undefined>();
   const sectionsKey = sections.map((section) => `${section.id}:${section.state}`).join('|');
   const [seenSections, setSeenSections] = useState(sectionsKey);
   if (seenSections !== sectionsKey) {
@@ -319,16 +347,29 @@ export function DeployStep({
     }
   }
   const isOpen = (id: SectionId) => openChoice[id] ?? id === firstOpen;
-  const toggle = (id: SectionId) => setOpenChoice((current) => ({ ...current, [id]: !isOpen(id) }));
+  const toggle = (id: SectionId) => {
+    const opening = !isOpen(id);
+    setOpenChoice((current) => ({ ...current, [id]: opening }));
+    setActiveSection((current) => (opening ? id : current === id ? undefined : current));
+  };
+  const toggleTask = (task: SecretTask) => {
+    const opening = !openTasks.has(task);
+    setTaskChoice((current) => ({ ...current, [task]: opening }));
+    setActiveTask((current) => (opening ? task : current === task ? undefined : current));
+    if (opening) setActiveSection('secrets');
+  };
   const goTo = (id: SectionId, task?: SecretTask) => {
     setOpenChoice((current) => ({ ...current, [id]: true }));
     if (task !== undefined) setTaskChoice((current) => ({ ...current, [task]: true }));
     requestAnimationFrame(() => {
       const element = document.getElementById(task === undefined ? `deploy-${id}` : `task-${task}`);
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      element?.querySelector<HTMLElement>('input:not([type="radio"]), [role="tab"], input[type="radio"]')?.focus({
-        preventScroll: true
-      });
+      // The control the bar named, when the section marks one; else its first field or choice.
+      element
+        ?.querySelector<HTMLElement>(
+          '[data-next-action], input:not([type="radio"]):not(:disabled), [role="tab"], input[type="radio"]'
+        )
+        ?.focus({ preventScroll: true });
     });
   };
 
@@ -357,71 +398,70 @@ export function DeployStep({
   };
   const regionLocked = isLocked || state.configEdit !== undefined;
 
-  /** What the bar says while the button is off: the next thing, as a link to it, or what is still being checked. */
-  const next: { text: string; section?: SectionId; task?: SecretTask } | undefined =
+  /**
+   * What the bar says while the button is off: the next thing as a verb and a count, linking to the control that does
+   * it, or what is still being checked. It names what the open section asks for: the one the user opened last while it
+   * needs them, else the first that does.
+   */
+  type Next = { text: string; section?: SectionId; task?: SecretTask };
+  const awsNext: Next | undefined =
+    identity === undefined || identity.available
+      ? stage === ''
+        ? { text: 'enter a stage name', section: 'aws' }
+        : awsState === 'checking'
+          ? { text: 'Checking the stack, read-only…' }
+          : awsState === 'blocked'
+            ? { text: 'a stack Stacktape can deploy to', section: 'aws' }
+            : undefined
+      : { text: identity.reason === 'rejected' ? 'sign in to AWS again' : 'connect AWS', section: 'aws' };
+  const secretsNext: Next | undefined =
+    secretsDone || secretsState === 'waiting'
+      ? undefined
+      : workingGroup !== undefined && secretsAvailable
+        ? {
+            text: taskNextText(workingGroup, remainingIn(workingGroup), environment?.file, stepOf(workingGroup)),
+            section: 'secrets',
+            task: workingGroup.task
+          }
+        : { text: `create ${unsaved.length} ${secretsNoun(unsaved.length)} in AWS`, section: 'secrets' };
+  const migrationsNext: Next | undefined = migrationNeeded
+    ? { text: 'choose who runs migrations', section: 'migrations' }
+    : undefined;
+  const bySection: Record<SectionId, Next | undefined> = {
+    aws: awsNext,
+    secrets: secretsNext,
+    migrations: migrationsNext
+  };
+  const next: Next | undefined =
     file === undefined
       ? { text: `Saving ${commandTarget.configPath}…` }
       : identity === undefined
         ? { text: 'Checking the AWS credentials on this machine…' }
-        : !identity.available
-          ? {
-              text: identity.reason === 'rejected' ? 'sign in to AWS again' : 'connect AWS',
-              section: 'aws'
-            }
-          : stage === ''
-            ? { text: 'enter a stage name', section: 'aws' }
-            : awsState === 'checking'
-              ? { text: 'Checking the stack, read-only…' }
-              : awsState === 'blocked'
-                ? { text: 'a stack Stacktape can deploy to', section: 'aws' }
-                : !secretsDone
-                  ? nextGroup !== undefined && secretsAvailable
-                    ? {
-                        text: taskNextText(nextGroup, remainingIn(nextGroup), environment?.file),
-                        section: 'secrets',
-                        task: nextGroup.task
-                      }
-                    : {
-                        text: `${state.secrets?.set.length ? `${unsaved.length} more` : unsaved.length} ${secretsNoun(unsaved.length)}`,
-                        section: 'secrets'
-                      }
-                  : migrationNeeded
-                    ? { text: 'choose who runs the migrations', section: 'migrations' }
-                    : verificationBlocks
-                      ? { text: 'the local try-out' }
-                      : notDeployable
-                        ? { text: 'a gap in the configuration' }
-                        : undefined;
+        : ((activeSection === undefined ? undefined : bySection[activeSection]) ??
+          awsNext ??
+          secretsNext ??
+          migrationsNext ??
+          (verificationBlocks
+            ? { text: 'the local try-out' }
+            : notDeployable
+              ? { text: 'a gap in the configuration' }
+              : undefined));
 
   const price = state.composition?.price;
   const monthly = price === undefined ? undefined : splitMonthly(price.monthly);
-  /** What the Deploy click commits to: what it creates in which account, that AWS bills it, how long it takes. */
-  const commitment = (
-    <>
-      <span className="w-bar-note-main">
-        {target?.status === 'updateable' ? (
-          <>
-            Updates <span className="w-code">{target.stackName}</span> in your AWS account
-          </>
-        ) : resourceNames.length <= 3 ? (
-          `Creates ${plainList(resourceNames)} in your AWS account`
-        ) : (
-          `Creates ${resourceNames.length} resources in your AWS account`
-        )}
-      </span>
-      <span>
-        {target?.status === 'updateable' ? '' : 'AWS bills them from now on · '}about {estimate}
-      </span>
-    </>
-  );
+  const noCredentials = identity?.available === false && identity.reason === 'no-credentials';
 
   return (
     <div className="w-enter">
       <header className="w-hero">
-        <h1 className="w-title">Deploy to {stage || 'dev'}</h1>
+        <h1 className="w-title">{noCredentials ? 'Connect AWS to deploy' : `Deploy to ${stage || 'dev'}`}</h1>
         <p className="w-lede">
           {file === undefined ? (
             'Saving the file to your project…'
+          ) : noCredentials ? (
+            <>
+              <span className="w-code">{file.filename}</span> is saved · stage {stage || 'dev'}
+            </>
           ) : (
             <>
               <span className="w-code">{file.filename}</span> is saved in your project
@@ -432,7 +472,7 @@ export function DeployStep({
         {!ready && monthly?.amount !== undefined && (
           // On a phone the bar holds only the next step while something is missing; the estimate waits here.
           <p className="w-hero-price">
-            About <strong>{monthly.amount}/month</strong>
+            Estimated <strong>{monthly.amount}/month</strong>
             {monthly.usage ? ' + usage' : ''} on AWS
           </p>
         )}
@@ -462,12 +502,10 @@ export function DeployStep({
               ) : undefined
             }
             title={
-              identity?.available === false
-                ? identity.reason === 'no-credentials'
-                  ? `Connect AWS to deploy to ${stage || 'dev'}`
-                  : /expired|ExpiredToken/i.test(identity.detail)
-                    ? 'Your AWS session expired'
-                    : 'AWS did not accept these credentials'
+              identity?.available === false && identity.reason === 'rejected'
+                ? /expired|ExpiredToken/i.test(identity.detail)
+                  ? 'Your AWS session expired'
+                  : 'AWS did not accept these credentials'
                 : 'AWS account'
             }
           >
@@ -475,7 +513,7 @@ export function DeployStep({
               <AwsConnect busy={busy} identity={identity} onAwsKeys={onAwsKeys} onRecheck={onRecheck} state={state} />
             ) : identity?.available === true ? (
               <>
-                <AccountLine identity={identity} region={region} stage={stage} />
+                <AccountLine identity={identity} />
                 <div className="w-target-edit">
                   <Tooltip
                     content="Your edited file declares the region. Change it there."
@@ -531,15 +569,19 @@ export function DeployStep({
             >
               <SecretsBody
                 awsAccount={state.awsAccount}
+                drafts={drafts}
                 environment={environment}
                 failure={state.secrets?.failure}
                 generated={generated}
                 groups={groups}
+                imported={imported}
                 isAvailable={secretsAvailable}
                 onConfirm={onConfirmSecrets}
+                onDrafts={setDrafts}
                 onGenerated={(name) => setGenerated((current) => new Set([...current, name]))}
+                onImported={setImported}
                 onSecret={onSecret}
-                onToggleTask={(task) => setTaskChoice((current) => ({ ...current, [task]: !openTasks.has(task) }))}
+                onToggleTask={toggleTask}
                 openTasks={openTasks}
                 plan={plan}
                 region={region}
@@ -560,6 +602,7 @@ export function DeployStep({
               onDecision={onDecision}
               onSkip={setSkipMigration}
               onToggle={() => toggle('migrations')}
+              resources={resources}
               skipped={skipMigration}
               state={migrationState}
             />
@@ -596,12 +639,32 @@ export function DeployStep({
         </ul>
       </section>
 
-      {notes.length > 0 && <Notes notes={notes} />}
-
-      {ready && (
-        // On a phone the bar is one row; what the click creates and bills is said here, right above it.
-        <p className="w-deploy-summary">{commitment}</p>
+      {ready && identity?.available === true && (
+        // What the click commits to, right under the list it finishes: what it creates where, the cost, the wait.
+        <section aria-label="What Deploy does" className="w-commit">
+          <p className="w-commit-main">
+            {target?.status === 'updateable' ? 'Updates' : 'Creates'} {createdList(resources, state)}
+          </p>
+          <TargetFacts
+            facts={[
+              { label: 'AWS account', value: groupedAccount(identity.accountId) },
+              { label: 'Region', value: region },
+              { label: 'Stage', value: stage }
+            ]}
+          />
+          <TargetFacts
+            facts={[
+              monthly?.amount !== undefined && {
+                label: 'Estimated',
+                value: `${monthly.amount}/month${monthly.usage ? ' + usage' : ''}`
+              },
+              { label: 'Takes about', value: estimate }
+            ]}
+          />
+        </section>
       )}
+
+      {notes.length > 0 && <Notes notes={notes} />}
 
       <div className="w-terminal">
         <button
@@ -619,20 +682,19 @@ export function DeployStep({
         align="column"
         className={ready ? 'is-ready' : 'is-blocked'}
         note={
-          ready ? (
-            commitment
-          ) : next === undefined ? undefined : next.section === undefined ? (
+          // Ready: what the click does is in the block right above; the bar keeps the price and the button.
+          ready ? undefined : next === undefined ? undefined : next.section === undefined ? (
             <span className="w-bar-next">{next.text}</span>
           ) : (
             <span className="w-bar-next">
-              Next:{' '}
+              <span className="w-bar-next-label">Next:</span>{' '}
               <button className="w-link" onClick={() => goTo(next.section!, next.task)} type="button">
                 {next.text}
               </button>
             </span>
           )
         }
-        price={<MonthlyPrice state={state} />}
+        price={<MonthlyPrice state={state} suffix={monthlySuffix} />}
       >
         <Button
           className="w-big"
@@ -695,40 +757,37 @@ function Section({
   );
 }
 
+/**
+ * The AWS account this machine deploys to and who it signs in as; folded, also the region and stage. Each part has its
+ * label, so the IAM user `dev` and the stage `dev` read as two things.
+ */
 function AccountLine({
   identity,
   region,
   stage
 }: {
   identity: Extract<NonNullable<WizardState['awsIdentity']>, { available: true }>;
-  region: string;
-  stage: string;
+  /** Absent while the region and stage are fields right under the line. */
+  region?: string;
+  stage?: string;
 }) {
   return (
-    <p className="w-account">
-      <span>
-        Account <strong>{groupedAccount(identity.accountId)}</strong>
-      </span>
-      <span>
-        as <strong>{identityName(identity.arn)}</strong>
-      </span>
-      <span aria-hidden className="w-account-dot">
-        ·
-      </span>
-      <strong>{region}</strong>
-      <span aria-hidden className="w-account-dot">
-        ·
-      </span>
-      <span>
-        stage <strong>{stage || '—'}</strong>
-      </span>
+    <TargetFacts
+      className="w-account"
+      facts={[
+        { label: 'AWS account', value: groupedAccount(identity.accountId) },
+        { label: 'Signed in as', value: identityName(identity.arn) },
+        region !== undefined && { label: 'Region', value: region },
+        stage !== undefined && { label: 'Stage', value: stage || '—' }
+      ]}
+    >
       <InfoTip about="the AWS account">
         The credentials on this machine
         {identity.profile === undefined ? '' : ` (profile ${identity.profile})`} decide the account. To deploy to
         another one, start <span className="w-code">stacktape init</span> with{' '}
         <span className="w-code">AWS_PROFILE=name</span>.
       </InfoTip>
-    </p>
+    </TargetFacts>
   );
 }
 
@@ -808,14 +867,18 @@ const TASK_WORDS: Record<SecretTask, { title: string; help: string }> = {
     help: 'Keys and addresses that come from other services. Stacktape cannot make these up.'
   },
   import: {
-    title: 'Imported from .env',
+    title: 'Values in .env',
     help: 'Your .env sets these on your machine. Check each value: it goes from this page to AWS Secrets Manager in your account, nowhere else.'
   }
 };
 
+/** A value this long gets the row's whole width, so a list of URLs can be read before it is saved. */
+const WIDE_VALUE = 28;
+
 /**
  * The secrets, grouped by what the user does about them: generate, type in, or check what `.env` has. Each group says
- * how many are left; the first with something left is open, a finished one folds to one line.
+ * how many are left; the first with something left is open, a finished one folds to one line. Once the `.env` values are
+ * in their fields, that group splits into what can be saved as it is and what needs a look first.
  */
 function SecretsBody({
   plan,
@@ -823,6 +886,8 @@ function SecretsBody({
   environment,
   saved,
   generated,
+  drafts,
+  imported,
   failure,
   region,
   awsAccount,
@@ -832,6 +897,8 @@ function SecretsBody({
   onToggleTask,
   onSecret,
   onGenerated,
+  onDrafts,
+  onImported,
   onConfirm
 }: {
   plan: ReturnType<typeof planSecrets>;
@@ -839,6 +906,10 @@ function SecretsBody({
   environment: EnvironmentValues | undefined;
   saved: ReadonlySet<string>;
   generated: ReadonlySet<string>;
+  /** What is in each row's field, by secret name, until it is saved. */
+  drafts: Readonly<Record<string, string>>;
+  /** Rows filled from `.env` by "Use the values from .env". */
+  imported: ReadonlySet<string>;
   failure: { name: string; detail: string } | undefined;
   region: string;
   awsAccount: string | undefined;
@@ -848,18 +919,16 @@ function SecretsBody({
   onToggleTask: (task: SecretTask) => void;
   onSecret: (name: string, value: string) => Promise<boolean>;
   onGenerated: (name: string) => void;
+  onDrafts: Dispatch<SetStateAction<Readonly<Record<string, string>>>>;
+  onImported: Dispatch<SetStateAction<ReadonlySet<string>>>;
   onConfirm: () => void;
 }) {
-  /** What is typed or imported in each row, by secret name, until it is saved. Only in this page's memory. */
-  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
-  /** Rows filled from `.env` by "Use the values from .env". */
-  const [imported, setImported] = useState<ReadonlySet<string>>(new Set());
   const [savingAll, setSavingAll] = useState(false);
-  const setDraft = (name: string, value: string) => setDrafts((current) => ({ ...current, [name]: value }));
+  const setDraft = (name: string, value: string) => onDrafts((current) => ({ ...current, [name]: value }));
   const save = async (name: string, value: string) => {
     const ok = await onSecret(name, value);
     if (ok) {
-      setDrafts((current) => {
+      onDrafts((current) => {
         const next = { ...current };
         delete next[name];
         return next;
@@ -870,6 +939,8 @@ function SecretsBody({
   const readers = new Set(
     plan.entries.map((entry) => plan.groups.find((group) => group.entries.includes(entry))?.resourceName)
   );
+  const file = environment?.file ?? '.env';
+  const environmentValue = (entry: SecretEntry) => environment?.values.get(entry.variable);
 
   if (!isAvailable) {
     return (
@@ -881,6 +952,43 @@ function SecretsBody({
       </>
     );
   }
+
+  const row = (group: SecretTaskGroup, entry: SecretEntry) => {
+    const fromEnvironment = environmentValue(entry);
+    const reader =
+      readers.size > 1 ? plan.groups.find((candidate) => candidate.entries.includes(entry))?.resourceName : undefined;
+    return (
+      <SecretRow
+        draft={drafts[entry.name] ?? ''}
+        entry={entry}
+        environmentNote={group.task === 'provide' && fromEnvironment === '' ? `Empty in ${file}` : undefined}
+        failure={failure?.name === entry.name ? failure.detail : undefined}
+        isGenerated={generated.has(entry.name)}
+        isImported={imported.has(entry.name)}
+        isSet={saved.has(entry.name)}
+        isWide={group.task === 'import' && (fromEnvironment ?? '').length > WIDE_VALUE}
+        key={entry.name}
+        onDraft={(value) => setDraft(entry.name, value)}
+        onGenerated={() => onGenerated(entry.name)}
+        onSave={(value) => save(entry.name, value)}
+        readCommand={`stacktape secret get ${entry.name} --region ${region} --show-secrets`}
+        reader={reader}
+        source={group.task === 'import' ? '' : undefined}
+      />
+    );
+  };
+
+  /** Saves the ready `.env` values one after another, like Generate all: the first failure stops the rest. */
+  const saveAll = (entries: readonly SecretEntry[]) =>
+    void (async () => {
+      setSavingAll(true);
+      for (const entry of entries) {
+        // oxlint-disable-next-line no-await-in-loop
+        if (!(await save(entry.name, drafts[entry.name]!))) break;
+      }
+      setSavingAll(false);
+    })();
+
   return (
     <>
       <p className="w-check-meta">
@@ -922,53 +1030,33 @@ function SecretsBody({
         {groups.map((group) => {
           const remaining = group.entries.filter((entry) => !saved.has(entry.name));
           const isOpen = openTasks.has(group.task);
-          const environmentValue = (entry: SecretEntry) => environment?.values.get(entry.variable);
-          const importable = remaining.filter((entry) => (environmentValue(entry) ?? '') !== '');
-          const ready = remaining.filter((entry) => {
-            const draft = drafts[entry.name];
-            return (
-              imported.has(entry.name) && draft !== undefined && draft !== '' && localValueReason(draft) === undefined
-            );
-          });
+          const title = group.task === 'import' ? `Values in ${file}` : TASK_WORDS[group.task].title;
+          const unused = remaining.filter((entry) => !imported.has(entry.name));
+          // The .env group splits once its values are in the fields: nothing is left to fill from the file.
+          const isSplit = group.task === 'import' && unused.length === 0;
+          const step = group.task === 'import' ? importStep(remaining, environment, imported, drafts) : undefined;
           const action =
             group.task === 'generate' ? (
               <GenerateAll entries={remaining} onSaved={onGenerated} onSecret={onSecret} />
-            ) : group.task === 'import' && importable.some((entry) => !imported.has(entry.name)) ? (
+            ) : group.task === 'import' && unused.length > 0 ? (
               <Button
+                data-next-action
                 onClick={() => {
-                  setDrafts((current) => ({
+                  onDrafts((current) => ({
                     ...current,
-                    ...Object.fromEntries(importable.map((entry) => [entry.name, environmentValue(entry)!]))
+                    ...Object.fromEntries(unused.map((entry) => [entry.name, environmentValue(entry) ?? '']))
                   }));
-                  setImported((current) => new Set([...current, ...importable.map((entry) => entry.name)]));
+                  onImported((current) => new Set([...current, ...unused.map((entry) => entry.name)]));
                 }}
                 variant="secondary"
               >
-                Use the {importable.length} {importable.length === 1 ? 'value' : 'values'} from{' '}
-                {environment?.file ?? '.env'}
-              </Button>
-            ) : group.task === 'import' && ready.length > 0 ? (
-              <Button
-                isLoading={savingAll}
-                onClick={() =>
-                  void (async () => {
-                    setSavingAll(true);
-                    for (const entry of ready) {
-                      // One after another, like Generate all: the first failure stops the rest.
-                      // oxlint-disable-next-line no-await-in-loop
-                      if (!(await save(entry.name, drafts[entry.name]!))) break;
-                    }
-                    setSavingAll(false);
-                  })()
-                }
-                variant="primary"
-              >
-                Save {ready.length} checked {ready.length === 1 ? 'value' : 'values'}
+                Use the {unused.length} {unused.length === 1 ? 'value' : 'values'} from {file}
               </Button>
             ) : undefined;
+          const split = splitImports(group.entries, environment);
           return (
             <section
-              aria-label={TASK_WORDS[group.task].title}
+              aria-label={title}
               className={`w-task${isOpen ? ' is-open' : ''}`}
               id={`task-${group.task}`}
               key={group.task}
@@ -981,54 +1069,57 @@ function SecretsBody({
                   type="button"
                 >
                   <BiChevronRight aria-hidden className="w-task-chevron" size={16} />
-                  <span className="w-task-title">
-                    {group.task === 'import' && imported.size === 0
-                      ? `Values in ${environment?.file ?? '.env'}`
-                      : TASK_WORDS[group.task].title}
-                  </span>
-                  {remaining.length === 0 ? (
-                    <span className="w-task-count is-done">
-                      <BiCheck aria-hidden size={14} />{' '}
-                      {group.entries.length === 1 ? 'Saved' : `All ${group.entries.length} saved`}
-                    </span>
-                  ) : (
-                    <span className="w-task-count">{remaining.length} left</span>
-                  )}
+                  <span className="w-task-title">{title}</span>
+                  <TaskCount left={remaining.length} total={group.entries.length} />
                 </button>
-                <InfoTip about={TASK_WORDS[group.task].title.toLowerCase()}>{TASK_WORDS[group.task].help}</InfoTip>
+                <InfoTip about={title.toLowerCase()}>{TASK_WORDS[group.task].help}</InfoTip>
                 {isOpen && action !== undefined && <span className="w-task-action">{action}</span>}
               </div>
-              {isOpen && (
+              {isOpen && !isSplit && (
+                <div className="w-task-rows">{group.entries.map((entry) => row(group, entry))}</div>
+              )}
+              {isOpen && isSplit && (
                 <div className="w-task-rows">
-                  {group.entries.map((entry) => {
-                    const fromEnvironment = environmentValue(entry);
-                    const reader =
-                      readers.size > 1
-                        ? plan.groups.find((candidate) => candidate.entries.includes(entry))?.resourceName
-                        : undefined;
-                    return (
-                      <SecretRow
-                        draft={drafts[entry.name] ?? ''}
-                        entry={entry}
-                        environmentNote={
-                          group.task === 'provide' && fromEnvironment === ''
-                            ? `Empty in ${environment?.file ?? '.env'}`
-                            : undefined
-                        }
-                        failure={failure?.name === entry.name ? failure.detail : undefined}
-                        isGenerated={generated.has(entry.name)}
-                        isImported={imported.has(entry.name)}
-                        isSet={saved.has(entry.name)}
-                        key={entry.name}
-                        onDraft={(value) => setDraft(entry.name, value)}
-                        onGenerated={() => onGenerated(entry.name)}
-                        onSave={(value) => save(entry.name, value)}
-                        readCommand={`stacktape secret get ${entry.name} --region ${region} --show-secrets`}
-                        reader={reader}
-                        source={group.task === 'import' ? '' : undefined}
-                      />
-                    );
-                  })}
+                  {split.ready.length > 0 && (
+                    <div className="w-subtask">
+                      <div className="w-subtask-head">
+                        <span className="w-subtask-title">Ready to save</span>
+                        <TaskCount
+                          left={split.ready.filter((entry) => !saved.has(entry.name)).length}
+                          total={split.ready.length}
+                        />
+                        {step?.step === 'save' && (
+                          <span className="w-task-action">
+                            <Button
+                              data-next-action
+                              isLoading={savingAll}
+                              onClick={() => saveAll(step.entries)}
+                              variant="primary"
+                            >
+                              Save {step.entries.length} {step.entries.length === 1 ? 'value' : 'values'}
+                            </Button>
+                          </span>
+                        )}
+                      </div>
+                      {split.ready.map((entry) => row(group, entry))}
+                    </div>
+                  )}
+                  {split.review.length > 0 && (
+                    <div className="w-subtask">
+                      <div className="w-subtask-head">
+                        <span className="w-subtask-title">Review before saving</span>
+                        <TaskCount
+                          left={split.review.filter((entry) => !saved.has(entry.name)).length}
+                          total={split.review.length}
+                        />
+                        <InfoTip about="values to review">
+                          They point at this machine or are a template’s example, so the deployed app would not work
+                          with them. Change each one, then save it.
+                        </InfoTip>
+                      </div>
+                      {split.review.map((entry) => row(group, entry))}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -1043,6 +1134,17 @@ function SecretsBody({
         </p>
       )}
     </>
+  );
+}
+
+/** "4 left", or "All 7 saved" once nothing is. */
+function TaskCount({ left, total }: { left: number; total: number }) {
+  return left === 0 ? (
+    <span className="w-task-count is-done">
+      <BiCheck aria-hidden size={14} /> {total === 1 ? 'Saved' : `All ${total} saved`}
+    </span>
+  ) : (
+    <span className="w-task-count">{left} left</span>
   );
 }
 
@@ -1074,6 +1176,7 @@ function GenerateAll({
   return (
     <Tooltip content="A strong random value for each secret your app owns, saved straight to AWS. Third-party keys stay yours to paste.">
       <Button
+        data-next-action
         isLoading={running}
         onClick={() =>
           void (async () => {
@@ -1107,6 +1210,7 @@ function SecretRow({
   isSet,
   isGenerated,
   isImported,
+  isWide,
   failure,
   readCommand,
   reader,
@@ -1122,6 +1226,8 @@ function SecretRow({
   isSet: boolean;
   isGenerated: boolean;
   isImported: boolean;
+  /** A long value: the field takes the row's whole width, under the name. */
+  isWide: boolean;
   failure: string | undefined;
   readCommand: string;
   /** The resource that reads it, when several do. */
@@ -1156,7 +1262,10 @@ function SecretRow({
         : (entry.note ?? (entry.source === undefined ? undefined : `${entry.source.file}:${entry.source.line}`)))
   ].filter((part): part is string => part !== undefined && part !== '');
   return (
-    <div className={`w-secret${local === undefined ? '' : ' is-local'}`} id={`secret-${entry.name}`}>
+    <div
+      className={`w-secret${local === undefined ? '' : ' is-local'}${isWide && !(isSet && !editing) ? ' is-wide' : ''}`}
+      id={`secret-${entry.name}`}
+    >
       <div className="w-secret-label">
         <span className="w-secret-name">{entry.variable}</span>
         {meta.length > 0 && <span className="w-secret-source">{meta.join(' · ')}</span>}
@@ -1240,6 +1349,7 @@ type MigrationChoice = 'deploy-hook' | 'self' | 'unset';
 function MigrationSection({
   migration,
   migrationDecision,
+  resources,
   skipped,
   isHandEdited,
   isLocked,
@@ -1252,6 +1362,7 @@ function MigrationSection({
 }: {
   migration: { service: string; command: string } | undefined;
   migrationDecision: NonNullable<WizardState['facts']>['decisions'][number] | undefined;
+  resources: ConfigResources;
   skipped: boolean;
   isHandEdited: boolean;
   isLocked: boolean;
@@ -1268,6 +1379,13 @@ function MigrationSection({
   const decisionId = migration === undefined ? migrationDecision?.id : `migration-timing:${migration.service}`;
   const canChoose = decisionId !== undefined && decisionId.startsWith('migration-timing:');
   const choice: MigrationChoice = isOn ? 'deploy-hook' : skipped ? 'self' : 'unset';
+  const service =
+    migration?.service ??
+    (typeof migrationDecision?.parameters.serviceName === 'string'
+      ? migrationDecision.parameters.serviceName
+      : undefined);
+  /** When it runs, in the same words on the choice and on the finished row. */
+  const when = `on every deploy, ${migrationTiming(resources, service, isOn)}`;
   const title = (
     <>
       Database migrations
@@ -1290,7 +1408,7 @@ function MigrationSection({
             {migrationDecision?.chosen === 'service-startup'
               ? 'when the app starts'
               : migrationDecision?.chosen === 'deploy-hook'
-                ? 'after each deploy'
+                ? 'on every deploy'
                 : 'when you run it yourself'}
             .
           </p>
@@ -1310,7 +1428,7 @@ function MigrationSection({
         <p className="w-check-meta">
           {choice === 'deploy-hook' ? (
             <>
-              Stacktape runs <span className="w-code">{command}</span> after every deploy.
+              Stacktape runs <span className="w-code">{command}</span> {when}.
             </>
           ) : choice === 'self' ? (
             <>
@@ -1343,8 +1461,15 @@ function MigrationSection({
             options={[
               {
                 value: 'deploy-hook',
-                label: 'Stacktape runs it after every deploy',
-                description: 'Before the new version takes traffic.'
+                label: (
+                  <span className="w-choice-label">
+                    Stacktape runs it
+                    <Badge size="small" tone="brand">
+                      Recommended
+                    </Badge>
+                  </span>
+                ),
+                description: `${when.charAt(0).toUpperCase()}${when.slice(1)}.`
               },
               {
                 value: 'self',
@@ -1360,11 +1485,14 @@ function MigrationSection({
   );
 }
 
-type AwsPath = 'sso' | 'keys' | 'none';
+type AwsPath = 'sso' | 'keys';
+
+const KEYS_LABEL = 'Use an existing AWS access key';
 
 /**
- * No working AWS credentials. Without any, one question with three plain answers, each with its own way forward. An
- * expired session has one way back, so it leads: the command, then the check; other logins wait behind a link.
+ * No working AWS credentials. Without any: the two ways in for someone who has an account, and below them, quieter, how
+ * to get one and where to come back to. An expired session has one way back, so it leads: the command, then the check;
+ * other logins wait behind a link.
  */
 function AwsConnect({
   state,
@@ -1382,6 +1510,7 @@ function AwsConnect({
   const expired = identity.reason === 'rejected' && /expired|ExpiredToken/i.test(identity.detail);
   const [path, setPath] = useState<AwsPath | undefined>();
   const [otherLogin, setOtherLogin] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [keyId, setKeyId] = useState('');
   const [secret, setSecret] = useState('');
   const explained = identity.reason === 'rejected' && !expired ? explainFailure(identity.detail) : [];
@@ -1400,6 +1529,12 @@ function AwsConnect({
     </InfoTip>
   );
   const showPaths = !expired || otherLogin;
+  const useKeys = () => {
+    setPath('keys');
+    requestAnimationFrame(() =>
+      document.getElementById('aws-path')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    );
+  };
 
   return (
     <>
@@ -1438,7 +1573,7 @@ function AwsConnect({
       )}
 
       {showPaths && (
-        <div className="w-choices w-aws-paths">
+        <div className="w-choices w-aws-paths" id="aws-path">
           <RadioGroup<AwsPath>
             label={expired ? <span className="sr-only">How you sign in to AWS</span> : 'How do you sign in to AWS?'}
             name="aws-path"
@@ -1446,18 +1581,13 @@ function AwsConnect({
             options={[
               {
                 value: 'sso',
-                label: 'Company login (SSO)',
-                description: 'Your company signs you in to AWS through a portal.'
+                label: 'Sign in through my company',
+                description: 'Your company signs you in to AWS through a portal (SSO).'
               },
               {
                 value: 'keys',
-                label: 'Access keys I already have',
+                label: KEYS_LABEL,
                 description: 'An access key ID and secret from IAM.'
-              },
-              {
-                value: 'none',
-                label: 'I don’t have an AWS account yet',
-                description: 'Create one first. It takes a few minutes.'
               }
             ]}
             value={(path ?? '') as AwsPath}
@@ -1540,50 +1670,66 @@ function AwsConnect({
         </ol>
       )}
 
-      {showPaths && path === 'none' && (
-        <ol className="w-steps-list w-path-body">
-          <Step
-            text={
-              <span>
-                <a
-                  className="w-link inline-flex items-center gap-1"
-                  href="https://portal.aws.amazon.com/billing/signup"
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Create an AWS account <BiLinkExternal aria-hidden size={12} />
-                </a>
-                . It asks for a card; nothing is charged until you deploy.
-              </span>
-            }
-          />
-          <Step
-            text={
-              <span>
-                Create access keys for your user.{' '}
-                <a
-                  className="w-link inline-flex items-center gap-1"
-                  href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  How <BiLinkExternal aria-hidden size={12} />
-                </a>
-              </span>
-            }
-          />
-          <Step
-            text={
-              <span>
-                Paste them under{' '}
-                <button className="w-link" onClick={() => setPath('keys')} type="button">
-                  Access keys I already have
-                </button>
-                .
-              </span>
-            }
-          />
-        </ol>
+      {identity.reason === 'no-credentials' && (
+        // Someone without an account leaves this page for a while: the way there, and the way back to here.
+        <div className="w-aws-new">
+          <button
+            aria-expanded={creating}
+            className="w-disclosure"
+            onClick={() => setCreating(!creating)}
+            type="button"
+          >
+            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
+            No AWS account yet?
+          </button>
+          {creating && (
+            <ol className="w-steps-list w-path-body">
+              <Step
+                text={
+                  <span>
+                    <a
+                      className="w-link inline-flex items-center gap-1"
+                      href="https://portal.aws.amazon.com/billing/signup"
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Create an AWS account <BiLinkExternal aria-hidden size={12} />
+                    </a>
+                    . It asks for a card; nothing is charged until you deploy.
+                  </span>
+                }
+              />
+              <Step
+                text={
+                  <span>
+                    Create an access key for your user.{' '}
+                    <a
+                      className="w-link inline-flex items-center gap-1"
+                      href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      How <BiLinkExternal aria-hidden size={12} />
+                    </a>
+                  </span>
+                }
+              />
+              <Step
+                text={
+                  <span>
+                    Come back to this page and paste it under{' '}
+                    <button className="w-link" onClick={useKeys} type="button">
+                      {KEYS_LABEL}
+                    </button>
+                    . Set it up in a terminal instead? Then click Check again.
+                  </span>
+                }
+              >
+                <div>{checkAgain('secondary')}</div>
+              </Step>
+            </ol>
+          )}
+        </div>
       )}
     </>
   );
