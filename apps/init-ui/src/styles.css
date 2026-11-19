@@ -238,13 +238,17 @@
     padding: 56px var(--w-gutter) 96px;
   }
 
-  /* The two-pane screens fill the window under the header, and leave room for the bottom bar when there is one. The
-   * room opens as the bar slides up at the end of the reveal, so the panes never jump. */
+  /* The two-pane screens fill the window under the header, and leave room for the bottom bar when there is one. */
   .w-main.is-workspace {
     display: flex;
     flex-direction: column;
     height: calc(100dvh - var(--w-header-h));
     padding: var(--w-gap) var(--w-gutter);
+  }
+
+  /* At the end of the reveal the room opens as the bar slides up, so the panes never jump. Only then: a resized
+   * window is followed at once. */
+  .w-main.is-workspace:has(> .ws[data-settling]) {
     transition: height 320ms 180ms var(--w-ease);
   }
 

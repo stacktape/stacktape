@@ -430,6 +430,8 @@ export function Workspace({
         data-reduced-motion={reducedMotion ? 'true' : undefined}
         data-reveal-steps={plan.current?.steps.length}
         data-reveal-written={phase === 'reveal' ? written : undefined}
+        // The half second in which the code window gives way and the bar slides up: the page makes room for it slowly.
+        data-settling={leaving ? 'true' : undefined}
       >
         <div className="ws-left">
           {(phase !== 'review' || leaving) && (
