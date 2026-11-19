@@ -59,7 +59,7 @@ export function CodeWindow({
     const right = tab.offsetLeft + tab.offsetWidth;
     if (right > strip.scrollLeft + strip.clientWidth || tab.offsetLeft < strip.scrollLeft) {
       strip.scrollTo({
-        left: Math.max(0, right - strip.clientWidth + 24),
+        left: Math.max(0, right - strip.clientWidth + 40),
         behavior: reducedMotion ? 'auto' : 'smooth'
       });
     }
@@ -116,6 +116,12 @@ export function CodeWindow({
   return (
     <div className="ws-window" data-focus={focus === undefined ? undefined : 'true'}>
       <div className="ws-window-tabs" ref={tabsRef}>
+        {tabs.length === 0 && (
+          // Before the first file opens: where its tab will be.
+          <span aria-hidden className="ws-window-tab ws-window-tab-ghost">
+            <span />
+          </span>
+        )}
         {tabs.map((path) => (
           <span className="ws-window-tab" data-active={path === active ? 'true' : undefined} key={path} title={path}>
             <FileIcon path={path} />

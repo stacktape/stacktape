@@ -50,10 +50,10 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   // The settings are one compact panel; each other option shows its price difference, and the total follows.
   const settings = page.getByRole('region', { name: 'Settings' });
   await expect(settings.getByRole('tab', { name: /Stay online/ })).toContainText(/\+\$\d+/);
-  const before = await page.locator('.ws-bar-amount').textContent();
+  const before = await page.locator('.w-bar-amount').textContent();
   await settings.getByRole('tab', { name: /Private network/ }).click();
   await expect(page.locator('[data-iso-kind="node"][data-iso-id="databaseBastion"]')).toBeVisible();
-  await expect(page.locator('.ws-bar-amount')).not.toHaveText(before ?? '');
+  await expect(page.locator('.w-bar-amount')).not.toHaveText(before ?? '');
   // Secrets and migrations wait for the Deploy step, where they can be resolved.
   await expect(page.getByText('secrets your app reads')).toHaveCount(0);
 

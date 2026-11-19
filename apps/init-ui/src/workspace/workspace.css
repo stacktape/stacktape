@@ -118,6 +118,19 @@
     display: none;
   }
 
+  /* More tabs than fit fade out at the edge instead of being cut. */
+  .ws-window-tabs {
+    mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
+  }
+
+  .ws-window-tab-ghost span {
+    width: 88px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--w-line-strong);
+    animation: ws-ghost 1.6s ease-in-out infinite alternate;
+  }
+
   .ws-window-tab {
     position: relative;
     display: inline-flex;
@@ -126,7 +139,7 @@
     gap: 7px;
     height: 32px;
     padding: 0 14px 0 12px;
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--w-radius-small) var(--w-radius-small) 0 0;
     color: var(--w-subtle);
     font-size: 12px;
     font-weight: 500;
@@ -347,7 +360,7 @@
     gap: 8px;
     padding: 7px 12px;
     border: 1px solid color-mix(in srgb, var(--w-brand) 45%, transparent);
-    border-radius: 8px;
+    border-radius: var(--w-radius-small);
     background: var(--ws-code-popup);
     box-shadow: var(--w-shadow-float);
     color: var(--w-text);
@@ -465,7 +478,7 @@
     gap: 8px;
     padding: 2px 4px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--w-radius-chip);
     background: none;
     color: var(--w-text);
     font: inherit;
@@ -512,7 +525,7 @@
     gap: 7px;
     height: 28px;
     padding: 0 11px 0 9px;
-    border-radius: 7px;
+    border-radius: var(--w-radius-chip);
     background: var(--stp-control-surface);
     box-shadow: var(--w-shadow-rest);
     color: var(--w-text);
@@ -598,13 +611,13 @@
   }
 
   .ws-badge {
-    padding: 2px 7px;
-    border-radius: 5px;
-    background: color-mix(in srgb, var(--w-warn) 14%, transparent);
+    padding: 2px 8px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-warn-soft);
     color: var(--w-warn);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
-    line-height: 14px;
+    line-height: 16px;
   }
 
   .ws-editor-head-end {
@@ -640,11 +653,11 @@
   .ws-editor-hint {
     flex: none;
     margin: 0;
-    padding: 9px 16px;
+    padding: 10px 16px;
     border-bottom: 1px solid var(--w-line);
     color: var(--w-subtle);
     font-size: 12px;
-    line-height: 18px;
+    line-height: 16px;
   }
 
   .ws-editor-hint kbd {
@@ -768,7 +781,7 @@
     height: 100%;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--w-brand) 35%, transparent);
-    border-radius: 8px;
+    border-radius: var(--w-radius-small);
     background: var(--ws-code-popup);
     box-shadow: var(--w-shadow-float);
     font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
@@ -802,7 +815,7 @@
     width: 24px;
     height: 24px;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--w-radius-chip);
     background: none;
     color: var(--w-subtle);
     font-size: 16px;
@@ -881,16 +894,19 @@
     gap: 24px;
   }
 
+  /* A long project name wraps once, then ends in an ellipsis; the frame's .w-title type. */
   .ws-title {
+    display: -webkit-box;
     margin: 0;
     overflow: hidden;
-    color: var(--w-text);
+    color: var(--w-text-strong);
     font-size: 28px;
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     line-height: 34px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .ws-summary {
@@ -920,14 +936,20 @@
     line-height: 16px;
   }
 
+  /* The diagram takes what the title and settings leave; below 240 px the column scrolls instead. */
   .ws-diagram {
     position: relative;
-    flex: 1 0 320px;
+    flex: 1 0 240px;
     overflow: hidden;
   }
 
   .ws-diagram .stp-diagram {
     height: 100%;
+  }
+
+  /* The hint stops short of the zoom buttons in the corner, and wraps there on a narrow screen. */
+  .ws-diagram .stp-diagram__hint {
+    right: 60px;
   }
 
   .ws-settings {
@@ -1011,7 +1033,7 @@
     margin: 0;
     color: var(--w-muted);
     font-size: 12px;
-    line-height: 17px;
+    line-height: 16px;
   }
 
   .ws-node-card-evidence {
@@ -1021,9 +1043,9 @@
     gap: 12px;
     margin: 2px 0 0;
     padding: 6px 8px;
-    border-radius: 6px;
+    border-radius: var(--w-radius-chip);
     background: var(--ws-code-bg);
-    font-size: 11.5px;
+    font-size: 12px;
   }
 
   .ws-node-card-evidence code {
@@ -1115,7 +1137,6 @@
     .ws-title {
       font-size: 24px;
       line-height: 30px;
-      white-space: normal;
     }
 
     .ws-setting {
@@ -1138,8 +1159,15 @@
       align-items: flex-start;
     }
 
+    /* A wrapped status line hangs under its text, not under the pulse. */
     .ws-status-text {
+      padding-left: 19px;
+      text-indent: -19px;
       white-space: normal;
+    }
+
+    .ws-skip kbd {
+      display: none;
     }
 
     .ws-callout-tag {
@@ -1209,6 +1237,15 @@
 @keyframes ws-bar-up {
   from {
     transform: translateY(100%);
+  }
+}
+
+@keyframes ws-ghost {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
   }
 }
 

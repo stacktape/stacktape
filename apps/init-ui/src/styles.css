@@ -1141,6 +1141,10 @@
     overflow: hidden;
   }
 
+  .w-run-diagram .stp-diagram__hint {
+    right: 60px;
+  }
+
   .w-run-diagram .stp-diagram {
     border: none;
     border-radius: var(--w-radius);
@@ -1348,15 +1352,14 @@
   .w-live-url {
     display: block;
     margin: 0;
-    overflow: hidden;
     color: var(--w-text-strong);
     font-size: 28px;
     font-weight: 600;
     line-height: 34px;
     letter-spacing: -0.02em;
     text-decoration: none;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* The whole address, wrapped where it has to be: it is what the page is about. */
+    overflow-wrap: anywhere;
   }
 
   .w-live-url:hover {
