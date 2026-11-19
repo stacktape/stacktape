@@ -39,12 +39,22 @@ export function EmptyStep({
     <div className="w-enter">
       <header className="w-hero">
         <h1 className="w-title">No app in this folder</h1>
-        <p className="w-lede">Nothing here runs as a server, worker or website, so there is nothing to deploy yet.</p>
+        <p className="w-lede">
+          Nothing in{' '}
+          {state.repositoryPath === undefined ? 'this folder' : <span className="w-code">{state.repositoryPath}</span>}{' '}
+          runs as a server, worker or website.
+        </p>
       </header>
 
       {(nearby.length > 0 || (!usedAgent && agent !== undefined)) && (
         <section className="w-section">
-          <h2 className="w-section-title">{nearby.length > 0 ? 'These folders look like apps' : 'Look again'}</h2>
+          <h2 className="w-section-title">{nearby.length > 0 ? 'Run init from an app folder' : 'Look again'}</h2>
+          {nearby.length > 0 && (
+            <p className="w-section-lede">
+              {nearby.length === 1 ? 'This folder looks' : 'These folders look'} like an app. Run{' '}
+              {nearby.length === 1 ? 'this' : 'one of these'} in the terminal you started init from.
+            </p>
+          )}
           <ul className="w-card w-next">
             {nearby.map((folder) => (
               <Row icon={<BiFolder size={17} />} key={folder} title={<span className="w-mono">{folder}/</span>}>
@@ -68,7 +78,10 @@ export function EmptyStep({
       )}
 
       <section className="w-section">
-        <h2 className="w-section-title">No app yet? Start from a working one</h2>
+        <h2 className="w-section-title">Or start from a working app</h2>
+        <p className="w-section-lede">
+          Pick a starter, then run its command in a new, empty folder. It deploys as it is.
+        </p>
         <div className="w-card flex flex-col gap-3 p-5">
           <Tabs
             appearance="segmented"
@@ -78,7 +91,7 @@ export function EmptyStep({
             value={starterId}
             width="fit"
           />
-          <p className="w-quiet">{starter.text} It deploys as it is. Run this in an empty folder:</p>
+          <p className="w-quiet">{starter.text}</p>
           <CopyableCommand command={`stacktape init --starterId ${starter.id}`} />
         </div>
       </section>

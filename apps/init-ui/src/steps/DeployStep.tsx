@@ -60,6 +60,10 @@ const withCode = (text: string): ReactNode =>
     )
   );
 
+/** At most `length` characters, cut at a word: notes stay within two lines, the whole text is behind the help mark. */
+const shortened = (text: string, length: number): string =>
+  text.length <= length ? text : `${text.slice(0, text.lastIndexOf(' ', length)).replace(/[,;:]$/, '')}…`;
+
 type SectionId = 'aws' | 'secrets' | 'migrations';
 
 /**
@@ -361,11 +365,11 @@ export function DeployStep({
           </p>
           <ul>
             {notes.map((note) => {
-              const short = firstSentence(note.text);
+              const short = shortened(firstSentence(note.text), 150);
               return (
                 <li key={note.key}>
-                  <span className="w-note-text">{withCode(short)}</span>
-                  {(short.length < note.text.trim().length || short.length > 120) && (
+                  {withCode(short)}
+                  {short.length < note.text.trim().length && (
                     <InfoTip about="this note" placement="top">
                       {withCode(note.text)}
                     </InfoTip>
@@ -1197,7 +1201,7 @@ function AwsConnect({
         {identity.reason === 'no-credentials' ? (
           'This machine has no AWS credentials yet. How do you sign in to AWS?'
         ) : expired ? (
-          `The AWS session on this machine${identity.profile === undefined ? '' : ` (profile ${identity.profile})`} is no longer valid. Sign in again:`
+          `The AWS session on this machine${identity.profile === undefined ? '' : ` (profile ${identity.profile})`} is no longer valid.`
         ) : explained.length > 0 ? (
           <FailureExplanationText explanations={explained} />
         ) : (

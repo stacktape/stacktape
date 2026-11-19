@@ -6,12 +6,15 @@ import { BiCloudUpload, BiFileBlank, BiSearchAlt } from 'react-icons/bi';
 import { InfoTip } from '../components/InfoTip';
 import type { WizardAgentOption, WizardState } from '../session';
 
+/** A project name longer than this sets the heading a size smaller, so the name does not take over the screen. */
+const LONG_NAME = 28;
+
 /**
  * The first screen: what is about to happen, in three facts, and one button.
  *
  * The facts answer what a first-time user worries about, in this order: who reads my code, what changes in my project,
- * when AWS starts costing money. Each is one line; the detail is behind its help mark. Which agent and model read the
- * project is a good default shown in one line, with the choice behind "Change".
+ * when AWS starts costing money. Each is one line; the detail is behind its help mark. Who reads the code is a good
+ * default, changed in that same row ("Change analyzer"), so the choice sits above the button it configures.
  */
 export function StartStep({
   state,
@@ -36,91 +39,48 @@ export function StartStep({
   const chosenModel = models.some((model) => model.id === modelId) ? modelId : 'default';
   const usesAi = agent !== undefined && agent.id !== 'none';
   const modelLabel =
-    chosenModel === 'default'
-      ? 'your default model'
-      : (models.find((model) => model.id === chosenModel)?.label ?? chosenModel);
+    chosenModel === 'default' ? undefined : (models.find((model) => model.id === chosenModel)?.label ?? chosenModel);
   const where = state.repositoryPath === undefined ? '' : ` in ${state.repositoryPath}`;
+  const canChange = agents.length > 1;
 
   return (
     <div className="w-start w-enter">
-      <h1 className="w-title">Deploy {state.projectName} to AWS</h1>
+      <h1 className={`w-title w-start-title${state.projectName.length > LONG_NAME ? ' is-long' : ''}`}>
+        Deploy <span className="w-start-name">{state.projectName}</span> to AWS
+      </h1>
       <p className="w-lede">Stacktape reads your code and shows what it needs on AWS, and what that costs.</p>
 
       <ul className="w-card w-facts">
-        <li className="w-fact">
+        <li className={`w-fact${showOptions ? ' is-open' : ''}`}>
           <BiSearchAlt aria-hidden size={18} />
-          <p className="w-fact-text">
-            {usesAi ? `${agent.label} reads your code, ` : 'Stacktape reads your manifests, '}
-            <span className="whitespace-nowrap">
-              {usesAi ? 'read-only' : 'without AI'}
-              <InfoTip about="who reads the code">
-                {usesAi
-                  ? `It runs on this machine${where}, under your own ${agent.label} plan. Stacktape never receives your code.`
-                  : `Only manifests, Dockerfiles and config files${where} are read. Nothing leaves this machine.`}
-              </InfoTip>
-            </span>
-          </p>
-        </li>
-        <li className="w-fact">
-          <BiFileBlank aria-hidden size={18} />
-          <p className="w-fact-text">
-            You review the setup, then <span className="w-code">stacktape.yml</span>{' '}
-            <span className="whitespace-nowrap">
-              is saved
-              <InfoTip about="what gets saved">
-                {state.existingConfig === undefined
-                  ? 'One new file in this folder. Nothing else in your project changes.'
-                  : `A new file beside your ${state.existingConfig}, which stays as it is. Nothing else changes.`}
-              </InfoTip>
-            </span>
-          </p>
-        </li>
-        <li className="w-fact">
-          <BiCloudUpload aria-hidden size={18} />
-          <p className="w-fact-text">
-            Nothing is created on AWS until you click Deploy. No account{' '}
-            <span className="whitespace-nowrap">
-              needed.
-              <InfoTip about="AWS and accounts">
-                The deploy uses the AWS credentials on this machine and creates everything in your own AWS account. You
-                do not need a Stacktape account for it.
-              </InfoTip>
-            </span>
-          </p>
-        </li>
-      </ul>
-
-      <div className="w-start-actions">
-        <Button
-          className="w-big"
-          disabled={isLocked}
-          isLoading={isBusy}
-          onClick={() => onStart(agentId, chosenModel)}
-          variant="primary"
-        >
-          Analyze my project
-        </Button>
-        <span className="w-subtle w-small">{usesAi ? 'Usually under a minute' : 'Takes a few seconds'}</span>
-      </div>
-
-      {agents.length > 1 && (
-        <>
-          <p className="w-reader">
-            <span>
-              {usesAi ? `${agent.label} · ${modelLabel}` : 'No AI: manifests and config files only'}
-              {agent?.version === undefined ? '' : ` · ${versionLabel(agent.version)}`}
-            </span>
-            <button
-              aria-expanded={showOptions}
-              className="w-link"
-              onClick={() => setShowOptions(!showOptions)}
-              type="button"
-            >
-              {showOptions ? 'Done' : 'Change'}
-            </button>
-          </p>
+          <div className="w-fact-main">
+            <p className="w-fact-text">
+              {usesAi
+                ? `${agent.label}${modelLabel === undefined ? '' : ` (${modelLabel})`} reads your code, `
+                : 'Stacktape reads your manifests, '}
+              <span className="whitespace-nowrap">
+                {usesAi ? 'read-only' : 'without AI'}
+                <InfoTip about="who reads the code">
+                  {usesAi
+                    ? `It runs on this machine${where}, under your own ${agent.label} plan. Stacktape never receives your code.`
+                    : `Only manifests, Dockerfiles and config files${where} are read. Nothing leaves this machine.`}
+                </InfoTip>
+              </span>
+            </p>
+            {canChange && (
+              <button
+                aria-controls="analyzer-options"
+                aria-expanded={showOptions}
+                className="w-link w-small w-fact-action"
+                onClick={() => setShowOptions(!showOptions)}
+                type="button"
+              >
+                {showOptions ? 'Done' : 'Change analyzer'}
+              </button>
+            )}
+          </div>
           {showOptions && (
-            <div className="w-card w-reader-options w-enter">
+            <div className="w-reader-options w-enter" id="analyzer-options">
               <div>
                 <p className="w-field-label">
                   What reads the project
@@ -161,10 +121,55 @@ export function StartStep({
                   />
                 </div>
               )}
+              <p className="w-quiet">
+                {usesAi
+                  ? `${agent.label}${agent.version === undefined ? '' : ` ${versionLabel(agent.version)}`}, on your own plan. ${chosenModel === 'default' ? 'Uses the model you set in it.' : ''}`
+                  : 'Reads manifests, Dockerfiles and config files. It finds most apps, but not settings only the code shows.'}
+              </p>
             </div>
           )}
-        </>
-      )}
+        </li>
+        <li className="w-fact">
+          <BiFileBlank aria-hidden size={18} />
+          <p className="w-fact-text">
+            You review the setup, then <span className="w-code">stacktape.yml</span>{' '}
+            <span className="whitespace-nowrap">
+              is saved
+              <InfoTip about="what gets saved">
+                {state.existingConfig === undefined
+                  ? 'One new file in this folder. Nothing else in your project changes.'
+                  : `A new file beside your ${state.existingConfig}, which stays as it is. Nothing else changes.`}
+              </InfoTip>
+            </span>
+          </p>
+        </li>
+        <li className="w-fact">
+          <BiCloudUpload aria-hidden size={18} />
+          <p className="w-fact-text">
+            Nothing is created on AWS until you click Deploy. No Stacktape account{' '}
+            <span className="whitespace-nowrap">
+              needed.
+              <InfoTip about="AWS and accounts">
+                The deploy uses the AWS credentials on this machine and creates everything in your own AWS account. You
+                choose the account before deploying.
+              </InfoTip>
+            </span>
+          </p>
+        </li>
+      </ul>
+
+      <div className="w-start-actions">
+        <Button
+          className="w-big"
+          disabled={isLocked}
+          isLoading={isBusy}
+          onClick={() => onStart(agentId, chosenModel)}
+          variant="primary"
+        >
+          Analyze my project
+        </Button>
+        <span className="w-subtle w-small">{usesAi ? 'Usually under a minute' : 'Takes a few seconds'}</span>
+      </div>
 
       <p className="w-footnote">
         Sends anonymous usage statistics, never code or names. <span className="w-code">STP_DISABLE_TELEMETRY=1</span>{' '}

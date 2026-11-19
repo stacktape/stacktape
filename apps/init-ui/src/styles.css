@@ -759,27 +759,38 @@
     gap: 12px 16px;
   }
 
-  .w-reader {
+  .w-fact-main {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 8px;
-    margin: 16px 0 0;
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 16px;
+    justify-content: space-between;
+    gap: 4px 16px;
+    min-width: 0;
   }
 
-  .w-reader .w-link {
-    color: var(--w-muted);
+  .w-fact-action {
+    flex: none;
   }
 
+  /* The analyzer choice opens inside its row, above the button it configures. */
   .w-reader-options {
     display: grid;
+    grid-column: 2;
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
-    margin-top: 16px;
-    padding: 16px 20px;
+    margin-top: 6px;
+    padding: 16px 0 4px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  /* A long project name stays a name in the heading, not the whole screen. */
+  .w-start-title {
+    text-wrap: balance;
+  }
+
+  .w-start-title.is-long {
+    font-size: 24px;
+    line-height: 30px;
   }
 
   .w-field-label {
@@ -1401,25 +1412,14 @@
   }
 
   .w-notes li {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
     color: var(--w-text);
     font-size: 13px;
     line-height: 20px;
-  }
-
-  /* Two lines at most; the whole note is behind its help mark. */
-  .w-note-text {
-    display: -webkit-box;
-    min-width: 0;
-    overflow: hidden;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
   }
 
   .w-notes li .w-info {
-    margin-top: 3px;
+    margin-left: 6px;
   }
 
   .w-hero-price {
@@ -1508,12 +1508,28 @@
 
   .w-run-head {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
   }
 
   .w-run-head .w-lede {
+    margin: 4px 0 0;
+  }
+
+  /* How many parts of the app are ready, beside the picture of them. */
+  .w-run-parts {
+    flex: none;
     margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 22px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .w-run-parts strong {
+    color: var(--w-text);
+    font-weight: 600;
   }
 
   .w-run-diagram {
@@ -1540,39 +1556,64 @@
     overflow: hidden;
   }
 
-  .w-run-scroll {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
+  /* What is happening now leads: the operation, then the time against the usual, then whether the tab matters. */
+  .w-run-now {
+    padding: 20px 20px 18px;
+    border-bottom: 1px solid var(--w-line);
   }
 
-  .w-run-total {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 18px 20px 14px;
-  }
-
-  .w-run-total strong {
+  .w-run-op {
+    margin: 0;
     color: var(--w-text-strong);
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 600;
+    line-height: 24px;
+  }
+
+  .w-run-op-detail {
+    margin: 4px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
     line-height: 20px;
   }
 
-  .w-run-total span {
+  .w-run-time {
+    margin: 10px 0 0;
+    color: var(--w-subtle);
+    font-size: 13px;
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .w-run-time strong {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .w-run-tab {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 6px 0 0;
     color: var(--w-subtle);
     font-size: 12px;
     line-height: 16px;
-    font-variant-numeric: tabular-nums;
+  }
+
+  .w-run-tab svg {
+    flex: none;
+    margin-top: 1px;
+  }
+
+  .w-run-progress {
+    padding: 16px 20px 4px;
   }
 
   .w-run-meter {
     display: block;
-    width: calc(100% - 40px);
+    width: 100%;
     height: 3px;
-    margin: 0 20px 6px;
+    margin: 0;
     overflow: hidden;
     border: none;
     border-radius: 999px;
@@ -1595,9 +1636,20 @@
     background: var(--w-brand);
   }
 
+  .w-run-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 0;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+
   .w-phases {
     margin: 0;
-    padding: 8px 0;
+    padding: 8px 0 12px;
     list-style: none;
   }
 
@@ -1605,8 +1657,8 @@
     display: grid;
     grid-template-columns: 20px minmax(0, 1fr) auto;
     gap: 12px;
-    align-items: start;
-    padding: 9px 20px;
+    align-items: center;
+    padding: 7px 20px;
   }
 
   .w-phase-icon {
@@ -1646,13 +1698,6 @@
     color: var(--w-muted);
   }
 
-  .w-phase-note {
-    margin: 2px 0 0;
-    color: var(--w-muted);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
   .w-phase-time {
     color: var(--w-subtle);
     font-size: 12px;
@@ -1665,42 +1710,47 @@
     color: var(--w-muted);
   }
 
-  .w-slow {
-    display: flex;
-    gap: 10px;
-    margin: 4px 20px 16px;
-    padding: 12px 14px;
-    border-radius: var(--w-radius-small);
-    background: var(--w-brand-soft);
-    color: var(--w-text);
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .w-slow svg {
-    flex: none;
-    margin-top: 2px;
-    color: var(--w-brand);
-  }
-
+  /* The log: its last lines, quiet and live, at the foot of the panel; opened, it takes the room that is left. */
   .w-run-log {
-    padding: 12px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: auto;
+    padding: 14px 20px 16px;
     border-top: 1px solid var(--w-line);
   }
 
-  .w-run-foot {
+  .w-run-side.is-log-open .w-run-log {
+    flex: 1;
+    min-height: 0;
+    margin-top: 0;
+  }
+
+  .w-run-log-head {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    border-top: 1px solid var(--w-line);
+    justify-content: space-between;
+    gap: 12px;
     color: var(--w-subtle);
     font-size: 12px;
     line-height: 16px;
   }
 
-  .w-run-foot svg {
-    flex: none;
+  .w-run-log .w-log {
+    margin: 0;
+  }
+
+  .w-run-side.is-log-open .w-run-log .w-log {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .w-log.is-tail {
+    overflow: hidden;
+    color: var(--w-subtle);
+    white-space: pre;
+    mask-image: linear-gradient(90deg, black 85%, transparent);
   }
 
   /* ── Live ──────────────────────────────────────────────────────────────────────────────────── */
@@ -1712,58 +1762,87 @@
     background: radial-gradient(90% 140% at 0% 0%, var(--w-ok-soft), transparent 55%), var(--w-panel-fill);
   }
 
-  .w-live-badge {
-    display: inline-flex;
+  .w-live-title {
+    display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 0 0 10px;
-    color: var(--w-ok);
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 16px;
+    gap: 12px;
   }
 
   .w-live-dot {
-    width: 7px;
-    height: 7px;
+    flex: none;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
     background: var(--w-ok);
     animation: w-beacon 2.2s ease-out infinite;
   }
 
-  .w-live-url {
-    display: block;
-    margin: 0;
-    color: var(--w-text-strong);
-    font-size: 28px;
+  /* The address on its own line: the thing to open, set as an address, wrapping where it must. */
+  .w-live-addresses {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .w-live-addresses.is-labelled li {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 12px;
+    align-items: baseline;
+  }
+
+  .w-live-label {
+    color: var(--w-subtle);
+    font-size: 12px;
     font-weight: 600;
-    line-height: 34px;
-    letter-spacing: -0.02em;
+    line-height: 16px;
+  }
+
+  .w-live-url {
+    min-width: 0;
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 14px;
+    line-height: 22px;
     text-decoration: none;
-    /* The whole address, wrapped where it has to be: it is what the page is about. */
     overflow-wrap: anywhere;
+  }
+
+  .w-live-addresses li.is-primary .w-live-url {
+    color: var(--w-text-strong);
+    font-size: 19px;
+    line-height: 28px;
   }
 
   .w-live-url:hover {
     text-decoration: underline;
     text-decoration-color: var(--w-brand-line);
-    text-decoration-thickness: 2px;
-    text-underline-offset: 6px;
+    text-underline-offset: 5px;
   }
 
   .w-live-meta {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 4px 8px;
-    margin: 8px 0 0;
+    margin: 12px 0 0;
     padding: 0;
     color: var(--w-muted);
     list-style: none;
   }
 
+  .w-live-meta li {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
   .w-live-meta li + li::before {
     content: '·';
-    margin-right: 8px;
+    margin-right: 4px;
     color: var(--w-faint);
   }
 
@@ -1772,29 +1851,16 @@
     font-weight: 600;
   }
 
+  .w-live-meta .w-info {
+    margin-left: 4px;
+  }
+
   .w-live-actions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
     margin-top: 22px;
-  }
-
-  .w-live-more {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 18px 0 0;
-    padding: 14px 0 0;
-    border-top: 1px solid var(--w-line);
-    list-style: none;
-    color: var(--w-muted);
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .w-live-more a {
-    color: var(--w-text);
   }
 
   .w-live-note {
@@ -1810,6 +1876,21 @@
     font-size: 15px;
     font-weight: 600;
     line-height: 20px;
+  }
+
+  .w-next-optional {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin-top: 28px;
+  }
+
+  .w-next-optional span {
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
   }
 
   .w-next {
@@ -2001,6 +2082,62 @@
     color: var(--w-error);
   }
 
+  .w-fail-row dd > .w-link {
+    margin-left: 4px;
+    white-space: nowrap;
+  }
+
+  /* The fix, as a heading of its own, with the file it concerns one click away beside it. */
+  .w-fix {
+    margin-top: 16px;
+    padding: 18px 20px 20px;
+  }
+
+  .w-fix-label {
+    margin: 0 0 4px;
+    color: var(--w-brand);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  .w-fix-title {
+    margin: 0;
+    color: var(--w-text-strong);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 24px;
+  }
+
+  .w-fix-location {
+    margin: 2px 0 0;
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-fix-body {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px 20px;
+    margin-top: 8px;
+  }
+
+  .w-fix-body p {
+    margin: 0;
+    color: var(--w-muted);
+  }
+
+  .w-fix-body .stp-ui-button {
+    flex: none;
+  }
+
+  .w-fix .w-quiet {
+    margin-top: 12px;
+  }
+
   .w-actions {
     display: flex;
     flex-wrap: wrap;
@@ -2015,6 +2152,39 @@
 
   .w-section:first-of-type {
     margin-top: 0;
+  }
+
+  .w-lede.w-lede-next {
+    margin-top: 2px;
+  }
+
+  .w-section-title + .w-section-lede {
+    margin: -6px 0 12px;
+    color: var(--w-muted);
+  }
+
+  /* The ways on after a failed analysis: each button with what it does beside it. */
+  .w-ways {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .w-way {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 18px 20px;
+  }
+
+  .w-way + .w-way {
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-way > p {
+    flex: 1 1 240px;
+    margin: 0;
+    color: var(--w-muted);
   }
 
   /* Superseded by the failure rows above; the analysis failure in AnalyzeStep still prints these. */
@@ -2194,6 +2364,11 @@
       padding-top: 0;
     }
 
+    .w-start-title.is-long {
+      font-size: 20px;
+      line-height: 26px;
+    }
+
     .w-path-tabs .stp-ui-tab__label--full {
       display: none;
     }
@@ -2287,11 +2462,6 @@
       padding: 20px;
     }
 
-    .w-live-url {
-      font-size: 20px;
-      line-height: 28px;
-    }
-
     .w-next-row {
       grid-template-columns: minmax(0, 1fr);
       padding: 16px;
@@ -2309,6 +2479,42 @@
       grid-template-columns: minmax(0, 1fr);
       gap: 2px;
       padding: 14px 16px;
+    }
+
+    .w-fix {
+      padding: 16px;
+    }
+
+    .w-fix-body {
+      flex-direction: column;
+    }
+
+    /* Copy sits above the command, so the command gets the whole width. */
+    .w-command {
+      flex-direction: column-reverse;
+      align-items: stretch;
+      gap: 4px;
+      padding: 6px 8px 10px 12px;
+    }
+
+    .w-command .stp-ui-button {
+      align-self: flex-end;
+    }
+
+    .w-live-addresses li.is-primary .w-live-url {
+      font-size: 16px;
+      line-height: 24px;
+    }
+
+    .w-live-addresses.is-labelled li {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
+
+    .w-run-head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
     }
 
     /* Review's own narrow rules, kept as they were. */

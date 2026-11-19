@@ -1,8 +1,30 @@
 import { Button } from '@stacktape/ui-react/button';
-import { InfoTip } from '../components/InfoTip';
+import { useState } from 'react';
 import type { WizardState } from '../session';
 
-/** The analysis stopped. What it said, the fix, and the ways on: again, or without AI. */
+/**
+ * "Claude Code exited with 1: Credit balance is too low." → who stopped, what it said, and its exit code.
+ *
+ * The CLI words an agent that stops as "<agent> exited with <code>: <its own output>"; an older wording is
+ * "<agent> exited before it finished (exit code <code>): <output>". Anything else is kept whole as what it said.
+ */
+export const analysisError = (error: string): { said: string; exitCode?: string } => {
+  const match = /^.+? exited (?:before it finished )?(?:\(exit code (\d+)\)|with (\d+))\s*:?\s*([\s\S]*)$/.exec(
+    error.trim()
+  );
+  if (match === null) return { said: error.trim() };
+  const said = match[3]!.trim();
+  const exitCode = match[1] ?? match[2];
+  return { said, ...(exitCode === undefined ? {} : { exitCode }) };
+};
+
+/** The agent's words, ending in a full stop, without the exit code that is in the details. */
+const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
+
+/**
+ * The analysis stopped. It leads with the reason in plain words, then the way on that works right now: without AI when
+ * the agent cannot run (no credit), again when it may have been a one-off. The raw output is one click away.
+ */
 export function AnalyzeFailedStep({
   state,
   busy,
@@ -16,50 +38,97 @@ export function AnalyzeFailedStep({
 }) {
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
   const usesAi = agent !== undefined && agent.id !== 'none';
-  const outOfCredit = usesAi && /credit|quota|limit|billing/i.test(state.error ?? '');
+  const raw = state.error ?? '';
+  const { said, exitCode } = analysisError(raw);
+  const outOfCredit = usesAi && /credit|quota|billing|usage limit|rate limit/i.test(raw);
+  const [showDetails, setShowDetails] = useState(false);
+  const title = outOfCredit
+    ? `${agent.label} ran out of credit`
+    : usesAi
+      ? `${agent.label} stopped before it finished`
+      : 'The analysis stopped';
+
+  const withoutAi = (
+    <div className="w-way">
+      <Button
+        className="w-big"
+        isLoading={busy === 'start-plain'}
+        onClick={onWithoutAi}
+        variant={outOfCredit ? 'primary' : 'secondary'}
+      >
+        Analyze without AI
+      </Button>
+      <p>Reads your manifests and config files. Takes a few seconds.</p>
+    </div>
+  );
+  const retry = (
+    <div className="w-way">
+      <Button
+        className="w-big"
+        isLoading={busy === 'start'}
+        onClick={onRetry}
+        variant={outOfCredit ? 'secondary' : 'primary'}
+      >
+        {usesAi ? `Try ${agent.label} again` : 'Try again'}
+      </Button>
+      <p>
+        {outOfCredit
+          ? `Add credit to your ${agent.label} account first.`
+          : usesAi
+            ? 'It may have been a one-off.'
+            : 'If it keeps stopping, run stacktape init --headless in a terminal to see the full output.'}
+      </p>
+    </div>
+  );
+
   return (
     <div className="w-enter">
       <header className="w-hero">
-        <h1 className="w-title">The analysis stopped</h1>
-        <p className="w-lede">Nothing was written and nothing was created on AWS.</p>
+        <h1 className="w-title">{title}</h1>
+        <p className="w-lede">
+          {said === '' ? (
+            'It stopped before it reported anything.'
+          ) : (
+            <>
+              {usesAi ? `${agent.label} said: ` : ''}“{sentence(said.split('\n')[0]!)}”
+            </>
+          )}
+        </p>
+        <p className="w-lede w-lede-next">Nothing was written and nothing was created on AWS.</p>
       </header>
-      <dl className="w-card w-fail">
-        <div className="w-fail-row is-cause">
-          <dt>What happened</dt>
-          <dd>{state.error ?? 'The analysis stopped before it reported anything.'}</dd>
-        </div>
-        <div className="w-fail-row">
-          <dt>The fix</dt>
-          <dd>
-            {outOfCredit ? (
-              `Add credit to your ${agent.label} account and try again, or analyze without AI.`
-            ) : usesAi ? (
-              'Try again. If it stops again, analyze without AI.'
-            ) : (
-              <>
-                Try again. If it keeps stopping, run <span className="w-code">stacktape init --headless</span> in a
-                terminal to see the full output.
-              </>
-            )}
-          </dd>
-        </div>
-      </dl>
-      <div className="w-actions">
-        <Button className="w-big" isLoading={busy === 'start'} onClick={onRetry} variant="primary">
-          Try again
-        </Button>
-        {usesAi && (
-          <span className="inline-flex items-center gap-2">
-            <Button className="w-big" isLoading={busy === 'start-plain'} onClick={onWithoutAi} variant="secondary">
-              Analyze without AI
-            </Button>
-            <InfoTip about="analyzing without AI">
-              Stacktape’s own scanner reads manifests, Dockerfiles and config files on this machine. It finds most apps,
-              but not settings that only the source code shows.
-            </InfoTip>
-          </span>
+
+      <div className="w-card w-ways">
+        {outOfCredit || !usesAi ? (
+          <>
+            {usesAi && withoutAi}
+            {retry}
+          </>
+        ) : (
+          <>
+            {retry}
+            {withoutAi}
+          </>
         )}
       </div>
+
+      {raw !== '' && (
+        <div className="w-terminal">
+          <button
+            aria-expanded={showDetails}
+            className="w-link w-small text-[var(--w-subtle)]"
+            onClick={() => setShowDetails(!showDetails)}
+            type="button"
+          >
+            {showDetails ? 'Hide the details' : 'Show the details'}
+          </button>
+          {showDetails && (
+            <pre className="w-log">
+              {raw}
+              {exitCode === undefined ? '' : `\n\nExit code ${exitCode}`}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   );
 }
