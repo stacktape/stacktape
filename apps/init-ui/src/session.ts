@@ -294,6 +294,18 @@ export type WizardState = {
   error?: string;
 };
 
+/**
+ * A repository file as the CLI lets the page show it: only one the analysis read or cited, with `.env` values and URL
+ * credentials masked. `not-shown` names the file and says why its text is not there.
+ */
+export type FileView =
+  | { path: string; status: 'shown'; text: string; lineCount: number; truncated: boolean; masked: boolean }
+  | {
+      path: string;
+      status: 'not-shown';
+      reason: 'not-seen' | 'outside' | 'missing' | 'not-a-file' | 'too-large' | 'binary';
+    };
+
 export class SessionError extends Error {}
 
 /** Reads the handshake token out of the fragment and removes it from the address bar. */
@@ -346,6 +358,8 @@ export type Session = {
   confirmSecrets: () => Promise<WizardState>;
   /** Saves pasted AWS access keys as a profile on this machine and checks the identity again. */
   saveAwsKeys: (accessKeyId: string, secretAccessKey: string) => Promise<WizardState>;
+  /** The text of a file the analysis read or cited, for the code window. Read-only. */
+  readFile: (path: string) => Promise<FileView>;
   /** Calls back on every server-pushed update and connection transition. */
   subscribe: (
     onState: (state: WizardState) => void,
@@ -597,6 +611,13 @@ export const connect = async (): Promise<Session> => {
       // `current`, not `next`: the reply may already have been superseded by the stream, and the
       // caller should be told what the page is showing rather than what this request happened to see.
       return current;
+    },
+    readFile: async (path) => {
+      const read = await fetch(`/api/file?path=${encodeURIComponent(path)}`, {
+        headers: { 'x-csrf-token': csrfToken }
+      });
+      if (!read.ok) throw new SessionError('The file could not be read.');
+      return (await read.json()) as FileView;
     },
     subscribe: (onState, onConnectionState) => {
       listeners.add(onState);

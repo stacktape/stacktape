@@ -1,0 +1,1345 @@
+/*
+ * The Analyze → Review workspace.
+ *
+ * One two-pane grid under the header (the shared --w-* layout variables): the code being read, then the diagram and
+ * settings, on the left; stacktape.yml on the right. Colours are variables. The code palette (--ws-code-*) is read by
+ * the Monaco theme too, so the code window and the editor stay one palette when the brand colours change.
+ */
+
+@layer base {
+  :root {
+    --ws-brand: var(--stp-color-brand, rgb(54, 190, 190));
+    --ws-text: var(--w-text, rgba(255, 255, 255, 0.9));
+    --ws-text-muted: var(--w-muted, rgb(168, 174, 174));
+    --ws-text-faint: var(--w-subtle, rgb(132, 140, 140));
+    --ws-line: var(--w-line, rgba(255, 255, 255, 0.075));
+    --ws-line-strong: var(--w-line-strong, rgba(255, 255, 255, 0.13));
+    --ws-warn: var(--w-warn, rgb(230, 178, 90));
+    --ws-error: var(--w-error, rgb(235, 97, 97));
+    --ws-panel-fill: var(--w-panel-fill, linear-gradient(180deg, rgb(33, 39, 39), rgb(29, 35, 35)));
+    --ws-panel-shadow: var(--w-panel-shadow, 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09));
+    --ws-floating-shadow: 0 18px 44px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    --ws-control-fill: var(--stp-control-surface, linear-gradient(180deg, rgb(52, 60, 60), rgb(44, 51, 51)));
+    --ws-chrome: color-mix(in srgb, var(--w-page, rgb(22, 28, 28)) 88%, transparent);
+    --ws-radius: 10px;
+    --ws-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+    /* The code palette: the code window here and the Monaco theme in editor/monaco-setup.ts. */
+    --ws-code-bg: rgb(19, 24, 24);
+    --ws-code-text: rgb(203, 210, 210);
+    --ws-code-key: rgb(127, 211, 211);
+    --ws-code-string: rgb(201, 185, 138);
+    --ws-code-number: rgb(181, 206, 168);
+    --ws-code-keyword: rgb(143, 184, 240);
+    --ws-code-comment: rgb(107, 118, 118);
+    --ws-code-line-number: rgb(73, 84, 84);
+    --ws-code-line-number-active: rgb(154, 164, 164);
+    --ws-code-line-active: rgb(28, 35, 35);
+    --ws-code-selection: rgba(54, 190, 190, 0.25);
+    --ws-code-guide: rgb(36, 44, 44);
+    --ws-code-lens: rgb(120, 133, 133);
+    --ws-code-popup: rgb(34, 41, 41);
+    --ws-code-popup-border: rgb(56, 66, 66);
+    --ws-code-popup-selected: rgb(43, 58, 58);
+    --ws-code-scrollbar: rgba(255, 255, 255, 0.08);
+
+    /* File-type tints, quiet versions of what editors use. */
+    --ws-file-ts: rgb(96, 148, 214);
+    --ws-file-js: rgb(214, 196, 96);
+    --ws-file-json: rgb(196, 168, 92);
+    --ws-file-py: rgb(110, 160, 210);
+    --ws-file-go: rgb(96, 190, 214);
+    --ws-file-yaml: rgb(196, 120, 150);
+    --ws-file-docker: rgb(88, 156, 220);
+    --ws-file-env: rgb(214, 178, 96);
+    --ws-file-prisma: rgb(150, 160, 200);
+    --ws-file-plain: rgb(140, 150, 150);
+  }
+}
+
+@layer components {
+  /* The workspace fills the window under the header, so the frame's centred column steps aside. */
+  .w-main:has(> .ws) {
+    max-width: none;
+    padding: 0;
+  }
+
+  .ws {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--w-pane-right, clamp(440px, 38vw, 600px));
+    gap: var(--w-gap, 24px);
+    height: calc(100dvh - var(--w-header-h, 56px));
+    padding: 24px var(--w-gutter, 32px);
+    transition: padding-bottom 250ms var(--ws-ease);
+  }
+
+  /* Room for the bottom bar; it grows as the bar slides up, so nothing jumps. */
+  .ws[data-phase='review'] {
+    padding-bottom: calc(var(--w-bar-h, 72px) + 24px);
+  }
+
+  .ws-left {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .ws-panel {
+    box-sizing: border-box;
+    border-radius: var(--ws-radius);
+    background: var(--ws-panel-fill);
+    box-shadow: var(--ws-panel-shadow);
+  }
+
+  /* ── The scan: code window, status line, chips ──────────────────────────────────────────────── */
+
+  .ws-scan {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+  }
+
+  .ws-scan[data-leaving] {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    animation: ws-fade-out 420ms var(--ws-ease) both;
+  }
+
+  .ws-window {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--ws-radius);
+    background: var(--ws-panel-fill);
+    box-shadow: var(--ws-panel-shadow);
+  }
+
+  .ws-window-tabs {
+    display: flex;
+    flex: none;
+    align-items: flex-end;
+    gap: 2px;
+    height: 40px;
+    padding: 0 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .ws-window-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ws-window-tab {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 14px 0 12px;
+    border-radius: 8px 8px 0 0;
+    color: var(--ws-text-faint);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    animation: ws-tab-in 240ms var(--ws-ease) both;
+  }
+
+  .ws-window-tab[data-active] {
+    background: var(--ws-code-bg);
+    color: var(--ws-text);
+  }
+
+  .ws-window-tab[data-active]::before {
+    position: absolute;
+    top: 0;
+    right: 10px;
+    left: 10px;
+    height: 2px;
+    border-radius: 0 0 2px 2px;
+    background: var(--ws-brand);
+    content: '';
+  }
+
+  .ws-window-tab.is-placeholder {
+    width: 120px;
+    background: var(--ws-code-bg);
+    animation: none;
+  }
+
+  .ws-window-path {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    height: 30px;
+    padding: 0 16px;
+    overflow: hidden;
+    border-bottom: 1px solid var(--ws-line);
+    background: var(--ws-code-bg);
+    color: var(--ws-text-faint);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .ws-window-path-sep {
+    padding: 0 5px;
+    opacity: 0.6;
+  }
+
+  .ws-window-path-note {
+    margin-left: auto;
+    padding-left: 12px;
+    color: var(--ws-text-faint);
+  }
+
+  .ws-window-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--ws-code-bg);
+  }
+
+  .ws-code {
+    position: relative;
+    padding: 12px 0;
+    color: var(--ws-code-text);
+    font-family: var(--w-mono, ui-monospace, monospace);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .ws-line {
+    display: flex;
+    height: 20px;
+    white-space: pre;
+    transition:
+      opacity 300ms var(--ws-ease),
+      background-color 300ms var(--ws-ease);
+  }
+
+  .ws-line-number {
+    box-sizing: border-box;
+    flex: none;
+    width: calc(var(--ws-gutter-digits, 2) * 1ch + 36px);
+    padding-right: 18px;
+    color: var(--ws-code-line-number);
+    text-align: right;
+    user-select: none;
+  }
+
+  .ws-line-text {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .ws-tok-comment {
+    color: var(--ws-code-comment);
+    font-style: italic;
+  }
+
+  .ws-tok-string {
+    color: var(--ws-code-string);
+  }
+
+  .ws-tok-number {
+    color: var(--ws-code-number);
+  }
+
+  .ws-tok-keyword {
+    color: var(--ws-code-keyword);
+  }
+
+  .ws-tok-key {
+    color: var(--ws-code-key);
+  }
+
+  .ws-window-more {
+    padding: 8px 0 0 calc(var(--ws-gutter-digits, 2) * 1ch + 36px);
+    color: var(--ws-text-faint);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 12px;
+  }
+
+  .ws-window-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 100%;
+    padding: 24px;
+    color: var(--ws-text-faint);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .ws-window-empty strong {
+    color: var(--ws-text-muted);
+    font-family: var(--w-mono, ui-monospace, monospace);
+    font-weight: 500;
+  }
+
+  /* The scanner: a thin brand line with a soft trail above it; lines below it sit a little darker. */
+  .ws-beam {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 2;
+    height: 2px;
+    margin-top: -1px;
+    background: linear-gradient(90deg, transparent, var(--ws-brand) 10%, var(--ws-brand) 90%, transparent);
+    box-shadow: 0 0 14px 1px color-mix(in srgb, var(--ws-brand) 55%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms var(--ws-ease);
+    will-change: transform;
+  }
+
+  .ws-beam::before {
+    position: absolute;
+    right: 0;
+    bottom: 2px;
+    left: 0;
+    height: 64px;
+    background: linear-gradient(to top, color-mix(in srgb, var(--ws-brand) 12%, transparent), transparent);
+    content: '';
+  }
+
+  .ws-beam[data-state='sweeping'] {
+    opacity: 1;
+  }
+
+  .ws-beam[data-state='idle'] {
+    opacity: 1;
+    animation: ws-beam-idle 2.2s ease-in-out infinite;
+  }
+
+  .ws-beam[data-state='waiting'] {
+    opacity: 1;
+    animation: ws-beam-wait 3.6s ease-in-out infinite alternate;
+  }
+
+  .ws-dim {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 1;
+    height: 0;
+    background: color-mix(in srgb, var(--ws-code-bg) 42%, transparent);
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  /* The reveal points at one line: the rest steps back, the line lights up, a callout says what it led to. */
+  .ws-window[data-focus] .ws-line {
+    opacity: 0.34;
+  }
+
+  .ws-window[data-focus] .ws-line[data-focus] {
+    background: color-mix(in srgb, var(--ws-brand) 14%, transparent);
+    box-shadow: inset 2px 0 0 var(--ws-brand);
+    opacity: 1;
+  }
+
+  .ws-window[data-focus] .ws-line[data-focus] .ws-line-number {
+    color: var(--ws-code-line-number-active);
+  }
+
+  .ws-callout {
+    position: absolute;
+    left: calc(var(--ws-gutter-digits, 2) * 1ch + 30px);
+    z-index: 3;
+    animation: ws-callout-in 280ms var(--ws-ease) both;
+  }
+
+  .ws-callout-tag {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border: 1px solid color-mix(in srgb, var(--ws-brand) 45%, transparent);
+    border-radius: 8px;
+    background: var(--ws-code-popup);
+    box-shadow: var(--ws-floating-shadow);
+    color: var(--ws-text);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .ws-callout-tag::before {
+    position: absolute;
+    top: -5px;
+    left: 16px;
+    width: 8px;
+    height: 8px;
+    border-top: 1px solid color-mix(in srgb, var(--ws-brand) 45%, transparent);
+    border-left: 1px solid color-mix(in srgb, var(--ws-brand) 45%, transparent);
+    background: var(--ws-code-popup);
+    content: '';
+    transform: rotate(45deg);
+  }
+
+  .ws-callout-tag code {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--ws-brand) 14%, transparent);
+    color: var(--ws-code-key);
+    font-family: var(--w-mono, ui-monospace, monospace);
+    font-size: 12px;
+  }
+
+  .ws-callout-in {
+    color: var(--ws-text-muted);
+  }
+
+  .ws-callout-arrow {
+    color: var(--ws-brand);
+  }
+
+  .ws-callout-tag strong {
+    font-weight: 600;
+  }
+
+  .ws-status {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 22px;
+    padding: 0 4px;
+    color: var(--ws-text-muted);
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .ws-status-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-status-text strong {
+    color: var(--ws-text);
+    font-weight: 600;
+  }
+
+  .ws-status code {
+    overflow: hidden;
+    color: var(--ws-text);
+    font-family: var(--w-mono, ui-monospace, monospace);
+    font-size: 13px;
+    text-overflow: ellipsis;
+  }
+
+  .ws-status-meta {
+    flex: none;
+    color: var(--ws-text-faint);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ws-pulse {
+    position: relative;
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ws-brand);
+  }
+
+  .ws-pulse::after {
+    position: absolute;
+    inset: -4px;
+    border: 1px solid var(--ws-brand);
+    border-radius: 50%;
+    content: '';
+    animation: ws-pulse 1.6s ease-out infinite;
+  }
+
+  .ws-skip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--ws-text);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ws-skip:hover {
+    color: var(--ws-brand);
+  }
+
+  .ws kbd {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow:
+      inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+      0 0 0 1px var(--ws-line-strong);
+    color: var(--ws-text-muted);
+    font-family: var(--w-mono, ui-monospace, monospace);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 17px;
+    text-align: center;
+  }
+
+  .ws-chips {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 28px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ws-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 11px 0 9px;
+    border-radius: 7px;
+    background: var(--ws-control-fill);
+    box-shadow: var(--ws-panel-shadow);
+    color: var(--ws-text);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    animation: ws-chip-in 320ms var(--ws-ease) both;
+  }
+
+  .ws-chip[data-kind='secrets'] svg {
+    color: var(--ws-warn);
+  }
+
+  .ws-chip[data-kind='external'] {
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--ws-line-strong);
+    color: var(--ws-text-muted);
+    font-weight: 500;
+  }
+
+  .ws-file-icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--ws-file-plain);
+  }
+
+  .ws-file-icon[data-tint='ts'] {
+    color: var(--ws-file-ts);
+  }
+  .ws-file-icon[data-tint='js'] {
+    color: var(--ws-file-js);
+  }
+  .ws-file-icon[data-tint='json'] {
+    color: var(--ws-file-json);
+  }
+  .ws-file-icon[data-tint='py'] {
+    color: var(--ws-file-py);
+  }
+  .ws-file-icon[data-tint='go'] {
+    color: var(--ws-file-go);
+  }
+  .ws-file-icon[data-tint='yaml'],
+  .ws-file-icon[data-tint='toml'] {
+    color: var(--ws-file-yaml);
+  }
+  .ws-file-icon[data-tint='docker'] {
+    color: var(--ws-file-docker);
+  }
+  .ws-file-icon[data-tint='env'] {
+    color: var(--ws-file-env);
+  }
+  .ws-file-icon[data-tint='prisma'] {
+    color: var(--ws-file-prisma);
+  }
+
+  /* ── stacktape.yml ───────────────────────────────────────────────────────────────────────────── */
+
+  .ws-editor {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .ws-editor-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    height: 48px;
+    padding: 0 8px 0 16px;
+    border-bottom: 1px solid var(--ws-line);
+  }
+
+  .ws-editor-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ws-text);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .ws-badge {
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--ws-warn) 14%, transparent);
+    color: var(--ws-warn);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 14px;
+  }
+
+  .ws-editor-head-end {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    padding-right: 8px;
+  }
+
+  .ws-editor-head-end .stp-ui-tabs {
+    margin-right: -8px;
+  }
+
+  .ws-editor-price {
+    color: var(--ws-text);
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    transition: color 400ms var(--ws-ease);
+  }
+
+  .ws-editor-price small {
+    margin-left: 3px;
+    color: var(--ws-text-faint);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .ws-editor-price.is-changed {
+    color: var(--ws-brand);
+  }
+
+  .ws-editor-hint {
+    flex: none;
+    margin: 0;
+    padding: 9px 16px;
+    border-bottom: 1px solid var(--ws-line);
+    color: var(--ws-text-faint);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .ws-editor-hint kbd {
+    margin: 0 1px;
+  }
+
+  .ws-editor-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    background: var(--ws-code-bg);
+  }
+
+  .ws-editor-placeholder {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    margin: 0;
+    color: var(--ws-text-faint);
+    font-size: 13px;
+    pointer-events: none;
+    place-items: center;
+  }
+
+  .ws-editor-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 100%;
+    color: var(--ws-text-faint);
+    font-size: 13px;
+  }
+
+  .ws-editor-status {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 16px;
+    border-top: 1px solid var(--ws-line);
+    color: var(--ws-text-muted);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .ws-editor-status[data-tone='error'] {
+    color: var(--ws-error);
+  }
+
+  .ws-editor-warning {
+    color: var(--ws-warn);
+    font-weight: 600;
+  }
+
+  .ws-textbutton {
+    flex: none;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ws-text);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--ws-line-strong);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .ws-textbutton:hover {
+    color: var(--ws-brand);
+  }
+
+  /* Monaco decorations: the block being typed, the blocks already typed, a setting's change, a picked resource. */
+  .monaco-editor .ws-editor-writing,
+  .monaco-editor .ws-editor-written,
+  .monaco-editor .ws-editor-flash-gutter,
+  .monaco-editor .ws-editor-picked-gutter {
+    left: 3px !important;
+    width: 3px !important;
+    border-radius: 2px;
+    background: var(--ws-brand);
+    transition: opacity 600ms var(--ws-ease);
+  }
+
+  .monaco-editor .ws-editor-written {
+    opacity: 0.35;
+  }
+
+  .ws-editor-marks-fading .ws-editor-writing,
+  .ws-editor-marks-fading .ws-editor-written {
+    opacity: 0 !important;
+  }
+
+  .monaco-editor .ws-editor-flash {
+    animation: ws-flash 1.8s ease-out both;
+  }
+
+  .monaco-editor .ws-editor-flash-gutter {
+    animation: ws-fade-out 1.8s ease-in both;
+  }
+
+  .monaco-editor .ws-editor-picked {
+    background: color-mix(in srgb, var(--ws-brand) 9%, transparent);
+  }
+
+  .monaco-editor .codelens-decoration a:hover {
+    color: var(--ws-brand) !important;
+  }
+
+  .ws-editor-peek-zone {
+    position: absolute;
+    box-sizing: border-box;
+    padding: 4px 16px 8px 0;
+  }
+
+  .ws-peek {
+    box-sizing: border-box;
+    height: 100%;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--ws-brand) 35%, transparent);
+    border-radius: 8px;
+    background: var(--ws-code-popup);
+    box-shadow: var(--ws-floating-shadow);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    animation: ws-fade-in 200ms var(--ws-ease) both;
+  }
+
+  .ws-peek-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 30px;
+    padding: 0 6px 0 12px;
+    border-bottom: 1px solid var(--ws-line);
+  }
+
+  .ws-peek-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--ws-text);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ws-peek-line {
+    color: var(--ws-text-faint);
+    font-weight: 500;
+  }
+
+  .ws-peek-close {
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--ws-text-faint);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .ws-peek-close:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ws-text);
+  }
+
+  .ws-peek-code {
+    padding: 4px 0;
+    font-family: var(--w-mono, ui-monospace, monospace);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .ws-peek-row {
+    display: flex;
+    white-space: pre;
+    color: var(--ws-text-faint);
+  }
+
+  .ws-peek-row[data-focus] {
+    background: color-mix(in srgb, var(--ws-brand) 13%, transparent);
+    box-shadow: inset 2px 0 0 var(--ws-brand);
+    color: var(--ws-text);
+  }
+
+  .ws-peek-number {
+    flex: none;
+    width: 40px;
+    padding-right: 12px;
+    color: var(--ws-code-line-number);
+    text-align: right;
+  }
+
+  .ws-peek-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-peek-quote {
+    margin: 0;
+    padding: 10px 12px;
+  }
+
+  .ws-peek-reason {
+    margin: 0;
+    padding: 6px 12px 0;
+    overflow: hidden;
+    color: var(--ws-text-muted);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* ── Review: title, diagram, settings ────────────────────────────────────────────────────────── */
+
+  .ws-review {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 0;
+  }
+
+  .ws-review-head {
+    display: flex;
+    flex: none;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .ws-title {
+    margin: 0;
+    overflow: hidden;
+    color: var(--ws-text);
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 34px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-summary {
+    margin: 4px 0 0;
+    color: var(--ws-text-muted);
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .ws-receipt {
+    flex: none;
+    margin: 0 0 3px;
+    color: var(--ws-text-faint);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .ws-review-note {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin: -8px 0 0;
+    color: var(--ws-text-faint);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .ws-diagram {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 240px;
+    overflow: hidden;
+  }
+
+  .ws-diagram .stp-diagram {
+    height: 100%;
+  }
+
+  .ws-settings {
+    flex: none;
+    padding: 2px 16px;
+  }
+
+  .ws-settings-paused {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 10px 0 6px;
+    color: var(--ws-text-muted);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .ws-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 46px;
+  }
+
+  .ws-setting + .ws-setting {
+    border-top: 1px solid var(--ws-line);
+  }
+
+  .ws-settings[data-paused] .ws-setting {
+    opacity: 0.55;
+  }
+
+  .ws-setting-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    color: var(--ws-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .ws-setting-control {
+    display: flex;
+    flex: none;
+    justify-content: flex-end;
+  }
+
+  .ws-info {
+    display: inline-grid;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--ws-text-faint);
+    cursor: help;
+    place-items: center;
+  }
+
+  .ws-info:hover,
+  .ws-info:focus-visible {
+    color: var(--ws-text);
+  }
+
+  .ws-option-delta {
+    color: var(--ws-text-faint);
+    font-weight: 500;
+  }
+
+  /* A node's hover card, inside the diagram's own tooltip. */
+  .ws-node-card {
+    display: grid;
+    gap: 6px;
+    min-width: 220px;
+    max-width: 300px;
+  }
+
+  .ws-node-card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 13px;
+  }
+
+  .ws-node-card-head span {
+    color: var(--ws-text-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .ws-node-card-reason {
+    margin: 0;
+    color: var(--ws-text-muted);
+    font-size: 12px;
+    line-height: 17px;
+  }
+
+  .ws-node-card-evidence {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 2px 0 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--ws-code-bg);
+    font-size: 11.5px;
+  }
+
+  .ws-node-card-evidence code {
+    overflow: hidden;
+    color: var(--ws-code-key);
+    font-family: var(--w-mono, ui-monospace, monospace);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-node-card-evidence span {
+    flex: none;
+    color: var(--ws-text-faint);
+  }
+
+  /* ── The bar ─────────────────────────────────────────────────────────────────────────────────── */
+
+  .ws-bar-slot {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    height: var(--w-bar-h, 72px);
+  }
+
+  .ws-bar-slot[data-arrived] {
+    animation: ws-bar-up 320ms 180ms var(--ws-ease) both;
+  }
+
+  .ws-actionbar {
+    box-sizing: border-box;
+    height: 100%;
+    border-top: 1px solid var(--ws-line);
+    background: var(--ws-chrome);
+    box-shadow: 0 -10px 30px -12px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(12px);
+  }
+
+  .ws-actionbar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    height: 100%;
+    padding: 0 var(--w-gutter, 32px);
+  }
+
+  .ws-actionbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .ws-actionbar-note {
+    color: var(--ws-text-faint);
+    font-size: 13px;
+  }
+
+  .ws-bar-price {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ws-text);
+  }
+
+  .ws-bar-price.is-pending {
+    gap: 10px;
+    color: var(--ws-text-muted);
+    font-size: 14px;
+  }
+
+  .ws-bar-amount {
+    font-size: 20px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 28px;
+    transition: color 400ms var(--ws-ease);
+  }
+
+  .ws-bar-amount small {
+    margin-left: 6px;
+    color: var(--ws-text-muted);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .ws-bar-amount.is-changed {
+    color: var(--ws-brand);
+  }
+
+  /* ── Arrival: after the reveal, the review comes in; on a reload it is simply there ─────────────── */
+
+  .ws[data-arrived] .ws-review-head {
+    animation: ws-rise 420ms 120ms var(--ws-ease) both;
+  }
+
+  .ws[data-arrived] .ws-diagram {
+    animation: ws-fade-in 520ms 40ms var(--ws-ease) both;
+  }
+
+  .ws[data-arrived] .ws-settings {
+    animation: ws-rise 460ms 240ms var(--ws-ease) both;
+  }
+
+  .ws[data-arrived] .ws-editor-hint {
+    animation: ws-fade-in 300ms 200ms var(--ws-ease) both;
+  }
+
+  /* ── Narrow screens: one column that scrolls ─────────────────────────────────────────────────── */
+
+  @media (max-width: 900px) {
+    .ws {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: auto;
+      padding: 16px 16px 24px;
+    }
+
+    .ws[data-phase='review'] {
+      padding-bottom: calc(var(--w-bar-h, 72px) + 24px);
+    }
+
+    .ws-left,
+    .ws-scan {
+      flex: none;
+    }
+
+    .ws-window {
+      flex: none;
+      height: 360px;
+    }
+
+    .ws-editor {
+      flex: none;
+      height: 460px;
+    }
+
+    .ws-review {
+      flex: none;
+    }
+
+    .ws-review-head {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+    }
+
+    .ws-title {
+      font-size: 24px;
+      line-height: 30px;
+      white-space: normal;
+    }
+
+    .ws-diagram {
+      flex: none;
+      height: 320px;
+      min-height: 0;
+    }
+
+    .ws-setting {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 12px 0;
+    }
+
+    .ws-setting-control {
+      max-width: 100%;
+    }
+
+    .ws-actionbar-inner {
+      padding: 0 16px;
+    }
+
+    .ws-actionbar-note,
+    .ws-status-meta {
+      display: none;
+    }
+  }
+
+  /* Reduced motion: no beam, no typing (handled in the component), nothing slides; final states at once. */
+  @media (prefers-reduced-motion: reduce) {
+    .ws *,
+    .ws::before,
+    .ws::after,
+    .ws-bar-slot,
+    .ws-bar-slot * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    .ws-beam,
+    .ws-dim {
+      display: none;
+    }
+  }
+}
+
+@keyframes ws-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ws-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes ws-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes ws-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes ws-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+}
+
+@keyframes ws-callout-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes ws-bar-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes ws-pulse {
+  from {
+    opacity: 0.8;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes ws-beam-idle {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes ws-beam-wait {
+  from {
+    top: 22%;
+  }
+  to {
+    top: 78%;
+  }
+}
+
+@keyframes ws-flash {
+  from {
+    background: color-mix(in srgb, var(--ws-brand) 26%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
