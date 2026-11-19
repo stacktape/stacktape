@@ -546,6 +546,20 @@ const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: bool
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
 
+/**
+ * The most a fitted picture is enlarged, in screen pixels per SVG unit. A picture of two or three resources fitted to
+ * a large frame would otherwise be drawn far bigger than the shapes and text were made for; it is centred at this
+ * scale instead. `initialZoom` still applies on top.
+ */
+const MAX_FIT_SCALE = 1.15;
+
+/**
+ * Pictures with at most this many nodes are small enough to take in at a glance: they have no search box and no zoom
+ * buttons. The wheel, a pinch, a drag and the keyboard still pan and zoom, and a reset button appears once the view
+ * has moved.
+ */
+const COMPACT_NODES = 8;
+
 const clampZoom = (zoom: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
 
 type ViewTransform = { panX: number; panY: number; zoom: number };
@@ -1105,6 +1119,9 @@ export function IsoRenderer({
     ? scene.groups.find((group) => group.id === (selectedNode?.groupId ?? selectedId))
     : undefined;
   const expandedGroups = scene.groups.filter((group) => group.expanded);
+  // The frame counts every node any layer shows, so switching a layer does not make the controls come and go.
+  const compact = (scene.frame?.nodeTiles.length ?? scene.nodes.length) <= COMPACT_NODES;
+  const viewMoved = view.panX !== home.panX || view.panY !== home.panY || view.zoom !== home.zoom;
   const isGroupSelected = Boolean(selectedGroup && (!selectedNode || selectedNode.id === selectedGroup.id));
   // An expanded group has no node of its own, so its panel summarizes its members directly.
   const selectedStatus =
@@ -1165,7 +1182,11 @@ export function IsoRenderer({
         role="group"
         aria-label={ariaLabel}
         className="stp-diagram__canvas"
-        style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})` }}
+        style={{
+          transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`,
+          maxWidth: svgW * MAX_FIT_SCALE,
+          maxHeight: svgH * MAX_FIT_SCALE
+        }}
       >
         <defs>
           <filter id={`${idPrefix}-iso-shadow-blur`} x="-40%" y="-40%" width="180%" height="180%">
@@ -1395,18 +1416,20 @@ export function IsoRenderer({
         : !tooltip && !selectedNode && !selectedGroup && <p className="stp-diagram__hint">{hint}</p>}
       <div className="stp-diagram__toolbar stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
         {toolbar}
-        <label className="stp-diagram__find">
-          <BiSearch aria-hidden="true" size={15} />
-          <input
-            type="search"
-            value={query}
-            placeholder="Find resource"
-            aria-label="Find resource"
-            spellCheck={false}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={onSearchKeyDown}
-          />
-        </label>
+        {!compact && (
+          <label className="stp-diagram__find">
+            <BiSearch aria-hidden="true" size={15} />
+            <input
+              type="search"
+              value={query}
+              placeholder="Find resource"
+              aria-label="Find resource"
+              spellCheck={false}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKeyDown}
+            />
+          </label>
+        )}
         {isSearching && (
           <p className="stp-diagram__find-count" aria-live="polite">
             {matches.size === 0 ? 'No match' : `${matches.size} ${matches.size === 1 ? 'match' : 'matches'}`}
@@ -1483,35 +1506,41 @@ export function IsoRenderer({
           />
         </div>
       )}
-      <div className="stp-diagram__controls stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          aria-label="Zoom in"
-          title="Zoom in"
-          className="stp-diagram__control"
-          onClick={() => zoomBy(1.25)}
-        >
-          <BiPlus aria-hidden="true" size={18} />
-        </button>
-        <button
-          type="button"
-          aria-label="Zoom out"
-          title="Zoom out"
-          className="stp-diagram__control"
-          onClick={() => zoomBy(1 / 1.25)}
-        >
-          <BiMinus aria-hidden="true" size={18} />
-        </button>
-        <button
-          type="button"
-          aria-label="Reset view"
-          title="Reset view"
-          className="stp-diagram__control"
-          onClick={resetView}
-        >
-          <BiExpand aria-hidden="true" size={16} />
-        </button>
-      </div>
+      {(!compact || viewMoved) && (
+        <div className="stp-diagram__controls stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
+          {!compact && (
+            <>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in"
+                className="stp-diagram__control"
+                onClick={() => zoomBy(1.25)}
+              >
+                <BiPlus aria-hidden="true" size={18} />
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out"
+                className="stp-diagram__control"
+                onClick={() => zoomBy(1 / 1.25)}
+              >
+                <BiMinus aria-hidden="true" size={18} />
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            aria-label="Reset view"
+            title="Reset view"
+            className="stp-diagram__control"
+            onClick={resetView}
+          >
+            <BiExpand aria-hidden="true" size={16} />
+          </button>
+        </div>
+      )}
     </section>
   );
 }
