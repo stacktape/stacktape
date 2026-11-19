@@ -560,6 +560,9 @@ const MAX_FIT_SCALE = 1.15;
  */
 const COMPACT_NODES = 8;
 
+/** How long a new arrangement of the picture takes to fade in. */
+const REARRANGE_FADE_MS = 280;
+
 const clampZoom = (zoom: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
 
 type ViewTransform = { panX: number; panY: number; zoom: number };
@@ -873,6 +876,19 @@ export function IsoRenderer({
     setView(home);
   }, [nodesKey, home]);
 
+  // A new arrangement of the picture (a group expanded, or a host that lays out only the shown layers switching one)
+  // fades in instead of jumping into place.
+  const canvasRef = useRef<SVGSVGElement>(null);
+  const arrangedKey = useRef(nodesKey);
+  useLayoutEffect(() => {
+    if (arrangedKey.current === nodesKey) return;
+    arrangedKey.current = nodesKey;
+    const canvas = canvasRef.current;
+    if (!canvas || typeof canvas.animate !== 'function') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    canvas.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: REARRANGE_FADE_MS, easing: 'ease-out' });
+  }, [nodesKey]);
+
   // Hover details are snapshots of the current scene. Clear them when the host supplies a newly
   // compiled scene so removed resources cannot leave the remainder permanently dimmed or display
   // stale explanatory text.
@@ -1178,6 +1194,7 @@ export function IsoRenderer({
       onKeyDown={onKeyDown}
     >
       <svg
+        ref={canvasRef}
         viewBox={`${minX} ${minY} ${svgW} ${svgH}`}
         role="group"
         aria-label={ariaLabel}
