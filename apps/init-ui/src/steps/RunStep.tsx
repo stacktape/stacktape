@@ -2,7 +2,7 @@ import type { StacktapeConfig } from '@stacktape/config';
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Button, ButtonLink } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BiBot, BiCheck, BiChevronRight, BiCodeAlt, BiCopy, BiInfoCircle, BiLinkExternal, BiX } from 'react-icons/bi';
 import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
 import { CopyableCommand } from '../components/CopyableCommand';
@@ -435,10 +435,12 @@ export function LiveStep({
           <ul aria-label="Addresses" className="w-live-addresses">
             {addresses.map((entry, index) => (
               <li className={index === 0 ? 'is-primary' : undefined} key={entry.url}>
-                <span className="w-live-label">{entry.label}</span>
-                <a className="w-live-url" href={entry.url} rel="noreferrer" target="_blank" title={entry.url}>
-                  {entry.url.replace(/^https:\/\//, '')}
-                </a>
+                <span className="w-live-where">
+                  <span className="w-live-label">{entry.label}</span>
+                  <a className="w-live-url" href={entry.url} rel="noreferrer" target="_blank" title={entry.url}>
+                    <UrlText url={entry.url} />
+                  </a>
+                </span>
                 <span className="w-live-row-actions">
                   <ButtonLink
                     className={index === 0 ? 'w-big' : undefined}
@@ -471,18 +473,17 @@ export function LiveStep({
             { label: 'Stage', value: deployment.stage },
             monthly?.amount !== undefined && {
               label: 'Estimated',
-              value: `${monthly.amount}/month${monthly.usage ? ' + usage' : ''}`
+              value: `${monthly.amount}/month${monthly.usage ? ' + usage' : ''}`,
+              help: (
+                <InfoTip about="the price">
+                  AWS list prices in {deployment.region}, for what runs all month.
+                  {monthly.usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
+                </InfoTip>
+              )
             },
             elapsed !== undefined && elapsed > 0 && { label: 'Deployed in', value: duration(elapsed) }
           ]}
-        >
-          {monthly?.amount !== undefined && (
-            <InfoTip about="the price">
-              AWS list prices in {deployment.region}, for what runs all month.
-              {monthly.usage ? ' Traffic, requests and storage are billed on top, by use.' : ''}
-            </InfoTip>
-          )}
-        </TargetFacts>
+        />
         <div className="w-live-details">
           <button aria-expanded={showLog} className="w-link w-small" onClick={() => setShowLog(!showLog)} type="button">
             {showLog ? 'Hide the deploy log' : 'Show the deploy log'}
@@ -560,6 +561,25 @@ export function LiveStep({
         {showRemoval && <CopyableCommand command={stackCommand('delete', target)} />}
       </section>
     </div>
+  );
+}
+
+/**
+ * An address without its scheme, wrapping after a dot or a slash: a long one reads "acme-portal-dev-7f3a9c." over
+ * "stacktape-app.com", not broken inside a name.
+ */
+function UrlText({ url }: { url: string }) {
+  const parts = url.replace(/^https:\/\//, '').split(/(?<=[./])/);
+  return (
+    <>
+      {parts.map((part, index) => (
+        // oxlint-disable-next-line react/no-array-index-key -- positions in a fixed string.
+        <Fragment key={index}>
+          {index > 0 && <wbr />}
+          <span className="w-url-part">{part}</span>
+        </Fragment>
+      ))}
+    </>
   );
 }
 

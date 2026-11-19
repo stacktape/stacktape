@@ -649,16 +649,13 @@ export function DeployStep({
             facts={[
               { label: 'AWS account', value: groupedAccount(identity.accountId) },
               { label: 'Region', value: region },
-              { label: 'Stage', value: stage }
-            ]}
-          />
-          <TargetFacts
-            facts={[
+              { label: 'Stage', value: stage },
               monthly?.amount !== undefined && {
                 label: 'Estimated',
-                value: `${monthly.amount}/month${monthly.usage ? ' + usage' : ''}`
+                value: `${monthly.amount}/month${monthly.usage ? ' + usage' : ''}`,
+                breakBefore: true
               },
-              { label: 'Takes about', value: estimate }
+              { label: 'Takes about', value: estimate, breakBefore: monthly?.amount === undefined }
             ]}
           />
         </section>
@@ -680,7 +677,7 @@ export function DeployStep({
 
       <ActionBar
         align="column"
-        className={ready ? 'is-ready' : 'is-blocked'}
+        className={ready ? 'is-ready' : next?.section === undefined ? 'is-blocked' : 'is-blocked has-next'}
         note={
           // Ready: what the click does is in the block right above; the bar keeps the price and the button.
           ready ? undefined : next === undefined ? undefined : next.section === undefined ? (
@@ -696,6 +693,13 @@ export function DeployStep({
         }
         price={<MonthlyPrice state={state} suffix={monthlySuffix} />}
       >
+        {!ready && next?.section !== undefined && (
+          // On a phone the bar is this one action, full width, until Deploy can work.
+          <Button className="w-bar-next-button" onClick={() => goTo(next.section!, next.task)} variant="secondary">
+            {next.text.charAt(0).toUpperCase()}
+            {next.text.slice(1)}
+          </Button>
+        )}
         <Button
           className="w-big"
           disabled={!ready || isLocked || (busy !== undefined && busy !== 'deploy')}
@@ -775,19 +779,23 @@ function AccountLine({
     <TargetFacts
       className="w-account"
       facts={[
-        { label: 'AWS account', value: groupedAccount(identity.accountId) },
+        {
+          label: 'AWS account',
+          value: groupedAccount(identity.accountId),
+          help: (
+            <InfoTip about="the AWS account">
+              The credentials on this machine
+              {identity.profile === undefined ? '' : ` (profile ${identity.profile})`} decide the account. To deploy to
+              another one, start <span className="w-code">stacktape init</span> with{' '}
+              <span className="w-code">AWS_PROFILE=name</span>.
+            </InfoTip>
+          )
+        },
         { label: 'Signed in as', value: identityName(identity.arn) },
         region !== undefined && { label: 'Region', value: region },
         stage !== undefined && { label: 'Stage', value: stage || '—' }
       ]}
-    >
-      <InfoTip about="the AWS account">
-        The credentials on this machine
-        {identity.profile === undefined ? '' : ` (profile ${identity.profile})`} decide the account. To deploy to
-        another one, start <span className="w-code">stacktape init</span> with{' '}
-        <span className="w-code">AWS_PROFILE=name</span>.
-      </InfoTip>
-    </TargetFacts>
+    />
   );
 }
 

@@ -700,6 +700,11 @@
     gap: 12px;
   }
 
+  /* The next action as a button, for phones only: on a wide screen "Next:" beside the button says it. */
+  .w-bar-next-button.stp-ui-button {
+    display: none;
+  }
+
   .w-bar-amount {
     display: flex;
     align-items: baseline;
@@ -1066,6 +1071,12 @@
     white-space: nowrap;
   }
 
+  .w-target-fact-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .w-target-fact strong {
     color: var(--w-text);
     font-weight: 600;
@@ -1073,6 +1084,11 @@
 
   .w-target-facts-dot {
     color: var(--w-faint);
+  }
+
+  .w-target-facts-break {
+    flex-basis: 100%;
+    height: 0;
   }
 
   .w-account {
@@ -2144,6 +2160,12 @@
     overflow-wrap: anywhere;
   }
 
+  /* An address wraps after a dot or slash; only a part wider than the line breaks inside itself. */
+  .w-url-part {
+    display: inline-block;
+    max-width: 100%;
+  }
+
   .w-live-url:hover {
     text-decoration: underline;
     text-decoration-color: var(--w-brand-line);
@@ -2160,15 +2182,22 @@
     list-style: none;
   }
 
+  /* The buttons sit beside the address while it fits, and move under it when it does not, so it never breaks. */
   .w-live-addresses li {
-    display: grid;
-    grid-template-areas:
-      'label actions'
-      'url actions';
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 16px;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
     padding: 12px 0;
+  }
+
+  .w-live-where {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
 
   .w-live-addresses li + li {
@@ -2176,15 +2205,10 @@
   }
 
   .w-live-label {
-    grid-area: label;
     color: var(--w-subtle);
     font-size: 12px;
     font-weight: 600;
     line-height: 16px;
-  }
-
-  .w-live-addresses .w-live-url {
-    grid-area: url;
   }
 
   .w-live-addresses li.is-primary .w-live-url {
@@ -2195,7 +2219,7 @@
 
   .w-live-row-actions {
     display: inline-flex;
-    grid-area: actions;
+    flex: none;
     gap: 8px;
   }
 
@@ -2906,6 +2930,47 @@
       display: none;
     }
 
+    /* Blocked with something to do: the bar is that one action at full width; Deploy comes back once it can work. */
+    .w-bar.has-next .w-bar-note,
+    .w-bar.has-next .w-bar-actions > .w-big {
+      display: none;
+    }
+
+    .w-bar.has-next .w-bar-end,
+    .w-bar.has-next .w-bar-actions {
+      flex: 1 1 100%;
+    }
+
+    .w-bar.has-next .w-bar-next-button.stp-ui-button {
+      display: inline-flex;
+      flex: 1;
+      min-width: 0;
+      --stp-control-height: 44px;
+      font-size: 15px;
+    }
+
+    .w-bar.has-next .w-bar-next-button .stp-ui-button__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Ready: the amount with its words wrapped beside it, as on Review, and the button. */
+    .w-bar.is-ready .w-bar-price {
+      flex: 1 1 auto;
+    }
+
+    .w-bar.is-ready .w-bar-amount,
+    .w-bar.is-ready .w-bar-figure {
+      align-items: center;
+      white-space: normal;
+    }
+
+    .w-bar.is-ready .w-bar-amount small {
+      max-width: 9.4em;
+      font-size: 12px;
+      line-height: 15px;
+    }
+
     .w-bar.is-blocked .w-bar-end {
       flex-wrap: nowrap;
       justify-content: space-between;
@@ -2960,6 +3025,27 @@
     .w-target-edit,
     .w-keys {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Labelled parts as a column of label and value: no dot left dangling at a line's end. */
+    .w-target-facts {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: 2px 12px;
+    }
+
+    .w-target-fact {
+      display: contents;
+    }
+
+    .w-target-fact-value {
+      min-width: 0;
+      white-space: normal;
+    }
+
+    .w-target-facts-dot,
+    .w-target-facts-break {
+      display: none;
     }
 
     .w-bar-inner {
@@ -3033,10 +3119,28 @@
 
     /* Each address: its name and its buttons on one line, the address under them at full width. */
     .w-live-addresses li {
-      grid-template-areas:
-        'label actions'
-        'url url';
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 6px 12px;
+    }
+
+    .w-live-where {
+      display: contents;
+    }
+
+    .w-live-addresses .w-live-label {
+      grid-row: 1;
+      grid-column: 1;
+    }
+
+    .w-live-addresses .w-live-row-actions {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .w-live-addresses .w-live-url {
+      grid-row: 2;
+      grid-column: 1 / -1;
     }
 
     .w-live-addresses .w-live-url,
