@@ -317,7 +317,7 @@ export const selectView = ({
     infrastructure || !(connector.semantic === 'egress' || membership.connectors.get(connector.id)?.infrastructure);
 
   // Routes between a hidden node and the node it folds into, to extend a folded connector through the hidden spot.
-  const routeBetween = (from: string, to: string): IsoTilePoint[] | undefined => {
+  const directRoute = (from: string, to: string): IsoTilePoint[] | undefined => {
     for (const connector of scene.connectors) {
       if (connector.from === from && connector.to === to) return connector.route.points;
       if (connector.from === to && connector.to === from) return [...connector.route.points].reverse();
@@ -325,6 +325,35 @@ export const selectView = ({
     return undefined;
   };
   const tileOf = new Map(scene.nodes.map((node) => [node.id, node.tile]));
+  /**
+   * The route between two nodes: their own connector, else the connectors through hidden nodes between them (a CDN
+   * reaches its service through the hidden load balancer), else an orthogonal jog between the two spots.
+   */
+  const routeBetween = (from: string, to: string): IsoTilePoint[] => {
+    const direct = directRoute(from, to);
+    if (direct) return direct;
+    const previous = new Map<string, string>([[from, from]]);
+    const queue = [from];
+    while (queue.length > 0 && !previous.has(to)) {
+      const current = queue.shift() as string;
+      for (const connector of scene.connectors) {
+        const next = connector.from === current ? connector.to : connector.to === current ? connector.from : undefined;
+        if (!next || previous.has(next) || (next !== to && isShown(next))) continue;
+        previous.set(next, current);
+        queue.push(next);
+      }
+    }
+    if (previous.has(to)) {
+      const path = [to];
+      while (path[0] !== from) path.unshift(previous.get(path[0]) as string);
+      return joinRoutes(path.slice(1).map((node, index) => directRoute(path[index], node) ?? []));
+    }
+    const start = tileOf.get(from);
+    const end = tileOf.get(to);
+    if (!start || !end) return [];
+    const middle = (start.x + end.x) / 2;
+    return simplifyRoute([start, { x: middle, y: start.y }, { x: middle, y: end.y }, end]);
+  };
   /** The path from a visible node to a hidden one that folds into it, through any hidden nodes between. */
   const pathFromOwner = (owner: string, hidden: string): IsoTilePoint[] => {
     const chain: string[] = [hidden];
@@ -335,12 +364,7 @@ export const selectView = ({
     }
     chain.push(owner);
     const pieces: IsoTilePoint[][] = [];
-    for (let index = chain.length - 1; index > 0; index--) {
-      const piece = routeBetween(chain[index], chain[index - 1]);
-      const start = tileOf.get(chain[index]);
-      const end = tileOf.get(chain[index - 1]);
-      pieces.push(piece ?? [start, end].filter((point): point is IsoTilePoint => Boolean(point)));
-    }
+    for (let index = chain.length - 1; index > 0; index--) pieces.push(routeBetween(chain[index], chain[index - 1]));
     return joinRoutes(pieces);
   };
 
