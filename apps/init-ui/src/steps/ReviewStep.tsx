@@ -9,7 +9,7 @@ import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { BiInfoCircle } from 'react-icons/bi';
 import { AnimatedPrice } from '../components/AnimatedPrice';
 import { RegionPicker } from '../components/RegionPicker';
@@ -17,6 +17,20 @@ import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
 import { quoteLabel, type ResourceStory } from '../workspace/resource-story';
 import { deploymentPreferenceKeysFor, plainList, splitMonthly, summarise } from './review-model';
+
+/** Whether a media query matches now, following changes. */
+const useMediaQuery = (query: string): boolean => {
+  const [matches, setMatches] = useState(() => window.matchMedia?.(query).matches === true);
+  useEffect(() => {
+    const list = window.matchMedia?.(query);
+    if (list === undefined) return;
+    const update = () => setMatches(list.matches);
+    update();
+    list.addEventListener('change', update);
+    return () => list.removeEventListener('change', update);
+  }, [query]);
+  return matches;
+};
 
 /** Heavy on purpose, light on arrival: the diagram loads after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));
@@ -130,6 +144,7 @@ export function ReviewPane({
   onDiscardEdits: () => void;
 }) {
   const existing = state.facts?.existingDeployments ?? [];
+  const isNarrow = useMediaQuery('(max-width: 900px)');
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
   const opened = new Set(
     state.timeline
@@ -174,11 +189,17 @@ export function ReviewPane({
           <Diagram
             ariaLabel="Diagram of what stacktape.yml creates on AWS"
             config={{ resources } as unknown as StacktapeConfig}
-            hint="Hover for why it is here · click to find it in stacktape.yml"
-            initialZoom={1.2}
+            hint={
+              isNarrow
+                ? 'Tap a resource to find it in stacktape.yml'
+                : 'Hover for why it is here · click to find it in stacktape.yml'
+            }
+            // A wizard's picture has a handful of resources: no layer switches or search box in the way.
+            layerChoices={[]}
             onSelectResource={onSelect}
             resourceProgress={progress}
             resourceTooltip={cardsFor(stories)}
+            searchable={false}
             selectedResource={selected ?? null}
             style={{ width: '100%', height: '100%' }}
           />
@@ -281,7 +302,7 @@ function Choice({
         options={choices}
         reserveMessageSpace={false}
         value={choices.find((choice) => choice.value === value) ?? null}
-        width={260}
+        width={340}
       />
     );
   }

@@ -441,7 +441,7 @@ export function Workspace({
                   usesAgent ? (
                     <span>{agent.label} is starting. The files it opens show up here.</span>
                   ) : (
-                    <span>Reading your manifests and config files on this machine.</span>
+                    <span>Stacktape’s own scanner reads your manifests and config files.</span>
                   )
                 }
                 files={files}
@@ -495,7 +495,7 @@ export function Workspace({
                   </>
                 )}
               </div>
-              <Chips chips={chips} />
+              {(phase !== 'scan' || chips.length > 0) && <Chips chips={chips} />}
             </div>
           )}
           {phase === 'review' && (
@@ -559,8 +559,12 @@ export function Workspace({
               'Saved as stacktape.ts. Switch to YAML to edit it here.'
             ) : (
               <>
-                Edit freely <span aria-hidden>·</span> hover a key for docs <span aria-hidden>·</span> <kbd>Ctrl</kbd>{' '}
-                <kbd>Space</kbd> for suggestions
+                Edit freely
+                <span className="ws-editor-hint-keys">
+                  {' '}
+                  <span aria-hidden>·</span> hover a key for docs <span aria-hidden>·</span> <kbd>Ctrl</kbd>{' '}
+                  <kbd>Space</kbd> for suggestions
+                </span>
               </>
             )}
           </p>
@@ -713,13 +717,17 @@ function ScanStatus({
 function Callout({ story, alongside }: { story: ResourceStory; alongside?: string | undefined }) {
   return (
     <span className="ws-callout-tag">
-      <code>{quoteLabel(story.evidence!.quote)}</code>
-      <span className="ws-callout-in">in {story.evidence!.file.split('/').at(-1)}</span>
-      <span aria-hidden className="ws-callout-arrow">
-        →
+      <span className="ws-callout-group">
+        <code>{quoteLabel(story.evidence!.quote)}</code>
+        <span className="ws-callout-in">in {story.evidence!.file.split('/').at(-1)}</span>
       </span>
-      <strong>{story.plainName}</strong>
-      {alongside !== undefined && <span className="ws-callout-in">for the {alongside}</span>}
+      <span className="ws-callout-group">
+        <span aria-hidden className="ws-callout-arrow">
+          →
+        </span>
+        <strong>{story.plainName}</strong>
+        {alongside !== undefined && <span className="ws-callout-in">for the {alongside}</span>}
+      </span>
     </span>
   );
 }

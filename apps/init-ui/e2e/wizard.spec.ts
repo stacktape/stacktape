@@ -1,10 +1,15 @@
 import { expect, type Page } from '@playwright/test';
 import { test } from './fixtures';
 
+/** Starts the analysis, skips the reveal once it plays, and waits for Review. */
 const analyzeAndReview = async (page: Page) => {
   await page.getByRole('button', { name: 'Analyze my project' }).click();
-  await expect(page.getByRole('heading', { name: 'Your app on AWS' })).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: /^Skip/ }).click({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: / on AWS$/ })).toBeVisible({ timeout: 15_000 });
 };
+
+/** The code lenses Monaco draws above the resources in stacktape.yml. */
+const lenses = (page: Page) => page.locator('.monaco-editor .codelens-decoration');
 
 const continueToDeploy = async (page: Page) => {
   await page.getByRole('button', { name: 'Continue to deploy' }).click();
@@ -27,32 +32,25 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(page.getByText('AWS only when you click Deploy')).toBeVisible();
   await analyzeAndReview(page);
 
+  await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible();
   await expect(page.getByText('A Next.js app, using a Postgres database.')).toBeVisible();
-  // One list under the diagram: plain names, the code that called for each, the price.
-  const resources = page.getByRole('region', { name: 'What gets created' });
-  await expect(resources).toContainText('Postgres database');
-  await expect(resources).toContainText('Next.js app');
-  await resources.getByRole('button', { name: /Postgres database/ }).click();
-  await expect(resources).toContainText('package.json:29');
-  // The alarm is a line on the database it watches, not a card of its own.
-  await expect(resources).toContainText(
-    'Alarm in your AWS account when the database has less than 2 GiB of free storage'
-  );
+  // Each resource says above its block in stacktape.yml what it is, what it costs and which line called for it.
+  await expect(lenses(page).filter({ hasText: 'Postgres database' })).toContainText(/\$\d+\/mo/);
+  await expect(lenses(page).filter({ hasText: 'Postgres database' })).toContainText('why: package.json:29');
 
   // The settings are one compact panel; each other option shows its price difference, and the total follows.
   const settings = page.getByRole('region', { name: 'Settings' });
-  await expect(settings.getByRole('radio', { name: /Stay online/ })).toBeVisible();
-  await expect(settings.locator('label', { hasText: 'Stay online' })).toContainText(/\+\$\d+/);
-  const before = await page.locator('.w-footer .w-price-value').textContent();
-  await settings.locator('label', { hasText: 'Private network' }).click();
-  await expect(resources).toContainText('Database access server');
-  await expect(page.locator('.w-footer .w-price-value')).not.toHaveText(before ?? '');
+  await expect(settings.getByRole('tab', { name: /Stay online/ })).toContainText(/\+\$\d+/);
+  const before = await page.locator('.ws-bar-amount').textContent();
+  await settings.getByRole('tab', { name: /Private network/ }).click();
+  await expect(page.locator('[data-iso-kind="node"][data-iso-id="databaseBastion"]')).toBeVisible();
+  await expect(page.locator('.ws-bar-amount')).not.toHaveText(before ?? '');
   // Secrets and migrations wait for the Deploy step, where they can be resolved.
   await expect(page.getByText('secrets your app reads')).toHaveCount(0);
 
   await page.getByRole('combobox', { name: 'Region' }).click();
   await page.getByRole('option', { name: /us-east-1/ }).click();
-  await expect(page.locator('.w-footer')).toContainText('us-east-1');
+  await expect(page.locator('.monaco-editor .view-line', { hasText: 'region: us-east-1' })).toBeVisible();
 
   // The session survives a reload on its cookie; the one-time token is long gone from the address bar.
   await page.reload();
@@ -107,8 +105,7 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
   const wizard = await startWizard({ project: 'saas-starter' });
   await page.goto(wizard.url);
   await analyzeAndReview(page);
-  await expect(page.getByText('Hover a key for its docs')).toBeVisible();
-  await page.getByRole('button', { name: 'Open the file' }).click();
+  await expect(page.getByText('hover a key for docs')).toBeVisible();
 
   const editor = page.locator('.monaco-editor').first();
   await expect(editor).toBeVisible({ timeout: 15_000 });
@@ -127,14 +124,56 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
   await page.keyboard.type('\n# tuned by hand\n');
   await expect(page.getByText(/Edited by hand\. This text is what gets saved and deployed/)).toBeVisible();
   const settings = page.getByRole('region', { name: 'Settings' });
-  await expect(settings.getByText('Paused while your edited file is in use')).toBeVisible();
-  await expect(settings.getByRole('radio', { name: /Stay online/ })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'TypeScript' })).toBeDisabled();
+  await expect(settings.getByText('Paused while you edit stacktape.yml by hand.')).toBeVisible();
+  await expect(settings.getByRole('tab', { name: /Stay online/ })).toBeDisabled();
+  await expect(page.getByRole('tab', { name: 'TypeScript' })).toBeDisabled();
 
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Discard my edits' }).first().click();
-  await expect(page.getByText('Generated from your code and the settings.')).toBeVisible();
-  await expect(settings.getByRole('radio', { name: /Stay online/ })).toBeEnabled();
+  await expect(page.getByText(/Edited by hand/)).toHaveCount(0);
+  await expect(settings.getByRole('tab', { name: /Stay online/ })).toBeEnabled();
+});
+
+test('the analysis shows the files it reads, then ties each resource to the line that called for it, once', async ({
+  page,
+  startWizard
+}) => {
+  const wizard = await startWizard({ project: 'saas-starter', scan: 'held' });
+  await page.goto(wizard.url);
+  await page.getByRole('button', { name: 'Analyze my project' }).click();
+
+  // While the agent reads: its files, their real text (values in .env files masked), and what it is doing.
+  const codeWindow = page.locator('.ws-window');
+  await expect(codeWindow.locator('.ws-window-tab', { hasText: 'package.json' })).toBeVisible();
+  await expect(codeWindow.locator('.ws-window-tab[data-active]')).toHaveText('.env.example');
+  await expect(codeWindow).toContainText('POSTGRES_URL=••••');
+  await expect(page.locator('.ws-status')).toContainText('Claude Code is reading .env.example');
+  await expect(page.getByText('Resources appear here as they’re found')).toBeVisible();
+
+  // The result is told one resource at a time: the line, the callout, the chips, the block in the file.
+  wizard.release('scan');
+  await expect(page.locator('.ws-callout')).toContainText(/postgres\s*in package\.json\s*→\s*Postgres database/, {
+    timeout: 15_000
+  });
+  await expect(codeWindow.locator('.ws-line[data-focus]')).toContainText('"postgres"');
+  await expect(page.getByRole('list', { name: 'Found so far' })).toContainText('3 secrets');
+
+  // Then Review, without a skip: the diagram, an editable file, and the evidence one click away.
+  await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /^Skip/ })).toHaveCount(0);
+  await lenses(page).locator('a', { hasText: 'why: package.json:29' }).click();
+  await expect(page.locator('.ws-peek-row[data-focus]')).toContainText('"postgres"');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.locator('.ws-peek')).toHaveCount(0);
+
+  // Clicking a resource in the diagram finds its block in the file.
+  await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
+  await expect(page.locator('.monaco-editor .ws-editor-picked').first()).toBeVisible();
+
+  // The reveal plays once: a reload lands on Review.
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible();
+  await expect(page.locator('.ws-window')).toHaveCount(0);
 });
 
 test('a failed deploy names the fix in this project, keeps the retry, and a stopped CLI says what to do', async ({

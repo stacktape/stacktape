@@ -87,6 +87,14 @@
     min-height: 0;
   }
 
+  /* With many settings on a short screen the diagram keeps its size and the column scrolls instead. */
+  .ws[data-phase='review'] .ws-left {
+    margin: -4px;
+    padding: 4px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
   .ws-panel {
     box-sizing: border-box;
     border-radius: var(--ws-radius);
@@ -169,12 +177,6 @@
     border-radius: 0 0 2px 2px;
     background: var(--ws-brand);
     content: '';
-  }
-
-  .ws-window-tab.is-placeholder {
-    width: 120px;
-    background: var(--ws-code-bg);
-    animation: none;
   }
 
   .ws-window-path {
@@ -405,6 +407,13 @@
     font-size: 12px;
   }
 
+  .ws-callout-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
   .ws-callout-in {
     color: var(--ws-text-muted);
   }
@@ -431,9 +440,6 @@
   }
 
   .ws-status-text {
-    display: flex;
-    align-items: center;
-    gap: 8px;
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
@@ -462,7 +468,9 @@
 
   .ws-pulse {
     position: relative;
-    flex: none;
+    display: inline-block;
+    margin: 0 10px 1px 2px;
+    vertical-align: middle;
     width: 7px;
     height: 7px;
     border-radius: 50%;
@@ -942,8 +950,7 @@
 
   .ws-diagram {
     position: relative;
-    flex: 1 1 auto;
-    min-height: 240px;
+    flex: 1 0 320px;
     overflow: hidden;
   }
 
@@ -972,7 +979,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    min-height: 46px;
+    min-height: 44px;
   }
 
   .ws-setting + .ws-setting {
@@ -1240,8 +1247,34 @@
     }
 
     .ws-actionbar-note,
-    .ws-status-meta {
+    .ws-status-meta,
+    .ws-editor-hint-keys,
+    .ws-bar-price .ws-info {
       display: none;
+    }
+
+    .ws-status {
+      align-items: flex-start;
+    }
+
+    .ws-status-text {
+      white-space: normal;
+    }
+
+    .ws-callout-tag {
+      flex-wrap: wrap;
+      row-gap: 4px;
+      max-width: calc(100vw - 32px - var(--ws-gutter-digits, 2) * 1ch - 64px);
+    }
+
+    .ws-bar-amount {
+      font-size: 17px;
+      white-space: nowrap;
+    }
+
+    .ws-bar-amount small {
+      margin-left: 4px;
+      font-size: 12px;
     }
   }
 

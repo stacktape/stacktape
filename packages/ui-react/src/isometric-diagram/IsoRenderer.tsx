@@ -635,6 +635,8 @@ export type DiagramViewProps = {
    * `undefined` to keep the diagram's own card for that resource.
    */
   resourceTooltip?: ((resourceName: string) => ReactNode | undefined) | undefined;
+  /** Offer the "Find resource" box. On by default; a small picture with a handful of resources can do without it. */
+  searchable?: boolean | undefined;
 };
 
 export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
@@ -689,6 +691,7 @@ export function IsoRenderer({
   resourceProgress,
   hint = 'Hover to learn what something does · click a resource for its connections',
   resourceTooltip,
+  searchable = true,
   onToggleGroup,
   toolbar,
   viewNote
@@ -1410,18 +1413,20 @@ export function IsoRenderer({
         : !tooltip && !selectedNode && !selectedGroup && <p className="stp-diagram__hint">{hint}</p>}
       <div className="stp-diagram__toolbar stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
         {toolbar}
-        <label className="stp-diagram__find">
-          <BiSearch aria-hidden="true" size={15} />
-          <input
-            type="search"
-            value={query}
-            placeholder="Find resource"
-            aria-label="Find resource"
-            spellCheck={false}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={onSearchKeyDown}
-          />
-        </label>
+        {searchable && (
+          <label className="stp-diagram__find">
+            <BiSearch aria-hidden="true" size={15} />
+            <input
+              type="search"
+              value={query}
+              placeholder="Find resource"
+              aria-label="Find resource"
+              spellCheck={false}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKeyDown}
+            />
+          </label>
+        )}
         {isSearching && (
           <p className="stp-diagram__find-count" aria-live="polite">
             {matches.size === 0 ? 'No match' : `${matches.size} ${matches.size === 1 ? 'match' : 'matches'}`}

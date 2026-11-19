@@ -116,16 +116,12 @@ export function CodeWindow({
   return (
     <div className="ws-window" data-focus={focus === undefined ? undefined : 'true'}>
       <div className="ws-window-tabs" ref={tabsRef}>
-        {tabs.length === 0 ? (
-          <span className="ws-window-tab is-placeholder" />
-        ) : (
-          tabs.map((path) => (
-            <span className="ws-window-tab" data-active={path === active ? 'true' : undefined} key={path} title={path}>
-              <FileIcon path={path} />
-              {path.split('/').at(-1)}
-            </span>
-          ))
-        )}
+        {tabs.map((path) => (
+          <span className="ws-window-tab" data-active={path === active ? 'true' : undefined} key={path} title={path}>
+            <FileIcon path={path} />
+            {path.split('/').at(-1)}
+          </span>
+        ))}
       </div>
       {active !== undefined && (
         <div className="ws-window-path">
