@@ -53,6 +53,18 @@ export type IsometricDiagramProps = DiagramViewProps & {
   /** The layers the reader can switch, in order. With none, the diagram has no layer switches. */
   layerChoices?: readonly DiagramLayer[] | undefined;
   /**
+   * How the layers share one layout.
+   *
+   * - `every-layer` (the default) lays the picture out once with room for every layer, so switching a layer neither
+   *   moves nor rescales anything. Without the Infrastructure layer, the picture keeps the room its nodes and zones
+   *   would take.
+   * - `shown-layers` lays out and fits only what the shown layers draw. The application picture is then as compact as
+   *   it can be, and switching the Infrastructure layer rearranges the picture. Meant for a small frame whose
+   *   application picture is much smaller than the full one, like the init wizard's review of a new app; it matches
+   *   what a diagram without layer switches draws.
+   */
+  layout?: 'every-layer' | 'shown-layers' | undefined;
+  /**
    * The deployed stage, for the Access layer's tags. Untrusted: anything unreadable is skipped. Omit it
    * where there is no deployed stage, and the Access layer is not offered. Pass `null` for a deployed stage whose
    * template could not be read, and the layer is offered disabled, saying so.
@@ -182,6 +194,7 @@ export function IsometricDiagram({
   defaultLayers,
   onLayersChange,
   layerChoices = DIAGRAM_LAYERS,
+  layout = 'every-layer',
   deployment
 }: IsometricDiagramProps) {
   // Role groups start collapsed; the reader expands them one by one.
@@ -209,9 +222,16 @@ export function IsometricDiagram({
   const wantsInfrastructure = requested.infrastructure === true;
   const wantsAccess = requested.access === true;
 
-  const model = useMemo(
-    () => buildDiagramModel({ parsedConfig: config, expandedGroups, statusLines }),
-    [config, expandedGroups, statusLines]
+  // Without an Infrastructure switch, the application picture is laid out on its own: no room is kept for nodes,
+  // zones and badges that only that layer draws. A host that asks for `shown-layers` gets that picture whenever the
+  // layer is off, and the full one when it is on.
+  const offersInfrastructure = layerChoices.includes('infrastructure');
+  const fullModel = useMemo(
+    () =>
+      offersInfrastructure
+        ? buildDiagramModel({ parsedConfig: config, expandedGroups, statusLines, infrastructure: true })
+        : null,
+    [config, expandedGroups, statusLines, offersInfrastructure]
   );
   const security = useMemo(() => {
     const input = readDiagramDeployment(deployment);
@@ -219,9 +239,18 @@ export function IsometricDiagram({
   }, [deployment]);
   // A layer shows only where the stage has something for it: a stack of functions and tables has no infrastructure to
   // add, and one with nothing in a VPC has no security groups.
-  const canShowInfrastructure = useMemo(() => Boolean(model && hasInfrastructure(model)), [model]);
+  const canShowInfrastructure = useMemo(() => Boolean(fullModel && hasInfrastructure(fullModel)), [fullModel]);
   const canShowAccess = Boolean(security && security.groups.length > 0);
   const showInfrastructure = wantsInfrastructure && canShowInfrastructure;
+  const needsApplicationModel = !fullModel || (layout === 'shown-layers' && !showInfrastructure);
+  const applicationModel = useMemo(
+    () =>
+      needsApplicationModel
+        ? buildDiagramModel({ parsedConfig: config, expandedGroups, statusLines, infrastructure: false })
+        : null,
+    [config, expandedGroups, statusLines, needsApplicationModel]
+  );
+  const model = needsApplicationModel ? applicationModel : fullModel;
   const showAccess = wantsAccess && canShowAccess;
   // A switch starts from what is shown, not from what was asked for: a layer the host requested but the stage has
   // nothing for is dropped on the next switch, so the host's copy (Console's URL) matches the checkboxes again.

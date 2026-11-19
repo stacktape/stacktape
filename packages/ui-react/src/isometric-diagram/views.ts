@@ -15,9 +15,13 @@
  * service folds into the service, so the user's connector runs through the gateway's empty spot into the service. A
  * hidden node with no owner (the NAT) takes its connectors with it.
  */
+import type { LayoutConnectorLabel, LayoutNode } from './layout/diagram-layout.js';
+import type { ProjectedBox } from './layout/projected-box.js';
 import type { IsoConnector, IsoNode, IsoNodeConnection, IsoScene, IsoTilePoint } from './scene.js';
 import type { TopologyNode } from './topology.js';
-import { simplifyRoute } from './layout/diagram-layout.js';
+import { BODY_SHAPES, nodeShapes, simplifyRoute } from './layout/diagram-layout.js';
+import { coveredArea, findDirectRoute, placeChipOnRoute } from './layout/direct-route.js';
+import { projectTile, shiftBox } from './layout/projected-box.js';
 
 export type DiagramLayer = 'infrastructure' | 'access';
 
@@ -93,6 +97,188 @@ export const hasInfrastructure = ({ scene, membership }: { scene: IsoScene; memb
       (membership.connectors.get(connector.id)?.infrastructureLabel && connector.label)
   );
 
+// ── Folding ──
+
+/**
+ * The visible node each node is drawn as: itself when shown, else what it folds into, or null when nothing it folds
+ * into is shown.
+ */
+export const createResolver = ({
+  membership,
+  isShown
+}: {
+  membership: ViewMembership;
+  isShown: (nodeId: string) => boolean;
+}) => {
+  const resolved = new Map<string, string | null>();
+  return (nodeId: string): string | null => {
+    const known = resolved.get(nodeId);
+    if (known !== undefined) return known;
+    let current: string | undefined = nodeId;
+    const seen = new Set<string>();
+    while (current && !isShown(current) && !seen.has(current)) {
+      seen.add(current);
+      current = membership.nodes.get(current)?.foldInto;
+    }
+    const result = current && isShown(current) ? current : null;
+    resolved.set(nodeId, result);
+    return result;
+  };
+};
+
+type FoldableNode = Pick<IsoNode, 'id' | 'label' | 'connections'>;
+
+/**
+ * Each shown node's connections as the picture draws them: a hidden node's connections move to the node it folds into,
+ * and a connection to a hidden node is listed under the visible node that stands for it. Outbound traffic is only for
+ * the Infrastructure layer.
+ */
+export const foldConnections = ({
+  nodes,
+  isShown,
+  resolve,
+  infrastructure
+}: {
+  nodes: readonly FoldableNode[];
+  isShown: (nodeId: string) => boolean;
+  resolve: (nodeId: string) => string | null;
+  infrastructure: boolean;
+}): Map<string, IsoNodeConnection[]> => {
+  const connectionShown = (connection: IsoNodeConnection) => infrastructure || connection.semantic !== 'egress';
+  const foldedInto = new Map<string, string[]>();
+  for (const node of nodes) {
+    if (isShown(node.id)) continue;
+    const target = resolve(node.id);
+    if (target) foldedInto.set(target, [...(foldedInto.get(target) ?? []), node.id]);
+  }
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const labelOf = (nodeId: string) => nodeById.get(nodeId)?.label ?? nodeId;
+  const remapConnections = (owner: string, connections: IsoNodeConnection[]) =>
+    connections.flatMap((connection): IsoNodeConnection[] => {
+      if (!connectionShown(connection)) return [];
+      const other = resolve(connection.nodeId);
+      if (!other || other === owner) return [];
+      if (other === connection.nodeId) return [connection];
+      // A hidden node is reached through its owner, under the owner's name.
+      return [{ ...connection, nodeId: other, name: labelOf(other) }];
+    });
+
+  const result = new Map<string, IsoNodeConnection[]>();
+  for (const node of nodes) {
+    if (!isShown(node.id)) continue;
+    const absorbed = (foldedInto.get(node.id) ?? []).flatMap((id) => nodeById.get(id)?.connections ?? []);
+    const seen = new Set<string>();
+    result.set(
+      node.id,
+      remapConnections(node.id, [...node.connections, ...absorbed]).filter((connection) => {
+        const key = `${connection.direction}|${connection.semantic}|${connection.nodeId}|${connection.text ?? ''}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+    );
+  }
+  return result;
+};
+
+// ── Folded connectors ──
+
+export type ViewGeometry = {
+  nodes: ReadonlyMap<string, LayoutNode>;
+  measureLabel: (text: string) => LayoutConnectorLabel;
+};
+
+/** Room kept between a folded connector and the bodies and names it passes, in projected units. */
+const FOLD_MARGIN = 0.25;
+/** How far a folded connector may run inside its own end nodes' footprints, in tiles. */
+const END_CLEARANCE = 0.66;
+/** How far from its ends a chip sits at least, in tiles. */
+const CHIP_SKIP = 1.1;
+
+const grow = (box: ProjectedBox, margin: number): ProjectedBox => ({
+  u0: box.u0 - margin,
+  u1: box.u1 + margin,
+  v0: box.v0 - margin,
+  v1: box.v1 + margin
+});
+
+/**
+ * Gives each folded connector the simplest route the hidden nodes leave free: a connector joined through a hidden
+ * node's spot would otherwise zigzag around an empty place. Routes keep clear of every shown body, name and chip; a
+ * chip that is no longer on its route moves onto it.
+ */
+const straightenFolds = ({
+  scene,
+  isShown,
+  connectors,
+  folds,
+  geometry
+}: {
+  scene: IsoScene;
+  isShown: (nodeId: string) => boolean;
+  connectors: IsoConnector[];
+  folds: ReadonlySet<IsoConnector>;
+  geometry: ViewGeometry;
+}) => {
+  const placed = new Map<string, { bodies: ProjectedBox[]; tags: ProjectedBox[] }>();
+  for (const node of scene.nodes) {
+    const layoutNode = geometry.nodes.get(node.id);
+    if (!layoutNode || !isShown(node.id)) continue;
+    const { u, v } = projectTile(node.tile);
+    const shapes = nodeShapes(layoutNode).map((box) => shiftBox({ box, u, v }));
+    placed.set(node.id, { bodies: shapes.slice(0, BODY_SHAPES), tags: shapes.slice(BODY_SHAPES) });
+  }
+  const chipBox = (connector: IsoConnector) => {
+    if (!connector.label) return undefined;
+    const size = geometry.measureLabel(connector.label);
+    const { u, v } = projectTile(connector.route.labelTile);
+    return { u0: u - size.halfWidth, u1: u + size.halfWidth, v0: v - size.halfHeight, v1: v + size.halfHeight };
+  };
+  const chips = new Map<IsoConnector, ProjectedBox>();
+  for (const connector of connectors) {
+    const box = chipBox(connector);
+    if (box && !folds.has(connector)) chips.set(connector, box);
+  }
+
+  for (const connector of folds) {
+    const obstacles: ProjectedBox[] = [];
+    for (const [id, shapes] of placed) {
+      if (id === connector.from || id === connector.to) continue;
+      for (const box of [...shapes.bodies, ...shapes.tags]) obstacles.push(grow(box, FOLD_MARGIN));
+    }
+    for (const box of chips.values()) obstacles.push(box);
+    const points = findDirectRoute({ current: connector.route.points, obstacles, endClearance: END_CLEARANCE });
+    if (points !== connector.route.points) connector.route = { ...connector.route, points };
+    if (!connector.label) continue;
+    const size = geometry.measureLabel(connector.label);
+    const chip = { u0: -size.halfWidth, u1: size.halfWidth, v0: -size.halfHeight, v1: size.halfHeight };
+    if (!onRoute(connector.route.labelTile, connector.route.points)) {
+      const everything = [...placed.values()].flatMap((shapes) => shapes.bodies.concat(shapes.tags));
+      const labelTile = placeChipOnRoute({
+        route: connector.route.points,
+        chip,
+        skip: CHIP_SKIP,
+        blockedArea: (box) => coveredArea(box, everything) + coveredArea(box, [...chips.values()])
+      });
+      if (labelTile) connector.route = { ...connector.route, labelTile };
+    }
+    const box = chipBox(connector);
+    if (box) chips.set(connector, box);
+  }
+};
+
+const onRoute = (point: IsoTilePoint, route: readonly IsoTilePoint[]) =>
+  route.slice(0, -1).some((start, index) => {
+    const end = route[index + 1];
+    const epsilon = 1e-3;
+    return (
+      point.x >= Math.min(start.x, end.x) - epsilon &&
+      point.x <= Math.max(start.x, end.x) + epsilon &&
+      point.y >= Math.min(start.y, end.y) - epsilon &&
+      point.y <= Math.max(start.y, end.y) + epsilon
+    );
+  });
+
 // ── Selection ──
 
 /** Joins route pieces end to start into one route. */
@@ -112,27 +298,20 @@ export type ViewSelection = {
 export const selectView = ({
   scene,
   membership,
-  infrastructure
+  infrastructure,
+  geometry
 }: {
   scene: IsoScene;
   membership: ViewMembership;
   infrastructure: boolean;
+  /**
+   * What each node occupies and how big a chip is, as the layout reserved them. With it, a folded connector takes the
+   * simplest route the hidden nodes leave free instead of running through their spots.
+   */
+  geometry?: ViewGeometry | undefined;
 }): ViewSelection => {
   const isShown = (nodeId: string) => infrastructure || !membership.nodes.has(nodeId);
-  const resolved = new Map<string, string | null>();
-  const resolve = (nodeId: string): string | null => {
-    const known = resolved.get(nodeId);
-    if (known !== undefined) return known;
-    let current: string | undefined = nodeId;
-    const seen = new Set<string>();
-    while (current && !isShown(current) && !seen.has(current)) {
-      seen.add(current);
-      current = membership.nodes.get(current)?.foldInto;
-    }
-    const result = current && isShown(current) ? current : null;
-    resolved.set(nodeId, result);
-    return result;
-  };
+  const resolve = createResolver({ membership, isShown });
 
   const connectorShown = (connector: IsoConnector) =>
     infrastructure || !(connector.semantic === 'egress' || membership.connectors.get(connector.id)?.infrastructure);
@@ -167,6 +346,7 @@ export const selectView = ({
 
   const connectors: IsoConnector[] = [];
   const byKey = new Map<string, IsoConnector>();
+  const folds = new Set<IsoConnector>();
   for (const connector of scene.connectors) {
     if (!connectorShown(connector)) continue;
     const from = resolve(connector.from);
@@ -201,40 +381,19 @@ export const selectView = ({
     };
     byKey.set(key, next);
     connectors.push(next);
+    if (folded) folds.add(next);
   }
+  if (geometry && folds.size > 0) straightenFolds({ scene, isShown, connectors, folds, geometry });
 
-  const connectionShown = (connection: IsoNodeConnection) => infrastructure || connection.semantic !== 'egress';
-  const foldedInto = new Map<string, string[]>();
-  for (const node of scene.nodes) {
-    if (isShown(node.id)) continue;
-    const target = resolve(node.id);
-    if (target) foldedInto.set(target, [...(foldedInto.get(target) ?? []), node.id]);
-  }
-  const nodeById = new Map(scene.nodes.map((node) => [node.id, node]));
-  const labelOf = (nodeId: string) => nodeById.get(nodeId)?.label ?? nodeId;
-  const remapConnections = (owner: string, connections: IsoNodeConnection[]) =>
-    connections.flatMap((connection): IsoNodeConnection[] => {
-      if (!connectionShown(connection)) return [];
-      const other = resolve(connection.nodeId);
-      if (!other || other === owner) return [];
-      if (other === connection.nodeId) return [connection];
-      // A hidden node is reached through its owner, under the owner's name.
-      return [{ ...connection, nodeId: other, name: labelOf(other) }];
-    });
-
+  const connections = foldConnections({ nodes: scene.nodes, isShown, resolve, infrastructure });
   const nodes: IsoNode[] = scene.nodes
     .filter((node) => isShown(node.id))
-    .map((node) => {
-      const absorbed = (foldedInto.get(node.id) ?? []).flatMap((id) => nodeById.get(id)?.connections ?? []);
-      const seen = new Set<string>();
-      const connections = remapConnections(node.id, [...node.connections, ...absorbed]).filter((connection) => {
-        const key = `${connection.direction}|${connection.semantic}|${connection.nodeId}|${connection.text ?? ''}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-      return Object.assign({}, node, { connections, exposure: infrastructure ? node.exposure : undefined });
-    });
+    .map((node) =>
+      Object.assign({}, node, {
+        connections: connections.get(node.id) ?? [],
+        exposure: infrastructure ? node.exposure : undefined
+      })
+    );
 
   return {
     scene: {

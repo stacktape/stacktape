@@ -18,11 +18,12 @@ import type { GroupedTopology } from './grouping.js';
 import type { IsoConnector, IsoLabel, IsoNode, IsoRectangle, IsoScene } from './scene.js';
 import type { SecurityGroupModel } from './security-groups.js';
 import type { DiagramTopology, TopologyEdge, TopologyNode } from './topology.js';
+import type { IsoNodeConnection } from './scene.js';
 import type { ConnectorMembership, DiagramLayers, ViewMembership } from './views.js';
 import { groupTopology } from './grouping.js';
 import { layoutDiagram } from './layout/diagram-layout.js';
 import { addAccessLayer } from './security-view.js';
-import { ALL_LAYERS, classifyNodes, selectView } from './views.js';
+import { ALL_LAYERS, classifyNodes, createResolver, foldConnections, selectView } from './views.js';
 import {
   BADGE_HEIGHT_PX,
   BADGE_OFFSET_PX,
@@ -132,11 +133,14 @@ const VPC_LINK_LABEL = 'VPC Link';
 const toLayoutNode = ({
   node,
   zone,
-  statusLines
+  statusLines,
+  infrastructure
 }: {
   node: TopologyNode;
   zone: string | undefined;
   statusLines: boolean;
+  /** Whether the picture can show the Infrastructure layer, whose load balancer badges need room. */
+  infrastructure: boolean;
 }): LayoutNode => {
   // A declared resource or group can report a status; its pill hangs under the name tag.
   const status = statusLines && !node.implicit;
@@ -146,7 +150,7 @@ const toLayoutNode = ({
     shape,
     replicas: node.replicas,
     isPublic: node.isPublic,
-    exposure: getExposure(node),
+    exposure: infrastructure ? getExposure(node) : undefined,
     memberCount: node.memberIds?.length
   })
     ? BADGE_ROOM_PX
@@ -240,18 +244,29 @@ const getZoneTagSize = (zoneId: string): ZoneTagSize | undefined => {
   };
 };
 
-const buildLayoutInput = (topology: DiagramTopology, statusLines: boolean): DiagramLayoutInput => {
+const buildLayoutInput = ({
+  topology,
+  statusLines,
+  infrastructure
+}: {
+  topology: DiagramTopology;
+  statusLines: boolean;
+  infrastructure: boolean;
+}): DiagramLayoutInput => {
   const nodeById = new Map(topology.nodes.map((node) => [node.id, node]));
   return {
-    nodes: topology.nodes.map((node) => toLayoutNode({ node, zone: getZone(node), statusLines })),
+    // Zones are drawn only by the Infrastructure layer; without it, nothing has to stay inside or outside a band.
+    nodes: topology.nodes.map((node) =>
+      toLayoutNode({ node, zone: infrastructure ? getZone(node) : undefined, statusLines, infrastructure })
+    ),
     edges: topology.edges.map((edge) => ({
       id: edge.id,
       from: edge.from,
       to: edge.to,
       flow: isFlowEdge({ edge, nodeById }),
       bundle: edge.semantic,
-      // Room for the Infrastructure layer's "VPC Link" is kept in every picture.
-      label: edge.label ?? (isVpcLink({ edge, nodeById }) ? VPC_LINK_LABEL : undefined)
+      // Room for the Infrastructure layer's "VPC Link" is kept in every picture that can show the layer.
+      label: edge.label ?? (infrastructure && isVpcLink({ edge, nodeById }) ? VPC_LINK_LABEL : undefined)
     })),
     zones: ZONES,
     measureLabel: measureChip,
@@ -265,11 +280,14 @@ const buildSceneNodes = ({
   topology,
   placements,
   details,
+  connections,
   memberGroup
 }: {
   topology: DiagramTopology;
   placements: Map<string, LayoutPlacement>;
   details: ReturnType<typeof buildSceneDetails>;
+  /** Each node's connections for the side panel. */
+  connections: ReadonlyMap<string, IsoNodeConnection[]>;
   /** The group of each member drawn on its own because its group is expanded. */
   memberGroup: Map<string, string>;
 }) => {
@@ -299,7 +317,7 @@ const buildSceneNodes = ({
       exposure: getExposure(node),
       groupId: isGroup ? node.id : memberGroup.get(node.id),
       memberCount: node.memberIds?.length,
-      connections: details.connections.get(node.id) ?? [],
+      connections: connections.get(node.id) ?? [],
       routes: details.routes.get(node.id),
       undrawnTriggers: node.undrawnTriggers?.map((trigger) => trigger.text)
     });
@@ -361,37 +379,100 @@ export type DiagramModel = {
   grouped: GroupedTopology;
   /** What each node occupies on screen, for placing the Access layer's tags clear of it. */
   layoutNodes: Map<string, LayoutNode>;
+  /**
+   * Whether the model can show the Infrastructure layer. Without it, the layout left out what only that layer shows,
+   * so the application picture is laid out on its own.
+   */
+  infrastructure: boolean;
+};
+
+/**
+ * The application picture's topology: what only the Infrastructure layer shows is left out, and the connectors of a
+ * hidden node move to the node it folds into, as `selectView` draws them. Connectors that fold onto the same pair become
+ * one, which keeps the first and the first label.
+ */
+const foldInfrastructure = ({
+  topology,
+  resolve
+}: {
+  topology: GroupedTopology;
+  resolve: (nodeId: string) => string | null;
+}): GroupedTopology => {
+  const edges: TopologyEdge[] = [];
+  const byKey = new Map<string, TopologyEdge>();
+  for (const edge of topology.edges) {
+    // Outbound traffic is drawn only by the Infrastructure layer.
+    if (edge.semantic === 'egress') continue;
+    const from = resolve(edge.from);
+    const to = resolve(edge.to);
+    if (!from || !to || from === to) continue;
+    const key = `${from}->${to}::${edge.semantic}`;
+    const existing = byKey.get(key);
+    if (existing) {
+      if (!existing.label && edge.label) existing.label = edge.label;
+      continue;
+    }
+    const next = { ...edge, from, to };
+    byKey.set(key, next);
+    edges.push(next);
+  }
+  return { ...topology, nodes: topology.nodes.filter((node) => resolve(node.id) === node.id), edges };
 };
 
 export const buildDiagramModel = ({
   parsedConfig,
   expandedGroups,
-  statusLines = false
+  statusLines = false,
+  infrastructure = true
 }: {
   parsedConfig: StacktapeConfig | null;
   /** Role groups the reader has expanded; every other group is drawn as one node. */
   expandedGroups?: ReadonlySet<string> | undefined;
   /** Reserve a live-status line under every declared resource, so statuses can come and go without moving anything. */
   statusLines?: boolean | undefined;
+  /**
+   * Whether the reader can switch the Infrastructure layer on. When they cannot, the layout leaves out what only that
+   * layer shows (Stacktape-created nodes, zones, outbound traffic, load balancer badges), so the application picture is
+   * laid out on its own instead of keeping room for things it never draws.
+   */
+  infrastructure?: boolean | undefined;
 }): DiagramModel | null => {
   const base = buildDiagramTopology({ parsedConfig });
   if (!base || base.nodes.length === 0) return null;
 
-  const topology = groupTopology({ topology: base, expandedGroupIds: expandedGroups });
-  const details = buildSceneDetails({ base, grouped: topology });
+  const grouped = groupTopology({ topology: base, expandedGroupIds: expandedGroups });
+  const details = buildSceneDetails({ base, grouped });
   const memberGroup = new Map(
-    topology.groups.filter((group) => group.expanded).flatMap((group) => group.memberIds.map((id) => [id, group.id]))
+    grouped.groups.filter((group) => group.expanded).flatMap((group) => group.memberIds.map((id) => [id, group.id]))
   );
-  const layoutInput = buildLayoutInput(topology, statusLines);
+  const nodeMembership = classifyNodes(grouped.nodes);
+  let topology = grouped;
+  let connections: ReadonlyMap<string, IsoNodeConnection[]> = details.connections;
+  if (!infrastructure) {
+    const isShown = (nodeId: string) => !nodeMembership.has(nodeId);
+    const resolve = createResolver({ membership: { nodes: nodeMembership, connectors: new Map() }, isShown });
+    topology = foldInfrastructure({ topology: grouped, resolve });
+    connections = foldConnections({
+      nodes: grouped.nodes.map((node) => ({
+        id: node.id,
+        label: node.label,
+        connections: details.connections.get(node.id) ?? []
+      })),
+      isShown,
+      resolve,
+      infrastructure: false
+    });
+  }
+  const layoutInput = buildLayoutInput({ topology, statusLines, infrastructure });
   const layout = layoutDiagram(layoutInput);
-  const sceneNodes = buildSceneNodes({ topology, placements: layout.nodes, details, memberGroup });
+  const sceneNodes = buildSceneNodes({ topology, placements: layout.nodes, details, connections, memberGroup });
   const { rectangles, labels } = buildRectanglesAndLabels({ topology, layout });
   const nodeById = new Map(topology.nodes.map((node) => [node.id, node]));
   const connectorMembership = new Map<string, ConnectorMembership>();
   const connectors: IsoConnector[] = topology.edges.flatMap((edge) => {
     const route = layout.edges.get(edge.id);
     if (!route) return [];
-    const vpcLink = !edge.label && isVpcLink({ edge, nodeById });
+    const vpcLink = infrastructure && !edge.label && isVpcLink({ edge, nodeById });
     if (vpcLink) connectorMembership.set(edge.id, { infrastructureLabel: true });
     return [
       {
@@ -411,10 +492,11 @@ export const buildDiagramModel = ({
 
   return {
     scene: { nodes: sceneNodes, connectors, rectangles, labels, groups: details.groups },
-    membership: { nodes: classifyNodes(topology.nodes), connectors: connectorMembership },
+    membership: { nodes: nodeMembership, connectors: connectorMembership },
     base,
-    grouped: topology,
-    layoutNodes: new Map(layoutInput.nodes.map((node) => [node.id, node]))
+    grouped,
+    layoutNodes: new Map(layoutInput.nodes.map((node) => [node.id, node])),
+    infrastructure
   };
 };
 
@@ -434,7 +516,8 @@ export const selectDiagramView = ({
   const selection = selectView({
     scene: model.scene,
     membership: model.membership,
-    infrastructure: layers.infrastructure
+    infrastructure: layers.infrastructure && model.infrastructure,
+    geometry: { nodes: model.layoutNodes, measureLabel: measureChip }
   });
   if (!layers.access || !security) return selection.scene;
   return addAccessLayer({
@@ -460,8 +543,10 @@ export const diagramFrame = ({
   security?: SecurityGroupModel | null | undefined;
 }): IsoScene['frame'] => {
   const scene = selectDiagramView({ model, layers: ALL_LAYERS, security });
-  // Tags sit above their nodes and can differ without the Infrastructure layer, whose nodes then fold into others.
-  const tagged = [scene, selectDiagramView({ model, layers: { infrastructure: false, access: true }, security })];
+  // Tags sit above their nodes and can differ without the Infrastructure layer, whose nodes then fold into others; so
+  // can the routes of folded connectors.
+  const application = selectDiagramView({ model, layers: { infrastructure: false, access: true }, security });
+  const pictures = [scene, application];
   return {
     key: model.scene.nodes
       .map((node) => node.id)
@@ -475,16 +560,13 @@ export const diagramFrame = ({
         { x: rect.from.x, y: rect.to.y },
         { x: rect.to.x, y: rect.from.y }
       ]),
-      ...scene.connectors.flatMap((connector) => connector.route.points)
+      ...pictures.flatMap((view) => view.connectors.flatMap((connector) => connector.route.points))
     ],
-    chips: [
-      ...scene.connectors.flatMap((connector) =>
-        connector.label ? [{ tile: connector.route.labelTile, text: connector.label }] : []
-      ),
-      ...tagged.flatMap((view) =>
-        view.nodes.flatMap((node) => (node.access ? [{ tile: node.access.tile, text: node.access.text }] : []))
-      )
-    ]
+    chips: pictures.flatMap((view) =>
+      view.connectors
+        .flatMap((connector) => (connector.label ? [{ tile: connector.route.labelTile, text: connector.label }] : []))
+        .concat(view.nodes.flatMap((node) => (node.access ? [{ tile: node.access.tile, text: node.access.text }] : [])))
+    )
   };
 };
 
