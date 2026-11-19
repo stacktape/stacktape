@@ -69,7 +69,7 @@ const isClear = ({
 /**
  * The simplest route between two shown nodes that keeps clear of `obstacles` (the projected bodies and name tags of
  * the other shown nodes, grown by a margin): straight when the two share a row, otherwise out along the flow, one jog
- * across it and in along the flow, with the jog as near the target as it can be. Returns `current` when it has no more
+ * across it and in along the flow, with the jog where the route stays between its ends on screen, nearest the middle. Returns `current` when it has no more
  * turns than that, or when nothing simpler is clear.
  */
 export const findDirectRoute = ({
@@ -94,19 +94,38 @@ export const findDirectRoute = ({
   }
   if (turnsOf(current) <= 2) return current;
 
-  // The jog comes as late as it can: the route keeps the source's row for as long as possible, which continues the
-  // line that reaches the source, and then turns in the last free stretch before the target.
-  const forward = to.x >= from.x;
+  // Of the clear jogs, the one whose route stays within the space between its two ends on screen, so it does not run
+  // past its target and turn back; then the one nearest the middle.
   const low = Math.min(from.x, to.x) + LEAD;
   const high = Math.max(from.x, to.x) - LEAD;
   if (high < low - EPSILON) return current;
-  for (let step = 0; ; step++) {
-    const jog = forward ? high - step * JOG_STEP : low + step * JOG_STEP;
-    if (jog < low - EPSILON || jog > high + EPSILON) break;
+  const ends = [projectTile(from), projectTile(to)];
+  const box = {
+    u0: Math.min(ends[0].u, ends[1].u),
+    u1: Math.max(ends[0].u, ends[1].u),
+    v0: Math.min(ends[0].v, ends[1].v),
+    v1: Math.max(ends[0].v, ends[1].v)
+  };
+  // One `u` unit is twice as wide on screen as one `v` unit is tall.
+  const overshoot = (route: IsoTilePoint[]) =>
+    route.reduce((sum, point) => {
+      const { u, v } = projectTile(point);
+      return (
+        sum +
+        2 * (Math.max(0, u - box.u1) + Math.max(0, box.u0 - u)) +
+        Math.max(0, v - box.v1) +
+        Math.max(0, box.v0 - v)
+      );
+    }, 0);
+  const middle = (low + high) / 2;
+  let best: { route: IsoTilePoint[]; cost: number } | undefined;
+  for (let jog = low; jog <= high + EPSILON; jog += JOG_STEP) {
     const x = Math.round(jog * 1000) / 1000;
     const route = [from, { x, y: from.y }, { x, y: to.y }, to];
-    if (clear(route)) return route;
+    const cost = overshoot(route) * 100 + Math.abs(x - middle);
+    if ((!best || cost < best.cost - EPSILON) && clear(route)) best = { route, cost };
   }
+  if (best) return best.route;
   return current;
 };
 
