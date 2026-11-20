@@ -70,6 +70,11 @@ export type SelectProps<Value> = {
    * label above would not fit. A preselected value alone does not say what the control chooses.
    */
   inlineLabel?: ReactNode;
+  /**
+   * How the closed control looks. By default a select you can type into is a field and one you can only open is a
+   * button. A row of filters passes `field`, so every select in it looks like the search field beside it.
+   */
+  appearance?: 'field' | 'button';
   menuPlacement?: MenuPlacement;
   minMenuHeight?: number;
   maxMenuHeight?: number;
@@ -231,6 +236,7 @@ export function Select<Value>({
   reserveMessageSpace = true,
   required = false,
   searchable = true,
+  appearance,
   style,
   tabSelectsValue,
   value,
@@ -252,6 +258,7 @@ export function Select<Value>({
   const styles = useMemo(
     () =>
       createStyles<Value>({
+        appearance,
         controlHeight,
         cursor,
         hasLeading: !!leading || !!inlineLabel,
@@ -261,6 +268,7 @@ export function Select<Value>({
         searchable
       }),
     [
+      appearance,
       controlHeight,
       cursor,
       leading,
@@ -377,6 +385,7 @@ const neutralTheme = (theme: Theme): Theme => ({
 });
 
 function createStyles<Value>({
+  appearance,
   controlHeight,
   cursor,
   hasLeading,
@@ -385,6 +394,7 @@ function createStyles<Value>({
   multiple,
   searchable
 }: {
+  appearance: 'field' | 'button' | undefined;
   controlHeight: number | string;
   cursor: CSSProperties['cursor'];
   hasLeading: boolean;
@@ -396,7 +406,7 @@ function createStyles<Value>({
   // A select you can type into is a field: recessed, like a text input. One you can only open is a button that opens
   // a menu, so it wears the secondary button's surface and its rest, hover and focus shadows (the time range picker
   // does the same).
-  const isButton = !searchable && !multiple;
+  const isButton = appearance ? appearance === 'button' && !multiple : !searchable && !multiple;
   return {
     clearIndicator: (base) => ({
       ...base,
