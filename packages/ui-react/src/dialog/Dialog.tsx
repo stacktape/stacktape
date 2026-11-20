@@ -1,7 +1,8 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BiX } from 'react-icons/bi';
+import { useLayer } from '../layer/layer';
 
 export type DialogProps = {
   open: boolean;
@@ -26,10 +27,14 @@ const fieldSelector =
   'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not(:disabled), textarea:not(:disabled), select:not(:disabled)';
 const focusableSelector =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+/** How long a dialog counts as opening: its fade-in (`--stp-motion-duration-base`) and the frames its fields settle in. */
+const OPENING_MS = 350;
 
 /**
  * A modal dialog with focus containment, focus restoration, Escape handling and scroll locking.
  * Product-specific forms and confirmation flows compose this primitive instead of reimplementing it.
+ * It is a `modal` layer: Escape closes it only when nothing opened inside or above it (a picker's list, a menu, a
+ * second dialog) is open, and a dialog under another one leaves Tab to the one on top.
  */
 export function Dialog({
   actions,
@@ -51,15 +56,85 @@ export function Dialog({
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  // What had the focus before the dialog opened, read as it renders open: a field inside it with `autoFocus` takes the
+  // focus while it mounts, before any effect here runs, and closing would then return the focus to nothing.
+  const wasOpenRef = useRef(false);
+  if (open && !wasOpenRef.current && typeof document !== 'undefined') {
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  wasOpenRef.current = open;
+  // While it fades in, nothing inside eases from one look to another (`data-opening` in styles.css): the first field's
+  // focus border and a select that settles into its first state belong to the dialog's first look, not to a change.
+  const [isOpening, setIsOpening] = useState(true);
+  useEffect(() => {
+    if (!open) {
+      setIsOpening(true);
+      return undefined;
+    }
+    const timer = setTimeout(() => setIsOpening(false), OPENING_MS);
+    return () => clearTimeout(timer);
+  }, [open]);
+  // A dialog opens centred, then keeps its top where it opened: a tab or a choice that changes its height grows or shrinks
+  // it at the bottom, so the tabs and fields above stay under the pointer. It moves up only as far as it must to stay
+  // inside the window. A window resize centres it again.
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    const overlay = dialog?.parentElement;
+    if (!open || !dialog || !overlay || typeof ResizeObserver === 'undefined') return undefined;
+    let top: number | null = null;
+    const place = () => {
+      const inset = Number.parseFloat(getComputedStyle(overlay).paddingTop) || 0;
+      if (top === null) {
+        top = dialog.getBoundingClientRect().top - overlay.getBoundingClientRect().top;
+        dialog.style.alignSelf = 'flex-start';
+      }
+      top = Math.max(inset, Math.min(top, overlay.clientHeight - inset - dialog.offsetHeight));
+      dialog.style.marginTop = `${top - inset}px`;
+    };
+    const recentre = () => {
+      top = null;
+      dialog.style.alignSelf = '';
+      dialog.style.marginTop = '';
+      place();
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(dialog);
+    window.addEventListener('resize', recentre);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', recentre);
+    };
+  }, [open]);
   const callbacksRef = useRef({ onClose, onOpenChange });
   callbacksRef.current = { onClose, onOpenChange };
+  const isInnermost = useLayer(open, 'modal', () => {
+    callbacksRef.current.onClose?.();
+    callbacksRef.current.onOpenChange(false);
+  });
+  const isInnermostRef = useRef(isInnermost);
+  isInnermostRef.current = isInnermost;
+  const bodyRef = useRef<HTMLDivElement>(null);
+  // A body that scrolls with no control inside it (a long text to read) takes a Tab stop of its own, so the keyboard
+  // can scroll it too.
+  const [isScrollRegion, setIsScrollRegion] = useState(false);
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!open || !body || typeof ResizeObserver === 'undefined') return undefined;
+    const measure = () =>
+      setIsScrollRegion(body.scrollHeight > body.clientHeight + 1 && !body.querySelector(focusableSelector));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    for (const child of body.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
 
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
-    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
 
@@ -71,13 +146,7 @@ export function Dialog({
       (dialog?.querySelector<HTMLElement>(`.stp-ui-dialog__body :is(${fieldSelector})`) ?? dialog)?.focus();
     });
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        callbacksRef.current.onClose?.();
-        callbacksRef.current.onOpenChange(false);
-        return;
-      }
-      if (event.key !== 'Tab') return;
+      if (event.key !== 'Tab' || !isInnermostRef.current()) return;
 
       const dialog = dialogRef.current;
       if (!dialog) return;
@@ -98,7 +167,11 @@ export function Dialog({
       ) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (
+        !event.shiftKey &&
+        // Focus outside the dialog (dropped to the page, say) comes back to its first control, not the page behind it.
+        (document.activeElement === last || !dialog.contains(document.activeElement))
+      ) {
         event.preventDefault();
         first.focus();
       }
@@ -131,26 +204,37 @@ export function Dialog({
         aria-labelledby={title ? titleId : undefined}
         aria-modal="true"
         className={['stp-ui-dialog', className].filter(Boolean).join(' ')}
+        data-opening={isOpening ? '' : undefined}
         open
         ref={dialogRef}
         style={style}
         tabIndex={-1}
       >
         <button aria-label="Close dialog" className="stp-ui-dialog__close" onClick={close} type="button">
-          <BiX aria-hidden="true" size={28} />
+          <BiX aria-hidden="true" size={22} />
         </button>
-        <div className={['stp-ui-dialog__body', bodyClassName].filter(Boolean).join(' ')} style={bodyStyle}>
+        <div
+          className={['stp-ui-dialog__body', bodyClassName].filter(Boolean).join(' ')}
+          ref={bodyRef}
+          style={bodyStyle}
+          {...(isScrollRegion && {
+            tabIndex: 0,
+            role: 'region',
+            ...(title ? { 'aria-labelledby': titleId } : { 'aria-label': ariaLabel })
+          })}
+        >
+          {/* `div`s, not `header` and `footer`: a dialog adds no second banner or content-info landmark to the page. */}
           {title ? (
-            <header className="stp-ui-dialog__header">
+            <div className="stp-ui-dialog__header">
               <h2 className="stp-ui-dialog__title" id={titleId}>
                 {title}
               </h2>
               {subtitle ? <p className="stp-ui-dialog__subtitle">{subtitle}</p> : null}
-            </header>
+            </div>
           ) : null}
           {children}
         </div>
-        {actions ? <footer className="stp-ui-dialog__actions">{actions}</footer> : null}
+        {actions ? <div className="stp-ui-dialog__actions">{actions}</div> : null}
       </dialog>
     </div>,
     document.body

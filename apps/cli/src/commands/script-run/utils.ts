@@ -20,7 +20,7 @@ import { getLocalInvokeAwsCredentials } from '../_utils/assume-role';
 import { resolveScriptStdioMode } from './stdio';
 import { assertEnvironmentResolved } from '../dev/unresolved-environment';
 import { getSecretSourcedEnvNames, readsSecret } from '../dev/agent-env-masking';
-import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
+import { injectedParameterEnvVarName } from '@stacktape/naming/injected-parameter-names';
 import type {
   BastionScript,
   EnvironmentVar,

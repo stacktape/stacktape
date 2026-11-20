@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, Ref } from 'react';
+import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode, Ref } from 'react';
 import type {
   ActionMeta,
   ControlProps,
@@ -13,6 +13,7 @@ import type {
 import ReactSelect, { components, createFilter } from 'react-select';
 import { createContext, useContext, useMemo } from 'react';
 import { BiCheck } from 'react-icons/bi';
+import { useKeyboardFocus } from '../focus/keyboard-focus';
 import { Tooltip } from '../tooltip/Tooltip';
 
 export type SelectInputActionMeta = InputActionMeta;
@@ -78,6 +79,11 @@ export type SelectProps<Value> = {
   onMenuOpen?: () => void;
   onMenuClose?: () => void;
   closeMenuOnSelect?: boolean;
+  /**
+   * False draws the placeholder instead of a chip per chosen option, for a long multiple choice that the page reads
+   * back elsewhere; the menu still marks every chosen option.
+   */
+  controlShouldRenderValue?: boolean;
   hideSelectedOptions?: boolean;
   tabSelectsValue?: boolean;
   blurInputOnSelect?: boolean;
@@ -101,9 +107,19 @@ type SelectPresentation = {
 
 const SelectPresentationContext = createContext<SelectPresentation>({ breakOptionWord: false });
 
-const filterSelectOption = createFilter<SelectOption<unknown>>({
+const matchesTerm = createFilter<SelectOption<unknown>>({
   stringify: ({ data, label, value }) => `${data.searchText ?? label} ${value}`
 });
+
+/** Every typed word must appear somewhere in the option, in any order: "checkout prod" finds "api, checkout / production". */
+const filterSelectOption: NonNullable<ComponentProps<typeof ReactSelect<SelectOption<unknown>>>['filterOption']> = (
+  option,
+  input
+) =>
+  input
+    .trim()
+    .split(/\s+/)
+    .every((term) => matchesTerm(option, term));
 
 function SelectControl<Value>(controlProps: ControlProps<SelectOption<Value>, boolean>) {
   const { leading, inlineLabel } = useContext(SelectPresentationContext);
@@ -156,6 +172,16 @@ function SelectOptionComponent<Value>(optionProps: OptionProps<SelectOption<Valu
 }
 
 /**
+ * Escape while the list is open closes only the list: it must not reach a dialog around the select, which would close and
+ * lose what was typed into it (see `layer.ts`). `aria-expanded` is read before react-select closes the list.
+ */
+const keepEscapeForOpenList = (event: KeyboardEvent<HTMLDivElement>) => {
+  if (event.key === 'Escape' && (event.target as HTMLElement).getAttribute('aria-expanded') === 'true') {
+    event.stopPropagation();
+  }
+};
+
+/**
  * The shared enhanced select. It owns react-select integration, keyboard/menu behavior and visual
  * recipes; form-library controllers and product-specific option construction stay in consumers.
  */
@@ -174,6 +200,7 @@ export function Select<Value>({
   hideDropdownIndicator = false,
   hideLabel = false,
   hideSelectedOptions,
+  controlShouldRenderValue,
   inputRef,
   inputValue,
   inlineLabel,
@@ -199,7 +226,8 @@ export function Select<Value>({
   onMenuOpen,
   optionHeight,
   options,
-  placeholder = 'Select a value',
+  // The Console's own wording ("Choose a size"); a form passes its own where it can say what to choose.
+  placeholder = 'Choose…',
   reserveMessageSpace = true,
   required = false,
   searchable = true,
@@ -220,6 +248,7 @@ export function Select<Value>({
     () => ({ breakOptionWord, inlineLabel, leading, optionHeight }),
     [breakOptionWord, inlineLabel, leading, optionHeight]
   );
+  const keyboardFocus = useKeyboardFocus();
   const styles = useMemo(
     () =>
       createStyles<Value>({
@@ -227,14 +256,29 @@ export function Select<Value>({
         cursor,
         hasLeading: !!leading || !!inlineLabel,
         hideDropdownIndicator,
+        isKeyboardFocused: keyboardFocus.isKeyboardFocused,
         multiple,
         searchable
       }),
-    [controlHeight, cursor, leading, inlineLabel, hideDropdownIndicator, multiple, searchable]
+    [
+      controlHeight,
+      cursor,
+      leading,
+      inlineLabel,
+      hideDropdownIndicator,
+      keyboardFocus.isKeyboardFocused,
+      multiple,
+      searchable
+    ]
   );
 
   const select = (
-    <div className={['stp-ui-select', className].filter(Boolean).join(' ')} style={{ width, ...style }}>
+    <div
+      className={['stp-ui-select', className].filter(Boolean).join(' ')}
+      onBlur={keyboardFocus.onBlur}
+      onFocus={keyboardFocus.onFocus}
+      style={{ width, ...style }}
+    >
       {!hideLabel && (label || labelAddon || labelEnd) ? (
         <div className="stp-ui-select__label-row">
           <label className="stp-ui-select__label" htmlFor={`${name}-input`}>
@@ -257,6 +301,7 @@ export function Select<Value>({
           {...(defaultValue === undefined ? {} : { defaultValue })}
           {...(form === undefined ? {} : { form })}
           {...(hideSelectedOptions === undefined ? {} : { hideSelectedOptions })}
+          {...(controlShouldRenderValue === undefined ? {} : { controlShouldRenderValue })}
           inputId={`${name}-input`}
           // A select whose visible label is hidden (a page header's account picker) still announces its name.
           {...(hideLabel && typeof label === 'string' ? { 'aria-label': label } : {})}
@@ -279,6 +324,7 @@ export function Select<Value>({
           {...(onInputChange === undefined ? {} : { onInputChange })}
           {...(onMenuClose === undefined ? {} : { onMenuClose })}
           {...(onMenuOpen === undefined ? {} : { onMenuOpen })}
+          onKeyDown={keepEscapeForOpenList}
           options={options}
           placeholder={placeholder}
           {...(inputRef === undefined ? {} : { ref: inputRef })}
@@ -314,8 +360,10 @@ export function Select<Value>({
  * styles below do not set falls back to this theme, so it holds palette neutrals instead.
  */
 /** The secondary button's rest and hover shadows (`.stp-ui-button--secondary`), for selects drawn as buttons. */
-const BUTTON_SHADOW_REST = '0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09)';
-const BUTTON_SHADOW_RAISED = '0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12)';
+const BUTTON_SHADOW_REST =
+  'var(--stp-button-secondary-shadow, 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09))';
+const BUTTON_SHADOW_RAISED =
+  'var(--stp-button-secondary-shadow-hover, 0 3px 9px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.12))';
 
 const neutralTheme = (theme: Theme): Theme => ({
   ...theme,
@@ -333,6 +381,7 @@ function createStyles<Value>({
   cursor,
   hasLeading,
   hideDropdownIndicator,
+  isKeyboardFocused,
   multiple,
   searchable
 }: {
@@ -340,6 +389,7 @@ function createStyles<Value>({
   cursor: CSSProperties['cursor'];
   hasLeading: boolean;
   hideDropdownIndicator: boolean;
+  isKeyboardFocused: boolean;
   multiple: boolean;
   searchable: boolean;
 }): StylesConfig<SelectOption<Value>, boolean> {
@@ -382,6 +432,13 @@ function createStyles<Value>({
           ? 'var(--stp-field-shadow-focus, inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 3px var(--stp-field-focus-ring))'
           : 'var(--stp-field-shadow, inset 0 1px 3px rgba(0, 0, 0, 0.3))',
       cursor: state.isDisabled ? 'not-allowed' : cursor,
+      // Keyboard focus wears the one focus mark every control has (react-select's base removes outlines), while the list
+      // is closed: an open list already shows where the keyboard is. A click keeps the quieter ring below.
+      outline:
+        isKeyboardFocused && state.isFocused && !state.menuIsOpen
+          ? 'var(--stp-focus-outline-width) solid var(--stp-color-brand)'
+          : 0,
+      outlineOffset: 'var(--stp-focus-outline-offset)',
       // The same disabled look as `TextField`.
       opacity: state.isDisabled ? 0.6 : 1,
       transition:
@@ -404,10 +461,11 @@ function createStyles<Value>({
     dropdownIndicator: (base, state) => ({
       ...base,
       display: hideDropdownIndicator ? 'none' : 'flex',
-      color: state.isDisabled ? 'var(--stp-text-faint)' : 'var(--stp-text-primary)',
+      color: state.isDisabled ? 'var(--stp-text-faint)' : 'var(--stp-select-chevron, var(--stp-text-primary))',
       padding: 6,
+      '& svg': { width: 'var(--stp-select-chevron-size, 20px)', height: 'var(--stp-select-chevron-size, 20px)' },
       // The chevron belongs to the control and has no hover of its own (react-select greys it).
-      ':hover': { color: 'var(--stp-text-primary)' }
+      ':hover': { color: 'var(--stp-select-chevron, var(--stp-text-primary))' }
     }),
     indicatorSeparator: () => ({ display: 'none' }),
     input: (base) => ({ ...base, color: 'var(--stp-text-primary)', margin: 0, paddingLeft: 0 }),
@@ -425,7 +483,9 @@ function createStyles<Value>({
       border: 'var(--stp-menu-border)',
       borderRadius: 'var(--stp-menu-radius)',
       background: 'var(--stp-menu-background)',
-      boxShadow: 'var(--stp-menu-shadow)'
+      boxShadow: 'var(--stp-menu-shadow)',
+      // It fades in like every other menu. Opacity only, so what places or measures the menu sees its final size.
+      animation: 'stp-ui-fade-in var(--stp-motion-duration-fast) var(--stp-motion-easing-out)'
     }),
     menuList: (base) => ({ ...base, padding: 0, color: 'var(--stp-text-primary)' }),
     // The menu may be wider than its control, but never past the window's right edge.

@@ -6,16 +6,16 @@ import type { MetricTargetType } from './metric-targets';
  * resource type below is part of the contract: `metrics[0]` is the first query listed here.
  */
 
-/**
- * What the charts can draw. The shared selector vocabulary plus `redis`, whose charts exist but
- * whose per-node identifier the stack does not expose yet.
- */
-export type MetricResourceType = MetricTargetType | 'redis';
+/** What the charts can draw. */
+export type MetricResourceType = MetricTargetType;
 
 type MetricQueryInput = {
-  /** API id, function name, cluster name, DB identifier, user pool id, bucket, table, cluster id or distribution id. */
+  /**
+   * API id, function name, cluster name, DB identifier, user pool id, bucket, table, cluster id, distribution id, queue
+   * or topic name, or state machine ARN.
+   */
   primaryResourceIdentifier: string;
-  /** ECS service name and Cognito user pool client id; unused for the other resource types. */
+  /** ECS service name, Cognito user pool client id and an event bus's rule name; unused for the other resource types. */
   secondaryResourceIdentifier?: string;
   period: number;
 };
@@ -94,7 +94,11 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
     return [
       metric('invocations', 'Invocations', 'Sum'),
       metric('duration', 'Duration', 'Average'),
-      metric('errors', 'Errors', 'Sum')
+      metric('errors', 'Errors', 'Sum'),
+      metric('throttles', 'Throttles', 'Sum'),
+      metric('durationP50', 'Duration', 'p50'),
+      metric('durationP95', 'Duration', 'p95'),
+      metric('durationP99', 'Duration', 'p99')
     ];
   },
 
@@ -125,7 +129,10 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('freeableMemory', 'FreeableMemory', 'Average'),
       metric('databaseConnections', 'DatabaseConnections', 'Average'),
       // Used storage is calculated from free storage later.
-      metric('storageUsed', 'FreeStorageSpace', 'Average')
+      metric('storageUsed', 'FreeStorageSpace', 'Average'),
+      // Seconds per operation: the first place a slow query shows when CPU looks fine.
+      metric('readLatency', 'ReadLatency', 'Average'),
+      metric('writeLatency', 'WriteLatency', 'Average')
     ];
   },
 
@@ -184,7 +191,88 @@ const metricQueriesByResourceType: Record<MetricResourceType, (input: MetricQuer
       metric('evictions', 'Evictions', 'Sum'),
       metric('networkRxBytes', 'NetworkBytesIn', 'Average'),
       metric('networkTxBytes', 'NetworkBytesOut', 'Average'),
-      metric('currConnections', 'CurrConnections', 'Average')
+      metric('currConnections', 'CurrConnections', 'Average'),
+      // How full the node's memory is, which bytes alone cannot say without its size.
+      metric('memoryPercent', 'DatabaseMemoryUsagePercentage', 'Average')
+    ];
+  },
+
+  sqs: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/SQS',
+      dimensions: [{ Name: 'QueueName', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [
+      metric('messagesWaiting', 'ApproximateNumberOfMessagesVisible', 'Maximum'),
+      metric('oldestMessageAge', 'ApproximateAgeOfOldestMessage', 'Maximum'),
+      metric('messagesSent', 'NumberOfMessagesSent', 'Sum'),
+      metric('messagesDeleted', 'NumberOfMessagesDeleted', 'Sum')
+    ];
+  },
+
+  sns: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/SNS',
+      dimensions: [{ Name: 'TopicName', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [
+      metric('messagesPublished', 'NumberOfMessagesPublished', 'Sum'),
+      metric('notificationsDelivered', 'NumberOfNotificationsDelivered', 'Sum'),
+      metric('notificationsFailed', 'NumberOfNotificationsFailed', 'Sum')
+    ];
+  },
+
+  stepfunctions: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/States',
+      dimensions: [{ Name: 'StateMachineArn', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [
+      metric('executionsStarted', 'ExecutionsStarted', 'Sum'),
+      metric('executionsFailed', 'ExecutionsFailed', 'Sum'),
+      metric('executionsTimedOut', 'ExecutionsTimedOut', 'Sum'),
+      metric('executionTime', 'ExecutionTime', 'Average')
+    ];
+  },
+
+  // A custom bus counts the events any of its rules matched. What each rule delivered is counted per rule, below.
+  events: ({ primaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/Events',
+      dimensions: [{ Name: 'EventBusName', Value: primaryResourceIdentifier }],
+      period
+    });
+    return [metric('matchedEvents', 'MatchedEvents', 'Sum')];
+  },
+
+  // EventBridge publishes a failed delivery only when there is one, so an empty series means none failed.
+  eventsRule: ({ primaryResourceIdentifier, secondaryResourceIdentifier, period }) => {
+    const metric = metricsOf({
+      namespace: 'AWS/Events',
+      dimensions: [
+        { Name: 'EventBusName', Value: primaryResourceIdentifier },
+        { Name: 'RuleName', Value: secondaryResourceIdentifier! }
+      ],
+      period
+    });
+    return [
+      metric('invocations', 'Invocations', 'Sum'),
+      metric('failedInvocations', 'FailedInvocations', 'Sum'),
+      metric('matchedEvents', 'MatchedEvents', 'Sum')
+    ];
+  },
+
+  // The account's sending in this region. The rates are shares (0.012 is 1.2%) over AWS's own recent window.
+  ses: ({ period }) => {
+    const metric = metricsOf({ namespace: 'AWS/SES', dimensions: [], period });
+    return [
+      metric('sent', 'Send', 'Sum'),
+      metric('delivered', 'Delivery', 'Sum'),
+      metric('bounceRate', 'Reputation.BounceRate', 'Average'),
+      metric('complaintRate', 'Reputation.ComplaintRate', 'Average')
     ];
   },
 

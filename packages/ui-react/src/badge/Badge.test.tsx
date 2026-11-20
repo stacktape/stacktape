@@ -21,3 +21,11 @@ test('the dot form of a count badge has no text', () => {
   expect(markup).toContain('aria-hidden="true"');
   expect(markup).not.toContain('>7<');
 });
+
+test('a count says how loud it is through its tone, red unless told otherwise', () => {
+  expect(renderToStaticMarkup(<CountBadge value={3} />)).toContain('stp-ui-badge--danger');
+  expect(renderToStaticMarkup(<CountBadge tone="warning" value={2} />)).toContain('stp-ui-badge--warning');
+  expect(renderToStaticMarkup(<CountBadge display="dot" tone="neutral" value={17} />)).toContain(
+    'stp-ui-badge--neutral'
+  );
+});

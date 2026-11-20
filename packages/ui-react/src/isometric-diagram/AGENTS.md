@@ -177,8 +177,10 @@ layout fixed, a preset is only a saved combination of checkboxes.
 
 The layout runs once, on every node, connector and zone, and a layer only shows or hides things. A node therefore keeps
 its exact tile whichever layers are on, and the renderer fits the frame of the whole picture (`IsoScene.frame`), so
-switching a layer neither moves nor rescales anything. Do not lay out per combination; `views.test.ts` checks positions
-across all four for every fixture, test config and template config, collapsed and expanded.
+switching a layer neither moves nor rescales anything. A host that offers no layers (`layerChoices={[]}`, a stage's
+overview) gets no frame: nothing can switch, so the picture fits what it shows. Do not lay out per combination;
+`views.test.ts` checks positions across all four for every fixture, test config and template config, collapsed and
+expanded.
 
 Two exceptions keep a small application picture from looking sparse, and both are about the Infrastructure layer only:
 
