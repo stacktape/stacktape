@@ -1497,8 +1497,9 @@
     outline-offset: calc(-1 * var(--stp-focus-outline-width));
   }
 
+  /* The action row's hairline closes the body, so the body keeps its full inset above it. */
   .stp-ui-dialog__body:has(+ .stp-ui-dialog__actions) {
-    padding-bottom: 4px;
+    padding-bottom: 24px;
   }
 
   /* Centred on the title's line, the same distance from the right edge as the title is from the top. */
@@ -1540,7 +1541,7 @@
     top: calc(-1 * var(--stp-dialog-padding, 28px));
     z-index: 1;
     margin: calc(-1 * var(--stp-dialog-padding, 28px)) calc(-1 * var(--stp-dialog-padding, 28px)) 0;
-    padding: var(--stp-dialog-padding, 28px) calc(var(--stp-dialog-padding, 28px) + 40px) 22px
+    padding: var(--stp-dialog-padding, 28px) calc(var(--stp-dialog-padding, 28px) + 40px) 24px
       var(--stp-dialog-padding, 28px);
     background: var(--stp-dialog-background, var(--stp-surface-modal));
   }
@@ -1550,24 +1551,34 @@
     margin: 0;
   }
 
+  /* Every dialog opens the same way: what it makes or changes, then at most one sentence on what that means, in the
+   * body's size so it reads as the dialog's first line, not as a caption. */
   .stp-ui-dialog__title {
-    font-size: 1.05rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: -0.01em;
   }
 
   .stp-ui-dialog__subtitle {
-    margin-top: 5px;
-    color: var(--stp-text-subtle);
-    font-size: 0.8rem;
-    line-height: 1.5;
+    margin-top: 6px;
+    color: var(--stp-text-muted);
+    font-size: 0.825rem;
+    line-height: 1.55;
   }
 
+  /* One footer for every dialog: a hairline over the full width, then what to know before pressing at the left and the
+   * buttons at the right. */
   .stp-ui-dialog__actions {
     display: flex;
     flex: none;
     align-items: center;
     justify-content: flex-end;
     gap: 10px;
-    padding: 20px var(--stp-dialog-padding, 28px) var(--stp-dialog-padding, 28px);
+    min-height: 68px;
+    box-sizing: border-box;
+    border-top: 1px solid var(--stp-border-subtle);
+    padding: 14px var(--stp-dialog-padding, 28px);
   }
 
   .stp-ui-tooltip {
