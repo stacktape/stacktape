@@ -2,6 +2,7 @@ import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode, Ref } fro
 import type {
   ActionMeta,
   ControlProps,
+  MultiValueGenericProps,
   SingleValueProps,
   InputActionMeta,
   MenuPlacement,
@@ -146,6 +147,12 @@ function SelectSingleValue<Value>(singleValueProps: SingleValueProps<SelectOptio
   return <components.SingleValue {...singleValueProps}>{option.valueLabel ?? option.label}</components.SingleValue>;
 }
 
+/** A chosen option's chip in a multiple choice takes the same shorter form as a single choice's value. */
+function SelectMultiValueLabel<Value>(labelProps: MultiValueGenericProps<SelectOption<Value>, boolean>) {
+  const option = labelProps.data;
+  return <components.MultiValueLabel {...labelProps}>{option.valueLabel ?? option.label}</components.MultiValueLabel>;
+}
+
 function SelectOptionComponent<Value>(optionProps: OptionProps<SelectOption<Value>, boolean>) {
   const { breakOptionWord, optionHeight } = useContext(SelectPresentationContext);
   const option = optionProps.data;
@@ -245,6 +252,7 @@ export function Select<Value>({
   const selectComponents = useMemo(
     () => ({
       Control: SelectControl<Value>,
+      MultiValueLabel: SelectMultiValueLabel<Value>,
       Option: SelectOptionComponent<Value>,
       SingleValue: SelectSingleValue<Value>
     }),
