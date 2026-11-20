@@ -121,7 +121,12 @@ The `customCertificateArn` must reference a certificate already imported or issu
 
 ## External DNS
 
-If you manage DNS through an external provider like Cloudflare or Google Cloud DNS, set `disableDnsRecordCreation` to `true`. When this flag is set, Stacktape does not create or modify DNS records, so you manage the DNS record yourself. Stacktape still provisions the TLS certificate, but does not create or modify the DNS record for the domain.
+If your domain's DNS stays at an external provider like Cloudflare or Google Cloud DNS, set `disableDnsRecordCreation` to `true` and point `customCertificateArn` at a certificate you created. Stacktape then neither looks for a Route53 hosted zone nor creates DNS records for the domain.
+
+1. In AWS Certificate Manager, request a public certificate for the name with DNS validation. Request it in the stack's region, or in `us-east-1` for a CDN.
+2. Add the validation CNAME record that AWS shows at your DNS provider. AWS issues the certificate within minutes, and renews it on its own while that record stays.
+3. Put the certificate's ARN in `customCertificateArn`, set `disableDnsRecordCreation: true`, and deploy.
+4. At your DNS provider, add a CNAME record that points the name at the address the deployed resource gets.
 
 <CodeBlock
   intellisense
@@ -137,6 +142,7 @@ export default defineConfig(() => {
     customDomains: [
       {
         domainName: 'app.example.com',
+        customCertificateArn: 'arn:aws:acm:eu-west-1:123456789012:certificate/abc-def-123',
         disableDnsRecordCreation: true
       }
     ]
@@ -151,9 +157,9 @@ export default defineConfig(() => {
   ]}
 />
 
-The `domainName` configuration requires that the domain has a Route53 hosted zone in your AWS account. Typically, a Route53 hosted zone is still needed even with `disableDnsRecordCreation: true`, because Stacktape uses it for DNS-based certificate validation. When `customCertificateArn` is also provided, Stacktape uses your pre-existing certificate instead of provisioning a new one, reducing the dependency on Route53 for certificate validation.
+Web services and load balancers reject `disableDnsRecordCreation: true` without a `customCertificateArn`. On other resources, the certificates Stacktape provisions need the domain's DNS in a Route53 hosted zone of your AWS account, so with external DNS, always bring your own certificate.
 
-**When to use external DNS:** When your domain's authoritative DNS is managed outside Route53 (Cloudflare, Google Cloud DNS, etc.) and you don't want Stacktape creating DNS records in Route53. This is common when Cloudflare handles CDN/WAF at the DNS layer, or when DNS is managed by a separate team. After deployment, create the required DNS record in your external DNS provider pointing to the endpoint Stacktape exposes for the resource.
+**When to use external DNS:** When your domain's authoritative DNS is managed outside Route53 (Cloudflare, Google Cloud DNS, etc.) and you don't want to move it. This is common when Cloudflare handles CDN/WAF at the DNS layer, or when DNS is managed by a separate team. The trade-off: for each new name you add the DNS record yourself.
 
 ## Multiple domains
 
@@ -218,7 +224,7 @@ TLS certificate provisioning via DNS validation typically completes within minut
 
 ### Can I use Cloudflare with Stacktape custom domains?
 
-Yes. Set `disableDnsRecordCreation: true` so Stacktape does not create DNS records for the resource. The `domainName` property still requires a Route53 hosted zone in your AWS account. If you also provide `customCertificateArn`, Stacktape uses your existing ACM certificate instead of provisioning one. After deployment, create the required DNS record in your external DNS provider pointing to the endpoint Stacktape exposes for the resource.
+Yes, in two ways. Move the domain's DNS to Route53 (the domain can stay registered at Cloudflare), and Stacktape manages records and certificates for you. Or keep DNS at Cloudflare: request an ACM certificate yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and after deployment add a CNAME record at Cloudflare that points the name at the resource. See [External DNS](#external-dns).
 
 ### Can I route one domain to multiple backends?
 
