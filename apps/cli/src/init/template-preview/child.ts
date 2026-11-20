@@ -98,8 +98,8 @@ export const runTemplatePreviewChild = async () => {
       error: message.replace(/^Config \([^)]*\) at `null` is invalid\./, 'The configuration is invalid.')
     };
   }
-  process.stdout.write(`\n${RESULT_MARKER}${JSON.stringify(result)}\n`);
-  process.exit(0);
+  // Exits once the line is handed to the pipe: an exit with output still queued would cut a large template short.
+  process.stdout.write(`\n${RESULT_MARKER}${JSON.stringify(result)}\n`, () => process.exit(0));
 };
 
 if (import.meta.main) void runTemplatePreviewChild();

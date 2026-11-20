@@ -69,6 +69,13 @@ describe('evaluateTypescriptConfig', () => {
     expect(result).toMatchObject({ error: expect.stringContaining("imports 'node:fs'") });
   });
 
+  test('settings the CLI cannot read without running the file are refused, as a deploy would refuse them', async () => {
+    const source = convertYamlToTypescript(YAML).replace('region: "us-east-1"', 'region: process.env.REGION');
+    expect(source).toContain('process.env.REGION');
+    const result = await evaluate(source);
+    expect(result).toMatchObject({ error: expect.stringContaining('region') });
+  });
+
   test('a file without a default export says so', async () => {
     const result = await evaluate("import { defineConfig } from 'stacktape';\nexport const config = 1;\n");
     expect(result).toMatchObject({ error: expect.stringContaining('no default export') });

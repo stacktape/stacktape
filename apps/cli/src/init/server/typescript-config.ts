@@ -1,6 +1,7 @@
 import vm from 'node:vm';
 import * as stacktapeAuthoringRuntime from '@stacktape/config-authoring';
 import { convertAuthoringConfigToYaml } from '@stacktape/config-authoring/converter';
+import { projectSettingsFromSource } from '@domain-services/config-manager/project-settings';
 
 /** What the page learns from an edited `stacktape.ts`: the configuration it defines, as YAML, or why there is none. */
 export type TypescriptEvaluation = { yaml: string } | { error: string; line?: number };
@@ -21,6 +22,9 @@ const SLOT = '__stacktapeInitTypescriptConfig';
  * - It runs with a time limit. A loop typed by mistake fails the evaluation instead of freezing the wizard's server.
  * - It can import `stacktape` only, served from the CLI's own authoring runtime. A file that imports another module is
  *   saved as written; the wizard says it cannot show it.
+ *
+ * Before it runs, the project settings (`defineConfig({ projectName, region }, ...)`) are read the way every command
+ * reads them, without running the file, so an edit that hides them from that read is caught here, not at deploy.
  */
 export const evaluateTypescriptConfig = async ({
   source,
@@ -54,6 +58,12 @@ export const evaluateTypescriptConfig = async ({
       error: ts.flattenDiagnosticMessageText(syntaxError.messageText, ' '),
       ...(line === undefined ? {} : { line })
     };
+  }
+
+  try {
+    await projectSettingsFromSource({ source, filePath: 'stacktape.ts' });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
   }
 
   const module = { exports: {} as Record<string, unknown> };
