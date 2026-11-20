@@ -181,7 +181,8 @@ export function App() {
             ? undefined
             : deployment.status === 'succeeded'
               ? 'succeeded'
-              : 'failed'
+              : 'failed',
+          deployment.resources ?? []
         );
   }, [state?.deployment]);
 

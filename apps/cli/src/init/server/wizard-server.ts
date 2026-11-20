@@ -36,6 +36,7 @@ import {
   type SessionSecrets
 } from './security';
 import { parseSignInAction, type WizardSignIn, type WizardSignInAction } from './wizard-sign-in';
+import type { DeployResource } from './deploy-resources';
 
 /**
  * One way of reading the project, offered on the first screen.
@@ -106,6 +107,11 @@ export type WizardDeployment = {
   /** When this attempt began. The event list is capped, so its first entry cannot say. */
   startedAt?: string;
   events: unknown[];
+  /**
+   * Every AWS resource this attempt's CloudFormation progress named, with its state and times. Kept whole however
+   * long the deploy runs: `events` is capped, and its oldest progress leaves first.
+   */
+  resources?: DeployResource[];
   /** Output that was not part of the protocol: stderr, and anything unparseable. */
   lines: string[];
   /** Present once the deploy has finished. */

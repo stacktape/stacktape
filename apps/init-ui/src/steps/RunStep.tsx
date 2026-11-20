@@ -2,8 +2,8 @@ import type { StacktapeConfig } from '@stacktape/config';
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Button, ButtonLink } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
-import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BiBot, BiCheck, BiChevronRight, BiCodeAlt, BiCopy, BiInfoCircle, BiLinkExternal, BiX } from 'react-icons/bi';
+import { Fragment, lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
+import { BiBot, BiCheck, BiChevronRight, BiCodeAlt, BiCopy, BiInfoCircle, BiLinkExternal } from 'react-icons/bi';
 import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
 import { CommandLine } from '@stacktape/ui-react/command-line';
 import { FailureExplanationText } from '../components/FailureExplanation';
@@ -13,72 +13,80 @@ import { Row } from '../components/RowList';
 import { groupedAccount, TargetFacts } from '../components/TargetFacts';
 import { resourcesOf, type ConfigResources } from '../config-resources';
 import { stackCommand } from '../deploy-commands';
-import type { DeployModel } from '../deploy-model';
+import { clock, groupResources, spokenDuration, type DeployModel } from '../deploy-model';
 import { partName } from '../part-names';
 import type { SignInRequest, WizardState } from '../session';
 import { plainList, splitMonthly } from './review-model';
+import { DeployActivity } from './run/DeployActivity';
+import { deployingVersion } from './run/deploying-version';
+import { DeployLog } from './run/DeployLog';
+import { DeploySteps, outputTail } from './run/DeploySteps';
+import { useNow } from './run/use-now';
+import './run/run.css';
 
 const Diagram = lazy(() => import('../components/Diagram'));
 
 type Deployment = NonNullable<WizardState['deployment']>;
 type Progress = 'pending' | 'creating' | 'ready';
 
-const pascal = (name: string) => `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+/**
+ * The AWS resource that makes a part of the app work. A part is ready once it exists, not once its first small
+ * resources do: a database's subnet group is done minutes before the database is.
+ */
+const MAIN_TYPES: Readonly<Record<string, readonly string[]>> = {
+  'relational-database': ['AWS::RDS::DBInstance', 'AWS::RDS::DBCluster'],
+  'nextjs-web': ['AWS::CloudFront::Distribution'],
+  'hosting-bucket': ['AWS::CloudFront::Distribution'],
+  'web-service': ['AWS::ECS::Service'],
+  'worker-service': ['AWS::ECS::Service'],
+  'private-service': ['AWS::ECS::Service'],
+  'multi-container-workload': ['AWS::ECS::Service'],
+  function: ['AWS::Lambda::Function'],
+  bastion: ['AWS::AutoScaling::AutoScalingGroup'],
+  bucket: ['AWS::S3::Bucket'],
+  'efs-filesystem': ['AWS::EFS::FileSystem']
+};
 
 /**
- * How far the deploy has got with each resource, from CloudFormation's in-progress lists.
- *
- * CloudFormation reports logical IDs, which Stacktape builds from the resource name in PascalCase. A resource is
- * creating while any of its IDs is in progress, and ready once one was and none is any more, or once CloudFormation
- * is done. Before CloudFormation starts nothing is there yet.
+ * How far the deploy has got with each part of the app, from the AWS resources CloudFormation reported. A part is
+ * creating once any of its resources started, and ready once its main resource is done and nothing of it is still in
+ * progress, or once CloudFormation is done. Before CloudFormation starts nothing is there yet.
  */
 export const resourceProgress = (
   model: DeployModel,
-  names: readonly string[],
+  resources: ConfigResources,
   status: Deployment['status']
 ): Record<string, Progress> => {
   const deployPhase = model.phases.find((phase) => phase.id === 'DEPLOY');
   const finished = status === 'succeeded' || (deployPhase !== undefined && deployPhase.status === 'done');
-  const current = deployPhase?.cloudformation?.inProgress ?? [];
-  const seen = model.seenInProgress;
+  const names = Object.keys(resources);
+  const groups = groupResources(model.resources, names);
   const progress: Record<string, Progress> = {};
   for (const name of names) {
-    const prefix = pascal(name);
-    const owns = (id: string) => id === name || id.startsWith(prefix);
-    progress[name] = finished ? 'ready' : current.some(owns) ? 'creating' : seen.some(owns) ? 'ready' : 'pending';
+    const group = groups.find((candidate) => candidate.name === name);
+    const main = MAIN_TYPES[resources[name]!.type];
+    const mainDone =
+      main === undefined ||
+      group?.resources.some((resource) => resource.status === 'complete' && main.includes(resource.type ?? '')) ===
+        true;
+    progress[name] = finished
+      ? 'ready'
+      : group === undefined
+        ? 'pending'
+        : group.running === 0 && mainDone
+          ? 'ready'
+          : 'creating';
   }
   return progress;
 };
-
-/** Ticks once a second while something is running. */
-function useNow(isRunning: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!isRunning) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [isRunning]);
-  return now;
-}
 
 function useElapsed(startedAt: string | undefined, endedAt: string | undefined): number | undefined {
   const now = useNow(startedAt !== undefined && endedAt === undefined);
   if (startedAt === undefined) return undefined;
   const start = Date.parse(startedAt);
   const end = endedAt === undefined ? now : Date.parse(endedAt);
-  return Number.isNaN(start) || Number.isNaN(end) ? undefined : Math.max(0, Math.round((end - start) / 1000));
+  return Number.isNaN(start) || Number.isNaN(end) ? undefined : Math.max(0, end - start);
 }
-
-const duration = (seconds: number | undefined): string =>
-  seconds === undefined ? '' : seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
-
-/** A running timer as a clock: "0:42", "3:12", "1:02:05". */
-const clock = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const rest = String(seconds % 60).padStart(2, '0');
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${rest}` : `${minutes}:${rest}`;
-};
 
 /** "mainDatabase", "app" and "cdn" as a sentence: "mainDatabase, app and cdn". */
 const sentence = (names: readonly string[]): string =>
@@ -144,6 +152,27 @@ function RunDiagram({
   );
 }
 
+/** How much of the deploy each phase is, roughly, for the one bar: AWS creating the resources is most of it. */
+const PHASE_WEIGHTS: Readonly<Record<string, number>> = {
+  INITIALIZE: 0.03,
+  BUILD_AND_PACKAGE: 0.12,
+  UPLOAD: 0.05,
+  DEPLOY: 0.78,
+  POST_DEPLOY: 0.02
+};
+
+const overallProgress = (model: DeployModel): number => {
+  let total = 0;
+  for (const phase of model.phases) {
+    const weight = PHASE_WEIGHTS[phase.id] ?? 0;
+    if (phase.status === 'done') total += weight;
+    else if (phase.status === 'running') {
+      total += weight * (phase.id === 'DEPLOY' ? (model.cloudformation?.percent ?? 0) / 100 : 0.5);
+    }
+  }
+  return Math.round(Math.min(1, total) * 100);
+};
+
 /** What the deploy is doing right now, in one line, and one line of why it takes as long as it does. */
 const activeOperation = (
   model: DeployModel,
@@ -156,7 +185,13 @@ const activeOperation = (
   const running = model.phases.find((phase) => phase.status === 'running');
   if (running === undefined) return { title: 'Starting the deploy' };
   if (running.id !== 'DEPLOY') {
-    return { title: running.label, ...(running.message === '' ? {} : { detail: running.message }) };
+    const step = running.steps.findLast((candidate) => candidate.status === 'running');
+    const verb = running.id === 'BUILD_AND_PACKAGE' ? 'Building' : running.id === 'UPLOAD' ? 'Uploading' : undefined;
+    const title = step?.instance !== undefined && verb !== undefined ? `${verb} ${step.instance}` : running.label;
+    // A build says best what it is doing: its last line of output, when it printed one.
+    const latest = step?.instance === undefined ? undefined : outputTail(model, step.instance, 1)[0]?.trim();
+    const detail = latest ?? (running.message === title ? '' : running.message);
+    return { title, ...(detail === '' ? {} : { detail }) };
   }
   if (creating.length === 0) return { title: 'Waiting on AWS' };
   const nouns = creating.map((name) => `the ${partName(name, resources[name]!, services)}`);
@@ -171,186 +206,139 @@ const activeOperation = (
   };
 };
 
-/** "11/24 resources (46%)": CloudFormation's count, which the progress bar already shows. */
-const isProgressCount = (line: string) => /^\s*\d+\s*\/\s*\d+\s+resources\b/i.test(line);
-
-/** Seconds since the log last grew: the tail goes quiet when nothing new arrives. */
-function useQuietFor(length: number): number {
-  const [changedAt, setChangedAt] = useState(() => Date.now());
-  useEffect(() => setChangedAt(Date.now()), [length]);
-  const now = useNow(true);
-  return Math.max(0, Math.round((now - changedAt) / 1000));
-}
-
 /**
  * A deploy in progress, or one that has just been repaired and is running again.
  *
- * The workspace grid of Review: the diagram it reviewed fills in on the left as AWS creates each part. The right leads
- * with what is happening now and the deploy's total time against the usual, then the phases with the time each took;
- * the log's latest lines sit under the phase that is running, and open in full from there. On a phone the progress
- * comes first and the diagram after it.
+ * Two layouts while the owner compares them (`?deploying=steps|log`, see `run/deploying-version.ts`). `steps`: the
+ * diagram Review showed fills in on the left as AWS creates each part; the right leads with what is happening now and
+ * the time against the usual, then every step of the deploy (each phase, what it did, each AWS resource by part of
+ * the app), with the log one tab away. `log`: the log leads, a section per phase, and the diagram and the phases sit
+ * in a column beside it. On a phone the progress comes first and the diagram after it.
  */
 export function DeployingStep({ state, model }: { state: WizardState; model: DeployModel }) {
+  const [version] = useState(() => deployingVersion(window.location.search));
   const deployment = state.deployment!;
   const resources = resourcesOf(state);
+  const services = state.facts?.services ?? [];
   const names = Object.keys(resources);
-  const progress = resourceProgress(model, names, deployment.status);
+  const progress = resourceProgress(model, resources, deployment.status);
   const ready = names.filter((name) => progress[name] === 'ready').length;
   const creating = names.filter((name) => progress[name] === 'creating');
   const startedAt = deployment.startedAt ?? (deployment.events[0] as { ts?: string } | undefined)?.ts;
   const elapsed = useElapsed(startedAt, undefined);
   const hasDatabase = Object.values(resources).some((resource) => resource.type === 'relational-database');
   const identity = state.awsIdentity;
-  const phases = model.phases.filter((phase) => phase.id !== 'SUMMARY');
-  const cloudformation = phases.find((phase) => phase.id === 'DEPLOY')?.cloudformation;
-  const [showLog, setShowLog] = useState(false);
-  const logRef = useRef<HTMLPreElement>(null);
-  useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [model.log.length, showLog]);
-  const quietFor = useQuietFor(model.log.length);
   const repairing = deployment.status === 'repairing';
   const agent = state.agents?.find((option) => option.id === state.choice?.agentId);
-  const operation = activeOperation(model, resources, creating, repairing, state.facts?.services ?? []);
-  // The log's tail belongs to the phase that is running, or the last one that started.
-  const current =
-    phases.find((phase) => phase.status === 'running') ?? phases.findLast((phase) => phase.status !== 'pending');
-  // Its own latest lines, without the counts the progress bar already shows.
-  const tail = model.log
-    .slice(current?.logStart ?? 0)
-    .filter((line) => line.trim() !== '' && !isProgressCount(line))
-    .slice(-3);
-  const logToggle = (
-    <button aria-expanded={showLog} className="w-link w-small" onClick={() => setShowLog(!showLog)} type="button">
-      {showLog ? 'Hide the deploy log' : `Show the deploy log (${model.log.length} lines)`}
-    </button>
+  const operation = activeOperation(model, resources, creating, repairing, services);
+  const cloudformation = model.cloudformation;
+  const context = { resources, services };
+
+  const now = (
+    <div className="w-run-now">
+      <p aria-live="polite" className="w-run-op">
+        {operation.title}
+      </p>
+      {operation.detail !== undefined && <p className="w-run-op-detail">{operation.detail}</p>}
+      <p className="w-run-time">
+        <strong>{elapsed === undefined ? '—' : clock(elapsed)}</strong> elapsed
+        {repairing ? '' : ` · usually ${hasDatabase ? '10–15' : '3–6'} min`}
+      </p>
+      <div className="w-run-progress">
+        <progress
+          aria-label="Deploy progress"
+          className="w-run-meter"
+          max={100}
+          value={Math.max(2, overallProgress(model))}
+        />
+        <p className="w-run-count">
+          {cloudformation === undefined || cloudformation.total === 0
+            ? 'AWS resources: not started yet'
+            : `${cloudformation.completed} of ${cloudformation.total} AWS resources`}
+          <InfoTip about="AWS resources">
+            Each part of your app is several AWS resources: the service, its log group, its permissions and so on. This
+            counts those. The steps below list each one.
+          </InfoTip>
+        </p>
+      </div>
+    </div>
+  );
+  const tabNote = (
+    <p className="w-run-tab">
+      <BiInfoCircle aria-hidden size={14} />
+      <span>
+        Closing this tab does not stop the deploy. Ctrl+C in the terminal running{' '}
+        <span className="w-code">stacktape init</span> does.
+      </span>
+    </p>
+  );
+  const header = (
+    <header className="w-run-head">
+      <h1 className="w-title">{repairing ? 'Fixing what went wrong' : `Deploying to ${deployment.stage}`}</h1>
+      {repairing ? (
+        <p className="w-lede">
+          The first attempt failed. {agent === undefined || agent.id === 'none' ? 'The agent' : agent.label} is reading
+          your code again and deploys once more if it finds the cause.
+        </p>
+      ) : (
+        <TargetFacts
+          className="w-lede"
+          facts={[
+            identity?.available === true && { label: 'AWS account', value: groupedAccount(identity.accountId) },
+            { label: 'Region', value: deployment.region },
+            { label: 'Stage', value: deployment.stage }
+          ]}
+        />
+      )}
+    </header>
+  );
+  const diagram = (
+    <RunDiagram
+      caption={
+        <>
+          <strong>
+            {ready} of {names.length}
+          </strong>{' '}
+          {names.length === 1 ? 'part' : 'parts'} of your app ready
+        </>
+      }
+      progress={progress}
+      resources={resources}
+      services={services}
+    />
   );
 
-  return (
-    <div className="w-workspace w-run w-enter">
-      <div className="w-pane">
-        <header className="w-run-head">
-          <h1 className="w-title">{repairing ? 'Fixing what went wrong' : `Deploying to ${deployment.stage}`}</h1>
-          {repairing ? (
-            <p className="w-lede">
-              The first attempt failed. {agent === undefined || agent.id === 'none' ? 'The agent' : agent.label} is
-              reading your code again and deploys once more if it finds the cause.
-            </p>
-          ) : (
-            <TargetFacts
-              className="w-lede"
-              facts={[
-                identity?.available === true && { label: 'AWS account', value: groupedAccount(identity.accountId) },
-                { label: 'Region', value: deployment.region },
-                { label: 'Stage', value: deployment.stage }
-              ]}
-            />
-          )}
-        </header>
-        <RunDiagram
-          caption={
-            <>
-              <strong>
-                {ready} of {names.length}
-              </strong>{' '}
-              {names.length === 1 ? 'part' : 'parts'} of your app ready
-            </>
-          }
-          progress={progress}
-          resources={resources}
-          services={state.facts?.services ?? []}
-        />
-      </div>
-
-      <aside aria-label="Deploy progress" className={`w-card w-run-side${showLog ? ' is-log-open' : ''}`}>
-        <div className="w-run-now">
-          <p aria-live="polite" className="w-run-op">
-            {operation.title}
-          </p>
-          {operation.detail !== undefined && <p className="w-run-op-detail">{operation.detail}</p>}
-          <p className="w-run-time">
-            <strong>{elapsed === undefined ? '—' : clock(elapsed)}</strong> elapsed
-            {repairing ? '' : ` · usually ${hasDatabase ? '10–15' : '3–6'} min`}
-          </p>
-          <div className="w-run-progress">
-            <progress
-              aria-label="AWS resources created"
-              className="w-run-meter"
-              max={100}
-              value={Math.max(2, Math.min(100, cloudformation?.percent ?? 0))}
-            />
-            <p className="w-run-count">
-              {cloudformation === undefined || cloudformation.total === 0
-                ? 'AWS resources: not started yet'
-                : `${cloudformation.completed} of ${cloudformation.total} AWS resources`}
-              <InfoTip about="AWS resources">
-                Each part of your app is several AWS resources: the service, its log group, its permissions and so on.
-                This counts those.
-              </InfoTip>
-            </p>
-          </div>
+  if (version === 'log') {
+    return (
+      <div className="w-workspace w-run r-run is-log w-enter" data-deploy-phase={model.current?.id}>
+        <div className="w-pane">
+          {header}
+          <section aria-label="Deploy log" className="w-card r-log-card">
+            <DeployLog collapseDone live model={model} />
+          </section>
         </div>
-        <ol className="w-phases">
-          {phases.length === 0 && (
-            <li className="w-phase is-running">
-              <span className="w-phase-icon">
-                <Spinner />
-              </span>
-              <p className="w-phase-label">Starting the deploy</p>
-              <span />
-            </li>
-          )}
-          {phases.map((phase) => {
-            // One clock for the deploy, at the top: the phases say only where it is.
-            const isCurrent = phase === current && !showLog;
-            return (
-              <li className={`w-phase is-${phase.status}${isCurrent ? ' is-current' : ''}`} key={phase.id}>
-                <span className="w-phase-icon">
-                  {phase.status === 'done' ? (
-                    <BiCheck className="text-[var(--w-ok)]" size={18} />
-                  ) : phase.status === 'failed' ? (
-                    <BiX className="text-[var(--w-error)]" size={18} />
-                  ) : phase.status === 'running' ? (
-                    <Spinner />
-                  ) : (
-                    <span className="w-phase-dot" />
-                  )}
-                </span>
-                <p className="w-phase-label">{phase.label}</p>
-                {isCurrent && (
-                  <div className={`w-phase-log${quietFor > 8 ? ' is-quiet' : ''}`}>
-                    {tail.length > 0 && (
-                      <pre aria-label="Latest from the deploy log" className="w-log is-tail">
-                        {tail.join('\n')}
-                      </pre>
-                    )}
-                    {logToggle}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-        {(showLog || current === undefined) && (
-          <div className="w-run-log">
-            <div className="w-run-log-head">
-              <span>Deploy log</span>
-              {logToggle}
-            </div>
-            {showLog && (
-              <pre aria-label="Deploy log" className="w-log" ref={logRef}>
-                {model.log.join('\n')}
-              </pre>
-            )}
+        <aside aria-label="Deploy progress" className="w-card w-run-side r-side">
+          {now}
+          {diagram}
+          <div className="r-side-steps">
+            <DeploySteps context={context} live model={model} summary />
           </div>
-        )}
-        <p className="w-run-tab">
-          <BiInfoCircle aria-hidden size={14} />
-          <span>
-            Closing this tab does not stop the deploy. Ctrl+C in the terminal running{' '}
-            <span className="w-code">stacktape init</span> does.
-          </span>
-        </p>
+          {tabNote}
+        </aside>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-workspace w-run r-run is-steps w-enter" data-deploy-phase={model.current?.id}>
+      <div className="w-pane">
+        {header}
+        {diagram}
+      </div>
+      <aside aria-label="Deploy progress" className="w-card w-run-side r-side">
+        {now}
+        <DeployActivity context={context} live model={model} />
+        {tabNote}
       </aside>
     </div>
   );
@@ -435,8 +423,9 @@ export function LiveStep({
     .filter((repair) => repair.applied)
     .flatMap((repair) => repair.changedResources ?? []);
   const [showRemoval, setShowRemoval] = useState(false);
-  const [showLog, setShowLog] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const identity = state.awsIdentity;
+  const created = model.resources.filter((resource) => resource.status === 'complete' && resource.action !== 'DELETE');
 
   return (
     <div className="w-enter">
@@ -498,14 +487,34 @@ export function LiveStep({
                 </InfoTip>
               )
             },
-            elapsed !== undefined && elapsed > 0 && { label: 'Deployed in', value: duration(elapsed) }
+            elapsed !== undefined && elapsed > 0 && { label: 'Deployed in', value: spokenDuration(elapsed) }
           ]}
         />
-        <div className="w-live-details">
-          <button aria-expanded={showLog} className="w-link w-small" onClick={() => setShowLog(!showLog)} type="button">
-            {showLog ? 'Hide the deploy log' : 'Show the deploy log'}
+        <div className="r-live-details">
+          <button
+            aria-controls="deploy-details"
+            aria-expanded={showDetails}
+            className="w-disclosure"
+            onClick={() => setShowDetails(!showDetails)}
+            type="button"
+          >
+            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
+            Deploy details
+            <span className="r-live-details-summary">
+              {created.length > 0 ? `${created.length} AWS resources created` : 'Steps and log'}
+            </span>
           </button>
-          {showLog && <pre className="w-log">{model.log.join('\n')}</pre>}
+          {showDetails && (
+            <div id="deploy-details">
+              <DeployActivity
+                className="is-inline"
+                context={{ resources, services: state.facts?.services ?? [] }}
+                initiallyOpen={['DEPLOY']}
+                live={false}
+                model={model}
+              />
+            </div>
+          )}
         </div>
       </section>
 
@@ -544,6 +553,7 @@ export function LiveStep({
             isBusy={busy === 'coding-agent'}
             onConnect={onConnectCodingAgent}
             setup={state.codingAgentSetup}
+            stage={deployment.stage}
           />
         )}
         {state.gitHost !== undefined && (
@@ -625,58 +635,121 @@ function CopyAddress({ url, label, isBig = false }: { url: string; label: string
   );
 }
 
-/** Connecting the coding agent picked on the Start step to Stacktape, as a next-step row. */
+/** What a person can ask once Stacktape is in their coding agent: each is a tool the Stacktape MCP server has. */
+const AGENT_PROMPTS = (stage: string) => [
+  `Deploy my latest changes to ${stage}`,
+  `Show me the errors in the ${stage} logs from the last hour`,
+  'Run this app on my machine'
+];
+
+/** One example request, copied on a click so it can be pasted into the agent. */
+function PromptChip({ prompt }: { prompt: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <li>
+      <button
+        className={`r-prompt${copied ? ' is-copied' : ''}`}
+        onClick={() =>
+          void (async () => {
+            try {
+              await navigator.clipboard.writeText(prompt);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1800);
+            } catch {
+              // The words are on screen to type.
+            }
+          })()
+        }
+        title="Copy"
+        type="button"
+      >
+        <span className="r-prompt-text">“{prompt}”</span>
+        <span aria-hidden className="r-prompt-copy">
+          {copied ? <BiCheck size={14} /> : <BiCopy size={13} />}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * Adding Stacktape to the coding agent picked on the Start step, as a next-step row.
+ *
+ * The button runs `stacktape mcp add` for that agent: it registers the Stacktape MCP server in the agent's settings
+ * for this user. The row says what that gives in the words a person would type to the agent, because "connect" and
+ * "MCP server" do not say what changes; the technical part is in the tooltip and the small print.
+ */
 function CodingAgentRow({
   setup,
+  stage,
   isBusy,
   onConnect
 }: {
   setup: NonNullable<WizardState['codingAgentSetup']>;
+  stage: string;
   isBusy: boolean;
   onConnect: () => void;
 }) {
   const { label, status, detail, command } = setup;
+  const prompts = (
+    <ul aria-label={`Things to ask ${label}`} className="r-prompts">
+      {AGENT_PROMPTS(stage).map((prompt) => (
+        <PromptChip key={prompt} prompt={prompt} />
+      ))}
+    </ul>
+  );
   const title = (
     <span className="inline-flex items-center gap-1.5">
-      Deploy from {label}
-      <InfoTip about={`connecting ${label}`}>
-        Adds the Stacktape tools to {label} for your user, not this repository. {label} asks before it changes
-        infrastructure.
+      Use Stacktape from {label}
+      <InfoTip about={`adding Stacktape to ${label}`}>
+        Adds the Stacktape MCP server to {label}’s settings for your user, the same as running{' '}
+        <span className="w-code">{command}</span>. {label} can then run Stacktape commands, read your logs and search
+        the docs.
       </InfoTip>
     </span>
   );
   if (status === 'connected') {
     return (
       <Row
-        description={<>{detail} Then ask it: “Use Stacktape to show what this project deploys.”</>}
+        description={<>{detail} Then ask it, for example:</>}
         icon={<BiBot size={17} />}
+        label={`Use Stacktape from ${label}`}
         title={
           <span className="inline-flex items-center gap-2">
             {title}
             <span className="w-saved">
-              <BiCheck aria-hidden size={16} /> Connected
+              <BiCheck aria-hidden size={16} /> Added
             </span>
           </span>
         }
-      />
+      >
+        {prompts}
+      </Row>
     );
   }
   return (
     <Row
       action={
         <Button isLoading={isBusy || status === 'running'} onClick={onConnect} variant="secondary">
-          {status === 'failed' ? 'Try again' : `Connect ${label}`}
+          {status === 'failed' ? 'Try again' : `Add to ${label}`}
         </Button>
       }
-      description={`${label} can then deploy this project, read its logs and look up the docs.`}
+      description={`Gives ${label} the Stacktape commands, so you can ask it things like:`}
       icon={<BiBot size={17} />}
+      label={`Use Stacktape from ${label}`}
       title={title}
     >
-      {status === 'failed' && (
+      {prompts}
+      {status === 'failed' ? (
         <>
           <p className="w-error-text">{detail}</p>
           <CommandLine command={command} fill label="Copy the command" />
         </>
+      ) : (
+        <p className="r-prompts-note">
+          Changes {label}’s settings for your user, not this repository. {label} asks you before it changes anything on
+          AWS.
+        </p>
       )}
     </Row>
   );
@@ -812,6 +885,7 @@ export function DeployFailedStep({
   );
   const explained = explainFailure(message);
   const [showError, setShowError] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const target = {
     configPath,
     projectName: state.projectName,
@@ -872,7 +946,27 @@ export function DeployFailedStep({
             <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
             {showError ? 'Hide the full error' : 'Show the full error'}
           </button>
-          {showError && <pre className="w-log">{[message, '', ...model.log.slice(-60)].join('\n')}</pre>}
+          {showError && <pre className="w-log">{message}</pre>}
+          <button
+            aria-expanded={showDetails}
+            className="w-disclosure"
+            onClick={() => setShowDetails(!showDetails)}
+            type="button"
+          >
+            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
+            {showDetails ? 'Hide the deploy log' : 'Show the deploy log'}
+          </button>
+          {showDetails && (
+            <DeployActivity
+              className="is-inline"
+              context={{ resources, services: state.facts?.services ?? [] }}
+              failed
+              initialView="log"
+              initiallyOpen={['DEPLOY']}
+              live={false}
+              model={model}
+            />
+          )}
         </div>
       </dl>
 

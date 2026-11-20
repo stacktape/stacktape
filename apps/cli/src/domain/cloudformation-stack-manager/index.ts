@@ -1732,6 +1732,25 @@ class StackManager {
         deleteResourcesCount: resourcesToHandleCount
       });
 
+      const resourceAction = (name: string): 'CREATE' | 'UPDATE' | 'DELETE' =>
+        changeSummary.lists.created.includes(name)
+          ? 'CREATE'
+          : changeSummary.lists.deleted.includes(name)
+            ? 'DELETE'
+            : cfStackAction === 'create'
+              ? 'CREATE'
+              : cfStackAction === 'delete'
+                ? 'DELETE'
+                : 'UPDATE';
+      // What each resource in progress is and since when: the type and the start a person watching per resource needs.
+      const describeInProgress = (names: string[]) =>
+        names.map((name) => ({
+          name,
+          action: resourceAction(name),
+          resourceType: inProgressMeta.get(name)?.resourceType,
+          since: inProgressMeta.get(name)?.since
+        }));
+
       // Agent mode: simplified progress output
       if (isAgentMode()) {
         const plannedSet = getPlannedResources({ updatedResourceLogicalNames, changeLists: changeSummary.lists });
@@ -1754,6 +1773,7 @@ class StackManager {
             totalPlanned,
             percent,
             inProgressResources: activeResources,
+            inProgressDetails: describeInProgress(activeResources),
             changeCounts: {
               created: changeSummary.counts.created,
               updated: changeSummary.counts.updated,
@@ -1817,22 +1837,7 @@ class StackManager {
       const activeResources = plannedSet
         ? Array.from(inProgressResources).filter((name) => plannedSet.has(name))
         : Array.from(inProgressResources);
-      const resourceAction = (name: string): 'CREATE' | 'UPDATE' | 'DELETE' =>
-        changeSummary.lists.created.includes(name)
-          ? 'CREATE'
-          : changeSummary.lists.deleted.includes(name)
-            ? 'DELETE'
-            : cfStackAction === 'create'
-              ? 'CREATE'
-              : cfStackAction === 'delete'
-                ? 'DELETE'
-                : 'UPDATE';
-      const inProgressDetails = activeResources.map((name) => ({
-        name,
-        action: resourceAction(name),
-        resourceType: inProgressMeta.get(name)?.resourceType,
-        since: inProgressMeta.get(name)?.since
-      }));
+      const inProgressDetails = describeInProgress(activeResources);
       const waitingCandidates = plannedSet
         ? Array.from(plannedSet).filter((name) => !inProgressResources.has(name) && !completeResources.has(name))
         : [];

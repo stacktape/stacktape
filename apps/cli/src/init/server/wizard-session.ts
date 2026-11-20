@@ -62,6 +62,7 @@ import {
   type WizardTemplatePreview,
   type WizardVerification
 } from './wizard-server';
+import { deployResourceList, foldDeployResource, recordDeployEvent, type DeployResource } from './deploy-resources';
 
 /** How often the page hears about a running deploy. Fast enough to feel live, slow enough to be cheap. */
 const PROGRESS_PUBLISH_INTERVAL_MS = 200;
@@ -1304,6 +1305,9 @@ export const startWizardSession = async ({
           }, PROGRESS_PUBLISH_INTERVAL_MS).unref?.();
         };
 
+        // Every CloudFormation tick, folded per resource: the event list below is capped, this is not.
+        let resources = new Map<string, DeployResource>();
+
         const record = <T>(list: T[], entry: T, cap: number): T[] => {
           list.push(entry);
           // Oldest first out. A long deploy must not grow the state without bound, and the interesting
@@ -1339,7 +1343,8 @@ export const startWizardSession = async ({
                   const { data: _data, ...withoutData } = event as Record<string, unknown>;
                   return withoutData;
                 })();
-                deployment.events = record(deployment.events, browserEvent, MAX_DEPLOY_EVENTS);
+                deployment.events = recordDeployEvent(deployment.events, browserEvent, MAX_DEPLOY_EVENTS);
+                if (foldDeployResource(resources, event)) deployment.resources = deployResourceList(resources);
                 publishSoon();
               },
               onLine: (line) => {
@@ -1486,8 +1491,10 @@ export const startWizardSession = async ({
               // A retry is a fresh attempt as far as the page is concerned; keeping the old stream
               // would make it look like one long failing deploy.
               events: [],
+              resources: [],
               lines: []
             };
+            resources = new Map();
             publish(buildState());
             repriceInBackground();
           }
