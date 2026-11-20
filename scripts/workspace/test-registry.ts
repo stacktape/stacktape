@@ -3847,9 +3847,11 @@ export const lanes: readonly Lane[] = [
       'src/secrets-model.spec.ts',
       'src/sign-in.spec.ts',
       'src/target-copy.spec.ts',
+      'src/part-names.spec.ts',
       'src/editor/line-diff.spec.ts',
       'src/workspace/resource-story.spec.ts',
-      'src/workspace/syntax.spec.ts'
+      'src/workspace/syntax.spec.ts',
+      'src/workspace/file-tree.spec.ts'
     ],
     tier: 'pr',
     level: 'focused',
@@ -3861,9 +3863,11 @@ export const lanes: readonly Lane[] = [
       'apps/init-ui/src/secrets-model.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
       'apps/init-ui/src/target-copy.spec.ts',
+      'apps/init-ui/src/part-names.spec.ts',
       'apps/init-ui/src/editor/line-diff.spec.ts',
       'apps/init-ui/src/workspace/resource-story.spec.ts',
-      'apps/init-ui/src/workspace/syntax.spec.ts'
+      'apps/init-ui/src/workspace/syntax.spec.ts',
+      'apps/init-ui/src/workspace/file-tree.spec.ts'
     ],
     requires: [],
     release: 'every-candidate'
@@ -4176,6 +4180,7 @@ export const slices: readonly Slice[] = [
       'apps/init-ui/src/secrets-model.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
       'apps/init-ui/src/target-copy.spec.ts',
+      'apps/init-ui/src/part-names.spec.ts',
       'apps/init-ui/src/steps/ReviewStep.spec.ts',
       'apps/cli/src/init/server/file-view.spec.ts',
       'apps/cli/src/init/server/repository-tree.spec.ts',
