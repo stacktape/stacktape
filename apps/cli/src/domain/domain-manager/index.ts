@@ -8,6 +8,7 @@ import { promises as dnsPromises } from 'node:dns';
 import { operationReporter } from '@application-services/operation-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';
 import { stpErrors } from '@errors';
 import {
@@ -53,6 +54,27 @@ const getDeployedDefaultDomainsVersion = (template: CloudFormationTemplate | und
     })
     .filter((version) => Number.isInteger(version) && version > 0);
   return versions.length ? Math.min(...versions) : null;
+};
+
+const USABLE_CERTIFICATE_STATUSES: (string | undefined)[] = [
+  CertificateStatus.ISSUED,
+  CertificateStatus.PENDING_VALIDATION
+];
+
+/**
+ * Whether a deploy can use the domain status without looking the domain up in AWS: its DNS is delegated to the hosted
+ * zone and it has a live certificate both in the deploy region and in us-east-1, as `stacktape domain add` and the
+ * Console create them.
+ */
+const isDomainStatusComplete = (status: StpDomainStatus | undefined): boolean => {
+  const hasUsableCertificate = (certs: (CertificateDetail | undefined)[]) =>
+    certs.some((cert) => USABLE_CERTIFICATE_STATUSES.includes(cert?.Status));
+  return Boolean(
+    status?.ownershipVerified &&
+    status.hostedZoneInfo &&
+    hasUsableCertificate([status.regionalCert, ...(status.regionalCerts || [])]) &&
+    hasUsableCertificate([status.usEast1Cert, ...(status.usEast1Certs || [])])
+  );
 };
 
 export class DomainManager {
@@ -190,6 +212,53 @@ export class DomainManager {
         }
       })
     );
+
+    // Only `stacktape domain add` writes the parameter. A domain set up in the Console or by hand has none, and one
+    // written before the setup finished lacks the delegation or the certificates the Console added later.
+    const domainsToLookUp = domains.filter((domainName) => !isDomainStatusComplete(this.domainStatuses[domainName]));
+    if (domainsToLookUp.length) {
+      await this.#lookUpDomainStatusesForDeploy({ domains: domainsToLookUp });
+    }
+  };
+
+  /**
+   * Looks the domains up in Route 53 and ACM the way `stacktape domain add` does, and stores a complete result so the
+   * next deploy reads it from the parameter again. A cached status stays when the lookup fails or finds the domain
+   * undelegated: it may still work for a domain that brings its own certificate.
+   */
+  #lookUpDomainStatusesForDeploy = async ({ domains }: { domains: string[] }) => {
+    let publicHostedZones: HostedZone[];
+    try {
+      publicHostedZones = await this.#listAllPublicHostedZones();
+    } catch (error) {
+      if (domains.some((domainName) => !this.domainStatuses[domainName])) throw error;
+      tuiManager.debug(`Could not list hosted zones to refresh the cached domain statuses: ${error}`);
+      return;
+    }
+    this.publicHostedZones = publicHostedZones;
+    await Promise.all(
+      domains.map(async (domainName) => {
+        const cachedStatus = this.domainStatuses[domainName];
+        let status: StpDomainStatus;
+        try {
+          status = await this.#fetchDomainStatus(domainName, { useWhois: false });
+        } catch (error) {
+          if (!cachedStatus) throw error;
+          tuiManager.debug(`Could not refresh the cached status of domain ${domainName}: ${error}`);
+          return;
+        }
+        if (cachedStatus && !status.ownershipVerified) {
+          return;
+        }
+        this.domainStatuses[domainName] = status;
+        if (isDomainStatusComplete(status)) {
+          // A parameter that cannot be written only means the next deploy looks the domain up again.
+          await this.storeDomainStatusIntoParameterStore({ domainName, status }).catch((error) =>
+            tuiManager.debug(`Could not cache the status of domain ${domainName}: ${error}`)
+          );
+        }
+      })
+    );
   };
 
   storeDomainStatusIntoParameterStore = async ({
@@ -199,28 +268,27 @@ export class DomainManager {
     domainName: string;
     status: StpDomainStatus;
   }) => {
-    // parameter size is limited to 4096 chars
-    // therefore we do not preserve all details about domain status(particularly details about certs)
-    // in case of need, this information can be fetched directly through AWS API (see #getCertificatesRecordedInHostedZone)
-    const cleanedStatus = {
-      ...status,
-      regionalCert: status.regionalCert && { ...status.regionalCert },
-      usEast1Cert: status.usEast1Cert && { ...status.usEast1Cert },
-      regionalCerts: status.regionalCerts?.map((cert) => ({ ...cert })),
-      usEast1Certs: status.usEast1Certs?.map((cert) => ({ ...cert }))
+    // A standard parameter holds at most 4,096 characters, and four full certificate descriptions exceed it. A deploy
+    // describes every cached certificate again before using it, and Stacktape 3 reads only the ARN and status.
+    const cachedCertificate = (cert: CertificateDetail | undefined): CertificateDetail | undefined =>
+      cert && {
+        CertificateArn: cert.CertificateArn,
+        DomainName: cert.DomainName,
+        SubjectAlternativeNames: cert.SubjectAlternativeNames,
+        Status: cert.Status
+      };
+    const cleanedStatus: StpDomainStatus = {
+      registered: status.registered,
+      ownershipVerified: status.ownershipVerified,
+      hostedZoneInfo: status.hostedZoneInfo && {
+        HostedZone: status.hostedZoneInfo.HostedZone,
+        DelegationSet: status.hostedZoneInfo.DelegationSet
+      },
+      regionalCert: cachedCertificate(status.regionalCert),
+      usEast1Cert: cachedCertificate(status.usEast1Cert),
+      regionalCerts: status.regionalCerts?.map(cachedCertificate),
+      usEast1Certs: status.usEast1Certs?.map(cachedCertificate)
     };
-    delete cleanedStatus.regionalCert?.DomainValidationOptions;
-    delete cleanedStatus.usEast1Cert?.DomainValidationOptions;
-    cleanedStatus.regionalCerts?.forEach((cert) => delete cert.DomainValidationOptions);
-    cleanedStatus.usEast1Certs?.forEach((cert) => delete cert.DomainValidationOptions);
-    delete cleanedStatus.regionalCert?.InUseBy;
-    delete cleanedStatus.usEast1Cert?.InUseBy;
-    cleanedStatus.regionalCerts?.forEach((cert) => delete cert.InUseBy);
-    cleanedStatus.usEast1Certs?.forEach((cert) => delete cert.InUseBy);
-    delete cleanedStatus.regionalCert?.RenewalSummary;
-    delete cleanedStatus.usEast1Cert?.RenewalSummary;
-    cleanedStatus.regionalCerts?.forEach((cert) => delete cert.RenewalSummary);
-    cleanedStatus.usEast1Certs?.forEach((cert) => delete cert.RenewalSummary);
     await awsSdkManager.parameterStore.put({
       name: getSsmParameterNameForDomainInfo({ domainName, region: globalStateManager.region }),
       value: JSON.stringify(cleanedStatus)
@@ -232,14 +300,23 @@ export class DomainManager {
     await Promise.all(
       domains.map(async (domainName) => {
         validateDomain(domainName);
-        const status = await this.#fetchDomainStatus(domainName);
+        const status = await this.#fetchDomainStatus(domainName, { useWhois: true });
         this.domainStatuses[domainName] = status;
       })
     );
   };
 
-  #fetchDomainStatus = async (domainName: string): Promise<StpDomainStatus> => {
-    const lookupNameServers = await this.resolveCurrentNameServersForDomain(domainName, true);
+  /**
+   * `stacktape domain add` asks the registry (`useWhois`), which knows about a name server change first. A deploy asks
+   * DNS, as it does for cached statuses, so both agree and a deploy needs no registry service.
+   */
+  #fetchDomainStatus = async (domainName: string, { useWhois }: { useWhois: boolean }): Promise<StpDomainStatus> => {
+    const lookupNameServers = useWhois
+      ? await this.resolveCurrentNameServersForDomain(domainName, true)
+      : await this.resolveCurrentNameServersForDomain(domainName).catch((error: NodeJS.ErrnoException) => {
+          if (error?.code === dnsPromises.NOTFOUND || error?.code === dnsPromises.NODATA) return undefined;
+          throw error;
+        });
     // if we were unable to lookup nameservers, the domain is not registered
     if (!lookupNameServers) {
       return {
@@ -428,7 +505,7 @@ export class DomainManager {
   #findMatchingHostedZone = async (lookupNameServers: string[], domainName: string) => {
     const relevantPublicHostedZones = await Promise.all(
       this.publicHostedZones
-        .filter(({ Name }) => Name.startsWith(domainName))
+        .filter(({ Name }) => normalizeDomainName(Name) === normalizeDomainName(domainName))
         .map(async ({ Id }) => awsSdkManager.domains.getHostedZone(Id))
     );
 
@@ -441,12 +518,9 @@ export class DomainManager {
     }
     return {
       nameServersMatch: false,
-      zone: relevantPublicHostedZones.find(
-        ({
-          HostedZone: {
-            Config: { Comment }
-          }
-        }) => Comment.includes(COMMENT_FOR_STACKTAPE_ZONE)
+      // `stacktape domain add` comments its zones `STACKTAPE`, the Console `Created by Stacktape Console`.
+      zone: relevantPublicHostedZones.find(({ HostedZone }) =>
+        HostedZone?.Config?.Comment?.toUpperCase().includes(COMMENT_FOR_STACKTAPE_ZONE)
       )
     };
   };
