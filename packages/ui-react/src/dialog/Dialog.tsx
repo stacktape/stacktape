@@ -74,7 +74,8 @@ export function Dialog({
     const timer = setTimeout(() => setIsOpening(false), OPENING_MS);
     return () => clearTimeout(timer);
   }, [open]);
-  // A dialog opens centred, then keeps its top where it opened: a tab or a choice that changes its height grows or shrinks
+  // A dialog stays centred while it fills in (a form opened from a link grows as its data arrives), and keeps its top
+  // from the person's first click or key press in it: a tab or a choice that changes its height then grows or shrinks
   // it at the bottom, so the tabs and fields above stay under the pointer. It moves up only as far as it must to stay
   // inside the window. A window resize centres it again.
   useLayoutEffect(() => {
@@ -83,26 +84,31 @@ export function Dialog({
     if (!open || !dialog || !overlay || typeof ResizeObserver === 'undefined') return undefined;
     let top: number | null = null;
     const place = () => {
+      if (top === null) return;
       const inset = Number.parseFloat(getComputedStyle(overlay).paddingTop) || 0;
-      if (top === null) {
-        top = dialog.getBoundingClientRect().top - overlay.getBoundingClientRect().top;
-        dialog.style.alignSelf = 'flex-start';
-      }
       top = Math.max(inset, Math.min(top, overlay.clientHeight - inset - dialog.offsetHeight));
       dialog.style.marginTop = `${top - inset}px`;
+    };
+    const hold = () => {
+      if (top !== null) return;
+      top = dialog.getBoundingClientRect().top - overlay.getBoundingClientRect().top;
+      dialog.style.alignSelf = 'flex-start';
+      place();
     };
     const recentre = () => {
       top = null;
       dialog.style.alignSelf = '';
       dialog.style.marginTop = '';
-      place();
     };
-    place();
     const observer = new ResizeObserver(place);
     observer.observe(dialog);
+    dialog.addEventListener('pointerdown', hold, true);
+    dialog.addEventListener('keydown', hold, true);
     window.addEventListener('resize', recentre);
     return () => {
       observer.disconnect();
+      dialog.removeEventListener('pointerdown', hold, true);
+      dialog.removeEventListener('keydown', hold, true);
       window.removeEventListener('resize', recentre);
     };
   }, [open]);
