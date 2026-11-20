@@ -30,9 +30,11 @@ import {
   deployCommandLine,
   inspectDeployTarget,
   readResourceUrl,
+  resolveSelfCommand,
   startDeploy,
   type DeployHandle
 } from './deploy/run-deploy';
+import { compileTemplatePreview } from './template-preview/compile';
 import { runAgentSessionWithRetry } from './agent/session-runner';
 import type { AgentEvent } from './agent/transport';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from './missions/greenfield';
@@ -717,6 +719,8 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     },
     ...(bundle === undefined ? {} : { staticRoot: bundle }),
     ...(configSchemaPath === undefined ? {} : { configSchemaPath }),
+    // The CloudFormation view: this CLI compiles each template in a child of its own, offline.
+    templatePreview: (request) => compileTemplatePreview(request, resolveSelfCommand()),
     setSecret: ({ name, value, region }) =>
       setSecretWithCli({
         name,

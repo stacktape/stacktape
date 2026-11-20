@@ -129,6 +129,25 @@ export type WizardVerification = {
   services?: ServicePreflightResult[];
 };
 
+/**
+ * The CloudFormation template the configuration under review compiles to (`template-preview/`), or why it does not.
+ * `config` is the configuration text it was compiled from, so the page knows which edit it describes.
+ */
+export type WizardTemplatePreview =
+  | {
+      status: 'ready';
+      config: string;
+      /** The template as `stacktape synth` writes it, its resources grouped by the configuration's resource. */
+      text: string;
+      /** The resource of the configuration each logical ID was created for; absent for the stack's shared ones. */
+      owners: Record<string, string>;
+      stage: string;
+      region: string;
+    }
+  | { status: 'failed'; config: string; error: string }
+  /** Nothing to compile yet, or the file does not parse. */
+  | { status: 'unavailable'; detail: string };
+
 export type WizardState = {
   /**
    * Increments on every publish. Assigned by the server; callers never set it.
@@ -239,10 +258,13 @@ export type WizardState = {
   verification?: WizardVerification;
   /**
    * The configuration as the user edited it by hand on the Review step. While present it is what gets written and
-   * deployed, and the infrastructure settings that would regenerate the file are off. `error` is the YAML parser's
-   * complaint, when the text does not parse.
+   * deployed, and the infrastructure settings that would regenerate the file are off.
+   *
+   * A YAML edit is `yaml`. A TypeScript edit is `typescript`, with `yaml` the configuration it evaluated to last, which
+   * the diagram, the price and the secrets read. `error` says why the text does not parse or evaluate, `errorLine`
+   * where, when known.
    */
-  configEdit?: { yaml: string; error?: string };
+  configEdit?: { yaml: string; typescript?: string; error?: string; errorLine?: number };
   /** Secrets set from the page in this session, by name, and whether the user said the rest already exist. */
   secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
   /** Saving pasted AWS access keys as a profile on this machine. Never carries the keys. */
@@ -324,8 +346,13 @@ export type WizardServerHooks = {
    * `onSignIn`: signing in and connecting finish minutes after the click.
    */
   onConsoleConnection: (action: 'connect' | 'dismiss') => Promise<void> | void;
-  /** The configuration edited by hand, or `null` to go back to the generated one. */
-  onConfigText?: (yaml: string | null) => Promise<WizardState> | WizardState;
+  /** The configuration edited by hand, in either format, or `null` to go back to the generated one. */
+  onConfigText?: (edit: { yaml: string } | { typescript: string } | null) => Promise<WizardState> | WizardState;
+  /**
+   * The CloudFormation template the configuration under review compiles to, for the page's read-only view. Compiled
+   * on this machine without AWS; absent when the session cannot compile.
+   */
+  onTemplate?: () => Promise<WizardTemplatePreview>;
   /** Sets one secret the configuration reads, in the user's AWS account. The value is never stored or logged here. */
   onSecret?: (input: { name: string; value: string }) => Promise<WizardState> | WizardState;
   /** The user says the secrets the configuration reads already exist in their AWS account. */
@@ -379,6 +406,8 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  // The `stacktape` type declarations the TypeScript editor checks against (`stacktape-types/*.d.ts`).
+  '.ts': 'text/plain; charset=utf-8',
   '.woff2': 'font/woff2'
 };
 
@@ -1008,16 +1037,35 @@ export const startWizardServer = async ({
           return;
         }
         try {
-          const body = JSON.parse(await readBody(request, 512 * 1024)) as { yaml?: unknown };
-          const yaml = typeof body.yaml === 'string' ? body.yaml : body.yaml === null ? null : undefined;
-          if (yaml === undefined || (yaml !== null && yaml.length > 256 * 1024)) {
+          const body = JSON.parse(await readBody(request, 512 * 1024)) as { yaml?: unknown; typescript?: unknown };
+          const edit =
+            typeof body.typescript === 'string'
+              ? { typescript: body.typescript }
+              : typeof body.yaml === 'string'
+                ? { yaml: body.yaml }
+                : body.yaml === null
+                  ? null
+                  : undefined;
+          const text = edit === null || edit === undefined ? '' : 'yaml' in edit ? edit.yaml : edit.typescript;
+          if (edit === undefined || text.length > 256 * 1024) {
             json(response, 400, { error: 'Expected the configuration text, or null.' });
             return;
           }
-          json(response, 200, await hooks.onConfigText(yaml));
+          json(response, 200, await hooks.onConfigText(edit));
         } catch {
           json(response, 400, { error: 'Bad request.' });
         }
+        return;
+      }
+
+      // The compiled template: same cookie and CSRF token as the file route. It only reads, and compiling can take a
+      // second, so the page asks for it when it shows it rather than with every state.
+      if (url.pathname === '/api/template' && request.method === 'GET' && hooks.onTemplate !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        json(response, 200, await hooks.onTemplate());
         return;
       }
 

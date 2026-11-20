@@ -1,9 +1,10 @@
 /**
  * Monaco's editor with its interactive features (hover, suggestions, find, folding, markers), and only the two
- * languages the wizard shows: YAML and TypeScript highlighting.
+ * languages the wizard edits: YAML and TypeScript.
  *
- * `monaco-editor`'s own entry registers every language and ships five language workers (TypeScript alone is 7 MB), all
- * embedded in each CLI release. This is that entry's list of editor features without the languages. Regenerate it
+ * `monaco-editor`'s own entry registers every language and ships five language workers, all embedded in each CLI
+ * release. This is that entry's list of editor features without the languages, plus the two the wizard edits; of the
+ * workers only YAML's and TypeScript's (about 7 MB, loaded when a TypeScript file opens) are shipped. Regenerate it
  * from `monaco-editor/esm/vs/editor/editor.main.js` when Monaco is upgraded. The API itself is imported from
  * `monaco-editor/editor/editor.api.js` by `monaco-setup.ts`, after this module has registered the features.
  */
@@ -84,3 +85,5 @@ import 'monaco-esm/editor/common/standaloneStrings.js';
 import 'monaco-esm/base/browser/ui/codicons/codicon/codicon-modifiers.css';
 import 'monaco-esm/languages/definitions/yaml/register.js';
 import 'monaco-esm/languages/definitions/typescript/register.js';
+// TypeScript's language features (completion, hover, errors); its worker starts only for a TypeScript model.
+import 'monaco-esm/languages/features/typescript/register.js';
