@@ -169,11 +169,11 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(page.getByText(/Closing this tab does not stop the deploy/)).toBeVisible();
   await expect(page.locator('[aria-current="step"]')).toContainText('Deploy');
   // The held deploy waits on the database: its AWS resources are listed under it, the one AWS is creating first.
-  const database = progress.getByRole('region', { name: 'Postgres database' });
+  const databaseGroup = progress.getByRole('region', { name: 'Postgres database' });
   await expect(
-    database.getByRole('list', { name: 'AWS resources of Postgres database' }).locator('li').first()
+    databaseGroup.getByRole('list', { name: 'AWS resources of Postgres database' }).locator('li').first()
   ).toContainText('RDS DB instance');
-  await expect(database).toContainText('MainDatabaseDbInstance');
+  await expect(databaseGroup).toContainText('MainDatabaseDbInstance');
   // The network and roles every part uses are their own group, done before the parts that need them.
   await expect(progress.getByRole('region', { name: 'Shared setup' })).toContainText(/\d+ done/);
   // The log is one tab away: a section per phase, each resource where it happened, and a search that narrows it.
@@ -255,7 +255,7 @@ test('stacktape.yml is editable with schema help, settings write into hand edits
   await expect(database.getByRole('tab', { name: /Private network/ })).toBeDisabled();
 
   page.once('dialog', (dialog) => void dialog.accept());
-  await page.getByRole('button', { name: 'Discard my edits' }).first().click();
+  await editorStatus(page).getByRole('button', { name: 'Discard', exact: true }).click();
   await expect(editorStatus(page)).not.toContainText('Edited by hand');
   await expect(database.getByRole('tab', { name: /Private network/ })).toBeEnabled();
 });

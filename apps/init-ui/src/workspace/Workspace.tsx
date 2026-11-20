@@ -748,7 +748,7 @@ export function Workspace({
               citations={citations}
               isEdited={isEdited}
               isLocked={isLocked}
-              isTyping={draft !== undefined && draft !== (edit?.yaml ?? generated?.yaml)}
+              isTyping={draft.isPending}
               onDecision={onDecision}
               onRegion={onRegion}
               onSetting={onSetting}

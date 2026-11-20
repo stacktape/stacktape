@@ -1629,7 +1629,8 @@ export const startWizardSession = async ({
         const outcome = settingWrites(resource, change, SETTINGS_CONTEXT);
         if ('refused' in outcome) return buildState();
         if (edit !== undefined) {
-          if (edit.error !== undefined) return buildState();
+          // A setting is written into YAML text; a stacktape.ts edit is the user's code, so settings wait for it.
+          if (edit.error !== undefined || edit.typescript !== undefined) return buildState();
           const yaml = writeIntoText(edit.yaml, change.resource, outcome.writes);
           configEdit = { yaml, ...yamlError(yaml) };
           configFile = undefined;

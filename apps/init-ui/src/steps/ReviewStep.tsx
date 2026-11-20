@@ -123,7 +123,9 @@ export function ReviewPane({
     ? 'Not while stacktape init is disconnected or deploying'
     : isTyping || busy === 'write'
       ? 'One moment'
-      : undefined;
+      : state.configEdit?.typescript !== undefined
+        ? 'Not while stacktape.ts has your edits. Discard them to use the settings'
+        : undefined;
 
   // One object per file: a new one is a new picture, and the diagram forgets what the pointer was on.
   const config = useMemo(() => ({ resources }) as unknown as StacktapeConfig, [resources]);
@@ -489,7 +491,11 @@ function ProjectSettings({
       </OverviewSection>
       {decisions.length > 0 && (
         <OverviewSection
-          note={isEdited ? 'These rewrite stacktape.yml, so they wait while it has your edits.' : undefined}
+          note={
+            isEdited
+              ? `These rewrite ${state.configEdit?.typescript === undefined ? 'stacktape.yml' : 'stacktape.ts'}, so they wait while it has your edits.`
+              : undefined
+          }
           title="Decided for this app"
         >
           {decisions.map((decision) => {
