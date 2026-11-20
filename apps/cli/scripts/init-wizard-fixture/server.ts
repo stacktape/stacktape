@@ -87,14 +87,181 @@ const main = async () => {
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  /** Monthly prices by resource type, in the shape the anonymous price API returns them. */
-  const FLAT_MONTHLY_BY_TYPE: Readonly<Record<string, number>> = {
-    'relational-database': 15.33,
-    bastion: 3.8,
-    'web-service': 18.07,
-    'worker-service': 9.01,
-    redis: 12.41,
-    'multi-container-workload': 18.07
+  /**
+   * AWS list prices for us-east-1 (USD), close to what the real estimator returns, by the product names it uses. Hourly
+   * prices become monthly at 730 hours, as the estimator counts them.
+   */
+  const HOURS = 730;
+  const RDS_HOURLY: Readonly<Record<string, number>> = {
+    'db.t4g.micro': 0.016,
+    'db.t4g.small': 0.032,
+    'db.t4g.medium': 0.065,
+    'db.t4g.large': 0.129,
+    'db.t4g.xlarge': 0.258,
+    'db.m7g.large': 0.168,
+    'db.m7g.xlarge': 0.336,
+    'db.r7g.large': 0.239,
+    'db.r7g.xlarge': 0.478,
+    'db.m6g.2xlarge': 0.616
+  };
+  const CACHE_HOURLY: Readonly<Record<string, number>> = {
+    'cache.t4g.micro': 0.016,
+    'cache.t4g.small': 0.032,
+    'cache.t4g.medium': 0.065,
+    'cache.m7g.large': 0.158,
+    'cache.r7g.large': 0.219
+  };
+  const EC2_HOURLY: Readonly<Record<string, number>> = { 't3.micro': 0.0104, 't3.small': 0.0208 };
+  const PUBLIC_IP_HOURLY = 0.005;
+  const GP2_GB_MONTH = 0.115;
+  const FARGATE_VCPU_HOURLY = 0.04048;
+  const FARGATE_GB_HOURLY = 0.004445;
+
+  type Line = NonNullable<
+    StackPriceEstimationResponse['costs']
+  >['resourcesBreakdown'][string]['priceInfo']['costBreakdown'][number];
+  const flatLine = (name: string, description: string, hourly: number, multiplier = 1, unit = 'Hrs'): Line => ({
+    name,
+    description,
+    priceModel: 'flat',
+    pricePerUnit: hourly,
+    unit,
+    multiplier,
+    pricePerMonth: Math.round((unit === 'Hrs' ? hourly * HOURS : hourly) * multiplier * 100) / 100
+  });
+  const usageLine = (name: string, description: string, pricePerUnit: number, unit: string, multiplier = 1): Line => ({
+    name,
+    description,
+    priceModel: 'pay-per-use',
+    pricePerUnit,
+    unit,
+    multiplier,
+    pricePerMonth: false
+  });
+
+  /** What one resource costs, line by line, the way the estimator breaks it down. */
+  const linesFor = (resource: { type: string; properties?: Record<string, any> }): Line[] | undefined => {
+    const properties = resource.properties ?? {};
+    switch (resource.type) {
+      case 'relational-database': {
+        const engine = properties.engine?.properties ?? {};
+        const size = engine.primaryInstance?.instanceSize ?? 'db.t4g.micro';
+        const copies = engine.primaryInstance?.multiAz === true ? 2 : 1;
+        const storage = engine.storage?.initialSize ?? 20;
+        const replicas: Array<{ instanceSize?: string }> = Array.isArray(engine.readReplicas)
+          ? engine.readReplicas
+          : [];
+        const publicIp = properties.accessibility?.forceDisablePublicIp !== true;
+        const engineType = properties.engine?.type ?? 'postgres';
+        return [
+          flatLine(
+            `RDS-instance-${size}-${engineType}`,
+            'Price for database instance',
+            RDS_HOURLY[size] ?? 0.1,
+            copies
+          ),
+          ...(publicIp ? [flatLine('EC2-public-ip', 'Price for a public IP address', PUBLIC_IP_HOURLY)] : []),
+          flatLine(
+            `RDS-gp2-storage-${engineType}`,
+            'Price for database storage',
+            GP2_GB_MONTH,
+            copies * storage,
+            'GB-Mo'
+          ),
+          ...replicas.flatMap((replica) => [
+            flatLine(
+              `RDS-instance-${replica.instanceSize ?? size}-${engineType}`,
+              'Price for database instance',
+              RDS_HOURLY[replica.instanceSize ?? size] ?? 0.1
+            ),
+            ...(publicIp ? [flatLine('EC2-public-ip', 'Price for a public IP address', PUBLIC_IP_HOURLY)] : []),
+            flatLine(`RDS-gp2-storage-${engineType}`, 'Price for database storage', GP2_GB_MONTH, storage, 'GB-Mo')
+          ])
+        ];
+      }
+      case 'web-service':
+      case 'worker-service':
+      case 'private-service': {
+        const copies = properties.scaling?.minInstances ?? 1;
+        const cpu = properties.resources?.cpu ?? 0.25;
+        const memory = (properties.resources?.memory ?? 512) / 1024;
+        return [
+          flatLine('ECS-cpu-AMD64-Linux', 'Price for Fargate vCPUs', FARGATE_VCPU_HOURLY, cpu * copies),
+          flatLine('ECS-memory-AMD64-Linux', 'Price for Fargate memory', FARGATE_GB_HOURLY, memory * copies),
+          ...(resource.type === 'web-service'
+            ? [usageLine('ApiGateway-http-api-requests', 'Price per request', 1, '1M requests')]
+            : [])
+        ];
+      }
+      case 'bastion':
+        return [
+          flatLine('EC2-public-ip', 'Price for a public IP address', PUBLIC_IP_HOURLY),
+          flatLine(
+            `EC2-instance-${properties.instanceSize ?? 't3.micro'}-Linux`,
+            'Price for EC2 instances',
+            EC2_HOURLY[properties.instanceSize ?? 't3.micro'] ?? 0.0104
+          )
+        ];
+      case 'redis': {
+        const size = properties.engine?.properties?.instanceSize ?? 'cache.t4g.micro';
+        const nodes = 1 + (properties.engine?.properties?.numReplicaNodes ?? 0);
+        return [
+          flatLine(
+            `ElastiCache-instance-${size}`,
+            'Price for Redis(ElastiCache) instances',
+            CACHE_HOURLY[size] ?? 0.05,
+            nodes
+          )
+        ];
+      }
+      case 'function':
+      case 'nextjs-web':
+      case 'nuxt-web':
+      case 'sveltekit-web':
+      case 'astro-web':
+      case 'remix-web':
+      case 'solidstart-web':
+      case 'tanstack-web': {
+        const memory = (resource.type === 'function' ? properties.memory : properties.serverLambda?.memory) ?? 1024;
+        const edge = properties.useEdgeLambda === true;
+        return [
+          ...(resource.type === 'function'
+            ? []
+            : [
+                usageLine('S3-storage', 'Price for amount of data stored', 0.023, 'GB-Mo'),
+                usageLine('CloudFront-price-per-10000-req', 'Price per 10,000 requests', 0.01, '10K requests')
+              ]),
+          usageLine(
+            edge ? 'Lambda-edge-execution-time' : 'Lambda-execution-time',
+            'Price for one second of invocation duration of the function',
+            edge ? 0.00005001 : 0.0000166667,
+            'Lambda-GB-Second',
+            memory / 1024
+          ),
+          usageLine(
+            edge ? 'Lambda-edge-price-per-request' : 'Lambda-price-per-request',
+            'Price for each request (invocation)',
+            edge ? 0.6 : 0.2,
+            '1M requests'
+          )
+        ];
+      }
+      case 'hosting-bucket':
+        return [
+          usageLine('S3-storage', 'Price for amount of data stored', 0.023, 'GB-Mo'),
+          usageLine('CloudFront-price-per-10000-req', 'Price per 10,000 requests', 0.01, '10K requests')
+        ];
+      case 'bucket':
+        return [
+          usageLine('S3-storage', 'Price for amount of data stored', 0.023, 'GB-Mo'),
+          usageLine('S3-put-requests', 'Price for 1000 PUT, COPY, POST, or LIST requests', 0.005, '1K requests'),
+          usageLine('S3-get-requests', 'Price for 10000 GET and all other requests', 0.004, '10K requests')
+        ];
+      case 'efs-filesystem':
+        return [usageLine('EFS-storage', 'Price for EFS storage', 0.3, 'GB-Mo')];
+      default:
+        return undefined;
+    }
   };
 
   /** The device sign-in the stand-in API is waiting on: approved from its `/device` page. */
@@ -201,32 +368,24 @@ const main = async () => {
         const resources =
           (parse(stackConfig) as { resources?: Record<string, { type: string; properties?: Record<string, any> }> })
             .resources ?? {};
-        // Enough of the real estimator's shape for the wizard's comparisons: size, copies, a standby and the region.
-        const regionFactor = region === 'us-east-1' ? 0.9 : 1;
+        // The real estimator's shape, product by product, so sizes, copies, a standby, storage and the region all count.
+        const regionFactor = region === 'us-east-1' ? 1 : 1.1;
         const resourcesBreakdown: NonNullable<StackPriceEstimationResponse['costs']>['resourcesBreakdown'] = {};
         let flatMonthlyCost = 0;
         for (const [name, resource] of Object.entries(resources)) {
-          const base = FLAT_MONTHLY_BY_TYPE[resource.type];
-          const described = JSON.stringify(resource.properties ?? {});
-          const instanceSize = /"instanceSize":"[a-z0-9]+\.[a-z0-9]+\.([a-z0-9]+)"/.exec(described)?.[1];
-          const size =
-            ({ micro: 1, small: 2, medium: 4, large: 8 } as Record<string, number>)[instanceSize ?? ''] ??
-            (resource.properties?.resources?.cpu ?? 0.5) / 0.5;
-          const copies =
-            (resource.properties?.scaling?.minInstances ?? 1) * (described.includes('"multiAz":true') ? 2 : 1) * size;
-          const flat = base === undefined ? undefined : Math.round(base * copies * regionFactor * 100) / 100;
-          flatMonthlyCost += flat ?? 0;
-          resourcesBreakdown[name] = {
-            priceInfo: {
-              totalMonthlyFlat: flat ?? 0,
-              incomplete: false,
-              costBreakdown: [
-                flat === undefined
-                  ? { name: 'Requests', description: 'Billed per request', priceModel: 'pay-per-use' }
-                  : { name: 'Compute', description: 'Always on', priceModel: 'flat', pricePerMonth: flat }
-              ]
-            }
-          };
+          const lines = (linesFor(resource) ?? [usageLine('Requests', 'Billed per request', 0.4, '1M requests')]).map(
+            (line) =>
+              typeof line.pricePerMonth === 'number'
+                ? { ...line, pricePerMonth: Math.round(line.pricePerMonth * regionFactor * 100) / 100 }
+                : line
+          );
+          const flat =
+            Math.round(
+              lines.reduce((sum, line) => sum + (typeof line.pricePerMonth === 'number' ? line.pricePerMonth : 0), 0) *
+                100
+            ) / 100;
+          flatMonthlyCost += flat;
+          resourcesBreakdown[name] = { priceInfo: { totalMonthlyFlat: flat, incomplete: false, costBreakdown: lines } };
         }
         const estimate: StackPriceEstimationResponse = {
           success: true,

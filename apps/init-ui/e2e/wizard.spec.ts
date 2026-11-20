@@ -67,16 +67,27 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(lenses(page).filter({ hasText: 'Postgres database' })).toContainText(/\$\d+\/mo/);
   await expect(lenses(page).filter({ hasText: 'Postgres database' })).toContainText('why: package.json:29');
 
-  // The settings are one compact panel; each other option shows its price difference, and the total follows.
-  const settings = page.getByRole('region', { name: 'Settings' });
-  await expect(settings.getByRole('tab', { name: /Stay online/ })).toContainText(/\+\$\d+/);
+  // Nothing picked, the panel beside the picture is the monthly estimate, split by resource, with its line items.
+  const overview = page.getByRole('complementary', { name: 'Overview' });
+  await expect(overview.getByRole('region', { name: 'Monthly cost' })).toContainText(/\$\d+/);
+  await expect(overview).toContainText('Instance db.t4g.small');
+  // A row opens that resource's settings: real AWS sizes, each with its own monthly price, AWS's names beside ours.
+  await overview.getByRole('button', { name: /Postgres database/ }).click();
+  const database = page.getByRole('complementary', { name: 'Postgres database settings' });
+  await expect(database).toContainText('Multi-AZ');
+  await expect(database.locator('label.stp-ui-radio', { hasText: 'db.t4g.micro' })).toContainText(/\$\d+\/mo/);
   const before = await page.locator('.w-bar-amount').textContent();
-  // The settings that change less are folded, with their current answers on the one row.
-  await expect(settings.getByRole('button', { name: /More settings/ })).toContainText('Internet');
-  await settings.getByRole('button', { name: /More settings/ }).click();
-  await settings.getByRole('tab', { name: /Private network/ }).click();
-  await expect(page.locator('[data-iso-kind="node"][data-iso-id="databaseBastion"]')).toBeVisible();
+  // A bigger instance is written to stacktape.yml, and the total follows.
+  await database.locator('label.stp-ui-radio', { hasText: 'db.t4g.medium' }).click();
+  await expect(page.locator('.monaco-editor .view-line', { hasText: 'instanceSize: db.t4g.medium' })).toBeVisible();
   await expect(page.locator('.w-bar-amount')).not.toHaveText(before ?? '');
+  // Each other option says what it adds; going private adds the access server to the picture.
+  await expect(database.getByRole('tab', { name: /Private network/ })).toContainText(/\+\$\d/);
+  await database.getByRole('tab', { name: /Private network/ }).click();
+  await expect(page.locator('[data-iso-kind="node"][data-iso-id="databaseBastion"]')).toBeVisible();
+  // The size picked before going private stays.
+  await expect(page.locator('.monaco-editor .view-line', { hasText: 'instanceSize: db.t4g.medium' })).toBeVisible();
+  await database.getByRole('button', { name: 'All resources' }).click();
   // Secrets and migrations wait for the Deploy step, where they can be resolved.
   await expect(page.getByText('secrets your app reads')).toHaveCount(0);
 
@@ -167,7 +178,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   );
 });
 
-test('stacktape.yml is editable with schema help, hand edits switch the settings off, and reset brings them back', async ({
+test('stacktape.yml is editable with schema help, settings write into hand edits, and reset brings the generated file back', async ({
   page,
   startWizard
 }) => {
@@ -197,15 +208,27 @@ test('stacktape.yml is editable with schema help, hand edits switch the settings
   await page.keyboard.press('Control+End');
   await page.keyboard.type('\n# tuned by hand\n');
   await expect(page.getByText(/Edited by hand\. This text is what gets saved and deployed/)).toBeVisible();
-  const settings = page.getByRole('region', { name: 'Settings' });
-  await expect(settings.getByText('Paused while you edit stacktape.yml by hand.')).toBeVisible();
-  await expect(settings.getByRole('tab', { name: /Stay online/ })).toBeDisabled();
   await expect(page.getByRole('tab', { name: 'TypeScript' })).toBeDisabled();
+  await expect(page.locator('.monaco-editor .view-line', { hasText: '# tuned by hand' })).toBeVisible();
+  // A setting changed now is written into the edited text, which keeps the hand edit.
+  await page
+    .getByRole('complementary', { name: 'Overview' })
+    .getByRole('button', { name: /Postgres database/ })
+    .click();
+  const database = page.getByRole('complementary', { name: 'Postgres database settings' });
+  await database.getByRole('switch', { name: 'Standby copy' }).click();
+  await expect(page.locator('.monaco-editor .view-line', { hasText: 'multiAz: true' })).toBeVisible();
+  await expect(page.getByText(/Edited by hand\. This text is what gets saved and deployed/)).toBeVisible();
+  await editor.locator('.view-line').first().click();
+  await page.keyboard.press('Control+End');
+  await expect(page.locator('.monaco-editor .view-line', { hasText: '# tuned by hand' })).toBeVisible();
+  // Going private would regenerate the file, so it waits while the file has hand edits.
+  await expect(database.getByRole('tab', { name: /Private network/ })).toBeDisabled();
 
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Discard my edits' }).first().click();
   await expect(page.getByText(/Edited by hand/)).toHaveCount(0);
-  await expect(settings.getByRole('tab', { name: /Stay online/ })).toBeEnabled();
+  await expect(database.getByRole('tab', { name: /Private network/ })).toBeEnabled();
 });
 
 test('the analysis draws the project as a file tree, then ties each resource to the line that called for it, once', async ({
@@ -270,21 +293,14 @@ test('the analysis draws the project as a file tree, then ties each resource to 
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.locator('.ws-peek')).toHaveCount(0);
 
-  // The row under the diagram says what the resource under the pointer is and why, with its line of code; nothing
-  // floats over the picture.
-  const selection = page.locator('.ws-diagram > .ws-selection');
-  await expect(selection).toContainText('Select a resource to see why it is here');
-  await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').hover();
-  await expect(selection).toContainText('Postgres database');
-  await expect(selection).toContainText('Postgres driver in package.json:29');
-  await expect(selection.locator('.ws-selection-line')).toContainText('"postgres": "^3.4.5"');
-  await expect(page.locator('.stp-diagram__tooltip')).toHaveCount(0);
-  // Clicking it picks it: its key in the file carries the same accent, and the row keeps the way to it.
+  // Clicking a resource in the picture opens its settings beside it, with why it is there in one quiet line; its key in
+  // the file carries the same accent, and the panel keeps the way to it.
   await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
+  const database = page.getByRole('complementary', { name: 'Postgres database settings' });
+  await expect(database).toContainText('Postgres driver in package.json:29');
+  await expect(page.locator('.stp-diagram__tooltip')).toHaveCount(0);
   await expect(page.locator('.monaco-editor .ws-editor-key')).toHaveCount(1);
-  await page.mouse.move(5, 5);
-  await expect(selection).toContainText('Postgres database');
-  await selection.getByRole('button', { name: 'Show in stacktape.yml' }).click();
+  await database.getByRole('button', { name: 'Show in stacktape.yml' }).click();
   await expect(page.locator('.monaco-editor .view-line', { hasText: 'mainDatabase:' })).toBeInViewport();
 
   // The reveal plays once: a reload lands on Review.

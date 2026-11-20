@@ -1,108 +1,53 @@
 import type { StacktapeConfig } from '@stacktape/config';
-import type {
-  DeploymentPreferenceChange,
-  DeploymentPreferenceKey,
-  DeploymentPreferences
-} from '@stacktape/config-inference/compose/preferences';
+import {
+  settingsForResource,
+  type SettingChange,
+  type SettingValue
+} from '@stacktape/config-inference/compose/resource-settings';
 import { DEPLOYMENT_TOOL_LABELS } from '@stacktape/config-inference/facts/existing-deployment';
 import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { lazy, Suspense, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { BiChevronDown, BiInfoCircle, BiLinkExternal } from 'react-icons/bi';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
-import { BiChevronDown, BiCodeAlt, BiInfoCircle, BiLinkExternal, BiPointer, BiX } from 'react-icons/bi';
 import { InfoTip } from '../components/InfoTip';
 import { RegionPicker } from '../components/RegionPicker';
 import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
-import { evidenceSays, lineRange, quoteLabel, type Citation, type ResourceStory } from '../workspace/resource-story';
-import { EvidenceLine } from '../workspace/EvidenceLine';
+import type { Citation, ResourceStory } from '../workspace/resource-story';
 import { useMediaQuery } from '../workspace/use-media-query';
-import { deploymentPreferenceKeysFor, NOT_CREATED_KINDS, plainList } from './review-model';
+import { NOT_CREATED_KINDS, plainList, sizeSummary } from './review-model';
+import { reviewLayout, settingTerms } from './review-version';
+import {
+  CostOverview,
+  OverviewSection,
+  PlainSettingRow,
+  ResourcePanel,
+  ResourcePrice,
+  categoryColor,
+  type ResourceEntry
+} from './ReviewSettings';
+import './review.css';
 
 /** Heavy on purpose, light on arrival: the diagram loads after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));
 
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
+type Price = NonNullable<NonNullable<WizardState['composition']>['price']>;
 
-type PreferenceCopy = {
-  label: string;
-  /** What the setting is about, for its info tooltip. */
-  about: string;
-  options: Array<{ value: string; label: string; help: string }>;
-};
-
-/** The settings, in a developer's words. Each option's consequence is in its tooltip. */
-const PREFERENCES: Record<DeploymentPreferenceKey, PreferenceCopy> = {
-  capacity: {
-    label: 'Starting size',
-    about: 'How big the app and the database start. You can resize them any time.',
-    options: [
-      {
-        value: 'economical',
-        label: 'Small',
-        help: 'The smallest useful sizes. Good for trying it out and dev stages.'
-      },
-      {
-        value: 'balanced',
-        label: 'Standard',
-        help: 'Middle sizes for the app and database. Always-on apps add copies when busy.'
-      },
-      { value: 'performance', label: 'Large', help: 'Larger app and database sizes for steady, heavy traffic.' }
-    ]
-  },
-  availability: {
-    label: 'If a server fails',
-    about: 'What happens when the machine running your app or database fails.',
-    options: [
-      { value: 'single', label: 'Restart it', help: 'One copy. A failure means a short outage while it restarts.' },
-      {
-        value: 'redundant',
-        label: 'Stay online',
-        help: 'A second copy in another data center takes over. Roughly doubles the app and database cost.'
-      }
-    ]
-  },
-  dataProtection: {
-    label: 'Backups',
-    about: 'How long database backups and old file versions are kept. Deleting the database is blocked either way.',
-    options: [
-      { value: 'lean', label: '1 day', help: 'One day of database backups. For data you can recreate.' },
-      { value: 'protected', label: '7 days', help: 'A week of database backups and old file versions.' }
-    ]
-  },
-  databaseAccess: {
-    label: 'Database reachable from',
-    about: 'Where your database accepts connections from.',
-    options: [
-      {
-        value: 'private',
-        label: 'Private network',
-        help: 'No public address. Adds a small access server your laptop and migrations connect through.'
-      },
-      {
-        value: 'public',
-        label: 'Internet',
-        help: 'A public address, but only the generated 32-character password over TLS gets in. Simplest for your laptop and migrations.'
-      }
-    ]
-  }
-};
-
-/** The settings that change the price most, always in view; the rest fold under "More settings". */
-const PRIMARY_PREFERENCES: ReadonlySet<DeploymentPreferenceKey> = new Set(['capacity', 'availability']);
-
-/** "+$31/mo" as an option label shows it: "+$31". */
-const shortDelta = (delta: string | undefined): string | undefined =>
-  delta === undefined || delta === 'Same price' ? undefined : delta.replace(/\/mo$/, '').replace(/^-/, '−');
+/** Three columns need this much room; below it the settings go under the picture. */
+const THREE_COLUMNS = '(min-width: 1360px)';
 
 /**
- * Review, the left side of the workspace: what this is, the picture of it, and the few settings that apply.
+ * Review, the left side of the workspace: the picture of what gets created, and what each part of it is set to and
+ * costs.
  *
- * Everything about a single resource (why it is there, its price) is in the row under the picture, for the resource
- * the pointer is on or the one picked, and above its block in the editor; a click on a node finds the block. Nothing
- * floats over the picture. The settings rewrite the file, and the editor shows the lines they changed.
+ * Nothing is picked: the monthly estimate, split by resource, and the project's own settings. A resource picked on the
+ * picture or in the list: its settings, grouped, each with AWS's name beside the plain one and the price of every
+ * option, and why it is there. Every setting writes stacktape.yml, and the editor shows the lines it changed. Three
+ * layouts of the same parts can be compared with `?review=` (see `review-version.ts`).
  */
 export function ReviewPane({
   state,
@@ -116,10 +61,10 @@ export function ReviewPane({
   busy,
   isLocked,
   isEdited,
-  onPreference,
+  isTyping,
+  onSetting,
   onDecision,
-  onRegion,
-  onDiscardEdits
+  onRegion
 }: {
   state: WizardState;
   /** What the file declares now: the edited text when it parses, the composition otherwise. */
@@ -128,6 +73,7 @@ export function ReviewPane({
   /** Each story's citation checked against its file, once the file is read. */
   citations: Readonly<Record<string, Citation>>;
   selected: string | undefined;
+  /** Picks a resource, or puts it down when it is already picked. */
   onSelect: (resourceName: string) => void;
   /** Picks a resource and brings its block in stacktape.yml into view. */
   onShowInFile: (resourceName: string) => void;
@@ -136,303 +82,310 @@ export function ReviewPane({
   busy: string | undefined;
   isLocked: boolean;
   isEdited: boolean;
-  onPreference: (change: DeploymentPreferenceChange) => void;
+  /** The user is typing in stacktape.yml: the text the server has is a moment behind. */
+  isTyping: boolean;
+  onSetting: (change: SettingChange) => void;
   onDecision: (id: string, value: string) => void;
   onRegion: (region: string) => void;
-  onDiscardEdits: () => void;
 }) {
-  const existing = state.facts?.existingDeployments ?? [];
+  const layout = reviewLayout(window.location.search);
+  const terms = settingTerms(window.location.search);
+  const isPhone = useMediaQuery('(max-width: 1020px)');
+  const threeColumns = useMediaQuery(THREE_COLUMNS);
   // A phone-width screen is read with a finger even where the browser reports a mouse.
   const isTouch = useMediaQuery('(hover: none), (max-width: 760px)');
-  /** The resource the pointer or keyboard is on: the row says what it is until it leaves. */
+  const shownLayout = isPhone ? 'stack' : layout;
   const [hovered, setHovered] = useState<string | undefined>(undefined);
-  const shown = hovered !== undefined && stories[hovered] !== undefined ? hovered : selected;
-  const story = shown === undefined ? undefined : stories[shown];
-  // The row keeps one height for the app, so a resource with three cited lines never resizes the picture: the
-  // tallest any resource needs, measured on hidden copies of every resource's row at the row's own width.
-  const sizer = useRef<HTMLDivElement>(null);
-  const [rowHeight, setRowHeight] = useState<number | undefined>(undefined);
-  useLayoutEffect(() => {
-    const node = sizer.current;
-    if (node === null) return;
-    const measure = () => {
-      const tallest = Math.max(0, ...[...node.children].map((child) => (child as HTMLElement).offsetHeight));
-      setRowHeight(tallest > 0 ? tallest : undefined);
-    };
-    measure();
-    // The row's width, and any copy's own height (a font arriving), change what it needs.
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    for (const child of node.children) observer.observe(child);
-    return () => observer.disconnect();
-  }, [stories, citations, isTouch]);
+  const existing = state.facts?.existingDeployments ?? [];
+  const price = state.composition?.price;
+  const context = useMemo(() => ({ engineVersions: state.engineVersions ?? {} }), [state.engineVersions]);
+
+  // A value just picked shows at once; the file the CLI sends back says it for real a moment later (or not, refused).
+  const [pending, setPending] = useState<Record<string, Record<string, SettingValue>>>({});
+  useEffect(() => setPending({}), [state]);
+  const changeSetting = (resource: string, setting: string, value: SettingValue) => {
+    setPending((current) => ({ ...current, [resource]: { ...current[resource], [setting]: value } }));
+    onSetting({ resource, setting, value });
+  };
+
+  const entries: ResourceEntry[] = useMemo(
+    () =>
+      Object.entries(resources).map(([name, resource]) => ({
+        name,
+        resource,
+        title: stories[name]?.plainName ?? name,
+        settings: settingsForResource(resource, context)
+      })),
+    [resources, stories, context]
+  );
+  const entryOf = (name: string | undefined) => entries.find((entry) => entry.name === name);
+  const lockedReason = isLocked
+    ? 'Not while stacktape init is disconnected or deploying'
+    : isTyping || busy === 'write'
+      ? 'One moment'
+      : undefined;
+
   // One object per file: a new one is a new picture, and the diagram forgets what the pointer was on.
   const config = useMemo(() => ({ resources }) as unknown as StacktapeConfig, [resources]);
-  // The picture names each resource the way this page does ("Postgres database"), its key in the file under it. One
-  // object per set of names, so the picture is laid out again only when a name changes.
+  // The picture names each resource the way this page does ("Postgres database"), its key in the file under it.
   const titleKey = JSON.stringify(Object.values(stories).map((entry) => [entry.name, entry.plainName]));
   const titles = useMemo(
     () => Object.fromEntries(JSON.parse(titleKey) as Array<[string, string]>) as Record<string, string>,
     [titleKey]
   );
 
-  return (
-    <div className="ws-review">
-      {existing.length > 0 && (
-        <p className="ws-review-note">
-          <BiInfoCircle aria-hidden size={14} />
-          <span>
-            Also has{' '}
-            {plainList(
-              existing.map(({ tool }) => (DEPLOYMENT_TOOL_LABELS as Readonly<Record<string, string>>)[tool] ?? tool)
-            )}{' '}
-            config. This deploy is a separate copy; nothing there changes.
-          </span>
-        </p>
-      )}
+  const panelFor = (
+    name: string,
+    appearance: 'inspector' | 'card',
+    extra: { onBack?: () => void; onClose?: () => void } = {}
+  ) => {
+    const entry = entryOf(name);
+    if (entry === undefined) return null;
+    return (
+      <ResourcePanel
+        appearance={appearance}
+        citation={citations[name]}
+        isEdited={isEdited}
+        key={name}
+        lockedReason={lockedReason}
+        name={name}
+        onSetting={(setting, value) => changeSetting(name, setting, value)}
+        onShowInFile={() => onShowInFile(name)}
+        pending={pending[name] ?? {}}
+        price={price}
+        resource={entry.resource}
+        settings={entry.settings}
+        story={stories[name]}
+        terms={terms}
+        {...extra}
+      />
+    );
+  };
 
-      <section aria-label="Diagram" className="ws-panel ws-diagram">
-        <div className="ws-diagram-canvas">
-          <Suspense
-            fallback={
-              <div className="flex h-full items-center justify-center">
-                <Spinner />
-              </div>
-            }
-          >
-            <Diagram
-              ariaLabel="Diagram of what stacktape.yml creates on AWS"
-              config={config}
-              // The row under the picture says what to do and what each resource is.
-              focusDimming="soft"
-              // The frame is what the title, the row and the settings leave: the picture fills it, not its margin.
-              framePadding={12}
-              hint=""
-              // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can be.
-              layerChoices={[]}
-              layout="shown-layers"
-              // A larger app is scaled down to fit beside the file; its names stay readable.
-              minLabelSize={isTouch ? 12 : 11}
-              onHoverResource={(name) => setHovered(name ?? undefined)}
-              onSelectResource={onSelect}
-              resourceProgress={progress}
-              resourceTitles={titles}
-              // The database access server is drawn reaching the private database it is there for.
-              bastionTunnels
-              selectedResource={selected ?? null}
-              style={{ width: '100%', height: '100%' }}
-              volumeMounts
-            />
-          </Suspense>
-        </div>
-        <SelectionRow
-          citation={story === undefined ? undefined : citations[story.name]}
-          height={rowHeight}
-          isPicked={story !== undefined && story.name === selected}
-          isTouch={isTouch}
-          onClear={() => selected !== undefined && onSelect(selected)}
-          onShowInFile={onShowInFile}
-          story={story}
-        />
-        <div aria-hidden className="ws-selection-sizer" inert ref={sizer}>
-          {Object.values(stories).map((entry) => (
-            <SelectionRow
-              citation={citations[entry.name]}
-              isPicked
-              isSizer
-              isTouch={isTouch}
-              key={entry.name}
-              onClear={() => {}}
-              onShowInFile={() => {}}
-              story={entry}
-            />
-          ))}
-        </div>
-      </section>
-
-      <NotCreated state={state} />
-
-      <Settings
+  const overview = (compactCosts: boolean) => (
+    <>
+      <CostOverview
+        compact={compactCosts}
+        entries={entries}
+        hovered={hovered}
+        onSelect={onSelect}
+        price={price}
+        priceUnavailable={state.composition?.priceUnavailable === true}
+        region={state.region}
+        selected={selected}
+      />
+      <ProjectSettings
         busy={busy}
         isEdited={isEdited}
-        isLocked={isLocked}
+        lockedReason={lockedReason}
         onDecision={onDecision}
-        onDiscardEdits={onDiscardEdits}
-        onPreference={onPreference}
         onRegion={onRegion}
         state={state}
-        types={Object.values(resources).map((resource) => resource.type)}
       />
-    </div>
+      <NotCreated state={state} />
+    </>
   );
-}
 
-/** The why line as plain text, for its tooltip when a narrow row cuts it short. */
-const whyText = (story: ResourceStory, citation: Citation | undefined): string | undefined => {
-  if (story.designChoice !== undefined) return `Added by Stacktape ${story.designChoice}`;
-  const evidence = story.evidence;
-  if (evidence === undefined) return story.reason;
-  const says = evidenceSays(story, evidence)?.replaceAll('`', '') ?? quoteLabel(evidence.quote);
-  return `${says} in ${evidence.file}:${lineRange(citation, evidence)}`;
-};
+  const diagram = (
+    <Suspense
+      fallback={
+        <div className="flex h-full items-center justify-center">
+          <Spinner />
+        </div>
+      }
+    >
+      <Diagram
+        ariaLabel="Diagram of what stacktape.yml creates on AWS"
+        config={config}
+        // The settings beside the picture say what each resource is; the picture only points.
+        focusDimming="soft"
+        framePadding={shownLayout === 'canvas' ? 40 : 16}
+        hint=""
+        // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can be.
+        layerChoices={[]}
+        layout="shown-layers"
+        minLabelSize={isTouch ? 12 : 11}
+        onHoverResource={(name) => setHovered(name ?? undefined)}
+        onSelectResource={onSelect}
+        resourceProgress={progress}
+        resourceTitles={titles}
+        // The database access server is drawn reaching the private database it is there for.
+        bastionTunnels
+        selectedResource={selected ?? null}
+        style={{ width: '100%', height: '100%' }}
+        volumeMounts
+      />
+    </Suspense>
+  );
 
-/**
- * The row under the picture: what to do while nothing is picked; then the resource the pointer is on, or the one
- * picked. Its first line is the plain name and price, with the way to its block in stacktape.yml at the end; under it,
- * what in the code called for it beside those lines of code, wide enough for the whole line. It keeps one place and one
- * height whatever it shows, so it never covers the picture or moves what is under it.
- */
-function SelectionRow({
-  story,
-  citation,
-  height,
-  isPicked,
-  isSizer = false,
-  isTouch,
-  onShowInFile,
-  onClear
-}: {
-  story: ResourceStory | undefined;
-  citation: Citation | undefined;
-  /** The app's tallest row, which every state keeps. */
-  height?: number | undefined;
-  isPicked: boolean;
-  /** A hidden copy that only measures: its controls are stand-ins of the same size. */
-  isSizer?: boolean;
-  isTouch: boolean;
-  onShowInFile: (resourceName: string) => void;
-  onClear: () => void;
-}) {
-  const style = height === undefined ? undefined : { height };
-  if (story === undefined) {
+  const note =
+    existing.length > 0 ? (
+      <p className="ws-review-note">
+        <BiInfoCircle aria-hidden size={14} />
+        <span>
+          Also has{' '}
+          {plainList(
+            existing.map(({ tool }) => (DEPLOYMENT_TOOL_LABELS as Readonly<Record<string, string>>)[tool] ?? tool)
+          )}{' '}
+          config. This deploy is a separate copy; nothing there changes.
+        </span>
+      </p>
+    ) : null;
+
+  if (shownLayout === 'stack') {
     return (
-      <div className="ws-selection" data-empty="true" style={style}>
-        <p className="ws-selection-empty">
-          <BiPointer aria-hidden size={15} />
-          <span>
-            <strong>
-              {isTouch ? 'Tap a resource to see why it is here' : 'Select a resource to see why it is here'}
-            </strong>
-            <span>Its line of code and its price</span>
-          </span>
-        </p>
+      <div className="rv ws-review" data-layout="stack">
+        {note}
+        <div className="rv-main">
+          <section aria-label="Diagram" className="ws-panel rv-diagram">
+            <div className="rv-diagram-canvas">{diagram}</div>
+            <p className="rv-diagram-hint">
+              {isTouch ? 'Tap a resource to change it' : 'Click a resource to change it'}
+            </p>
+          </section>
+          <div className="rv-list">
+            <section className="ws-panel rv-card rv-card--costs">
+              <CostOverview
+                compact
+                entries={entries}
+                hovered={hovered}
+                onSelect={(name) => onSelect(name)}
+                rows={false}
+                price={price}
+                priceUnavailable={state.composition?.priceUnavailable === true}
+                region={state.region}
+                selected={selected}
+              />
+            </section>
+            {entries.map((entry) => (
+              <ResourceCard
+                entry={entry}
+                isHovered={hovered === entry.name}
+                isOpen={selected === entry.name}
+                key={entry.name}
+                onToggle={() => onSelect(entry.name)}
+                price={price}
+              >
+                {panelFor(entry.name, 'card')}
+              </ResourceCard>
+            ))}
+            <section className="ws-panel rv-card rv-card--project">
+              <ProjectSettings
+                busy={busy}
+                isEdited={isEdited}
+                lockedReason={lockedReason}
+                onDecision={onDecision}
+                onRegion={onRegion}
+                state={state}
+              />
+              <NotCreated state={state} />
+            </section>
+          </div>
+        </div>
       </div>
     );
   }
-  const evidence = story.designChoice === undefined ? story.evidence : undefined;
-  const lines =
-    evidence === undefined
-      ? []
-      : citation === undefined
-        ? [{ number: evidence.line, text: quoteLabel(evidence.quote) }]
-        : citation.lines.slice(0, 3).map((number, index) => ({ number, text: citation.text[index] ?? '' }));
-  return (
-    <div
-      aria-live="polite"
-      className="ws-selection"
-      data-code={lines.length > 0 ? 'true' : undefined}
-      data-picked={isPicked ? 'true' : undefined}
-      key={story.name}
-      style={style}
-    >
-      <p className="ws-selection-name">
-        <ResourceIcon resourceType={story.type} size={16} />
-        <strong>{story.plainName}</strong>
-        {story.priceLabel !== undefined && <span className="ws-selection-price">{story.priceLabel}</span>}
-      </p>
-      <p className="ws-selection-why" title={whyText(story, citation)}>
-        <EvidenceLine citation={citation} story={story} />
-      </p>
-      {lines.length > 0 && (
-        <div className="ws-selection-code">
-          {lines.map((line) => (
-            <div className="ws-selection-line" key={line.number} title={line.text}>
-              <span className="ws-selection-number">{line.number}</span>
-              <span className="ws-selection-text">{line.text}</span>
-            </div>
-          ))}
+
+  if (shownLayout === 'canvas') {
+    const picked = selected === undefined ? undefined : entryOf(selected);
+    return (
+      <div className="rv ws-review" data-layout="canvas" data-picked={picked === undefined ? undefined : 'true'}>
+        {note}
+        <div className="rv-main">
+          <section aria-label="Diagram" className="ws-panel rv-diagram rv-canvas">
+            <div className="rv-diagram-canvas">{diagram}</div>
+            <aside aria-label="Overview" className="rv-float rv-float--overview">
+              {overview(true)}
+            </aside>
+            {picked !== undefined && (
+              <aside aria-label={`${picked.title} settings`} className="rv-float rv-float--inspector" key={picked.name}>
+                {panelFor(picked.name, 'inspector', { onClose: () => onSelect(picked.name) })}
+              </aside>
+            )}
+            {picked === undefined && (
+              <p className="rv-canvas-hint">
+                {isTouch ? 'Tap a resource to change it' : 'Click a resource to change it'}
+              </p>
+            )}
+          </section>
         </div>
-      )}
-      {/* One slot for both states, so nothing beside it moves when a resource is picked. */}
-      <div className="ws-selection-actions">
-        {isSizer ? (
-          <span className="ws-selection-show-size">
-            <BiCodeAlt aria-hidden size={15} />
-            Show in stacktape.yml
-          </span>
-        ) : isPicked ? (
-          <>
-            <button className="ws-selection-show" onClick={() => onShowInFile(story.name)} type="button">
-              <BiCodeAlt aria-hidden size={15} />
-              Show in stacktape.yml
-            </button>
-            <button aria-label="Clear the selection" className="ws-selection-clear" onClick={onClear} type="button">
-              <BiX aria-hidden size={18} />
-            </button>
-          </>
-        ) : (
-          !isTouch && <span className="ws-selection-hint">Click to show it in stacktape.yml</span>
-        )}
+      </div>
+    );
+  }
+
+  // Columns: the picture, then what is picked (or everything), then stacktape.yml.
+  return (
+    <div className="rv ws-review" data-columns={threeColumns ? '3' : '2'} data-layout="columns">
+      {note}
+      <div className="rv-main">
+        <section aria-label="Diagram" className="ws-panel rv-diagram">
+          <div className="rv-diagram-canvas">{diagram}</div>
+          {selected === undefined && (
+            <p className="rv-diagram-hint">
+              {isTouch ? 'Tap a resource to change it' : 'Click a resource to change it'}
+            </p>
+          )}
+        </section>
+        <aside
+          aria-label={selected === undefined ? 'Overview' : `${entryOf(selected)?.title ?? selected} settings`}
+          className="ws-panel rv-inspector"
+        >
+          {selected !== undefined && entryOf(selected) !== undefined ? (
+            panelFor(selected, 'inspector', { onBack: () => onSelect(selected) })
+          ) : (
+            <div className="rv-overview">{overview(false)}</div>
+          )}
+        </aside>
       </div>
     </div>
   );
 }
 
-const EXTERNAL_LABELS: Readonly<Record<string, string>> = {
-  amqp: 'RabbitMQ',
-  nats: 'NATS',
-  kafka: 'Kafka',
-  email: 'Email sending'
-};
-
-/**
- * What this app needs that the deploy does not create (a RabbitMQ broker, a NATS server), right under the picture:
- * each with the setting the app reads its address from, which the next step asks for. The composition's own words
- * say where to get one.
- */
-function NotCreated({ state }: { state: WizardState }) {
-  const external = (state.facts?.dependencies ?? []).filter((dependency) => NOT_CREATED_KINDS.has(dependency.kind));
-  if (external.length === 0) return null;
+/** A resource in the stacked list: what it is, its size and price on one line; opened, its settings. */
+function ResourceCard({
+  entry,
+  price,
+  isOpen,
+  isHovered,
+  onToggle,
+  children
+}: {
+  entry: ResourceEntry;
+  price: Price | undefined;
+  isOpen: boolean;
+  isHovered: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  // Opened from the picture, it comes into view.
+  useEffect(() => {
+    if (isOpen) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [isOpen]);
+  const summary = sizeSummary(entry.settings);
   return (
-    <section aria-label="Not created by Stacktape" className="ws-panel ws-external">
-      <p className="ws-external-title">Not created by Stacktape</p>
-      <p className="ws-external-note">
-        You give {external.length === 1 ? 'its address' : 'their addresses'} before deploying
-      </p>
-      <ul className="ws-external-list">
-        {external.map((dependency) => {
-          const label = EXTERNAL_LABELS[dependency.kind] ?? dependency.name;
-          const gap = state.composition?.gaps.find((entry) => entry.subject === dependency.name)?.message;
-          const variables = [
-            ...new Set(
-              dependency.evidence.flatMap((entry) => /^([A-Z][A-Z0-9_]*)=/.exec(entry.quote.trim())?.[1] ?? [])
-            )
-          ];
-          return (
-            <li key={dependency.name}>
-              <BiLinkExternal aria-hidden className="ws-external-icon" size={14} />
-              <strong>{label}</strong>
-              {variables.map((variable) => (
-                <code key={variable}>{variable}</code>
-              ))}
-              {gap !== undefined && <InfoTip about={label}>{gap}</InfoTip>}
-            </li>
-          );
-        })}
-      </ul>
+    <section
+      aria-label={entry.title}
+      className="ws-panel rv-card rv-card--resource"
+      data-hovered={isHovered ? 'true' : undefined}
+      data-open={isOpen ? 'true' : undefined}
+      ref={ref}
+    >
+      <button aria-expanded={isOpen} className="rv-card-head" onClick={onToggle} type="button">
+        <span aria-hidden className="rv-dot" style={{ background: categoryColor(entry.resource.type) }} />
+        <ResourceIcon resourceType={entry.resource.type} size={20} />
+        <span className="rv-card-name">
+          <strong>{entry.title}</strong>
+          <small>
+            <code>{entry.name}</code>
+            {summary !== undefined && <> · {summary}</>}
+          </small>
+        </span>
+        <ResourcePrice name={entry.name} price={price} />
+        <BiChevronDown aria-hidden className="rv-card-chevron" size={20} />
+      </button>
+      {isOpen && <div className="rv-card-body">{children}</div>}
     </section>
-  );
-}
-
-function SettingRow({ label, about, children }: { label: string; about: ReactNode; children: ReactNode }) {
-  return (
-    <div className="ws-setting">
-      <div className="ws-setting-label">
-        <span>{label}</span>
-        <InfoTip about={label.toLowerCase()}>{about}</InfoTip>
-      </div>
-      <div className="ws-setting-control">{children}</div>
-    </div>
   );
 }
 
@@ -446,7 +399,7 @@ function Choice({
 }: {
   label: string;
   value: string;
-  options: Array<{ value: string; label: string; delta?: string | undefined; help?: string | undefined }>;
+  options: Array<{ value: string; label: string; help?: string | undefined }>;
   disabled: boolean;
   onChange: (value: string) => void;
 }) {
@@ -467,7 +420,7 @@ function Choice({
         options={choices}
         reserveMessageSpace={false}
         value={choices.find((choice) => choice.value === value) ?? null}
-        width={340}
+        width="100%"
       />
     );
   }
@@ -478,167 +431,136 @@ function Choice({
       disabled={disabled}
       onValueChange={onChange}
       size="small"
-      tabs={options.map((option) => {
-        const text = (
-          <span className="ws-option">
-            {option.label}
-            {option.delta !== undefined && option.value !== value && (
-              <span className="ws-option-delta"> · {option.delta}</span>
-            )}
-          </span>
-        );
-        return {
-          value: option.value,
-          label:
-            option.help === undefined ? (
-              text
-            ) : (
-              <Tooltip content={option.help} maxWidth={280} placement="top">
-                {text}
-              </Tooltip>
-            )
-        };
-      })}
+      tabs={options.map((option) => ({
+        value: option.value,
+        label:
+          option.help === undefined ? (
+            option.label
+          ) : (
+            <Tooltip content={option.help} maxWidth={280} placement="top">
+              <span>{option.label}</span>
+            </Tooltip>
+          )
+      }))}
       value={value}
       width="fit"
     />
   );
 }
 
-function Settings({
+/**
+ * The project's own settings: where it runs, and what the analysis decided for this app (the migrations, how a
+ * service is built). A decision regenerates the file, so it waits while the file has hand edits.
+ */
+function ProjectSettings({
   state,
-  types,
   busy,
-  isLocked,
   isEdited,
-  onPreference,
+  lockedReason,
   onDecision,
-  onRegion,
-  onDiscardEdits
+  onRegion
 }: {
   state: WizardState;
-  types: string[];
   busy: string | undefined;
-  isLocked: boolean;
   isEdited: boolean;
-  onPreference: (change: DeploymentPreferenceChange) => void;
+  lockedReason: string | undefined;
   onDecision: (id: string, value: string) => void;
   onRegion: (region: string) => void;
-  onDiscardEdits: () => void;
 }) {
-  const preferences = state.preferences;
-  const recommended = state.recommendedPreferences ?? preferences;
-  const inert = new Set(state.composition?.inertChoices ?? []);
-  const keys = deploymentPreferenceKeysFor(types).filter((key) => !inert.has(key));
-  const deltas = state.composition?.price?.options;
   const decisions = (state.facts?.decisions ?? []).filter(
     (decision) => DECISION_COPY[decision.kind] !== undefined && decision.alternatives.length > 1
   );
-  const disabled = isLocked || isEdited || busy !== undefined;
-  const [showAll, setShowAll] = useState(false);
-
-  /** Every setting that applies, as a row, with the words its current answer is shown in when it is folded away. */
-  const rows: Array<{ key: string; primary: boolean; label: string; current: string; row: ReactNode }> = [
-    ...(preferences === undefined
-      ? []
-      : keys.map((key) => {
-          const copy = PREFERENCES[key];
-          const value = preferences[key] as string;
-          return {
-            key,
-            primary: PRIMARY_PREFERENCES.has(key),
-            label: copy.label,
-            current: copy.options.find((option) => option.value === value)?.label ?? value,
-            row: (
-              <SettingRow about={copy.about} key={key} label={copy.label}>
-                <Choice
-                  disabled={disabled}
-                  label={copy.label}
-                  onChange={(next) =>
-                    onPreference({
-                      key,
-                      value: next as DeploymentPreferences[typeof key]
-                    } as DeploymentPreferenceChange)
-                  }
-                  options={copy.options.map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                    delta: shortDelta(deltas?.[key]?.[option.value]),
-                    help:
-                      option.value === (recommended?.[key] as string | undefined)
-                        ? `${option.help} Recommended for this app.`
-                        : option.help
-                  }))}
-                  value={value}
-                />
-              </SettingRow>
-            )
-          };
-        })),
-    // What the analysis decided about this app is always in view: it is what makes this app's file its own.
-    ...decisions.map((decision) => {
-      const copy = DECISION_COPY[decision.kind]!;
-      const label = copy.label(decision.parameters);
-      return {
-        key: decision.id,
-        primary: true,
-        label,
-        current: copy.option(decision.chosen, decision.parameters),
-        row: (
-          <SettingRow about={copy.detail(decision.parameters, decision.chosen)} key={decision.id} label={label}>
-            <Choice
-              disabled={disabled}
-              label={label}
-              onChange={(next) => onDecision(decision.id, next)}
-              options={decision.alternatives.map((value) => ({
-                value,
-                label: copy.option(value, decision.parameters),
-                help: copy.consequence?.(value, decision.parameters)
-              }))}
-              value={decision.chosen}
-            />
-          </SettingRow>
-        )
-      };
-    })
-  ];
-  const folded = rows.filter((row) => !row.primary);
-  // Folding one row away saves nothing.
-  const foldsAny = folded.length > 1 && !showAll;
-
+  const decisionsOff = lockedReason !== undefined || isEdited || (busy !== undefined && busy !== 'setting');
   return (
-    <section aria-label="Settings" className="ws-panel ws-settings" data-paused={isEdited ? 'true' : undefined}>
-      {isEdited && (
-        <p className="ws-settings-paused">
-          <span>Paused while you edit stacktape.yml by hand.</span>
-          <button className="ws-textbutton" onClick={onDiscardEdits} type="button">
-            Discard my edits
-          </button>
-        </p>
+    <>
+      <OverviewSection title="Project">
+        <PlainSettingRow
+          about="Where on AWS this runs. Pick the one closest to your users. Prices differ a little by region."
+          label="Region"
+        >
+          <RegionPicker
+            hideLabel
+            isDisabled={lockedReason !== undefined || isEdited}
+            onChange={onRegion}
+            value={state.region ?? 'eu-west-1'}
+            width={240}
+          />
+        </PlainSettingRow>
+      </OverviewSection>
+      {decisions.length > 0 && (
+        <OverviewSection
+          note={isEdited ? 'These rewrite stacktape.yml, so they wait while it has your edits.' : undefined}
+          title="Decided for this app"
+        >
+          {decisions.map((decision) => {
+            const copy = DECISION_COPY[decision.kind]!;
+            const label = copy.label(decision.parameters);
+            return (
+              <PlainSettingRow
+                about={copy.detail(decision.parameters, decision.chosen)}
+                key={decision.id}
+                label={label}
+              >
+                <Choice
+                  disabled={decisionsOff}
+                  label={label}
+                  onChange={(next) => onDecision(decision.id, next)}
+                  options={decision.alternatives.map((value) => ({
+                    value,
+                    label: copy.option(value, decision.parameters),
+                    help: copy.consequence?.(value, decision.parameters)
+                  }))}
+                  value={decision.chosen}
+                />
+              </PlainSettingRow>
+            );
+          })}
+        </OverviewSection>
       )}
-      <SettingRow about="Where on AWS this runs. Pick the one closest to your users." label="Region">
-        <RegionPicker
-          hideLabel
-          isDisabled={disabled}
-          onChange={onRegion}
-          value={state.region ?? 'eu-west-1'}
-          width={260}
-        />
-      </SettingRow>
-      {rows.filter((row) => row.primary || !foldsAny).map((row) => row.row)}
-      {foldsAny && (
-        <button aria-expanded={false} className="ws-setting ws-more" onClick={() => setShowAll(true)} type="button">
-          <span className="ws-setting-label">More settings</span>
-          <span className="ws-more-values">
-            {folded.map((row) => (
-              <span key={row.key}>
-                {row.label} <strong>{row.current}</strong>
-              </span>
-            ))}
-            <BiChevronDown aria-hidden size={18} />
-          </span>
-        </button>
-      )}
-    </section>
+    </>
+  );
+}
+
+const EXTERNAL_LABELS: Readonly<Record<string, string>> = {
+  amqp: 'RabbitMQ',
+  nats: 'NATS',
+  kafka: 'Kafka',
+  email: 'Email sending'
+};
+
+/**
+ * What this app needs that the deploy does not create (a RabbitMQ broker, a NATS server): each with the setting the
+ * app reads its address from, which the next step asks for. The composition's own words say where to get one.
+ */
+function NotCreated({ state }: { state: WizardState }) {
+  const external = (state.facts?.dependencies ?? []).filter((dependency) => NOT_CREATED_KINDS.has(dependency.kind));
+  if (external.length === 0) return null;
+  return (
+    <OverviewSection
+      note={`You give ${external.length === 1 ? 'its address' : 'their addresses'} before deploying`}
+      title="Not created by Stacktape"
+    >
+      <ul className="ws-external-list rv-external">
+        {external.map((dependency) => {
+          const label = EXTERNAL_LABELS[dependency.kind] ?? dependency.name;
+          const gap = state.composition?.gaps.find((entry) => entry.subject === dependency.name)?.message;
+          const variables = [
+            ...new Set(
+              dependency.evidence.flatMap((entry) => /^([A-Z][A-Z0-9_]*)=/.exec(entry.quote.trim())?.[1] ?? [])
+            )
+          ];
+          return (
+            <li key={dependency.name}>
+              <BiLinkExternal aria-hidden className="ws-external-icon" size={14} />
+              <strong>{label}</strong>
+              {variables.map((variable) => (
+                <code key={variable}>{variable}</code>
+              ))}
+              {gap !== undefined && <InfoTip about={label}>{gap}</InfoTip>}
+            </li>
+          );
+        })}
+      </ul>
+    </OverviewSection>
   );
 }

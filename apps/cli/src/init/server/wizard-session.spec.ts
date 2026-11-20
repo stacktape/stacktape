@@ -1829,6 +1829,72 @@ describe('what the page sets besides choices', () => {
     return { post, get };
   };
 
+  it('applies a resource setting to the composed file, keeps it through a recomposition, and refuses what was not offered', async () => {
+    const database = {
+      name: 'mainDatabase',
+      kind: 'postgres',
+      extensions: [],
+      consumedBy: ['api'],
+      evidence: [],
+      source: 'probe'
+    };
+    session = await startWizardSession({ projectName: 'demo', result: factsFor({ dependencies: [database] }) });
+    const { post } = await connect();
+    type Resources = Record<string, { properties: Record<string, any> }>;
+    const resourcesOf = (state: PageState) => (state.composition as unknown as { resources: Resources }).resources;
+
+    const sized = await post('/api/setting', {
+      resource: 'mainDatabase',
+      setting: 'instanceSize',
+      value: 'db.m7g.large'
+    });
+    expect(resourcesOf(sized.state).mainDatabase!.properties.engine.properties.primaryInstance.instanceSize).toBe(
+      'db.m7g.large'
+    );
+    // The preview the page shows and saves is the file with the setting in it, not a hand edit.
+    expect(sized.state.composition!.configText!.yaml).toContain('instanceSize: db.m7g.large');
+    expect(sized.state.configEdit).toBeUndefined();
+    const standby = await post('/api/setting', { resource: 'mainDatabase', setting: 'multiAz', value: true });
+    expect(resourcesOf(standby.state).mainDatabase!.properties.engine.properties.primaryInstance.multiAz).toBe(true);
+
+    // Going private recomposes (it adds the access server); the size and the standby picked before stay.
+    const privateNetwork = await post('/api/setting', {
+      resource: 'mainDatabase',
+      setting: 'access',
+      value: 'private'
+    });
+    const resources = resourcesOf(privateNetwork.state);
+    expect(Object.values(resources).some((resource) => (resource as { type?: string }).type === 'bastion')).toBe(true);
+    expect(resources.mainDatabase!.properties.engine.properties.primaryInstance).toEqual({
+      instanceSize: 'db.m7g.large',
+      multiAz: true
+    });
+
+    // Anything the resource did not offer changes nothing; a malformed change is a bad request.
+    const before = privateNetwork.state.composition!.configText!.yaml;
+    for (const change of [
+      { resource: 'mainDatabase', setting: 'instanceSize', value: 'db.x2iedn.32xlarge' },
+      { resource: 'mainDatabase', setting: 'masterUserPassword', value: 'hunter2' },
+      { resource: 'nothing', setting: 'multiAz', value: true }
+    ]) {
+      expect((await post('/api/setting', change)).state.composition!.configText!.yaml).toBe(before);
+    }
+    expect((await post('/api/setting', { resource: 'mainDatabase', setting: 'multiAz', value: { a: 1 } })).status).toBe(
+      400
+    );
+  });
+
+  it('writes a setting into a hand-edited file in place, keeping the edits', async () => {
+    session = await startWizardSession({ projectName: 'demo', result: factsFor() });
+    const { post } = await connect();
+    const generated = (await post('/api/region', { region: 'eu-west-1' })).state.composition!.configText!.yaml;
+    await post('/api/config-text', { yaml: `# my notes\n${generated}` });
+    const resized = await post('/api/setting', { resource: 'api', setting: 'size', value: '1/2048' });
+    expect(resized.state.configEdit?.yaml).toStartWith('# my notes\n');
+    expect(resized.state.configEdit?.yaml).toContain('cpu: 1\n');
+    expect(resized.state.configEdit?.yaml).toContain('memory: 2048');
+  });
+
   it('reads from .env only the variables the configuration reads as secrets', async () => {
     const repositoryRoot = await mkdtemp(join(tmpdir(), 'stacktape-session-env-'));
     try {

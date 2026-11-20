@@ -287,3 +287,84 @@ export const splitMonthly = (monthly: string): { amount?: string; usage: boolean
   const amount = /^\$[\d,.]+/.exec(monthly)?.[0];
   return { ...(amount === undefined ? {} : { amount }), usage: monthly.includes('pay-per-use') };
 };
+
+const RDS_ENGINE_SERVICES: Readonly<Record<string, string>> = {
+  postgres: 'Amazon RDS for PostgreSQL',
+  mysql: 'Amazon RDS for MySQL',
+  mariadb: 'Amazon RDS for MariaDB',
+  'aurora-postgresql': 'Amazon Aurora PostgreSQL',
+  'aurora-mysql': 'Amazon Aurora MySQL',
+  'aurora-postgresql-serverless-v2': 'Aurora Serverless v2 (PostgreSQL)',
+  'aurora-mysql-serverless-v2': 'Aurora Serverless v2 (MySQL)'
+};
+
+const AWS_SERVICES: Readonly<Record<string, string>> = {
+  'web-service': 'ECS on Fargate · HTTP API',
+  'private-service': 'ECS on Fargate',
+  'worker-service': 'ECS on Fargate',
+  'multi-container-workload': 'ECS on Fargate',
+  function: 'AWS Lambda',
+  'batch-job': 'AWS Batch',
+  'nextjs-web': 'Lambda · CloudFront · S3',
+  'nuxt-web': 'Lambda · CloudFront · S3',
+  'sveltekit-web': 'Lambda · CloudFront · S3',
+  'astro-web': 'Lambda · CloudFront · S3',
+  'remix-web': 'Lambda · CloudFront · S3',
+  'solidstart-web': 'Lambda · CloudFront · S3',
+  'tanstack-web': 'Lambda · CloudFront · S3',
+  'hosting-bucket': 'S3 · CloudFront',
+  bucket: 'Amazon S3',
+  'efs-filesystem': 'Amazon EFS',
+  redis: 'Amazon ElastiCache',
+  'dynamo-db-table': 'Amazon DynamoDB',
+  'sqs-queue': 'Amazon SQS',
+  'sns-topic': 'Amazon SNS',
+  'event-bus': 'Amazon EventBridge',
+  'http-api-gateway': 'Amazon API Gateway',
+  'application-load-balancer': 'Elastic Load Balancing',
+  bastion: 'Amazon EC2',
+  'state-machine': 'AWS Step Functions',
+  'user-auth-pool': 'Amazon Cognito',
+  'open-search-domain': 'Amazon OpenSearch'
+};
+
+/** The AWS services a resource runs on, for people who know them: "Amazon RDS for PostgreSQL", "Lambda · CloudFront · S3". */
+export const awsServiceOf = (resource: { type: string; properties: Record<string, unknown> }): string | undefined => {
+  if (resource.type === 'relational-database') {
+    const engine = (resource.properties.engine as { type?: unknown } | undefined)?.type;
+    return typeof engine === 'string' ? (RDS_ENGINE_SERVICES[engine] ?? 'Amazon RDS') : 'Amazon RDS';
+  }
+  return AWS_SERVICES[resource.type];
+};
+
+/**
+ * A resource's size in a few words, from its settings' current values: "db.t4g.micro · 20 GB", "0.5 vCPU · 1 GB ×2",
+ * "1024 MB". What a cost row says the money buys.
+ */
+export const sizeSummary = (
+  settings: ReadonlyArray<{
+    id: string;
+    control: string;
+    value: unknown;
+    options: ReadonlyArray<{ value: unknown; label: string; detail?: string }>;
+  }>
+): string | undefined => {
+  const byId = new Map(settings.map((setting) => [setting.id, setting]));
+  const labelOf = (id: string) => {
+    const setting = byId.get(id);
+    return setting?.options.find((option) => option.value === setting.value)?.label;
+  };
+  const size = settings.find((setting) => setting.control === 'size');
+  const sizeOption = size?.options.find((option) => option.value === size.value);
+  const parts = [
+    size?.id === 'size' && sizeOption !== undefined
+      ? `${sizeOption.label} · ${sizeOption.detail?.replace(' memory', '') ?? ''}`
+      : sizeOption?.label,
+    labelOf('storage'),
+    byId.get('multiAz')?.value === true ? 'standby' : undefined,
+    typeof byId.get('minInstances')?.value === 'number' && (byId.get('minInstances')!.value as number) > 1
+      ? `×${byId.get('minInstances')!.value as number}`
+      : undefined
+  ].filter((part): part is string => part !== undefined && part !== '');
+  return parts.length === 0 ? undefined : parts.join(' · ');
+};

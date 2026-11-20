@@ -12,9 +12,20 @@
  * explainable, which is the whole point of carrying provenance around.
  */
 
-import { parse as parseYaml } from 'yaml';
+import { isMap, parse as parseYaml, parseDocument } from 'yaml';
 import { composeConfig, type CompositionResult } from '@stacktape/config-inference/compose';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
+import { engineReleaseLines } from '@stacktape/config-inference/compose/engine-versions';
+import {
+  applyWrites,
+  settingsForResource,
+  settingWrites,
+  type ResourceSetting,
+  type SettingChange,
+  type SettingsContext,
+  type SettingValue,
+  type SettingWrite
+} from '@stacktape/config-inference/compose/resource-settings';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import {
   DEPLOYMENT_PREFERENCE_OPTIONS,
@@ -30,7 +41,7 @@ import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-
 import { getStackName } from '@stacktape/naming/stacks';
 import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
 import type { DeployTargetExpectation, DeployTargetObservation } from '../deploy/stack-expectation';
-import { DEFAULT_PRICING_REGION, estimateMonthlyCost, formatMonthlyDelta, type PriceEstimate } from '../pricing';
+import { DEFAULT_PRICING_REGION, estimateMonthlyCost, type PriceEstimate } from '../pricing';
 import { renderTypeScript, renderYaml } from '../write-config';
 import type { PreflightResult } from '../preflight/preflight';
 import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
@@ -374,6 +385,35 @@ export const startWizardSession = async ({
 }): Promise<WizardSession> => {
   let facts = result?.facts;
   let composition = result?.composition;
+  /** The composition before the resource settings changed on the page were applied to it. */
+  let untweaked = composition;
+  /**
+   * Resource settings changed on the page, by resource and setting, in the order they were made. Applied on top of
+   * every recomposition, so changing a decision or a preference never undoes a size someone picked.
+   */
+  const tweaks = new Map<string, Map<string, SettingValue>>();
+  /** Secrets the user removed from the configuration on the Deploy step, by name. */
+  const dismissedSecrets = new Set<string>();
+  /**
+   * The composition without the secrets the user removed, and with every setting changed on the page applied, in order.
+   * A setting that no longer applies is skipped.
+   */
+  const withTweaks = (composed: CompositionResult): CompositionResult => {
+    const next = withoutDismissedSecrets(composed, dismissedSecrets);
+    if (tweaks.size === 0) return next;
+    const resources = { ...next.config.resources };
+    for (const [name, settings] of tweaks) {
+      let resource = resources[name];
+      if (resource === undefined) continue;
+      for (const [setting, value] of settings) {
+        const outcome = settingWrites(resource, { setting, value }, SETTINGS_CONTEXT);
+        if ('writes' in outcome)
+          resource = { ...resource, properties: applyWrites(resource.properties, outcome.writes) };
+      }
+      resources[name] = resource;
+    }
+    return { ...next, config: { ...next.config, resources } };
+  };
   /** The configuration as edited by hand. While set, it is the file that is written and deployed. */
   let configEdit: { yaml: string; error?: string } | undefined;
   /** Secrets set from the page this session; the values themselves are never kept. */
@@ -405,10 +445,10 @@ export const startWizardSession = async ({
     price = undefined;
     priceUnavailable = false;
     if (configEdit !== undefined) {
-      // The edited text is what deploys, so it is what gets priced. Its choices have no alternatives to compare.
+      // The edited text is what deploys, so it is what gets priced, with each setting's options written into it.
       const edit = configEdit;
       if (edit.error !== undefined) return;
-      void estimateMonthlyCost(edit.yaml, regionOfText(edit.yaml) ?? region).then((estimate) => {
+      void priceEditWithOptions(edit.yaml, regionOfText(edit.yaml) ?? region).then((estimate) => {
         if (configEdit !== edit) return;
         price = estimate;
         priceUnavailable = estimate === undefined;
@@ -425,52 +465,149 @@ export const startWizardSession = async ({
     });
   };
 
+  /** Estimates by region and file: a setting changed back, or an option priced before, costs no second request. */
+  const estimates = new Map<string, Promise<PriceEstimate | undefined>>();
+  const estimateOnce = (yaml: string, region: string | undefined): Promise<PriceEstimate | undefined> => {
+    const key = `${region ?? ''}\n${yaml}`;
+    let estimate = estimates.get(key);
+    if (estimate === undefined) {
+      // A long session prices many files; the oldest are the least likely to come back.
+      if (estimates.size > 300) estimates.delete(estimates.keys().next().value!);
+      estimate = estimateMonthlyCost(yaml, region);
+      estimates.set(key, estimate);
+      // An answer that did not come (offline, rate-limited) is asked for again next time.
+      void estimate.then((answer) => {
+        if (answer === undefined) estimates.delete(key);
+      });
+    }
+    return estimate;
+  };
+
   /**
-   * The price, and what every other answer to each infrastructure choice would change it by.
+   * The price, and what each option of each resource's priced settings would cost.
    *
-   * A choice card that says "Roughly doubles them" makes the developer guess. Each alternative is
-   * the same facts and decisions composed with one choice changed, priced the same way. An
-   * alternative that composes to the same file costs the same and needs no request, so a project
-   * without a database never prices the database choices.
+   * A size list that says "Large" makes the developer guess. Each option is the same file with that one setting
+   * changed, priced the same way: the resource's own amount for its size list, and the stack's total for a change
+   * that adds resources (a private database adds its access server). An option that composes the same file costs the
+   * same and needs no request.
    */
   const priceWithOptions = async (
     current: CompositionResult,
     region: string | undefined
   ): Promise<PriceEstimate | undefined> => {
-    const baseYaml = renderYaml(current);
-    const base = await estimateMonthlyCost(baseYaml, region);
-    if (base?.flatMonthly === undefined || facts === undefined) return base;
-    const baseFlat = base.flatMonthly;
     const currentFacts = facts;
-    const alternatives = (Object.keys(DEPLOYMENT_PREFERENCE_OPTIONS) as DeploymentPreferenceKey[]).flatMap((key) =>
-      DEPLOYMENT_PREFERENCE_OPTIONS[key]
-        .filter((value) => value !== current.preferences[key])
-        .map((value) => ({ key, value }))
-    );
-    const priced = await Promise.all(
-      alternatives.map(async ({ key, value }) => {
-        const alternative = withoutDismissedSecrets(
-          composeConfig({
-            facts: currentFacts,
-            projectName,
-            preferences: { ...current.preferences, [key]: value },
-            decisions: answers,
-            engineVersions: versionJson.rds
-          }),
-          dismissedSecrets
-        );
-        const yaml = renderYaml(alternative);
-        if (yaml === baseYaml) return { key, value, delta: 0 };
-        const estimate = await estimateMonthlyCost(yaml, region);
-        return { key, value, delta: estimate?.flatMonthly === undefined ? undefined : estimate.flatMonthly - baseFlat };
-      })
-    );
-    const options: Record<string, Record<string, string>> = {};
-    for (const { key, value, delta } of priced) {
-      if (delta === undefined) continue;
-      options[key] = { ...options[key], [value]: formatMonthlyDelta(delta) };
+    return priceSettings({
+      resources: current.config.resources,
+      baseYaml: renderYaml(current),
+      region,
+      variantYaml: (name, setting, value) => {
+        const preference = setting.preference;
+        if (preference !== undefined && currentFacts === undefined) return undefined;
+        const variant =
+          preference === undefined
+            ? withSetting(current, name, setting.id, value)
+            : withTweaks(
+                composeConfig({
+                  facts: currentFacts!,
+                  projectName,
+                  preferences: { ...current.preferences, [preference]: value } as DeploymentPreferences,
+                  decisions: answers,
+                  engineVersions: versionJson.rds
+                })
+              );
+        return variant === undefined ? undefined : renderYaml(variant);
+      }
+    });
+  };
+
+  /**
+   * The same for a file edited by hand: each option is written into the text the way the setting would write it. A
+   * setting that recomposes the file (a private database) waits while it has hand edits, so it is not priced.
+   */
+  const priceEditWithOptions = async (yaml: string, region: string | undefined): Promise<PriceEstimate | undefined> => {
+    const resources = resourcesOfText(yaml);
+    if (resources === undefined) return estimateOnce(yaml, region);
+    return priceSettings({
+      resources,
+      baseYaml: yaml,
+      region,
+      variantYaml: (name, setting, value) => {
+        if (setting.preference !== undefined) return undefined;
+        const outcome = settingWrites(resources[name]!, { setting: setting.id, value }, SETTINGS_CONTEXT);
+        return 'refused' in outcome ? undefined : writeIntoText(yaml, name, outcome.writes);
+      }
+    });
+  };
+
+  /** The file's price, and each option of each priced setting priced as the same file with that one option changed. */
+  const priceSettings = async ({
+    resources,
+    baseYaml,
+    region,
+    variantYaml
+  }: {
+    resources: Record<string, { type: string; properties: Record<string, unknown> }>;
+    baseYaml: string;
+    region: string | undefined;
+    variantYaml: (resourceName: string, setting: ResourceSetting, value: SettingValue) => string | undefined;
+  }): Promise<PriceEstimate | undefined> => {
+    const base = await estimateOnce(baseYaml, region);
+    if (base?.flatMonthly === undefined) return base;
+    const settings: NonNullable<PriceEstimate['settings']> = {};
+    const record = (resource: string, setting: string, value: SettingValue, estimate: PriceEstimate | undefined) => {
+      const resourceAmount = estimate?.resourceFlat?.[resource];
+      settings[resource] ??= {};
+      settings[resource][setting] = {
+        ...settings[resource][setting],
+        [String(value)]: {
+          ...(resourceAmount === undefined ? {} : { resource: resourceAmount }),
+          ...(estimate?.flatMonthly === undefined ? {} : { total: estimate.flatMonthly })
+        }
+      };
+    };
+    const variants: Array<() => Promise<void>> = [];
+    for (const [name, resource] of Object.entries(resources)) {
+      for (const setting of settingsForResource(resource, SETTINGS_CONTEXT)) {
+        if (!setting.priced || setting.disabledReason !== undefined) continue;
+        for (const option of setting.options) {
+          if (option.disabledReason !== undefined) continue;
+          if (option.value === setting.value) {
+            record(name, setting.id, option.value, base);
+            continue;
+          }
+          variants.push(async () => {
+            const yaml = variantYaml(name, setting, option.value);
+            if (yaml === undefined) return;
+            record(name, setting.id, option.value, yaml === baseYaml ? base : await estimateOnce(yaml, region));
+          });
+        }
+      }
     }
-    return { ...base, options };
+    await Promise.all(variants.map((variant) => variant()));
+    return { ...base, settings };
+  };
+
+  /** `current` with one resource's setting changed, or undefined when the resource does not offer that value. */
+  const withSetting = (
+    current: CompositionResult,
+    resourceName: string,
+    setting: string,
+    value: SettingValue
+  ): CompositionResult | undefined => {
+    const resource = current.config.resources[resourceName];
+    if (resource === undefined) return undefined;
+    const outcome = settingWrites(resource, { setting, value }, SETTINGS_CONTEXT);
+    if ('refused' in outcome) return undefined;
+    return {
+      ...current,
+      config: {
+        ...current.config,
+        resources: {
+          ...current.config.resources,
+          [resourceName]: { ...resource, properties: applyWrites(resource.properties, outcome.writes) }
+        }
+      }
+    };
   };
 
   /**
@@ -488,15 +625,14 @@ export const startWizardSession = async ({
         .every(
           (value) =>
             renderYaml(
-              withoutDismissedSecrets(
+              withTweaks(
                 composeConfig({
                   facts: currentFacts,
                   projectName,
                   preferences: { ...current.preferences, [key]: value },
                   decisions: answers,
                   engineVersions: versionJson.rds
-                }),
-                dismissedSecrets
+                })
               )
             ) === baseYaml
         )
@@ -519,8 +655,8 @@ export const startWizardSession = async ({
    */
   const adoptComposition = (adopted: NonNullable<typeof composition>): void => {
     // Whatever produced it (an answer, a repair), the secrets the user removed stay removed.
-    const next = withoutDismissedSecrets(adopted, dismissedSecrets);
-    composition = next;
+    untweaked = withoutDismissedSecrets(adopted, dismissedSecrets);
+    composition = withTweaks(untweaked);
     // A different configuration is a different thing to prove. Results earned against the old one
     // must neither gate nor vouch for the new one. The file on disk is another derivative: keeping
     // its handle would let a direct mode/answer request show one configuration while deploy reads
@@ -529,7 +665,7 @@ export const startWizardSession = async ({
     deployTarget = undefined;
     configFile = undefined;
     configEdit = undefined;
-    renderConfigText(next);
+    renderConfigText(composition);
     // The request that caused this change gets the new state in its response, but other connected
     // tabs only hear broadcasts. Publish the synchronous YAML state now rather than making them
     // wait for pricing or TypeScript rendering to finish successfully.
@@ -604,8 +740,6 @@ export const startWizardSession = async ({
   /** The profiles on this machine, listed once and again on a recheck. */
   let profiles: WizardAwsProfile[] | undefined;
   let docker: boolean | undefined;
-  /** Secrets the user removed from the configuration on the Deploy step, by name. */
-  const dismissedSecrets = new Set<string>();
   /** The profile flag every AWS call from here passes, so the page, the target check and the deploy agree. */
   const profileInput = (): { profile?: string } => (selectedProfile === undefined ? {} : { profile: selectedProfile });
 
@@ -713,7 +847,7 @@ export const startWizardSession = async ({
         adoptComposition(repaired.composition);
         if (write !== undefined && previousConfigFile !== undefined) {
           const written = await write({
-            composition: repaired.composition,
+            composition: composition!,
             format: previousConfigFile.format,
             region: previousConfigFile.region
           }).catch(() => undefined);
@@ -795,7 +929,8 @@ export const startWizardSession = async ({
       ? {}
       : {
           preferences: composition.preferences,
-          recommendedPreferences: composition.recommendedPreferences
+          recommendedPreferences: composition.recommendedPreferences,
+          engineVersions: SETTINGS_CONTEXT.engineVersions as Record<string, string[]>
         }),
     ...(pipeline === undefined ? {} : { pipeline }),
     ...(configEdit === undefined ? {} : { configEdit }),
@@ -1314,7 +1449,7 @@ export const startWizardSession = async ({
 
             // Named by diffing what was reviewed against what will deploy now, so the page can say
             // where the configurations differ. Computed here, never taken from the agent's words.
-            const changedResources = changedResourceNames(composition, repaired.composition);
+            const changedResources = changedResourceNames(composition, withTweaks(repaired.composition));
             const previousConfigFile = configFile!;
             facts = repaired.facts;
             adoptComposition(repaired.composition);
@@ -1434,6 +1569,58 @@ export const startWizardSession = async ({
         adoptComposition(
           composeConfig({ facts, projectName, preferences, decisions: answers, engineVersions: versionJson.rds })
         );
+        return buildState();
+      },
+      onSetting: (change: SettingChange) => {
+        if (facts === undefined || composition === undefined || untweaked === undefined || deploymentInFlight()) {
+          return buildState();
+        }
+        const edit = configEdit;
+        // The file being shown: the edited text when there is one, which the setting then edits in place.
+        const resources = edit === undefined ? composition.config.resources : resourcesOfText(edit.yaml);
+        const resource = resources?.[change.resource];
+        const setting =
+          resource === undefined
+            ? undefined
+            : settingsForResource(resource, SETTINGS_CONTEXT).find((candidate) => candidate.id === change.setting);
+        if (resource === undefined || setting === undefined || setting.disabledReason !== undefined) {
+          return buildState();
+        }
+        if (setting.preference !== undefined) {
+          // A preference recomposes the generated file (it can add the database's access server); an edited file is
+          // the user's, and is not regenerated under them.
+          const allowed = DEPLOYMENT_PREFERENCE_OPTIONS[setting.preference] as readonly SettingValue[];
+          if (edit !== undefined || !allowed.includes(change.value)) return buildState();
+          mode = undefined;
+          adoptComposition(
+            composeConfig({
+              facts,
+              projectName,
+              preferences: { ...composition.preferences, [setting.preference]: change.value } as DeploymentPreferences,
+              decisions: answers,
+              engineVersions: versionJson.rds
+            })
+          );
+          return buildState();
+        }
+        const outcome = settingWrites(resource, change, SETTINGS_CONTEXT);
+        if ('refused' in outcome) return buildState();
+        if (edit !== undefined) {
+          if (edit.error !== undefined) return buildState();
+          const yaml = writeIntoText(edit.yaml, change.resource, outcome.writes);
+          configEdit = { yaml, ...yamlError(yaml) };
+          configFile = undefined;
+          deployTarget = undefined;
+          verification = undefined;
+          repriceInBackground();
+          return publishNow();
+        }
+        const forResource = tweaks.get(change.resource) ?? new Map<string, SettingValue>();
+        // Moved to the end: re-applied after anything it may depend on (copies running before the most copies).
+        forResource.delete(change.setting);
+        forResource.set(change.setting, change.value);
+        tweaks.set(change.resource, forResource);
+        adoptComposition(untweaked);
         return buildState();
       },
       onWrite: async (format) => {
@@ -1704,6 +1891,54 @@ export const startWizardSession = async ({
 export const toTimelineEntry = (event: AgentEvent): { kind: string; label: string } | undefined => {
   if (event.type === 'tool-call') return { kind: 'tool', label: `${event.name} ${event.summary}`.trim() };
   return undefined;
+};
+
+/** The engine versions the version setting offers: each engine's release lines, newest first. */
+const SETTINGS_CONTEXT: SettingsContext = {
+  engineVersions: Object.fromEntries(
+    Object.keys(versionJson.rds).map((engine) => [
+      engine,
+      engineReleaseLines(engine, versionJson.rds as Record<string, readonly string[]>)
+    ])
+  )
+};
+
+/** The resources an edited configuration declares, when it parses. */
+const resourcesOfText = (
+  yaml: string
+): Record<string, { type: string; properties: Record<string, unknown> }> | undefined => {
+  try {
+    const parsed = parseYaml(yaml) as { resources?: unknown } | null;
+    const resources = parsed?.resources;
+    return resources !== null && typeof resources === 'object' && !Array.isArray(resources)
+      ? (resources as Record<string, { type: string; properties: Record<string, unknown> }>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * A setting's writes made to text someone edited, through the YAML document, so their comments, order and formatting
+ * stay as they wrote them. A removal also removes a mapping it leaves empty.
+ */
+const writeIntoText = (yaml: string, resourceName: string, writes: readonly SettingWrite[]): string => {
+  const document = parseDocument(yaml);
+  const base = ['resources', resourceName, 'properties'];
+  for (const write of writes) {
+    const path = [...base, ...write.path];
+    if (write.value !== undefined) {
+      document.setIn(path, document.createNode(write.value));
+      continue;
+    }
+    document.deleteIn(path);
+    for (let depth = path.length - 1; depth > base.length; depth -= 1) {
+      const parent = document.getIn(path.slice(0, depth), true);
+      if (!isMap(parent) || parent.items.length > 0) break;
+      document.deleteIn(path.slice(0, depth));
+    }
+  }
+  return document.toString({ lineWidth: 0 });
 };
 
 /** The `region` an edited configuration declares at its top level, when it declares one the CLI deploys to. */
