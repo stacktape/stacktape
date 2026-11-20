@@ -16,6 +16,9 @@ feature styles with large lazy dependencies may ship a separate stylesheet besid
 - `resource-icon` owns the product-wide resource-to-icon/category mapping. `framework-icon` owns reusable framework
   artwork. The isometric diagram colours its own shapes by the same catalog's categories; do not put product category
   meaning under `isometric-diagram` or reproduce the mapping in an application.
+- `command-line` is the one way to show a command to paste into a terminal: a prompt, the program accented, flags muted,
+  wrapping between options, and a copy button. `copy-button` holds the copy buttons and the copied/failed feedback it
+  uses. The Console still carries its own `Misc/CommandLine` until it switches to these subpaths.
 - `install-platform` detects the visitor's operating system and CPU architecture so the website and documentation
   preselect the matching installer. It is browser detection only; each application keeps its own install commands.
 - `config-editor` is the editor frame: view navigation, panels, overlays and fullscreen layout. The host supplies the

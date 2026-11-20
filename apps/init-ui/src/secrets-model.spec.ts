@@ -4,14 +4,13 @@ import {
   canGenerateSecret,
   firstSentence,
   generateSecretValue,
-  importStep,
+  initialDraft,
+  isReadyDraft,
   localValueReason,
+  maybeUnneededReason,
   planSecrets,
-  splitImports,
-  taskGroups,
-  taskNextText,
-  type SecretEntry,
-  type SecretsPlan
+  secretsNextText,
+  type SecretEntry
 } from './secrets-model';
 
 describe('which secrets the page may generate', () => {
@@ -252,100 +251,67 @@ const entry = (name: string, kind: SecretEntry['kind'], canGenerate = false): Se
   canGenerate
 });
 
-const planOf = (entries: SecretEntry[]): SecretsPlan => ({
-  groups: [],
-  entries,
-  setByStacktape: [],
-  notNeeded: [],
-  explainedGaps: []
-});
+const zeros = (bytes: Uint8Array) => bytes.fill(0);
 
-describe('the secrets by what the user does about them', () => {
-  const entries = [
-    entry('SECRET_KEY', 'secret', true),
-    entry('SMTP_PASSWORD', 'secret'),
-    entry('DOMAIN', 'setting'),
-    entry('SENTRY_DSN', 'setting'),
-    entry('STRIPE_SECRET_KEY', 'secret')
-  ];
-
-  it('generates what the app owns, imports what .env sets, and asks for the rest', () => {
-    const environment = {
-      file: '.env',
-      values: new Map([
-        ['SECRET_KEY', 'changethis'],
-        ['DOMAIN', 'localhost'],
-        ['SENTRY_DSN', ''],
-        ['STRIPE_SECRET_KEY', 'sk_test_123']
-      ])
-    };
-    expect(
-      taskGroups(planOf(entries), environment).map((group) => [group.task, group.entries.map((one) => one.variable)])
-    ).toEqual([
-      ['generate', ['SECRET_KEY']],
-      ['provide', ['SMTP_PASSWORD', 'SENTRY_DSN']],
-      ['import', ['DOMAIN', 'STRIPE_SECRET_KEY']]
-    ]);
+describe('the one list of secrets', () => {
+  const environment = {
+    file: '.env',
+    values: new Map([
+      ['SECRET_KEY', 'changethis'],
+      ['DOMAIN', 'localhost'],
+      ['SENTRY_DSN', ''],
+      ['STRIPE_SECRET_KEY', 'sk_test_123']
+    ])
+  };
+  it('starts what the app owns with a random value, what .env sets with that value, and the rest empty', () => {
+    expect(initialDraft(entry('SECRET_KEY', 'secret', true), environment, zeros)).toEqual({
+      value: '0'.repeat(64),
+      origin: 'random'
+    });
+    expect(initialDraft(entry('STRIPE_SECRET_KEY', 'secret'), environment)).toEqual({
+      value: 'sk_test_123',
+      origin: 'env'
+    });
+    expect(initialDraft(entry('SENTRY_DSN', 'secret'), environment)).toBeUndefined();
+    expect(initialDraft(entry('SMTP_PASSWORD', 'secret'), undefined)).toBeUndefined();
   });
 
-  it('has no import group without a .env', () => {
-    expect(taskGroups(planOf(entries), undefined).map((group) => group.task)).toEqual(['generate', 'provide']);
+  it('keeps a value that points at this machine out of a save of all of them', () => {
+    expect(isReadyDraft({ value: 'sk_test_123', origin: 'env' })).toBe(true);
+    expect(isReadyDraft({ value: 'http://localhost:8000', origin: 'env' })).toBe(false);
+    expect(isReadyDraft({ value: '  ', origin: 'typed' })).toBe(false);
+    expect(isReadyDraft(undefined)).toBe(false);
   });
 
   it.each([
-    ['generate', [entry('AUTH_SECRET', 'secret', true)], 'generate AUTH_SECRET'],
-    ['generate', [entry('A_SECRET', 'secret', true), entry('B_SECRET', 'secret', true)], 'generate 2 secrets'],
-    ['provide', [entry('SMTP_PASSWORD', 'secret')], 'enter SMTP_PASSWORD'],
-    ['provide', [entry('NATS_URL', 'outside'), entry('RMQ_URL', 'outside')], 'enter 2 service URLs'],
-    ['provide', [entry('NATS_URL', 'outside'), entry('SMTP_PASSWORD', 'secret')], 'enter 2 values'],
-    ['import', [entry('DOMAIN', 'setting'), entry('PORT', 'setting')], 'use the 2 values from .env']
-  ] as const)('next for %s: %p', (task, remaining, expected) => {
-    expect(taskNextText({ task, entries: [...remaining] }, remaining, '.env')).toBe(expected);
+    [[entry('SMTP_PASSWORD', 'secret')], {}, 'enter SMTP_PASSWORD'],
+    [[entry('NATS_URL', 'outside'), entry('RMQ_URL', 'outside')], {}, 'enter 2 service URLs'],
+    [[entry('NATS_URL', 'outside'), entry('SMTP_PASSWORD', 'secret')], {}, 'enter 2 values'],
+    [[entry('DOMAIN', 'setting')], { domain: { value: 'localhost', origin: 'env' } }, 'change 1 local value'],
+    [[entry('AUTH_SECRET', 'secret', true)], { auth_secret: { value: 'x', origin: 'random' } }, 'save 1 secret'],
+    [
+      [entry('AUTH_SECRET', 'secret', true), entry('STRIPE_SECRET_KEY', 'secret')],
+      { auth_secret: { value: 'x', origin: 'random' }, stripe_secret_key: { value: 'sk', origin: 'typed' } },
+      'save 2 secrets'
+    ],
+    [[entry('DOMAIN', 'setting')], { domain: { value: 'shop.com', origin: 'env' } }, 'save 1 value']
+  ] as const)('next for %p', (remaining, drafts, expected) => {
+    expect(secretsNextText(remaining, drafts)).toBe(expected);
   });
 
-  describe('the .env group', () => {
-    const environment = {
-      file: '.env',
-      values: new Map([
-        ['DOMAIN', 'localhost'],
-        ['PROJECT_NAME', 'Shop'],
-        ['SMTP_PORT', '587'],
-        ['FIRST_SUPERUSER', 'admin@example.com']
-      ])
-    };
-    const rows = [
-      entry('DOMAIN', 'setting'),
-      entry('PROJECT_NAME', 'setting'),
-      entry('SMTP_PORT', 'setting'),
-      entry('FIRST_SUPERUSER', 'setting')
-    ];
-    const group = { task: 'import' as const, entries: rows };
-    const drafts = {
-      domain: 'localhost',
-      project_name: 'Shop',
-      smtp_port: '587',
-      first_superuser: 'admin@example.com'
-    };
-    const all = new Set(rows.map((row) => row.name));
-
-    it('splits what can be saved as it is from what points at this machine or is an example', () => {
-      const split = splitImports(rows, environment);
-      expect(split.ready.map((row) => row.variable)).toEqual(['PROJECT_NAME', 'SMTP_PORT']);
-      expect(split.review.map((row) => row.variable)).toEqual(['DOMAIN', 'FIRST_SUPERUSER']);
-    });
-
-    it('asks to use the values, then to save the ready ones, then to review the rest', () => {
-      const next = (imported: ReadonlySet<string>, remaining = rows) =>
-        taskNextText(group, remaining, '.env', importStep(remaining, environment, imported, drafts));
-      expect(next(new Set())).toBe('use the 4 values from .env');
-      expect(next(all)).toBe('save 2 values');
-      expect(next(all, [rows[0]!, rows[3]!])).toBe('review 2 values before saving');
-      expect(next(all, [rows[0]!])).toBe('review 1 value before saving');
-    });
-
-    it('does not count a ready row the user emptied or changed to a local value', () => {
-      const step = importStep(rows, environment, all, { ...drafts, project_name: '', smtp_port: 'localhost' });
-      expect(step.step).toBe('review');
-    });
+  it.each([
+    ['STRIPE_WEBHOOK_SECRET', undefined, 'lib/stripe.ts', 'Only webhooks need it. Leave it out until you set one up.'],
+    [
+      'SIGNING_KEY',
+      undefined,
+      'app/api/webhooks/github.ts',
+      'Only webhooks need it. Leave it out until you set one up.'
+    ],
+    ['SENTRY_DSN', undefined, 'sentry.ts', 'It is for error reporting or analytics. The app usually runs without it.'],
+    ['FEATURE_KEY', { required: false }, 'app.ts', 'Your code has a fallback for it.'],
+    ['STRIPE_SECRET_KEY', { required: true }, 'lib/payments/stripe.ts', undefined],
+    ['AUTH_SECRET', undefined, 'lib/auth/session.ts', undefined]
+  ] as const)('whether %s looks unneeded', (name, fact, file, expected) => {
+    expect(maybeUnneededReason(name, fact, { file })).toBe(expected);
   });
 });

@@ -31,6 +31,19 @@ const skipMigration = async (page: Page) => {
 
 const liveHeading = (page: Page) => page.getByRole('heading', { name: 'Your app is live' });
 
+/** What the page names as the next thing to do: in the summary beside the list, or in the bar on a narrow screen. */
+const nextStep = (page: Page) => page.locator('.w-bar-next').filter({ visible: true });
+
+/** The AWS account control: the profile, and the account it signs in to. */
+const accountControl = (page: Page) => page.getByTestId('aws-target-switch');
+
+/** The configuration as the session would write it now. */
+const configYaml = (page: Page) =>
+  page.evaluate(async () => {
+    const state = (await (await fetch('/api/state')).json()) as { composition?: { configText?: { yaml?: string } } };
+    return state.composition?.configText?.yaml ?? '';
+  });
+
 const deployButton = (page: Page) => page.getByRole('button', { name: /^Deploy to / });
 
 test('a first deploy goes from analysis to a live URL, with settings, secrets and the migration resolved in the page', async ({
@@ -77,56 +90,60 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await continueToDeploy(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Deploy to dev' })).toBeVisible();
   await waitForTarget(page);
-  await expect(page.getByText('Account 4815 1623 4200')).toBeVisible();
-  await expect(page.locator('.w-account')).toContainText('us-east-1');
+  // Where it deploys is three controls, never a line of facts: the account by its profile and alias, then its ID.
+  await expect(accountControl(page)).toContainText('default');
+  await expect(accountControl(page)).toContainText('acme-dev');
+  await expect(accountControl(page)).toContainText('4815 1623 4200');
+  await expect(page.locator('#deploy-aws')).toContainText('Signed in as IAM user dev');
+  await expect(page.locator('#deploy-aws')).toContainText('us-east-1');
+  await expect(page.getByRole('textbox', { name: 'Stage' })).toHaveValue('dev');
   await expect(deployButton(page)).toBeDisabled();
-  // The bar names the next thing to do; the first section that needs it is open.
-  await expect(page.locator('.w-bar')).toContainText('Next: generate AUTH_SECRET');
+  // The summary names the next thing to do; the first section that needs it is open.
+  await expect(nextStep(page)).toContainText('Next: enter 2 values');
   // Review stays one click away in the header while on Deploy.
   await expect(
     page.getByRole('navigation', { name: 'Progress' }).getByRole('button', { name: /Review/ })
   ).toBeVisible();
 
-  const saveSecret = async (name: string) => {
-    const field = page.getByRole('textbox', { name: `Value for ${name}` });
-    await field.fill('a-secret-value');
-    await field.press('Enter');
-    await expect(field).toHaveCount(0);
-  };
-  // The app's own session key is generated in the page and saved in one click; the value is never shown.
-  const authRow = page.locator('#secret-auth_secret');
-  await authRow.getByRole('button', { name: 'Generate' }).click();
-  // Done, its group folds to one line; opened again, the row says it was generated and shows no value.
-  const generatedGroup = page.getByRole('region', { name: 'Generated for you' });
-  await expect(generatedGroup).toContainText('Saved');
-  await generatedGroup.getByRole('button', { name: /Generated for you/ }).click();
-  await expect(authRow).toContainText('generated');
-  await expect(authRow.getByRole('textbox')).toHaveCount(0);
-  // The group of keys the person provides opens next, and names what is left.
-  await expect(page.locator('.w-bar')).toContainText('Next: enter 2 values');
-  await expect(page.locator('#secret-stripe_secret_key').getByRole('textbox')).toBeVisible();
-  // Third-party keys have no Generate: only the person has them.
-  await expect(page.locator('#secret-stripe_secret_key').getByRole('button', { name: 'Generate' })).toHaveCount(0);
-  // One after another, as a person would: each save is its own request to the CLI.
-  await saveSecret('stripe_secret_key');
-  await saveSecret('stripe_webhook_secret');
+  // The secrets are one list. The app's own session key already holds a random value, never shown.
+  await expect(page.getByRole('textbox', { name: 'Value for auth_secret' })).not.toHaveValue('');
+  await expect(page.locator('#secret-auth_secret')).toContainText('Random');
+  // A webhook signing key is marked as one the app may not need; its × takes it out of the config, and it can come back.
+  const webhook = page.locator('#secret-stripe_webhook_secret');
+  await expect(webhook).toContainText('May not be needed');
+  await webhook.getByRole('button', { name: 'Remove STRIPE_WEBHOOK_SECRET from the config' }).click();
+  await expect(page.getByRole('textbox', { name: 'Value for stripe_webhook_secret' })).toHaveCount(0);
+  await expect(page.locator('#deploy-secrets')).toContainText('Removed from the config');
+  expect(await configYaml(page)).not.toContain('STRIPE_WEBHOOK_SECRET');
+  await page.getByRole('button', { name: 'Put back' }).click();
+  await expect(page.getByRole('textbox', { name: 'Value for stripe_webhook_secret' })).toBeVisible();
+  expect(await configYaml(page)).toContain("$Secret('stripe_webhook_secret')");
+  await webhook.getByRole('button', { name: 'Remove STRIPE_WEBHOOK_SECRET from the config' }).click();
+  await expect(nextStep(page)).toContainText('Next: enter STRIPE_SECRET_KEY');
+  await page.getByRole('textbox', { name: 'Value for stripe_secret_key' }).fill('sk_test_123');
+  await expect(nextStep(page)).toContainText('Next: save 2 secrets');
+  // One click saves both, one after another: each is its own request to the CLI.
+  await page.getByRole('button', { name: 'Save 2 secrets', exact: true }).click();
   // Done, the section folds to one line and the next one opens.
-  await expect(page.locator('#deploy-secrets')).toContainText('All 3 saved in your AWS account');
-  await choose(page, /Stacktape runs it/);
-  // The choice and the finished row give the same timing: a Next.js app migrates right after the deploy.
+  await expect(page.locator('#deploy-secrets')).toContainText('All 2 saved in your AWS account');
+  // A Next.js site can run its migration as a release command, before each deploy goes live; the file says so.
+  await choose(page, /Before each deploy goes live/);
   await expect(page.locator('#deploy-migrations')).toContainText(
-    'Stacktape runs npx drizzle-kit migrate on every deploy, right after the new version goes live.'
+    'Stacktape runs npx drizzle-kit migrate before each deploy goes live, as the site’s release command.'
   );
+  expect(await configYaml(page)).toContain('releaseCommand: npx drizzle-kit migrate');
   await waitForTarget(page);
   await expect(deployButton(page)).toBeEnabled();
-  // Ready, a block under the checklist says what the click creates, where, and what it costs.
-  const commitment = page.getByRole('region', { name: 'What Deploy does' });
+  // Ready, the summary says what the click creates, where, what it costs and how long it takes.
+  const summary = page.getByRole('region', { name: 'Deploy summary' });
+  await expect(summary).toContainText('saas-starter-dev');
+  await expect(summary).toContainText('acme-dev · us-east-1');
   // Private network was chosen on Review, so the access server is part of it.
-  await expect(commitment).toContainText('Creates a Next.js site, a Postgres database and a database access server');
-  await expect(commitment).toContainText('Region us-east-1');
-  await expect(commitment).toContainText('Stage dev');
-  await expect(commitment).toContainText('Takes about 10–15 min');
-  await expect(page.locator('.w-bar')).toContainText('estimated AWS cost');
+  await expect(summary).toContainText('Next.js site');
+  await expect(summary).toContainText('Postgres database');
+  await expect(summary).toContainText('database access server');
+  await expect(summary).toContainText(/\$\d+\/month \+ usage/);
+  await expect(summary).toContainText('12–18 min');
 
   await deployButton(page).click();
   await expect(page.getByRole('heading', { name: 'Deploying to dev' })).toBeVisible();
@@ -139,7 +156,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
 
   await expect(liveHeading(page)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('link', { name: 'Open app' })).toHaveAttribute('href', /stacktape-app\.com/);
-  await expect(page.locator('.w-command code').first()).toContainText('--region us-east-1');
+  await expect(page.locator('.stp-ui-command-line').first()).toContainText('--region us-east-1');
   // Deployed signed in: the stage is already in the Console, so the page links there and offers nothing.
   await expect(page.getByRole('region', { name: 'Stacktape Console' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Open the Console' })).toHaveAttribute(
@@ -328,7 +345,7 @@ test('a failed deploy names the fix in this project, keeps the retry, and a stop
   browser,
   startWizard
 }) => {
-  const wizard = await startWizard({ project: 'saas-starter', deploy: 'fail' });
+  const wizard = await startWizard({ project: 'saas-starter', deploy: 'fail', docker: false });
   await page.goto(wizard.url);
 
   const second = await browser.newPage();
@@ -344,6 +361,10 @@ test('a failed deploy names the fix in this project, keeps the retry, and a stop
   await page.getByRole('button', { name: 'I already saved these in AWS' }).click();
   // A migration nothing runs holds the deploy until it is turned on or deliberately skipped.
   await expect(deployButton(page)).toBeDisabled();
+  // Without Docker the site's release command cannot be built here, so running it after the deploy is recommended.
+  await expect(page.getByRole('radio', { name: /Before each deploy goes live/ })).toBeDisabled();
+  await expect(page.locator('#deploy-migrations')).toContainText('Docker is not running on this machine');
+  await expect(page.locator('label.stp-ui-radio', { hasText: /Right after each deploy/ })).toContainText('Recommended');
   await skipMigration(page);
   await waitForTarget(page);
   await deployButton(page).click();
@@ -373,7 +394,7 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await analyzeAndReview(page);
   await continueToDeploy(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Connect AWS to deploy' })).toBeVisible();
-  await expect(page.locator('.w-bar')).toContainText('Next: connect AWS');
+  await expect(nextStep(page)).toContainText('Next: connect AWS');
   // Secrets are saved in the AWS account, so they wait for it.
   await expect(page.locator('#deploy-secrets')).toContainText('Available after AWS is connected');
   await expect(page.getByRole('textbox', { name: 'Value for auth_secret' })).toHaveCount(0);
@@ -394,7 +415,7 @@ test('without AWS credentials, pasted keys become a profile and the check contin
   await page.getByRole('textbox', { name: 'Access key ID' }).fill('AKIAIOSFODNN7EXAMPLE');
   await page.getByRole('textbox', { name: 'Secret access key' }).fill('wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY');
   await page.getByRole('button', { name: 'Save on this machine' }).click();
-  await expect(page.getByText('Account 4815 1623 4200')).toBeVisible({ timeout: 10_000 });
+  await expect(accountControl(page)).toContainText('4815 1623 4200', { timeout: 10_000 });
   await waitForTarget(page);
 
   await page.getByRole('textbox', { name: 'Value for auth_secret' }).fill('x');
@@ -418,27 +439,42 @@ test("values the project's .env sets are offered for checking: local ones are fl
     'backend runs without a health check on AWS'
   );
 
-  const imports = page.getByRole('region', { name: 'Values in .env' });
-  await imports.getByRole('button', { name: /Values in \.env/ }).click();
-  // Nothing is filled before the user asks for it.
-  await expect(page.getByRole('textbox', { name: 'Value for project_name' })).toHaveValue('');
-  await imports.getByRole('button', { name: /^Use the \d+ values from \.env$/ }).click();
+  // What .env sets is already in its field, marked as coming from there; nothing leaves the page before Save.
   await expect(page.getByRole('textbox', { name: 'Value for project_name' })).toHaveValue('Full Stack FastAPI Project');
-  // A value that points at this machine is flagged, under Review before saving, and stays out of the one-click save.
-  await expect(page.locator('#secret-domain')).toContainText('Local value: change before deploying');
-  await expect(imports).toContainText('Review before saving');
-  // The bar's Next names the same action as the button.
-  const save = imports.getByRole('button', { name: /^Save \d+ values$/ });
-  const saveLabel = (await save.textContent()) ?? '';
-  await expect(page.locator('.w-bar')).toContainText(`Next: ${saveLabel.toLowerCase()}`);
+  await expect(page.locator('#secret-project_name')).toContainText('.env');
+  // A value that points at this machine is flagged and stays out of the save of all of them.
+  await expect(page.locator('#secret-domain')).toContainText('Points at this machine');
+  const save = page.getByRole('button', { name: /^Save \d+ (secrets|values)$/ });
   await save.click();
   await expect(page.locator('#secret-project_name')).toContainText('Saved');
   await expect(page.getByRole('textbox', { name: 'Value for domain' })).toHaveValue('localhost');
   // Changed to a real address, it is saved like any other.
   await page.getByRole('textbox', { name: 'Value for domain' }).fill('app.acme.io');
-  await expect(page.locator('#secret-domain')).not.toContainText('Local value');
+  await expect(page.locator('#secret-domain')).not.toContainText('Points at this machine');
   await page.getByRole('textbox', { name: 'Value for domain' }).press('Enter');
   await expect(page.locator('#secret-domain')).toContainText('Saved');
+});
+
+test('the AWS account is picked by its profile; another profile is checked, and the stack and command follow it', async ({
+  page,
+  startWizard
+}) => {
+  const wizard = await startWizard({ project: 'saas-starter' });
+  await page.goto(wizard.url);
+  await analyzeAndReview(page);
+  await continueToDeploy(page);
+  await waitForTarget(page);
+  await accountControl(page).click();
+  // Each profile on this machine says how it signs in; the current one also names its account.
+  await expect(page.getByRole('option', { name: /acme-dev · 4815 1623 4200 · Access key/ })).toBeVisible();
+  await page.getByRole('option', { name: /acme-prod.*SSO sign-in/ }).click();
+  await expect(accountControl(page)).toContainText('acme-production', { timeout: 10_000 });
+  await expect(accountControl(page)).toContainText('2709 8812 0451');
+  await expect(page.locator('#deploy-aws')).toContainText('Signed in as dev@acme.io · AdministratorAccess');
+  await waitForTarget(page);
+  await expect(page.getByRole('region', { name: 'Deploy summary' })).toContainText('acme-production');
+  await page.getByRole('button', { name: 'Deploy from a terminal instead' }).click();
+  await expect(page.locator('.w-terminal')).toContainText('--profile acme-prod');
 });
 
 test('a stack left behind by a failed first deploy says how to clear it, and can be checked again', async ({
@@ -491,9 +527,8 @@ test('signed out, it deploys without an account, then offers the Console and con
   await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toHaveCount(0);
   // A stage name is required; the button says what is missing instead of doing nothing.
   await waitForTarget(page);
-  await page.locator('#deploy-aws').getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('textbox', { name: 'Stage' }).fill('');
-  await expect(page.locator('.w-bar')).toContainText('a stage name');
+  await expect(nextStep(page)).toContainText('a stage name');
   await expect(deployButton(page)).toBeDisabled();
   await page.getByRole('textbox', { name: 'Stage' }).fill('dev');
   await page.getByRole('button', { name: 'I already saved these in AWS' }).click();

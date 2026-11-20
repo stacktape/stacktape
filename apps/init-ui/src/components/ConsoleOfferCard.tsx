@@ -6,7 +6,7 @@ import { BiCheck, BiLinkExternal } from 'react-icons/bi';
 import { TbLayoutDashboard } from 'react-icons/tb';
 import type { SignInRequest, WizardState } from '../session';
 import { organizationLabel } from '../sign-in';
-import { CopyableCommand } from './CopyableCommand';
+import { CommandLine } from '@stacktape/ui-react/command-line';
 import { InfoTip } from './InfoTip';
 import { Row } from './RowList';
 import { SignInPanel, startSignInInNewTab } from './SignInPanel';
@@ -221,7 +221,7 @@ export function ConsoleOfferCard({
             {offer.detail}
           </Alert>
           <p className="w-quiet">Or run the same in a terminal:</p>
-          <CopyableCommand command="stacktape connect" />
+          <CommandLine command="stacktape connect" label="Copy the command" />
         </>
       )}
     </Row>

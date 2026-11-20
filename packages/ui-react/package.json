@@ -21,11 +21,19 @@
       "types": "./dist/checkbox/Checkbox.d.ts",
       "default": "./dist/checkbox/Checkbox.js"
     },
+    "./command-line": {
+      "types": "./dist/command-line/CommandLine.d.ts",
+      "default": "./dist/command-line/CommandLine.js"
+    },
     "./config-editor": {
       "types": "./dist/config-editor/ConfigEditor.d.ts",
       "default": "./dist/config-editor/ConfigEditor.js"
     },
     "./config-editor.css": "./src/config-editor/config-editor.css",
+    "./copy-button": {
+      "types": "./dist/copy-button/CopyButton.d.ts",
+      "default": "./dist/copy-button/CopyButton.js"
+    },
     "./dialog": {
       "types": "./dist/dialog/Dialog.d.ts",
       "default": "./dist/dialog/Dialog.js"

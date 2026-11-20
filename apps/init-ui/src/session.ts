@@ -56,6 +56,9 @@ type WizardExistingDeployment = {
 
 type WizardModelOption = { id: string; label: string; description: string };
 
+/** An AWS profile on this machine, as `~/.aws` declares it: its name, how it signs in, and its region. */
+export type WizardAwsProfile = { name: string; kind: 'sso' | 'keys' | 'role' | 'other'; region?: string };
+
 export type WizardAgentOption = {
   id: string;
   label: string;
@@ -122,8 +125,15 @@ export type WizardState = {
   region?: string;
   /** Who this machine is to AWS. Absent until the check has answered. */
   awsIdentity?:
-    | { available: true; accountId: string; arn: string; region?: string; profile?: string }
+    | { available: true; accountId: string; arn: string; region?: string; profile?: string; accountAlias?: string }
     | { available: false; reason: 'no-credentials' | 'rejected'; detail: string; profile?: string };
+  /**
+   * The AWS profiles on this machine (names and how they sign in, never keys) and the one picked on this page. Absent
+   * `selected`: the profile the CLI picks by itself, which `awsIdentity.profile` names.
+   */
+  awsProfiles?: { available: WizardAwsProfile[]; selected?: string };
+  /** Whether Docker answers on this machine, which a release command on an SSR site needs. Absent until checked. */
+  docker?: { available: boolean };
   /**
    * Whether this machine is signed in to Stacktape. Nothing in the wizard needs it: signed out, the deploy runs on this
    * machine's AWS credentials alone. Absent while checking. `email` and `organization` are present when the account
@@ -244,6 +254,8 @@ export type WizardState = {
   secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
   /** Saving pasted AWS keys as a profile on this machine. */
   awsKeys?: { status: 'saving' | 'saved' | 'failed'; detail?: string; profile?: string };
+  /** Secrets removed from the configuration on the Deploy step, by name, until they are put back. */
+  dismissedSecrets?: string[];
   /** Folders below the project that look like apps, offered when nothing was found here. */
   nearbyApps?: string[];
   /** What each of `nearbyApps` is written in, by folder, when its files say ("Node.js", "Go"). */
@@ -364,6 +376,10 @@ export type Session = {
   confirmSecrets: () => Promise<WizardState>;
   /** Saves pasted AWS access keys as a profile on this machine and checks the identity again. */
   saveAwsKeys: (accessKeyId: string, secretAccessKey: string) => Promise<WizardState>;
+  /** Deploys with another AWS profile on this machine. The identity and the target are checked again. */
+  setAwsProfile: (profile: string) => Promise<WizardState>;
+  /** Removes a secret from the configuration (the variables that read it), or puts it back. */
+  dismissSecret: (name: string, dismissed: boolean) => Promise<WizardState>;
   /** The text of a file the analysis read or cited, for the evidence it shows. Read-only. */
   readFile: (path: string) => Promise<FileView>;
   /** The repository's file names, for the tree the scan draws. Names only. */
@@ -610,6 +626,23 @@ export const connect = async (): Promise<Session> => {
         throw new SessionError(problem.error ?? 'The keys could not be saved.');
       }
       publish((await saved.json()) as WizardState);
+      return current;
+    },
+    setAwsProfile: async (profile) => {
+      const switched = await post('/api/aws-profile', { profile });
+      if (!switched.ok) {
+        const problem = (await switched.json().catch(() => ({}))) as { error?: string };
+        throw new SessionError(problem.error ?? 'That AWS profile could not be used.');
+      }
+      publish((await switched.json()) as WizardState);
+      return current;
+    },
+    dismissSecret: async (name, dismissed) => {
+      const changed = await post('/api/secret-dismiss', { name, dismissed });
+      if (!changed.ok) {
+        throw new SessionError(dismissed ? 'The secret could not be removed.' : 'The secret could not be put back.');
+      }
+      publish((await changed.json()) as WizardState);
       return current;
     },
     answer: async (questionId, value) => {

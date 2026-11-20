@@ -1803,7 +1803,9 @@ describe('what the page sets besides choices', () => {
     configFile?: { path: string; filename: string };
     composition?: { configText?: { yaml: string }; gaps: Array<{ subject: string }> };
     facts?: { decisions: Array<{ id: string; chosen: string }> };
-    awsIdentity?: { available: boolean };
+    awsIdentity?: { available: boolean; accountId?: string; profile?: string; accountAlias?: string };
+    awsProfiles?: { available: Array<{ name: string }>; selected?: string };
+    dismissedSecrets?: string[];
   };
   const factsFor = (overrides: Record<string, unknown> = {}): GreenfieldResult => {
     const facts = factsWith(overrides);
@@ -1959,6 +1961,106 @@ describe('what the page sets besides choices', () => {
     expect(saved.state.awsKeys).toEqual({ status: 'saved', detail: 'Saved.', profile: 'default' });
     expect(saved.state.awsIdentity?.available).toBe(true);
     expect(JSON.stringify(saved.state)).not.toContain('wJalrXUtnFEMI');
+  });
+
+  it('switches to another AWS profile on this machine, and every AWS call after it uses that profile', async () => {
+    const asked: Array<string | undefined> = [];
+    const secretProfiles: Array<string | undefined> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      awsProfiles: async () => [
+        { name: 'default', kind: 'keys' },
+        { name: 'acme-prod', kind: 'sso', region: 'us-east-1' }
+      ],
+      awsIdentity: async ({ profile }) => {
+        asked.push(profile);
+        return profile === 'acme-prod'
+          ? {
+              available: true,
+              accountId: '270988120451',
+              arn: 'arn:aws:sts::270988120451:assumed-role/AWSReservedSSO_Admin_1/dev',
+              profile,
+              accountAlias: 'acme-production'
+            }
+          : {
+              available: true,
+              accountId: '123456789012',
+              arn: 'arn:aws:iam::123456789012:user/dev',
+              profile: 'default'
+            };
+      },
+      setSecret: async ({ name, profile }) => {
+        secretProfiles.push(profile);
+        return { ok: true, detail: `Saved ${name}.` };
+      }
+    });
+    const { post } = await connect();
+    await post('/api/secret', { name: 'auth_secret', value: 'x' });
+    // Only a profile this machine has; anything else changes nothing.
+    expect((await post('/api/aws-profile', { profile: 'nobody' })).state.awsProfiles?.selected).toBeUndefined();
+    expect((await post('/api/aws-profile', { profile: 'bad name;' })).status).toBe(400);
+
+    const switched = await post('/api/aws-profile', { profile: 'acme-prod' });
+    expect(switched.state.awsProfiles?.selected).toBe('acme-prod');
+    expect(switched.state.awsIdentity).toMatchObject({ accountId: '270988120451', accountAlias: 'acme-production' });
+    expect(asked.at(-1)).toBe('acme-prod');
+    // A secret saved in the other account does not exist in this one.
+    expect(switched.state.secrets?.set).toEqual([]);
+    await post('/api/secret', { name: 'auth_secret', value: 'x' });
+    expect(secretProfiles).toEqual([undefined, 'acme-prod']);
+  });
+
+  it('removes a secret the app does not need from the configuration, and puts it back', async () => {
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor({
+        services: [
+          {
+            ...service,
+            environmentVariables: [
+              { name: 'STRIPE_SECRET_KEY', role: 'third-party-secret', required: true, evidence: [] },
+              { name: 'STRIPE_WEBHOOK_SECRET', role: 'third-party-secret', required: true, evidence: [] }
+            ]
+          }
+        ]
+      })
+    });
+    const { post } = await connect();
+    const before = await post('/api/region', { region: 'eu-west-1' });
+    expect(before.state.composition!.configText!.yaml).toContain("$Secret('stripe_webhook_secret')");
+
+    const removed = await post('/api/secret-dismiss', { name: 'stripe_webhook_secret', dismissed: true });
+    expect(removed.state.dismissedSecrets).toEqual(['stripe_webhook_secret']);
+    expect(removed.state.composition!.configText!.yaml).not.toContain('STRIPE_WEBHOOK_SECRET');
+    expect(removed.state.composition!.configText!.yaml).toContain("$Secret('stripe_secret_key')");
+    // A later recomposition keeps it out.
+    const recomposed = await post('/api/region', { region: 'us-east-1' });
+    expect(recomposed.state.composition!.configText!.yaml).not.toContain('STRIPE_WEBHOOK_SECRET');
+
+    const restored = await post('/api/secret-dismiss', { name: 'stripe_webhook_secret', dismissed: false });
+    expect(restored.state.dismissedSecrets).toBeUndefined();
+    expect(restored.state.composition!.configText!.yaml).toContain("$Secret('stripe_webhook_secret')");
+    expect((await post('/api/secret-dismiss', { name: 'x', dismissed: 'yes' })).status).toBe(400);
+  });
+
+  it('runs a Next.js site migration as its release command when that is the answer', async () => {
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor({
+        services: [{ ...service, name: 'web', framework: 'nextjs' }],
+        dependencies: [
+          { name: 'mainDatabase', kind: 'postgres', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' }
+        ],
+        migrations: [
+          { serviceName: 'web', tool: 'drizzle', command: 'npx drizzle-kit migrate', runsAt: 'unknown', evidence: [] }
+        ]
+      })
+    });
+    const { post } = await connect();
+    const after = await post('/api/answer', { id: 'migration-timing:web', value: 'release-command' });
+    expect(after.state.composition!.configText!.yaml).toContain('releaseCommand: npx drizzle-kit migrate');
+    expect(after.state.composition!.configText!.yaml).not.toContain('afterDeploy');
   });
 
   it('turns a migration nothing runs into a deploy hook with one answer', async () => {

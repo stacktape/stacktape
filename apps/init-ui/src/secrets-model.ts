@@ -32,6 +32,8 @@ export type SecretEntry = {
   canGenerate: boolean;
   /** One line about it from the analysis, for an outside service: "Your app needs a RabbitMQ broker…". */
   note?: string;
+  /** Why the app may well run without it, when it looks that way: removing it from the config is then offered first. */
+  maybeUnneeded?: string;
 };
 
 export type SecretGroup = {
@@ -183,6 +185,30 @@ const outsideNote = (state: WizardState, secretName: string): string | undefined
   return gap === undefined ? undefined : firstSentence(gap.message);
 };
 
+/** Words in a variable that name error reporting and analytics: keys the app usually runs without. */
+const MONITORING =
+  /(^|_)(SENTRY|DATADOG|NEWRELIC|NEW_RELIC|HONEYCOMB|BUGSNAG|ROLLBAR|POSTHOG|SEGMENT|MIXPANEL|AMPLITUDE|LOGROCKET)(_|$)/;
+
+/**
+ * Why the app may run without this secret, when the analysis gives a reason to think so: the code has a fallback, only a
+ * webhook handler reads it, or it is an error-reporting or analytics key. Undefined when nothing says so.
+ */
+export const maybeUnneededReason = (
+  variable: string,
+  fact: { required?: unknown } | undefined,
+  source: { file: string } | undefined
+): string | undefined => {
+  if (fact?.required === false) return 'Your code has a fallback for it.';
+  const upper = variable.toUpperCase();
+  if (/(^|_)WEBHOOKS?(_|$)/.test(upper) || (source !== undefined && /(^|\/)webhooks?(\/|\.|$)/i.test(source.file))) {
+    return 'Only webhooks need it. Leave it out until you set one up.';
+  }
+  if (MONITORING.test(upper) || /(^|_)DSN$/.test(upper)) {
+    return 'It is for error reporting or analytics. The app usually runs without it.';
+  }
+  return undefined;
+};
+
 /** "Your app needs a RabbitMQ broker, which Stacktape does not create. Use a hosted one…" → the first sentence. */
 export const firstSentence = (text: string): string => {
   const match = /^(.+?[.!?])(?:\s+(?=[A-Z`"])|$)/s.exec(text.trim());
@@ -243,13 +269,15 @@ export const planSecrets = (state: WizardState, resources: Resources): SecretsPl
           ...(from === undefined ? {} : { from }),
           entries: []
         };
+        const unneeded = maybeUnneededReason(variable, fact, source);
         group.entries.push({
           name: secretName,
           variable,
           kind,
           ...(source === undefined || kind === 'setting' ? {} : { source }),
           canGenerate: kind === 'secret' && canGenerateSecret(variable),
-          ...(note === undefined ? {} : { note })
+          ...(note === undefined ? {} : { note }),
+          ...(unneeded === undefined ? {} : { maybeUnneeded: unneeded })
         });
         groups.set(key, group);
       }
@@ -309,36 +337,8 @@ export const planSecrets = (state: WizardState, resources: Resources): SecretsPl
   };
 };
 
-/**
- * What the user does about a secret, which is how the Deploy step groups them.
- *
- * `generate`: a value only the app uses, which a random one fills. `import`: the project's `.env` has a value for it,
- * which the user checks and keeps. `provide`: a key or address from somewhere else, typed in by hand.
- */
-export type SecretTask = 'generate' | 'provide' | 'import';
-
-export type SecretTaskGroup = { task: SecretTask; entries: SecretEntry[] };
-
 /** A value from the project's `.env`, as the CLI read it for this page. */
 export type EnvironmentValues = { file: string; values: ReadonlyMap<string, string> };
-
-/**
- * The secrets by what the user does about them, in the order they do it: what one click fills, then what they type,
- * then what they check. A value the app owns is generated even when `.env` has one: the local one is a development
- * value, and a random one is stronger. An empty `.env` value is nothing to import.
- */
-export const taskGroups = (plan: SecretsPlan, environment: EnvironmentValues | undefined): SecretTaskGroup[] => {
-  const taskOf = (entry: SecretEntry): SecretTask =>
-    entry.canGenerate
-      ? 'generate'
-      : (environment?.values.get(entry.variable) ?? '').trim() !== ''
-        ? 'import'
-        : 'provide';
-  return (['generate', 'provide', 'import'] as const).flatMap((task) => {
-    const entries = plan.entries.filter((entry) => taskOf(entry) === task);
-    return entries.length === 0 ? [] : [{ task, entries }];
-  });
-};
 
 /**
  * Why a value from `.env` should not go to AWS as it is: it points at this machine (`localhost`, `ENVIRONMENT=local`),
@@ -356,63 +356,48 @@ export const localValueReason = (value: string): 'local' | 'example' | undefined
 };
 
 /**
- * The `.env` values split by whether they can go to AWS as they are: `ready` looks deployable, `review` points at this
- * machine or is a template's placeholder. Decided by the value in `.env`, so a row does not move while it is edited.
+ * What is in a row's field before it is saved, and where it came from: `random` for a value the page made up for a secret
+ * only the app uses, `env` for the project's `.env` value, `typed` for what the user typed or changed.
  */
-export const splitImports = (
-  entries: readonly SecretEntry[],
-  environment: EnvironmentValues | undefined
-): { ready: SecretEntry[]; review: SecretEntry[] } => {
-  const flagged = (entry: SecretEntry) => localValueReason(environment?.values.get(entry.variable) ?? '') !== undefined;
-  return { ready: entries.filter((entry) => !flagged(entry)), review: entries.filter(flagged) };
-};
+export type SecretDraft = { value: string; origin: 'random' | 'env' | 'typed' };
 
 /**
- * Where the `.env` group stands, which is what its "Next" asks for: `use` the values (they are not in the fields yet),
- * `save` the ready ones in one click, or `review` the ones that would deploy a local or example value.
+ * The value a row starts with. A secret only the app uses gets a strong random value, even when `.env` has one: the local
+ * one is a development value. A non-empty `.env` value fills the rest. Anything else starts empty.
  */
-export type ImportStep = { step: 'use' | 'save' | 'review'; entries: SecretEntry[] };
-
-export const importStep = (
-  remaining: readonly SecretEntry[],
+export const initialDraft = (
+  entry: SecretEntry,
   environment: EnvironmentValues | undefined,
-  imported: ReadonlySet<string>,
-  drafts: Readonly<Record<string, string>>
-): ImportStep => {
-  const unused = remaining.filter((entry) => !imported.has(entry.name));
-  if (unused.length > 0) return { step: 'use', entries: unused };
-  const { ready, review } = splitImports(remaining, environment);
-  const saveable = ready.filter((entry) => {
-    const draft = drafts[entry.name] ?? '';
-    return draft !== '' && localValueReason(draft) === undefined;
-  });
-  if (saveable.length > 0) return { step: 'save', entries: saveable };
-  return { step: 'review', entries: review.length > 0 ? review : [...remaining] };
+  random?: (bytes: Uint8Array) => Uint8Array
+): SecretDraft | undefined => {
+  if (entry.canGenerate) return { value: generateSecretValue(entry.variable, random), origin: 'random' };
+  const fromEnvironment = environment?.values.get(entry.variable) ?? '';
+  return fromEnvironment.trim() === '' ? undefined : { value: fromEnvironment, origin: 'env' };
 };
+
+/** A draft "Save" may send along with the others: something is in it, and it does not point at this machine. */
+export const isReadyDraft = (draft: SecretDraft | undefined): boolean =>
+  draft !== undefined && draft.value.trim() !== '' && localValueReason(draft.value) === undefined;
 
 const values = (count: number) => (count === 1 ? 'value' : 'values');
 
 /**
- * "Next: …" for the group the user is working in: a verb and a count, the same words as the control it points at.
- * `step` is where the `.env` group stands; without it the group's first step is assumed.
+ * "Next: …" for the secrets: what is still empty, then what came from `.env` but points at this machine, then saving
+ * the rest. A verb and a count, the same words as the control it points at.
  */
-export const taskNextText = (
-  group: SecretTaskGroup,
+export const secretsNextText = (
   remaining: readonly SecretEntry[],
-  file: string | undefined,
-  step?: ImportStep
+  drafts: Readonly<Record<string, SecretDraft | undefined>>
 ): string => {
-  if (group.task === 'generate') {
-    return remaining.length === 1 ? `generate ${remaining[0]!.variable}` : `generate ${remaining.length} secrets`;
+  const empty = remaining.filter((entry) => (drafts[entry.name]?.value ?? '').trim() === '');
+  if (empty.length === 1) return `enter ${empty[0]!.variable}`;
+  if (empty.length > 1) {
+    return empty.every((entry) => entry.kind === 'outside')
+      ? `enter ${empty.length} service URLs`
+      : `enter ${empty.length} values`;
   }
-  if (group.task === 'import') {
-    const current = step ?? { step: 'use', entries: [...remaining] };
-    const count = current.entries.length;
-    if (current.step === 'use') return `use the ${count} ${values(count)} from ${file ?? '.env'}`;
-    if (current.step === 'save') return `save ${count} ${values(count)}`;
-    return `review ${count} ${values(count)} before saving`;
-  }
-  if (remaining.length === 1) return `enter ${remaining[0]!.variable}`;
-  if (remaining.every((entry) => entry.kind === 'outside')) return `enter ${remaining.length} service URLs`;
-  return `enter ${remaining.length} values`;
+  const local = remaining.filter((entry) => !isReadyDraft(drafts[entry.name]));
+  if (local.length > 0) return `change ${local.length} local ${values(local.length)}`;
+  const secrets = remaining.every((entry) => entry.kind !== 'setting');
+  return `save ${remaining.length} ${secrets ? (remaining.length === 1 ? 'secret' : 'secrets') : values(remaining.length)}`;
 };

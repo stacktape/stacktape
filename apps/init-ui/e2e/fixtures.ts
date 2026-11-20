@@ -26,6 +26,8 @@ export type WizardScenario = {
   projectName?: string;
   secrets?: 'succeed' | 'fail';
   awsKeys?: 'succeed' | 'fail';
+  docker?: boolean;
+  singleProfile?: boolean;
 };
 
 export type ScriptedWizard = {

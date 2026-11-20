@@ -2,7 +2,7 @@ import { Button } from '@stacktape/ui-react/button';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { useState } from 'react';
 import { BiFolder, BiSearchAlt } from 'react-icons/bi';
-import { CopyableCommand } from '../components/CopyableCommand';
+import { CommandLine } from '@stacktape/ui-react/command-line';
 import { Row } from '../components/RowList';
 import type { WizardState } from '../session';
 
@@ -63,7 +63,7 @@ export function EmptyStep({
                   </span>
                 }
               >
-                <CopyableCommand command={`cd ${folder} && stacktape init`} />
+                <CommandLine command={`cd ${folder} && stacktape init`} label={`Copy the command for ${folder}`} />
               </Row>
             ))}
           </ul>
@@ -100,7 +100,7 @@ export function EmptyStep({
             width="fit"
           />
           <p className="w-starter-text">{starter.text}</p>
-          <CopyableCommand command={`stacktape init --starterId ${starter.id}`} />
+          <CommandLine command={`stacktape init --starterId ${starter.id}`} label="Copy the command" />
         </div>
       </section>
     </div>

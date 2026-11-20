@@ -7,9 +7,11 @@
  * Rails or Django first deploy ships a schema-less database.
  *
  * A container service gets a `releaseCommand`: the migration runs inside the VPC in the deployed image with the service's
- * own environment, before anything switches to the new code, and a failure stops the deploy. Everything else keeps the
- * `local-script` pattern with `connectTo`, referenced from `hooks.afterDeploy`: a function has no container image to run
- * it in, and a project's own Dockerfile may leave out a tool that is only in `devDependencies`. A public database uses
+ * own environment, before anything switches to the new code, and a failure stops the deploy. An SSR site (Next.js and the
+ * other `*-web` types) gets one only when the user chose `release-command`: Stacktape then builds an image of the whole
+ * project for the command, which needs Docker on the machine that deploys, so it is never assumed. Everything else keeps
+ * the `local-script` pattern with `connectTo`, referenced from `hooks.afterDeploy`: a function has no container image to
+ * run it in, and a project's own Dockerfile may leave out a tool that is only in `devDependencies`. A public database uses
  * `local-script`. A VPC-only database uses `local-script-with-bastion-tunneling`, keeping the same reviewed command and
  * environment while the CLI substitutes its remote database endpoints with local SSM tunnel endpoints.
  *
@@ -22,7 +24,8 @@
  *   visibly, in a file the user reviews.
  * - **Timing is the user's decision.** An observed release phase (`runsAt: 'ci'`) is proof the
  *   project already migrates on deploy. Anything else emits only when the migration-timing
- *   decision resolved to `deploy-hook` — a `manual` or `service-startup` answer means no hook.
+ *   decision resolved to `deploy-hook` or `release-command` — a `manual` or `service-startup`
+ *   answer means no hook.
  */
 
 import { posix } from 'node:path';
@@ -100,6 +103,15 @@ export type ReleaseCommandTarget = {
   servicePath: string;
 };
 
+/**
+ * A resource whose release command runs in an image of the whole project that Stacktape builds for it (an SSR site),
+ * from the project root. Absent for anything that cannot have one.
+ */
+export type ReleaseTaskTarget = {
+  /** Where the service's code is, and so where its migration tool runs unless the migration says otherwise. */
+  servicePath: string;
+};
+
 export type ComposedReleaseCommand = string | { command: string; runWhenChanged: string[] };
 
 export type ComposedMigrationHooks = {
@@ -133,15 +145,26 @@ const commandInImage = (migration: MigrationFact, target: ReleaseCommandTarget):
   return directory === '' ? migration.command : `cd ${directory} && ${migration.command}`;
 };
 
-const shouldRunOnDeploy = (migration: MigrationFact, assumptions: readonly Assumption[]): boolean => {
-  // The application migrates itself on boot; adding a hook would run the migration twice.
-  if (migration.runsAt === 'service-startup') return false;
-  const decision = assumptions.find(
+/** The command as it runs from the project root, in an image of the whole project. */
+const commandInProjectImage = (migration: MigrationFact, target: ReleaseTaskTarget): string | undefined => {
+  const directory = posix.relative('.', migration.directory ?? target.servicePath);
+  if (directory.startsWith('..')) return undefined;
+  return directory === '' ? migration.command : `cd ${directory} && ${migration.command}`;
+};
+
+/** What the user chose for when this migration runs, when they were asked. */
+const timingOf = (migration: MigrationFact, assumptions: readonly Assumption[]): string | undefined =>
+  assumptions.find(
     (assumption) =>
       assumption.kind === 'migration-timing-unknown' &&
       (assumption.parameters as Record<string, unknown>).serviceName === migration.serviceName
-  );
-  if (decision !== undefined) return decision.chosen === 'deploy-hook';
+  )?.chosen;
+
+const shouldRunOnDeploy = (migration: MigrationFact, assumptions: readonly Assumption[]): boolean => {
+  // The application migrates itself on boot; adding a hook would run the migration twice.
+  if (migration.runsAt === 'service-startup') return false;
+  const chosen = timingOf(migration, assumptions);
+  if (chosen !== undefined) return chosen === 'deploy-hook' || chosen === 'release-command';
   // A Procfile release phase is the repository saying, in its own words, "run this on deploy".
   return migration.runsAt === 'ci';
 };
@@ -192,7 +215,8 @@ export const composeMigrationHooks = ({
   privateDatabaseResourceNames = new Set<string>(),
   bastionResourceName,
   serviceResourceNames,
-  releaseCommandTargetOf = () => undefined
+  releaseCommandTargetOf = () => undefined,
+  releaseTaskTargetOf = () => undefined
 }: {
   migrations: readonly MigrationFact[];
   services: readonly ServiceFact[];
@@ -205,6 +229,8 @@ export const composeMigrationHooks = ({
   /** The config's name for each service, which is what an item tells the user to edit. */
   serviceResourceNames?: ReadonlyMap<string, string>;
   releaseCommandTargetOf?: (service: ServiceFact) => ReleaseCommandTarget | undefined;
+  /** For a resource whose release command runs in a project image Stacktape builds: an SSR site. */
+  releaseTaskTargetOf?: (service: ServiceFact) => ReleaseTaskTarget | undefined;
 }): ComposedMigrationHooks => {
   const releaseCommands = new Map<string, ComposedReleaseCommand>();
   /** A web service and a worker that share one database and one tool migrate it once. */
@@ -254,7 +280,17 @@ export const composeMigrationHooks = ({
 
     const owner = services.find((service) => service.name === migration.serviceName);
     const target = owner === undefined ? undefined : releaseCommandTargetOf(owner);
-    const command = target === undefined ? undefined : commandInImage(migration, target);
+    // An SSR site runs it as a release command only when the user chose that: its image needs Docker to build.
+    const taskTarget =
+      owner === undefined || timingOf(migration, assumptions) !== 'release-command'
+        ? undefined
+        : releaseTaskTargetOf(owner);
+    const command =
+      target !== undefined
+        ? commandInImage(migration, target)
+        : taskTarget === undefined
+          ? undefined
+          : commandInProjectImage(migration, taskTarget);
     if (command !== undefined) {
       const sameMigration = JSON.stringify([
         command,

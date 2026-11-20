@@ -5,7 +5,7 @@ import { Spinner } from '@stacktape/ui-react/spinner';
 import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BiBot, BiCheck, BiChevronRight, BiCodeAlt, BiCopy, BiInfoCircle, BiLinkExternal, BiX } from 'react-icons/bi';
 import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
-import { CopyableCommand } from '../components/CopyableCommand';
+import { CommandLine } from '@stacktape/ui-react/command-line';
 import { FailureExplanationText } from '../components/FailureExplanation';
 import { InfoTip } from '../components/InfoTip';
 import { PipelineCard } from '../components/PipelineCard';
@@ -516,7 +516,7 @@ export function LiveStep({
           icon={<BiCodeAlt size={17} />}
           title="Ship a change"
         >
-          <CopyableCommand command={stackCommand('deploy', target)} />
+          <CommandLine command={stackCommand('deploy', target)} fill label="Copy the deploy command" />
         </Row>
       </ul>
 
@@ -575,7 +575,7 @@ export function LiveStep({
             {showRemoval ? 'Hide the command' : 'Show the command'}
           </button>
         </div>
-        {showRemoval && <CopyableCommand command={stackCommand('delete', target)} />}
+        {showRemoval && <CommandLine command={stackCommand('delete', target)} fill label="Copy the delete command" />}
       </section>
     </div>
   );
@@ -675,7 +675,7 @@ function CodingAgentRow({
       {status === 'failed' && (
         <>
           <p className="w-error-text">{detail}</p>
-          <CopyableCommand command={command} />
+          <CommandLine command={command} fill label="Copy the command" />
         </>
       )}
     </Row>
@@ -920,7 +920,7 @@ export function DeployFailedStep({
       {deployment.keptPartialProgress === true && (
         <section className="mt-8">
           <h2 className="w-section-title">Or put the stack back</h2>
-          <CopyableCommand command={stackCommand('stack recover', target)} />
+          <CommandLine command={stackCommand('stack recover', target)} fill label="Copy the recover command" />
         </section>
       )}
     </div>

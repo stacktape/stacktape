@@ -67,8 +67,16 @@ export type WizardAwsIdentity =
       region?: string;
       /** The AWS profile these credentials came from, when one was selected rather than environment variables. */
       profile?: string;
+      /** The account's alias (IAM account alias), the name people know it by, when the credentials may read it. */
+      accountAlias?: string;
     }
   | { available: false; reason: 'no-credentials' | 'rejected'; detail: string; profile?: string };
+
+/**
+ * An AWS profile on this machine, by name, as `~/.aws/config` and `~/.aws/credentials` declare it. Never its keys: `kind`
+ * says only how it signs in, so the page can say "SSO" or "access key" beside the name.
+ */
+export type WizardAwsProfile = { name: string; kind: 'sso' | 'keys' | 'role' | 'other'; region?: string };
 
 /**
  * The Stacktape Console, after a successful deploy.
@@ -186,6 +194,17 @@ export type WizardState = {
   /** Who this machine is to AWS, resolved before the deploy step offers a button. */
   awsIdentity?: WizardAwsIdentity;
   /**
+   * The AWS profiles on this machine and the one the wizard uses. `selected` is absent while the wizard uses the profile
+   * the CLI would pick by itself (`AWS_PROFILE`, the Stacktape default, else `default`), which `awsIdentity.profile`
+   * names. Absent when profiles cannot be listed or switched here.
+   */
+  awsProfiles?: { available: WizardAwsProfile[]; selected?: string };
+  /**
+   * Whether Docker answers on this machine. A release command on an SSR site builds an image, so the page offers it as
+   * the migration runner only when it does. Absent until checked.
+   */
+  docker?: { available: boolean };
+  /**
    * Whether this machine is signed in to Stacktape. Neither generating nor deploying needs it: signed out, the deploy
    * runs on this machine's AWS credentials alone. Absent while checking.
    *
@@ -245,6 +264,11 @@ export type WizardState = {
   configEdit?: { yaml: string; error?: string };
   /** Secrets set from the page in this session, by name, and whether the user said the rest already exist. */
   secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
+  /**
+   * Secrets the user removed from the configuration on the Deploy step, by name: the variables that read them are gone
+   * from the file, until they are put back.
+   */
+  dismissedSecrets?: string[];
   /** Saving pasted AWS access keys as a profile on this machine. Never carries the keys. */
   awsKeys?: { status: 'saving' | 'saved' | 'failed'; detail?: string; profile?: string };
   /** Folders below the project that look like apps of their own, for an analysis that found nothing to run. */
@@ -332,6 +356,13 @@ export type WizardServerHooks = {
   onSecretsConfirmed?: () => Promise<WizardState> | WizardState;
   /** Saves pasted AWS access keys as a profile on this machine, then checks the identity again. */
   onAwsKeys?: (input: { accessKeyId: string; secretAccessKey: string }) => Promise<WizardState> | WizardState;
+  /** Deploys with another AWS profile on this machine: checks who it is, then the target again. */
+  onAwsProfile?: (profile: string) => Promise<WizardState> | WizardState;
+  /**
+   * Removes a secret the app does not need from the configuration (its variables and their `$Secret` references), or
+   * puts it back. Refused while the file is edited by hand.
+   */
+  onDismissSecret?: (input: { name: string; dismissed: boolean }) => Promise<WizardState> | WizardState;
   /**
    * The text of a repository file this session has seen (see `file-view.ts`), for the page's code window. Absent when
    * the session has no repository on disk to read.
@@ -1082,6 +1113,47 @@ export const startWizardServer = async ({
             200,
             await hooks.onAwsKeys({ accessKeyId: body.accessKeyId, secretAccessKey: body.secretAccessKey })
           );
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/aws-profile' && request.method === 'POST' && hooks.onAwsProfile !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { profile?: unknown };
+          // Only a name the session listed is used; the shape check keeps anything else out of an argument list.
+          if (typeof body.profile !== 'string' || !/^[A-Za-z0-9_.+=@-]{1,128}$/.test(body.profile)) {
+            json(response, 400, { error: 'Expected the name of an AWS profile on this machine.' });
+            return;
+          }
+          json(response, 200, await hooks.onAwsProfile(body.profile));
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/secret-dismiss' && request.method === 'POST' && hooks.onDismissSecret !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { name?: unknown; dismissed?: unknown };
+          if (
+            typeof body.name !== 'string' ||
+            !/^[A-Za-z0-9_./+=@-]{1,256}$/.test(body.name) ||
+            typeof body.dismissed !== 'boolean'
+          ) {
+            json(response, 400, { error: 'Expected a secret name and whether to remove it.' });
+            return;
+          }
+          json(response, 200, await hooks.onDismissSecret({ name: body.name, dismissed: body.dismissed }));
         } catch {
           json(response, 400, { error: 'Bad request.' });
         }

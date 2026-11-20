@@ -23,7 +23,8 @@ import { setUpCodingAgents } from '@domain-services/coding-agent-setup/setup';
 import { resolveAwsIdentity } from './deploy/credentials';
 import { setSecretWithCli } from './deploy/set-secret';
 import { findNearbyApps } from './nearby-apps';
-import { upsertAwsProfile } from '@utils/aws-config';
+import { getAwsProfileDescriptions, upsertAwsProfile } from '@utils/aws-config';
+import { isDockerRunning } from '@utils/docker';
 import { CONFIG_SCHEMA_PATH } from '../config/project-paths';
 import { connectConsole, resolveStacktapeAccount } from './deploy/stacktape-account';
 import {
@@ -539,11 +540,14 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             return repaired;
           }
         }),
-    awsIdentity: () =>
+    // A profile picked on the page wins over the one this run started with, for every AWS call below.
+    awsIdentity: ({ profile }) =>
       resolveAwsIdentity({
         region: regionForNewConfig(options.machineRegion),
-        ...(options.awsProfile === undefined ? {} : { profile: options.awsProfile })
+        ...((profile ?? options.awsProfile) === undefined ? {} : { profile: profile ?? options.awsProfile })
       }),
+    awsProfiles: () => getAwsProfileDescriptions(),
+    dockerAvailable: () => isDockerRunning(),
     machineRegion: regionForNewConfig(options.machineRegion),
     stacktapeAccount: () => resolveStacktapeAccount(),
     ...(options.signIn === undefined ? {} : { signIn: options.signIn, connectConsole: () => connectConsole() }),
@@ -610,7 +614,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         };
       }
     },
-    inspectDeployTarget: async ({ configFile, stage, region }) => {
+    inspectDeployTarget: async ({ configFile, stage, region, profile }) => {
       const controller = new AbortController();
       const finished = inspectDeployTarget({
         request: {
@@ -619,6 +623,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
           projectName,
           stage,
           region,
+          ...(profile === undefined ? {} : { profile }),
           ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
         },
         signal: controller.signal
@@ -635,6 +640,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       configFile,
       stage,
       region,
+      profile,
       keepPartialProgress,
       targetExpectation,
       urlResourceNames,
@@ -649,6 +655,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         stage,
         region,
         projectName,
+        ...(profile === undefined ? {} : { profile }),
         ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
         ...(targetExpectation === undefined ? {} : { targetExpectation }),
         ...(keepPartialProgress === true ? { keepPartialProgress: true } : {})
@@ -703,6 +710,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
                 stage,
                 region,
                 resourceName,
+                ...(profile === undefined ? {} : { profile }),
                 ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
               }
             });
@@ -717,17 +725,17 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     },
     ...(bundle === undefined ? {} : { staticRoot: bundle }),
     ...(configSchemaPath === undefined ? {} : { configSchemaPath }),
-    setSecret: ({ name, value, region }) =>
+    setSecret: ({ name, value, region, profile }) =>
       setSecretWithCli({
         name,
         value,
         region,
-        ...(options.awsProfile === undefined ? {} : { profile: options.awsProfile }),
+        ...((profile ?? options.awsProfile) === undefined ? {} : { profile: profile ?? options.awsProfile }),
         ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
       }),
     // The profile the deploy would use, or `default` when there is none: the profile the AWS chain reads first.
-    createAwsProfile: async ({ accessKeyId, secretAccessKey }) => {
-      const profile = options.awsProfile ?? 'default';
+    createAwsProfile: async ({ accessKeyId, secretAccessKey, profile: picked }) => {
+      const profile = picked ?? options.awsProfile ?? 'default';
       await upsertAwsProfile(profile, accessKeyId, secretAccessKey);
       say(`\nSaved AWS access keys as profile ${profile}.`);
       return { ok: true, profile, detail: `Saved as AWS profile ${profile} in ~/.aws/credentials.` };

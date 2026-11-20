@@ -57,6 +57,10 @@ export type WizardFixtureScenario = {
   secrets?: 'succeed' | 'fail';
   /** What saving pasted AWS keys does; after a success the identity check finds the account. */
   awsKeys?: 'succeed' | 'fail';
+  /** Whether Docker answers on this machine (the release command of an SSR site needs it). Defaults to true. */
+  docker?: boolean;
+  /** Only the `default` profile on this machine, instead of three to switch between. */
+  singleProfile?: boolean;
 };
 
 // Wrapped rather than top-level awaits: the CLI's TypeScript settings do not allow them in scripts.
@@ -304,6 +308,32 @@ const main = async () => {
   }
 
   const ACCOUNT_ID = '481516234200';
+  /** The AWS profiles on this machine: each its own account, as a developer with a work and a personal login has. */
+  const PROFILES = [
+    {
+      name: 'default',
+      kind: 'keys',
+      region: 'eu-west-1',
+      accountId: ACCOUNT_ID,
+      accountAlias: 'acme-dev',
+      arn: `arn:aws:iam::${ACCOUNT_ID}:user/dev`
+    },
+    {
+      name: 'acme-prod',
+      kind: 'sso',
+      region: 'us-east-1',
+      accountId: '270988120451',
+      accountAlias: 'acme-production',
+      arn: 'arn:aws:sts::270988120451:assumed-role/AWSReservedSSO_AdministratorAccess_5f3c2a1b/dev@acme.io'
+    },
+    {
+      name: 'personal',
+      kind: 'keys',
+      accountId: '112233445566',
+      arn: 'arn:aws:iam::112233445566:user/sam'
+    }
+  ] as const;
+  const profileNamed = (name: string | undefined) => PROFILES.find((entry) => entry.name === (name ?? 'default'))!;
   const AGENT_VERSIONS = { 'claude-code': '2.1.296 (Claude Code)', codex: 'codex-cli 0.98.0' } as const;
   /** Timeline entries as `toTimelineEntry` labels a Claude Code session's tool calls: the tool, then its path or pattern. */
   const SCAN_TIMELINE: Array<{ kind: string; label: string }> = recordedFiles?.timeline ?? [
@@ -515,24 +545,38 @@ const main = async () => {
       scenario.aws = 'available';
       return { ok: true, profile: 'default', detail: 'Saved as AWS profile default in ~/.aws/credentials.' };
     },
-    awsIdentity: async () => {
+    // A machine without credentials has no AWS files either, so no profiles.
+    awsProfiles: async () =>
+      (scenario.aws === 'no-credentials' ? [] : scenario.singleProfile === true ? PROFILES.slice(0, 1) : PROFILES).map(
+        ({ name, kind, ...rest }) => ({
+          name,
+          kind,
+          ...('region' in rest ? { region: rest.region } : {})
+        })
+      ),
+    dockerAvailable: async () => scenario.docker !== false,
+    awsIdentity: async ({ profile }) => {
       await sleep(150);
       if (scenario.aws === 'no-credentials') {
         return { available: false, reason: 'no-credentials', detail: 'No AWS credentials were found on this machine.' };
       }
-      if (scenario.aws === 'rejected') {
+      // Only the default profile's session expired; another profile still works.
+      if (scenario.aws === 'rejected' && (profile === undefined || profile === 'default')) {
         return {
           available: false,
           reason: 'rejected',
-          detail: 'The security token included in the request is expired.'
+          detail: 'The security token included in the request is expired.',
+          profile: 'default'
         };
       }
+      const picked = profileNamed(profile);
       return {
         available: true,
-        accountId: ACCOUNT_ID,
-        arn: `arn:aws:iam::${ACCOUNT_ID}:user/dev`,
+        accountId: picked.accountId,
+        arn: picked.arn,
         region: 'eu-west-1',
-        profile: 'default'
+        profile: picked.name,
+        ...('accountAlias' in picked ? { accountAlias: picked.accountAlias } : {})
       };
     },
     stacktapeAccount: async () => {
@@ -598,11 +642,11 @@ const main = async () => {
           : { ok: true, detail: 'Restart Claude Code so it loads the Stacktape tools.' };
       }
     },
-    inspectDeployTarget: async ({ stage, region }) => {
+    inspectDeployTarget: async ({ stage, region, profile }) => {
       await sleep(250);
       const identity = {
         schemaVersion: INIT_TARGET_SCHEMA_VERSION,
-        accountId: ACCOUNT_ID,
+        accountId: profileNamed(profile).accountId,
         stackName: getStackName(projectName, stage),
         projectName,
         stage,
@@ -613,7 +657,7 @@ const main = async () => {
         return {
           ...identity,
           status: 'updateable',
-          stackId: `arn:aws:cloudformation:${region}:${ACCOUNT_ID}:stack/${identity.stackName}/0b6f7a10-5d2e-11f1-9c1e-0a1b2c3d4e5f`,
+          stackId: `arn:aws:cloudformation:${region}:${identity.accountId}:stack/${identity.stackName}/0b6f7a10-5d2e-11f1-9c1e-0a1b2c3d4e5f`,
           stackStatus: 'UPDATE_COMPLETE'
         };
       }
@@ -622,10 +666,19 @@ const main = async () => {
       }
       return { ...identity, status: 'absent' };
     },
-    deploy: async ({ configFile, stage, region, onEvent, onCommand }) => {
+    deploy: async ({ configFile, stage, region, profile, onEvent, onCommand }) => {
       // Signed out, the deploy runs on AWS credentials alone and gets AWS addresses, not Stacktape default domains.
       const accountFree = scenario.account === 'signed-out' || scenario.account === 'no-page-sign-in';
-      onCommand(deployCommandLine({ repositoryRoot, configPath: configFile.filename, stage, region, projectName }));
+      onCommand(
+        deployCommandLine({
+          repositoryRoot,
+          configPath: configFile.filename,
+          stage,
+          region,
+          projectName,
+          ...(profile === undefined ? {} : { profile })
+        })
+      );
       const resources = Object.entries(
         composeConfig({ facts, projectName, engineVersions: versionJson.rds }).config.resources
       );

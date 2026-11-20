@@ -42,6 +42,7 @@ import {
   startWizardServer,
   type WizardAgentOption,
   type WizardAwsIdentity,
+  type WizardAwsProfile,
   type WizardDeployment,
   type WizardServer,
   type WizardState,
@@ -84,6 +85,43 @@ const PUBLIC_URL_RESOURCE_TYPES: ReadonlySet<string> = new Set([
   'application-load-balancer'
 ]);
 
+const SECRET_REFERENCE = /\$Secret\('([^'.]+)(?:\.[^']*)?'\)/g;
+
+/**
+ * The composition without the variables that read secrets the user removed on the Deploy step: every `environment`
+ * entry whose value references one, wherever it sits (a resource, a container, a script). Nothing else changes, so the
+ * same facts and decisions with the same removals always give the same file.
+ */
+export const withoutDismissedSecrets = (
+  composition: CompositionResult,
+  dismissed: ReadonlySet<string>
+): CompositionResult => {
+  if (dismissed.size === 0) return composition;
+  const readsDismissed = (value: unknown): boolean =>
+    typeof value === 'string' && [...value.matchAll(SECRET_REFERENCE)].some((match) => dismissed.has(match[1]!));
+  const strip = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(strip);
+    if (typeof node !== 'object' || node === null) return node;
+    return Object.fromEntries(
+      Object.entries(node).flatMap(([key, value]) => {
+        if (key === 'environment' && Array.isArray(value)) {
+          const kept = value.filter(
+            (entry) =>
+              !(typeof entry === 'object' && entry !== null && readsDismissed((entry as { value?: unknown }).value))
+          );
+          return kept.length === 0 ? [] : [[key, kept.map(strip)]];
+        }
+        if (key === 'environment' && typeof value === 'object' && value !== null) {
+          const kept = Object.entries(value).filter(([, entry]) => !readsDismissed(entry));
+          return kept.length === 0 ? [] : [[key, Object.fromEntries(kept)]];
+        }
+        return [[key, strip(value)]];
+      })
+    );
+  };
+  return { ...composition, config: strip(composition.config) as CompositionResult['config'] };
+};
+
 /** Which top-level resources differ between two compositions — added, removed, or rewritten. */
 const changedResourceNames = (before: CompositionResult | undefined, after: CompositionResult): string[] => {
   const beforeResources: Record<string, unknown> = before?.config.resources ?? {};
@@ -123,6 +161,8 @@ export const startWizardSession = async ({
   verify,
   repair,
   awsIdentity,
+  awsProfiles,
+  dockerAvailable,
   machineRegion,
   stacktapeAccount,
   signIn,
@@ -195,6 +235,8 @@ export const startWizardSession = async ({
     configFile: { path: string; filename: string };
     stage: string;
     region: string;
+    /** The AWS profile the user picked on the page; absent for the one the CLI picks by itself. */
+    profile?: string;
     /**
      * Keep whatever was created when this attempt fails.
      *
@@ -218,6 +260,8 @@ export const startWizardSession = async ({
     configFile: { path: string; filename: string };
     stage: string;
     region: string;
+    /** The AWS profile the user picked on the page; absent for the one the CLI picks by itself. */
+    profile?: string;
   }) => Promise<DeployTargetObservation | undefined>;
   /**
    * Tries the composed services on this machine — build them, start them, watch what happens.
@@ -241,8 +285,15 @@ export const startWizardSession = async ({
     failure: DeployFailure;
     onProgress: (entry: { kind: string; label: string }) => void;
   }) => Promise<{ facts: ProjectFacts; composition: CompositionResult; changed: boolean }>;
-  /** Resolves who this machine is to AWS. Awaited lazily, so a slow answer never delays the page. */
-  awsIdentity?: () => Promise<WizardAwsIdentity>;
+  /**
+   * Resolves who this machine is to AWS, with the profile the user picked on the page, or the one the CLI picks by
+   * itself. Awaited lazily, so a slow answer never delays the page.
+   */
+  awsIdentity?: (input: { profile?: string }) => Promise<WizardAwsIdentity>;
+  /** The AWS profiles on this machine, by name and how they sign in. Absent, the page cannot switch profiles. */
+  awsProfiles?: () => Promise<WizardAwsProfile[]>;
+  /** Whether Docker answers on this machine, for the release command an SSR site builds an image for. */
+  dockerAvailable?: () => Promise<boolean>;
   /**
    * The region this machine's AWS setup names, resolved the way the CLI resolves it (`AWS_DEFAULT_REGION`,
    * `AWS_REGION`, the machine-wide Stacktape default, the AWS profile). The file declares it unless the user picks
@@ -299,7 +350,13 @@ export const startWizardSession = async ({
    * Stores one secret in the user's AWS account the way `stacktape secret set` does. The value goes to that command
    * and nowhere else: not to the state, not to a log, not to Stacktape. Absent, the page shows the commands instead.
    */
-  setSecret?: (input: { name: string; value: string; region: string }) => Promise<{ ok: boolean; detail: string }>;
+  setSecret?: (input: {
+    name: string;
+    value: string;
+    region: string;
+    /** The AWS profile the user picked on the page; absent for the one the CLI picks by itself. */
+    profile?: string;
+  }) => Promise<{ ok: boolean; detail: string }>;
   /**
    * Saves pasted AWS access keys as a profile on this machine, like `stacktape aws-profile:create`, and says which
    * profile it wrote. The identity is checked again afterwards. Absent, the page explains the terminal way only.
@@ -307,6 +364,8 @@ export const startWizardSession = async ({
   createAwsProfile?: (input: {
     accessKeyId: string;
     secretAccessKey: string;
+    /** The profile picked on the page, which the keys are saved as; absent for the one the CLI picks by itself. */
+    profile?: string;
   }) => Promise<{ ok: boolean; detail: string; profile?: string }>;
   /** Folders below the project that look like apps of their own, offered when the analysis finds nothing to run. */
   nearbyApps?: string[];
@@ -390,13 +449,16 @@ export const startWizardSession = async ({
     );
     const priced = await Promise.all(
       alternatives.map(async ({ key, value }) => {
-        const alternative = composeConfig({
-          facts: currentFacts,
-          projectName,
-          preferences: { ...current.preferences, [key]: value },
-          decisions: answers,
-          engineVersions: versionJson.rds
-        });
+        const alternative = withoutDismissedSecrets(
+          composeConfig({
+            facts: currentFacts,
+            projectName,
+            preferences: { ...current.preferences, [key]: value },
+            decisions: answers,
+            engineVersions: versionJson.rds
+          }),
+          dismissedSecrets
+        );
         const yaml = renderYaml(alternative);
         if (yaml === baseYaml) return { key, value, delta: 0 };
         const estimate = await estimateMonthlyCost(yaml, region);
@@ -426,13 +488,16 @@ export const startWizardSession = async ({
         .every(
           (value) =>
             renderYaml(
-              composeConfig({
-                facts: currentFacts,
-                projectName,
-                preferences: { ...current.preferences, [key]: value },
-                decisions: answers,
-                engineVersions: versionJson.rds
-              })
+              withoutDismissedSecrets(
+                composeConfig({
+                  facts: currentFacts,
+                  projectName,
+                  preferences: { ...current.preferences, [key]: value },
+                  decisions: answers,
+                  engineVersions: versionJson.rds
+                }),
+                dismissedSecrets
+              )
             ) === baseYaml
         )
     );
@@ -452,7 +517,9 @@ export const startWizardSession = async ({
    * YAML is rendered inline because it is a string join; the TypeScript rendering runs Prettier, so
    * it arrives a beat later, like the price.
    */
-  const adoptComposition = (next: NonNullable<typeof composition>): void => {
+  const adoptComposition = (adopted: NonNullable<typeof composition>): void => {
+    // Whatever produced it (an answer, a repair), the secrets the user removed stay removed.
+    const next = withoutDismissedSecrets(adopted, dismissedSecrets);
     composition = next;
     // A different configuration is a different thing to prove. Results earned against the old one
     // must neither gate nor vouch for the new one. The file on disk is another derivative: keeping
@@ -532,6 +599,15 @@ export const startWizardSession = async ({
   let mode: InfrastructureMode | undefined = initialMode;
   let verification: WizardVerification | undefined;
   const answers: Record<string, string> = {};
+  /** The AWS profile the user picked on the page. Absent: the one the CLI picks by itself. */
+  let selectedProfile: string | undefined;
+  /** The profiles on this machine, listed once and again on a recheck. */
+  let profiles: WizardAwsProfile[] | undefined;
+  let docker: boolean | undefined;
+  /** Secrets the user removed from the configuration on the Deploy step, by name. */
+  const dismissedSecrets = new Set<string>();
+  /** The profile flag every AWS call from here passes, so the page, the target check and the deploy agree. */
+  const profileInput = (): { profile?: string } => (selectedProfile === undefined ? {} : { profile: selectedProfile });
 
   /**
    * Whether the local try-out holds the deploy button.
@@ -701,6 +777,12 @@ export const startWizardSession = async ({
     ...(configFile === undefined ? {} : { configFile }),
     region: declaredRegion(),
     ...(identity === undefined ? {} : { awsIdentity: identity }),
+    ...(profiles === undefined || profiles.length === 0
+      ? {}
+      : {
+          awsProfiles: { available: profiles, ...(selectedProfile === undefined ? {} : { selected: selectedProfile }) }
+        }),
+    ...(docker === undefined ? {} : { docker: { available: docker } }),
     ...(account === undefined ? {} : { stacktapeAccount: account }),
     // Only while signed out: once the account check passes there is no step left to render.
     ...(signInFlow === undefined || account?.signedIn === true ? {} : { signIn: signInFlow.state() }),
@@ -727,6 +809,7 @@ export const startWizardSession = async ({
           }
         }),
     ...(awsKeys === undefined ? {} : { awsKeys }),
+    ...(dismissedSecrets.size === 0 ? {} : { dismissedSecrets: [...dismissedSecrets] }),
     ...(nearbyApps === undefined || nearbyApps.length === 0 ? {} : { nearbyApps }),
     ...(nearbyAppKinds === undefined || Object.keys(nearbyAppKinds).length === 0 ? {} : { nearbyAppKinds }),
     ...codingAgentSetupState(),
@@ -790,12 +873,30 @@ export const startWizardSession = async ({
   /** Ask AWS who this machine is, again if asked: a failure to ask is a failure to answer. */
   const resolveIdentity = async (): Promise<void> => {
     if (awsIdentity === undefined) return;
+    const asked = selectedProfile;
+    let answer: WizardAwsIdentity;
     try {
-      identity = await awsIdentity();
+      answer = await awsIdentity(profileInput());
     } catch {
-      identity = { available: false, reason: 'rejected', detail: 'Could not check AWS credentials.' };
+      answer = { available: false, reason: 'rejected', detail: 'Could not check AWS credentials.' };
     }
+    // Another profile was picked while this one was asked about: its own check publishes.
+    if (asked !== selectedProfile) return;
+    identity = answer;
     followDeclaredRegion();
+    publish(buildState());
+  };
+
+  /** The profiles on this machine, for the page's profile picker. Names and kinds only. */
+  const resolveProfiles = async (): Promise<void> => {
+    if (awsProfiles === undefined) return;
+    profiles = await awsProfiles().catch(() => undefined);
+    publish(buildState());
+  };
+
+  const resolveDocker = async (): Promise<void> => {
+    if (dockerAvailable === undefined) return;
+    docker = await dockerAvailable().catch(() => false);
     publish(buildState());
   };
 
@@ -872,7 +973,7 @@ export const startWizardSession = async ({
         account = undefined;
         deployTarget = undefined;
         publish(buildState());
-        await Promise.all([resolveIdentity(), resolveAccount()]);
+        await Promise.all([resolveIdentity(), resolveAccount(), resolveProfiles(), resolveDocker()]);
         return buildState();
       },
       onStart: (requested) => {
@@ -962,9 +1063,12 @@ export const startWizardSession = async ({
         let targetExpectation: DeployTargetExpectation | undefined;
         if (inspectDeployTarget !== undefined) {
           checkingDeployTarget = true;
-          const observed = await inspectDeployTarget({ configFile: reviewedConfigFile, stage, region }).catch(
-            () => undefined
-          );
+          const observed = await inspectDeployTarget({
+            configFile: reviewedConfigFile,
+            stage,
+            region,
+            ...profileInput()
+          }).catch(() => undefined);
           checkingDeployTarget = false;
           // A target approval is for the configuration on screen when the check began. A concurrent
           // mode/decision/write request invalidates it even if account and stack name stayed equal.
@@ -1063,6 +1167,7 @@ export const startWizardSession = async ({
               configFile: configFile!,
               stage,
               region,
+              ...profileInput(),
               ...(targetExpectation === undefined ? {} : { targetExpectation }),
               urlResourceNames:
                 composition === undefined
@@ -1428,10 +1533,12 @@ export const startWizardSession = async ({
       },
       onSecret: async ({ name, value }) => {
         if (setSecret === undefined) return buildState();
-        const outcome = await setSecret({ name, value, region: declaredRegion() }).catch((error: unknown) => ({
-          ok: false,
-          detail: error instanceof Error ? error.message : 'The secret could not be saved.'
-        }));
+        const outcome = await setSecret({ name, value, region: declaredRegion(), ...profileInput() }).catch(
+          (error: unknown) => ({
+            ok: false,
+            detail: error instanceof Error ? error.message : 'The secret could not be saved.'
+          })
+        );
         if (outcome.ok) {
           secretsSet.add(name);
           if (secretFailure?.name === name) secretFailure = undefined;
@@ -1448,7 +1555,7 @@ export const startWizardSession = async ({
         if (createAwsProfile === undefined) return buildState();
         awsKeys = { status: 'saving' };
         publish(buildState());
-        const outcome = await createAwsProfile(keys).catch((error: unknown) => ({
+        const outcome = await createAwsProfile({ ...keys, ...profileInput() }).catch((error: unknown) => ({
           ok: false,
           detail: error instanceof Error ? error.message : 'The keys could not be saved.',
           profile: undefined
@@ -1462,8 +1569,47 @@ export const startWizardSession = async ({
           identity = undefined;
           deployTarget = undefined;
           publish(buildState());
-          await resolveIdentity();
+          await Promise.all([resolveIdentity(), resolveProfiles()]);
         }
+        return publishNow();
+      },
+      onAwsProfile: async (profile) => {
+        // Only a profile this machine has, and never under a running deploy: it reads the profile it started with.
+        if (profiles?.some((entry) => entry.name === profile) !== true || deploymentInFlight()) return buildState();
+        const current = selectedProfile ?? (identity === undefined ? undefined : identity.profile);
+        if (profile === current) return buildState();
+        selectedProfile = profile;
+        // Everything learned with the old credentials belongs to the old account: who it is, the stack there, and which
+        // secrets exist in it.
+        identity = undefined;
+        deployTarget = undefined;
+        secretsSet.clear();
+        secretsConfirmed = false;
+        secretFailure = undefined;
+        awsKeys = undefined;
+        publish(buildState());
+        await resolveIdentity();
+        return publishNow();
+      },
+      onDismissSecret: ({ name, dismissed }) => {
+        // A hand-edited file is the user's own: they remove a variable there. Nor is the file changed under a deploy.
+        if (facts === undefined || composition === undefined || configEdit !== undefined || deploymentInFlight()) {
+          return buildState();
+        }
+        if (dismissed === dismissedSecrets.has(name)) return buildState();
+        if (dismissed) dismissedSecrets.add(name);
+        else dismissedSecrets.delete(name);
+        // Recomposed from the facts, the decisions and the removals, like an answer: putting one back restores exactly
+        // what was there.
+        adoptComposition(
+          composeConfig({
+            facts,
+            projectName,
+            ...(mode === undefined ? { preferences: composition.preferences } : { mode }),
+            decisions: answers,
+            engineVersions: versionJson.rds
+          })
+        );
         return publishNow();
       },
       onAnswer: (decisionId, value) => {
@@ -1477,7 +1623,10 @@ export const startWizardSession = async ({
         const migrationService = /^migration-timing:(.+)$/.exec(decisionId)?.[1];
         if (migrationService !== undefined && !facts.uncertainties.some((entry) => entry.id === decisionId)) {
           const migration = facts.migrations.find((entry) => entry.serviceName === migrationService);
-          if (migration === undefined || !['deploy-hook', 'service-startup', 'manual'].includes(value)) {
+          if (
+            migration === undefined ||
+            !['deploy-hook', 'release-command', 'service-startup', 'manual'].includes(value)
+          ) {
             return buildState();
           }
           facts = {
@@ -1521,6 +1670,8 @@ export const startWizardSession = async ({
   // nothing to do with AWS. By the time anyone reaches the deploy step the answer is already here.
   void resolveIdentity();
   void resolveAccount();
+  void resolveProfiles();
+  void resolveDocker();
 
   // A session created with a finished result never goes through `onStart`, so its derived outputs —
   // the TypeScript text, the price — have to be kicked off here, now that `publish` can reach a page.

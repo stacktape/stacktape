@@ -645,42 +645,6 @@
     margin: 0 0 8px;
   }
 
-  /* A command to paste into a terminal. */
-  .w-command {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 8px 8px 8px 12px;
-    border-radius: var(--w-radius-small);
-    background: var(--w-well);
-    box-shadow: var(--w-shadow-field);
-  }
-
-  .w-command code {
-    flex: 1;
-    min-width: 0;
-    padding: 2px 0;
-    color: var(--w-text);
-    font-size: 13px;
-    line-height: 20px;
-    overflow-wrap: anywhere;
-  }
-
-  /* An argument moves to the next line whole: "--stage" split after its dashes reads as a broken flag. Only one wider
-   * than the whole line (a very long project name) breaks inside. */
-  .w-command-arg {
-    display: inline-block;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-  }
-
-  .w-command .stp-ui-button {
-    --stp-control-height: 24px;
-    --stp-button-padding-x: 8px;
-    flex: none;
-    font-size: 12px;
-  }
-
   /* ── The bottom action bar ─────────────────────────────────────────────────────────────────── */
 
   .w-bar {
@@ -1615,7 +1579,6 @@
     animation: w-rise 200ms var(--w-ease);
   }
 
-  .w-check-content > .w-account,
   .w-check-content > .w-check-meta:first-child {
     margin-top: 0;
   }
@@ -1723,42 +1686,6 @@
     height: 0;
   }
 
-  .w-account {
-    margin: 4px 0 0;
-  }
-
-  .w-target-edit {
-    display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-    gap: 12px;
-    align-items: end;
-  }
-
-  .w-check-content > .w-target-line {
-    margin-top: -6px;
-  }
-
-  .w-target-line {
-    margin: 8px 0 0;
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .w-target-line .w-code {
-    padding: 0 4px;
-    font-size: 12px;
-  }
-
-  .w-target-line .stp-ui-spinner {
-    margin-right: 8px;
-    vertical-align: -2px;
-  }
-
-  .w-target-line .w-info {
-    margin-left: 6px;
-  }
-
   .w-problem {
     display: flex;
     flex-direction: column;
@@ -1785,180 +1712,6 @@
     color: var(--w-error);
     font-size: 13px;
     line-height: 20px;
-  }
-
-  .w-secret-counts {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin: -6px 0 0;
-    padding: 0;
-    list-style: none;
-    color: var(--w-muted);
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .w-secret-counts li {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .w-secret-counts li > svg {
-    flex: none;
-    margin-top: 2px;
-    color: var(--w-ok);
-  }
-
-  .w-secret-counts .w-info {
-    margin-top: 3px;
-  }
-
-  .w-secret-group {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .w-secret-group-title {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin: 0 0 2px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--w-line);
-    color: var(--w-subtle);
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 16px;
-  }
-
-  .w-secret-group-title > :first-child {
-    color: var(--w-text);
-  }
-
-  .w-secret-group-reader {
-    margin-left: auto;
-    font-weight: 500;
-  }
-
-  .w-secret-group-title .w-mono {
-    color: var(--w-muted);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .w-secret {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
-    gap: 4px 16px;
-    align-items: center;
-    padding: 10px 0;
-    scroll-margin: 96px;
-  }
-
-  .w-secret + .w-secret {
-    border-top: 1px solid var(--w-line);
-  }
-
-  .w-secret-label {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  /* The whole name, wrapped if it must: a cut-off variable name cannot be matched against the code. */
-  .w-secret-name {
-    color: var(--w-text);
-    font-family: var(--w-mono);
-    font-size: 13px;
-    line-height: 20px;
-    overflow-wrap: anywhere;
-  }
-
-  .w-secret-source {
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 16px;
-    overflow-wrap: anywhere;
-  }
-
-  .w-secret-form {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-  }
-
-  .w-secret-form .stp-ui-text-field {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .w-secret-form .stp-ui-text-field__trailing {
-    padding-right: 4px;
-  }
-
-  /* An action inside a field's right edge: quiet text that fills the field. */
-  .w-field-action {
-    display: inline-flex;
-    align-items: center;
-    height: 26px;
-    padding: 0 8px;
-    border: none;
-    border-radius: 6px;
-    background: var(--w-brand-soft);
-    color: var(--w-brand-strong);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 140ms ease;
-  }
-
-  .w-field-action:hover {
-    background: color-mix(in srgb, var(--w-brand) 22%, transparent);
-  }
-
-  .w-field-action:disabled {
-    cursor: default;
-  }
-
-  .w-field-action .stp-ui-spinner {
-    width: 12px;
-    height: 12px;
-  }
-
-  .w-secret-saved {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px 10px;
-    min-height: 36px;
-  }
-
-  .w-secret-mask {
-    color: var(--w-subtle);
-    font-family: var(--w-mono);
-    font-size: 13px;
-    letter-spacing: 0.04em;
-  }
-
-  .w-secret-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--w-subtle);
-    font-size: 12px;
-  }
-
-  .w-secret-saved .w-link {
-    margin-left: auto;
-  }
-
-  .w-secret-error {
-    grid-column: 1 / -1;
   }
 
   .w-saved {
@@ -2119,167 +1872,10 @@
     overflow-wrap: anywhere;
   }
 
-  /* The secrets by what the user does about them. Each group is a disclosure with its own count and action. */
-  .w-tasks {
-    display: flex;
-    flex-direction: column;
-    border-top: 1px solid var(--w-line);
-  }
-
-  .w-task {
-    border-bottom: 1px solid var(--w-line);
-    scroll-margin: 96px;
-  }
-
-  .w-task-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0 8px;
-    min-height: 48px;
-  }
-
-  .w-task-toggle {
-    display: inline-flex;
-    flex: none;
-    max-width: 100%;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    min-height: 44px;
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--w-text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .w-task-toggle + .w-info {
-    margin-left: -2px;
-  }
-
   .w-task-chevron {
     flex: none;
     color: var(--w-subtle);
     transition: transform 180ms var(--w-ease);
-  }
-
-  .w-task.is-open .w-task-chevron {
-    transform: rotate(90deg);
-  }
-
-  .w-task-title {
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 20px;
-  }
-
-  .w-task-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--w-warn);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 16px;
-    white-space: nowrap;
-  }
-
-  .w-task-count.is-done {
-    color: var(--w-ok);
-  }
-
-  .w-task-action {
-    display: inline-flex;
-    flex: none;
-    margin-left: auto;
-  }
-
-  .w-task-action .stp-ui-button {
-    --stp-control-height: 30px;
-    --stp-button-padding-x: 12px;
-    font-size: 13px;
-  }
-
-  .w-task-rows {
-    display: flex;
-    flex-direction: column;
-    padding: 0 0 8px 24px;
-    animation: w-rise 200ms var(--w-ease);
-  }
-
-  .w-task-rows > .w-secret:first-child {
-    padding-top: 2px;
-  }
-
-  /* The .env group once its values are in the fields: what can be saved as it is, then what needs a look. */
-  .w-subtask + .w-subtask {
-    margin-top: 6px;
-    padding-top: 4px;
-    border-top: 1px solid var(--w-line);
-  }
-
-  .w-subtask-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0 8px;
-    min-height: 44px;
-  }
-
-  .w-subtask-title {
-    color: var(--w-text);
-    font-size: 13px;
-    font-weight: 600;
-    line-height: 20px;
-  }
-
-  .w-subtask-head + .w-secret {
-    padding-top: 2px;
-  }
-
-  /* A value from .env that points at this machine or is a template's placeholder. */
-  .w-secret-local {
-    display: flex;
-    grid-column: 2;
-    align-items: center;
-    gap: 6px;
-    margin: 0;
-    color: var(--w-warn);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 16px;
-  }
-
-  /* A long value (a list of URLs) gets the whole row under its name, so it can be read before it is saved. */
-  .w-secret.is-wide {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-
-  .w-secret.is-wide .w-secret-local {
-    grid-column: 1;
-  }
-
-  .w-secret.is-local .stp-ui-text-field {
-    --stp-field-border: color-mix(in srgb, var(--w-warn) 55%, transparent);
-  }
-
-  /* A command the user will see run or run themselves, on its own line. */
-  .w-command-line {
-    margin: -4px 0 0;
-    padding: 9px 12px;
-    overflow-x: auto;
-    border-radius: var(--w-radius-small);
-    background: var(--w-well);
-    box-shadow: var(--w-shadow-field);
-    color: var(--w-text);
-    font-family: var(--w-mono);
-    font-size: 13px;
-    line-height: 20px;
-    white-space: pre;
   }
 
   /* Choices that are each a sentence: outlined rows, so an unchosen one still reads as something to click. */
@@ -2373,32 +1969,6 @@
     margin-top: 2px;
   }
 
-  /* What the Deploy click commits to, right under the checklist it finishes: what it creates, where, the cost, the wait. */
-  .w-commit {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-top: 16px;
-    padding: 16px 20px;
-    border: 1px solid var(--w-brand-line);
-    border-radius: var(--w-radius);
-    background: color-mix(in srgb, var(--w-brand) 6%, transparent);
-    animation: w-rise 220ms var(--w-ease);
-  }
-
-  .w-commit-main {
-    margin: 0 0 2px;
-    color: var(--w-text-strong);
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 22px;
-  }
-
-  .w-commit .w-target-facts {
-    font-size: 13px;
-    line-height: 20px;
-  }
-
   /* No AWS account yet: a quiet disclosure under the two ways in, with the way there and the way back. */
   .w-aws-new {
     display: flex;
@@ -2472,10 +2042,6 @@
     margin-top: 16px;
   }
 
-  .w-terminal .w-command {
-    margin-top: 10px;
-  }
-
   /* Old names other screens still print. */
 
   .w-log {
@@ -2492,6 +2058,673 @@
     line-height: 18px;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  /* ── Deploy: where it deploys, the secrets, the summary ─────────────────────────────────────── *
+   * Two layouts while one is picked (`?deploy=split|column`): split puts the summary with the Deploy button beside
+   * the checklist from 1200 px up; column keeps it under the checklist and the button in the bar. */
+
+  .w-deploy-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .w-deploy-main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .w-deploy-main > .w-terminal,
+  .w-deploy-main > .w-notes {
+    margin-top: 0;
+  }
+
+  .w-deploy-side {
+    display: none;
+  }
+
+  @media (min-width: 1200px) {
+    .w-main.is-form:has(.w-deploy.is-split) {
+      max-width: calc(var(--w-column) + 372px + 2 * var(--w-gutter));
+    }
+
+    .w-deploy.is-split .w-deploy-grid {
+      grid-template-columns: minmax(0, 1fr) 348px;
+      align-items: start;
+      gap: 24px;
+    }
+
+    .w-deploy.is-split .w-deploy-side {
+      display: block;
+      position: sticky;
+      top: calc(var(--w-header-h) + 24px);
+    }
+
+    /* The side summary carries the price, the next step and the button: the bar and the copies are not needed. */
+    .w-deploy.is-split .w-bar,
+    .w-deploy.is-split .w-deploy-main > .w-summary,
+    .w-deploy.is-split .w-hero-price {
+      display: none;
+    }
+  }
+
+  /* Where it deploys: the account, the region and the stage as labelled controls, then what that does to the stack. */
+  .w-target {
+    --w-target-label: 112px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 2px;
+  }
+
+  .w-target-row {
+    display: grid;
+    grid-template-columns: var(--w-target-label) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .w-target-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 35px;
+    color: var(--w-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+
+  .w-target-control {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .w-target-stage {
+    max-width: 200px;
+  }
+
+  .w-target-region {
+    max-width: 320px;
+  }
+
+  .w-target-hint {
+    margin: 0;
+    padding-left: 2px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  /* Without a list of profiles to switch between: the account as a still field. */
+  .w-target-static {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 35px;
+    padding: 0 12px;
+    border-radius: var(--stp-radius-large);
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+  }
+
+  .w-acct-logo {
+    flex: none;
+    color: var(--w-muted);
+  }
+
+  /* The account in the control: the profile as a code chip, the alias, the ID quieter. One line, cut at the end. */
+  .w-acct {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .w-acct > * {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .w-acct-profile {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-acct-name {
+    flex: none;
+    max-width: 100%;
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  .w-target-hint-id {
+    display: none;
+  }
+
+  .w-acct-id {
+    color: var(--w-subtle);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .w-acct-id.is-problem {
+    color: var(--w-warn);
+  }
+
+  /* What the three choices do to the stack: under the controls, lined up with them. */
+  .w-target > .w-target-line,
+  .w-target > .w-problem {
+    margin: 4px 0 0 calc(var(--w-target-label) + 16px);
+  }
+
+  .w-target-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-target-line > svg {
+    flex: none;
+    margin-top: 2px;
+  }
+
+  .w-target-line.is-ok > svg {
+    color: var(--w-ok);
+  }
+
+  .w-target-line.is-quiet {
+    color: var(--w-subtle);
+  }
+
+  .w-target-line .w-code {
+    font-size: 12px;
+  }
+
+  .w-target-line .stp-ui-spinner {
+    flex: none;
+    margin-top: 2px;
+  }
+
+  .w-target-line .w-info {
+    margin-left: 6px;
+  }
+
+  .w-check-content > .w-target + .w-check-meta {
+    margin-top: 0;
+  }
+
+  /* "1 of 3 saved", beside a section's title. */
+  .w-check-count {
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The secrets: one list. A row is the variable and where the code reads it, its value, and the × that removes it. */
+  .w-secrets {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .w-secret-list {
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--w-line);
+    list-style: none;
+  }
+
+  .w-secret {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 330px) 30px;
+    gap: 4px 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--w-line);
+    scroll-margin: 96px;
+  }
+
+  .w-secret-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  /* The whole name, wrapped if it must: a cut-off variable name cannot be matched against the code. */
+  .w-secret-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-secret-source {
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  /* A secret the app may well run without: a quiet amber word that explains itself on hover. */
+  .w-secret-maybe {
+    padding: 0 7px;
+    border: none;
+    border-radius: 999px;
+    background: var(--w-warn-soft);
+    color: var(--w-warn);
+    font-family: Montserrat, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+    cursor: help;
+  }
+
+  .w-secret-form {
+    min-width: 0;
+  }
+
+  .w-secret-form .stp-ui-text-field__trailing {
+    padding-right: 5px;
+  }
+
+  .w-secret.is-local .stp-ui-text-field {
+    --stp-field-border: color-mix(in srgb, var(--w-warn) 55%, transparent);
+  }
+
+  /* Where the value in a field came from, at its right edge: a random value (click for another) or the .env file. */
+  .w-draft-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 6px;
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: default;
+    transition:
+      background 140ms ease,
+      color 140ms ease;
+  }
+
+  .w-draft-tag.is-action {
+    cursor: pointer;
+  }
+
+  .w-draft-tag.is-action:hover,
+  .w-draft-tag.is-action:focus-visible {
+    background: var(--w-brand-soft);
+    color: var(--w-brand-text);
+  }
+
+  .w-secret-saved {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 35px;
+  }
+
+  .w-secret-mask {
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+
+  .w-secret-saved .w-link {
+    margin-left: auto;
+  }
+
+  .w-secret-remove {
+    display: inline-flex;
+    justify-self: end;
+  }
+
+  .w-secret-remove .stp-ui-button {
+    color: var(--w-subtle);
+  }
+
+  .w-secret-remove .stp-ui-button:hover:not([aria-disabled='true']) {
+    color: var(--w-text);
+  }
+
+  .w-secret-note {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-secret-note.is-local {
+    color: var(--w-warn);
+  }
+
+  /* Removed from the config: struck through at the bottom of the list, with the way back. */
+  .w-secret.is-removed {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .w-secret.is-removed .w-secret-name {
+    color: var(--w-subtle);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--w-subtle) 70%, transparent);
+  }
+
+  .w-secret.is-removed .w-secret-source {
+    color: var(--w-faint);
+  }
+
+  .w-secret-restore {
+    display: inline-flex;
+    align-items: center;
+    color: var(--w-muted);
+  }
+
+  .w-secret-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-secret-aside .w-code {
+    font-size: 11px;
+  }
+
+  .w-secret-aside .w-info {
+    margin-left: 6px;
+  }
+
+  .w-secrets-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 35px;
+  }
+
+  .w-secrets-foot .w-link {
+    color: var(--w-muted);
+  }
+
+  /* Commands on the code plane of the wizard: its mono face, its well, its accent. */
+  .stp-ui-command-line {
+    --stp-ui-code-font: var(--w-mono);
+    --stp-ui-command-background: var(--w-well);
+    --stp-ui-command-border: transparent;
+    --stp-ui-command-shadow: var(--w-shadow-field);
+    --stp-ui-command-radius: var(--w-radius-small);
+    --stp-ui-command-program: var(--w-brand-text);
+  }
+
+  .w-terminal .stp-ui-command-line {
+    margin-top: 10px;
+  }
+
+  /* The summary: what the click creates where, what it costs and how long it takes, as a short receipt. */
+  .w-summary {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--w-radius);
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+    animation: w-rise 220ms var(--w-ease);
+  }
+
+  .w-summary-head {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--w-line);
+  }
+
+  .w-summary-eyebrow {
+    margin: 0;
+    color: var(--w-subtle);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .w-summary-stack {
+    margin: 4px 0 0;
+    color: var(--w-text-strong);
+    font-family: var(--w-mono);
+    font-size: 15px;
+    line-height: 22px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-summary-where {
+    margin: 2px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-summary-parts {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 6px 20px;
+    list-style: none;
+  }
+
+  .w-summary-parts li {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+  }
+
+  .w-summary-parts li + li {
+    border-top: 1px dashed var(--w-line);
+  }
+
+  .w-summary-part {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .w-summary-part-name {
+    color: var(--w-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-summary-part-kind {
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-summary-part-price {
+    color: var(--w-text);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .w-summary-part-price.is-usage {
+    color: var(--w-subtle);
+  }
+
+  .w-summary-totals {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-summary-totals > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .w-summary-totals dt {
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  .w-summary-totals dd {
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    text-align: right;
+  }
+
+  .w-summary-totals strong {
+    margin-right: 1px;
+    color: var(--w-text-strong);
+    font-size: 18px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .w-summary-pending {
+    color: var(--w-subtle);
+  }
+
+  .w-summary-action {
+    padding: 0 20px;
+  }
+
+  .w-summary-button.stp-ui-button {
+    --stp-control-height: 44px;
+    width: 100%;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .w-summary-foot {
+    padding: 10px 20px 18px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-summary-foot .w-bar-next {
+    display: inline;
+    white-space: normal;
+  }
+
+  .w-summary-note {
+    display: block;
+    text-align: center;
+  }
+
+  @media (max-width: 760px) {
+    .w-target-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+    }
+
+    .w-target-label {
+      min-height: 0;
+    }
+
+    .w-target-stage,
+    .w-target-region {
+      max-width: none;
+    }
+
+    /* The control keeps the profile and the alias; the ID goes to the line under it. */
+    .w-acct-name + .w-acct-id {
+      display: none;
+    }
+
+    .w-target-hint-id {
+      display: inline;
+    }
+
+    .w-target > .w-target-line,
+    .w-target > .w-problem {
+      margin-left: 0;
+    }
+
+    /* The name and the × share the first line; the value takes the whole width under them. */
+    .w-secret {
+      grid-template-columns: minmax(0, 1fr) 30px;
+      gap: 8px 8px;
+    }
+
+    .w-secret-label {
+      grid-row: 1;
+      grid-column: 1;
+    }
+
+    .w-secret-remove {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .w-secret-form,
+    .w-secret-saved {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
+
+    .w-secrets-foot {
+      flex-direction: column-reverse;
+      align-items: stretch;
+    }
+
+    .w-secrets-foot .stp-ui-button {
+      width: 100%;
+    }
+
+    .w-secrets-foot .w-link {
+      align-self: center;
+    }
   }
 
   /* ── Deploying ─────────────────────────────────────────────────────────────────────────────── */
@@ -2903,10 +3136,6 @@
   .w-manage-head > .w-link {
     flex: none;
     margin-top: 2px;
-  }
-
-  .w-manage .w-command {
-    margin-top: 12px;
   }
 
   .w-live-note {
@@ -3763,11 +3992,6 @@
       padding: 16px;
     }
 
-    .w-secret {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 8px;
-    }
-
     .w-check-aside {
       margin-left: 0;
     }
@@ -3859,26 +4083,6 @@
       padding: 0 16px 4px;
     }
 
-    .w-task-rows {
-      padding-left: 0;
-    }
-
-    /* The group's action goes under its title rather than past the edge. */
-    .w-task-action {
-      flex-basis: 100%;
-      margin: 0 0 10px 24px;
-    }
-
-    /* A sub-group has no chevron to line up with. */
-    .w-subtask-head .w-task-action {
-      margin-left: 0;
-    }
-
-    .w-secret-local {
-      grid-column: 1;
-    }
-
-    .w-target-edit,
     .w-keys {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -3959,18 +4163,6 @@
 
     .w-fix {
       padding: 16px;
-    }
-
-    /* Copy sits above the command, so the command gets the whole width. */
-    .w-command {
-      flex-direction: column-reverse;
-      align-items: stretch;
-      gap: 4px;
-      padding: 6px 8px 10px 12px;
-    }
-
-    .w-command .stp-ui-button {
-      align-self: flex-end;
     }
 
     /* Each address: its name and its buttons on one line, the address under them at full width. */

@@ -1,38 +1,34 @@
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Badge } from '@stacktape/ui-react/badge';
 import { Button } from '@stacktape/ui-react/button';
+import { CommandLine } from '@stacktape/ui-react/command-line';
 import { RadioGroup } from '@stacktape/ui-react/radio-group';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { TextField } from '@stacktape/ui-react/text-field';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { Fragment, useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BiCheck, BiChevronRight, BiErrorCircle, BiLinkExternal } from 'react-icons/bi';
 import { ActionBar, MonthlyPrice } from '../components/ActionBar';
-import { CopyableCommand } from '../components/CopyableCommand';
+import { DeploySummary } from '../components/DeploySummary';
+import { DeployTarget } from '../components/DeployTarget';
 import { FailureExplanationText } from '../components/FailureExplanation';
 import { InfoTip } from '../components/InfoTip';
-import { RegionPicker } from '../components/RegionPicker';
+import { SecretsList, type RemovedSecret } from '../components/SecretsList';
 import { StatusIcon, type CheckStatus } from '../components/StatusIcon';
-import { groupedAccount, identityName, TargetFacts } from '../components/TargetFacts';
 import { resourcesOf, type ConfigResources } from '../config-resources';
 import { secretCommand, stackCommand } from '../deploy-commands';
 import { gapsToList, notesHeading, plainNote, type PlainNote } from '../gaps';
-import { createdList } from '../part-names';
 import {
-  generateSecretValue,
-  importStep,
-  localValueReason,
+  initialDraft,
   planSecrets,
-  splitImports,
-  taskGroups,
-  taskNextText,
+  secretsNextText,
   type EnvironmentValues,
-  type SecretEntry,
-  type SecretTask,
-  type SecretTaskGroup
+  type SecretDraft,
+  type SecretEntry
 } from '../secrets-model';
 import type { WizardState } from '../session';
 import { blockedTargetCopy, stackStatusWords } from '../target-copy';
+import { deployLayout } from './deploy-layout';
 import { monthlySuffix, plainList, splitMonthly } from './review-model';
 
 type Expectation = { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
@@ -56,17 +52,19 @@ const RELEASE_COMMAND_TYPES = new Set(['web-service', 'worker-service', 'private
 const squash = (name: string) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 /**
- * When Stacktape runs the migration, in the words the choice and the finished row share. A container service runs it as
- * its release command; anything else runs it right after the deploy. Once chosen, the file says which it got.
+ * How Stacktape can run a service's migration, from the resource it deploys as. A container service runs it as its
+ * release command, in its own image. An SSR site can too, in an image of the whole project that needs Docker to build;
+ * otherwise from this machine right after the deploy. Anything else only right after the deploy.
  */
-const migrationTiming = (resources: ConfigResources, service: string | undefined, isOn: boolean): string => {
-  const resource = Object.entries(resources).find(
+export type MigrationRunner = 'container' | 'site' | 'after-deploy';
+
+export const migrationRunnerOf = (resources: ConfigResources, service: string | undefined): MigrationRunner => {
+  const type = Object.entries(resources).find(
     ([name]) => service !== undefined && squash(name) === squash(service)
-  )?.[1];
-  const release = isOn
-    ? resource?.properties.releaseCommand !== undefined
-    : RELEASE_COMMAND_TYPES.has(resource?.type ?? '');
-  return release ? 'before the new version takes traffic' : 'right after the new version goes live';
+  )?.[1]?.type;
+  if (type !== undefined && RELEASE_COMMAND_TYPES.has(type)) return 'container';
+  if (type?.endsWith('-web') === true) return 'site';
+  return 'after-deploy';
 };
 
 /** Text from the analysis with its backticked names set as code. */
@@ -110,12 +108,13 @@ const STATE_ICON: Record<SectionState, CheckStatus> = {
 };
 
 /**
- * The Deploy step: a readiness list, then one button in the bottom bar.
+ * The Deploy step: where it deploys, what the app needs before it can start there, and what the click creates.
  *
- * Each section is something the deploy needs and shows where it stands: Ready, Needs input, or Available after AWS is
- * connected. The first one that needs the user is open; a finished one folds to one line with Edit. The bar names the
- * next thing to do and goes there, and once nothing is missing it says what the click does: what it creates in which
- * account, and that AWS bills it from then on.
+ * The list on the left is everything the deploy needs, each part saying where it stands: Ready, Needs input, or
+ * Available after AWS is connected. Where it deploys is always three controls (account, region, stage), never a line of
+ * facts with an Edit link. The first part that needs the user is open; a finished one folds to one line. The summary
+ * (beside the list on a wide screen, under it otherwise) says what the click creates where, what it costs and how long
+ * it takes, and carries the button; until nothing is missing, it names the next thing to do and goes there.
  */
 export function DeployStep({
   state,
@@ -128,6 +127,8 @@ export function DeployStep({
   onSecret,
   onConfirmSecrets,
   onAwsKeys,
+  onAwsProfile,
+  onDismissSecret,
   onRecheck,
   onDecision,
   onRegion,
@@ -145,6 +146,8 @@ export function DeployStep({
   onSecret: (name: string, value: string) => Promise<boolean>;
   onConfirmSecrets: () => void;
   onAwsKeys: (accessKeyId: string, secretAccessKey: string) => void;
+  onAwsProfile: (profile: string) => void;
+  onDismissSecret: (name: string, dismissed: boolean) => Promise<void>;
   onRecheck: () => void;
   onDecision: (id: string, value: string) => void;
   onRegion: (region: string) => void;
@@ -155,6 +158,7 @@ export function DeployStep({
     { file: string; values: Array<{ name: string; value: string }> } | { file: undefined }
   >;
 }) {
+  const layout = deployLayout(window.location.search);
   const file = state.configFile;
   const identity = state.awsIdentity;
   const region = file?.region ?? state.region ?? 'eu-west-1';
@@ -166,12 +170,16 @@ export function DeployStep({
   const [showTerminal, setShowTerminal] = useState(false);
   /** The user runs the migration some other way, and said so. */
   const [skipMigration, setSkipMigration] = useState(false);
-  /** Secrets this page made up and saved, so their rows can say so. Never their values. */
-  const [generated, setGenerated] = useState<ReadonlySet<string>>(new Set());
-  /** What is typed or filled from `.env` in each row, by secret name, until it is saved. Only in this page's memory. */
-  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
-  /** Rows filled from `.env` by "Use the values from .env". */
-  const [imported, setImported] = useState<ReadonlySet<string>>(new Set());
+  /** What is in each secret's field until it is saved, by secret name. Only in this page's memory. */
+  const [drafts, setDrafts] = useState<Readonly<Record<string, SecretDraft | undefined>>>({});
+  /** Secrets removed from the config here, with the variable each was read as, so the list can offer them back. */
+  const [removedNames, setRemovedNames] = useState<Readonly<Record<string, string>>>({});
+  const [removing, setRemoving] = useState<string | undefined>();
+  // A profile picked in the account control, until the identity check for it answers.
+  const switching =
+    busy === 'aws-profile' ||
+    (state.awsProfiles?.selected !== undefined &&
+      (identity === undefined || identity.profile !== state.awsProfiles.selected));
 
   // The read-only target check runs by itself once there is a file and an AWS identity, and again after the stage
   // changes (after a pause, so typing a stage name does not fire a check per letter).
@@ -196,7 +204,12 @@ export function DeployStep({
   const secretsAvailable = state.secrets !== undefined;
   const secretsSet = new Set(state.secrets?.set ?? []);
   const unsaved = plan.entries.filter((entry) => !secretsSet.has(entry.name));
-  const secretsDone = plan.entries.length === 0 || state.secrets?.confirmed === true || unsaved.length === 0;
+  const removed: RemovedSecret[] = (state.dismissedSecrets ?? []).map((name) => ({
+    name,
+    variable: removedNames[name] ?? name.toUpperCase()
+  }));
+  const hasSecretsSection = plan.entries.length > 0 || removed.length > 0;
+  const secretsDone = unsaved.length === 0 || state.secrets?.confirmed === true;
   const hasSettings = plan.groups.some((group) => group.kind === 'setting');
   const secretsNoun = (count: number) => (hasSettings ? 'secrets and settings' : count === 1 ? 'secret' : 'secrets');
 
@@ -221,36 +234,42 @@ export function DeployStep({
       current = false;
     };
   }, [secretsAvailable, variablesKey, onLoadEnvironment]);
-  const groups = taskGroups(plan, environment);
-  const remainingIn = (group: SecretTaskGroup) => group.entries.filter((entry) => !secretsSet.has(entry.name));
-  const firstGroup = groups.find((group) => remainingIn(group).length > 0);
-  // The first group with something left is open; Show and Hide override that, and a group the user finished folds.
-  const [taskChoice, setTaskChoice] = useState<Partial<Record<SecretTask, boolean>>>({});
-  const openTasks = new Set(
-    groups
-      .filter((group) => taskChoice[group.task] ?? (group === firstGroup && !secretsDone))
-      .map((group) => group.task)
-  );
-  /** The group the user opened last: the bar's "Next" follows it while it has something left. */
-  const [activeTask, setActiveTask] = useState<SecretTask | undefined>();
-  const workingGroup =
-    groups.find((group) => group.task === activeTask && openTasks.has(group.task) && remainingIn(group).length > 0) ??
-    firstGroup;
-  const doneKey = groups.map((group) => `${group.task}:${remainingIn(group).length === 0}`).join('|');
-  const [seenDone, setSeenDone] = useState(doneKey);
-  if (seenDone !== doneKey) {
-    setSeenDone(doneKey);
-    const finished = groups.filter((group) => remainingIn(group).length === 0).map((group) => group.task);
-    if (finished.some((task) => taskChoice[task] === true)) {
-      setTaskChoice((current) => {
-        const next = { ...current };
-        for (const task of finished) delete next[task];
-        return next;
-      });
+
+  // Each row starts with a value where the page has one: a random one for a secret only the app uses, the `.env` value
+  // for the rest. Filled once per row, so what the user typed is never replaced.
+  const draftsKey = `${unsaved.map((entry) => entry.name).join(',')}|${environment?.file ?? ''}`;
+  useEffect(() => {
+    if (!secretsAvailable) return;
+    setDrafts((current) => {
+      let next: Record<string, SecretDraft | undefined> | undefined;
+      for (const entry of unsaved) {
+        if (current[entry.name] !== undefined) continue;
+        const draft = initialDraft(entry, environment);
+        if (draft === undefined) continue;
+        next ??= { ...current };
+        next[entry.name] = draft;
+      }
+      return next ?? current;
+    });
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- `draftsKey` names what `unsaved` and `environment` hold.
+  }, [secretsAvailable, draftsKey]);
+
+  const saveSecrets = async (entries: readonly SecretEntry[]) => {
+    for (const entry of entries) {
+      // One after another: each save is its own request to the CLI, and the first failure stops the rest.
+      // oxlint-disable-next-line no-await-in-loop
+      const ok = await onSecret(entry.name, drafts[entry.name]?.value ?? '');
+      if (!ok) break;
+      setDrafts((current) => ({ ...current, [entry.name]: undefined }));
     }
-  }
-  const stepOf = (group: SecretTaskGroup) =>
-    group.task === 'import' ? importStep(remainingIn(group), environment, imported, drafts) : undefined;
+  };
+  const removeSecret = (secret: RemovedSecret, isRemoved: boolean) =>
+    void (async () => {
+      setRemoving(secret.name);
+      if (isRemoved) setRemovedNames((current) => ({ ...current, [secret.name]: secret.variable }));
+      await onDismissSecret(secret.name, isRemoved);
+      setRemoving(undefined);
+    })();
 
   const gaps = gapsToList(state.composition?.gaps ?? [], state.facts?.existingDeployments ?? []);
   const migration = gaps.map(runnableMigration).find((entry) => entry !== undefined);
@@ -292,11 +311,11 @@ export function DeployStep({
     verification?.status === 'repairing' ||
     (verification?.status === 'completed' && (verification.services ?? []).some((entry) => entry.status === 'failed'));
 
-  const migrationOn = migrationDecision?.chosen === 'deploy-hook';
+  const migrationOn = migrationDecision?.chosen === 'deploy-hook' || migrationDecision?.chosen === 'release-command';
   const migrationNeeded = migration !== undefined && !migrationOn && !skipMigration;
 
   const awsState: SectionState =
-    identity === undefined || state.awsKeys?.status === 'saving'
+    identity === undefined || state.awsKeys?.status === 'saving' || switching
       ? 'checking'
       : !identity.available
         ? 'needs-input'
@@ -316,7 +335,7 @@ export function DeployStep({
 
   const sections: Array<{ id: SectionId; state: SectionState }> = [
     { id: 'aws', state: awsState },
-    ...(plan.entries.length > 0 ? [{ id: 'secrets' as const, state: secretsState }] : []),
+    ...(hasSecretsSection ? [{ id: 'secrets' as const, state: secretsState }] : []),
     ...(migration !== undefined || migrationDecision !== undefined
       ? [{ id: 'migrations' as const, state: migrationState }]
       : [])
@@ -352,24 +371,19 @@ export function DeployStep({
     setOpenChoice((current) => ({ ...current, [id]: opening }));
     setActiveSection((current) => (opening ? id : current === id ? undefined : current));
   };
-  const toggleTask = (task: SecretTask) => {
-    const opening = !openTasks.has(task);
-    setTaskChoice((current) => ({ ...current, [task]: opening }));
-    setActiveTask((current) => (opening ? task : current === task ? undefined : current));
-    if (opening) setActiveSection('secrets');
-  };
-  const goTo = (id: SectionId, task?: SecretTask) => {
+  const goTo = (id: SectionId) => {
     setOpenChoice((current) => ({ ...current, [id]: true }));
-    if (task !== undefined) setTaskChoice((current) => ({ ...current, [task]: true }));
     requestAnimationFrame(() => {
-      const element = document.getElementById(task === undefined ? `deploy-${id}` : `task-${task}`);
+      const element = document.getElementById(`deploy-${id}`);
       element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // The control the bar named, when the section marks one; else its first field or choice.
-      element
-        ?.querySelector<HTMLElement>(
-          '[data-next-action], input:not([type="radio"]):not(:disabled), [role="tab"], input[type="radio"]'
-        )
-        ?.focus({ preventScroll: true });
+      // The control the bar named, when the section marks one; else its first empty field or its first choice.
+      const field =
+        element?.querySelector<HTMLElement>('[data-next-action]:not(:disabled)') ??
+        [...(element?.querySelectorAll<HTMLInputElement>('input:not([type="radio"]):not(:disabled)') ?? [])].find(
+          (input) => input.value === ''
+        ) ??
+        element?.querySelector<HTMLElement>('input[type="radio"]:not(:disabled), input:not(:disabled)');
+      field?.focus({ preventScroll: true });
     });
   };
 
@@ -388,44 +402,52 @@ export function DeployStep({
       : target?.status === 'updateable'
         ? { kind: 'update', stackId: target.stackId }
         : { kind: 'check' };
-  const estimate = target?.status === 'updateable' ? 'a few minutes' : hasDatabase ? '10–15 min' : '3–6 min';
+  const releaseRuns = migrationDecision?.chosen === 'release-command';
+  const estimate =
+    target?.status === 'updateable'
+      ? 'a few minutes'
+      : hasDatabase
+        ? releaseRuns
+          ? '12–18 min'
+          : '10–15 min'
+        : '3–6 min';
+  const profile = state.awsProfiles?.selected;
   const commandTarget = {
     configPath: file?.filename ?? 'stacktape.yml',
     projectName: state.projectName,
     stage: stage || 'dev',
     region,
-    awsAccount: state.awsAccount
+    awsAccount: state.awsAccount,
+    ...(profile === undefined ? {} : { profile })
   };
-  const regionLocked = isLocked || state.configEdit !== undefined;
+  const stackName = target?.stackName ?? `${state.projectName}-${stage || 'dev'}`;
 
   /**
    * What the bar says while the button is off: the next thing as a verb and a count, linking to the control that does
    * it, or what is still being checked. It names what the open section asks for: the one the user opened last while it
    * needs them, else the first that does.
    */
-  type Next = { text: string; section?: SectionId; task?: SecretTask };
+  type Next = { text: string; section?: SectionId };
   const awsNext: Next | undefined =
-    identity === undefined || identity.available
-      ? stage === ''
-        ? { text: 'enter a stage name', section: 'aws' }
-        : awsState === 'checking'
-          ? { text: 'Checking the stack, read-only…' }
-          : awsState === 'blocked'
-            ? { text: 'a stack Stacktape can deploy to', section: 'aws' }
-            : undefined
-      : { text: identity.reason === 'rejected' ? 'sign in to AWS again' : 'connect AWS', section: 'aws' };
+    identity === undefined || switching
+      ? undefined
+      : identity.available
+        ? stage === ''
+          ? { text: 'enter a stage name', section: 'aws' }
+          : awsState === 'checking'
+            ? { text: 'Checking the stack, read-only…' }
+            : awsState === 'blocked'
+              ? { text: 'fix the stack that is in the way', section: 'aws' }
+              : undefined
+        : { text: identity.reason === 'rejected' ? 'sign in to AWS again' : 'connect AWS', section: 'aws' };
   const secretsNext: Next | undefined =
     secretsDone || secretsState === 'waiting'
       ? undefined
-      : workingGroup !== undefined && secretsAvailable
-        ? {
-            text: taskNextText(workingGroup, remainingIn(workingGroup), environment?.file, stepOf(workingGroup)),
-            section: 'secrets',
-            task: workingGroup.task
-          }
+      : secretsAvailable
+        ? { text: secretsNextText(unsaved, drafts), section: 'secrets' }
         : { text: `create ${unsaved.length} ${secretsNoun(unsaved.length)} in AWS`, section: 'secrets' };
   const migrationsNext: Next | undefined = migrationNeeded
-    ? { text: 'choose who runs migrations', section: 'migrations' }
+    ? { text: 'choose when migrations run', section: 'migrations' }
     : undefined;
   const bySection: Record<SectionId, Next | undefined> = {
     aws: awsNext,
@@ -435,7 +457,7 @@ export function DeployStep({
   const next: Next | undefined =
     file === undefined
       ? { text: `Saving ${commandTarget.configPath}…` }
-      : identity === undefined
+      : identity === undefined || switching
         ? { text: 'Checking the AWS credentials on this machine…' }
         : ((activeSection === undefined ? undefined : bySection[activeSection]) ??
           awsNext ??
@@ -446,22 +468,64 @@ export function DeployStep({
             : notDeployable
               ? { text: 'a gap in the configuration' }
               : undefined));
+  const remaining = sections.filter((section) => section.state === 'needs-input' || section.state === 'blocked').length;
 
   const price = state.composition?.price;
   const monthly = price === undefined ? undefined : splitMonthly(price.monthly);
   const noCredentials = identity?.available === false && identity.reason === 'no-credentials';
+  const deployButton = (className?: string) => (
+    <Button
+      className={className}
+      disabled={!ready || isLocked || (busy !== undefined && busy !== 'deploy')}
+      isLoading={busy === 'deploy'}
+      onClick={() => onDeploy(stage, region, expectation)}
+      variant="primary"
+    >
+      Deploy to {stage || 'dev'}
+    </Button>
+  );
+  const nextLink = (inSummary: boolean) =>
+    next === undefined ? undefined : next.section === undefined ? (
+      <span className="w-bar-next">{next.text}</span>
+    ) : (
+      <span className="w-bar-next">
+        <span className="w-bar-next-label">
+          {inSummary && remaining > 1 ? `${remaining} things left. Next:` : 'Next:'}
+        </span>{' '}
+        <button className="w-link" onClick={() => goTo(next.section!)} type="button">
+          {next.text}
+        </button>
+      </span>
+    );
+
+  const summary = (inSide: boolean) => (
+    <DeploySummary
+      estimate={estimate}
+      isUpdate={target?.status === 'updateable'}
+      region={region}
+      resources={resources}
+      stackName={stackName}
+      state={state}
+      {...(inSide
+        ? {
+            action: deployButton('w-summary-button'),
+            footnote: ready ? (
+              <span className="w-summary-note">AWS bills your account for these from the moment they exist.</span>
+            ) : (
+              nextLink(true)
+            )
+          }
+        : {})}
+    />
+  );
 
   return (
-    <div className="w-enter">
+    <div className={`w-enter w-deploy is-${layout}`}>
       <header className="w-hero">
         <h1 className="w-title">{noCredentials ? 'Connect AWS to deploy' : `Deploy to ${stage || 'dev'}`}</h1>
         <p className="w-lede">
           {file === undefined ? (
             'Saving the file to your project…'
-          ) : noCredentials ? (
-            <>
-              <span className="w-code">{file.filename}</span> is saved · stage {stage || 'dev'}
-            </>
           ) : (
             <>
               <span className="w-code">{file.filename}</span> is saved in your project
@@ -478,237 +542,227 @@ export function DeployStep({
         )}
       </header>
 
-      <section aria-label="Readiness" className="w-card">
-        <ul className="w-checks">
-          <Section
-            id="aws"
-            isOpen={awsState === 'needs-input' || awsState === 'blocked' || isOpen('aws')}
-            onToggle={identity?.available === true && awsState === 'ready' ? () => toggle('aws') : undefined}
-            state={awsState}
-            summary={
-              identity?.available === true ? (
-                <>
-                  <AccountLine identity={identity} region={region} stage={stage} />
-                  <TargetLine
-                    checking={checking}
-                    commandTarget={commandTarget}
-                    isRechecking={busy === 'recheck'}
-                    onRecheck={onRecheck}
-                    target={target}
-                  />
-                </>
-              ) : identity === undefined ? (
-                <p className="w-check-meta">Checking the AWS credentials on this machine…</p>
-              ) : undefined
-            }
-            title={
-              identity?.available === false && identity.reason === 'rejected'
-                ? /expired|ExpiredToken/i.test(identity.detail)
-                  ? 'Your AWS session expired'
-                  : 'AWS did not accept these credentials'
-                : 'AWS account'
-            }
-          >
-            {identity?.available === false ? (
-              <AwsConnect busy={busy} identity={identity} onAwsKeys={onAwsKeys} onRecheck={onRecheck} state={state} />
-            ) : identity?.available === true ? (
-              <>
-                <AccountLine identity={identity} />
-                <div className="w-target-edit">
-                  <Tooltip
-                    content="Your edited file declares the region. Change it there."
-                    disabled={state.configEdit === undefined}
-                  >
-                    <div>
-                      <RegionPicker isDisabled={regionLocked} onChange={onRegion} value={region} />
-                    </div>
-                  </Tooltip>
-                  <TextField
-                    label="Stage"
-                    labelDetail={
-                      <InfoTip about="stages">A separate copy of the app, such as dev or production.</InfoTip>
-                    }
-                    maxLength={12}
-                    onChange={(event) => onStageChange(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                    reserveMessageSpace={false}
-                    spellCheck={false}
-                    value={stage}
-                  />
-                </div>
-                <TargetLine
-                  checking={checking}
-                  commandTarget={commandTarget}
-                  isRechecking={busy === 'recheck'}
-                  onRecheck={onRecheck}
-                  target={target}
+      <div className="w-deploy-grid">
+        <div className="w-deploy-main">
+          <section aria-label="Readiness" className="w-card">
+            <ul className="w-checks">
+              <Section
+                id="aws"
+                isOpen
+                quietWhenReady
+                state={awsState}
+                title={
+                  identity?.available === false && identity.reason === 'rejected'
+                    ? /expired|ExpiredToken/i.test(identity.detail)
+                      ? 'Your AWS session expired'
+                      : 'AWS did not accept these credentials'
+                    : identity?.available === false
+                      ? 'Connect AWS'
+                      : 'Where it deploys'
+                }
+              >
+                {identity === undefined && !switching ? (
+                  <p className="w-check-meta">Checking the AWS credentials on this machine…</p>
+                ) : (
+                  <>
+                    {(identity?.available !== false || (state.awsProfiles?.available.length ?? 0) > 1) && (
+                      <DeployTarget
+                        identity={switching ? undefined : identity}
+                        isLocked={isLocked}
+                        isSwitching={switching}
+                        onProfile={onAwsProfile}
+                        onRegion={onRegion}
+                        onStageChange={onStageChange}
+                        region={region}
+                        showRegionAndStage={identity?.available === true || switching}
+                        stackLine={
+                          identity?.available === true && !switching ? (
+                            <TargetLine
+                              checking={checking}
+                              commandTarget={commandTarget}
+                              isRechecking={busy === 'recheck'}
+                              onRecheck={onRecheck}
+                              stage={stage}
+                              target={target}
+                            />
+                          ) : undefined
+                        }
+                        stage={stage}
+                        state={state}
+                      />
+                    )}
+                    {identity?.available === false && !switching && (
+                      <AwsConnect
+                        busy={busy}
+                        identity={identity}
+                        onAwsKeys={onAwsKeys}
+                        onRecheck={onRecheck}
+                        state={state}
+                      />
+                    )}
+                  </>
+                )}
+              </Section>
+
+              {hasSecretsSection && (
+                <Section
+                  id="secrets"
+                  isOpen={secretsState !== 'waiting' && isOpen('secrets')}
+                  onToggle={secretsState === 'waiting' ? undefined : () => toggle('secrets')}
+                  state={secretsState}
+                  summary={
+                    <p className="w-check-meta">
+                      {secretsState === 'ready'
+                        ? state.secrets?.confirmed === true && unsaved.length > 0
+                          ? 'You saved them in AWS yourself.'
+                          : plan.entries.length === 0
+                            ? 'None left: the app reads no secrets now.'
+                            : `All ${plan.entries.length} saved in your AWS account, in ${region}.`
+                        : secretsState === 'waiting'
+                          ? `${plan.entries.length} ${secretsNoun(plan.entries.length)} your app reads. They are saved in your AWS account.`
+                          : unsaved.length === plan.entries.length
+                            ? `${plan.entries.length} ${secretsNoun(plan.entries.length)} your app reads. None saved yet.`
+                            : `${plan.entries.length - unsaved.length} of ${plan.entries.length} saved.`}
+                    </p>
+                  }
+                  title={hasSettings ? 'Secrets and settings' : 'Secrets'}
+                  titleAside={
+                    secretsState === 'needs-input' && plan.entries.length > 0 ? (
+                      <span className="w-check-count">
+                        {plan.entries.length - unsaved.length} of {plan.entries.length} saved
+                      </span>
+                    ) : undefined
+                  }
+                >
+                  {secretsAvailable ? (
+                    <>
+                      <p className="w-check-meta">
+                        Saved in AWS Secrets Manager in your account, never sent to Stacktape.
+                        <InfoTip about="secrets">
+                          Your app reads each one as an environment variable. The values go from this page to the CLI on
+                          this machine, and into AWS Secrets Manager in your account ({region}), which charges $0.40 a
+                          month for each.
+                        </InfoTip>
+                      </p>
+                      <SecretsList
+                        canRemove={state.configEdit === undefined && !isLocked}
+                        drafts={drafts}
+                        environmentFile={environment?.file}
+                        failure={state.secrets?.failure}
+                        onConfirm={onConfirmSecrets}
+                        onDraft={(name, draft) => setDrafts((current) => ({ ...current, [name]: draft }))}
+                        onRemove={removeSecret}
+                        onSave={saveSecrets}
+                        plan={plan}
+                        removed={removed}
+                        removing={removing}
+                        saved={secretsSet}
+                        showConfirm={!secretsDone}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <p className="w-check-meta">
+                        Create them in {region} from a terminal. Each command asks for the value.
+                      </p>
+                      <CommandLine
+                        command={plan.entries
+                          .map((entry) => secretCommand(entry.name, region, state.awsAccount))
+                          .join('\n')}
+                        fill
+                        label="Copy the commands that create the secrets"
+                      />
+                    </>
+                  )}
+                </Section>
+              )}
+
+              {(migration !== undefined || migrationDecision !== undefined) && (
+                <MigrationSection
+                  busy={busy}
+                  docker={state.docker?.available}
+                  isHandEdited={state.configEdit !== undefined}
+                  isLocked={isLocked}
+                  isOpen={isOpen('migrations')}
+                  migration={migration}
+                  migrationDecision={migrationDecision}
+                  onDecision={onDecision}
+                  onSkip={setSkipMigration}
+                  onToggle={() => toggle('migrations')}
+                  resources={resources}
+                  skipped={skipMigration}
+                  state={migrationState}
                 />
-              </>
-            ) : null}
-          </Section>
+              )}
 
-          {plan.entries.length > 0 && (
-            <Section
-              id="secrets"
-              isOpen={secretsState !== 'waiting' && isOpen('secrets')}
-              onToggle={secretsState === 'waiting' ? undefined : () => toggle('secrets')}
-              state={secretsState}
-              summary={
-                <p className="w-check-meta">
-                  {secretsState === 'ready'
-                    ? state.secrets?.confirmed === true && unsaved.length > 0
-                      ? 'You saved them in AWS yourself.'
-                      : `All ${plan.entries.length} saved in your AWS account, in ${region}.`
-                    : secretsState === 'waiting'
-                      ? `${plan.entries.length} ${secretsNoun(plan.entries.length)} your app reads. They are saved in your AWS account.`
-                      : unsaved.length === plan.entries.length
-                        ? `${plan.entries.length} ${secretsNoun(plan.entries.length)} your app reads. None saved yet.`
-                        : `${plan.entries.length - unsaved.length} of ${plan.entries.length} saved.`}
-                </p>
-              }
-              title={hasSettings ? 'Secrets and settings' : plan.entries.length === 1 ? 'Secret' : 'Secrets'}
+              {migrationNote !== undefined && (
+                <Section
+                  id="migrations"
+                  isOpen
+                  state="note"
+                  title={
+                    <>
+                      Database migrations
+                      <InfoTip about="database migrations">
+                        Your app creates its tables with migrations. The new database starts empty, so something has to
+                        run them before traffic arrives.
+                      </InfoTip>
+                    </>
+                  }
+                >
+                  <MigrationNote message={migrationNote.message} />
+                </Section>
+              )}
+
+              {canTryOut && (
+                <TryOut
+                  busy={busy}
+                  onDismiss={onDismissVerification}
+                  onVerify={onVerify}
+                  verification={verification}
+                  verificationBlocks={verificationBlocks}
+                />
+              )}
+            </ul>
+          </section>
+
+          {/* In the split layout this one shows only on a narrow screen, where the side summary has no room. */}
+          {summary(false)}
+
+          {notes.length > 0 && <Notes notes={notes} />}
+
+          <div className="w-terminal">
+            <button
+              aria-expanded={showTerminal}
+              className="w-link w-small text-[var(--w-subtle)]"
+              onClick={() => setShowTerminal(!showTerminal)}
+              type="button"
             >
-              <SecretsBody
-                awsAccount={state.awsAccount}
-                drafts={drafts}
-                environment={environment}
-                failure={state.secrets?.failure}
-                generated={generated}
-                groups={groups}
-                imported={imported}
-                isAvailable={secretsAvailable}
-                onConfirm={onConfirmSecrets}
-                onDrafts={setDrafts}
-                onGenerated={(name) => setGenerated((current) => new Set([...current, name]))}
-                onImported={setImported}
-                onSecret={onSecret}
-                onToggleTask={toggleTask}
-                openTasks={openTasks}
-                plan={plan}
-                region={region}
-                saved={secretsSet}
-                showConfirm={!secretsDone}
-              />
-            </Section>
-          )}
+              {showTerminal ? 'Hide the terminal command' : 'Deploy from a terminal instead'}
+            </button>
+            {showTerminal && (
+              <CommandLine command={stackCommand('deploy', commandTarget)} fill label="Copy the deploy command" />
+            )}
+          </div>
+        </div>
 
-          {(migration !== undefined || migrationDecision !== undefined) && (
-            <MigrationSection
-              busy={busy}
-              isHandEdited={state.configEdit !== undefined}
-              isLocked={isLocked}
-              isOpen={isOpen('migrations')}
-              migration={migration}
-              migrationDecision={migrationDecision}
-              onDecision={onDecision}
-              onSkip={setSkipMigration}
-              onToggle={() => toggle('migrations')}
-              resources={resources}
-              skipped={skipMigration}
-              state={migrationState}
-            />
-          )}
-
-          {migrationNote !== undefined && (
-            <Section
-              id="migrations"
-              isOpen
-              state="note"
-              title={
-                <>
-                  Database migrations
-                  <InfoTip about="database migrations">
-                    Your app creates its tables with migrations. The new database starts empty, so something has to run
-                    them before traffic arrives.
-                  </InfoTip>
-                </>
-              }
-            >
-              <MigrationNote message={migrationNote.message} />
-            </Section>
-          )}
-
-          {canTryOut && (
-            <TryOut
-              busy={busy}
-              onDismiss={onDismissVerification}
-              onVerify={onVerify}
-              verification={verification}
-              verificationBlocks={verificationBlocks}
-            />
-          )}
-        </ul>
-      </section>
-
-      {ready && identity?.available === true && (
-        // What the click commits to, right under the list it finishes: what it creates where, the cost, the wait.
-        <section aria-label="What Deploy does" className="w-commit">
-          <p className="w-commit-main">
-            {target?.status === 'updateable' ? 'Updates' : 'Creates'} {createdList(resources, state)}
-          </p>
-          <TargetFacts
-            facts={[
-              { label: 'AWS account', value: groupedAccount(identity.accountId) },
-              { label: 'Region', value: region },
-              { label: 'Stage', value: stage },
-              monthly?.amount !== undefined && {
-                label: 'Estimated',
-                value: `${monthly.amount}/month${monthly.usage ? ' + usage' : ''}`,
-                breakBefore: true
-              },
-              { label: 'Takes about', value: estimate, breakBefore: monthly?.amount === undefined }
-            ]}
-          />
-        </section>
-      )}
-
-      {notes.length > 0 && <Notes notes={notes} />}
-
-      <div className="w-terminal">
-        <button
-          aria-expanded={showTerminal}
-          className="w-link w-small text-[var(--w-subtle)]"
-          onClick={() => setShowTerminal(!showTerminal)}
-          type="button"
-        >
-          {showTerminal ? 'Hide the terminal command' : 'Deploy from a terminal instead'}
-        </button>
-        {showTerminal && <CopyableCommand command={stackCommand('deploy', commandTarget)} />}
+        {layout === 'split' && <aside className="w-deploy-side">{summary(true)}</aside>}
       </div>
 
       <ActionBar
         align="column"
         className={ready ? 'is-ready' : next?.section === undefined ? 'is-blocked' : 'is-blocked has-next'}
-        note={
-          // Ready: what the click does is in the block right above; the bar keeps the price and the button.
-          ready ? undefined : next === undefined ? undefined : next.section === undefined ? (
-            <span className="w-bar-next">{next.text}</span>
-          ) : (
-            <span className="w-bar-next">
-              <span className="w-bar-next-label">Next:</span>{' '}
-              <button className="w-link" onClick={() => goTo(next.section!, next.task)} type="button">
-                {next.text}
-              </button>
-            </span>
-          )
-        }
+        note={ready ? undefined : nextLink(false)}
         price={<MonthlyPrice state={state} suffix={monthlySuffix} />}
       >
         {!ready && next?.section !== undefined && (
           // On a phone the bar is this one action, full width, until Deploy can work.
-          <Button className="w-bar-next-button" onClick={() => goTo(next.section!, next.task)} variant="secondary">
+          <Button className="w-bar-next-button" onClick={() => goTo(next.section!)} variant="secondary">
             {next.text.charAt(0).toUpperCase()}
             {next.text.slice(1)}
           </Button>
         )}
-        <Button
-          className="w-big"
-          disabled={!ready || isLocked || (busy !== undefined && busy !== 'deploy')}
-          isLoading={busy === 'deploy'}
-          onClick={() => onDeploy(stage, region, expectation)}
-          variant="primary"
-        >
-          Deploy to {stage || 'dev'}
-        </Button>
+        {deployButton('w-big')}
       </ActionBar>
     </div>
   );
@@ -718,23 +772,26 @@ export function DeployStep({
 function Section({
   id,
   title,
+  titleAside,
   state,
   summary,
   isOpen,
   onToggle,
-  aside,
+  quietWhenReady = false,
   children
 }: {
   id: SectionId;
   title: ReactNode;
+  /** Beside the state, on the title line: "1 of 3 saved". */
+  titleAside?: ReactNode;
   state: SectionState;
-  /** One line for a folded section: the account, how many secrets are saved, what the migration does. */
+  /** One line for a folded section: how many secrets are saved, what the migration does. */
   summary?: ReactNode;
   isOpen: boolean;
   /** Absent: the section cannot be folded or opened from here. */
   onToggle?: (() => void) | undefined;
-  /** A section-wide action beside the title, such as "Generate all 2". */
-  aside?: ReactNode;
+  /** No "Ready" beside the title: the controls under it already show what was chosen. */
+  quietWhenReady?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -744,10 +801,12 @@ function Section({
         <div className="w-check-head">
           <h2 className="w-check-title">
             {title}
-            <span className={`w-state is-${state}`}>{STATE_WORDS[state]}</span>
+            {!(quietWhenReady && state === 'ready') && (
+              <span className={`w-state is-${state}`}>{STATE_WORDS[state]}</span>
+            )}
           </h2>
           <span className="w-check-aside">
-            {isOpen && aside}
+            {isOpen && titleAside}
             {onToggle !== undefined && (
               <button aria-expanded={isOpen} className="w-link w-small" onClick={onToggle} type="button">
                 {isOpen ? (state === 'ready' ? 'Done' : 'Hide') : state === 'ready' ? 'Edit' : 'Show'}
@@ -761,57 +820,24 @@ function Section({
   );
 }
 
-/**
- * The AWS account this machine deploys to and who it signs in as; folded, also the region and stage. Each part has its
- * label, so the IAM user `dev` and the stage `dev` read as two things.
- */
-function AccountLine({
-  identity,
-  region,
-  stage
-}: {
-  identity: Extract<NonNullable<WizardState['awsIdentity']>, { available: true }>;
-  /** Absent while the region and stage are fields right under the line. */
-  region?: string;
-  stage?: string;
-}) {
-  return (
-    <TargetFacts
-      className="w-account"
-      facts={[
-        {
-          label: 'AWS account',
-          value: groupedAccount(identity.accountId),
-          help: (
-            <InfoTip about="the AWS account">
-              The credentials on this machine
-              {identity.profile === undefined ? '' : ` (profile ${identity.profile})`} decide the account. To deploy to
-              another one, start <span className="w-code">stacktape init</span> with{' '}
-              <span className="w-code">AWS_PROFILE=name</span>.
-            </InfoTip>
-          )
-        },
-        { label: 'Signed in as', value: identityName(identity.arn) },
-        region !== undefined && { label: 'Region', value: region },
-        stage !== undefined && { label: 'Stage', value: stage || '—' }
-      ]}
-    />
-  );
-}
-
 function TargetLine({
   target,
+  stage,
   checking,
   commandTarget,
   isRechecking,
   onRecheck
 }: {
   target: WizardState['deployTarget'];
+  stage: string;
   checking: boolean;
   commandTarget: Parameters<typeof stackCommand>[1];
   isRechecking: boolean;
   onRecheck: () => void;
 }) {
+  if (stage === '') {
+    return <p className="w-target-line is-quiet">Name the stage, and the stack is checked, read-only.</p>;
+  }
   if (checking || target === undefined) {
     return (
       <p className="w-target-line">
@@ -821,16 +847,22 @@ function TargetLine({
   }
   if (target.status === 'absent') {
     return (
-      <p className="w-target-line">
-        Creates the stack <span className="w-code">{target.stackName}</span>. Nothing is there yet.
+      <p className="w-target-line is-ok">
+        <BiCheck aria-hidden size={15} />
+        <span>
+          Creates the stack <span className="w-code">{target.stackName}</span>. Nothing is there yet.
+        </span>
       </p>
     );
   }
   if (target.status === 'updateable') {
     return (
-      <p className="w-target-line">
-        Updates <span className="w-code">{target.stackName}</span>: {stackStatusWords(target.stackStatus)}.
-        <InfoTip about="updating a stack">Anything in the stack that the file no longer has is removed.</InfoTip>
+      <p className="w-target-line is-ok">
+        <BiCheck aria-hidden size={15} />
+        <span>
+          Updates <span className="w-code">{target.stackName}</span>: {stackStatusWords(target.stackStatus)}.
+          <InfoTip about="updating a stack">Anything in the stack that the file no longer has is removed.</InfoTip>
+        </span>
       </p>
     );
   }
@@ -854,7 +886,11 @@ function TargetLine({
         <p className="w-problem-text">{copy.body}</p>
       </div>
       {copy.fix !== undefined && (
-        <CopyableCommand command={stackCommand(copy.fix === 'delete' ? 'delete' : 'stack recover', commandTarget)} />
+        <CommandLine
+          command={stackCommand(copy.fix === 'delete' ? 'delete' : 'stack recover', commandTarget)}
+          fill
+          label="Copy the command"
+        />
       )}
       <div>
         <Button isLoading={isRechecking} onClick={onRecheck} variant="secondary">
@@ -865,499 +901,19 @@ function TargetLine({
   );
 }
 
-const TASK_WORDS: Record<SecretTask, { title: string; help: string }> = {
-  generate: {
-    title: 'Generated for you',
-    help: 'Values only your app uses, such as session keys. A strong random value works, made in this page and saved straight to AWS.'
-  },
-  provide: {
-    title: 'You provide',
-    help: 'Keys and addresses that come from other services. Stacktape cannot make these up.'
-  },
-  import: {
-    title: 'Values in .env',
-    help: 'Your .env sets these on your machine. Check each value: it goes from this page to AWS Secrets Manager in your account, nowhere else.'
-  }
-};
-
-/** A value this long gets the row's whole width, so a list of URLs can be read before it is saved. */
-const WIDE_VALUE = 28;
+/** What the user picks for when the migration runs. `release-command` and `deploy-hook` are the decision's own values. */
+type MigrationChoice = 'release-command' | 'deploy-hook' | 'self' | 'unset';
 
 /**
- * The secrets, grouped by what the user does about them: generate, type in, or check what `.env` has. Each group says
- * how many are left; the first with something left is open, a finished one folds to one line. Once the `.env` values are
- * in their fields, that group splits into what can be saved as it is and what needs a look first.
+ * Whether the database gets its tables, and when: before each deploy goes live (a release command), right after it
+ * (from this machine), or by the user. Which of the first two exist depends on what the service deploys as; a release
+ * command for an SSR site needs Docker, so without it the other is recommended.
  */
-function SecretsBody({
-  plan,
-  groups,
-  environment,
-  saved,
-  generated,
-  drafts,
-  imported,
-  failure,
-  region,
-  awsAccount,
-  isAvailable,
-  showConfirm,
-  openTasks,
-  onToggleTask,
-  onSecret,
-  onGenerated,
-  onDrafts,
-  onImported,
-  onConfirm
-}: {
-  plan: ReturnType<typeof planSecrets>;
-  groups: SecretTaskGroup[];
-  environment: EnvironmentValues | undefined;
-  saved: ReadonlySet<string>;
-  generated: ReadonlySet<string>;
-  /** What is in each row's field, by secret name, until it is saved. */
-  drafts: Readonly<Record<string, string>>;
-  /** Rows filled from `.env` by "Use the values from .env". */
-  imported: ReadonlySet<string>;
-  failure: { name: string; detail: string } | undefined;
-  region: string;
-  awsAccount: string | undefined;
-  isAvailable: boolean;
-  showConfirm: boolean;
-  openTasks: ReadonlySet<SecretTask>;
-  onToggleTask: (task: SecretTask) => void;
-  onSecret: (name: string, value: string) => Promise<boolean>;
-  onGenerated: (name: string) => void;
-  onDrafts: Dispatch<SetStateAction<Readonly<Record<string, string>>>>;
-  onImported: Dispatch<SetStateAction<ReadonlySet<string>>>;
-  onConfirm: () => void;
-}) {
-  const [savingAll, setSavingAll] = useState(false);
-  const setDraft = (name: string, value: string) => onDrafts((current) => ({ ...current, [name]: value }));
-  const save = async (name: string, value: string) => {
-    const ok = await onSecret(name, value);
-    if (ok) {
-      onDrafts((current) => {
-        const next = { ...current };
-        delete next[name];
-        return next;
-      });
-    }
-    return ok;
-  };
-  const readers = new Set(
-    plan.entries.map((entry) => plan.groups.find((group) => group.entries.includes(entry))?.resourceName)
-  );
-  const file = environment?.file ?? '.env';
-  const environmentValue = (entry: SecretEntry) => environment?.values.get(entry.variable);
-
-  if (!isAvailable) {
-    return (
-      <>
-        <p className="w-check-meta">Create them in {region} from a terminal. Each command asks for the value.</p>
-        <CopyableCommand
-          command={plan.entries.map((entry) => secretCommand(entry.name, region, awsAccount)).join('\n')}
-        />
-      </>
-    );
-  }
-
-  const row = (group: SecretTaskGroup, entry: SecretEntry) => {
-    const fromEnvironment = environmentValue(entry);
-    const reader =
-      readers.size > 1 ? plan.groups.find((candidate) => candidate.entries.includes(entry))?.resourceName : undefined;
-    return (
-      <SecretRow
-        draft={drafts[entry.name] ?? ''}
-        entry={entry}
-        environmentNote={group.task === 'provide' && fromEnvironment === '' ? `Empty in ${file}` : undefined}
-        failure={failure?.name === entry.name ? failure.detail : undefined}
-        isGenerated={generated.has(entry.name)}
-        isImported={imported.has(entry.name)}
-        isSet={saved.has(entry.name)}
-        isWide={group.task === 'import' && (fromEnvironment ?? '').length > WIDE_VALUE}
-        key={entry.name}
-        onDraft={(value) => setDraft(entry.name, value)}
-        onGenerated={() => onGenerated(entry.name)}
-        onSave={(value) => save(entry.name, value)}
-        readCommand={`stacktape secret get ${entry.name} --region ${region} --show-secrets`}
-        reader={reader}
-        source={group.task === 'import' ? '' : undefined}
-      />
-    );
-  };
-
-  /** Saves the ready `.env` values one after another, like Generate all: the first failure stops the rest. */
-  const saveAll = (entries: readonly SecretEntry[]) =>
-    void (async () => {
-      setSavingAll(true);
-      for (const entry of entries) {
-        // oxlint-disable-next-line no-await-in-loop
-        if (!(await save(entry.name, drafts[entry.name]!))) break;
-      }
-      setSavingAll(false);
-    })();
-
-  return (
-    <>
-      <p className="w-check-meta">
-        Saved in AWS Secrets Manager in your account, never sent to Stacktape.
-        <InfoTip about="secrets">
-          Your app reads each one as an environment variable. The values go from this page to the CLI on this machine,
-          and into AWS Secrets Manager in your account ({region}).
-        </InfoTip>
-      </p>
-      {(plan.setByStacktape.length > 0 || plan.notNeeded.length > 0) && (
-        <ul className="w-secret-counts">
-          {plan.setByStacktape.length > 0 && (
-            <li>
-              <BiCheck aria-hidden size={15} />
-              <span>
-                {plan.setByStacktape.length} set by Stacktape: <CodeList names={plan.setByStacktape} />
-              </span>
-              <InfoTip about="secrets Stacktape sets">
-                The database password. The deploy creates it and gives it to the app.
-              </InfoTip>
-            </li>
-          )}
-          {plan.notNeeded.length > 0 && (
-            <li>
-              <BiCheck aria-hidden size={15} />
-              <span>
-                {plan.notNeeded.length} not needed to deploy: <CodeList names={plan.notNeeded} />
-              </span>
-              <InfoTip about="secrets the deploy does not need">
-                Your code reads {plan.notNeeded.length === 1 ? 'it' : 'them'} only in a build or test tool, or has a
-                fallback, so the app starts without {plan.notNeeded.length === 1 ? 'it' : 'them'}. Add{' '}
-                {plan.notNeeded.length === 1 ? 'it' : 'one'} as a secret later if you need it.
-              </InfoTip>
-            </li>
-          )}
-        </ul>
-      )}
-      <div className="w-tasks">
-        {groups.map((group) => {
-          const remaining = group.entries.filter((entry) => !saved.has(entry.name));
-          const isOpen = openTasks.has(group.task);
-          const title = group.task === 'import' ? `Values in ${file}` : TASK_WORDS[group.task].title;
-          const unused = remaining.filter((entry) => !imported.has(entry.name));
-          // The .env group splits once its values are in the fields: nothing is left to fill from the file.
-          const isSplit = group.task === 'import' && unused.length === 0;
-          const step = group.task === 'import' ? importStep(remaining, environment, imported, drafts) : undefined;
-          const action =
-            group.task === 'generate' ? (
-              <GenerateAll entries={remaining} onSaved={onGenerated} onSecret={onSecret} />
-            ) : group.task === 'import' && unused.length > 0 ? (
-              <Button
-                data-next-action
-                onClick={() => {
-                  onDrafts((current) => ({
-                    ...current,
-                    ...Object.fromEntries(unused.map((entry) => [entry.name, environmentValue(entry) ?? '']))
-                  }));
-                  onImported((current) => new Set([...current, ...unused.map((entry) => entry.name)]));
-                }}
-                variant="secondary"
-              >
-                Use the {unused.length} {unused.length === 1 ? 'value' : 'values'} from {file}
-              </Button>
-            ) : undefined;
-          const split = splitImports(group.entries, environment);
-          return (
-            <section
-              aria-label={title}
-              className={`w-task${isOpen ? ' is-open' : ''}`}
-              id={`task-${group.task}`}
-              key={group.task}
-            >
-              <div className="w-task-head">
-                <button
-                  aria-expanded={isOpen}
-                  className="w-task-toggle"
-                  onClick={() => onToggleTask(group.task)}
-                  type="button"
-                >
-                  <BiChevronRight aria-hidden className="w-task-chevron" size={16} />
-                  <span className="w-task-title">{title}</span>
-                  <TaskCount left={remaining.length} total={group.entries.length} />
-                </button>
-                <InfoTip about={title.toLowerCase()}>{TASK_WORDS[group.task].help}</InfoTip>
-                {isOpen && action !== undefined && <span className="w-task-action">{action}</span>}
-              </div>
-              {isOpen && !isSplit && (
-                <div className="w-task-rows">{group.entries.map((entry) => row(group, entry))}</div>
-              )}
-              {isOpen && isSplit && (
-                <div className="w-task-rows">
-                  {split.ready.length > 0 && (
-                    <div className="w-subtask">
-                      <div className="w-subtask-head">
-                        <span className="w-subtask-title">Ready to save</span>
-                        <TaskCount
-                          left={split.ready.filter((entry) => !saved.has(entry.name)).length}
-                          total={split.ready.length}
-                        />
-                        {step?.step === 'save' && (
-                          <span className="w-task-action">
-                            <Button
-                              data-next-action
-                              isLoading={savingAll}
-                              onClick={() => saveAll(step.entries)}
-                              variant="primary"
-                            >
-                              Save {step.entries.length} {step.entries.length === 1 ? 'value' : 'values'}
-                            </Button>
-                          </span>
-                        )}
-                      </div>
-                      {split.ready.map((entry) => row(group, entry))}
-                    </div>
-                  )}
-                  {split.review.length > 0 && (
-                    <div className="w-subtask">
-                      <div className="w-subtask-head">
-                        <span className="w-subtask-title">Review before saving</span>
-                        <TaskCount
-                          left={split.review.filter((entry) => !saved.has(entry.name)).length}
-                          total={split.review.length}
-                        />
-                        <InfoTip about="values to review">
-                          They point at this machine or are a template’s example, so the deployed app would not work
-                          with them. Change each one, then save it.
-                        </InfoTip>
-                      </div>
-                      {split.review.map((entry) => row(group, entry))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
-      {showConfirm && (
-        <p className="w-quiet">
-          <button className="w-link" onClick={onConfirm} type="button">
-            I already saved these in AWS
-          </button>
-        </p>
-      )}
-    </>
-  );
-}
-
-/** "4 left", or "All 7 saved" once nothing is. */
-function TaskCount({ left, total }: { left: number; total: number }) {
-  return left === 0 ? (
-    <span className="w-task-count is-done">
-      <BiCheck aria-hidden size={14} /> {total === 1 ? 'Saved' : `All ${total} saved`}
-    </span>
-  ) : (
-    <span className="w-task-count">{left} left</span>
-  );
-}
-
-function CodeList({ names }: { names: readonly string[] }) {
-  return (
-    <>
-      {names.map((name, index) => (
-        <Fragment key={name}>
-          {index > 0 && ', '}
-          <span className="w-code">{name}</span>
-        </Fragment>
-      ))}
-    </>
-  );
-}
-
-/** "Generate all 2": one strong random value for each secret the app owns, saved one after another. */
-function GenerateAll({
-  entries,
-  onSecret,
-  onSaved
-}: {
-  entries: SecretEntry[];
-  onSecret: (name: string, value: string) => Promise<boolean>;
-  onSaved: (name: string) => void;
-}) {
-  const [running, setRunning] = useState(false);
-  if (entries.length < 2) return null;
-  return (
-    <Tooltip content="A strong random value for each secret your app owns, saved straight to AWS. Third-party keys stay yours to paste.">
-      <Button
-        data-next-action
-        isLoading={running}
-        onClick={() =>
-          void (async () => {
-            setRunning(true);
-            for (const entry of entries) {
-              // One after another: each save is its own request to the CLI, and the first failure stops the rest.
-              // oxlint-disable-next-line no-await-in-loop
-              const ok = await onSecret(entry.name, generateSecretValue(entry.variable));
-              if (!ok) break;
-              onSaved(entry.name);
-            }
-            setRunning(false);
-          })()
-        }
-        variant="primary"
-      >
-        Generate all {entries.length}
-      </Button>
-    </Tooltip>
-  );
-}
-
-const LOCAL_WORDS = {
-  local: 'Local value: change before deploying',
-  example: 'Example value: change before deploying'
-} as const;
-
-function SecretRow({
-  entry,
-  draft,
-  isSet,
-  isGenerated,
-  isImported,
-  isWide,
-  failure,
-  readCommand,
-  reader,
-  source,
-  environmentNote,
-  onDraft,
-  onSave,
-  onGenerated
-}: {
-  entry: SecretEntry;
-  /** What is in the field: typed, or filled from `.env`. */
-  draft: string;
-  isSet: boolean;
-  isGenerated: boolean;
-  isImported: boolean;
-  /** A long value: the field takes the row's whole width, under the name. */
-  isWide: boolean;
-  failure: string | undefined;
-  readCommand: string;
-  /** The resource that reads it, when several do. */
-  reader: string | undefined;
-  /** Said instead of the line that reads it; empty for a value the group already says comes from `.env`. */
-  source: string | undefined;
-  environmentNote: string | undefined;
-  onDraft: (value: string) => void;
-  onSave: (value: string) => Promise<boolean>;
-  onGenerated: () => void;
-}) {
-  const [saving, setSaving] = useState<'typed' | 'generated' | undefined>();
-  const [editing, setEditing] = useState(false);
-  const save = async (input: string, how: 'typed' | 'generated') => {
-    if (input === '') return;
-    setSaving(how);
-    const ok = await onSave(input);
-    setSaving(undefined);
-    if (ok) {
-      setEditing(false);
-      if (how === 'generated') onGenerated();
-    }
-  };
-  // A secret stays hidden while it is typed; a plain setting is shown, so an imported one can be checked.
-  const isHidden = entry.kind !== 'setting';
-  const local = isImported && !isSet ? localValueReason(draft) : undefined;
-  const meta = [
-    reader === undefined ? undefined : `read by ${reader}`,
-    environmentNote ??
-      (source !== undefined
-        ? source
-        : (entry.note ?? (entry.source === undefined ? undefined : `${entry.source.file}:${entry.source.line}`)))
-  ].filter((part): part is string => part !== undefined && part !== '');
-  return (
-    <div
-      className={`w-secret${local === undefined ? '' : ' is-local'}${isWide && !(isSet && !editing) ? ' is-wide' : ''}`}
-      id={`secret-${entry.name}`}
-    >
-      <div className="w-secret-label">
-        <span className="w-secret-name">{entry.variable}</span>
-        {meta.length > 0 && <span className="w-secret-source">{meta.join(' · ')}</span>}
-      </div>
-      {isSet && !editing ? (
-        <div className="w-secret-saved">
-          <span className="w-saved">
-            <BiCheck aria-hidden size={16} /> Saved
-          </span>
-          <span aria-label="Value hidden" className="w-secret-mask">
-            ••••••••
-          </span>
-          {isGenerated && (
-            <span className="w-secret-tag">
-              generated
-              <InfoTip about="the generated value">
-                A random value made in this page and saved straight to AWS. To read it:{' '}
-                <span className="w-code">{readCommand}</span>
-              </InfoTip>
-            </span>
-          )}
-          <button className="w-link w-small" onClick={() => setEditing(true)} type="button">
-            Replace
-          </button>
-        </div>
-      ) : (
-        <form
-          className="w-secret-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void save(draft, 'typed');
-          }}
-        >
-          <TextField
-            aria-label={`Value for ${entry.name}`}
-            autoComplete="off"
-            onChange={(event) => onDraft(event.target.value)}
-            placeholder={entry.kind === 'outside' ? 'URL' : 'Value'}
-            reserveMessageSpace={false}
-            spellCheck={false}
-            trailing={
-              entry.canGenerate && draft === '' ? (
-                <button
-                  className="w-field-action"
-                  disabled={saving !== undefined}
-                  onClick={() => void save(generateSecretValue(entry.variable), 'generated')}
-                  title="Fill in a strong random value and save it"
-                  type="button"
-                >
-                  {saving === 'generated' ? <Spinner /> : 'Generate'}
-                </button>
-              ) : undefined
-            }
-            type={isHidden ? 'password' : 'text'}
-            value={draft}
-          />
-          <Button disabled={draft === ''} isLoading={saving === 'typed'} type="submit" variant="secondary">
-            Save
-          </Button>
-          {editing && (
-            <button className="w-link w-small" onClick={() => setEditing(false)} type="button">
-              Cancel
-            </button>
-          )}
-        </form>
-      )}
-      {local !== undefined && (
-        <p className="w-secret-local">
-          <BiErrorCircle aria-hidden size={14} />
-          {LOCAL_WORDS[local]}
-        </p>
-      )}
-      {failure !== undefined && <p className="w-error-text w-secret-error">{failure}</p>}
-    </div>
-  );
-}
-
-type MigrationChoice = 'deploy-hook' | 'self' | 'unset';
-
-/** Whether the database gets its tables: two explicit choices for the migration command the analysis found. */
 function MigrationSection({
   migration,
   migrationDecision,
   resources,
+  docker,
   skipped,
   isHandEdited,
   isLocked,
@@ -1371,6 +927,8 @@ function MigrationSection({
   migration: { service: string; command: string } | undefined;
   migrationDecision: NonNullable<WizardState['facts']>['decisions'][number] | undefined;
   resources: ConfigResources;
+  /** Whether Docker answers on this machine; undefined while unknown. */
+  docker: boolean | undefined;
   skipped: boolean;
   isHandEdited: boolean;
   isLocked: boolean;
@@ -1381,19 +939,28 @@ function MigrationSection({
   onDecision: (id: string, value: string) => void;
   onSkip: (skipped: boolean) => void;
 }) {
-  const isOn = migrationDecision?.chosen === 'deploy-hook';
+  const chosen = migrationDecision?.chosen;
   const command = migration?.command ?? String(migrationDecision?.parameters.command ?? 'the migration');
   // The choice writes the hook into the generated file; a hand-edited file says it itself.
   const decisionId = migration === undefined ? migrationDecision?.id : `migration-timing:${migration.service}`;
   const canChoose = decisionId !== undefined && decisionId.startsWith('migration-timing:');
-  const choice: MigrationChoice = isOn ? 'deploy-hook' : skipped ? 'self' : 'unset';
   const service =
     migration?.service ??
     (typeof migrationDecision?.parameters.serviceName === 'string'
       ? migrationDecision.parameters.serviceName
       : undefined);
-  /** When it runs, in the same words on the choice and on the finished row. */
-  const when = `on every deploy, ${migrationTiming(resources, service, isOn)}`;
+  const runner = migrationRunnerOf(resources, service);
+  const isOn = chosen === 'deploy-hook' || chosen === 'release-command';
+  // A container service gets a release command either way; for a site the two values are two different things.
+  const choice: MigrationChoice =
+    chosen === 'release-command' || (chosen === 'deploy-hook' && runner === 'container')
+      ? 'release-command'
+      : chosen === 'deploy-hook'
+        ? 'deploy-hook'
+        : skipped
+          ? 'self'
+          : 'unset';
+  const withoutDocker = runner === 'site' && docker === false;
   const title = (
     <>
       Database migrations
@@ -1403,6 +970,7 @@ function MigrationSection({
       </InfoTip>
     </>
   );
+  const commandCode = <span className="w-code">{command}</span>;
 
   if (!canChoose) {
     return (
@@ -1412,12 +980,14 @@ function MigrationSection({
         state="ready"
         summary={
           <p className="w-check-meta">
-            <span className="w-code">{command}</span> runs{' '}
-            {migrationDecision?.chosen === 'service-startup'
+            {commandCode} runs{' '}
+            {chosen === 'service-startup'
               ? 'when the app starts'
-              : migrationDecision?.chosen === 'deploy-hook'
-                ? 'on every deploy'
-                : 'when you run it yourself'}
+              : chosen === 'release-command'
+                ? 'before each deploy goes live'
+                : chosen === 'deploy-hook'
+                  ? 'on every deploy'
+                  : 'when you run it yourself'}
             .
           </p>
         }
@@ -1425,6 +995,77 @@ function MigrationSection({
       />
     );
   }
+
+  const releaseLabel = (
+    <span className="w-choice-label">
+      Before each deploy goes live
+      {!withoutDocker && (
+        <Badge size="small" tone="brand">
+          Recommended
+        </Badge>
+      )}
+    </span>
+  );
+  const options: Array<{
+    value: Exclude<MigrationChoice, 'unset'>;
+    label: ReactNode;
+    description: string;
+    disabled?: boolean;
+  }> =
+    runner === 'container'
+      ? [
+          {
+            value: 'release-command',
+            label: releaseLabel,
+            description:
+              "Runs in the service's new image, in your network, before it takes traffic. If it fails, the deploy stops and the running version keeps serving."
+          }
+        ]
+      : runner === 'site'
+        ? [
+            {
+              value: 'release-command',
+              label: releaseLabel,
+              description: withoutDocker
+                ? 'Needs Docker to build an image of your project, and Docker is not running on this machine. Start it, then click Check again.'
+                : "Runs in AWS, next to the database, as the site's release command. If it fails, the deploy stops and the running version keeps serving. Docker on this machine builds its image.",
+              disabled: withoutDocker
+            },
+            {
+              value: 'deploy-hook',
+              label: (
+                <span className="w-choice-label">
+                  Right after each deploy
+                  {withoutDocker && (
+                    <Badge size="small" tone="brand">
+                      Recommended
+                    </Badge>
+                  )}
+                </span>
+              ),
+              description:
+                'Runs from this machine once the new version is live, so its first requests can meet the old tables. Needs no Docker.'
+            }
+          ]
+        : [
+            {
+              value: 'deploy-hook',
+              label: (
+                <span className="w-choice-label">
+                  Right after each deploy
+                  <Badge size="small" tone="brand">
+                    Recommended
+                  </Badge>
+                </span>
+              ),
+              description: 'Runs from this machine once the new version is live.'
+            }
+          ];
+  options.push({
+    value: 'self',
+    label: 'I run it myself',
+    description: 'The app starts against an empty database until you do.'
+  });
 
   return (
     <Section
@@ -1434,57 +1075,44 @@ function MigrationSection({
       state={state}
       summary={
         <p className="w-check-meta">
-          {choice === 'deploy-hook' ? (
+          {choice === 'release-command' ? (
             <>
-              Stacktape runs <span className="w-code">{command}</span> {when}.
+              Stacktape runs {commandCode} before each deploy goes live, as the {runner === 'site' ? 'site' : 'service'}
+              ’s release command.
             </>
+          ) : choice === 'deploy-hook' ? (
+            <>Stacktape runs {commandCode} from this machine right after each deploy.</>
           ) : choice === 'self' ? (
-            <>
-              You run <span className="w-code">{command}</span> yourself.
-            </>
+            <>You run {commandCode} yourself.</>
           ) : (
-            'The new database starts empty. Choose who runs the migrations.'
+            'The new database starts empty. Choose when its migrations run.'
           )}
         </p>
       }
       title={title}
     >
       <p className="w-check-meta">The new database starts empty. This command creates its tables:</p>
-      <pre className="w-command-line">{command}</pre>
-      <Tooltip content="Your file is edited by hand. Add the hook there instead." disabled={!isHandEdited}>
+      <CommandLine command={command} fill label="Copy the migration command" />
+      <Tooltip content="Your file is edited by hand. Set the release command there instead." disabled={!isHandEdited}>
         <div className="w-choices">
           <RadioGroup<Exclude<MigrationChoice, 'unset'>>
             disabled={isLocked || isHandEdited || busy === decisionId}
-            label={<span className="sr-only">Who runs the migrations</span>}
+            label={<span className="sr-only">When the migrations run</span>}
             name="migration-runner"
             onValueChange={(value) => {
-              if (value === 'deploy-hook') {
-                onSkip(false);
-                onDecision(decisionId, 'deploy-hook');
-              } else {
+              if (value === 'self') {
                 onSkip(true);
                 if (isOn) onDecision(decisionId, 'manual');
+                return;
               }
+              onSkip(false);
+              // A container service's release command is what the deploy hook already is.
+              onDecision(
+                decisionId,
+                value === 'release-command' && runner === 'site' ? 'release-command' : 'deploy-hook'
+              );
             }}
-            options={[
-              {
-                value: 'deploy-hook',
-                label: (
-                  <span className="w-choice-label">
-                    Stacktape runs it
-                    <Badge size="small" tone="brand">
-                      Recommended
-                    </Badge>
-                  </span>
-                ),
-                description: `${when.charAt(0).toUpperCase()}${when.slice(1)}.`
-              },
-              {
-                value: 'self',
-                label: 'I run it myself',
-                description: 'The app starts against an empty database until you do.'
-              }
-            ]}
+            options={options}
             value={(choice === 'unset' ? '' : choice) as Exclude<MigrationChoice, 'unset'>}
           />
         </div>
@@ -1564,7 +1192,7 @@ function AwsConnect({
             Sign in to AWS again
             {profileTip}
           </p>
-          <CopyableCommand command={`aws sso login${profileFlag}`} />
+          <CommandLine command={`aws sso login${profileFlag}`} fill label="Copy the sign-in command" />
           <div className="w-relogin-actions">
             {checkAgain('primary')}
             <span className="w-quiet">After you sign in.</span>
@@ -1660,10 +1288,10 @@ function AwsConnect({
       {showPaths && path === 'sso' && (
         <ol className="w-steps-list w-path-body">
           <Step text="Set up the profile once. It asks for your SSO start URL.">
-            <CopyableCommand command="aws configure sso" />
+            <CommandLine command="aws configure sso" fill label="Copy the SSO setup command" />
           </Step>
           <Step text="Sign in. Do this again when the session expires.">
-            <CopyableCommand command={`aws sso login${profileFlag}`} />
+            <CommandLine command={`aws sso login${profileFlag}`} fill label="Copy the sign-in command" />
           </Step>
           <Step
             text={
@@ -1882,7 +1510,7 @@ function MigrationNote({ message }: { message: string }) {
         The database file is only reachable from inside the running app, so the deploy cannot run them for you. Make{' '}
         <span className="w-code">{service}</span> run this before it starts its server:
       </p>
-      <pre className="w-command-line">{command}</pre>
+      <CommandLine command={command ?? ''} fill label="Copy the migration command" />
     </>
   );
 }

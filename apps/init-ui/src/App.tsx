@@ -1,8 +1,8 @@
 import { Alert } from '@stacktape/ui-react/alert';
+import { CommandLine } from '@stacktape/ui-react/command-line';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import logo from './assets/logo.svg';
-import { CopyableCommand } from './components/CopyableCommand';
 import { StepPath, type PathStep, type PathStepStatus } from './components/StepPath';
 import { buildDeployModel, type DeployEvent } from './deploy-model';
 import { connect, SessionError, type Session, type WizardState } from './session';
@@ -194,7 +194,7 @@ export function App() {
             <p className="w-lede">{failure}</p>
           </header>
           <p className="w-field-label">Start it again in your project’s folder</p>
-          <CopyableCommand command="stacktape init" />
+          <CommandLine command="stacktape init" label="Copy the command" />
         </div>
       </Frame>
     );
@@ -328,6 +328,16 @@ export function App() {
           onAwsKeys={(id, secret) =>
             void run('aws-keys', () => session.saveAwsKeys(id, secret), 'The keys could not be saved.')
           }
+          onAwsProfile={(profile) =>
+            void run('aws-profile', () => session.setAwsProfile(profile), 'That AWS profile could not be used.')
+          }
+          onDismissSecret={async (name, dismissed) => {
+            await run(
+              `dismiss-${name}`,
+              () => session.dismissSecret(name, dismissed),
+              dismissed ? 'The secret could not be removed.' : 'The secret could not be put back.'
+            );
+          }}
           onCheckTarget={async (checkStage, region) => {
             try {
               await session.deploy(checkStage, region, { kind: 'check' });
