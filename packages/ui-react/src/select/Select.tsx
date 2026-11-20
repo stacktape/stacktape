@@ -314,6 +314,14 @@ export function Select<Value>({
           {...(closeMenuOnSelect === undefined ? {} : { closeMenuOnSelect })}
           components={selectComponents}
           filterOption={filterSelectOption}
+          // React Select uses this text for announcements and chip removal. The custom components render the visuals.
+          getOptionLabel={({ label: optionLabel, valueLabel, searchText, value: optionValue }) =>
+            typeof optionLabel === 'string'
+              ? optionLabel
+              : typeof valueLabel === 'string'
+                ? valueLabel
+                : (searchText ?? String(optionValue))
+          }
           {...(defaultValue === undefined ? {} : { defaultValue })}
           {...(form === undefined ? {} : { form })}
           {...(hideSelectedOptions === undefined ? {} : { hideSelectedOptions })}
