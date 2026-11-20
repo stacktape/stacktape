@@ -24,6 +24,7 @@ import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { ProjectFacts } from '@stacktape/config-inference/facts';
 import type { StackPriceEstimationResponse } from '@stacktape/console-api/anonymous';
+import { replayDeploy } from './deploy-replay';
 
 export type WizardFixtureScenario = {
   /** A recorded scan in `projects/`, e.g. `saas-starter`. */
@@ -44,8 +45,16 @@ export type WizardFixtureScenario = {
   price?: boolean;
   target?: 'absent' | 'updateable' | 'blocked';
   verify?: 'passed' | 'failed' | 'unavailable';
-  /** `held` stops mid-way through CloudFormation until `deploy` arrives on stdin, then succeeds. */
+  /**
+   * `held` stops before the slowest AWS resource (a database, usually) is created, until `deploy` arrives on stdin,
+   * then succeeds.
+   */
   deploy?: 'succeed' | 'fail' | 'held';
+  /**
+   * `paced` (the default) plays a first deploy in about half a minute, each AWS resource in its turn; `instant` as
+   * fast as the page takes it, for tests. See `deploy-replay.ts`.
+   */
+  deployPace?: 'paced' | 'instant';
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** What connecting the coding agent to Stacktape does after a successful deploy. */
   agentSetup?: 'succeed' | 'fail';
@@ -330,86 +339,6 @@ const main = async () => {
     return weights.map((weight) => Math.round((weight / total) * PACED_SCAN_MS));
   };
 
-  /** One deploy, as the CLI's JSONL stream would report it for this composition. */
-  const deployEvents = (resourceNames: string[]) => {
-    const at = () => new Date().toISOString();
-    const event = (phase: string, eventType: string, status: string, message: string, detail?: object) => ({
-      type: 'event',
-      ts: at(),
-      phase,
-      eventType,
-      status,
-      message,
-      ...(detail === undefined ? {} : { detail })
-    });
-    const total = resourceNames.length * 9 + 6;
-    // CloudFormation names, as the real stream reports them: the resource's name in PascalCase, then what it is.
-    const logicalIds = (names: string[]) =>
-      names.flatMap((name) => {
-        const pascal = `${name.charAt(0).toUpperCase()}${name.slice(1)}`;
-        return [`${pascal}Resource`, `${pascal}LogGroup`];
-      });
-    const progress = (completed: number, inProgress: string[]) =>
-      event(
-        'DEPLOY',
-        'UPDATE_STACK',
-        'running',
-        `${completed}/${total} resources (${Math.round((completed / total) * 100)}%)`,
-        {
-          kind: 'cloudformation-progress',
-          stackAction: 'create',
-          status: 'active',
-          completedCount: completed,
-          totalPlanned: total,
-          percent: Math.round((completed / total) * 100),
-          inProgressCount: inProgress.length,
-          inProgressResources: inProgress,
-          changeCounts: { created: total, updated: 0, deleted: 0 }
-        }
-      );
-    return {
-      before: [
-        event('INITIALIZE', 'LOAD_CONFIG_FILE', 'started', 'Loading configuration file'),
-        event('INITIALIZE', 'LOAD_CONFIG_FILE', 'completed', 'Configuration file loaded'),
-        event('INITIALIZE', 'FETCH_STACK_DATA', 'completed', 'Stack data fetched'),
-        event('BUILD_AND_PACKAGE', 'PACKAGE_ARTIFACTS', 'started', `Packaging ${resourceNames.join(', ')}`),
-        { type: 'output', ts: at(), stream: 'stdout', lines: ['Installing dependencies…', 'Built in 41.2s'] },
-        event('BUILD_AND_PACKAGE', 'PACKAGE_ARTIFACTS', 'completed', 'Packaged 1 artifact'),
-        event('UPLOAD', 'UPLOAD_DEPLOYMENT_ARTIFACTS', 'completed', 'Uploaded 1 artifact (38.4 MB)'),
-        event('DEPLOY', 'UPDATE_STACK', 'started', `Creating stack ${getStackName(projectName, 'dev')}`),
-        progress(4, logicalIds(resourceNames.slice(0, 2))),
-        progress(Math.round(total * 0.45), logicalIds(resourceNames.slice(-1)))
-      ],
-      success: [
-        progress(total - 2, logicalIds(resourceNames.slice(-1))),
-        progress(total, []),
-        event('DEPLOY', 'UPDATE_STACK', 'completed', 'Stack created'),
-        event('POST_DEPLOY', 'INVALIDATE_CACHE', 'completed', 'Cache invalidated'),
-        { type: 'result', ts: at(), ok: true, code: 'OK', message: 'Deployed.' }
-      ],
-      failure: (failedResource: string) => [
-        progress(Math.round(total * 0.7), logicalIds([failedResource])),
-        {
-          type: 'log',
-          ts: at(),
-          level: 'error',
-          source: 'cli',
-          message: `Service ${failedResource} failed to start\n\nEssential container in task exited (exit code 1). Last lines it printed:\n  Error: connect ECONNREFUSED 127.0.0.1:5432\n      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n  Server exited with code 1`
-        },
-        event('DEPLOY', 'ROLLBACK_STACK', 'completed', 'Rolled back: no resources were kept'),
-        {
-          type: 'result',
-          ts: at(),
-          ok: false,
-          // The result message the CLI emits for a container that cannot start: the CloudFormation summary with the
-          // container's exit and its last log lines.
-          code: 'STACK_ERROR',
-          message: `Stack action create failed.\n\n1. ${failedResource}\n   Service ${failedResource} failed to start\n\n   Exited with code 1 (Essential container in task exited)\n\n   Last logs before exit:\n     12:00:01 Error: connect ECONNREFUSED 127.0.0.1:5432\n     12:00:01     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n`
-        }
-      ]
-    };
-  };
-
   const agents = agentOptions(
     (scenario.agents ?? ['claude-code']).map((id) => ({
       id,
@@ -630,22 +559,26 @@ const main = async () => {
         composeConfig({ facts, projectName, engineVersions: versionJson.rds }).config.resources
       );
       const resourceNames = resources.map(([name]) => name);
-      const script = deployEvents(resourceNames);
-      for (const entry of script.before) {
-        onEvent(entry);
-        await sleep(120);
-      }
-      if (scenario.deploy === 'held') await waitFor('deploy');
       // The app container is what fails to start; the bucket or database beside it never does.
       const failedResource =
         resources.find(([, resource]) => /^(web-service|worker-service|[a-z-]+-web)$/.test(resource.type))?.[0] ??
         resourceNames[0]!;
-      const tail = scenario.deploy === 'fail' ? script.failure(failedResource) : script.success;
-      for (const entry of tail) {
-        onEvent(entry);
-        await sleep(120);
-      }
-      const result = tail.at(-1) as { ok: boolean; code: string; message: string };
+      const result = await replayDeploy({
+        resources: resources.map(([name, resource]) => [name, resource.type]),
+        accountId: ACCOUNT_ID,
+        accountFree,
+        pace: scenario.deployPace ?? 'paced',
+        outcome: scenario.deploy ?? 'succeed',
+        failedResource,
+        failureMessage: {
+          log: `Service ${failedResource} failed to start\n\nEssential container in task exited (exit code 1). Last lines it printed:\n  Error: connect ECONNREFUSED 127.0.0.1:5432\n      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n  Server exited with code 1`,
+          // The result message the CLI emits for a container that cannot start: the CloudFormation summary with the
+          // container's exit and its last log lines.
+          result: `Stack action create failed.\n\n1. ${failedResource}\n   Service ${failedResource} failed to start\n\n   Exited with code 1 (Essential container in task exited)\n\n   Last logs before exit:\n     12:00:01 Error: connect ECONNREFUSED 127.0.0.1:5432\n     12:00:01     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n`
+        },
+        release: () => waitFor('deploy'),
+        emit: onEvent
+      });
       return {
         ok: result.ok,
         code: result.code,

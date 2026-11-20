@@ -20,6 +20,8 @@ export type WizardScenario = {
   target?: 'absent' | 'updateable' | 'blocked';
   verify?: 'passed' | 'failed' | 'unavailable';
   deploy?: 'succeed' | 'fail' | 'held';
+  /** Tests deploy instantly unless they ask for `paced`, the half-minute deploy a person sees. */
+  deployPace?: 'paced' | 'instant';
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   agentSetup?: 'succeed' | 'fail';
   connect?: 'succeed' | 'fail';
@@ -56,7 +58,7 @@ const startScriptedWizard = async (
       '--preload',
       './scripts/network-guard-preload.ts',
       'scripts/init-wizard-fixture/server.ts',
-      JSON.stringify({ scan: 'instant', ...scenario })
+      JSON.stringify({ scan: 'instant', deployPace: 'instant', ...scenario })
     ],
     { cwd: cliDirectory, env: { ...process.env, STACKTAPE_WIZARD_BUNDLE: bundle }, stdio: 'pipe' }
   );

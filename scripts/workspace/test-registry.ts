@@ -4307,6 +4307,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/server/file-view.spec.ts',
       'apps/cli/src/init/server/repository-tree.spec.ts',
       'apps/cli/src/init/server/environment-values.spec.ts',
+      'apps/cli/src/init/server/deploy-resources.spec.ts',
       'apps/init-ui/src/editor/line-diff.spec.ts',
       'apps/init-ui/src/workspace/resource-story.spec.ts',
       'apps/init-ui/src/workspace/syntax.spec.ts',

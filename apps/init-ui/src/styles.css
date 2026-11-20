@@ -2645,119 +2645,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .w-phases {
-    margin: 0;
-    padding: 8px 0 12px;
-    list-style: none;
-  }
-
-  .w-phase {
-    display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    gap: 0 12px;
-    align-items: center;
-    padding: 7px 20px;
-  }
-
-  /* The log's latest lines, right under the phase that writes them. */
-  .w-phase-log {
-    display: flex;
-    flex-direction: column;
-    grid-column: 2 / -1;
-    align-items: flex-start;
-    gap: 8px;
-    margin-top: 8px;
-    min-width: 0;
-    transition: opacity 600ms var(--w-ease);
-  }
-
-  .w-phase-log .w-log {
-    align-self: stretch;
-    margin: 0;
-  }
-
-  .w-phase-log.is-quiet .w-log {
-    opacity: 0.6;
-  }
-
-  .w-phase-icon {
-    display: grid;
-    width: 20px;
-    height: 20px;
-    place-items: center;
-  }
-
-  .w-phase-icon .stp-ui-spinner {
-    width: 14px;
-    height: 14px;
-  }
-
-  .w-phase-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--w-line-strong);
-  }
-
-  .w-phase-label {
-    margin: 0;
-    color: var(--w-subtle);
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 20px;
-  }
-
-  .w-phase.is-running .w-phase-label,
-  .w-phase.is-failed .w-phase-label {
-    color: var(--w-text);
-    font-weight: 600;
-  }
-
-  .w-phase.is-done .w-phase-label {
-    color: var(--w-muted);
-  }
-
-  /* The log: its last lines, quiet and live, at the foot of the panel; opened, it takes the room that is left. */
-  .w-run-log {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 14px 20px 16px;
-    border-top: 1px solid var(--w-line);
-  }
-
-  .w-run-side.is-log-open .w-run-log {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .w-run-log-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .w-run-log .w-log {
-    margin: 0;
-  }
-
-  .w-run-side.is-log-open .w-run-log .w-log {
-    flex: 1;
-    min-height: 0;
-    max-height: none;
-  }
-
-  .w-log.is-tail {
-    overflow: hidden;
-    color: var(--w-subtle);
-    white-space: pre;
-    mask-image: linear-gradient(90deg, black 85%, transparent);
-  }
-
   /* ── Live ──────────────────────────────────────────────────────────────────────────────────── */
 
   .w-live {
@@ -2872,10 +2759,6 @@
 
   .w-live-meta .w-info {
     margin-left: -2px;
-  }
-
-  .w-live-details {
-    margin-top: 14px;
   }
 
   /* Removing the deployment: its own quiet row at the end, away from the routine links. */
@@ -4027,10 +3910,6 @@
 
     .w-run-now {
       padding: 16px 16px 14px;
-    }
-
-    .w-phase {
-      padding: 7px 16px;
     }
 
     /* Review's own narrow rules, kept as they were. */

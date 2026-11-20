@@ -132,12 +132,37 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(page.getByRole('heading', { name: 'Deploying to dev' })).toBeVisible();
   // The reviewed diagram fills in as AWS creates it; one clock for the deploy, and the tab question is answered.
   await expect(page.locator('.stp-diagram__node[data-progress]').first()).toBeVisible();
-  await expect(page.getByRole('complementary', { name: 'Deploy progress' })).toContainText('Creating AWS resources');
+  const progress = page.getByRole('complementary', { name: 'Deploy progress' });
+  await expect(progress).toContainText('Creating AWS resources');
   await expect(page.getByText(/Closing this tab does not stop the deploy/)).toBeVisible();
   await expect(page.locator('[aria-current="step"]')).toContainText('Deploy');
+  // The held deploy waits on the database: its AWS resources are listed under it, the one AWS is creating first.
+  const database = progress.getByRole('region', { name: 'Postgres database' });
+  await expect(
+    database.getByRole('list', { name: 'AWS resources of Postgres database' }).locator('li').first()
+  ).toContainText('RDS DB instance');
+  await expect(database).toContainText('MainDatabaseDbInstance');
+  // The network and roles every part uses are their own group, done before the parts that need them.
+  await expect(progress.getByRole('region', { name: 'Shared setup' })).toContainText(/\d+ done/);
+  // The log is one tab away: a section per phase, each resource where it happened, and a search that narrows it.
+  await progress.getByRole('tab', { name: /^Log/ }).click();
+  const log = progress.getByRole('log', { name: 'Deploy log' });
+  await expect(log).toContainText('Creating MainDatabaseDbInstance');
+  await progress.getByRole('searchbox', { name: 'Find in the deploy log' }).fill('DbInstance');
+  await expect(log.locator('.r-line')).toHaveCount(1);
   wizard.release('deploy');
 
   await expect(liveHeading(page)).toBeVisible({ timeout: 15_000 });
+  // What the deploy did stays one click away under the live app.
+  await page.getByRole('button', { name: /Deploy details/ }).click();
+  await expect(page.locator('#deploy-details').getByRole('region', { name: 'Postgres database' })).toContainText(
+    'done'
+  );
+  // Adding Stacktape to the coding agent says what it gives, in the words a person would ask it.
+  const agentRow = page.getByRole('region', { name: 'Use Stacktape from Claude Code' });
+  await expect(agentRow).toContainText('Deploy my latest changes to dev');
+  await agentRow.getByRole('button', { name: 'Add to Claude Code' }).click();
+  await expect(agentRow).toContainText('Added');
   await expect(page.getByRole('link', { name: 'Open app' })).toHaveAttribute('href', /stacktape-app\.com/);
   await expect(page.locator('.w-command code').first()).toContainText('--region us-east-1');
   // Deployed signed in: the stage is already in the Console, so the page links there and offers nothing.

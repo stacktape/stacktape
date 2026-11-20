@@ -7,6 +7,7 @@
  * token is single-use anyway, so leaving it visible only invites confusion when it stops working.
  */
 
+import type { DeployResource } from './deploy-model';
 import type {
   DeploymentPreferenceChange,
   DeploymentPreferences
@@ -171,6 +172,11 @@ export type WizardState = {
     /** When this attempt began; the event list is capped, so its first entry cannot say. */
     startedAt?: string;
     events: unknown[];
+    /**
+     * Every AWS resource this attempt's CloudFormation progress named, with its state and times. Kept whole however
+     * long the deploy runs, unlike `events`.
+     */
+    resources?: DeployResource[];
     lines: string[];
     outcome?: { ok: boolean; code: string; message: string };
     /**
