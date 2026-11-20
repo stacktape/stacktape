@@ -40,7 +40,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   const wizard = await startWizard({ project: 'saas-starter', deploy: 'held' });
   await page.goto(wizard.url);
   await expect(page.getByText(/Nothing is created on AWS until you click Deploy/)).toBeVisible();
-  // The four steps are words in the header; the current one is marked for assistive technology.
+  // The four steps are stops on a track in the header; the current one is marked for assistive technology.
   await expect(page.getByRole('navigation', { name: 'Progress' }).locator('[aria-current="step"]')).toContainText(
     'Analyze'
   );

@@ -46,7 +46,7 @@
 
     /* Layout, shared by every screen. The workspace screens (Analyze, Review, Deploying) are a two-pane grid under
      * the header; the form screens are one centred column. */
-    --w-header-h: 56px;
+    --w-header-h: 72px;
     --w-gutter: 32px;
     --w-gap: 24px;
     --w-pane-right: clamp(440px, 38vw, 600px);
@@ -296,134 +296,200 @@
   }
 
   /* ── Step navigation ───────────────────────────────────────────────────────────────────────── *
-   * Four words in the header. The current one is strong and underlined; the underline sits on the header's bottom
-   * border and slides to the next step with the Tabs indicator's timing. Done steps are muted with a check, upcoming
-   * ones faint. */
+   * A timeline track in the header: one 2 px line through four stops, the labels under them. The line is filled up to
+   * the current stop and the soft ring sits on it; both slide to the next stop when the page moves on. Done stops are
+   * filled with a check, the current one is outlined with a dot, upcoming ones are outlined in the border colour. */
 
-  .w-nav-wrap {
-    display: flex;
-    align-items: center;
-    align-self: stretch;
-    min-width: 0;
+  .w-track {
+    --w-track-width: 480px;
+    --w-track-dot: 20px;
+    --w-track-gap: 8px;
+    /* How far the line runs past the first and last stop. */
+    --w-track-overhang: 30px;
+    --w-track-ring: 4px;
+    --w-track-tone: var(--w-brand);
+    --w-track-pending: color-mix(in srgb, var(--w-faint) 35%, var(--w-chrome));
+    /* The centre of stop n is (n + 0.5) columns from the left. */
+    --w-track-column: calc(var(--w-track-width) / var(--w-track-count));
+    --w-track-current: calc((var(--w-track-at) + 0.5) * var(--w-track-column));
+
+    position: relative;
+    justify-self: center;
+    width: var(--w-track-width);
+    max-width: 100%;
   }
 
-  .w-nav {
+  .w-track.is-failed {
+    --w-track-tone: var(--w-error);
+  }
+
+  .w-track-rail,
+  .w-track-fill {
+    position: absolute;
+    top: calc(var(--w-track-dot) / 2 - 1px);
+    left: var(--w-track-overhang);
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  .w-track-rail {
+    right: var(--w-track-overhang);
+    background: var(--w-line-strong);
+  }
+
+  /* Up to the edge of the current stop. */
+  .w-track-fill {
+    width: max(0px, calc(var(--w-track-current) - var(--w-track-dot) / 2 - var(--w-track-overhang)));
+    background: var(--w-brand);
+    transition: width 300ms var(--w-ease);
+  }
+
+  .w-track-ring {
+    position: absolute;
+    top: calc(var(--w-track-ring) * -1);
+    left: calc(var(--w-track-current) - var(--w-track-dot) / 2 - var(--w-track-ring));
+    width: calc(var(--w-track-dot) + 2 * var(--w-track-ring));
+    height: calc(var(--w-track-dot) + 2 * var(--w-track-ring));
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--w-track-tone) 16%, transparent);
+    transition:
+      left 300ms var(--w-ease),
+      background-color 200ms var(--w-ease);
+  }
+
+  .w-track-stops {
     position: relative;
-    display: flex;
-    align-items: stretch;
-    gap: 28px;
-    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(var(--w-track-count), minmax(0, 1fr));
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .w-nav > li {
+  .w-track-stops > li {
     display: flex;
+    justify-content: center;
+    min-width: 0;
   }
 
-  .w-nav-item {
-    display: inline-flex;
+  .w-stop {
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    height: 100%;
+    gap: var(--w-track-gap);
     padding: 0;
     border: none;
+    border-radius: 6px;
     background: none;
     color: var(--w-faint);
     font: inherit;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     line-height: 16px;
     white-space: nowrap;
     transition: color 200ms var(--w-ease);
   }
 
-  .w-nav-label {
+  .w-stop-dot {
     position: relative;
-    display: inline-flex;
-    flex-direction: column;
+    display: flex;
+    flex: none;
     align-items: center;
-    align-self: stretch;
     justify-content: center;
+    box-sizing: border-box;
+    width: var(--w-track-dot);
+    height: var(--w-track-dot);
+    border: 2px solid var(--w-track-pending);
+    border-radius: 50%;
+    background: var(--w-chrome);
+    transition:
+      background-color 200ms var(--w-ease),
+      border-color 200ms var(--w-ease);
   }
 
-  /* The label's width at the current step's weight, reserved at every step, so nothing shifts when it changes. */
-  .w-nav-label::after {
-    content: attr(data-text);
-    height: 0;
-    overflow: hidden;
-    font-weight: 600;
-    visibility: hidden;
+  .w-stop-dot svg {
+    width: 11px;
+    height: 11px;
+    fill: none;
+    stroke: var(--w-chrome);
+    stroke-width: 1.9;
   }
 
-  /* Where the underline goes: measured, never painted. */
-  .w-nav-slot {
-    position: absolute;
-    right: 0;
-    bottom: -1px;
-    left: 0;
-    height: 2px;
+  /* The dot inside the current stop. */
+  .w-stop-dot::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--w-track-tone);
+    opacity: 0;
+    transform: scale(0.4);
+    transition:
+      opacity 200ms var(--w-ease),
+      transform 300ms var(--w-ease);
   }
 
-  .w-nav-check {
-    color: var(--w-brand);
-  }
-
-  .w-nav-item.is-done {
+  .w-stop.is-done {
     color: var(--w-muted);
   }
 
-  .w-nav-item.is-current,
-  .w-nav-item.is-working,
-  .w-nav-item.is-failed {
+  .w-stop.is-done .w-stop-dot {
+    border-color: var(--w-brand);
+    background: var(--w-brand);
+  }
+
+  .w-stop.is-done .w-stop-dot::after {
+    display: none;
+  }
+
+  .w-stop.is-current,
+  .w-stop.is-working,
+  .w-stop.is-failed {
     color: var(--w-text-strong);
     font-weight: 600;
   }
 
-  button.w-nav-item {
+  /* A stop becomes current as the line reaches it. */
+  .w-stop.is-current .w-stop-dot,
+  .w-stop.is-working .w-stop-dot,
+  .w-stop.is-failed .w-stop-dot {
+    border-color: var(--w-track-tone);
+    transition-delay: 150ms;
+  }
+
+  .w-stop.is-current .w-stop-dot::after,
+  .w-stop.is-working .w-stop-dot::after,
+  .w-stop.is-failed .w-stop-dot::after {
+    opacity: 1;
+    transform: none;
+    transition-delay: 200ms;
+  }
+
+  /* Analyzing or deploying: the dot breathes while the step runs. */
+  .w-stop.is-working .w-stop-dot::after {
+    animation: w-breathe 1.6s ease-in-out infinite;
+  }
+
+  .w-stop.is-failed {
+    color: var(--w-error);
+  }
+
+  button.w-stop {
     cursor: pointer;
   }
 
-  button.w-nav-item:hover {
+  button.w-stop:hover {
     color: var(--w-text);
   }
 
-  button.w-nav-item:focus-visible {
-    outline: none;
+  button.w-stop:hover .w-stop-dot {
+    border-color: var(--w-brand-strong);
+    background: var(--w-brand-strong);
   }
 
-  button.w-nav-item:focus-visible .w-nav-label > span:first-child {
-    border-radius: 3px;
+  button.w-stop:focus-visible {
     outline: 2px solid var(--w-brand);
-    outline-offset: 3px;
-  }
-
-  /* The ui-react sliding indicator, as a 2 px underline. */
-  .w-nav-underline {
-    border: 0;
-    border-radius: 2px 2px 0 0;
-    background: var(--w-brand);
-    box-shadow: none;
-  }
-
-  .w-nav-underline.is-failed {
-    background: var(--w-error);
-  }
-
-  .w-nav-compact {
-    display: none;
-    align-items: baseline;
-    gap: 6px;
-    color: var(--w-text-strong);
-    font-size: 13px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .w-nav-compact span {
-    color: var(--w-subtle);
-    font-weight: 500;
+    outline-offset: 4px;
   }
 
   /* ── Type ──────────────────────────────────────────────────────────────────────────────────── */
@@ -2780,7 +2846,11 @@
       transition-duration: 1ms !important;
     }
 
-    .w-nav-underline {
+    .w-track-fill,
+    .w-track-ring,
+    .w-stop,
+    .w-stop-dot,
+    .w-stop-dot::after {
       transition: none !important;
     }
   }
@@ -2846,6 +2916,7 @@
   @media (max-width: 760px) {
     :root {
       --w-gutter: 16px;
+      --w-header-h: 60px;
     }
 
     .w-top-inner {
@@ -2860,12 +2931,31 @@
       display: none;
     }
 
-    .w-nav {
-      display: none;
+    /* The same track, smaller, with only the current label. */
+    .w-track {
+      --w-track-width: 176px;
+      --w-track-dot: 16px;
+      --w-track-gap: 6px;
+      --w-track-overhang: 8px;
+      --w-track-ring: 3px;
     }
 
-    .w-nav-compact {
-      display: inline-flex;
+    .w-stop-dot svg {
+      width: 9px;
+      height: 9px;
+    }
+
+    .w-stop-dot::after {
+      width: 5px;
+      height: 5px;
+    }
+
+    .w-stop:is(.is-done, .is-pending) .w-stop-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
     }
 
     .w-main.is-form {
