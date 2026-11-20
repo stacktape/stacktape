@@ -234,13 +234,13 @@ export function ReviewPane({
 
   if (shownLayout === 'stack') {
     return (
-      <div className="rv" data-layout="stack">
+      <div className="rv ws-review" data-layout="stack">
         {note}
         <div className="rv-main">
           <section aria-label="Diagram" className="ws-panel rv-diagram">
             <div className="rv-diagram-canvas">{diagram}</div>
             <p className="rv-diagram-hint">
-              {isTouch ? 'Tap a resource to open its settings' : 'Click a resource to open its settings'}
+              {isTouch ? 'Tap a resource to change it' : 'Click a resource to change it'}
             </p>
           </section>
           <div className="rv-list">
@@ -289,7 +289,7 @@ export function ReviewPane({
   if (shownLayout === 'canvas') {
     const picked = selected === undefined ? undefined : entryOf(selected);
     return (
-      <div className="rv" data-layout="canvas" data-picked={picked === undefined ? undefined : 'true'}>
+      <div className="rv ws-review" data-layout="canvas" data-picked={picked === undefined ? undefined : 'true'}>
         {note}
         <div className="rv-main">
           <section aria-label="Diagram" className="ws-panel rv-diagram rv-canvas">
@@ -315,11 +315,16 @@ export function ReviewPane({
 
   // Columns: the picture, then what is picked (or everything), then stacktape.yml.
   return (
-    <div className="rv" data-columns={threeColumns ? '3' : '2'} data-layout="columns">
+    <div className="rv ws-review" data-columns={threeColumns ? '3' : '2'} data-layout="columns">
       {note}
       <div className="rv-main">
         <section aria-label="Diagram" className="ws-panel rv-diagram">
           <div className="rv-diagram-canvas">{diagram}</div>
+          {selected === undefined && (
+            <p className="rv-diagram-hint">
+              {isTouch ? 'Tap a resource to change it' : 'Click a resource to change it'}
+            </p>
+          )}
         </section>
         <aside
           aria-label={selected === undefined ? 'Overview' : `${entryOf(selected)?.title ?? selected} settings`}

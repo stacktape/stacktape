@@ -20,6 +20,7 @@ import {
   applyWrites,
   settingsForResource,
   settingWrites,
+  type ResourceSetting,
   type SettingChange,
   type SettingsContext,
   type SettingValue,
@@ -379,10 +380,10 @@ export const startWizardSession = async ({
     price = undefined;
     priceUnavailable = false;
     if (configEdit !== undefined) {
-      // The edited text is what deploys, so it is what gets priced. Its choices have no alternatives to compare.
+      // The edited text is what deploys, so it is what gets priced, with each setting's options written into it.
       const edit = configEdit;
       if (edit.error !== undefined) return;
-      void estimateOnce(edit.yaml, regionOfText(edit.yaml) ?? region).then((estimate) => {
+      void priceEditWithOptions(edit.yaml, regionOfText(edit.yaml) ?? region).then((estimate) => {
         if (configEdit !== edit) return;
         price = estimate;
         priceUnavailable = estimate === undefined;
@@ -429,10 +430,64 @@ export const startWizardSession = async ({
     current: CompositionResult,
     region: string | undefined
   ): Promise<PriceEstimate | undefined> => {
-    const baseYaml = renderYaml(current);
-    const base = await estimateOnce(baseYaml, region);
-    if (base?.flatMonthly === undefined || facts === undefined) return base;
     const currentFacts = facts;
+    return priceSettings({
+      resources: current.config.resources,
+      baseYaml: renderYaml(current),
+      region,
+      variantYaml: (name, setting, value) => {
+        const preference = setting.preference;
+        if (preference !== undefined && currentFacts === undefined) return undefined;
+        const variant =
+          preference === undefined
+            ? withSetting(current, name, setting.id, value)
+            : withTweaks(
+                composeConfig({
+                  facts: currentFacts!,
+                  projectName,
+                  preferences: { ...current.preferences, [preference]: value } as DeploymentPreferences,
+                  decisions: answers,
+                  engineVersions: versionJson.rds
+                })
+              );
+        return variant === undefined ? undefined : renderYaml(variant);
+      }
+    });
+  };
+
+  /**
+   * The same for a file edited by hand: each option is written into the text the way the setting would write it. A
+   * setting that recomposes the file (a private database) waits while it has hand edits, so it is not priced.
+   */
+  const priceEditWithOptions = async (yaml: string, region: string | undefined): Promise<PriceEstimate | undefined> => {
+    const resources = resourcesOfText(yaml);
+    if (resources === undefined) return estimateOnce(yaml, region);
+    return priceSettings({
+      resources,
+      baseYaml: yaml,
+      region,
+      variantYaml: (name, setting, value) => {
+        if (setting.preference !== undefined) return undefined;
+        const outcome = settingWrites(resources[name]!, { setting: setting.id, value }, SETTINGS_CONTEXT);
+        return 'refused' in outcome ? undefined : writeIntoText(yaml, name, outcome.writes);
+      }
+    });
+  };
+
+  /** The file's price, and each option of each priced setting priced as the same file with that one option changed. */
+  const priceSettings = async ({
+    resources,
+    baseYaml,
+    region,
+    variantYaml
+  }: {
+    resources: Record<string, { type: string; properties: Record<string, unknown> }>;
+    baseYaml: string;
+    region: string | undefined;
+    variantYaml: (resourceName: string, setting: ResourceSetting, value: SettingValue) => string | undefined;
+  }): Promise<PriceEstimate | undefined> => {
+    const base = await estimateOnce(baseYaml, region);
+    if (base?.flatMonthly === undefined) return base;
     const settings: NonNullable<PriceEstimate['settings']> = {};
     const record = (resource: string, setting: string, value: SettingValue, estimate: PriceEstimate | undefined) => {
       const resourceAmount = estimate?.resourceFlat?.[resource];
@@ -446,7 +501,7 @@ export const startWizardSession = async ({
       };
     };
     const variants: Array<() => Promise<void>> = [];
-    for (const [name, resource] of Object.entries(current.config.resources)) {
+    for (const [name, resource] of Object.entries(resources)) {
       for (const setting of settingsForResource(resource, SETTINGS_CONTEXT)) {
         if (!setting.priced || setting.disabledReason !== undefined) continue;
         for (const option of setting.options) {
@@ -456,21 +511,8 @@ export const startWizardSession = async ({
             continue;
           }
           variants.push(async () => {
-            const preference = setting.preference;
-            const variant =
-              preference === undefined
-                ? withSetting(current, name, setting.id, option.value)
-                : withTweaks(
-                    composeConfig({
-                      facts: currentFacts,
-                      projectName,
-                      preferences: { ...current.preferences, [preference]: option.value } as DeploymentPreferences,
-                      decisions: answers,
-                      engineVersions: versionJson.rds
-                    })
-                  );
-            if (variant === undefined) return;
-            const yaml = renderYaml(variant);
+            const yaml = variantYaml(name, setting, option.value);
+            if (yaml === undefined) return;
             record(name, setting.id, option.value, yaml === baseYaml ? base : await estimateOnce(yaml, region));
           });
         }

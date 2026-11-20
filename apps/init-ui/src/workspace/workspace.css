@@ -1204,14 +1204,6 @@
 
   /* ── Review: title, diagram, settings ────────────────────────────────────────────────────────── */
 
-  .ws-review {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 16px;
-    min-height: 0;
-  }
-
   /* The frame's .w-title type; a long project name wraps rather than losing "on AWS". */
   .ws-title {
     margin: 0;
@@ -1250,256 +1242,6 @@
     line-height: 16px;
   }
 
-  /* The diagram takes what the title and settings leave; below 264 px the column scrolls instead. Its last row says
-   * what the resource under the pointer, or the picked one, is. */
-  .ws-diagram {
-    position: relative;
-    display: flex;
-    container: ws-diagram / inline-size;
-    flex: 1 0 264px;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .ws-diagram-canvas {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-  }
-
-  .ws-diagram .stp-diagram {
-    height: 100%;
-  }
-
-  /* One height for the app (its longest citation), so hovering or picking never resizes the picture above it. The
-   * name and the way to the file on the first line; under it the why, wrapping beside the lines of code, which take the
-   * width they need so a cited line shows whole. */
-  .ws-selection {
-    display: grid;
-    flex: none;
-    grid-template-areas:
-      'name actions'
-      'why code';
-    grid-template-columns: minmax(200px, 1fr) fit-content(72%);
-    grid-template-rows: 28px auto;
-    align-content: start;
-    align-items: center;
-    gap: 6px 20px;
-    box-sizing: border-box;
-    min-height: 80px;
-    padding: 8px 12px 10px 16px;
-    border-top: 1px solid var(--w-line);
-    background: var(--w-well);
-  }
-
-  .ws-selection[data-empty] {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* Without lines of code (a resource Stacktape adds for another), the why takes the whole line. */
-  .ws-selection:not([data-code]) {
-    grid-template-areas:
-      'name actions'
-      'why why';
-  }
-
-  .ws-selection-actions {
-    display: flex;
-    grid-area: actions;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 2px;
-    min-width: 0;
-  }
-
-  .ws-selection-hint {
-    color: var(--w-muted);
-    font-size: 12px;
-    white-space: nowrap;
-  }
-
-  .ws-selection-empty {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin: 0;
-    color: var(--w-muted);
-    font-size: 13px;
-    line-height: 20px;
-  }
-
-  .ws-selection-empty svg {
-    flex: none;
-    margin-top: 2px;
-  }
-
-  .ws-selection-empty > span {
-    display: grid;
-  }
-
-  .ws-selection-empty strong {
-    color: var(--w-text);
-    font-weight: 500;
-  }
-
-  .ws-selection-name {
-    display: flex;
-    grid-area: name;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    margin: 0;
-    font-size: 14px;
-    line-height: 20px;
-    white-space: nowrap;
-    animation: ws-fade-in 160ms var(--w-ease) both;
-  }
-
-  .ws-selection-name svg {
-    flex: none;
-  }
-
-  .ws-selection-name strong {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--w-text-strong);
-    font-weight: 600;
-    text-overflow: ellipsis;
-  }
-
-  .ws-selection-price {
-    flex: none;
-    color: var(--w-muted);
-    font-size: 13px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .ws-selection-price::before {
-    margin-right: 8px;
-    color: var(--w-faint);
-    content: '·';
-  }
-
-  /* A long path wraps rather than being cut; the row is as tall as the app's longest why needs. */
-  .ws-selection-why {
-    grid-area: why;
-    align-self: start;
-    min-width: 0;
-    margin: 0;
-    font-size: 13px;
-    line-height: 20px;
-    overflow-wrap: anywhere;
-    animation: ws-fade-in 160ms var(--w-ease) both;
-  }
-
-  .ws-selection-why .ws-evidence {
-    display: inline;
-    white-space: normal;
-  }
-
-  /* Hidden copies of every resource's row at the row's width: the tallest sets the row's height. */
-  .ws-selection-sizer {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    visibility: hidden;
-    pointer-events: none;
-  }
-
-  .ws-selection-sizer .ws-selection {
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: auto;
-  }
-
-  .ws-selection-why .ws-evidence-says {
-    font-weight: 500;
-  }
-
-  /* The cited lines, as the file has them, in the accent of a picked resource. */
-  .ws-selection-code {
-    grid-area: code;
-    align-self: start;
-    min-width: 0;
-    padding: 6px 0;
-    border-radius: var(--w-radius-chip);
-    background: var(--ws-code-bg);
-    box-shadow: inset 2px 0 0 var(--w-brand);
-    font-family: var(--w-mono);
-    font-size: 12px;
-    line-height: 20px;
-    animation: ws-fade-in 160ms var(--w-ease) both;
-  }
-
-  .ws-selection-line {
-    display: flex;
-    min-width: 0;
-    white-space: pre;
-  }
-
-  .ws-selection-number {
-    flex: none;
-    min-width: 3ch;
-    padding: 0 12px 0 10px;
-    color: var(--ws-code-line-number);
-    text-align: right;
-  }
-
-  .ws-selection-text {
-    min-width: 0;
-    padding-right: 10px;
-    overflow: hidden;
-    color: var(--ws-code-text);
-    text-overflow: ellipsis;
-  }
-
-  .ws-selection-show,
-  .ws-selection-show-size {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: var(--w-radius-chip);
-    background: var(--ws-accent);
-    box-shadow: inset 0 0 0 1px var(--ws-accent-line);
-    color: var(--w-text-strong);
-    font: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-
-  .ws-selection-show:hover {
-    background: color-mix(in srgb, var(--w-brand) 24%, transparent);
-  }
-
-  .ws-selection-clear {
-    display: grid;
-    flex: none;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--w-radius-chip);
-    background: none;
-    color: var(--w-muted);
-    cursor: pointer;
-    place-items: center;
-  }
-
-  .ws-selection-clear:hover {
-    background: var(--w-hover);
-    color: var(--w-text);
-  }
-
   /* On a phone the bar carries the price and the button; what the click does is the page's last line. */
   .ws-save-note {
     display: none;
@@ -1508,33 +1250,6 @@
     font-size: 13px;
     line-height: 20px;
     text-align: right;
-  }
-
-  /* When the diagram shows its view buttons in the corner, the hint stops short of them. */
-  .ws-diagram .stp-diagram:has(.stp-diagram__controls) .stp-diagram__hint {
-    right: 60px;
-  }
-
-  /* What the app needs that this deploy does not create, right under the picture. */
-  .ws-external {
-    display: grid;
-    flex: none;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    column-gap: 16px;
-    row-gap: 8px;
-    padding: 12px 16px;
-  }
-
-  .ws-external-list {
-    grid-column: 1 / -1;
-  }
-
-  .ws-external-title {
-    margin: 0;
-    color: var(--w-text);
-    font-size: 14px;
-    font-weight: 600;
   }
 
   .ws-external-list {
@@ -1570,105 +1285,6 @@
     color: var(--w-muted);
   }
 
-  .ws-external-note {
-    justify-self: end;
-    margin: 0;
-    color: var(--w-muted);
-    font-size: 13px;
-  }
-
-  .ws-settings {
-    flex: none;
-    padding: 2px 16px;
-  }
-
-  /* The settings that change less, folded: their current answers stay readable on the one row. */
-  .ws-more {
-    width: 100%;
-    padding: 0;
-    border: 0;
-    border-top: 1px solid var(--w-line);
-    background: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .ws-more:hover .ws-setting-label {
-    color: var(--w-brand);
-  }
-
-  .ws-more-values {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-width: 0;
-    overflow: hidden;
-    color: var(--w-muted);
-    font-size: 13px;
-    white-space: nowrap;
-  }
-
-  .ws-more-values strong {
-    color: var(--w-text);
-    font-weight: 600;
-  }
-
-  .ws-more-values svg {
-    flex: none;
-    color: var(--w-muted);
-  }
-
-  .ws-settings-paused {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin: 10px 0 6px;
-    color: var(--w-muted);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .ws-setting {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-height: 44px;
-  }
-
-  .ws-setting + .ws-setting {
-    border-top: 1px solid var(--w-line);
-  }
-
-  .ws-settings[data-paused] .ws-setting {
-    opacity: 0.55;
-  }
-
-  .ws-setting-label {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-    color: var(--w-text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 20px;
-  }
-
-  .ws-setting-control {
-    display: flex;
-    flex: none;
-    justify-content: flex-end;
-  }
-
-  .ws-option-delta {
-    color: var(--w-muted);
-    font-weight: 500;
-  }
-
   /* ── The bar ─────────────────────────────────────────────────────────────────────────────────── */
 
   .ws-bar-slot {
@@ -1681,14 +1297,6 @@
   }
 
   /* ── Arrival: after the reveal, the review comes in; on a reload it is simply there ─────────────── */
-
-  .ws[data-arrived] .ws-diagram {
-    animation: ws-fade-in 520ms 40ms var(--w-ease) both;
-  }
-
-  .ws[data-arrived] .ws-settings {
-    animation: ws-rise 460ms 240ms var(--w-ease) both;
-  }
 
   .ws[data-arrived] .ws-editor-hint {
     animation: ws-fade-in 300ms 200ms var(--w-ease) both;
@@ -1828,61 +1436,6 @@
       opacity: 0;
       pointer-events: none;
     }
-
-    .ws-review {
-      flex: none;
-    }
-
-    .ws-diagram {
-      flex: none;
-      min-height: 0;
-    }
-
-    .ws-diagram-canvas {
-      flex: none;
-      height: 300px;
-    }
-
-    @media (max-width: 760px) {
-      .ws-diagram-canvas {
-        height: 204px;
-      }
-    }
-
-    /* In the page's flow under the picture: the resource and a way to clear it, why, its lines, then the way to its
-     * block. It keeps the height a picked resource needs whatever it shows, so a tap never moves the settings. */
-    .ws-selection,
-    .ws-selection:not([data-code]) {
-      grid-template-areas:
-        'name clear'
-        'why why'
-        'code code'
-        'show show';
-      grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-rows: 30px auto auto 30px;
-      align-content: start;
-      gap: 8px;
-      min-height: 56px;
-      padding: 12px 8px 14px 16px;
-    }
-
-    .ws-selection-actions {
-      display: contents;
-    }
-
-    .ws-selection-clear {
-      grid-area: clear;
-    }
-
-    .ws-selection-code {
-      margin-right: 8px;
-    }
-
-    .ws-selection-show,
-    .ws-selection-show-size {
-      grid-area: show;
-      justify-self: start;
-    }
   }
 
   /* The phone's reveal: the finding, its lines and the YAML they became, in one card. */
@@ -2018,26 +1571,6 @@
       line-height: 30px;
     }
 
-    .ws-setting {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 12px 0;
-    }
-
-    .ws-setting-control {
-      max-width: 100%;
-    }
-
-    .ws-more {
-      flex-direction: row;
-      align-items: center;
-    }
-
-    .ws-more-values span {
-      display: none;
-    }
-
     .ws-editor-hint-keys {
       display: none;
     }
@@ -2079,14 +1612,6 @@
       max-width: 9.4em;
       font-size: 12px;
       line-height: 15px;
-    }
-
-    .ws-external {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .ws-external-note {
-      justify-self: start;
     }
   }
 

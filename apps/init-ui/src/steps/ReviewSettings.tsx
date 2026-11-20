@@ -60,7 +60,7 @@ function SettingName({ setting, terms }: { setting: ResourceSetting; terms: Sett
         <InfoTip about={setting.label.toLowerCase()}>{setting.about}</InfoTip>
       </span>
       {secondary !== undefined && (
-        <span className="rv-setting-term" data-terms={terms}>
+        <span className="rv-setting-term" data-terms={terms} title={`properties.${setting.path}`}>
           {secondary}
         </span>
       )}
@@ -224,7 +224,7 @@ function SizeList({
                   <Tooltip content="For a million requests of 100 ms each" maxWidth={240} placement="top">
                     <span>{money(perMillion)} / 1M req</span>
                   </Tooltip>
-                ) : price?.settings === undefined && setting.priced ? (
+                ) : price === undefined && setting.priced ? (
                   <span aria-hidden className="rv-skeleton" />
                 ) : null}
               </span>
