@@ -39,7 +39,9 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
 }) => {
   const wizard = await startWizard({ project: 'saas-starter', deploy: 'held' });
   await page.goto(wizard.url);
-  await expect(page.getByText(/Nothing is created on AWS until you click Deploy/)).toBeVisible();
+  // The first screen promises that analyzing creates nothing, and that the deploy waits for the Deploy button.
+  await expect(page.getByText(/Analyzing doesn't change your code or create anything on AWS/)).toBeVisible();
+  await expect(page.getByText(/Only when you click Deploy/)).toBeVisible();
   // The four steps are stops on a track in the header; the current one is marked for assistive technology.
   await expect(page.getByRole('navigation', { name: 'Progress' }).locator('[aria-current="step"]')).toContainText(
     'Analyze'

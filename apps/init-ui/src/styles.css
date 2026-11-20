@@ -78,6 +78,13 @@
     --w-brand-strong: var(--stp-interactive-primary-light);
     --w-brand-soft: rgba(54, 190, 190, 0.12);
     --w-brand-line: rgba(54, 190, 190, 0.38);
+    /* The brand colour as text on the dark page: a step's number and time when it is next. */
+    --w-brand-text: color-mix(in srgb, var(--w-brand) 58%, white);
+    /* An upcoming stop and the line between stops on the first screen, as in the header's track. */
+    --w-sg-pending: color-mix(in srgb, var(--w-faint) 35%, var(--w-chrome));
+    /* The two resource blocks in the first screen's Review picture. */
+    --w-illo-a: rgb(107, 79, 168);
+    --w-illo-b: rgb(59, 74, 138);
     --w-ok: rgb(52, 196, 160);
     --w-ok-soft: rgba(52, 196, 160, 0.14);
     --w-ok-line: rgba(52, 196, 160, 0.3);
@@ -234,7 +241,7 @@
     width: 100%;
   }
 
-  /* Start, Deploy, Live and the failures: one column, centred. */
+  /* Deploy, Live and the failures: one column, centred. (Start is a wide page of its own, below.) */
   .w-main.is-form {
     max-width: calc(var(--w-column) + 2 * var(--w-gutter));
     margin: 0 auto;
@@ -806,77 +813,46 @@
     align-self: center;
   }
 
-  /* ── Start ─────────────────────────────────────────────────────────────────────────────────── */
+  /* ── Start ─────────────────────────────────────────────────────────────────────────────────── *
+   * The first screen: the four steps from here to a running app, each with a rough time, and one button. Three
+   * placements are built while one is picked (`?start=g1|g2|g3`): `.w-sg-*` is shared, `.w-sg1-*`, `.w-sg2-*` and
+   * `.w-sg3-*` belong to one placement each and go with it. */
 
-  /* The first screen sits a little above the middle of the window, and stays put when the agent options open. */
+  /* A wide page that fills the window under the header; the small print sits at its bottom. */
+  .w-main.is-start {
+    display: flex;
+    flex-direction: column;
+    max-width: 1280px;
+    min-height: calc(100dvh - var(--w-header-h));
+    margin: 0 auto;
+    padding: clamp(32px, 10vh - 24px, 80px) 72px 32px;
+  }
+
   .w-start {
-    padding-top: clamp(0px, 16vh - 40px, 120px);
-  }
-
-  .w-facts {
-    margin: 28px 0 28px;
-    padding: 6px 0;
-    list-style: none;
-  }
-
-  .w-fact {
-    display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    gap: 14px;
-    align-items: center;
-    padding: 12px 20px;
-  }
-
-  .w-fact + .w-fact {
-    border-top: 1px solid var(--w-line);
-  }
-
-  .w-fact > svg {
-    color: var(--w-brand);
-  }
-
-  .w-fact-text {
-    margin: 0;
-    color: var(--w-text);
-  }
-
-  .w-fact-text .w-info {
-    margin-left: 6px;
-  }
-
-  .w-start-actions {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px 16px;
+    flex: 1;
+    flex-direction: column;
   }
 
-  .w-fact-main {
+  .w-sg-head {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .w-sg-head.is-centred {
     align-items: center;
-    justify-content: space-between;
-    gap: 4px 16px;
-    min-width: 0;
-  }
-
-  .w-fact-action {
-    flex: none;
-  }
-
-  /* The analyzer choice opens inside its row, above the button it configures. */
-  .w-reader-options {
-    display: grid;
-    grid-column: 2;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-    margin-top: 6px;
-    padding: 16px 0 4px;
-    border-top: 1px solid var(--w-line);
+    text-align: center;
   }
 
   /* One size for every project name: a long one wraps after a dash onto a second line instead of shrinking. */
   .w-start-title {
+    margin: 0;
+    color: var(--w-text-strong);
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 42px;
+    letter-spacing: -0.015em;
     text-wrap: balance;
   }
 
@@ -884,18 +860,615 @@
     overflow-wrap: anywhere;
   }
 
-  /* Beside the button it starts: how long the analysis takes, and that it changes nothing on AWS. */
-  .w-start-promise {
+  .w-sg-lede {
+    max-width: 680px;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 16px;
+    line-height: 26px;
+    text-wrap: balance;
+  }
+
+  /* A step's parts, the same in every placement. The next step (Analyze) carries the brand colour. */
+  .w-sg-stop {
     display: flex;
-    flex-direction: column;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--w-sg-pending);
+    border-radius: 50%;
+    background: var(--w-page);
+    color: var(--w-subtle);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .is-next > .w-sg-stop {
+    border-color: var(--w-brand);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--w-brand) 14%, transparent);
+    color: var(--w-brand-text);
+  }
+
+  .w-sg-name {
+    color: var(--w-text);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 24px;
+  }
+
+  .w-sg-time {
+    flex: none;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .is-next .w-sg-time {
+    background: var(--w-brand-soft);
+    color: var(--w-brand-text);
+  }
+
+  .w-sg-text {
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .w-start-go {
+    --stp-control-height: 46px;
+    --stp-button-padding-x: 26px;
+    --stp-button-font-weight: 600;
+    font-size: 16px;
+  }
+
+  /* Who analyzes the project, and "Change". */
+  .w-analyzer-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px 8px;
     margin: 0;
     color: var(--w-muted);
     font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-analyzer-name {
+    color: var(--w-text);
+    white-space: nowrap;
+  }
+
+  .w-analyzer-name .w-info {
+    margin-left: 5px;
+  }
+
+  .w-analyzer-dot {
+    color: var(--w-faint);
+  }
+
+  .w-analyzer-options {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    box-sizing: border-box;
+    width: min(100%, 480px);
+    padding: 18px 20px;
+    border-radius: var(--w-radius);
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+    text-align: left;
+  }
+
+  .w-analyzer-options .w-quiet {
+    margin: 0;
+  }
+
+  .w-sg-foot {
+    margin: auto 0 0;
+    padding-top: 24px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  .w-sg-foot-line {
+    display: block;
+  }
+
+  /* G1: the big timeline. A large copy of the header's track across the page, the button centred under it. */
+  .w-sg1 {
+    align-items: center;
+    gap: 44px;
+  }
+
+  .w-sg1-track {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The line through the stops, filled a little past the first: the way starts here. */
+  .w-sg1-track::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    right: 12.5%;
+    left: 12.5%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--w-brand) 0 6%, var(--w-sg-pending) 6% 100%);
+  }
+
+  .w-sg1-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+  }
+
+  .w-sg1-step .w-sg-text {
+    max-width: 230px;
+  }
+
+  .w-sg1-go {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .w-sg1 .w-sg-foot,
+  .w-sg3 .w-sg-foot {
+    text-align: center;
+  }
+
+  /* G2: the steps down the left, the project card on the right. */
+  .w-sg2 {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr) 440px;
+    gap: 0 64px;
+    align-items: start;
+  }
+
+  .w-sg2-story {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .w-sg2-steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .w-sg2-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    column-gap: 18px;
+    padding-bottom: 22px;
+  }
+
+  .w-sg2-step:last-child {
+    padding-bottom: 0;
+  }
+
+  .w-sg2-step:not(:last-child)::before,
+  .w-sg1-step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 32px;
+    bottom: 0;
+    left: 15px;
+    width: 2px;
+    background: var(--w-sg-pending);
+  }
+
+  /* Horizontal on wide screens, the G1 track draws its own line. */
+  .w-sg1-step:not(:last-child)::before {
+    display: none;
+  }
+
+  .w-sg2-step-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 4px;
+  }
+
+  .w-sg2-step .w-sg-time {
+    align-self: start;
+    margin-top: 6px;
+  }
+
+  .w-sg2-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 8px;
+    padding: 24px;
+    border-radius: 14px;
+  }
+
+  .w-sg2-project {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--w-line);
+  }
+
+  .w-sg2-folder {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--w-panel-raised);
+    color: var(--w-brand-text);
+  }
+
+  .w-sg2-project-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .w-sg2-project-name {
+    color: var(--w-text);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 22px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-sg2-path {
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  /* In the card: who analyzes on the left, the model under it, "Change" at the right of the row. */
+  .w-analyzer-line.is-card {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .w-analyzer-line.is-card p {
+    margin: 0;
+  }
+
+  .w-sg2-model {
+    display: block;
+    color: var(--w-subtle);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-analyzer-line.is-card strong {
+    font-weight: 600;
+  }
+
+  .w-sg2-card .w-start-go {
+    width: 100%;
+  }
+
+  /* Inside the card the options are flat, between the line and the button they configure. */
+  .w-sg2-card .w-analyzer-options {
+    width: 100%;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--w-line);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .w-sg2-assure {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 18px;
+    list-style: none;
+    text-wrap: balance;
+  }
+
+  .w-sg2 .w-sg-foot {
+    grid-column: 1 / -1;
+    align-self: end;
+  }
+
+  /* G3: four cards, each with a small generic picture of what that step looks like. */
+  .w-sg3 {
+    align-items: center;
+    gap: 32px;
+  }
+
+  .w-sg3 .w-sg-lede {
+    max-width: none;
+  }
+
+  .w-sg3-cards {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .w-sg3-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 14px;
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+  }
+
+  .w-sg3-card.is-next {
+    box-shadow:
+      var(--w-shadow-rest),
+      0 0 0 1px color-mix(in srgb, var(--w-brand) 50%, transparent);
+  }
+
+  .w-sg3-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .w-sg3-number {
+    margin-right: 10px;
+    color: var(--w-subtle);
+  }
+
+  .is-next .w-sg3-number {
+    color: var(--w-brand-text);
+  }
+
+  .w-sg3-art {
+    position: relative;
+    box-sizing: border-box;
+    height: 160px;
+    overflow: hidden;
+    border-radius: 9px;
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+  }
+
+  .w-sg3-art.is-tree {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12px 14px;
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 11.5px;
+  }
+
+  .w-sg3-tree-row {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 7px;
+    height: 21px;
+    padding-left: calc(var(--w-depth, 0) * 14px);
+  }
+
+  .w-sg3-tree-row.is-root {
+    color: var(--w-text);
+  }
+
+  .w-sg3-tree-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .w-sg3-bar {
+    width: var(--w-bar);
+    height: 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--w-subtle) 30%, transparent);
+  }
+
+  .w-sg3-tree-row.is-reading {
+    color: var(--w-brand-text);
+  }
+
+  .w-sg3-tree-row.is-reading .w-sg3-bar {
+    background: color-mix(in srgb, var(--w-brand) 60%, transparent);
+  }
+
+  /* The scanner line under the row being read, across the whole picture (the picture clips it). */
+  .w-sg3-tree-row.is-reading::after {
+    content: '';
+    position: absolute;
+    right: -40px;
+    bottom: -1px;
+    left: -80px;
+    height: 2px;
+    background: var(--w-brand);
+    box-shadow: 0 0 14px 3px color-mix(in srgb, var(--w-brand) 45%, transparent);
+  }
+
+  .w-sg3-tick {
+    color: var(--w-brand);
+  }
+
+  .w-sg3-art.is-review {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+  }
+
+  .w-sg3-blocks {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+  }
+
+  .w-sg3-iso.is-a {
+    --w-iso: var(--w-illo-a);
+  }
+
+  .w-sg3-iso.is-b {
+    --w-iso: var(--w-illo-b);
+  }
+
+  .w-sg3-iso-top {
+    fill: var(--w-iso);
+  }
+
+  .w-sg3-iso-left {
+    fill: color-mix(in srgb, var(--w-iso) 74%, black);
+  }
+
+  .w-sg3-iso-right {
+    fill: color-mix(in srgb, var(--w-iso) 87%, black);
+  }
+
+  .w-sg3-price {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--w-line);
+    color: var(--w-muted);
+    font-size: 12px;
     line-height: 18px;
   }
 
-  .w-start-promise span:first-child {
+  .w-sg3-price > span:last-child {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .w-sg3-eg {
     color: var(--w-subtle);
+    font-weight: 500;
+  }
+
+  .w-sg3-art.is-deploy {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px;
+    color: var(--w-muted);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-sg3-progress {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .w-sg3-meter + .w-sg3-progress {
+    margin-top: 6px;
+  }
+
+  .w-sg3-progress .is-ready {
+    color: var(--w-brand-text);
+  }
+
+  .w-sg3-progress .is-creating {
+    color: var(--w-warn);
+  }
+
+  .w-sg3-meter {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--w-brand) 0 var(--w-done), var(--w-line-strong) var(--w-done));
+  }
+
+  .w-sg3-art.is-live {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+  }
+
+  .w-sg3-url {
+    padding: 8px 12px;
+    border: 1px solid color-mix(in srgb, var(--w-brand) 30%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--w-brand) 10%, transparent);
+    color: var(--w-brand-text);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .w-sg3-go {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .w-sg3-go-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .w-sg3-go-lines {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .w-sg3-go-lines .w-analyzer-line {
+    justify-content: flex-start;
+  }
+
+  .w-sg3-promise {
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
   }
 
   .w-field-label {
@@ -906,13 +1479,6 @@
     color: var(--w-text);
     font-size: 13px;
     font-weight: 600;
-    line-height: 16px;
-  }
-
-  .w-footnote {
-    margin: 40px 0 0;
-    color: var(--w-subtle);
-    font-size: 12px;
     line-height: 16px;
   }
 
@@ -2858,6 +3424,27 @@
   /* ── Narrow screens ────────────────────────────────────────────────────────────────────────── */
 
   @media (max-width: 1020px) {
+    /* The first screen: the gutter of the other pages; G2's card under the steps, G3's cards two by two. */
+    .w-main.is-start {
+      padding-right: var(--w-gutter);
+      padding-left: var(--w-gutter);
+    }
+
+    .w-sg2 {
+      grid-template-rows: auto auto 1fr;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 32px;
+    }
+
+    .w-sg2-card {
+      max-width: 520px;
+      margin-top: 0;
+    }
+
+    .w-sg3-cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     /* One column: the settings come right after the picture, before the list and the file. */
 
     .w-top-side {
@@ -2967,8 +3554,182 @@
       line-height: 30px;
     }
 
-    .w-start {
-      padding-top: 0;
+    /* The first screen: one column, the steps vertical, the button full width. */
+    .w-main.is-start {
+      padding: 28px var(--w-gutter) 24px;
+    }
+
+    .w-start-title {
+      font-size: 26px;
+      line-height: 32px;
+    }
+
+    .w-sg-lede {
+      font-size: 15px;
+      line-height: 23px;
+    }
+
+    .w-sg-head.is-centred {
+      align-items: stretch;
+      text-align: left;
+    }
+
+    .w-sg1,
+    .w-sg3 {
+      align-items: stretch;
+      gap: 28px;
+    }
+
+    .w-sg1-track {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
+
+    .w-sg1-track::before {
+      display: none;
+    }
+
+    .w-sg1-step:not(:last-child)::before {
+      display: block;
+    }
+
+    /* G1 and G2 on a phone: stop, name and time on one line, what happens under the name. */
+    .w-sg1-step,
+    .w-sg2-step {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr) auto;
+      gap: 4px 14px;
+      align-items: center;
+      padding-bottom: 16px;
+      text-align: left;
+    }
+
+    .w-sg1-step:last-child,
+    .w-sg2-step:last-child {
+      padding-bottom: 0;
+    }
+
+    .w-sg2-step-body {
+      display: contents;
+    }
+
+    .w-sg1-step .w-sg-name,
+    .w-sg2-step .w-sg-name {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .w-sg1-step .w-sg-time,
+    .w-sg2-step .w-sg-time {
+      grid-row: 1;
+      grid-column: 3;
+      margin-top: 0;
+      align-self: center;
+    }
+
+    .w-sg1-step .w-sg-text,
+    .w-sg2-step .w-sg-text {
+      grid-row: 2;
+      grid-column: 2 / -1;
+      max-width: none;
+    }
+
+    .w-sg1-step > .w-sg-stop,
+    .w-sg2-step > .w-sg-stop {
+      grid-row: 1;
+      grid-column: 1;
+    }
+
+    .w-sg1-go {
+      align-items: stretch;
+      margin-top: 0;
+    }
+
+    .w-sg1-go .w-start-go,
+    .w-sg3-go .w-start-go {
+      width: 100%;
+    }
+
+    /* "Change" wraps under the line here, where the dot would be left hanging. */
+    .w-analyzer-dot {
+      display: none;
+    }
+
+    .w-sg-foot,
+    .w-sg1 .w-sg-foot,
+    .w-sg3 .w-sg-foot {
+      text-align: left;
+    }
+
+    .w-sg2-card {
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .w-sg2-project {
+      padding-bottom: 14px;
+    }
+
+    /* G3 on a phone: each card a row, its picture a thumbnail on the left, so the button stays near the top. */
+    .w-sg3-cards {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .w-sg3-card {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 6px 14px;
+      align-items: start;
+      padding: 14px;
+    }
+
+    .w-sg3-art {
+      grid-row: 1 / span 2;
+      width: 248px;
+      zoom: 0.42;
+    }
+
+    .w-sg3-card .w-sg-name {
+      font-size: 16px;
+      line-height: 22px;
+    }
+
+    .w-sg3-number {
+      margin-right: 8px;
+    }
+
+    .w-sg3-card .w-sg-time {
+      padding: 2px 8px;
+    }
+
+    .w-sg3-card .w-sg-text {
+      font-size: 13px;
+      line-height: 20px;
+    }
+
+    .w-sg3-go {
+      align-items: stretch;
+    }
+
+    .w-sg3-go-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+
+    .w-sg3-go-lines {
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+    }
+
+    .w-sg3-go-lines .w-analyzer-line {
+      justify-content: center;
+    }
+
+    .w-analyzer-options {
+      width: 100%;
     }
 
     .w-path-tabs .stp-ui-tab__label--full,

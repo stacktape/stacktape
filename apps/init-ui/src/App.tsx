@@ -15,7 +15,7 @@ import { Workspace } from './workspace/Workspace';
 
 type Screen = 'start' | 'analyze' | 'analyze-failed' | 'empty' | 'review' | 'deploy' | 'deploying' | 'live' | 'failed';
 
-type Layout = 'form' | 'workspace';
+type Layout = 'start' | 'form' | 'workspace';
 
 /** Which of Review and Deploy the user is on, and whether a deploy's progress or result is in front. */
 type View = 'review' | 'deploy' | 'run';
@@ -57,11 +57,11 @@ const pathFor = (screen: Screen, onReview: () => void): PathStep[] => {
 };
 
 /**
- * How each screen sits under the header. Start, Deploy, Live and the failures are one centred column; Analyze, Review
- * and Deploying are the two-pane workspace that fills the window.
+ * How each screen sits under the header. Start is a wide page that fills the window; Deploy, Live and the failures are
+ * one centred column; Analyze, Review and Deploying are the two-pane workspace that fills the window.
  */
 const LAYOUT: Record<Screen, Layout> = {
-  start: 'form',
+  start: 'start',
   analyze: 'workspace',
   'analyze-failed': 'form',
   empty: 'form',

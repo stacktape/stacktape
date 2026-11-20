@@ -317,7 +317,8 @@ export class SessionError extends Error {}
 const takeTokenFromFragment = (): string | undefined => {
   const match = /(?:^|[#&])token=([^&]+)/.exec(window.location.hash);
   if (match === null) return undefined;
-  window.history.replaceState(null, '', window.location.pathname);
+  // The query stays: `?start=g2` picks a version of the first screen and survives a reload.
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
   return decodeURIComponent(match[1]!);
 };
 
