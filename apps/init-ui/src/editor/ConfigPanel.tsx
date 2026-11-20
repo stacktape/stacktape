@@ -12,6 +12,7 @@ import type { EditorVersion } from './editor-version';
 import type { ConfigFormat, useConfigDraft } from './use-config-draft';
 
 const ConfigFileEditor = lazy(() => import('./ConfigFileEditor'));
+const ConfigDiff = lazy(() => import('./ConfigDiff'));
 
 type Phase = 'scan' | 'reveal' | 'review';
 
@@ -90,8 +91,13 @@ export function ConfigPanel({
 }) {
   const isReview = phase === 'review';
   const [view, setView] = useState<View>('file');
-  // Docked (e2) the template shows under the file until it is closed.
-  const [isDocked, setDocked] = useState(true);
+  // Docked (e2) the template shows under the file until it is closed; a phone has room for one of them at a time.
+  const [isDocked, setDocked] = useState(() => !window.matchMedia('(max-width: 760px)').matches);
+  /** The edit next to the generated file, instead of the editor. */
+  const [isComparing, setComparing] = useState(false);
+  useEffect(() => {
+    if (!draft.isEdited) setComparing(false);
+  }, [draft.isEdited]);
   const [problems, setProblems] = useState<EditorProblems>({ count: 0, errors: 0 });
   const [handle, setHandle] = useState<ConfigEditorHandle | undefined>(undefined);
   const [cursorLine, setCursorLine] = useState<number | undefined>(undefined);
@@ -142,6 +148,7 @@ export function ConfigPanel({
   }, [language]);
 
   const showsTemplate = isReview && version !== 'e2' && view === 'template';
+  const comparing = isReview && isComparing && draft.isEdited && !showsTemplate;
   const docked = isReview && version === 'e2' && isDocked;
   const formatLocked = draft.isEdited && draft.editedFormat !== undefined;
 
@@ -254,17 +261,26 @@ export function ConfigPanel({
       </header>
       <div className="ws-editor-body" data-docked={docked ? 'true' : undefined}>
         {bodyOverlay}
-        <div className="ws-editor-pane" hidden={showsTemplate}>
+        <div className="ws-editor-pane" hidden={showsTemplate || comparing}>
           <Suspense fallback={<EditorLoading />}>{fileEditor}</Suspense>
         </div>
+        {comparing && (
+          <div className="ws-editor-pane">
+            <Suspense fallback={<EditorLoading />}>
+              <ConfigDiff language={language} modified={text ?? ''} original={draft.generatedText ?? ''} />
+            </Suspense>
+          </div>
+        )}
         {showsTemplate && <div className="ws-editor-pane">{templateView(false)}</div>}
         {docked && <div className="ws-editor-dock">{templateView(true)}</div>}
       </div>
       <StatusBar
+        comparing={comparing}
         draft={draft}
         handle={handle}
         isTouch={isTouch}
         language={language}
+        onCompare={() => setComparing((current) => !current)}
         onDiscard={onDiscard}
         phase={phase}
         problems={problems}
@@ -283,8 +299,12 @@ function StatusBar({
   language,
   isTouch,
   template,
+  comparing,
+  onCompare,
   onDiscard
 }: {
+  comparing: boolean;
+  onCompare: () => void;
   phase: Phase;
   draft: ReturnType<typeof useConfigDraft>;
   problems: EditorProblems;
@@ -297,7 +317,7 @@ function StatusBar({
   if (phase !== 'review') {
     return (
       <footer className="ws-editor-status">
-        <span className="ws-status-note">
+        <span className="ws-statusbar-note">
           {phase === 'scan' ? 'Written from what the analysis finds' : 'Read-only while it is written'}
         </span>
       </footer>
@@ -306,57 +326,60 @@ function StatusBar({
   if (template !== undefined) {
     return (
       <footer className="ws-editor-status">
-        <span className="ws-status-note">
+        <span className="ws-statusbar-note" title="Compiled by stacktape init on this machine. Nothing is sent to AWS.">
           {template === 'compiling'
             ? 'Compiled on this machine, without AWS'
-            : `Compiled on this machine for stage ${template.stage} in ${template.region}, without AWS`}
+            : `Stage ${template.stage} in ${template.region}, compiled on this machine without AWS`}
         </span>
-        <span className="ws-status-hints">Read-only</span>
+        <span className="ws-statusbar-hints ws-statusbar-readonly">Read-only</span>
       </footer>
     );
   }
   const error = draft.error;
   return (
     <footer className="ws-editor-status" data-tone={error !== undefined ? 'error' : undefined}>
-      <span className="ws-status-main">
+      <span className="ws-statusbar-main">
         {error !== undefined ? (
-          <span className="ws-status-problem" data-tone="error" title={error.message}>
+          <span className="ws-statusbar-problem" data-tone="error" title={error.message}>
             <BiErrorCircle aria-hidden size={14} />
-            <span className="ws-status-text">
+            <span className="ws-statusbar-text">
               {error.line === undefined ? '' : `Line ${error.line}: `}
               {error.message}
             </span>
           </span>
         ) : problems.count > 0 ? (
           <button
-            className="ws-status-problem"
+            className="ws-statusbar-problem"
             data-tone={problems.errors > 0 ? 'error' : 'warn'}
             onClick={() => handle?.nextProblem()}
             title={problems.first?.message}
             type="button"
           >
             <BiErrorCircle aria-hidden size={14} />
-            <span className="ws-status-text">
+            <span className="ws-statusbar-text">
               {problems.count === 1 ? '1 problem' : `${problems.count} problems`}
               {problems.first === undefined ? '' : ` · line ${problems.first.line}`}
             </span>
           </button>
         ) : draft.isPending ? (
-          <span className="ws-status-note">
+          <span className="ws-statusbar-note">
             <Spinner /> Checking
           </span>
         ) : (
-          <span className="ws-status-ok">
+          <span className="ws-statusbar-ok">
             <BiCheckCircle aria-hidden size={14} />
             {language === 'yaml' ? 'Valid' : 'No type errors'}
           </span>
         )}
         {draft.isEdited && (
-          <span className="ws-status-edited">
-            <span aria-hidden className="ws-status-sep">
+          <span className="ws-statusbar-edited">
+            <span aria-hidden className="ws-statusbar-sep">
               ·
             </span>
-            Edited by hand
+            <span className="ws-statusbar-edited-label">Edited by hand</span>
+            <button aria-pressed={comparing} className="ws-textbutton" onClick={onCompare} type="button">
+              {comparing ? 'Hide changes' : 'Changes'}
+            </button>
             <button className="ws-textbutton" onClick={onDiscard} type="button">
               Discard
             </button>
@@ -364,16 +387,16 @@ function StatusBar({
         )}
       </span>
       {/* Hints are for finding your way in; once the text is the user's own, the line is about the edit. */}
-      <span className="ws-status-hints" hidden={draft.isEdited}>
+      <span className="ws-statusbar-hints" hidden={draft.isEdited}>
         {isTouch ? (
           'Tap a key for its docs'
         ) : (
           <>
-            <span className="ws-status-hint">
+            <span className="ws-statusbar-hint">
               <kbd>Ctrl</kbd>
               <kbd>Space</kbd> suggestions
             </span>
-            <span className="ws-status-hint">Hover for docs</span>
+            <span className="ws-statusbar-hint">Hover for docs</span>
           </>
         )}
       </span>

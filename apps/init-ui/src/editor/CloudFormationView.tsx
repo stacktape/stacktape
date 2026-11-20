@@ -134,7 +134,7 @@ export function CloudFormationView({
                 <ResourceIcon resourceType={story.type} size={14} />
               )}
               <strong>{owner === STACK ? 'Shared by the stack' : owner}</strong>
-              {story !== undefined && <span>{story.plainName}</span>}
+              {story !== undefined && <span className="ws-cf-section-name">{story.plainName}</span>}
               <span className="ws-cf-section-count">{resourceCount(resources.length)}</span>
             </span>
           )

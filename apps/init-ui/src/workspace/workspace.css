@@ -1073,7 +1073,7 @@
     white-space: nowrap;
   }
 
-  .ws-status-main {
+  .ws-statusbar-main {
     display: flex;
     flex: 1;
     align-items: center;
@@ -1081,33 +1081,43 @@
     min-width: 0;
   }
 
-  .ws-status-main > * {
+  .ws-statusbar-main > * {
     min-width: 0;
   }
 
-  .ws-status-main > .ws-status-edited {
+  .ws-statusbar-main > .ws-statusbar-edited {
     flex: none;
   }
 
-  .ws-status-ok,
-  .ws-status-problem,
-  .ws-status-note {
+  .ws-statusbar-ok,
+  .ws-statusbar-problem,
+  .ws-statusbar-note {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     min-width: 0;
   }
 
-  .ws-status-ok svg {
+  .ws-statusbar-note {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* A line of text only (the template's): a block, so a long one ends in an ellipsis. */
+  span.ws-statusbar-note:not(:has(*)) {
+    display: block;
+  }
+
+  .ws-statusbar-ok svg {
     color: var(--w-ok);
   }
 
-  .ws-status-note .stp-ui-spinner {
+  .ws-statusbar-note .stp-ui-spinner {
     width: 12px;
     height: 12px;
   }
 
-  .ws-status-problem {
+  .ws-statusbar-problem {
     padding: 0;
     border: 0;
     background: none;
@@ -1118,34 +1128,34 @@
     text-overflow: ellipsis;
   }
 
-  button.ws-status-problem {
+  button.ws-statusbar-problem {
     cursor: pointer;
   }
 
-  button.ws-status-problem:hover {
+  button.ws-statusbar-problem:hover {
     text-decoration: underline;
     text-underline-offset: 3px;
   }
 
-  .ws-status-problem[data-tone='error'] {
+  .ws-statusbar-problem[data-tone='error'] {
     color: var(--w-error);
   }
 
-  .ws-status-problem svg {
+  .ws-statusbar-problem svg {
     flex: none;
   }
 
-  .ws-status-text {
+  .ws-statusbar-text {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  .ws-status-hints[hidden] {
+  .ws-statusbar-hints[hidden] {
     display: none;
   }
 
-  .ws-status-edited {
+  .ws-statusbar-edited {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -1153,16 +1163,16 @@
     font-weight: 500;
   }
 
-  .ws-status-edited .ws-textbutton {
+  .ws-statusbar-edited .ws-textbutton {
     color: var(--w-text);
     font-weight: 600;
   }
 
-  .ws-status-sep {
+  .ws-statusbar-sep {
     color: var(--w-faint);
   }
 
-  .ws-status-hints {
+  .ws-statusbar-hints {
     display: inline-flex;
     flex: none;
     align-items: center;
@@ -1170,13 +1180,13 @@
     color: var(--w-faint);
   }
 
-  .ws-status-hint {
+  .ws-statusbar-hint {
     display: inline-flex;
     align-items: center;
     gap: 3px;
   }
 
-  .ws-status-hint kbd {
+  .ws-statusbar-hint kbd {
     min-width: 0;
     height: 18px;
     padding: 0 5px;
@@ -1184,29 +1194,58 @@
     line-height: 18px;
   }
 
-  .ws-status-hint kbd + kbd {
+  .ws-statusbar-hint kbd + kbd {
     margin-left: 1px;
   }
 
-  .ws-status-hint kbd:last-of-type {
+  .ws-statusbar-hint kbd:last-of-type {
     margin-right: 3px;
   }
 
   /* Narrow panels keep what the file's state is and drop the hints first. */
   @container ws-editor (max-width: 440px) {
-    .ws-status-hints {
+    .ws-statusbar-hint {
+      display: none;
+    }
+
+    .ws-statusbar-readonly {
       display: none;
     }
   }
 
   @container ws-editor (max-width: 470px) {
     .ws-editor-toggle-label,
-    .ws-editor-format .stp-ui-tab__label--full {
+    .ws-editor-format .stp-ui-tab__label--full,
+    .ws-editor-tabs .stp-ui-tab__label--full {
       display: none;
     }
 
-    .ws-editor-format .stp-ui-tab__label--compact {
+    .ws-editor-format .stp-ui-tab__label--compact,
+    .ws-editor-tabs .stp-ui-tab__label--compact {
       display: inline;
+    }
+
+    /* The file's tab carries the edited dot; the line keeps the two actions. */
+    .ws-statusbar-edited-label {
+      display: none;
+    }
+
+    /* A phone copies nothing: the room goes to the tabs. */
+    .ws-editor-head .ws-editor-icon-button {
+      display: none;
+    }
+
+    .ws-editor-head {
+      padding-right: 8px;
+    }
+
+    .ws-editor-tabs {
+      --stp-tab-gap: 6px;
+      --stp-tab-padding-x: 6px;
+    }
+
+    .ws-editor-tabs .stp-ui-tab__icon {
+      display: none;
     }
   }
 
@@ -1247,9 +1286,21 @@
     font-weight: 600;
   }
 
+  .ws-cf-section-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .ws-cf-section-count {
+    flex: none;
     margin-left: auto;
     color: var(--w-faint);
+  }
+
+  .ws-cf-section > svg,
+  .ws-cf-section > strong {
+    flex: none;
   }
 
   /* ── The CloudFormation template ──────────────────────────────────────────────────────────────── */
@@ -1271,6 +1322,8 @@
     border-bottom: 1px solid var(--w-line);
     background: color-mix(in srgb, var(--ws-code-bg) 70%, var(--w-panel));
     scrollbar-width: none;
+    /* More chips than room: the row fades at its end and scrolls. */
+    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
   }
 
   .ws-cf[data-compact] .ws-cf-groups {
@@ -2080,6 +2133,10 @@
 
     .ws-editor[data-collapsed] .ws-editor-estimate-label {
       line-height: 16px;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-status {
+      display: none;
     }
 
     .ws-editor[data-collapsed] .ws-editor-body {

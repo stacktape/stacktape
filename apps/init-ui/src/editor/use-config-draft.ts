@@ -100,5 +100,20 @@ export const useConfigDraft = ({
   /** The configuration the CLI holds, as YAML: what is priced, compiled and deployed. */
   const sourceYaml = edit?.yaml ?? generated?.yaml;
 
-  return { shown, text, isEdited, editedFormat, change, discard, resources, error, isPending, sourceYaml };
+  /** The generated file in the shown format, what an edit is compared with. */
+  const generatedText = generatedOf(shown);
+
+  return {
+    shown,
+    text,
+    generatedText,
+    isEdited,
+    editedFormat,
+    change,
+    discard,
+    resources,
+    error,
+    isPending,
+    sourceYaml
+  };
 };

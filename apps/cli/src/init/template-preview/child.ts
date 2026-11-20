@@ -91,7 +91,12 @@ export const runTemplatePreviewChild = async () => {
     }
     result = { ok: true, text: stringifyToYaml(readingOrder(template, owners, declared)), owners };
   } catch (error) {
-    result = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    const message = error instanceof Error ? error.message : String(error);
+    // The configuration arrives as an object, not a file: the CLI's "Config at `null`" names no file worth naming.
+    result = {
+      ok: false,
+      error: message.replace(/^Config \([^)]*\) at `null` is invalid\./, 'The configuration is invalid.')
+    };
   }
   process.stdout.write(`\n${RESULT_MARKER}${JSON.stringify(result)}\n`);
   process.exit(0);
