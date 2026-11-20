@@ -3,29 +3,28 @@ import { Button } from '@stacktape/ui-react/button';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BiInfoCircle, BiKey, BiLinkExternal } from 'react-icons/bi';
-import { parse as parseYaml } from 'yaml';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { BiKey, BiLinkExternal } from 'react-icons/bi';
 import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { AnimatedPrice } from '../components/AnimatedPrice';
-import type { ConfigEditorHandle, EditorLens, EditorProblems } from '../editor/ConfigFileEditor';
+import type { ConfigEditorHandle } from '../editor/ConfigFileEditor';
+import { ConfigPanel } from '../editor/ConfigPanel';
+import { editorVersion } from '../editor/editor-version';
+import { useConfigDraft, type ConfigTextEdit } from '../editor/use-config-draft';
 import type { FileView, RepositoryTree, Session, WizardState } from '../session';
 import { ReviewPane } from '../steps/ReviewStep';
 import { filenameFor, monthlySuffix, summarise } from '../steps/review-model';
 import { reviewLayout } from '../steps/review-version';
-import { FileIcon } from './FileIcon';
 import { buildTree, fileCountLabel } from './file-tree';
 import {
   allChips,
   citationOf,
-  lineRange,
   quoteLabel,
   resourcePrice,
   revealPlan,
   runningPrice,
   storiesOf,
   tellingOrder,
-  yamlSegments,
   type Chip,
   type Citation,
   type RevealPlan,
@@ -38,7 +37,6 @@ import { EXCERPT_HEIGHT, TreeWindow, type TreeFocus, type TreeMark } from './Tre
 import { useMediaQuery } from './use-media-query';
 import './workspace.css';
 
-const ConfigFileEditor = lazy(() => import('../editor/ConfigFileEditor'));
 // The diagram is shown the moment the reveal ends; start loading it while the analysis runs.
 const loadDiagram = () => import('../components/Diagram');
 
@@ -103,7 +101,7 @@ export function Workspace({
   onSetting: (change: SettingChange) => void;
   onDecision: (id: string, value: string) => void;
   onRegion: (region: string) => void;
-  onConfigText: (yaml: string | null) => void;
+  onConfigText: (edit: ConfigTextEdit) => void;
   onContinue: () => void;
   /** The reveal is playing: the step navigation still says Analyze. */
   onRevealing: (isRevealing: boolean) => void;
@@ -218,49 +216,19 @@ export function Workspace({
   };
 
   // ── The file, as the user edits it ──────────────────────────────────────────────────────────────
-  const composition = state.composition;
-  const generated = composition?.configText;
-  const edit = state.configEdit;
-  const [draft, setDraft] = useState<string | undefined>(undefined);
-  const sendTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const editorText = draft ?? edit?.yaml ?? generated?.yaml;
-  const isEdited = edit !== undefined || (draft !== undefined && draft !== generated?.yaml);
-  const changeText = (next: string) => {
+  const draft = useConfigDraft({
+    state,
+    format,
     // The reveal types into the editor itself; only the user's own typing is an edit.
-    if (phaseRef.current !== 'review') return;
-    setDraft(next);
-    clearTimeout(sendTimer.current);
-    sendTimer.current = setTimeout(() => onConfigText(next === generated?.yaml ? null : next), 500);
-  };
+    isTyping: () => phaseRef.current === 'review',
+    onConfigText
+  });
+  const isEdited = draft.isEdited;
   const discardEdits = () => {
     if (!window.confirm('Discard your edits and go back to the generated file?')) return;
-    clearTimeout(sendTimer.current);
-    setDraft(undefined);
-    onConfigText(null);
+    draft.discard();
   };
-  useEffect(() => () => clearTimeout(sendTimer.current), []);
-  useEffect(() => {
-    // The server has the same text now; the draft has done its job.
-    if (draft !== undefined && (draft === edit?.yaml || (edit === undefined && draft === generated?.yaml))) {
-      setDraft(undefined);
-    }
-  }, [draft, edit, generated?.yaml]);
-
-  // The diagram, lenses and settings follow the edited file when it parses.
-  const resources: Resources = useMemo(() => {
-    const text = draft ?? edit?.yaml;
-    if (text !== undefined) {
-      try {
-        const parsed = parseYaml(text) as { resources?: unknown } | null;
-        if (parsed !== null && typeof parsed === 'object' && typeof parsed.resources === 'object') {
-          return (parsed.resources ?? {}) as Resources;
-        }
-      } catch {
-        // Keeps the last good picture while the text does not parse.
-      }
-    }
-    return composition?.resources ?? {};
-  }, [draft, edit?.yaml, composition?.resources]);
+  const resources: Resources = draft.resources;
   const stories = useMemo(() => storiesOf(state, resources), [state, resources]);
   // Every resource's "why" reads its file, so the lines it shows are the file's own, checked.
   useEffect(() => {
@@ -533,23 +501,10 @@ export function Workspace({
     return () => window.removeEventListener('keydown', onKey);
   }, [phase, skipReveal]);
 
-  // ── Review: selection, lenses, the evidence peek ─────────────────────────────────────────────────
+  // ── Review: selection ───────────────────────────────────────────────────────────────────────────
   const [selected, setSelected] = useState<string | undefined>(undefined);
-  const [peek, setPeek] = useState<string | undefined>(undefined);
   /** Stacked screens show the picture or the file, one at a time. */
   const [stackedView, setStackedView] = useState<'architecture' | 'file'>('architecture');
-  const segments = useMemo(() => (editorText === undefined ? undefined : yamlSegments(editorText)), [editorText]);
-  const blockLines = useMemo(() => {
-    const lines: Record<string, { from: number; to: number }> = {};
-    if (segments === undefined) return lines;
-    let line = lineCount(segments.header) + 1;
-    for (const block of segments.blocks) {
-      const count = lineCount(block.text);
-      lines[block.name] = { from: line, to: line + count - 1 };
-      line += count;
-    }
-    return lines;
-  }, [segments]);
   const select = useCallback(
     (name: string) => setSelected((current) => (current === name || resources[name] === undefined ? undefined : name)),
     [resources]
@@ -561,30 +516,7 @@ export function Workspace({
     setRevealCount((count) => count + 1);
     if (stackedRef.current) setStackedView('file');
   }, []);
-  const lenses = useMemo((): EditorLens[] => {
-    if (phase !== 'review') return [];
-    const all: EditorLens[] = [];
-    for (const [name, lines] of Object.entries(blockLines)) {
-      const story = stories[name];
-      if (story === undefined) continue;
-      const head = `${story.plainName}${story.priceLabel === undefined ? '' : ` · ${story.priceLabel}`}`;
-      all.push({ line: lines.from, title: head, onClick: () => select(name) });
-      const evidence = story.designChoice === undefined ? story.evidence : undefined;
-      if (evidence !== undefined) {
-        all.push({
-          line: lines.from,
-          title: `why: ${evidence.file}:${lineRange(citations[name], evidence)}`,
-          onClick: () => {
-            setPeek((current) => (current === name ? undefined : name));
-            load(evidence.file);
-          }
-        });
-      }
-    }
-    return all;
-  }, [phase, blockLines, stories, citations, select, load]);
-  const peekStory = peek === undefined ? undefined : stories[peek];
-  const peekLines = peek === undefined ? undefined : blockLines[peek];
+  const [version] = useState(() => editorVersion(window.location.search));
 
   // ── Layout ──────────────────────────────────────────────────────────────────────────────────────
   // The tree keeps the last finding's light while it fades out, so it never jumps to another file on the way.
@@ -660,10 +592,8 @@ export function Workspace({
       ? undefined
       : fileCountLabel(listing.files.length, listing.truncated);
   const chips = phase === 'scan' ? [] : allChips(plan.current).slice(0, chipCount(plan.current, step));
-  const filename = filenameFor(isEdited ? 'yaml' : format, state.existingConfig !== undefined);
-  const parseError = draft === undefined ? edit?.error : undefined;
-  const [problems, setProblems] = useState<EditorProblems>({ count: 0 });
-  const showTypeScript = phase === 'review' && format === 'typescript' && !isEdited;
+  const filename = filenameFor(phase === 'review' ? draft.shown : 'yaml', state.existingConfig !== undefined);
+  const parseError = draft.error;
   // One beat per resource: when its block is written, its own price shows beside it and the estimate takes it in. The
   // last one brings the estimate's own total, the number Review's bar shows.
   const wholePrice = state.composition?.price?.monthly;
@@ -678,7 +608,10 @@ export function Workspace({
   const receipt = !usesAgent
     ? 'Analyzed without AI'
     : `Analyzed by ${agent.label}${filesRead > 0 ? ` · ${filesRead} ${filesRead === 1 ? 'file' : 'files'} read` : ''}`;
-  const barNote = parseError !== undefined ? 'Fix the YAML to continue.' : `Saves ${filename}`;
+  const barNote =
+    parseError !== undefined
+      ? `Fix the ${draft.shown === 'yaml' ? 'YAML' : 'TypeScript'} to continue.`
+      : `Saves ${filename}`;
   const showFile = !stacked || phase !== 'review' || stackedView === 'file';
   const showLeft = !stacked || phase !== 'review' || stackedView === 'architecture';
 
@@ -837,19 +770,28 @@ export function Workspace({
           hidden={!showFile}
           id="config-file"
         >
-          <header className="ws-editor-head">
-            <span className="ws-editor-file">
-              <FileIcon path={filename} />
-              {filename}
-            </span>
-            {phase === 'review' && isEdited && <span className="ws-badge">Edited</span>}
-            <span className="ws-editor-head-end">
-              {phase === 'scan' && stacked ? (
+          <ConfigPanel
+            bodyOverlay={phase === 'scan' && !stacked ? <Waiting lines={lineCount(header)} /> : undefined}
+            draft={draft}
+            filename={filename}
+            isLocked={isLocked}
+            isTouch={isTouch}
+            onDiscard={discardEdits}
+            onEditorReady={setEditorHandle}
+            onFormatChange={onFormatChange}
+            phase={phase}
+            revealCount={revealCount}
+            selected={selected}
+            session={session}
+            stories={stories}
+            version={version}
+            writingHead={
+              phase === 'scan' && stacked ? (
                 <span className="ws-editor-wait">
                   <span aria-hidden className="ws-pulse" />
                   Waiting for findings
                 </span>
-              ) : phase !== 'review' ? (
+              ) : (
                 phase === 'reveal' && (
                   <span
                     className="ws-editor-estimate"
@@ -865,148 +807,9 @@ export function Workspace({
                     )}
                   </span>
                 )
-              ) : (
-                <Tabs
-                  appearance="segmented"
-                  ariaLabel="File format"
-                  onValueChange={onFormatChange}
-                  size="small"
-                  tabs={[
-                    { value: 'yaml', label: 'YAML' },
-                    {
-                      value: 'typescript',
-                      label: 'TypeScript',
-                      disabled: isEdited,
-                      ...(isEdited ? { title: 'Your edits are YAML. Discard them to save TypeScript.' } : {})
-                    }
-                  ]}
-                  value={isEdited ? 'yaml' : format}
-                  width="fit"
-                />
-              )}
-            </span>
-          </header>
-          <p className="ws-editor-hint" key={phase === 'review' ? 'review' : 'writing'}>
-            {phase === 'scan' ? (
-              'Written from what the analysis finds'
-            ) : phase === 'reveal' ? (
-              'Read-only while it is written'
-            ) : showTypeScript ? (
-              'Saved as stacktape.ts. Switch to YAML to edit it here.'
-            ) : (
-              <>
-                Edit freely <span aria-hidden>·</span>{' '}
-                <button
-                  className="ws-docs-button"
-                  disabled={editorHandle === undefined}
-                  onClick={() =>
-                    editorHandle?.showDocs(
-                      (selected === undefined ? undefined : blockLines[selected]?.from) ??
-                        Object.values(blockLines)[0]?.from
-                    )
-                  }
-                  title="Shows what the key on the cursor's line does"
-                  type="button"
-                >
-                  <BiInfoCircle aria-hidden size={13} />
-                  Docs
-                </button>{' '}
-                {isTouch ? (
-                  'or tap a key'
-                ) : (
-                  <>
-                    or hover a key <span aria-hidden>·</span>{' '}
-                    <span className="ws-editor-hint-keys">
-                      <kbd>Ctrl</kbd> <kbd>Space</kbd> for suggestions
-                    </span>
-                  </>
-                )}
-              </>
-            )}
-          </p>
-          <div className="ws-editor-body">
-            {phase === 'scan' && !stacked && <Waiting lines={lineCount(header)} />}
-            <Suspense fallback={<EditorLoading />}>
-              {showTypeScript ? (
-                generated?.typescript === undefined ? (
-                  <EditorLoading text="Formatting…" />
-                ) : (
-                  <ConfigFileEditor
-                    key="typescript"
-                    language="typescript"
-                    onChange={() => {}}
-                    onProblems={() => {}}
-                    readOnly
-                    readOnlyMessage="TypeScript is read-only here. Switch to YAML to edit."
-                    value={generated.typescript}
-                  />
-                )
-              ) : (
-                <ConfigFileEditor
-                  highlight={
-                    selected === undefined || blockLines[selected] === undefined
-                      ? undefined
-                      : { ...blockLines[selected], reveal: revealCount }
-                  }
-                  docsOnTap={isTouch}
-                  key="yaml"
-                  language="yaml"
-                  lenses={lenses}
-                  onChange={changeText}
-                  onProblems={setProblems}
-                  onReady={setEditorHandle}
-                  peek={
-                    peekStory?.evidence === undefined || peekLines === undefined
-                      ? undefined
-                      : {
-                          afterLine: peekLines.from,
-                          height: 166,
-                          content: (
-                            <EvidencePeek
-                              citation={citations[peekStory.name]}
-                              file={files.get(peekStory.evidence.file)}
-                              onClose={() => setPeek(undefined)}
-                              story={peekStory}
-                            />
-                          )
-                        }
-                  }
-                  readOnly={phase !== 'review' || isLocked}
-                  readOnlyMessage={
-                    phase === 'review'
-                      ? 'Not editable while stacktape init is disconnected or deploying.'
-                      : 'Editable in a moment, once it is written.'
-                  }
-                  // The reveal lines a block up with its code, which can need the last lines higher than the bottom.
-                  scrollBeyondLastLine={phase === 'reveal'}
-                  value={phase === 'review' ? (editorText ?? '') : undefined}
-                />
-              )}
-            </Suspense>
-          </div>
-          {phase === 'review' && (parseError !== undefined || isEdited || problems.count > 0) && (
-            <footer className="ws-editor-status" data-tone={parseError !== undefined ? 'error' : undefined}>
-              <span>
-                {parseError !== undefined
-                  ? `This YAML does not parse: ${parseError}`
-                  : isEdited
-                    ? 'Edited by hand. This text is what gets saved and deployed.'
-                    : ''}
-                {parseError === undefined && problems.count > 0 && (
-                  <strong className="ws-editor-warning">
-                    {isEdited ? ' ' : ''}
-                    {problems.count === 1 ? '1 schema warning' : `${problems.count} schema warnings`}
-                    {problems.first === undefined ? '' : ` (line ${problems.first.line})`}
-                  </strong>
-                )}
-              </span>
-              {isEdited && (
-                <button className="ws-textbutton" onClick={discardEdits} type="button">
-                  Discard my edits
-                </button>
-              )}
-            </footer>
-          )}
+              )
+            }
+          />
         </section>
         {/* A phone's bar has room for the price and the button only: what the click does is said above it. */}
         {phase === 'review' && stacked && <p className="ws-save-note">{barNote}</p>}
@@ -1016,7 +819,7 @@ export function Workspace({
         <div className="ws-bar-slot" data-arrived={arrived ? 'true' : undefined}>
           <ActionBar note={barNote} price={<MonthlyPrice state={state} suffix={monthlySuffix} />}>
             <Button
-              disabled={isLocked || parseError !== undefined || busy !== undefined}
+              disabled={isLocked || parseError !== undefined || draft.isPending || busy !== undefined}
               isLoading={busy === 'write'}
               onClick={onContinue}
               variant="primary"
@@ -1236,69 +1039,5 @@ function Chips({ chips }: { chips: readonly Chip[] }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-/** The inline "why": the lines around the evidence in the real file, the cited ones lit. */
-function EvidencePeek({
-  story,
-  citation,
-  file,
-  onClose
-}: {
-  story: ResourceStory;
-  citation: Citation | undefined;
-  file: FileView | undefined;
-  onClose: () => void;
-}) {
-  const evidence = story.evidence!;
-  const line = citation?.line ?? evidence.line;
-  const lit = new Set(citation?.lines ?? [line]);
-  const lines = file?.status === 'shown' ? file.text.split('\n') : undefined;
-  const from = Math.max(1, (citation?.lines[0] ?? line) - 2);
-  const shown = lines?.slice(from - 1, from + 4) ?? [];
-  return (
-    <div className="ws-peek">
-      <div className="ws-peek-head">
-        <span className="ws-peek-title">
-          <FileIcon path={evidence.file} />
-          {evidence.file}
-          <span className="ws-peek-line">line {line}</span>
-        </span>
-        <button aria-label="Close" className="ws-peek-close" onClick={onClose} type="button">
-          ×
-        </button>
-      </div>
-      {lines === undefined ? (
-        <p className="ws-peek-quote">
-          <code>{evidence.quote}</code>
-        </p>
-      ) : (
-        <div className="ws-peek-code">
-          {shown.map((text, index) => (
-            <div
-              className="ws-peek-row"
-              data-focus={lit.has(from + index) ? 'true' : undefined}
-              // oxlint-disable-next-line react/no-array-index-key -- consecutive lines of one file; the number is identity.
-              key={from + index}
-            >
-              <span className="ws-peek-number">{from + index}</span>
-              <span className="ws-peek-text">{text || ' '}</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {(story.designChoice ?? story.reason) !== undefined && (
-        <p className="ws-peek-reason">{story.designChoice ?? story.reason}</p>
-      )}
-    </div>
-  );
-}
-
-function EditorLoading({ text = 'Loading the editor…' }: { text?: ReactNode }) {
-  return (
-    <div className="ws-editor-loading">
-      <Spinner /> {text}
-    </div>
   );
 }

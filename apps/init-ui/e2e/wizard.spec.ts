@@ -8,8 +8,11 @@ const analyzeAndReview = async (page: Page) => {
   await expect(page.getByRole('heading', { name: / on AWS$/ })).toBeVisible({ timeout: 15_000 });
 };
 
-/** The code lenses Monaco draws above the resources in stacktape.yml. */
-const lenses = (page: Page) => page.locator('.monaco-editor .codelens-decoration');
+/** The faint notes after each resource's key line in the configuration file. */
+const labels = (page: Page) => page.locator('#config-file .ws-editor-label');
+
+/** The status line under the configuration file. */
+const editorStatus = (page: Page) => page.locator('#config-file .ws-editor-status');
 
 const continueToDeploy = async (page: Page) => {
   await page.getByRole('button', { name: 'Continue to deploy' }).click();
@@ -63,9 +66,8 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
 
   await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible();
   await expect(page.getByText('A Next.js app, using a Postgres database.')).toBeVisible();
-  // Each resource says above its block in stacktape.yml what it is, what it costs and which line called for it.
-  await expect(lenses(page).filter({ hasText: 'Postgres database' })).toContainText(/\$\d+\/mo/);
-  await expect(lenses(page).filter({ hasText: 'Postgres database' })).toContainText('why: package.json:29');
+  // Each resource's key line in stacktape.yml ends in a faint note: what it is and what it costs.
+  await expect(labels(page).filter({ hasText: 'Postgres database' })).toContainText(/\$\d+\/mo/);
 
   // Nothing picked, the panel beside the picture is the monthly estimate, split by resource, with its line items.
   const overview = page.getByRole('complementary', { name: 'Overview' });
@@ -185,7 +187,9 @@ test('stacktape.yml is editable with schema help, settings write into hand edits
   const wizard = await startWizard({ project: 'saas-starter' });
   await page.goto(wizard.url);
   await analyzeAndReview(page);
-  await expect(page.getByText('or hover a key')).toBeVisible();
+  // No instructions over the code: the status line says the file is valid and how to get help.
+  await expect(editorStatus(page)).toContainText('Valid');
+  await expect(editorStatus(page)).toContainText('Hover for docs');
 
   const editor = page.locator('.monaco-editor').first();
   await expect(editor).toBeVisible({ timeout: 15_000 });
@@ -197,17 +201,17 @@ test('stacktape.yml is editable with schema help, settings write into hand edits
       .hover();
     await expect(page.locator('.monaco-hover').first()).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 20_000 });
-  // Without a pointer, "Docs" opens the same card, for the first resource while the cursor is nowhere yet.
-  await page.mouse.move(0, 0);
-  await expect(page.locator('.monaco-hover').first()).toBeHidden();
-  await page.getByRole('button', { name: 'Docs' }).click();
-  await expect(page.locator('.monaco-hover').first()).toContainText('relational (SQL) database');
 
   await page.mouse.move(0, 0);
   await editor.locator('.view-line').first().click();
   await page.keyboard.press('Control+End');
   await page.keyboard.type('\n# tuned by hand\n');
-  await expect(page.getByText(/Edited by hand\. This text is what gets saved and deployed/)).toBeVisible();
+  await expect(editorStatus(page)).toContainText('Edited by hand');
+  // The edit can be read against the generated file.
+  await editorStatus(page).getByRole('button', { name: 'Changes' }).click();
+  await expect(page.locator('#config-file .monaco-diff-editor')).toBeVisible();
+  await expect(page.locator('#config-file .monaco-diff-editor')).toContainText('# tuned by hand');
+  await editorStatus(page).getByRole('button', { name: 'Hide changes' }).click();
   await expect(page.getByRole('tab', { name: 'TypeScript' })).toBeDisabled();
   await expect(page.locator('.monaco-editor .view-line', { hasText: '# tuned by hand' })).toBeVisible();
   // A setting changed now is written into the edited text, which keeps the hand edit.
@@ -218,7 +222,7 @@ test('stacktape.yml is editable with schema help, settings write into hand edits
   const database = page.getByRole('complementary', { name: 'Postgres database settings' });
   await database.getByRole('switch', { name: 'Standby copy' }).click();
   await expect(page.locator('.monaco-editor .view-line', { hasText: 'multiAz: true' })).toBeVisible();
-  await expect(page.getByText(/Edited by hand\. This text is what gets saved and deployed/)).toBeVisible();
+  await expect(editorStatus(page)).toContainText('Edited by hand');
   await editor.locator('.view-line').first().click();
   await page.keyboard.press('Control+End');
   await expect(page.locator('.monaco-editor .view-line', { hasText: '# tuned by hand' })).toBeVisible();
@@ -227,8 +231,57 @@ test('stacktape.yml is editable with schema help, settings write into hand edits
 
   page.once('dialog', (dialog) => void dialog.accept());
   await page.getByRole('button', { name: 'Discard my edits' }).first().click();
-  await expect(page.getByText(/Edited by hand/)).toHaveCount(0);
+  await expect(editorStatus(page)).not.toContainText('Edited by hand');
   await expect(database.getByRole('tab', { name: /Private network/ })).toBeEnabled();
+});
+
+test('stacktape.ts is edited with the stacktape types, saved as typed, and the template shows what it compiles to', async ({
+  page,
+  startWizard
+}) => {
+  const wizard = await startWizard({ project: 'saas-starter' });
+  await page.goto(wizard.url);
+  await analyzeAndReview(page);
+
+  // The CloudFormation template, compiled by the CLI on this machine, grouped by the resource each part is for.
+  await page.getByRole('tab', { name: 'CloudFormation' }).click();
+  const groups = page.getByRole('toolbar', { name: 'Show the AWS resources of' });
+  await expect(groups.getByRole('button', { name: /mainDatabase/ })).toBeVisible({ timeout: 20_000 });
+  await groups.getByRole('button', { name: /mainDatabase/ }).click();
+  await expect(page.locator('#config-file .ws-cf-section')).toContainText('Postgres database');
+  await expect(page.locator('#config-file .ws-cf-body .view-lines')).toContainText('AWS::RDS::DBParameterGroup');
+  await expect(editorStatus(page)).toContainText('compiled on this machine without AWS');
+  // A resource picked on the diagram is the one the template shows.
+  await groups.getByRole('button', { name: /^All/ }).click();
+  await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
+  await expect(groups.getByRole('button', { name: /mainDatabase/ })).toHaveAttribute('aria-pressed', 'true');
+
+  // TypeScript, checked against the stacktape package's own types.
+  await page.getByRole('tab', { name: 'stacktape.yml' }).click();
+  await page.getByRole('tab', { name: 'TypeScript' }).click();
+  const editor = page.locator('#config-file .monaco-editor').first();
+  await expect(editor.locator('.view-lines')).toContainText('defineConfig', { timeout: 20_000 });
+  await expect(editorStatus(page)).toContainText('No type errors', { timeout: 20_000 });
+  await expect(async () => {
+    await editor
+      .locator('.view-line span', { hasText: /^RelationalDatabase$/ })
+      .last()
+      .hover();
+    await expect(page.locator('.monaco-hover').first()).toContainText('relational (SQL) database', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+
+  // An edit is TypeScript from then on, and the file is saved exactly as typed.
+  await page.mouse.move(0, 0);
+  await editor.locator('.view-line', { hasText: 'deletionProtection' }).first().click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Shift+Home');
+  await page.keyboard.type('deletionProtection: false,');
+  await expect(editorStatus(page)).toContainText('Edited by hand');
+  await expect(page.getByRole('tab', { name: 'YAML' })).toBeDisabled();
+  await expect(page.getByText('Saves stacktape.ts')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue to deploy' })).toBeEnabled({ timeout: 10_000 });
+  await continueToDeploy(page);
+  await expect(page.getByText('stacktape.ts', { exact: true }).first()).toBeVisible();
 });
 
 test('the analysis draws the project as a file tree, then ties each resource to the line that called for it, once', async ({
@@ -288,10 +341,6 @@ test('the analysis draws the project as a file tree, then ties each resource to 
   // Then Review, without a skip: the diagram, an editable file, and the evidence one click away.
   await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: /^Skip/ })).toHaveCount(0);
-  await lenses(page).locator('a', { hasText: 'why: package.json:29' }).click();
-  await expect(page.locator('.ws-peek-row[data-focus]')).toContainText('"postgres"');
-  await page.getByRole('button', { name: 'Close' }).click();
-  await expect(page.locator('.ws-peek')).toHaveCount(0);
 
   // Clicking a resource in the picture opens its settings beside it, with why it is there in one quiet line; its key in
   // the file carries the same accent, and the panel keeps the way to it.

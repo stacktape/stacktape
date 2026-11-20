@@ -78,6 +78,10 @@ const LAYOUT: Record<Screen, Layout> = {
  * Each step shows only itself. What earlier steps decided is one line at most (who read the code, which file was
  * saved), because the user is looking at the result of those steps, not a record of them.
  */
+/** The format the file is saved in: the edited one while there is an edit, the picked one otherwise. */
+const writtenFormat = (state: WizardState, format: 'yaml' | 'typescript'): 'yaml' | 'typescript' =>
+  state.configEdit === undefined ? format : state.configEdit.typescript === undefined ? 'yaml' : 'typescript';
+
 export function App() {
   const [session, setSession] = useState<Session | undefined>();
   const [state, setState] = useState<WizardState | undefined>();
@@ -160,14 +164,10 @@ export function App() {
   useEffect(() => {
     if (state === undefined || session === undefined || screen !== 'deploy') return;
     if (state.configFile !== undefined || busy !== undefined || connectionState !== 'connected') return;
-    const key = `${state.region}|${state.configEdit?.yaml ?? state.composition?.configText?.yaml ?? ''}`;
+    const key = `${state.region}|${state.configEdit?.typescript ?? state.configEdit?.yaml ?? state.composition?.configText?.yaml ?? ''}`;
     if (rewroteFor.current === key) return;
     rewroteFor.current = key;
-    void run(
-      'write',
-      () => session.write(state.configEdit === undefined ? format : 'yaml'),
-      'The file could not be saved.'
-    );
+    void run('write', () => session.write(writtenFormat(state, format)), 'The file could not be saved.');
   }, [state, session, screen, busy, connectionState, format, run]);
 
   const model = useMemo(() => {
@@ -296,7 +296,7 @@ export function App() {
             void (async () => {
               const ok = await run(
                 'write',
-                () => session.write(state.configEdit === undefined ? format : 'yaml'),
+                () => session.write(writtenFormat(state, format)),
                 'The file could not be saved.'
               );
               if (ok) {

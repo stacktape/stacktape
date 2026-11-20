@@ -417,6 +417,7 @@ const main = async () => {
   const { writeComposedConfig } = await import('../../src/init/write-config');
   const { writePipeline } = await import('../../src/init/cicd/write-pipeline');
   const { deployCommandLine } = await import('../../src/init/deploy/run-deploy');
+  const { compileTemplatePreview } = await import('../../src/init/template-preview/compile');
   const { composeConfig } = await import('@stacktape/config-inference/compose');
   const { checkFactsCompleteness, projectFactsSchema } = await import('@stacktape/config-inference/facts');
   const { getStackName } = await import('@stacktape/naming/stacks');
@@ -686,6 +687,16 @@ const main = async () => {
       return { status: 'completed', services };
     },
     configSchemaPath: CONFIG_SCHEMA_PATH,
+    // The real offline compile, in a child under Bun with the same network guard: a template needs nothing scripted.
+    templatePreview: (request) =>
+      compileTemplatePreview(request, {
+        command: process.execPath,
+        args: [
+          '--preload',
+          join(fixtureDirectory, '..', 'network-guard-preload.ts'),
+          join(fixtureDirectory, '..', '..', 'src', 'init', 'template-preview', 'child.ts')
+        ]
+      }),
     ...(scenario.project === 'empty'
       ? { nearbyApps: ['web', 'services/api'], nearbyAppKinds: { web: 'Node.js', 'services/api': 'Go' } }
       : {}),

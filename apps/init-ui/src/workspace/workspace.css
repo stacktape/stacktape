@@ -22,7 +22,11 @@
     --ws-code-line-active: rgb(28, 35, 35);
     --ws-code-selection: rgba(54, 190, 190, 0.25);
     --ws-code-guide: rgb(36, 44, 44);
-    --ws-code-lens: rgb(150, 160, 160);
+    /* A resource's name and price after its key line: present, quieter than any code. */
+    --ws-code-label: rgb(112, 124, 124);
+    --ws-code-punctuation: rgb(138, 150, 150);
+    --ws-code-error: rgb(229, 115, 122);
+    --ws-code-warning: rgb(216, 180, 95);
     --ws-code-popup: rgb(34, 41, 41);
     --ws-code-popup-border: rgb(56, 66, 66);
     --ws-code-popup-selected: rgb(43, 58, 58);
@@ -837,6 +841,7 @@
     min-width: 0;
     min-height: 0;
     overflow: hidden;
+    container: ws-editor / inline-size;
   }
 
   .ws-editor-head {
@@ -870,13 +875,14 @@
 
   .ws-editor-head-end {
     display: flex;
+    flex: none;
     align-items: center;
+    gap: 4px;
     margin-left: auto;
-    padding-right: 8px;
   }
 
-  .ws-editor-head-end .stp-ui-tabs {
-    margin-right: -8px;
+  .ws-editor-head-end .ws-editor-format {
+    margin-right: 4px;
   }
 
   /* "Estimate so far · $31/mo + usage": the draft's total, said apart from any one resource's price. */
@@ -912,53 +918,502 @@
     color: var(--w-brand);
   }
 
-  .ws-editor-hint {
-    flex: none;
-    margin: 0;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--w-line);
-    color: var(--w-muted);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .ws-editor-hint kbd {
-    margin: 0 1px;
-  }
-
-  /* "Docs": the hover card for the key on the cursor's line, for whoever has no pointer to hover with. */
-  .ws-docs-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    height: 22px;
-    margin: -3px 0;
-    padding: 0 8px 0 6px;
-    border: 0;
-    border-radius: var(--w-radius-chip);
-    background: var(--w-code-fill);
-    box-shadow: inset 0 0 0 1px var(--w-line-strong);
-    color: var(--w-text);
-    font: inherit;
-    font-weight: 600;
-    vertical-align: baseline;
-    cursor: pointer;
-  }
-
-  .ws-docs-button:hover:not(:disabled) {
-    background: var(--w-hover);
-  }
-
-  .ws-docs-button:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
-
   .ws-editor-body {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--ws-code-bg);
+  }
+
+  .ws-editor-pane {
     position: relative;
     flex: 1;
     min-height: 0;
-    background: var(--ws-code-bg);
+  }
+
+  .ws-editor-pane[hidden] {
+    display: none;
+  }
+
+  /* e2: the template docked under the file, the two one column of code. */
+  .ws-editor-dock {
+    display: flex;
+    flex: 0 0 44%;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid var(--w-line-strong);
+    box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.28);
+  }
+
+  /* ── The head: the file and its template as tabs, the format, copy ─────────────────────────────── */
+
+  .ws-editor-tabs {
+    align-self: stretch;
+    min-width: 0;
+    margin-left: -8px;
+    --stp-tab-height: 48px;
+    --stp-tab-padding-x: 8px;
+    --stp-tab-gap: 8px;
+    --stp-tab-font-size: 14px;
+  }
+
+  .ws-editor-tabs .stp-ui-tabs__list {
+    align-items: stretch;
+    height: 100%;
+    gap: 6px;
+    border-bottom: 0;
+  }
+
+  .ws-editor-tabs .stp-ui-tab {
+    color: var(--w-subtle);
+  }
+
+  .ws-editor-tabs .stp-ui-tab--active {
+    color: var(--w-text);
+  }
+
+  .ws-editor-tabs .stp-ui-tab__icon {
+    color: var(--w-subtle);
+  }
+
+  .ws-editor-tabs .stp-ui-tab--active .stp-ui-tab__icon .ws-file-icon[data-tint='yaml'] {
+    color: var(--ws-file-yaml);
+  }
+
+  .ws-editor-tabs .stp-ui-tab--active .stp-ui-tab__icon .ws-file-icon[data-tint='ts'] {
+    color: var(--ws-file-ts);
+  }
+
+  .ws-editor-tabs .stp-ui-tab--active .stp-ui-tab__icon > svg {
+    color: var(--w-brand-text);
+  }
+
+  .ws-editor-tabs .stp-ui-tab__icon .ws-file-icon {
+    color: inherit;
+  }
+
+  /* The file's tab carries a dot while its text is the user's own, as an editor marks a changed file. */
+  .ws-editor-edited-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    margin-left: 2px;
+    border-radius: 50%;
+    background: var(--w-warn);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--w-warn) 45%, transparent);
+  }
+
+  .ws-editor-format {
+    --stp-tab-height: 26px;
+    --stp-tab-padding-x: 9px;
+    --stp-tab-font-size: 12px;
+  }
+
+  .ws-editor-icon-button,
+  .ws-editor-toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--w-radius-small);
+    background: transparent;
+    color: var(--w-subtle);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 140ms var(--w-ease),
+      color 140ms var(--w-ease);
+  }
+
+  .ws-editor-icon-button:hover:not(:disabled),
+  .ws-editor-toggle:hover {
+    background: var(--w-hover);
+    color: var(--w-text);
+  }
+
+  .ws-editor-icon-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .ws-editor-toggle[aria-pressed='true'] {
+    background: var(--w-brand-soft);
+    color: var(--w-brand-text);
+  }
+
+  .ws-editor-icon-button:focus-visible,
+  .ws-editor-toggle:focus-visible {
+    outline: 2px solid var(--w-brand);
+    outline-offset: 1px;
+  }
+
+  /* ── The status line: valid or not, help, edited ──────────────────────────────────────────────── */
+
+  .ws-editor-status {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 34px;
+    padding: 0 12px 0 16px;
+    border-top: 1px solid var(--w-line);
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .ws-statusbar-main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .ws-statusbar-main > * {
+    min-width: 0;
+  }
+
+  .ws-statusbar-main > .ws-statusbar-edited {
+    flex: none;
+  }
+
+  .ws-statusbar-ok,
+  .ws-statusbar-problem,
+  .ws-statusbar-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .ws-statusbar-note {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* A line of text only (the template's): a block, so a long one ends in an ellipsis. */
+  span.ws-statusbar-note:not(:has(*)) {
+    display: block;
+  }
+
+  .ws-statusbar-ok svg {
+    color: var(--w-ok);
+  }
+
+  .ws-statusbar-note .stp-ui-spinner {
+    width: 12px;
+    height: 12px;
+  }
+
+  .ws-statusbar-problem {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--w-warn);
+    font: inherit;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  button.ws-statusbar-problem {
+    cursor: pointer;
+  }
+
+  button.ws-statusbar-problem:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .ws-statusbar-problem[data-tone='error'] {
+    color: var(--w-error);
+  }
+
+  .ws-statusbar-problem svg {
+    flex: none;
+  }
+
+  .ws-statusbar-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-statusbar-hints[hidden] {
+    display: none;
+  }
+
+  .ws-statusbar-edited {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--w-warn);
+    font-weight: 500;
+  }
+
+  .ws-statusbar-edited .ws-textbutton {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .ws-statusbar-sep {
+    color: var(--w-faint);
+  }
+
+  .ws-statusbar-hints {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 14px;
+    color: var(--w-faint);
+  }
+
+  .ws-statusbar-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .ws-statusbar-hint kbd {
+    min-width: 0;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10.5px;
+    line-height: 18px;
+  }
+
+  .ws-statusbar-hint kbd + kbd {
+    margin-left: 1px;
+  }
+
+  .ws-statusbar-hint kbd:last-of-type {
+    margin-right: 3px;
+  }
+
+  /* Narrow panels keep what the file's state is and drop the hints first. */
+  @container ws-editor (max-width: 440px) {
+    .ws-statusbar-hint {
+      display: none;
+    }
+
+    .ws-statusbar-readonly {
+      display: none;
+    }
+  }
+
+  @container ws-editor (max-width: 470px) {
+    .ws-editor-toggle-label,
+    .ws-editor-format .stp-ui-tab__label--full,
+    .ws-editor-tabs .stp-ui-tab__label--full {
+      display: none;
+    }
+
+    .ws-editor-format .stp-ui-tab__label--compact,
+    .ws-editor-tabs .stp-ui-tab__label--compact {
+      display: inline;
+    }
+
+    /* The file's tab carries the edited dot; the line keeps the two actions. */
+    .ws-statusbar-edited-label {
+      display: none;
+    }
+
+    /* A phone copies nothing: the room goes to the tabs. */
+    .ws-editor-head .ws-editor-icon-button {
+      display: none;
+    }
+
+    .ws-editor-head {
+      padding-right: 8px;
+    }
+
+    .ws-editor-tabs {
+      --stp-tab-gap: 6px;
+      --stp-tab-padding-x: 6px;
+    }
+
+    .ws-editor-tabs .stp-ui-tab__icon {
+      display: none;
+    }
+  }
+
+  /* ── In the code: labels after a resource's key, headings between the template's groups ───────── */
+
+  .monaco-editor .ws-editor-label {
+    color: var(--ws-code-label);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 11.5px;
+    font-style: normal;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .ws-editor-section {
+    display: flex;
+    align-items: flex-end;
+    box-sizing: border-box;
+    padding: 0 16px 6px 0;
+  }
+
+  .ws-cf-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding-top: 6px;
+    border-top: 1px dashed var(--w-line-strong);
+    color: var(--w-subtle);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .ws-cf-section strong {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .ws-cf-section-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-cf-section-count {
+    flex: none;
+    margin-left: auto;
+    color: var(--w-faint);
+  }
+
+  .ws-cf-section > svg,
+  .ws-cf-section > strong {
+    flex: none;
+  }
+
+  /* ── The CloudFormation template ──────────────────────────────────────────────────────────────── */
+
+  .ws-cf {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .ws-cf-groups {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px 10px 16px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--w-line);
+    background: color-mix(in srgb, var(--ws-code-bg) 70%, var(--w-panel));
+    scrollbar-width: none;
+    /* More chips than room: the row fades at its end and scrolls. */
+    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
+  }
+
+  .ws-cf[data-compact] .ws-cf-groups {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .ws-cf-chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--w-radius-chip);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--w-line-strong);
+    color: var(--w-muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 140ms var(--w-ease),
+      color 140ms var(--w-ease),
+      box-shadow 140ms var(--w-ease);
+  }
+
+  .ws-cf-chip:hover {
+    background: var(--w-hover);
+    color: var(--w-text);
+  }
+
+  .ws-cf-chip[aria-pressed='true'] {
+    background: var(--w-brand-soft);
+    box-shadow: inset 0 0 0 1px var(--w-brand-line);
+    color: var(--w-text);
+  }
+
+  .ws-cf-chip:focus-visible {
+    outline: 2px solid var(--w-brand);
+    outline-offset: 1px;
+  }
+
+  .ws-cf-chip-count {
+    color: var(--w-faint);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  .ws-cf-chip[aria-pressed='true'] .ws-cf-chip-count {
+    color: var(--w-brand-text);
+  }
+
+  .ws-cf-updating {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    color: var(--w-faint);
+    font-size: 12px;
+  }
+
+  .ws-cf-updating .stp-ui-spinner {
+    width: 12px;
+    height: 12px;
+  }
+
+  .ws-cf-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .ws-cf-empty {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 6px;
+    height: 100%;
+    padding: 24px;
+    color: var(--w-muted);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .ws-cf-empty strong {
+    color: var(--w-text);
   }
 
   /* Before the first finding: the file's first lines are written, and faint rows hold the place of what comes. */
@@ -1007,28 +1462,6 @@
     height: 100%;
     color: var(--w-muted);
     font-size: 13px;
-  }
-
-  .ws-editor-status {
-    display: flex;
-    flex: none;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 9px 16px;
-    border-top: 1px solid var(--w-line);
-    color: var(--w-muted);
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .ws-editor-status[data-tone='error'] {
-    color: var(--w-error);
-  }
-
-  .ws-editor-warning {
-    color: var(--w-warn);
-    font-weight: 600;
   }
 
   .ws-textbutton {
@@ -1090,116 +1523,6 @@
 
   .monaco-editor .ws-editor-picked-gutter.is-quiet {
     opacity: 0.4;
-  }
-
-  .monaco-editor .codelens-decoration a:hover {
-    color: var(--w-brand) !important;
-  }
-
-  .ws-editor-peek-zone {
-    position: absolute;
-    box-sizing: border-box;
-    padding: 4px 16px 8px 0;
-  }
-
-  .ws-peek {
-    box-sizing: border-box;
-    height: 100%;
-    overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--w-brand) 35%, transparent);
-    border-radius: var(--w-radius-small);
-    background: var(--ws-code-popup);
-    box-shadow: var(--w-shadow-float);
-    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
-    animation: ws-fade-in 200ms var(--w-ease) both;
-  }
-
-  .ws-peek-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 30px;
-    padding: 0 6px 0 12px;
-    border-bottom: 1px solid var(--w-line);
-  }
-
-  .ws-peek-title {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    color: var(--w-text);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .ws-peek-line {
-    color: var(--w-muted);
-    font-weight: 500;
-  }
-
-  .ws-peek-close {
-    width: 24px;
-    height: 24px;
-    border: 0;
-    border-radius: var(--w-radius-chip);
-    background: none;
-    color: var(--w-subtle);
-    font-size: 16px;
-    line-height: 1;
-    cursor: pointer;
-  }
-
-  .ws-peek-close:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--w-text);
-  }
-
-  .ws-peek-code {
-    padding: 4px 0;
-    font-family: var(--w-mono);
-    font-size: 12px;
-    line-height: 18px;
-  }
-
-  .ws-peek-row {
-    display: flex;
-    white-space: pre;
-    color: var(--w-muted);
-  }
-
-  .ws-peek-row[data-focus] {
-    background: color-mix(in srgb, var(--w-brand) 13%, transparent);
-    box-shadow: inset 2px 0 0 var(--w-brand);
-    color: var(--w-text);
-  }
-
-  .ws-peek-number {
-    flex: none;
-    width: 40px;
-    padding-right: 12px;
-    color: var(--ws-code-line-number);
-    text-align: right;
-  }
-
-  .ws-peek-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .ws-peek-quote {
-    margin: 0;
-    padding: 10px 12px;
-  }
-
-  .ws-peek-reason {
-    margin: 0;
-    padding: 6px 12px 0;
-    overflow: hidden;
-    color: var(--w-muted);
-    font-size: 12px;
-    line-height: 16px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
 
   /* ── Review: title, diagram, settings ────────────────────────────────────────────────────────── */
@@ -1294,12 +1617,6 @@
   /* After the reveal the bar arrives a beat after the review starts to rise. */
   .ws-bar-slot[data-arrived] .w-bar {
     animation: w-bar-in 320ms 180ms var(--w-ease) both;
-  }
-
-  /* ── Arrival: after the reveal, the review comes in; on a reload it is simply there ─────────────── */
-
-  .ws[data-arrived] .ws-editor-hint {
-    animation: ws-fade-in 300ms 200ms var(--w-ease) both;
   }
 
   /* ── Narrow screens: one column that scrolls ─────────────────────────────────────────────────── */
@@ -1424,7 +1741,7 @@
       line-height: 16px;
     }
 
-    .ws-editor[data-collapsed] .ws-editor-hint {
+    .ws-editor[data-collapsed] .ws-editor-status {
       display: none;
     }
 
@@ -1569,10 +1886,6 @@
     .ws-title {
       font-size: 24px;
       line-height: 30px;
-    }
-
-    .ws-editor-hint-keys {
-      display: none;
     }
 
     .ws-status {

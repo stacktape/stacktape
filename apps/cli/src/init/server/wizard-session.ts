@@ -48,6 +48,8 @@ import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlo
 import { readSeenFile, seenFilePaths } from './file-view';
 import { readRepositoryTree, type RepositoryTree } from './repository-tree';
 import { readEnvironmentValues } from './environment-values';
+import { evaluateTypescriptConfig } from './typescript-config';
+import type { TemplatePreviewRequest, TemplatePreviewResult } from '../template-preview/protocol';
 import { requiredSecretVariables } from '@stacktape/config-inference/compose/required-secrets';
 import {
   startWizardServer,
@@ -57,6 +59,7 @@ import {
   type WizardDeployment,
   type WizardServer,
   type WizardState,
+  type WizardTemplatePreview,
   type WizardVerification
 } from './wizard-server';
 
@@ -189,6 +192,7 @@ export const startWizardSession = async ({
   configSchemaPath,
   setSecret,
   createAwsProfile,
+  templatePreview,
   nearbyApps,
   nearbyAppKinds
 }: {
@@ -231,7 +235,7 @@ export const startWizardSession = async ({
     format: 'yaml' | 'typescript';
     /** Region the file declares. The Deploy step then deploys there; changing it means editing the file. */
     region?: string;
-    /** The user's hand-edited YAML, written as it is instead of rendering the composition. */
+    /** The user's hand-edited file in `format`, written as it is instead of rendering the composition. */
     contents?: string;
     /** The file this session wrote before, replaced rather than kept as the user's own configuration. */
     replaces?: string;
@@ -378,6 +382,11 @@ export const startWizardSession = async ({
     /** The profile picked on the page, which the keys are saved as; absent for the one the CLI picks by itself. */
     profile?: string;
   }) => Promise<{ ok: boolean; detail: string; profile?: string }>;
+  /**
+   * Compiles the CloudFormation template for a configuration without AWS (`template-preview/compile.ts`), for the
+   * page's read-only template view. Absent, the page offers no template.
+   */
+  templatePreview?: (request: TemplatePreviewRequest) => Promise<TemplatePreviewResult>;
   /** Folders below the project that look like apps of their own, offered when the analysis finds nothing to run. */
   nearbyApps?: string[];
   /** What each nearby folder is written in, by folder, when its marker files say ("Node.js", "Go"). */
@@ -414,8 +423,15 @@ export const startWizardSession = async ({
     }
     return { ...next, config: { ...next.config, resources } };
   };
-  /** The configuration as edited by hand. While set, it is the file that is written and deployed. */
-  let configEdit: { yaml: string; error?: string } | undefined;
+  /**
+   * The configuration as edited by hand. While set, it is the file that is written and deployed. A TypeScript edit
+   * carries the text and, as `yaml`, the configuration it evaluated to last.
+   */
+  let configEdit: NonNullable<WizardState['configEdit']> | undefined;
+  /** Counts edits, so an evaluation that finishes after a newer edit arrived is dropped. */
+  let configEditCount = 0;
+  /** Compiled templates by what they were compiled from, newest last: the page asks again after every change. */
+  const templates = new Map<string, Promise<WizardTemplatePreview>>();
   /** Secrets set from the page this session; the values themselves are never kept. */
   const secretsSet = new Set<string>();
   let secretsConfirmed = false;
@@ -1632,20 +1648,22 @@ export const startWizardSession = async ({
         const edit = configEdit;
         if (edit?.error !== undefined) return;
         const replaces = ownFile === undefined ? {} : { replaces: ownFile };
+        // An edited file is written in the format it was edited in, exactly as typed.
+        const editedFormat = edit?.typescript === undefined ? 'yaml' : 'typescript';
         const written =
           edit === undefined
             ? await write({ composition, format, region, ...replaces })
             : await write({
                 composition,
-                format: 'yaml',
+                format: editedFormat,
                 region: regionOfText(edit.yaml) ?? region,
-                contents: edit.yaml,
+                contents: edit.typescript ?? edit.yaml,
                 ...replaces
               });
         ownFile = written.path;
         // A later change of decisions rewrites the file to the region the user has already seen in it.
         chosenRegion = written.region ?? region;
-        configFile = { ...written, format: edit === undefined ? format : 'yaml' };
+        configFile = { ...written, format: edit === undefined ? format : editedFormat };
         deployTarget = undefined;
         publish(buildState());
       },
@@ -1703,14 +1721,37 @@ export const startWizardSession = async ({
               return readEnvironmentValues({ repositoryRoot, names: new Set(requiredSecretVariables(resources)) });
             }
           }),
-      onConfigText: (yaml) => {
+      onConfigText: async (edit) => {
         if (composition === undefined || deploymentInFlight()) return buildState();
+        const count = (configEditCount += 1);
         // Back to generated, or an edit that changed nothing: the composition is the file again.
-        if (yaml === null || yaml === configText?.yaml) {
+        if (
+          edit === null ||
+          ('yaml' in edit && edit.yaml === configText?.yaml) ||
+          ('typescript' in edit && edit.typescript === configText?.typescript)
+        ) {
           if (configEdit === undefined) return buildState();
           configEdit = undefined;
+        } else if ('yaml' in edit) {
+          configEdit = { yaml: edit.yaml, ...yamlError(edit.yaml) };
         } else {
-          configEdit = { yaml, ...yamlError(yaml) };
+          // TypeScript is run to learn the configuration it defines; the diagram, price and secrets follow that.
+          const evaluation = await evaluateTypescriptConfig({
+            source: edit.typescript,
+            projectName,
+            region: declaredRegion()
+          });
+          if (count !== configEditCount || composition === undefined || deploymentInFlight()) return buildState();
+          configEdit =
+            'yaml' in evaluation
+              ? { yaml: evaluation.yaml, typescript: edit.typescript }
+              : {
+                  // The last configuration it evaluated to, so the picture holds still while the text is being fixed.
+                  yaml: configEdit?.typescript === undefined ? (configText?.yaml ?? '') : configEdit.yaml,
+                  typescript: edit.typescript,
+                  error: evaluation.error,
+                  ...(evaluation.line === undefined ? {} : { errorLine: evaluation.line })
+                };
         }
         configFile = undefined;
         deployTarget = undefined;
@@ -1718,6 +1759,48 @@ export const startWizardSession = async ({
         repriceInBackground();
         return publishNow();
       },
+      ...(templatePreview === undefined
+        ? {}
+        : {
+            onTemplate: (): Promise<WizardTemplatePreview> => {
+              const edit = configEdit;
+              if (edit?.error !== undefined) {
+                return Promise.resolve({
+                  status: 'unavailable',
+                  detail: 'The file has an error. Fix it to see its template.'
+                });
+              }
+              const yaml = edit?.yaml ?? configText?.yaml;
+              if (yaml === undefined) {
+                return Promise.resolve({ status: 'unavailable', detail: 'There is no configuration yet.' });
+              }
+              const region = regionOfText(yaml) ?? declaredRegion();
+              const accountId = identity?.available === true ? identity.accountId : undefined;
+              const consoleConnected = account?.signedIn === true;
+              const key = JSON.stringify([yaml, region, accountId, consoleConnected]);
+              const cached = templates.get(key);
+              if (cached !== undefined) return cached;
+              const parsed = parseYaml(yaml) as Record<string, unknown>;
+              const stage = 'dev';
+              const compiled = templatePreview({
+                config: parsed,
+                projectName: typeof parsed.projectName === 'string' ? parsed.projectName : projectName,
+                stage,
+                region,
+                ...(accountId === undefined ? {} : { accountId }),
+                workingDir: repositoryRoot ?? process.cwd(),
+                consoleConnected
+              }).then((result): WizardTemplatePreview =>
+                'error' in result
+                  ? { status: 'failed', config: yaml, error: result.error }
+                  : { status: 'ready', config: yaml, text: result.text, owners: result.owners, stage, region }
+              );
+              templates.set(key, compiled);
+              // A handful is plenty: the page asks for the current configuration, and going back to one is common.
+              for (const old of [...templates.keys()].slice(0, -4)) templates.delete(old);
+              return compiled;
+            }
+          }),
       onSecret: async ({ name, value }) => {
         if (setSecret === undefined) return buildState();
         const outcome = await setSecret({ name, value, region: declaredRegion(), ...profileInput() }).catch(

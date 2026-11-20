@@ -251,8 +251,11 @@ export type WizardState = {
       };
     }>;
   };
-  /** The configuration as edited by hand. While present it is what gets written and deployed. */
-  configEdit?: { yaml: string; error?: string };
+  /**
+   * The configuration as edited by hand. While present it is what gets written and deployed. A TypeScript edit carries
+   * its text, with `yaml` the configuration it evaluated to last. `error` says why the text does not parse or run.
+   */
+  configEdit?: ConfigEdit;
   /** Secrets set from this page, and whether the user said the others already exist. Absent: setting is unavailable. */
   secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
   /** Saving pasted AWS keys as a profile on this machine. */
@@ -336,6 +339,24 @@ export type CostLine = {
  * A repository file as the CLI lets the page show it: only one the analysis read or cited, with `.env` values and URL
  * credentials masked. `not-shown` names the file and says why its text is not there.
  */
+/** A hand edit of the configuration, as the CLI holds it (`WizardState['configEdit']` in the CLI). */
+export type ConfigEdit = { yaml: string; typescript?: string; error?: string; errorLine?: number };
+
+/** The template the configuration compiles to (`WizardTemplatePreview` in the CLI). */
+export type TemplatePreview =
+  | {
+      status: 'ready';
+      /** The configuration text it was compiled from. */
+      config: string;
+      text: string;
+      /** The configuration's resource each logical ID belongs to; absent for the stack's shared ones. */
+      owners: Record<string, string>;
+      stage: string;
+      region: string;
+    }
+  | { status: 'failed'; config: string; error: string }
+  | { status: 'unavailable'; detail: string };
+
 export type FileView =
   | { path: string; status: 'shown'; text: string; lineCount: number; truncated: boolean; masked: boolean }
   | {
@@ -394,8 +415,10 @@ export type Session = {
    */
   consoleConnection: (action: 'connect' | 'dismiss') => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
-  /** Replaces the generated configuration with hand-edited YAML, or goes back to the generated one with `null`. */
-  setConfigText: (yaml: string | null) => Promise<WizardState>;
+  /** Replaces the generated configuration with hand-edited text, or goes back to the generated one with `null`. */
+  setConfigText: (edit: { yaml: string } | { typescript: string } | null) => Promise<WizardState>;
+  /** The CloudFormation template the configuration under review compiles to, compiled offline by the CLI. */
+  readTemplate: () => Promise<TemplatePreview>;
   /** Stores one secret in the user's AWS account. The value goes to the CLI on this machine and nowhere else. */
   setSecret: (name: string, value: string) => Promise<WizardState>;
   /** The secrets the configuration reads already exist. */
@@ -636,8 +659,8 @@ export const connect = async (): Promise<Session> => {
       publish((await changed.json()) as WizardState);
       return current;
     },
-    setConfigText: async (yaml) => {
-      const changed = await post('/api/config-text', { yaml });
+    setConfigText: async (edit) => {
+      const changed = await post('/api/config-text', edit ?? { yaml: null });
       if (!changed.ok) throw new SessionError('The edited file could not be sent to stacktape init.');
       publish((await changed.json()) as WizardState);
       return current;
@@ -704,6 +727,11 @@ export const connect = async (): Promise<Session> => {
       });
       if (!read.ok) throw new SessionError('The file could not be read.');
       return (await read.json()) as FileView;
+    },
+    readTemplate: async () => {
+      const read = await fetch('/api/template', { headers: { 'x-csrf-token': csrfToken } });
+      if (!read.ok) throw new SessionError('The template could not be compiled.');
+      return (await read.json()) as TemplatePreview;
     },
     readTree: async () => {
       const read = await fetch('/api/tree', { headers: { 'x-csrf-token': csrfToken } });

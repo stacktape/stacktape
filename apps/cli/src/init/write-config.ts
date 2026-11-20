@@ -116,7 +116,7 @@ export const writeComposedConfig = async ({
   format?: ConfigFormat;
   /** Region to declare in the file. */
   region?: string;
-  /** YAML the user edited by hand. Written exactly as given, instead of rendering the composition. */
+  /** The file as the user edited it by hand, in `format`. Written exactly as given, instead of rendering the composition. */
   contents?: string;
   /**
    * A file this same init run wrote before. It is replaced rather than treated as the user's own configuration, so
@@ -133,7 +133,7 @@ export const writeComposedConfig = async ({
   const path = join(repositoryRoot, filename);
 
   const contents =
-    editedContents !== undefined && format === 'yaml'
+    editedContents !== undefined
       ? editedContents
       : format === 'typescript'
         ? await renderTypeScript(composition, { region })

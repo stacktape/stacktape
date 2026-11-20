@@ -3,19 +3,25 @@
 import './monaco-lean';
 import * as monaco from 'monaco-editor/editor/editor.api.js';
 import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
+import TsLanguageWorker from 'monaco-editor/language/typescript/ts.worker?worker';
 import { configureStacktapeMonacoYaml } from '@stacktape/ui-react/monaco-yaml';
 import YamlWorker from './yaml-worker?worker';
 
 /**
  * Monaco for the wizard's config editor, set up once when the editor chunk loads.
  *
- * Everything is served by `stacktape init` on loopback: the two workers are files in the bundle (`script-src 'self'`
- * covers them, so the CSP is unchanged) and the config schema is `/config-schema.json` from the CLI. Only YAML gets a
- * language service (`monaco-yaml`). The TypeScript view is read-only and only highlighted, so no TypeScript worker is
- * started or shipped (see `monaco-lean.ts`).
+ * Everything is served by `stacktape init` on loopback: the workers are files in the bundle (`script-src 'self'`
+ * covers them, so the CSP is unchanged) and the config schema is `/config-schema.json` from the CLI. YAML gets its
+ * language service from `monaco-yaml`, TypeScript from Monaco's own TypeScript worker (`monaco-typescript.ts`), which
+ * starts only when a TypeScript file is opened.
  */
 self.MonacoEnvironment = {
-  getWorker: (_workerId: string, label: string) => (label === 'yaml' ? new YamlWorker() : new EditorWorker())
+  getWorker: (_workerId: string, label: string) =>
+    label === 'yaml'
+      ? new YamlWorker()
+      : label === 'typescript' || label === 'javascript'
+        ? new TsLanguageWorker()
+        : new EditorWorker()
 };
 
 const hex = (value: number) =>
@@ -58,7 +64,11 @@ monaco.editor.defineTheme('stacktape-wizard', {
     { token: 'string', foreground: token('--ws-code-string', '#c9b98a') },
     { token: 'number', foreground: token('--ws-code-number', '#b5cea8') },
     { token: 'keyword', foreground: token('--ws-code-keyword', '#8fb8f0') },
-    { token: 'comment', foreground: token('--ws-code-comment', '#6b7676'), fontStyle: 'italic' }
+    { token: 'comment', foreground: token('--ws-code-comment', '#6b7676'), fontStyle: 'italic' },
+    // TypeScript: the classes the file builds with in the key colour, so `new RelationalDatabase` reads like `type:`.
+    { token: 'type.identifier.ts', foreground: token('--ws-code-key', '#7fd3d3') },
+    { token: 'identifier.ts', foreground: token('--ws-code-text', '#d4d9d9') },
+    { token: 'delimiter.ts', foreground: token('--ws-code-punctuation', '#8a9696') }
   ],
   colors: {
     'editor.background': cssColor('--ws-code-bg', '#171c1c'),
@@ -69,12 +79,21 @@ monaco.editor.defineTheme('stacktape-wizard', {
     'editorGutter.background': cssColor('--ws-code-bg', '#171c1c'),
     'editor.selectionBackground': cssColor('--ws-code-selection', '#36bebe40'),
     'editorIndentGuide.background1': cssColor('--ws-code-guide', '#262e2e'),
-    'editorCodeLens.foreground': cssColor('--ws-code-lens', '#7d8a8a'),
     'editorHoverWidget.background': cssColor('--ws-code-popup', '#222929'),
     'editorHoverWidget.border': cssColor('--ws-code-popup-border', '#384242'),
     'editorSuggestWidget.background': cssColor('--ws-code-popup', '#222929'),
     'editorSuggestWidget.border': cssColor('--ws-code-popup-border', '#384242'),
     'editorSuggestWidget.selectedBackground': cssColor('--ws-code-popup-selected', '#2b3a3a'),
+    'editorSuggestWidget.highlightForeground': cssColor('--ws-code-key', '#7fd3d3'),
+    'editorStickyScroll.background': cssColor('--ws-code-bg', '#171c1c'),
+    'editorStickyScrollHover.background': cssColor('--ws-code-line-active', '#1f2626'),
+    'editorStickyScroll.shadow': '#00000066',
+    'editorLink.activeForeground': cssColor('--ws-code-key', '#7fd3d3'),
+    'editorError.foreground': cssColor('--ws-code-error', '#e5737a'),
+    'editorWarning.foreground': cssColor('--ws-code-warning', '#d8b45f'),
+    'editorBracketMatch.background': '#ffffff10',
+    'editorBracketMatch.border': '#ffffff30',
+    'editorGutter.foldingControlForeground': cssColor('--ws-code-line-number', '#4d5858'),
     'scrollbarSlider.background': cssColor('--ws-code-scrollbar', '#ffffff14'),
     'minimap.background': cssColor('--ws-code-bg', '#171c1c')
   }

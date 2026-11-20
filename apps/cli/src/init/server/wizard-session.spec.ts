@@ -1982,6 +1982,76 @@ describe('what the page sets besides choices', () => {
     expect(reset.state.configFile).toBeUndefined();
   });
 
+  it('writes hand-edited TypeScript as typed, and follows the configuration it defines', async () => {
+    const written: Array<{ format: string; contents?: string }> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      write: async ({ format, contents }) => {
+        written.push({ format, ...(contents === undefined ? {} : { contents }) });
+        return { path: '/repo/stacktape.ts', filename: 'stacktape.ts' };
+      }
+    });
+    const { post, get } = await connect();
+    // The TypeScript rendering runs Prettier, so it arrives a beat after the YAML.
+    let typescript: string | undefined;
+    for (let attempt = 0; attempt < 50 && typescript === undefined; attempt += 1) {
+      const state = (await get('/api/state')) as PageState & { composition?: { configText?: { typescript?: string } } };
+      typescript = state.composition?.configText?.typescript;
+      if (typescript === undefined) await Bun.sleep(50);
+    }
+    expect(typescript).toContain("from 'stacktape'");
+    const edited = typescript!.replace("'node index.js'", "'node server.js'");
+    expect(edited).not.toBe(typescript);
+
+    const reply = await post('/api/config-text', { typescript: edited });
+    const edit = reply.state.configEdit as { yaml: string; typescript?: string; error?: string } | undefined;
+    expect(edit?.typescript).toBe(edited);
+    expect(edit?.error).toBeUndefined();
+    // What it defines, for the diagram, the price and the secrets.
+    expect(edit?.yaml).toContain('node server.js');
+
+    await post('/api/write', { format: 'yaml' });
+    expect(written.at(-1)).toEqual({ format: 'typescript', contents: edited });
+
+    // Text that does not run says why and where, and keeps the last configuration it defined.
+    const broken = await post('/api/config-text', { typescript: edited.replace('defineConfig(', 'defineConfig((') });
+    const brokenEdit = broken.state.configEdit as { yaml: string; error?: string; errorLine?: number } | undefined;
+    expect(brokenEdit?.error).toBeDefined();
+    expect(brokenEdit?.yaml).toContain('node server.js');
+  });
+
+  it('compiles the template of the configuration under review once per configuration', async () => {
+    const compiled: Array<{ config: Record<string, unknown>; stage: string; region: string }> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      templatePreview: async (request) => {
+        compiled.push(request);
+        return {
+          ok: true,
+          text: 'Resources:\n  ApiService:\n    Type: AWS::ECS::Service\n',
+          owners: { ApiService: 'api' }
+        };
+      }
+    });
+    const { post, get } = await connect();
+    await post('/api/region', { region: 'eu-west-1' });
+    const first = (await get('/api/template')) as { status: string; owners?: Record<string, string>; region?: string };
+    expect(first).toMatchObject({ status: 'ready', owners: { ApiService: 'api' }, stage: 'dev', region: 'eu-west-1' });
+    await get('/api/template');
+    expect(compiled).toHaveLength(1);
+    expect(Object.keys(compiled[0]!.config.resources as object)).toEqual(['api']);
+
+    // An edit is compiled as edited; a file that does not parse has no template.
+    const generated = (await get('/api/state')) as PageState;
+    await post('/api/config-text', { yaml: generated.composition!.configText!.yaml.replace('api:', 'web:') });
+    await get('/api/template');
+    expect(Object.keys(compiled[1]!.config.resources as object)).toEqual(['web']);
+    await post('/api/config-text', { yaml: 'resources: [' });
+    expect(await get('/api/template')).toMatchObject({ status: 'unavailable' });
+  });
+
   it('sets secrets through the CLI dependency without keeping their values, and reports a failure by name', async () => {
     const received: Array<{ name: string; value: string; region: string }> = [];
     session = await startWizardSession({
