@@ -617,7 +617,7 @@ export function DeployStep({
                           ? 'You saved them in AWS yourself.'
                           : plan.entries.length === 0
                             ? 'None left: the app reads no secrets now.'
-                            : `All ${plan.entries.length} saved in your AWS account, in ${region}.`
+                            : `All ${plan.entries.length} saved in ${identity?.available === true && identity.accountAlias !== undefined ? identity.accountAlias : 'your AWS account'}, in ${region}.`
                         : secretsState === 'waiting'
                           ? `${plan.entries.length} ${secretsNoun(plan.entries.length)} your app reads. They are saved in your AWS account.`
                           : unsaved.length === plan.entries.length

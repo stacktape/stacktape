@@ -67,6 +67,8 @@ export function DeploySummary({
   const monthly = price === undefined ? undefined : splitMonthly(price.monthly);
   const parts = Object.entries(resources).toSorted(([, left], [, right]) => rankOf(left.type) - rankOf(right.type));
   const account = identity === undefined ? undefined : (identity.accountAlias ?? groupedAccount(identity.accountId));
+  // A release command runs in a one-off task of its own, which the deploy creates too.
+  const released = parts.filter(([, resource]) => resource.properties.releaseCommand !== undefined);
 
   return (
     <section aria-label="Deploy summary" className="w-summary">
@@ -98,6 +100,16 @@ export function DeploySummary({
             </li>
           );
         })}
+        {released.map(([name]) => (
+          <li key={`${name}-release`}>
+            <ResourceIcon resourceType="worker-service" size={20} />
+            <span className="w-summary-part">
+              <span className="w-summary-part-name">{name} release task</span>
+              <span className="w-summary-part-kind">runs the migration before each deploy</span>
+            </span>
+            <span className="w-summary-part-price is-usage">Per run</span>
+          </li>
+        ))}
       </ul>
 
       <dl className="w-summary-totals">

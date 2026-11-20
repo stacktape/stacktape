@@ -125,7 +125,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   // One click saves both, one after another: each is its own request to the CLI.
   await page.getByRole('button', { name: 'Save 2 secrets', exact: true }).click();
   // Done, the section folds to one line and the next one opens.
-  await expect(page.locator('#deploy-secrets')).toContainText('All 2 saved in your AWS account');
+  await expect(page.locator('#deploy-secrets')).toContainText('All 2 saved in acme-dev, in us-east-1.');
   // A Next.js site can run its migration as a release command, before each deploy goes live; the file says so.
   await choose(page, /Before each deploy goes live/);
   await expect(page.locator('#deploy-migrations')).toContainText(
@@ -142,6 +142,8 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await expect(summary).toContainText('Next.js site');
   await expect(summary).toContainText('Postgres database');
   await expect(summary).toContainText('database access server');
+  // The release command runs in a one-off task of its own, which the deploy creates too.
+  await expect(summary).toContainText('app release task');
   await expect(summary).toContainText(/\$\d+\/month \+ usage/);
   await expect(summary).toContainText('12–18 min');
 
