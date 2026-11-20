@@ -1417,7 +1417,8 @@
     max-height: none;
     margin: 0;
     border: 0;
-    padding: 24px;
+    /* A dialog keeps 16px from the window's edges, so a form of eight fields fits a 1280 x 720 laptop window. */
+    padding: 16px;
     overflow: hidden;
     background: var(--stp-dialog-overlay, rgba(12, 16, 16, 0.78));
     backdrop-filter: blur(8px);
@@ -1435,8 +1436,8 @@
     width: var(--stp-dialog-width, fit-content);
     /* The body owns the inset; the browser's own 1em on <dialog> doubled it. */
     padding: 0;
-    max-width: calc(100vw - 48px);
-    max-height: var(--stp-dialog-max-height, calc(100vh - 48px));
+    max-width: calc(100vw - 32px);
+    max-height: var(--stp-dialog-max-height, calc(100vh - 32px));
     overflow: hidden;
     border: 1px solid var(--stp-dialog-border, var(--stp-border-subtle));
     border-radius: var(--stp-dialog-radius, var(--stp-radius-large));
@@ -1476,7 +1477,7 @@
   .stp-ui-dialog__body {
     box-sizing: border-box;
     flex: 1 1 auto;
-    min-width: min(var(--stp-dialog-width, var(--stp-dialog-width-form)), calc(100vw - 48px));
+    min-width: min(var(--stp-dialog-width, var(--stp-dialog-width-form)), calc(100vw - 32px));
     max-width: 100%;
     min-height: 0;
     padding: var(--stp-dialog-padding, 28px);
@@ -1499,7 +1500,7 @@
 
   /* The action row's hairline closes the body, so the body keeps its full inset above it. */
   .stp-ui-dialog__body:has(+ .stp-ui-dialog__actions) {
-    padding-bottom: 24px;
+    padding-bottom: 20px;
   }
 
   /* Centred on the title's line, the same distance from the right edge as the title is from the top. */
@@ -1534,14 +1535,14 @@
 
   /* The title stays in place while a long body scrolls under it, so the close button never sits on the content.
    * It reaches up over the body's top inset, on the dialog's own surface, and its bottom space is padding, so what
-   * scrolls under it disappears 22px before the title. */
+   * scrolls under it disappears 20px before the title. */
   .stp-ui-dialog__header {
     position: sticky;
     /* Sticky offsets count from inside the body's inset. */
     top: calc(-1 * var(--stp-dialog-padding, 28px));
     z-index: 1;
     margin: calc(-1 * var(--stp-dialog-padding, 28px)) calc(-1 * var(--stp-dialog-padding, 28px)) 0;
-    padding: var(--stp-dialog-padding, 28px) calc(var(--stp-dialog-padding, 28px) + 40px) 24px
+    padding: var(--stp-dialog-padding, 28px) calc(var(--stp-dialog-padding, 28px) + 40px) 20px
       var(--stp-dialog-padding, 28px);
     background: var(--stp-dialog-background, var(--stp-surface-modal));
   }
