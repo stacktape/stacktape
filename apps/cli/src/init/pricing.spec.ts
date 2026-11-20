@@ -22,7 +22,10 @@ describe('pricing presentation', () => {
     expect(await estimateMonthlyCost('resources: {}', 'eu-west-1')).toEqual({
       monthly: 'Estimate incomplete',
       byResource: { api: 'Price unavailable' },
-      region: 'eu-west-1'
+      region: 'eu-west-1',
+      // An incomplete resource has no amount of its own to compare or draw.
+      resourceFlat: {},
+      lines: { api: [] }
     });
     expect(getResourceCostLabel(resource)).toContain('Price unavailable');
     expect(getStackCostLabel(response.costs!)).toContain('Estimate incomplete');
@@ -70,6 +73,9 @@ describe('pricing presentation', () => {
       monthly: '$0/mo + pay-per-use costs',
       byResource: { api: 'pay-per-use' },
       region: 'eu-west-1',
+      resourceFlat: { api: 0 },
+      // The rate goes to the page, which shows what usage is billed at.
+      lines: { api: [{ name: 'requests', priceModel: 'pay-per-use', rate: 0.000001 }] },
       flatMonthly: 0
     });
   });

@@ -11,6 +11,7 @@ import type {
   DeploymentPreferenceChange,
   DeploymentPreferences
 } from '@stacktape/config-inference/compose/preferences';
+import type { SettingChange } from '@stacktape/config-inference/compose/resource-settings';
 
 /** A decision taken on the user's behalf, with what else it could have been. */
 export type WizardDecision = {
@@ -110,6 +111,8 @@ export type WizardState = {
   mode?: 'low-cost' | 'standard' | 'production';
   preferences?: DeploymentPreferences;
   recommendedPreferences?: DeploymentPreferences;
+  /** The database engine versions RDS offers, newest first, by engine: what a version setting lists. */
+  engineVersions?: Record<string, string[]>;
   /** Set once the configuration is on disk. `existingPath` means this is a file written beside one. */
   configFile?: {
     path: string;
@@ -279,6 +282,14 @@ export type WizardState = {
       region: string;
       /** What each other answer to a choice changes the monthly price by, by choice and answer. */
       options?: Record<string, Record<string, string>>;
+      /** The fixed monthly total as a number. Absent when the estimate is incomplete. */
+      flatMonthly?: number;
+      /** Each resource's fixed monthly amount, by name. Absent for a resource that could not be priced. */
+      resourceFlat?: Record<string, number>;
+      /** What each resource's price is made of: its instance, storage, requests. */
+      lines?: Record<string, CostLine[]>;
+      /** What each option of each priced setting would cost: the resource's amount and the stack's, by option value. */
+      settings?: Record<string, Record<string, Record<string, { resource?: number; total?: number }>>>;
     };
     /** The price service did not answer for this configuration; nothing else depends on it. */
     priceUnavailable?: boolean;
@@ -294,6 +305,19 @@ export type WizardState = {
   };
   answers: Record<string, string>;
   error?: string;
+};
+
+/** One product of a resource's price, as the estimator names it ("RDS-instance-db.t4g.micro-postgres"). */
+export type CostLine = {
+  name: string;
+  priceModel: string;
+  /** The fixed monthly amount, for a flat-priced product. */
+  monthly?: number;
+  /** The rate, for a product billed by use, per `unit`. */
+  rate?: number;
+  unit?: string;
+  /** How many units the configuration asks for: two instances, 20 GB. */
+  quantity?: number;
 };
 
 /**
@@ -328,6 +352,8 @@ export type Session = {
   start: (agentId: string, modelId: string) => Promise<WizardState>;
   /** Change one explicit infrastructure choice. The configuration and price are rebuilt from it. */
   setPreference: (change: DeploymentPreferenceChange) => Promise<WizardState>;
+  /** Change one setting of one resource: its size, a standby copy, a domain. The CLI checks it against what it offers. */
+  setSetting: (change: SettingChange) => Promise<WizardState>;
   /** Write the configuration to the repository, in the format chosen on the Review step. */
   write: (format: 'yaml' | 'typescript') => Promise<WizardState>;
   /** Deploy it. Besides connecting a coding agent, the only thing here that changes anything outside the repository. */
@@ -528,6 +554,18 @@ export const connect = async (): Promise<Session> => {
       });
       if (!changed.ok) {
         throw new SessionError('That infrastructure choice could not be applied.');
+      }
+      publish((await changed.json()) as WizardState);
+      return current;
+    },
+    setSetting: async (change) => {
+      const changed = await fetch('/api/setting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: JSON.stringify(change)
+      });
+      if (!changed.ok) {
+        throw new SessionError('That setting could not be applied.');
       }
       publish((await changed.json()) as WizardState);
       return current;

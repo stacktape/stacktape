@@ -113,6 +113,21 @@ export const RESOURCE_VISUALS = {
   schedule: visual('integration', 'eventbridge')
 } as const satisfies Partial<Record<StacktapeResourceType | DiagramOnlyResourceType, ResourceVisual>>;
 
+/**
+ * Each category's colour, as the isometric diagram paints its shapes. Anything drawn beside the diagram (a cost bar, a
+ * legend) uses the same colours, so a resource reads as the same thing in both. Literal, because the diagram shades its
+ * faces arithmetically from them.
+ */
+export const RESOURCE_CATEGORY_COLORS: Readonly<Record<ResourceVisualCategory | 'neutral', string>> = {
+  compute: '#F08A24',
+  database: '#4F76F2',
+  integration: '#E44B82',
+  storage: '#5DA83C',
+  network: '#8F5EEC',
+  security: '#E2484E',
+  neutral: '#A3AEBF'
+};
+
 /** Stacks deployed by Stacktape v3 still report Redis caches as `redis-cluster` until their next deployment. */
 const LEGACY_RESOURCE_TYPES: Record<string, keyof typeof RESOURCE_VISUALS> = { 'redis-cluster': 'redis' };
 

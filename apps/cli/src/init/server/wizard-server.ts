@@ -25,6 +25,7 @@ import {
   type DeploymentPreferenceChange,
   type DeploymentPreferences
 } from '@stacktape/config-inference/compose/preferences';
+import { isSettingChange, type SettingChange } from '@stacktape/config-inference/compose/resource-settings';
 import {
   createSessionSecrets,
   isSameOrigin,
@@ -165,6 +166,8 @@ export type WizardState = {
   preferences?: DeploymentPreferences;
   /** Fact-aware defaults used to mark the recommended card without overriding a changed choice. */
   recommendedPreferences?: DeploymentPreferences;
+  /** The database engine versions RDS offers, newest first, by engine: what the version setting lists. */
+  engineVersions?: Record<string, string[]>;
   /**
    * The configuration on disk, once the user has asked for it.
    *
@@ -279,6 +282,11 @@ export type WizardServerHooks = {
   onMode: (mode: 'low-cost' | 'standard' | 'production') => Promise<WizardState> | WizardState;
   /** Called when one explicit infrastructure preference changes. */
   onPreference: (change: DeploymentPreferenceChange) => Promise<WizardState> | WizardState;
+  /**
+   * Called when one setting of one resource changes: its size, a standby copy, a domain. The session checks the value
+   * against the settings that resource offers before anything is written. Absent, the route answers with the state.
+   */
+  onSetting?: (change: SettingChange) => Promise<WizardState> | WizardState;
   /** Called when the user asks for the configuration to be written, in the format they chose. */
   onWrite: (format: 'yaml' | 'typescript') => Promise<void> | void;
   /** Called when the user asks to deploy. Publishes for itself, like `onStart`. */
@@ -767,6 +775,25 @@ export const startWizardServer = async ({
             return;
           }
           json(response, 200, await hooks.onPreference(body));
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/setting' && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body: unknown = JSON.parse(await readBody(request));
+          // Only the shape here; whether the resource offers that setting and value is the session's to check.
+          if (!isSettingChange(body)) {
+            json(response, 400, { error: 'That is not a resource setting.' });
+            return;
+          }
+          json(response, 200, hooks.onSetting === undefined ? state : await hooks.onSetting(body));
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
         }

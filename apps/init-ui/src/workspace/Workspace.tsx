@@ -1,4 +1,4 @@
-import type { DeploymentPreferenceChange } from '@stacktape/config-inference/compose/preferences';
+import type { SettingChange } from '@stacktape/config-inference/compose/resource-settings';
 import { Button } from '@stacktape/ui-react/button';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { Spinner } from '@stacktape/ui-react/spinner';
@@ -12,6 +12,7 @@ import type { ConfigEditorHandle, EditorLens, EditorProblems } from '../editor/C
 import type { FileView, RepositoryTree, Session, WizardState } from '../session';
 import { ReviewPane } from '../steps/ReviewStep';
 import { filenameFor, monthlySuffix, summarise } from '../steps/review-model';
+import { reviewLayout } from '../steps/review-version';
 import { FileIcon } from './FileIcon';
 import { buildTree, fileCountLabel } from './file-tree';
 import {
@@ -84,7 +85,7 @@ export function Workspace({
   isLocked,
   format,
   onFormatChange,
-  onPreference,
+  onSetting,
   onDecision,
   onRegion,
   onConfigText,
@@ -99,7 +100,7 @@ export function Workspace({
   isLocked: boolean;
   format: 'yaml' | 'typescript';
   onFormatChange: (format: 'yaml' | 'typescript') => void;
-  onPreference: (change: DeploymentPreferenceChange) => void;
+  onSetting: (change: SettingChange) => void;
   onDecision: (id: string, value: string) => void;
   onRegion: (region: string) => void;
   onConfigText: (yaml: string | null) => void;
@@ -673,9 +674,10 @@ export function Workspace({
   }, [written, stories, wholePrice]);
   const focusedPriced = phase === 'reveal' && written > step;
   const filesRead = new Set(opened).size;
+  // What happened before this screen: the project was analyzed, by an agent or by Stacktape's own scan.
   const receipt = !usesAgent
-    ? 'Read without AI'
-    : `Read by ${agent.label}${filesRead > 0 ? ` · ${filesRead} ${filesRead === 1 ? 'file' : 'files'}` : ''}`;
+    ? 'Analyzed without AI'
+    : `Analyzed by ${agent.label}${filesRead > 0 ? ` · ${filesRead} ${filesRead === 1 ? 'file' : 'files'} read` : ''}`;
   const barNote = parseError !== undefined ? 'Fix the YAML to continue.' : `Saves ${filename}`;
   const showFile = !stacked || phase !== 'review' || stackedView === 'file';
   const showLeft = !stacked || phase !== 'review' || stackedView === 'architecture';
@@ -694,6 +696,7 @@ export function Workspace({
         // The half second in which the code window gives way and the bar slides up: the page makes room for it slowly.
         data-settling={leaving ? 'true' : undefined}
         data-stacked={stacked ? 'true' : undefined}
+        data-review-layout={phase === 'review' ? reviewLayout(window.location.search) : undefined}
       >
         <header className="ws-head" data-phase={phase}>
           {phase === 'scan' ? (
@@ -812,10 +815,10 @@ export function Workspace({
               citations={citations}
               isEdited={isEdited}
               isLocked={isLocked}
+              isTyping={draft !== undefined && draft !== (edit?.yaml ?? generated?.yaml)}
               onDecision={onDecision}
-              onDiscardEdits={discardEdits}
-              onPreference={onPreference}
               onRegion={onRegion}
+              onSetting={onSetting}
               onSelect={select}
               onShowInFile={showInFile}
               progress={nodeProgress}

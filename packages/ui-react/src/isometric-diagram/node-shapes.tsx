@@ -9,6 +9,7 @@
  * Shapes are drawn back to front inside themselves; the renderer orders whole nodes by depth.
  */
 import type { ReactElement, ReactNode } from 'react';
+import { RESOURCE_CATEGORY_COLORS } from '../resource-icon/catalog.js';
 import type { ScreenPoint } from './projection.js';
 import type { IsoNode, IsoNodeCategory, IsoNodeGlyph, IsoNodeAccess } from './scene.js';
 import {
@@ -24,16 +25,8 @@ import {
 import { lift, pts, round, t2s, TH, TW } from './projection.js';
 
 // AWS category colours, tuned so the top face, both side faces and a white glyph all stay distinct on the dark
-// canvas. They are literal because faces are shaded arithmetically from them.
-export const CATEGORY_COLORS: Record<IsoNodeCategory, string> = {
-  compute: '#F08A24',
-  database: '#4F76F2',
-  integration: '#E44B82',
-  storage: '#5DA83C',
-  network: '#8F5EEC',
-  security: '#E2484E',
-  neutral: '#A3AEBF'
-};
+// canvas. Kept in the resource catalog, where anything drawn beside the diagram reads them too.
+export const CATEGORY_COLORS: Readonly<Record<IsoNodeCategory, string>> = RESOURCE_CATEGORY_COLORS;
 
 const GLYPH_COLOR = '#FFFFFF';
 const FONT = "'Montserrat', 'Inter', sans-serif";

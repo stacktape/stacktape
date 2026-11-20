@@ -307,12 +307,8 @@ export function App() {
           }
           onDecision={(id, value) => void run(id, () => session.answer(id, value), 'That change could not be applied.')}
           onFormatChange={setFormat}
-          onPreference={(change) =>
-            void run(
-              `preference-${change.key}`,
-              () => session.setPreference(change),
-              'That setting could not be applied.'
-            )
+          onSetting={(change) =>
+            void run('setting', () => session.setSetting(change), 'That setting could not be applied.')
           }
           onRegion={(region) => void run('region', () => session.setRegion(region), 'That region could not be chosen.')}
           onRevealing={setRevealing}
