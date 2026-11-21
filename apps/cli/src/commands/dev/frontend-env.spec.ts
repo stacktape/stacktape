@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 import { parse } from 'dotenv';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -188,6 +189,56 @@ test("of several writers that find a dead writer's lock, one at a time holds it"
     expect(await readdir(directory)).toEqual(['.env.local.stacktape-lock']);
     await writeFile(lock, stale);
     await removeStaleLock(lock, stale);
+    expect(await readdir(directory)).toEqual([]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// Gate run, 20 Nov 2026: a writer that still saw the dead writer's lock moved the next writer's live lock aside to read
+// it, and a third writer created a lock in the gap. A late reclaimer leaves a live lock where it is.
+test('a writer with an old view of a stale lock never opens a gap in the live lock', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-frontend-env-gap-'));
+  try {
+    const lock = join(directory, '.env.local.stacktape-lock');
+    const stale = `${deadPid()}:left`;
+    await writeFile(lock, `${process.ppid}:fresh`);
+    // A writer that keeps trying to create the lock gets in only if a reclaimer opens a gap.
+    const race = { reclaiming: true, intruded: false };
+    const intruder = (async () => {
+      while (race.reclaiming && !race.intruded) {
+        race.intruded = await writeFile(lock, 'intruder', { flag: 'wx' }).then(
+          () => true,
+          () => false
+        );
+      }
+    })();
+    for (let attempt = 0; attempt < 200 && !race.intruded; attempt++) await removeStaleLock(lock, stale);
+    race.reclaiming = false;
+    await intruder;
+    expect(race.intruded).toBe(false);
+    expect(await readFile(lock, 'utf8')).toBe(`${process.ppid}:fresh`);
+    expect(await readdir(directory)).toEqual(['.env.local.stacktape-lock']);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+// A writer that died while it removed a stale lock leaves its claim; the next writer removes both.
+test("a dead writer's claim on a stale lock does not block the next writer", async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'stacktape-frontend-env-claim-'));
+  try {
+    const envFile = join(directory, '.env.local');
+    const lock = `${envFile}.stacktape-lock`;
+    const stale = `${deadPid()}:left`;
+    await writeFile(lock, stale);
+    const claim = `${lock}.${createHash('sha256').update(stale).digest('hex').slice(0, 16)}.claim`;
+    await writeFile(claim, `${deadPid()}:claimed`);
+    let wrote = false;
+    await withEnvFileLock(envFile, async () => {
+      wrote = true;
+    });
+    expect(wrote).toBe(true);
     expect(await readdir(directory)).toEqual([]);
   } finally {
     await rm(directory, { recursive: true, force: true });
