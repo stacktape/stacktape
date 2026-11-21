@@ -24,7 +24,18 @@ import type {
   IsoTilePoint
 } from './scene.js';
 import type { DiagramStatuses, DiagramStatusTone, NodeStatus } from './status.js';
-import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  Fragment,
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import { createPortal } from 'react-dom';
 import { BiExpand, BiInfoCircle, BiMinus, BiPlus, BiSearch } from 'react-icons/bi';
 import { DiagramPanel } from './DiagramPanel.js';
@@ -32,7 +43,9 @@ import {
   BADGE_HEIGHT_PX,
   BADGE_OFFSET_PX,
   NAME_MAX_CHARS,
+  NAME_TAG_CODE_FONT,
   SHAPE_HEIGHT_PX,
+  TITLE_MAX_CHARS,
   TYPE_MAX_CHARS
 } from './node-appearance.js';
 import { NodeBadges, NodeShape } from './node-shapes.js';
@@ -74,7 +87,7 @@ type ScreenBounds = {
   maxY: number;
 };
 
-const getNodeScreenBounds = (node: IsoNode): ScreenBounds => {
+const getNodeScreenBounds = (node: IsoNode, labelScale = 1): ScreenBounds => {
   const origin = t2s(node.tile.x, node.tile.y);
   const halfWidth = HW * TW + 8;
 
@@ -84,7 +97,7 @@ const getNodeScreenBounds = (node: IsoNode): ScreenBounds => {
     // Leaves room for a badge above the tallest shape.
     minY: origin.y - MAX_SHAPE_HEIGHT - BADGE_OFFSET_PX - BADGE_HEIGHT_PX,
     // Includes the two-line name tag hanging below the front tip.
-    maxY: origin.y + HW * TH + 40
+    maxY: origin.y + HW * TH + 40 * labelScale
   };
 };
 
@@ -120,15 +133,24 @@ const FONT = "'Montserrat', 'Inter', sans-serif";
 const truncate = (text: string, maxChars: number) =>
   text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
 
+/**
+ * How much larger than drawn names, type lines and connector chips are set, so they stay readable when a large picture
+ * is scaled down to fit its frame (`minLabelSize`). 1 unless the host asks for a minimum: the shapes keep their size.
+ */
+const LabelScale = createContext(1);
+
 // ── Node name tag ──
-// Flat, horizontal, hanging below the shape's front tip: the resource name, then a muted line saying what it is.
+// Flat, horizontal, hanging below the shape's front tip: the resource name, then a muted line saying what it is. With a
+// host's plain name (`title`), that name leads and the muted line is the resource's name in the config, in code type.
 const NodeNameTag = ({ node }: { node: IsoNode }) => {
   const tip = frontTip(node.tile.x, node.tile.y);
+  const scale = useContext(LabelScale);
+  const second = node.title === undefined ? node.typeLabel : node.label;
 
   return (
     <text
       x={tip.x}
-      y={tip.y + 14}
+      y={tip.y + 2 + 12 * scale}
       textAnchor="middle"
       stroke="rgba(9, 11, 17, 0.85)"
       strokeWidth={3}
@@ -136,12 +158,20 @@ const NodeNameTag = ({ node }: { node: IsoNode }) => {
       paintOrder="stroke fill"
       fontFamily={FONT}
     >
-      <tspan x={tip.x} fill="rgba(255,255,255,0.92)" fontSize={12} fontWeight={600}>
-        {truncate(node.label, NAME_MAX_CHARS)}
+      <tspan x={tip.x} fill="rgba(255,255,255,0.92)" fontSize={12 * scale} fontWeight={600}>
+        {node.title === undefined ? truncate(node.label, NAME_MAX_CHARS) : truncate(node.title, TITLE_MAX_CHARS)}
       </tspan>
-      {node.typeLabel && (
-        <tspan x={tip.x} dy={14} fill="#8E9AAB" fontSize={10} fontWeight={500} data-iso-kind="type-label">
-          {truncate(node.typeLabel, TYPE_MAX_CHARS)}
+      {second && (
+        <tspan
+          x={tip.x}
+          dy={14 * scale}
+          fill={node.title === undefined ? '#8E9AAB' : '#A3AEBD'}
+          fontSize={10 * scale}
+          fontWeight={500}
+          {...(node.title === undefined ? {} : { fontFamily: NAME_TAG_CODE_FONT })}
+          data-iso-kind={node.title === undefined ? 'type-label' : 'config-name'}
+        >
+          {truncate(second, TYPE_MAX_CHARS)}
         </tspan>
       )}
     </text>
@@ -447,7 +477,8 @@ const ConnSvg = ({
   idPrefix: string;
   nodeMap: Map<string, IsoNode>;
   animateConnectors: boolean;
-  dimmed: boolean;
+  /** Stepped back from the focus: drawn at this opacity. */
+  dimmed: number | false;
   highlighted: boolean;
   onPointerEnter?: () => void;
   onPointerLeave?: () => void;
@@ -466,7 +497,7 @@ const ConnSvg = ({
   const cc = conn.color || style.color;
 
   return (
-    <g className="stp-diagram__fade" opacity={dimmed ? 0.12 : 1}>
+    <g className="stp-diagram__fade" opacity={dimmed === false ? 1 : dimmed}>
       <path
         data-iso-kind="connector-path"
         data-iso-id={conn.id}
@@ -500,11 +531,12 @@ const ConnSvg = ({
 
 // Horizontal label chip drawn on top of everything so pipes never cut through the
 // text; the chip background doubles as padding between the text and the pipe.
-const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: boolean }) => {
+const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: number | false }) => {
+  const scale = useContext(LabelScale);
   if (!conn.label) return null;
 
   const point = t2s(conn.route.labelTile.x, conn.route.labelTile.y);
-  const fontSize = 10;
+  const fontSize = 10 * scale;
   const chipWidth = conn.label.length * fontSize * 0.66 + 12;
   const chipHeight = fontSize + 8;
 
@@ -512,7 +544,7 @@ const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: bool
     <g
       data-iso-kind="connector-label"
       data-iso-id={conn.id}
-      opacity={dimmed ? 0.12 : 1}
+      opacity={dimmed === false ? 1 : dimmed}
       className="stp-diagram__fade stp-diagram__chip"
     >
       <rect
@@ -546,6 +578,23 @@ const ConnectorLabelChip = ({ conn, dimmed }: { conn: IsoConnector; dimmed: bool
 const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
 
+/**
+ * The most a fitted picture is enlarged, in screen pixels per SVG unit. A picture of two or three resources fitted to
+ * a large frame would otherwise be drawn far bigger than the shapes and text were made for; it is centred at this
+ * scale instead. `initialZoom` still applies on top.
+ */
+const MAX_FIT_SCALE = 1.15;
+
+/**
+ * Pictures with at most this many nodes are small enough to take in at a glance: they have no search box and no zoom
+ * buttons. The wheel, a pinch, a drag and the keyboard still pan and zoom, and a reset button appears once the view
+ * has moved.
+ */
+const COMPACT_NODES = 8;
+
+/** How long a new arrangement of the picture takes to fade in. */
+const REARRANGE_FADE_MS = 280;
+
 const clampZoom = (zoom: number) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
 
 type ViewTransform = { panX: number; panY: number; zoom: number };
@@ -568,7 +617,7 @@ type TooltipContent = {
 };
 
 /** Pointer position in viewport coordinates: the tooltip is rendered outside the diagram's box. */
-type TooltipState = TooltipContent & { x: number; y: number };
+type TooltipState = TooltipContent & { x: number; y: number; custom?: ReactNode };
 
 /** Clear of the pointer, and clear of the window's edges. */
 const TOOLTIP_OFFSET = 16;
@@ -615,6 +664,49 @@ export type DiagramViewProps = {
    * going away never resizes the drawing.
    */
   notices?: readonly DiagramNotice[] | undefined;
+  /**
+   * Hands selection to the host. With it, clicking a resource reports its name here instead of opening the side
+   * panel, for a host that explains resources beside the diagram. `selectedResource` rings that resource, so a
+   * selection made outside the diagram shows in it too.
+   */
+  onSelectResource?: ((resourceName: string) => void) | undefined;
+  selectedResource?: string | null | undefined;
+  /**
+   * How far a deploy has got with each declared resource. A `pending` resource is drawn faint, a `creating` one
+   * breathes, and a `ready` one is drawn as usual, so the picture fills in as the deploy creates it. Omit it outside a
+   * deploy.
+   */
+  resourceProgress?: Readonly<Record<string, 'pending' | 'creating' | 'ready'>> | undefined;
+  /** Replaces the usage hint at the bottom of the frame; an empty string shows none, for a host that says it itself. */
+  hint?: string | undefined;
+  /**
+   * The smallest a resource's name is drawn, in screen pixels, when a large picture is scaled down to fit its frame:
+   * names, type lines and connector chips grow in the picture's units to stay that size (up to 1.7 times) and the
+   * layout keeps room for them, while the shapes keep their size. Off unless set; for a host whose frame is small for
+   * what it shows.
+   */
+  minLabelSize?: number | undefined;
+  /**
+   * The host's own words for a declared resource's hover card, by its name, in place of the diagram's. Return
+   * `undefined` to keep the diagram's own card for that resource.
+   */
+  resourceTooltip?: ((resourceName: string) => ReactNode | undefined) | undefined;
+  /**
+   * Tells the host which node the pointer or keyboard is on (its id, a declared resource's name), and `null` when it
+   * leaves, for a host that explains it beside the picture rather than over it. With it, nodes show no hover card and
+   * the hovered one gets a soft ring; connectors keep theirs.
+   */
+  onHoverResource?: ((resourceName: string | null) => void) | undefined;
+  /**
+   * How far hovering or keyboard focus on a node steps back what it does not connect to. `soft` keeps the rest of the
+   * picture readable, for a small picture that is read as a whole. Defaults to `strong`.
+   */
+  focusDimming?: 'strong' | 'soft' | undefined;
+  /**
+   * Room left around the picture inside its frame, in the picture's own units (default 80). A host whose frame is
+   * short for what it shows lowers it, so the picture fills the frame rather than its margin.
+   */
+  framePadding?: number | undefined;
 };
 
 export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
@@ -629,12 +721,26 @@ export type IsoRendererProps = DiagramViewProps & {
   toolbar?: ReactNode;
   /** A line about what is shown, such as the Access layer's note, shown where the usage hint otherwise is. */
   viewNote?: ReactNode;
+  /** How much larger than usual names, type lines and chips are set; the scene was laid out with room for them. */
+  labelScale?: number | undefined;
+  /** Told the scale the picture is fitted to its frame at, whenever it changes. */
+  onFitScale?: ((scale: number) => void) | undefined;
 };
 
 /** How far the pointer moves before a press becomes a drag instead of a click, in screen pixels. */
 const DRAG_THRESHOLD = 4;
 
 const normalize = (text: string) => text.trim().toLowerCase();
+
+/** Whether an element has focus from the keyboard rather than from a click, as `:focus-visible` tells it. */
+const isKeyboardFocus = (element: Element): boolean => {
+  try {
+    return element.matches(':focus-visible');
+  } catch {
+    // A browser without the selector: count every focus, as before.
+    return true;
+  }
+};
 
 /** The nodes a search matches: by name, and a group when one of its members matches. */
 const findMatches = ({ scene, query }: { scene: IsoScene; query: string }) => {
@@ -664,9 +770,19 @@ export function IsoRenderer({
   statuses,
   onNavigate,
   notices,
+  onSelectResource,
+  selectedResource,
+  resourceProgress,
+  hint = 'Hover to learn what something does · click a resource for its connections',
+  resourceTooltip,
+  onHoverResource,
+  focusDimming = 'strong',
+  framePadding = 80,
   onToggleGroup,
   toolbar,
-  viewNote
+  viewNote,
+  labelScale = 1,
+  onFitScale
 }: IsoRendererProps) {
   const idPrefix = useId().replaceAll(':', '');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -702,7 +818,7 @@ export function IsoRenderer({
   /** Set when a press ended as a drag, so the click that follows it does not select anything. */
   const suppressClick = useRef(false);
 
-  const moveTooltip = useCallback((e: ReactPointerEvent, content: TooltipContent) => {
+  const moveTooltip = useCallback((e: ReactPointerEvent, content: TooltipContent & { custom?: ReactNode }) => {
     setTooltip({ x: e.clientX, y: e.clientY, ...content });
   }, []);
 
@@ -716,11 +832,24 @@ export function IsoRenderer({
     const node = tooltipRef.current;
     if (!node || !tooltip) return;
     const box = node.getBoundingClientRect();
-    const maxLeft = window.innerWidth - box.width - TOOLTIP_MARGIN;
+    // It stays inside the diagram's frame when it fits there, so it does not cover what sits beside the diagram (an
+    // editor, a panel); in a frame too small for it, inside the window.
+    const frame = containerRef.current?.getBoundingClientRect();
+    const fitsFrame =
+      frame !== undefined &&
+      box.width + 2 * TOOLTIP_MARGIN <= frame.width &&
+      box.height + 2 * TOOLTIP_MARGIN <= frame.height;
+    const bounds = fitsFrame
+      ? { left: frame.left, top: frame.top, right: frame.right, bottom: frame.bottom }
+      : { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
+    // Right of the pointer, else left of it, rather than sliding over what it points at.
+    const right = tooltip.x + TOOLTIP_OFFSET;
+    const left = right + box.width + TOOLTIP_MARGIN <= bounds.right ? right : tooltip.x - TOOLTIP_OFFSET - box.width;
     const below = tooltip.y + TOOLTIP_OFFSET;
-    const fitsBelow = below + box.height + TOOLTIP_MARGIN <= window.innerHeight;
-    node.style.left = `${Math.max(TOOLTIP_MARGIN, Math.min(tooltip.x + TOOLTIP_OFFSET, maxLeft))}px`;
-    node.style.top = `${Math.max(TOOLTIP_MARGIN, fitsBelow ? below : tooltip.y - TOOLTIP_OFFSET - box.height)}px`;
+    const fitsBelow = below + box.height + TOOLTIP_MARGIN <= bounds.bottom;
+    const top = fitsBelow ? below : tooltip.y - TOOLTIP_OFFSET - box.height;
+    node.style.left = `${Math.max(bounds.left + TOOLTIP_MARGIN, Math.min(left, bounds.right - box.width - TOOLTIP_MARGIN))}px`;
+    node.style.top = `${Math.max(bounds.top + TOOLTIP_MARGIN, Math.min(top, bounds.bottom - box.height - TOOLTIP_MARGIN))}px`;
   }, [tooltip]);
 
   const { minX, minY, svgW, svgH } = useMemo(() => {
@@ -730,20 +859,20 @@ export function IsoRenderer({
       const merged = expandBounds({
         bounds: mergeBounds({
           bounds: [
-            ...frame.nodeTiles.map((tile) => getNodeScreenBounds({ tile } as IsoNode)),
+            ...frame.nodeTiles.map((tile) => getNodeScreenBounds({ tile } as IsoNode, labelScale)),
             ...frame.points.map((point) => pointBounds(point)),
             ...frame.chips.map(({ tile, text }) => {
-              const half = (text.length * 10 * 0.7) / 2;
+              const half = (text.length * 10 * 0.7 * labelScale) / 2;
               const screen = t2s(tile.x, tile.y);
               return { minX: screen.x - half, maxX: screen.x + half, minY: screen.y - 10, maxY: screen.y + 10 };
             })
           ]
         }),
-        padding: 80
+        padding: framePadding
       });
       return { minX: merged.minX, minY: merged.minY, svgW: merged.maxX - merged.minX, svgH: merged.maxY - merged.minY };
     }
-    const nodeBounds = scene.nodes.map((node) => getNodeScreenBounds(node));
+    const nodeBounds = scene.nodes.map((node) => getNodeScreenBounds(node, labelScale));
     const rectangleBounds = scene.rectangles.map((rectangle) => {
       const corners = [
         t2s(rectangle.from.x, rectangle.from.y),
@@ -791,7 +920,7 @@ export function IsoRenderer({
       bounds: mergeBounds({
         bounds: [...nodeBounds, ...rectangleBounds, ...labelBounds, ...connectorBounds, ...connectorLabelBounds]
       }),
-      padding: 80
+      padding: framePadding
     });
 
     return {
@@ -800,7 +929,21 @@ export function IsoRenderer({
       svgW: merged.maxX - merged.minX,
       svgH: merged.maxY - merged.minY
     };
-  }, [scene]);
+  }, [scene, labelScale, framePadding]);
+
+  // The scale the picture is fitted at, for a host that keeps names readable however far it is scaled down.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onFitScale || typeof ResizeObserver === 'undefined') return;
+    const report = () => {
+      if (container.clientWidth === 0 || container.clientHeight === 0) return;
+      onFitScale(Math.min(container.clientWidth / svgW, container.clientHeight / svgH, MAX_FIT_SCALE));
+    };
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [onFitScale, svgW, svgH]);
 
   const nodeMap = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene.nodes]);
 
@@ -839,6 +982,19 @@ export function IsoRenderer({
   useEffect(() => {
     setView(home);
   }, [nodesKey, home]);
+
+  // A new arrangement of the picture (a group expanded, or a host that lays out only the shown layers switching one)
+  // fades in instead of jumping into place.
+  const canvasRef = useRef<SVGSVGElement>(null);
+  const arrangedKey = useRef(nodesKey);
+  useLayoutEffect(() => {
+    if (arrangedKey.current === nodesKey) return;
+    arrangedKey.current = nodesKey;
+    const canvas = canvasRef.current;
+    if (!canvas || typeof canvas.animate !== 'function') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    canvas.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: REARRANGE_FADE_MS, easing: 'ease-out' });
+  }, [nodesKey]);
 
   // Hover details are snapshots of the current scene. Clear them when the host supplies a newly
   // compiled scene so removed resources cannot leave the remainder permanently dimmed or display
@@ -892,11 +1048,18 @@ export function IsoRenderer({
     setIsDragging(false);
   }, []);
 
-  const selectNode = useCallback((nodeId: string) => {
-    if (typeof document !== 'undefined') panelOpenerRef.current = document.activeElement;
-    setSelectedId(nodeId);
-    setTooltip(null);
-  }, []);
+  const selectNode = useCallback(
+    (nodeId: string) => {
+      setTooltip(null);
+      if (onSelectResource) {
+        onSelectResource(nodeId);
+        return;
+      }
+      if (typeof document !== 'undefined') panelOpenerRef.current = document.activeElement;
+      setSelectedId(nodeId);
+    },
+    [onSelectResource]
+  );
 
   const closePanel = useCallback(() => {
     setSelectedId(null);
@@ -1063,6 +1226,9 @@ export function IsoRenderer({
     if (isShowingAttention) return !attention.nodeIds.has(nodeId);
     return false;
   };
+  // Soft dimming applies to what hovering or focus steps back; a search and the attention chip still step back hard.
+  const softFocus = focusDimming === 'soft' && Boolean(focusNodeId || hoveredConnector);
+  const connectorDimOpacity = softFocus ? 0.4 : 0.12;
   const isConnectorDimmed = (connector: IsoConnector) => {
     if (hoveredConnectorId) return connector.id !== hoveredConnectorId;
     if (focusNodeId) return connector.from !== focusNodeId && connector.to !== focusNodeId;
@@ -1079,6 +1245,9 @@ export function IsoRenderer({
     ? scene.groups.find((group) => group.id === (selectedNode?.groupId ?? selectedId))
     : undefined;
   const expandedGroups = scene.groups.filter((group) => group.expanded);
+  // The frame counts every node any layer shows, so switching a layer does not make the controls come and go.
+  const compact = (scene.frame?.nodeTiles.length ?? scene.nodes.length) <= COMPACT_NODES;
+  const viewMoved = view.panX !== home.panX || view.panY !== home.panY || view.zoom !== home.zoom;
   const isGroupSelected = Boolean(selectedGroup && (!selectedNode || selectedNode.id === selectedGroup.id));
   // An expanded group has no node of its own, so its panel summarizes its members directly.
   const selectedStatus =
@@ -1088,8 +1257,10 @@ export function IsoRenderer({
         ? getResourceStatus({ resourceName: selectedNode.id, statuses: statusMap })
         : undefined;
   const ringOf = (nodeId: string): 'strong' | 'soft' | null => {
-    if (nodeId === selectedId) return 'strong';
+    if (nodeId === selectedId || nodeId === selectedResource) return 'strong';
     if (nodeId === focusedNodeId || (isSearching && matches.has(nodeId))) return 'soft';
+    // A host that explains the hovered resource beside the picture is pointed back at it.
+    if (onHoverResource && nodeId === hoveredNodeId) return 'soft';
     return null;
   };
 
@@ -1134,193 +1305,221 @@ export function IsoRenderer({
       onPointerLeave={() => setTooltip(null)}
       onKeyDown={onKeyDown}
     >
-      <svg
-        viewBox={`${minX} ${minY} ${svgW} ${svgH}`}
-        role="group"
-        aria-label={ariaLabel}
-        className="stp-diagram__canvas"
-        style={{ transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})` }}
-      >
-        <defs>
-          <filter id={`${idPrefix}-iso-shadow-blur`} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur stdDeviation="4" />
-          </filter>
-          <marker
-            id={`${idPrefix}-iso-arrow-request`}
-            markerWidth="8"
-            markerHeight="6"
-            refX="7"
-            refY="3"
-            orient="auto"
-            markerUnits="userSpaceOnUse"
-          >
-            <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill={BRAND} fillOpacity={0.6} />
-          </marker>
-          <marker
-            id={`${idPrefix}-iso-arrow-event`}
-            markerWidth="8"
-            markerHeight="6"
-            refX="7"
-            refY="3"
-            orient="auto"
-            markerUnits="userSpaceOnUse"
-          >
-            <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill="#FF9900" fillOpacity={0.6} />
-          </marker>
-          <marker
-            id={`${idPrefix}-iso-arrow-dependency`}
-            markerWidth="8"
-            markerHeight="6"
-            refX="7"
-            refY="3"
-            orient="auto"
-            markerUnits="userSpaceOnUse"
-          >
-            <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill={BRAND} fillOpacity={0.35} />
-          </marker>
-          <marker
-            id={`${idPrefix}-iso-arrow-egress`}
-            markerWidth="8"
-            markerHeight="6"
-            refX="7"
-            refY="3"
-            orient="auto"
-            markerUnits="userSpaceOnUse"
-          >
-            <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill="#A166FF" fillOpacity={0.3} />
-          </marker>
-          <marker
-            id={`${idPrefix}-iso-arrow-security`}
-            markerWidth="8"
-            markerHeight="6"
-            refX="7"
-            refY="3"
-            orient="auto"
-            markerUnits="userSpaceOnUse"
-          >
-            <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill={SECURITY} fillOpacity={0.7} />
-          </marker>
-        </defs>
-        <IsoGrid range={gridRange} />
-        {scene.rectangles.map((r) => (
-          <FloorPlane
-            key={r.id}
-            rect={r}
-            isHovered={hoveredZoneId === r.id}
-            onPointerEnter={() => {
-              if (!isDragging) setHoveredZoneId(r.id);
-            }}
-            onPointerLeave={() => {
-              setHoveredZoneId((current) => (current === r.id ? null : current));
-              setTooltip(null);
-            }}
-            onPointerMove={(e) => {
-              if (isDragging || !r.label) return;
-              moveTooltip(e, {
-                title: r.label,
-                subtitle: r.id === 'zone-edge' ? 'Global edge network' : 'Network boundary',
-                summary: r.summary,
-                facts: r.facts
-              });
-            }}
-          />
-        ))}
-        {scene.connectors.map((c) => (
-          <ConnSvg
-            key={c.id}
-            conn={c}
-            idPrefix={idPrefix}
-            nodeMap={nodeMap}
-            animateConnectors={animateConnectors}
-            dimmed={isConnectorDimmed(c)}
-            highlighted={hoveredConnectorId === c.id}
-            onPointerEnter={() => {
-              if (!isDragging) setHoveredConnectorId(c.id);
-            }}
-            onPointerLeave={() => {
-              setHoveredConnectorId((current) => (current === c.id ? null : current));
-              setTooltip(null);
-            }}
-            onPointerMove={(e) => {
-              if (isDragging || !c.description) return;
-              moveTooltip(e, {
-                title: `${nodeMap.get(c.from)?.label ?? c.from} → ${nodeMap.get(c.to)?.label ?? c.to}`,
-                subtitle: EDGE_SEMANTIC_LABELS[c.semantic || 'request'],
-                details: c.description
-              });
-            }}
-          />
-        ))}
-        {sorted.map((n) => (
-          <Fragment key={n.id}>
-            <g
-              data-iso-kind="node"
-              data-iso-id={n.id}
-              role="button"
-              tabIndex={0}
-              aria-label={[n.label, n.typeLabel, n.access?.text, nodeStatuses.get(n.id)?.line]
-                .filter(Boolean)
-                .join(', ')}
-              opacity={
-                isNodeDimmed(n.id)
-                  ? (isSearching || isShowingAttention) && !focusNodeId && !hoveredConnector
-                    ? 0.2
-                    : 0.35
-                  : 1
-              }
-              className="stp-diagram__fade stp-diagram__node"
+      <LabelScale.Provider value={labelScale}>
+        <svg
+          ref={canvasRef}
+          viewBox={`${minX} ${minY} ${svgW} ${svgH}`}
+          role="group"
+          aria-label={ariaLabel}
+          className="stp-diagram__canvas"
+          style={{
+            transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`,
+            maxWidth: svgW * MAX_FIT_SCALE,
+            maxHeight: svgH * MAX_FIT_SCALE
+          }}
+        >
+          <defs>
+            <filter id={`${idPrefix}-iso-shadow-blur`} x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="4" />
+            </filter>
+            <marker
+              id={`${idPrefix}-iso-arrow-request`}
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+              markerUnits="userSpaceOnUse"
+            >
+              <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill={BRAND} fillOpacity={0.6} />
+            </marker>
+            <marker
+              id={`${idPrefix}-iso-arrow-event`}
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+              markerUnits="userSpaceOnUse"
+            >
+              <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill="#FF9900" fillOpacity={0.6} />
+            </marker>
+            <marker
+              id={`${idPrefix}-iso-arrow-dependency`}
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+              markerUnits="userSpaceOnUse"
+            >
+              <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill={BRAND} fillOpacity={0.35} />
+            </marker>
+            <marker
+              id={`${idPrefix}-iso-arrow-egress`}
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+              markerUnits="userSpaceOnUse"
+            >
+              <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill="#A166FF" fillOpacity={0.3} />
+            </marker>
+            <marker
+              id={`${idPrefix}-iso-arrow-security`}
+              markerWidth="8"
+              markerHeight="6"
+              refX="7"
+              refY="3"
+              orient="auto"
+              markerUnits="userSpaceOnUse"
+            >
+              <path d="M 0 0 L 8 3 L 0 6 L 2 3 Z" fill={SECURITY} fillOpacity={0.7} />
+            </marker>
+          </defs>
+          <IsoGrid range={gridRange} />
+          {scene.rectangles.map((r) => (
+            <FloorPlane
+              key={r.id}
+              rect={r}
+              isHovered={hoveredZoneId === r.id}
               onPointerEnter={() => {
-                if (!isDragging) setHoveredNodeId(n.id);
+                if (!isDragging) setHoveredZoneId(r.id);
               }}
               onPointerLeave={() => {
-                setHoveredNodeId((current) => (current === n.id ? null : current));
+                setHoveredZoneId((current) => (current === r.id ? null : current));
                 setTooltip(null);
               }}
               onPointerMove={(e) => {
-                if (isDragging) return;
-                e.stopPropagation();
+                if (isDragging || !r.label) return;
                 moveTooltip(e, {
-                  title: n.label,
-                  subtitle: [n.typeName || n.typeLabel || n.resourceType, n.isImplicit ? 'created automatically' : null]
-                    .filter(Boolean)
-                    .join(' · '),
-                  summary: n.summary,
-                  facts: n.facts,
-                  note: n.access?.detail ?? n.accessNote ?? n.untaggedNote,
-                  noteAlert: n.access?.reach === 'exposed',
-                  status: nodeStatuses
-                    .get(n.id)
-                    ?.entries.slice(0, 3)
-                    .map((entry) => ({
-                      tone: entry.tone,
-                      text: n.memberCount ? `${entry.resourceName}: ${entry.text}` : entry.text,
-                      detail: entry.detail
-                    }))
+                  title: r.label,
+                  subtitle: r.id === 'zone-edge' ? 'Global edge network' : 'Network boundary',
+                  summary: r.summary,
+                  facts: r.facts
                 });
               }}
-              onClick={() => {
-                if (!suppressClick.current) selectNode(n.id);
+            />
+          ))}
+          {scene.connectors.map((c) => (
+            <ConnSvg
+              key={c.id}
+              conn={c}
+              idPrefix={idPrefix}
+              nodeMap={nodeMap}
+              animateConnectors={animateConnectors}
+              dimmed={isConnectorDimmed(c) && connectorDimOpacity}
+              highlighted={hoveredConnectorId === c.id}
+              onPointerEnter={() => {
+                if (!isDragging) setHoveredConnectorId(c.id);
               }}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                e.preventDefault();
-                selectNode(n.id);
+              onPointerLeave={() => {
+                setHoveredConnectorId((current) => (current === c.id ? null : current));
+                setTooltip(null);
               }}
-              onFocus={() => setFocusedNodeId(n.id)}
-              onBlur={() => setFocusedNodeId((current) => (current === n.id ? null : current))}
-            >
-              <IsoNodeBlock idPrefix={idPrefix} node={n} ring={ringOf(n.id)} status={nodeStatuses.get(n.id)} />
-            </g>
-            {n.memberCount && onToggleGroup ? <GroupToggle node={n} onToggle={() => onToggleGroup(n.id)} /> : null}
-          </Fragment>
-        ))}
-        {scene.connectors.map((c) => (
-          <ConnectorLabelChip key={`${c.id}-label`} conn={c} dimmed={isConnectorDimmed(c)} />
-        ))}
-        {scene.labels.map((l) => (
-          <ZoneTag key={l.id} label={l} />
-        ))}
-      </svg>
+              onPointerMove={(e) => {
+                if (isDragging || !c.description) return;
+                moveTooltip(e, {
+                  title: `${nodeMap.get(c.from)?.label ?? c.from} → ${nodeMap.get(c.to)?.label ?? c.to}`,
+                  subtitle: EDGE_SEMANTIC_LABELS[c.semantic || 'request'],
+                  details: c.description
+                });
+              }}
+            />
+          ))}
+          {sorted.map((n) => (
+            <Fragment key={n.id}>
+              <g
+                data-iso-kind="node"
+                data-iso-id={n.id}
+                role="button"
+                tabIndex={0}
+                aria-label={[n.title, n.label, n.typeLabel, n.access?.text, nodeStatuses.get(n.id)?.line]
+                  .filter(Boolean)
+                  .join(', ')}
+                opacity={
+                  isNodeDimmed(n.id)
+                    ? (isSearching || isShowingAttention) && !focusNodeId && !hoveredConnector
+                      ? 0.2
+                      : softFocus
+                        ? 0.6
+                        : 0.35
+                    : 1
+                }
+                className="stp-diagram__fade stp-diagram__node"
+                data-progress={resourceProgress?.[n.id]}
+                onPointerEnter={() => {
+                  if (isDragging) return;
+                  setHoveredNodeId(n.id);
+                  onHoverResource?.(n.id);
+                }}
+                onPointerLeave={() => {
+                  setHoveredNodeId((current) => (current === n.id ? null : current));
+                  setTooltip(null);
+                  onHoverResource?.(null);
+                }}
+                onPointerMove={(e) => {
+                  if (isDragging) return;
+                  e.stopPropagation();
+                  // The host says what it is, beside the picture.
+                  if (onHoverResource) return;
+                  const custom = n.isImplicit || n.memberCount ? undefined : resourceTooltip?.(n.id);
+                  moveTooltip(e, {
+                    ...(custom === undefined ? {} : { custom }),
+                    title: n.label,
+                    subtitle: [
+                      n.typeName || n.typeLabel || n.resourceType,
+                      n.isImplicit ? 'created automatically' : null
+                    ]
+                      .filter(Boolean)
+                      .join(' · '),
+                    summary: n.summary,
+                    facts: n.facts,
+                    note: n.access?.detail ?? n.accessNote ?? n.untaggedNote,
+                    noteAlert: n.access?.reach === 'exposed',
+                    status: nodeStatuses
+                      .get(n.id)
+                      ?.entries.slice(0, 3)
+                      .map((entry) => ({
+                        tone: entry.tone,
+                        text: n.memberCount ? `${entry.resourceName}: ${entry.text}` : entry.text,
+                        detail: entry.detail
+                      }))
+                  });
+                }}
+                onClick={() => {
+                  if (!suppressClick.current) selectNode(n.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.preventDefault();
+                  selectNode(n.id);
+                }}
+                onFocus={(e) => {
+                  // A click focuses the node too; only keyboard focus steps the rest of the picture back.
+                  if (!isKeyboardFocus(e.currentTarget)) return;
+                  setFocusedNodeId(n.id);
+                  onHoverResource?.(n.id);
+                }}
+                onBlur={() => {
+                  if (focusedNodeId === n.id) onHoverResource?.(null);
+                  setFocusedNodeId((current) => (current === n.id ? null : current));
+                }}
+              >
+                <IsoNodeBlock idPrefix={idPrefix} node={n} ring={ringOf(n.id)} status={nodeStatuses.get(n.id)} />
+              </g>
+              {n.memberCount && onToggleGroup ? <GroupToggle node={n} onToggle={() => onToggleGroup(n.id)} /> : null}
+            </Fragment>
+          ))}
+          {scene.connectors.map((c) => (
+            <ConnectorLabelChip key={`${c.id}-label`} conn={c} dimmed={isConnectorDimmed(c) && connectorDimOpacity} />
+          ))}
+          {scene.labels.map((l) => (
+            <ZoneTag key={l.id} label={l} />
+          ))}
+        </svg>
+      </LabelScale.Provider>
       {tooltip &&
         typeof document !== 'undefined' &&
         createPortal(
@@ -1329,63 +1528,66 @@ export function IsoRenderer({
             ref={tooltipRef}
             style={{ left: tooltip.x + TOOLTIP_OFFSET, top: tooltip.y + TOOLTIP_OFFSET }}
           >
-            <div className="stp-diagram__tooltip-heading">
-              <p className="stp-diagram__tooltip-title">{tooltip.title}</p>
-              {tooltip.subtitle && <p className="stp-diagram__tooltip-subtitle">{tooltip.subtitle}</p>}
-            </div>
-            {tooltip.status && tooltip.status.length > 0 && (
-              <ul className="stp-diagram__tooltip-status">
-                {tooltip.status.map((status, index) => (
-                  <li key={index} data-tone={status.tone}>
-                    <ToneIconInline tone={status.tone} />
-                    <span>
-                      <strong>{status.text}</strong>
-                      {status.detail && <span className="stp-diagram__tooltip-status-detail"> {status.detail}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
-            {tooltip.facts && tooltip.facts.length > 0 && (
-              <ul className="stp-diagram__tooltip-facts">
-                {tooltip.facts.map((fact) => (
-                  <li key={fact}>{fact}</li>
-                ))}
-              </ul>
-            )}
-            {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
-            {tooltip.note && (
-              <p className="stp-diagram__tooltip-note" data-alert={tooltip.noteAlert || undefined}>
-                {tooltip.note}
-              </p>
+            {tooltip.custom}
+            {tooltip.custom === undefined && (
+              <>
+                <div className="stp-diagram__tooltip-heading">
+                  <p className="stp-diagram__tooltip-title">{tooltip.title}</p>
+                  {tooltip.subtitle && <p className="stp-diagram__tooltip-subtitle">{tooltip.subtitle}</p>}
+                </div>
+                {tooltip.status && tooltip.status.length > 0 && (
+                  <ul className="stp-diagram__tooltip-status">
+                    {tooltip.status.map((status, index) => (
+                      <li key={index} data-tone={status.tone}>
+                        <ToneIconInline tone={status.tone} />
+                        <span>
+                          <strong>{status.text}</strong>
+                          {status.detail && (
+                            <span className="stp-diagram__tooltip-status-detail"> {status.detail}</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {tooltip.summary && <p className="stp-diagram__tooltip-summary">{tooltip.summary}</p>}
+                {tooltip.facts && tooltip.facts.length > 0 && (
+                  <ul className="stp-diagram__tooltip-facts">
+                    {tooltip.facts.map((fact) => (
+                      <li key={fact}>{fact}</li>
+                    ))}
+                  </ul>
+                )}
+                {tooltip.details && <p className="stp-diagram__tooltip-details">{tooltip.details}</p>}
+                {tooltip.note && (
+                  <p className="stp-diagram__tooltip-note" data-alert={tooltip.noteAlert || undefined}>
+                    {tooltip.note}
+                  </p>
+                )}
+              </>
             )}
           </div>,
           document.body
         )}
       {viewNote
         ? !tooltip && <div className="stp-diagram__view-note">{viewNote}</div>
-        : !tooltip &&
-          !selectedNode &&
-          !selectedGroup && (
-            <p className="stp-diagram__hint">
-              Hover to learn what something does · click a resource for its connections
-            </p>
-          )}
+        : !tooltip && !selectedNode && !selectedGroup && hint !== '' && <p className="stp-diagram__hint">{hint}</p>}
       <div className="stp-diagram__toolbar stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
         {toolbar}
-        <label className="stp-diagram__find">
-          <BiSearch aria-hidden="true" size={15} />
-          <input
-            type="search"
-            value={query}
-            placeholder="Find resource"
-            aria-label="Find resource"
-            spellCheck={false}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={onSearchKeyDown}
-          />
-        </label>
+        {!compact && (
+          <label className="stp-diagram__find">
+            <BiSearch aria-hidden="true" size={15} />
+            <input
+              type="search"
+              value={query}
+              placeholder="Find resource"
+              aria-label="Find resource"
+              spellCheck={false}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onSearchKeyDown}
+            />
+          </label>
+        )}
         {isSearching && (
           <p className="stp-diagram__find-count" aria-live="polite">
             {matches.size === 0 ? 'No match' : `${matches.size} ${matches.size === 1 ? 'match' : 'matches'}`}
@@ -1462,35 +1664,41 @@ export function IsoRenderer({
           />
         </div>
       )}
-      <div className="stp-diagram__controls stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
-        <button
-          type="button"
-          aria-label="Zoom in"
-          title="Zoom in"
-          className="stp-diagram__control"
-          onClick={() => zoomBy(1.25)}
-        >
-          <BiPlus aria-hidden="true" size={18} />
-        </button>
-        <button
-          type="button"
-          aria-label="Zoom out"
-          title="Zoom out"
-          className="stp-diagram__control"
-          onClick={() => zoomBy(1 / 1.25)}
-        >
-          <BiMinus aria-hidden="true" size={18} />
-        </button>
-        <button
-          type="button"
-          aria-label="Reset view"
-          title="Reset view"
-          className="stp-diagram__control"
-          onClick={resetView}
-        >
-          <BiExpand aria-hidden="true" size={16} />
-        </button>
-      </div>
+      {(!compact || viewMoved) && (
+        <div className="stp-diagram__controls stp-diagram__overlay" onPointerDown={(e) => e.stopPropagation()}>
+          {!compact && (
+            <>
+              <button
+                type="button"
+                aria-label="Zoom in"
+                title="Zoom in"
+                className="stp-diagram__control"
+                onClick={() => zoomBy(1.25)}
+              >
+                <BiPlus aria-hidden="true" size={18} />
+              </button>
+              <button
+                type="button"
+                aria-label="Zoom out"
+                title="Zoom out"
+                className="stp-diagram__control"
+                onClick={() => zoomBy(1 / 1.25)}
+              >
+                <BiMinus aria-hidden="true" size={18} />
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            aria-label="Reset view"
+            title="Reset view"
+            className="stp-diagram__control"
+            onClick={resetView}
+          >
+            <BiExpand aria-hidden="true" size={16} />
+          </button>
+        </div>
+      )}
     </section>
   );
 }

@@ -22,6 +22,8 @@ export type TooltipProps = {
   maxWidth?: number | string;
   disabled?: boolean;
   variant?: TooltipVariant;
+  /** False keeps a label open through a click on its trigger, for a label that answers the click ("Copied"). */
+  hideOnClick?: boolean;
 };
 
 const DEFAULTS: Record<TooltipVariant, { placement: NonNullable<TooltipPlacement>; maxWidth: number; delay: number }> =
@@ -78,6 +80,7 @@ export function Tooltip({
   content,
   disabled = false,
   headline,
+  hideOnClick = true,
   maxWidth,
   placement,
   trigger = 'hover',
@@ -92,6 +95,7 @@ export function Tooltip({
       aria={{ expanded: false }}
       delay={[defaults.delay, 0]}
       disabled={disabled}
+      hideOnClick={hideOnClick}
       interactive={trigger === 'click' || variant === 'help'}
       maxWidth={500}
       offset={[0, 8]}

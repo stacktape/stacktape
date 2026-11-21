@@ -100,16 +100,21 @@
       "dependsOn": ["^generate", "generate", "@stacktape/ui-react#build"],
       "outputs": []
     },
+    "@stacktape/init-ui#build": {
+      "description": "Build the embedded init wizard with the Stacktape declarations its TypeScript editor checks against",
+      "dependsOn": ["^build", "^generate", "generate", "@stacktape/cli#generate:monaco"],
+      "outputs": ["dist/**"]
+    },
     "@stacktape/init-ui#build:watch": {
       "description": "Continuously build the embedded init wizard after its workspace UI is ready",
-      "dependsOn": ["@stacktape/ui-react#build"],
+      "dependsOn": ["@stacktape/ui-react#build", "@stacktape/cli#generate:monaco"],
       "with": ["@stacktape/ui-react#dev"],
       "cache": false,
       "persistent": true
     },
     "@stacktape/init-ui#dev": {
       "description": "Serve the init wizard after its initial workspace UI build is ready",
-      "dependsOn": ["@stacktape/ui-react#build"],
+      "dependsOn": ["@stacktape/ui-react#build", "@stacktape/cli#generate:monaco"],
       "with": ["@stacktape/ui-react#dev"],
       "cache": false,
       "persistent": true

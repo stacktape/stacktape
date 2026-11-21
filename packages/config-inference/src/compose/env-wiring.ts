@@ -92,7 +92,8 @@ export const wiringFor = (kind: DependencyKind, variableName: string): Environme
     if (kind === 'search') return { kind: 'param', param: 'domainEndpoint' };
     return { kind: 'none' };
   }
-  if (/HOST(NAME)?$/.test(name)) {
+  // `POSTGRES_SERVER` (the FastAPI template) and `DB_SERVER` name a host too, not a connection string.
+  if (/(HOST(NAME)?|_SERVER)$/.test(name)) {
     if (RDS_KINDS.has(kind) || kind === 'redis') return { kind: 'param', param: 'host' };
     if (kind === 'search') return { kind: 'param', param: 'domainEndpoint' };
     return { kind: 'none' };

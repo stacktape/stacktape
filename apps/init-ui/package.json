@@ -18,8 +18,12 @@
     "@stacktape/console-api": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
     "@stacktape/ui-react": "workspace:*",
+    "monaco-editor": "0.56.0",
+    "monaco-yaml": "5.5.1",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "react-icons": "^5.7.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

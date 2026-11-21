@@ -1,0 +1,2048 @@
+/*
+ * The Analyze → Review workspace.
+ *
+ * One two-pane grid under the header (the shared --w-* layout variables): the code being read, then the diagram and
+ * settings, on the left; stacktape.yml on the right. Colours are variables. The code palette (--ws-code-*) is read by
+ * the Monaco theme too, so the code window and the editor stay one palette when the brand colours change.
+ */
+
+@layer base {
+  :root {
+    /* The code palette: the code window here and the Monaco theme in editor/monaco-setup.ts. */
+    --ws-code-bg: rgb(19, 24, 24);
+    --ws-code-text: rgb(203, 210, 210);
+    --ws-code-key: rgb(127, 211, 211);
+    --ws-code-string: rgb(201, 185, 138);
+    --ws-code-number: rgb(181, 206, 168);
+    --ws-code-keyword: rgb(143, 184, 240);
+    --ws-code-comment: rgb(128, 139, 139);
+    /* Legible beside the code (about 3.5:1), still a step behind it. */
+    --ws-code-line-number: rgb(100, 112, 112);
+    --ws-code-line-number-active: rgb(154, 164, 164);
+    --ws-code-line-active: rgb(28, 35, 35);
+    --ws-code-selection: rgba(54, 190, 190, 0.25);
+    --ws-code-guide: rgb(36, 44, 44);
+    /* A resource's name and price after its key line: present, quieter than any code. */
+    --ws-code-label: rgb(112, 124, 124);
+    --ws-code-punctuation: rgb(138, 150, 150);
+    --ws-code-error: rgb(229, 115, 122);
+    --ws-code-warning: rgb(216, 180, 95);
+    --ws-code-popup: rgb(34, 41, 41);
+    --ws-code-popup-border: rgb(56, 66, 66);
+    --ws-code-popup-selected: rgb(43, 58, 58);
+    --ws-code-scrollbar: rgba(255, 255, 255, 0.08);
+    /* One accent ties a finding together: its line of code, what the head row says it is, its key in the file, the
+     * picked node in the diagram. */
+    --ws-accent: color-mix(in srgb, var(--w-brand) 15%, transparent);
+    --ws-accent-line: color-mix(in srgb, var(--w-brand) 40%, transparent);
+
+    /* File-type tints, quiet versions of what editors use. */
+    --ws-file-ts: rgb(96, 148, 214);
+    --ws-file-js: rgb(214, 196, 96);
+    --ws-file-json: rgb(196, 168, 92);
+    --ws-file-py: rgb(110, 160, 210);
+    --ws-file-go: rgb(96, 190, 214);
+    --ws-file-yaml: rgb(196, 120, 150);
+    --ws-file-docker: rgb(88, 156, 220);
+    --ws-file-env: rgb(214, 178, 96);
+    --ws-file-prisma: rgb(150, 160, 200);
+    --ws-file-plain: rgb(140, 150, 150);
+  }
+}
+
+@layer components {
+  /* The frame's workspace page (.w-main.is-workspace) sizes and pads it, and leaves room for the bottom bar. */
+  .ws {
+    display: grid;
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr) var(--w-pane-right);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 16px var(--w-gap);
+    min-height: 0;
+  }
+
+  .ws-left[hidden],
+  .ws-editor[hidden] {
+    display: none !important;
+  }
+
+  /* ── The head: what is happening, across both panes ──────────────────────────────────────────── *
+   * The same two lines in every phase, so the panes under it never move: the title, then the file being read, the
+   * finding being written (its code over the code, what it became over the file) or what the app is. */
+
+  .ws-head {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    grid-template-rows: 34px 22px;
+    row-gap: 4px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  /* The title has the whole row, except beside the reveal's Skip. */
+  .ws-head > .ws-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-head-line {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+    margin: 0;
+  }
+
+  .ws-head-side {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    margin: 0;
+  }
+
+  .ws-head > .ws-skip {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .ws-head[data-phase='reveal'] > .ws-title {
+    grid-column: 1;
+  }
+
+  .ws-head[data-phase='scan'] > .ws-title,
+  .ws-head[data-phase='reveal'] > .ws-title {
+    animation: ws-fade-in 260ms var(--w-ease) both;
+  }
+
+  .ws-left {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* With many settings on a short screen the diagram keeps its size and the column scrolls instead. */
+  .ws[data-phase='review'] .ws-left {
+    margin: -4px;
+    padding: 4px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .ws-panel {
+    box-sizing: border-box;
+    border-radius: var(--w-radius);
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+  }
+
+  /* ── The scan: the project's file tree, status line, chips ──────────────────────────────────── */
+
+  .ws-scan {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+  }
+
+  .ws-scan[data-leaving] {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    animation: ws-fade-out 420ms var(--w-ease) both;
+  }
+
+  .ws-window {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: var(--w-radius);
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+  }
+
+  /* The same height as the file's header beside it, so both panes start their content level. */
+  .ws-tree-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+    height: 48px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--w-line);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .ws-tree-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-tree-title svg {
+    flex: none;
+    color: var(--w-faint);
+  }
+
+  .ws-tree-title-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* The header's end: how many files, read-only and the time so far. */
+  .ws-window-meta {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    color: var(--w-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .ws-elapsed {
+    color: var(--w-text);
+  }
+
+  /* A row scrolled up under the header fades out rather than being cut against it. */
+  .ws-window-fade {
+    position: relative;
+    z-index: 3;
+    flex: none;
+    height: 0;
+  }
+
+  .ws-window-fade::after {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 16px;
+    background: linear-gradient(var(--ws-code-bg), transparent);
+    content: '';
+    pointer-events: none;
+  }
+
+  .ws-window-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--ws-code-bg);
+  }
+
+  /* A tree longer than the window fades out at the bottom rather than stopping mid-row. */
+  .ws-tree-body {
+    mask-image: linear-gradient(to bottom, black calc(100% - 28px), transparent);
+  }
+
+  /* Above the beam: its line and glow pass behind the names, never over them. */
+  .ws-tree {
+    position: relative;
+    z-index: 1;
+    padding: 8px 0;
+    font-size: 13px;
+    line-height: 16px;
+  }
+
+  /* One row per folder, file or count. Children sit one step in, their icons under the folder's name. */
+  .ws-tree-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-sizing: border-box;
+    height: 24px;
+    padding: 0 16px 0 calc(16px + var(--ws-depth, 0) * 20px);
+    color: var(--w-muted);
+    white-space: nowrap;
+    transition:
+      opacity 300ms var(--w-ease),
+      background-color 300ms var(--w-ease),
+      color 300ms var(--w-ease);
+    animation: ws-row-in 260ms var(--w-ease) both;
+  }
+
+  .ws-tree-row[data-kind='directory'] {
+    gap: 6px;
+    color: var(--w-text);
+    font-weight: 500;
+  }
+
+  .ws-tree-chevron {
+    flex: none;
+    margin-left: -1px;
+    color: var(--w-faint);
+  }
+
+  .ws-tree-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-tree-count {
+    flex: none;
+    color: var(--w-faint);
+    font-size: 12px;
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* "+3 more" lines up with the file names above it. */
+  .ws-tree-more {
+    padding-left: 21px;
+    color: var(--w-faint);
+    font-size: 12px;
+  }
+
+  /* What the analysis did: a file it read keeps a check; the one it is reading is lit. */
+  .ws-tree-row[data-mark='read'],
+  .ws-tree-row[data-mark='cited'] {
+    color: var(--w-text);
+  }
+
+  .ws-tree-check {
+    flex: none;
+    margin-left: -2px;
+    color: var(--w-ok);
+    animation: ws-fade-in 300ms var(--w-ease) both;
+  }
+
+  .ws-tree-row[data-mark='cited'] .ws-tree-check {
+    color: var(--w-brand);
+  }
+
+  /* What a cited file became, at the end of its row. */
+  .ws-tree-note {
+    min-width: 0;
+    margin-left: auto;
+    padding-left: 16px;
+    overflow: hidden;
+    color: var(--w-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    animation: ws-fade-in 300ms var(--w-ease) both;
+  }
+
+  .ws-tree-row[data-focus] .ws-tree-note {
+    color: var(--w-text);
+  }
+
+  .ws-tree-row[data-mark='reading'],
+  .ws-tree-window[data-focus] .ws-tree-row[data-focus] {
+    background: var(--ws-accent);
+    box-shadow: inset 2px 0 0 var(--w-brand);
+    color: var(--w-text-strong);
+  }
+
+  .ws-tree-state {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    color: var(--w-brand);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ws-tree-state .ws-pulse {
+    margin: 0 8px 0 4px;
+  }
+
+  /* The reveal points at one file: the rest steps back, the file lights up, the lines that called for the resource
+   * open right under it. */
+  .ws-tree-window[data-focus] .ws-tree-row {
+    opacity: 0.5;
+  }
+
+  .ws-tree-window[data-focus] .ws-tree-row[data-focus] {
+    opacity: 1;
+  }
+
+  .ws-tree-excerpt {
+    box-sizing: border-box;
+    min-height: 32px;
+    margin: 0 0 8px;
+    padding: 6px 16px 6px calc(16px + var(--ws-depth, 0) * 20px + 21px);
+    background: color-mix(in srgb, var(--w-brand) 6%, transparent);
+    box-shadow: inset 2px 0 0 var(--w-brand-line);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    line-height: 20px;
+    animation: ws-excerpt-in 280ms var(--w-ease) both;
+  }
+
+  .ws-tree-excerpt-row {
+    display: flex;
+    gap: 14px;
+    min-width: 0;
+    color: var(--ws-code-text);
+    white-space: pre;
+  }
+
+  .ws-tree-excerpt-number {
+    flex: none;
+    min-width: 3ch;
+    color: var(--ws-code-line-number-active);
+    text-align: right;
+    user-select: none;
+  }
+
+  .ws-tree-excerpt-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-tok-comment {
+    color: var(--ws-code-comment);
+    font-style: italic;
+  }
+
+  .ws-tok-string {
+    color: var(--ws-code-string);
+  }
+
+  .ws-tok-number {
+    color: var(--ws-code-number);
+  }
+
+  .ws-tok-keyword {
+    color: var(--ws-code-keyword);
+  }
+
+  .ws-tok-key {
+    color: var(--ws-code-key);
+  }
+
+  /* Room under the tree, so the reveal can bring any file up level with the block beside it. */
+  .ws-window-runway {
+    height: 70vh;
+  }
+
+  .ws-empty-code {
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    max-width: 360px;
+    text-align: center;
+  }
+
+  .ws-window-empty .ws-empty-code strong {
+    margin-top: 8px;
+    color: var(--w-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .ws-empty-code span {
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .ws-empty-code-mark {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--w-brand-soft);
+    color: var(--w-brand);
+    place-items: center;
+  }
+
+  .ws-window-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 100%;
+    padding: 24px;
+    color: var(--w-subtle);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  /* The scanner: a thin brand line with a soft trail above it, sweeping down the tree while the project is read. */
+  .ws-beam {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 0;
+    height: 2px;
+    margin-top: -1px;
+    background: linear-gradient(90deg, transparent, var(--w-brand) 10%, var(--w-brand) 90%, transparent);
+    box-shadow: 0 0 14px 1px color-mix(in srgb, var(--w-brand) 55%, transparent);
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .ws-beam::before {
+    position: absolute;
+    right: 0;
+    bottom: 2px;
+    left: 0;
+    height: 64px;
+    background: linear-gradient(to top, color-mix(in srgb, var(--w-brand) 12%, transparent), transparent);
+    content: '';
+  }
+
+  .ws-tree-beam {
+    animation: ws-sweep var(--ws-sweep-ms, 3200ms) cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  .ws-status {
+    display: flex;
+    align-items: center;
+    color: var(--w-muted);
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .ws-status-text {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-status code {
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 13px;
+  }
+
+  .ws-status-meta {
+    color: var(--w-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* The finding: its code over the code pane, a leader across the gap, what it became over the file. */
+  .ws-finding {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: subgrid;
+    align-items: center;
+    min-width: 0;
+    animation: ws-fade-in 240ms var(--w-ease) both;
+  }
+
+  .ws-finding p {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    margin: 0;
+    font-size: 14px;
+    line-height: 22px;
+    white-space: nowrap;
+  }
+
+  .ws-finding-from {
+    position: relative;
+  }
+
+  /* What the evidence shows carries the accent of the line it lights in the code and of the key being written. */
+  .ws-finding .ws-evidence-says {
+    padding: 0 8px;
+    border-radius: var(--w-radius-chip);
+    background: var(--ws-accent);
+    box-shadow: inset 0 0 0 1px var(--ws-accent-line);
+  }
+
+  .ws-finding .ws-evidence {
+    overflow: hidden;
+  }
+
+  /* The leader runs from the code to the pane's edge and on across the gap, ending in an arrowhead. */
+  .ws-finding-leader {
+    position: relative;
+    flex: 1 0 24px;
+    height: 1px;
+    margin-right: calc(-1 * var(--w-gap) + 6px);
+    background: linear-gradient(90deg, transparent, var(--w-brand-line) 24px);
+  }
+
+  .ws-finding-leader::after {
+    position: absolute;
+    top: -3px;
+    right: -1px;
+    border-top: 3.5px solid transparent;
+    border-bottom: 3.5px solid transparent;
+    border-left: 6px solid var(--w-brand);
+    content: '';
+  }
+
+  .ws-finding-to {
+    padding-left: 2px;
+  }
+
+  .ws-finding-to svg {
+    flex: none;
+  }
+
+  .ws-finding-to strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-text-strong);
+    font-weight: 600;
+    text-overflow: ellipsis;
+  }
+
+  /* The resource's own price ("$31/mo for this database"), beside its name once its block is written, in the beat the
+   * estimate in the editor's header takes it in. Its room is kept, so nothing moves when it shows. */
+  .ws-finding-price {
+    flex: none;
+    color: var(--w-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    opacity: 0;
+    transition: opacity 240ms var(--w-ease);
+  }
+
+  .ws-finding-price[data-shown] {
+    opacity: 1;
+  }
+
+  .ws-finding-price::before {
+    margin-right: 8px;
+    color: var(--w-faint);
+    content: '·';
+  }
+
+  /* Why a resource is there, in one line: "Postgres driver in package.json:29", or "Added by Stacktape so …". */
+  .ws-evidence {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .ws-evidence-says {
+    flex: none;
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  .ws-evidence-says code {
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--w-code-fill);
+    font-family: var(--w-mono);
+    font-size: 0.93em;
+    font-weight: 500;
+  }
+
+  .ws-finding .ws-evidence-says code {
+    padding: 0;
+    background: none;
+  }
+
+  /* A resource added for another cites no code: its words are plain, the tag says who added it. */
+  .ws-finding .ws-evidence-tag + .ws-evidence-says {
+    padding: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .ws-evidence-where {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-muted);
+    font-size: 13px;
+    text-overflow: ellipsis;
+  }
+
+  .ws-evidence-tag {
+    flex: none;
+    padding: 0 7px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-code-fill);
+    box-shadow: inset 0 0 0 1px var(--w-line-strong);
+    color: var(--w-text);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .ws-evidence-tag + .ws-evidence-says {
+    color: var(--w-text);
+    font-weight: 500;
+    white-space: normal;
+  }
+
+  .ws-pulse {
+    position: relative;
+    display: inline-block;
+    margin: 0 10px 1px 2px;
+    vertical-align: middle;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--w-brand);
+  }
+
+  .ws-pulse::after {
+    position: absolute;
+    inset: -4px;
+    border: 1px solid var(--w-brand);
+    border-radius: 50%;
+    content: '';
+    animation: ws-pulse 1.6s ease-out infinite;
+  }
+
+  .ws-skip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: var(--w-radius-chip);
+    background: none;
+    color: var(--w-text);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .ws-skip:hover {
+    color: var(--w-brand);
+  }
+
+  .ws kbd {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow:
+      inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+      0 0 0 1px var(--w-line-strong);
+    color: var(--w-muted);
+    font-family: var(--w-mono);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 17px;
+    text-align: center;
+  }
+
+  /* What was found so far, on a tray over the bottom of the code window: the code above it is stepped back anyway,
+   * and the window keeps its size from the scan to the reveal. */
+  /* What the reveal has found so far, in a strip of its own under the code, so it never covers a line. Its height is
+   * kept from the first finding, so the code above it does not move when the first chip arrives. */
+  .ws-chips {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 28px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    pointer-events: none;
+  }
+
+  .ws-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 11px 0 9px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-panel-raised);
+    box-shadow: var(--w-shadow-rest);
+    color: var(--w-text);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    animation: ws-chip-in 320ms var(--w-ease) both;
+  }
+
+  .ws-chip[data-kind='secrets'] svg {
+    color: var(--w-warn);
+  }
+
+  .ws-chip[data-kind='external'] {
+    background: var(--ws-code-bg);
+    box-shadow: inset 0 0 0 1px var(--w-line-strong);
+    color: var(--w-muted);
+    font-weight: 500;
+  }
+
+  .ws-file-icon {
+    display: inline-flex;
+    flex: none;
+    color: var(--ws-file-plain);
+  }
+
+  .ws-file-icon[data-tint='ts'] {
+    color: var(--ws-file-ts);
+  }
+  .ws-file-icon[data-tint='js'] {
+    color: var(--ws-file-js);
+  }
+  .ws-file-icon[data-tint='json'] {
+    color: var(--ws-file-json);
+  }
+  .ws-file-icon[data-tint='py'] {
+    color: var(--ws-file-py);
+  }
+  .ws-file-icon[data-tint='go'] {
+    color: var(--ws-file-go);
+  }
+  .ws-file-icon[data-tint='yaml'],
+  .ws-file-icon[data-tint='toml'] {
+    color: var(--ws-file-yaml);
+  }
+  .ws-file-icon[data-tint='docker'] {
+    color: var(--ws-file-docker);
+  }
+  .ws-file-icon[data-tint='env'] {
+    color: var(--ws-file-env);
+  }
+  .ws-file-icon[data-tint='prisma'] {
+    color: var(--ws-file-prisma);
+  }
+
+  /* ── stacktape.yml ───────────────────────────────────────────────────────────────────────────── */
+
+  .ws-editor {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    container: ws-editor / inline-size;
+  }
+
+  .ws-editor-head {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    height: 48px;
+    padding: 0 8px 0 16px;
+    border-bottom: 1px solid var(--w-line);
+  }
+
+  .ws-editor-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .ws-badge {
+    padding: 2px 8px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-warn-soft);
+    color: var(--w-warn);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  .ws-editor-head-end {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+
+  .ws-editor-head-end .ws-editor-format {
+    margin-right: 4px;
+  }
+
+  /* "Estimate so far · $31/mo + usage": the draft's total, said apart from any one resource's price. */
+  .ws-editor-estimate {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .ws-editor-estimate-label {
+    color: var(--w-muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .ws-editor-price {
+    color: var(--w-text);
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    transition: color 400ms var(--w-ease);
+  }
+
+  .ws-editor-price small {
+    margin-left: 1px;
+    color: var(--w-muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .ws-editor-price.is-changed {
+    color: var(--w-brand);
+  }
+
+  .ws-editor-body {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--ws-code-bg);
+  }
+
+  .ws-editor-pane {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .ws-editor-pane[hidden] {
+    display: none;
+  }
+
+  /* e2: the template docked under the file, the two one column of code. */
+  .ws-editor-dock {
+    display: flex;
+    flex: 0 0 44%;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 1px solid var(--w-line-strong);
+    box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.28);
+  }
+
+  /* ── The head: the file and its template as tabs, the format, copy ─────────────────────────────── */
+
+  .ws-editor-tabs {
+    align-self: stretch;
+    min-width: 0;
+    margin-left: -8px;
+    --stp-tab-height: 48px;
+    --stp-tab-padding-x: 8px;
+    --stp-tab-gap: 8px;
+    --stp-tab-font-size: 14px;
+  }
+
+  .ws-editor-tabs .stp-ui-tabs__list {
+    align-items: stretch;
+    height: 100%;
+    gap: 6px;
+    border-bottom: 0;
+  }
+
+  .ws-editor-tabs .stp-ui-tab {
+    color: var(--w-subtle);
+  }
+
+  .ws-editor-tabs .stp-ui-tab--active {
+    color: var(--w-text);
+  }
+
+  .ws-editor-tabs .stp-ui-tab__icon {
+    color: var(--w-subtle);
+  }
+
+  .ws-editor-tabs .stp-ui-tab--active .stp-ui-tab__icon .ws-file-icon[data-tint='yaml'] {
+    color: var(--ws-file-yaml);
+  }
+
+  .ws-editor-tabs .stp-ui-tab--active .stp-ui-tab__icon .ws-file-icon[data-tint='ts'] {
+    color: var(--ws-file-ts);
+  }
+
+  .ws-editor-tabs .stp-ui-tab--active .stp-ui-tab__icon > svg {
+    color: var(--w-brand-text);
+  }
+
+  .ws-editor-tabs .stp-ui-tab__icon .ws-file-icon {
+    color: inherit;
+  }
+
+  /* The file's tab carries a dot while its text is the user's own, as an editor marks a changed file. */
+  .ws-editor-edited-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    margin-left: 2px;
+    border-radius: 50%;
+    background: var(--w-warn);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--w-warn) 45%, transparent);
+  }
+
+  .ws-editor-format {
+    --stp-tab-height: 26px;
+    --stp-tab-padding-x: 9px;
+    --stp-tab-font-size: 12px;
+  }
+
+  .ws-editor-icon-button,
+  .ws-editor-toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--w-radius-small);
+    background: transparent;
+    color: var(--w-subtle);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 140ms var(--w-ease),
+      color 140ms var(--w-ease);
+  }
+
+  .ws-editor-icon-button:hover:not(:disabled),
+  .ws-editor-toggle:hover {
+    background: var(--w-hover);
+    color: var(--w-text);
+  }
+
+  .ws-editor-icon-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .ws-editor-toggle[aria-pressed='true'] {
+    background: var(--w-brand-soft);
+    color: var(--w-brand-text);
+  }
+
+  .ws-editor-icon-button:focus-visible,
+  .ws-editor-toggle:focus-visible {
+    outline: 2px solid var(--w-brand);
+    outline-offset: 1px;
+  }
+
+  /* ── The status line: valid or not, help, edited ──────────────────────────────────────────────── */
+
+  .ws-editor-status {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 34px;
+    padding: 0 12px 0 16px;
+    border-top: 1px solid var(--w-line);
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .ws-statusbar-main {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .ws-statusbar-main > * {
+    min-width: 0;
+  }
+
+  .ws-statusbar-main > .ws-statusbar-edited {
+    flex: none;
+  }
+
+  .ws-statusbar-ok,
+  .ws-statusbar-problem,
+  .ws-statusbar-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .ws-statusbar-note {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* A line of text only (the template's): a block, so a long one ends in an ellipsis. */
+  span.ws-statusbar-note:not(:has(*)) {
+    display: block;
+  }
+
+  .ws-statusbar-ok svg {
+    color: var(--w-ok);
+  }
+
+  .ws-statusbar-note .stp-ui-spinner {
+    width: 12px;
+    height: 12px;
+  }
+
+  .ws-statusbar-problem {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--w-warn);
+    font: inherit;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  button.ws-statusbar-problem {
+    cursor: pointer;
+  }
+
+  button.ws-statusbar-problem:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .ws-statusbar-problem[data-tone='error'] {
+    color: var(--w-error);
+  }
+
+  .ws-statusbar-problem svg {
+    flex: none;
+  }
+
+  .ws-statusbar-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-statusbar-hints[hidden] {
+    display: none;
+  }
+
+  .ws-statusbar-edited {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--w-warn);
+    font-weight: 500;
+  }
+
+  .ws-statusbar-edited .ws-textbutton {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .ws-statusbar-sep {
+    color: var(--w-faint);
+  }
+
+  .ws-statusbar-hints {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 14px;
+    color: var(--w-faint);
+  }
+
+  .ws-statusbar-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .ws-statusbar-hint kbd {
+    min-width: 0;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 10.5px;
+    line-height: 18px;
+  }
+
+  .ws-statusbar-hint kbd + kbd {
+    margin-left: 1px;
+  }
+
+  .ws-statusbar-hint kbd:last-of-type {
+    margin-right: 3px;
+  }
+
+  /* Narrow panels keep what the file's state is and drop the hints first. */
+  @container ws-editor (max-width: 440px) {
+    .ws-statusbar-hint {
+      display: none;
+    }
+
+    .ws-statusbar-readonly {
+      display: none;
+    }
+  }
+
+  @container ws-editor (max-width: 470px) {
+    .ws-editor-toggle-label,
+    .ws-editor-format .stp-ui-tab__label--full,
+    .ws-editor-tabs .stp-ui-tab__label--full {
+      display: none;
+    }
+
+    .ws-editor-format .stp-ui-tab__label--compact,
+    .ws-editor-tabs .stp-ui-tab__label--compact {
+      display: inline;
+    }
+
+    /* The file's tab carries the edited dot; the line keeps the two actions. */
+    .ws-statusbar-edited-label {
+      display: none;
+    }
+
+    /* A phone copies nothing: the room goes to the tabs. */
+    .ws-editor-head .ws-editor-icon-button {
+      display: none;
+    }
+
+    .ws-editor-head {
+      padding-right: 8px;
+    }
+
+    .ws-editor-tabs {
+      --stp-tab-gap: 6px;
+      --stp-tab-padding-x: 6px;
+    }
+
+    .ws-editor-tabs .stp-ui-tab__icon {
+      display: none;
+    }
+  }
+
+  /* ── In the code: labels after a resource's key, headings between the template's groups ───────── */
+
+  .monaco-editor .ws-editor-label {
+    color: var(--ws-code-label);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 11.5px;
+    font-style: normal;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .ws-editor-section {
+    display: flex;
+    align-items: flex-end;
+    box-sizing: border-box;
+    padding: 0 16px 6px 0;
+  }
+
+  .ws-cf-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding-top: 6px;
+    border-top: 1px dashed var(--w-line-strong);
+    color: var(--w-subtle);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .ws-cf-section strong {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .ws-cf-section-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-cf-section-count {
+    flex: none;
+    margin-left: auto;
+    color: var(--w-faint);
+  }
+
+  .ws-cf-section > svg,
+  .ws-cf-section > strong {
+    flex: none;
+  }
+
+  /* ── The CloudFormation template ──────────────────────────────────────────────────────────────── */
+
+  .ws-cf {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .ws-cf-groups {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px 10px 16px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--w-line);
+    background: color-mix(in srgb, var(--ws-code-bg) 70%, var(--w-panel));
+    scrollbar-width: none;
+    /* More chips than room: the row fades at its end and scrolls. */
+    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
+  }
+
+  .ws-cf[data-compact] .ws-cf-groups {
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .ws-cf-chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: var(--w-radius-chip);
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--w-line-strong);
+    color: var(--w-muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      background 140ms var(--w-ease),
+      color 140ms var(--w-ease),
+      box-shadow 140ms var(--w-ease);
+  }
+
+  .ws-cf-chip:hover {
+    background: var(--w-hover);
+    color: var(--w-text);
+  }
+
+  .ws-cf-chip[aria-pressed='true'] {
+    background: var(--w-brand-soft);
+    box-shadow: inset 0 0 0 1px var(--w-brand-line);
+    color: var(--w-text);
+  }
+
+  .ws-cf-chip:focus-visible {
+    outline: 2px solid var(--w-brand);
+    outline-offset: 1px;
+  }
+
+  .ws-cf-chip-count {
+    color: var(--w-faint);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  .ws-cf-chip[aria-pressed='true'] .ws-cf-chip-count {
+    color: var(--w-brand-text);
+  }
+
+  .ws-cf-updating {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    color: var(--w-faint);
+    font-size: 12px;
+  }
+
+  .ws-cf-updating .stp-ui-spinner {
+    width: 12px;
+    height: 12px;
+  }
+
+  .ws-cf-body {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .ws-cf-empty {
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 6px;
+    height: 100%;
+    padding: 24px;
+    color: var(--w-muted);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .ws-cf-empty strong {
+    color: var(--w-text);
+  }
+
+  /* Before the first finding: the file's first lines are written, and faint rows hold the place of what comes. */
+  .ws-waiting {
+    position: absolute;
+    right: 24px;
+    left: var(--ws-content-left, 52px);
+    z-index: 2;
+    display: grid;
+    justify-items: start;
+    font-family: var(--w-mono);
+    font-size: 13px;
+    pointer-events: none;
+  }
+
+  .ws-waiting-label {
+    display: flex;
+    align-items: center;
+    height: 20px;
+    margin: 0 0 4px 2ch;
+    color: var(--w-muted);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .ws-waiting-label .ws-pulse {
+    margin-left: 0;
+  }
+
+  .ws-ghost-row {
+    display: block;
+    max-width: calc(100% - 4ch);
+    height: 8px;
+    margin: 6px 0;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.07);
+    animation: ws-ghost 1.8s ease-in-out infinite alternate both;
+  }
+
+  .ws-editor-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 100%;
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  .ws-textbutton {
+    flex: none;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--w-text);
+    font: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--w-line-strong);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .ws-textbutton:hover {
+    color: var(--w-brand);
+  }
+
+  /* Monaco decorations: the block being typed, the blocks already typed, a setting's change, a picked resource. */
+  .monaco-editor .ws-editor-writing,
+  .monaco-editor .ws-editor-written,
+  .monaco-editor .ws-editor-flash-gutter,
+  .monaco-editor .ws-editor-picked-gutter {
+    left: 3px !important;
+    width: 3px !important;
+    border-radius: 2px;
+    background: var(--w-brand);
+    transition: opacity 600ms var(--w-ease);
+  }
+
+  .monaco-editor .ws-editor-written {
+    opacity: 0.35;
+  }
+
+  .ws-editor-marks-fading .ws-editor-writing,
+  .ws-editor-marks-fading .ws-editor-written {
+    opacity: 0 !important;
+  }
+
+  .monaco-editor .ws-editor-flash {
+    animation: ws-flash 1.8s ease-out both;
+  }
+
+  .monaco-editor .ws-editor-flash-gutter {
+    animation: ws-fade-out 1.8s ease-in both;
+  }
+
+  /* The picked resource's key, and the key being written in the reveal, carry the finding's accent; the rest of a
+   * picked block a quieter one. */
+  .monaco-editor .ws-editor-key {
+    background: var(--ws-accent);
+  }
+
+  .monaco-editor .ws-editor-picked {
+    background: color-mix(in srgb, var(--w-brand) 5%, transparent);
+  }
+
+  .monaco-editor .ws-editor-picked-gutter.is-quiet {
+    opacity: 0.4;
+  }
+
+  /* ── Review: title, diagram, settings ────────────────────────────────────────────────────────── */
+
+  /* The frame's .w-title type; a long project name wraps rather than losing "on AWS". */
+  .ws-title {
+    margin: 0;
+    color: var(--w-text-strong);
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 34px;
+    overflow-wrap: anywhere;
+  }
+
+  .ws-summary {
+    overflow: hidden;
+    color: var(--w-muted);
+    font-size: 14px;
+    line-height: 22px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .ws-receipt {
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 22px;
+    white-space: nowrap;
+  }
+
+  .ws-review-note {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  /* On a phone the bar carries the price and the button; what the click does is the page's last line. */
+  .ws-save-note {
+    display: none;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+    text-align: right;
+  }
+
+  .ws-external-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ws-external-list li {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 14px;
+  }
+
+  .ws-external-list strong {
+    font-weight: 600;
+  }
+
+  .ws-external-list code {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--w-code-fill);
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 12px;
+  }
+
+  .ws-external-icon {
+    color: var(--w-muted);
+  }
+
+  /* ── The bar ─────────────────────────────────────────────────────────────────────────────────── */
+
+  .ws-bar-slot {
+    display: contents;
+  }
+
+  /* After the reveal the bar arrives a beat after the review starts to rise. */
+  .ws-bar-slot[data-arrived] .w-bar {
+    animation: w-bar-in 320ms 180ms var(--w-ease) both;
+  }
+
+  /* ── Narrow screens: one column that scrolls ─────────────────────────────────────────────────── */
+
+  /* The same width as the frame's: the workspace stacks and scrolls like a page. */
+  @media (max-width: 1020px) {
+    .ws {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .ws-head {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+    }
+
+    .ws-head > .ws-title {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    /* Skipping is a way out, not the next step: a quiet link under the title. */
+    .ws-head > .ws-skip {
+      align-self: flex-start;
+      margin-left: -6px;
+      color: var(--w-muted);
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: underline;
+      text-decoration-color: var(--w-line-strong);
+      text-underline-offset: 3px;
+    }
+
+    /* The phone's reveal card names the finding itself. */
+    .ws-finding {
+      display: none;
+    }
+
+    .ws-head-side {
+      align-self: flex-start;
+    }
+
+    .ws-head[data-phase='review'] .ws-summary {
+      white-space: normal;
+    }
+
+    .ws-switch {
+      flex: none;
+    }
+
+    .ws-left,
+    .ws-scan {
+      flex: none;
+    }
+
+    .ws-window {
+      flex: none;
+    }
+
+    /* While it reads, the tree has most of the screen; the file under it is one row until something is found. */
+    .ws[data-phase='scan'] .ws-tree-body {
+      flex: none;
+      height: clamp(240px, calc(100dvh - var(--w-header-h) - 290px), 560px);
+    }
+
+    /* In the reveal the tree is fitted to a few rows: as tall as they are. */
+    .ws-phone-finding .ws-tree-body {
+      flex: none;
+    }
+
+    .ws-tree-row,
+    .ws-tree-excerpt {
+      padding-right: 12px;
+      padding-left: calc(12px + var(--ws-depth, 0) * 16px);
+    }
+
+    .ws-tree-excerpt {
+      padding-left: calc(12px + var(--ws-depth, 0) * 16px + 21px);
+      font-size: 12px;
+    }
+
+    .ws-tree-head {
+      padding: 0 12px 0 16px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .ws-meta-wide {
+      display: none;
+    }
+
+    .ws-editor {
+      flex: none;
+      height: max(440px, calc(100dvh - var(--w-header-h) - var(--w-bar-h) - 220px));
+    }
+
+    /* Until something is found, the file is one row that says it is waiting. */
+    .ws-editor[data-collapsed] {
+      height: auto;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-head {
+      height: auto;
+      min-height: 48px;
+      padding-top: 8px;
+      padding-bottom: 8px;
+      border-bottom: 0;
+    }
+
+    /* The estimate's label sits over its amount rather than squeezing the filename. */
+    .ws-editor[data-collapsed] .ws-editor-estimate {
+      display: grid;
+      justify-items: end;
+      gap: 0;
+      line-height: 20px;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-estimate-label {
+      line-height: 16px;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-status {
+      display: none;
+    }
+
+    .ws-editor[data-collapsed] .ws-editor-body {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+  }
+
+  /* The phone's reveal: the finding, its lines and the YAML they became, in one card. */
+  .ws-phone-finding {
+    display: grid;
+    gap: 12px;
+    animation: ws-fade-in 220ms var(--w-ease) both;
+  }
+
+  .ws-phone-finding-text {
+    display: grid;
+    gap: 6px;
+  }
+
+  .ws-phone-finding-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 15px;
+    line-height: 20px;
+  }
+
+  .ws-phone-finding-head strong {
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  .ws-phone-finding-arrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--w-brand);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ws-phone-finding-why {
+    display: flex;
+    min-width: 0;
+    margin: -4px 0 0;
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .ws-phone-finding-why .ws-evidence {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
+  /* The resource's own price under the YAML it was written for; its line is kept, so nothing moves when it shows. */
+  .ws-phone-finding-price {
+    margin: -2px 0 0;
+    color: var(--w-text);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    line-height: 18px;
+    opacity: 0;
+    transition: opacity 240ms var(--w-ease);
+  }
+
+  .ws-phone-finding-price[data-shown] {
+    opacity: 1;
+  }
+
+  /* The block typed so far is the start of the file, not all of it. */
+  .ws-tag {
+    margin-left: auto;
+    padding: 0 7px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+  }
+
+  .ws-excerpt {
+    padding: 6px 0;
+    overflow: hidden;
+    border-radius: var(--w-radius-small);
+    background: var(--ws-code-bg);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  .ws-excerpt-row {
+    display: flex;
+    min-width: 0;
+    padding: 0 12px 0 0;
+    color: var(--w-muted);
+    white-space: pre;
+  }
+
+  .ws-excerpt-row[data-focus] {
+    background: color-mix(in srgb, var(--w-brand) 13%, transparent);
+    box-shadow: inset 2px 0 0 var(--w-brand);
+    color: var(--w-text);
+  }
+
+  .ws-excerpt[data-kind='yaml'] .ws-excerpt-row {
+    padding-left: 12px;
+    color: var(--ws-code-key);
+  }
+
+  .ws-excerpt-number {
+    flex: none;
+    width: 36px;
+    padding-right: 10px;
+    color: var(--ws-code-line-number);
+    text-align: right;
+  }
+
+  .ws-excerpt-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .ws-editor-wait {
+    display: inline-flex;
+    align-items: center;
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  /* Phones: labels above their controls, one line of status. */
+  @media (max-width: 760px) {
+    .ws-title {
+      font-size: 24px;
+      line-height: 30px;
+    }
+
+    .ws-status {
+      align-items: flex-start;
+    }
+
+    .ws-status .ws-pulse {
+      flex: none;
+      margin-top: 8px;
+    }
+
+    .ws-status-text {
+      white-space: normal;
+    }
+
+    .ws-skip kbd {
+      display: none;
+    }
+
+    .ws-save-note {
+      display: block;
+    }
+
+    /* One row: the amount with its words wrapped beside it, and the button. */
+    .ws-bar-slot .w-bar-note {
+      display: none;
+    }
+
+    .ws-bar-slot .w-bar-amount,
+    .ws-bar-slot .w-bar-figure {
+      align-items: center;
+      white-space: normal;
+    }
+
+    /* Two lines, "/month estimated" over "AWS cost + usage", the help mark right after them. */
+    .ws-bar-slot .w-bar-amount small {
+      max-width: 9.4em;
+      font-size: 12px;
+      line-height: 15px;
+    }
+  }
+
+  /* Reduced motion: no beam, no typing (handled in the component), nothing slides; final states at once. */
+  @media (prefers-reduced-motion: reduce) {
+    .ws *,
+    .ws::before,
+    .ws::after,
+    .ws-bar-slot * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    .ws-beam {
+      display: none;
+    }
+  }
+}
+
+@keyframes ws-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ws-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes ws-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes ws-rise-small {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes ws-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes ws-excerpt-in {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    max-height: 80px;
+  }
+}
+
+/* Down the tree and out, then again from the top, while the analysis reads. */
+@keyframes ws-sweep {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  8% {
+    opacity: 1;
+  }
+  86% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(var(--ws-sweep-h, 240px));
+  }
+}
+
+@keyframes ws-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+}
+
+@keyframes ws-bar-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes ws-ghost {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ws-pulse {
+  from {
+    opacity: 0.8;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes ws-flash {
+  from {
+    background: color-mix(in srgb, var(--w-brand) 26%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}

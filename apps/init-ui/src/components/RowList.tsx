@@ -1,74 +1,53 @@
 import type { ReactNode } from 'react';
 
 /**
- * Things the wizard decided, needs or offers, one per row: what it is and what it means on the left,
- * its control at the right, and anything that belongs to it (options, names, a command) under both.
+ * One next step after a deploy: an icon, what it is and why in one line, its action at the right, and anything that
+ * belongs to it (a command, a sign-in, the secrets a pipeline needs) underneath.
  *
- * It used to be one container per kind: accent-bar cards for decisions, a panel with hairlines for the
- * pre-deploy checklist, an info callout for the alarms, bare headings for the optional extras. Four looks
- * for one kind of thing is what makes a page read as assembled. One surface, one row, everywhere.
+ * The rows sit in one raised panel, separated by hairlines, so the page reads as a short list rather than a grid of
+ * cards. A row with a `label` is also a named region, for the steps a test or a screen reader looks for by name.
  */
-export function RowList({
-  label,
-  lede,
-  footer,
-  children
-}: {
-  label: string;
-  /** One sentence under the heading, when the heading alone does not say what the rows have in common. */
-  lede?: string;
-  /** A disclosure or note under the surface, such as "Show 2 smaller ones". */
-  footer?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-label={label}>
-      <h3 className={`wizard-section-heading${lede === undefined ? '' : ' m-0'}`}>{label}</h3>
-      {lede !== undefined && <p className="wizard-lede mt-1 mb-4">{lede}</p>}
-      <ul className="wizard-rows">{children}</ul>
-      {footer !== undefined && <div className="mt-3">{footer}</div>}
-    </section>
-  );
-}
-
 export function Row({
+  icon,
   title,
   description,
   action,
-  isDone = false,
-  isBusy = false,
+  label,
   children
 }: {
+  icon: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   /** A button or link, aligned to the row's first line. */
   action?: ReactNode;
-  /** Finished: a check at the right, where the action was, so the titles keep one left edge. */
-  isDone?: boolean;
-  /** A change is being applied: the row waits visibly instead of the whole page. */
-  isBusy?: boolean;
-  /** Detail that belongs to the row: a command, a result, the other options. Spans the row's full width. */
+  label?: string;
   children?: ReactNode;
 }) {
-  return (
-    <li className={`wizard-row${isBusy ? ' is-busy' : ''}`}>
-      <div className="wizard-row-head">
-        <div className="min-w-0">
-          <p className="wizard-row-title">{title}</p>
-          {description !== undefined && <p className="wizard-row-text">{description}</p>}
+  const content = (
+    <>
+      <div className="w-next-head">
+        <div>
+          <h3>{title}</h3>
+          {description !== undefined && <p>{description}</p>}
         </div>
-        {action !== undefined && <div className="wizard-row-action">{action}</div>}
-        {isDone && (
-          <div className="wizard-row-action wizard-row-done">
-            <span aria-hidden className="wizard-check-mark is-passed">
-              ✓
-            </span>
-            Done
-          </div>
-        )}
+        {action}
       </div>
       {children !== undefined && children !== null && children !== false && (
-        <div className="wizard-row-body">{children}</div>
+        <div className="w-next-body">{children}</div>
+      )}
+    </>
+  );
+  return (
+    <li className="w-next-row">
+      <span aria-hidden className="w-next-icon">
+        {icon}
+      </span>
+      {label === undefined ? (
+        <div className="min-w-0">{content}</div>
+      ) : (
+        <section aria-label={label} className="min-w-0">
+          {content}
+        </section>
       )}
     </li>
   );

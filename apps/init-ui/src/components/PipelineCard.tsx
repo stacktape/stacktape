@@ -1,5 +1,6 @@
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
+import { BiCheck, BiGitBranch } from 'react-icons/bi';
 import type { WizardState } from '../session';
 import { Row } from './RowList';
 
@@ -18,9 +19,9 @@ const HOST_LABELS: Record<string, string> = {
 /**
  * Deploying on every push, instead of from here.
  *
- * A row of the next steps after the first deploy. Offered only when the repository's remote says which host would run it — a GitHub Actions workflow
- * in a GitLab project is litter. The file is written; the credentials it needs are listed and left to
- * the user, because a tool that quietly creates deployment credentials is one nobody can audit.
+ * A row of the next steps after the first deploy. Offered only when the repository's remote says which host would run
+ * it — a GitHub Actions workflow in a GitLab project is litter. The file is written; the credentials it needs are
+ * listed and left to the user, because a tool that quietly creates deployment credentials is one nobody can audit.
  */
 export function PipelineCard({
   state,
@@ -45,32 +46,39 @@ export function PipelineCard({
       <Row
         description={
           <>
-            Written to <span className="wizard-code text-[var(--stp-text-primary)]">{written.filename}</span>.{' '}
-            {written.authSummary}
+            Written to <span className="wizard-code">{written.filename}</span>. Commit it, and add{' '}
+            {written.requiredSecrets.length === 1 ? 'this secret' : 'these secrets'} in{' '}
+            {HOST_LABELS[written.host] ?? written.host}.
           </>
         }
-        isDone
-        title="Deploy on every push"
+        icon={<BiGitBranch size={17} />}
+        title={
+          <span className="inline-flex items-center gap-2">
+            Deploy on every push
+            <span className="w-saved">
+              <BiCheck aria-hidden size={16} /> Added
+            </span>
+          </span>
+        }
       >
         {written.existingPath !== undefined && (
-          <Alert className="mb-3" tone="info" title="You already had a pipeline">
-            <span className="wizard-code">{written.existingPath}</span> was left exactly as it is. Merge the two
-            yourself, or delete whichever you do not want.
+          <Alert tone="info" title="You already had a pipeline">
+            <span className="wizard-code">{written.existingPath}</span> was left as it is. Merge the two yourself, or
+            delete the one you do not want.
           </Alert>
         )}
-        <p className="m-0 mb-2 text-[0.9rem] text-[var(--stp-text-muted)]">
-          Commit and push it, and add {written.requiredSecrets.length === 1 ? 'this secret' : 'these secrets'} in{' '}
-          {HOST_LABELS[written.host] ?? written.host}. From then on it deploys{' '}
-          <span className="wizard-code">{stage}</span> on every push to the default branch.
-        </p>
-        <ul className="m-0 flex list-none flex-col gap-3 p-0">
+        <ul className="w-well m-0 flex list-none flex-col gap-3 px-4 py-3">
           {written.requiredSecrets.map((secret) => (
             <li key={secret.name}>
-              <span className="wizard-code block text-[var(--stp-text-primary)]">{secret.name}</span>
-              <span className="block text-[0.9rem] text-[var(--stp-text-subtle)]">{secret.description}</span>
+              <span className="wizard-code">{secret.name}</span>
+              <span className="w-quiet mt-1 block">{secret.description}</span>
             </li>
           ))}
         </ul>
+        <p className="w-quiet">
+          {written.authSummary} It deploys <span className="wizard-code">{stage}</span> on every push to the default
+          branch.
+        </p>
       </Row>
     );
   }
@@ -84,10 +92,11 @@ export function PipelineCard({
       }
       description={
         <>
-          This project pushes to {HOST_NAMES[host!] ?? host}. The pipeline deploys{' '}
-          <span className="wizard-code">{stage}</span> whenever the default branch changes.
+          This project pushes to {HOST_NAMES[host!] ?? host}. Deploy <span className="wizard-code">{stage}</span> when
+          the default branch changes.
         </>
       }
+      icon={<BiGitBranch size={17} />}
       title="Deploy on every push"
     />
   );

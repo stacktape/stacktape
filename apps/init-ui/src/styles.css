@@ -6,8 +6,10 @@
  * below Tailwind's utilities — so a `className="w-full"` on a Button wins without `!important` and
  * without a specificity contest, while the control still arrives fully styled.
  *
- * The page is one document with a rail beside it. Everything here serves that: a single measure for
- * prose, one accent colour used sparingly, and motion only where something genuinely changed.
+ * The look is the Console's: Montserrat, the dark teal-grey page with its faint grid, raised panels
+ * (a gradient fill, a top highlight, a soft drop) with flat areas inside them, and one brand colour
+ * for what is current. Every colour is a variable in `:root`, so a new palette is one block of edits.
+ * Motion is kept for what changes state: the step underline, the diagram filling in, a price moving.
  */
 @layer theme, base, stacktape-ui, components, utilities;
 
@@ -15,1263 +17,4093 @@
 @import '@stacktape/design-tokens/css';
 @import '@stacktape/ui-react/styles.css';
 
+/* Montserrat, bundled: the page works offline and its CSP allows fonts from itself only. */
+@font-face {
+  font-family: Montserrat;
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./fonts/montserrat-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: Montserrat;
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('./fonts/montserrat-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @layer base {
   :root {
     color-scheme: dark;
-    /* One measure for every column of prose on the page. */
-    --wizard-measure: 68ch;
+
+    /* Layout, shared by every screen. The workspace screens (Analyze, Review, Deploying) are a two-pane grid under
+     * the header; the form screens are one centred column. */
+    --w-header-h: 72px;
+    --w-gutter: 32px;
+    --w-gap: 24px;
+    --w-pane-right: clamp(440px, 38vw, 600px);
+    --w-bar-h: 72px;
+    --w-column: 720px;
+
+    /* Colour. Nothing below names a colour of its own: the brand palette is swapped in here. */
+    --w-page: var(--stp-surface-page);
+    /* Kept faint: the grid is texture, and must never compete with small text. */
+    --w-page-grid: rgba(54, 190, 190, 0.012);
+    --w-chrome: rgb(17, 22, 22);
+    --w-panel: rgb(31, 37, 37);
+    --w-panel-fill: linear-gradient(180deg, rgb(33, 39, 39), rgb(29, 35, 35));
+    --w-panel-raised: rgb(38, 45, 45);
+    --w-well: rgba(0, 0, 0, 0.2);
+    --w-field: var(--stp-surface-input);
+    --w-line: rgba(255, 255, 255, 0.07);
+    --w-line-strong: rgba(255, 255, 255, 0.13);
+    --w-hover: rgba(255, 255, 255, 0.05);
+    --w-code-fill: rgba(255, 255, 255, 0.06);
+    --w-text: var(--stp-text-primary);
+    --w-text-strong: rgba(255, 255, 255, 0.95);
+    /* Secondary text. On a panel: muted 7.6:1, subtle 5.4:1 (AA for body-size text), faint 4:1 for separators,
+     * upcoming steps and other text that is not read on its own. */
+    --w-muted: rgb(180, 186, 186);
+    --w-subtle: rgb(150, 158, 158);
+    --w-faint: rgb(124, 132, 132);
+    --w-brand: var(--stp-color-brand);
+    --w-brand-strong: var(--stp-interactive-primary-light);
+    --w-brand-soft: rgba(54, 190, 190, 0.12);
+    --w-brand-line: rgba(54, 190, 190, 0.38);
+    /* The brand colour as text on the dark page: a step's number and time when it is next. */
+    --w-brand-text: color-mix(in srgb, var(--w-brand) 58%, white);
+    /* An upcoming stop and the line between stops on the first screen, as in the header's track. */
+    --w-sg-pending: color-mix(in srgb, var(--w-faint) 35%, var(--w-chrome));
+    /* The two resource blocks in the first screen's Review picture. */
+    --w-illo-a: rgb(107, 79, 168);
+    --w-illo-b: rgb(59, 74, 138);
+    --w-ok: rgb(52, 196, 160);
+    --w-ok-soft: rgba(52, 196, 160, 0.14);
+    --w-ok-line: rgba(52, 196, 160, 0.3);
+    --w-warn: rgb(230, 178, 90);
+    --w-warn-soft: rgba(230, 178, 90, 0.1);
+    --w-error: var(--stp-status-error);
+    --w-error-soft: rgba(235, 97, 97, 0.1);
+    --w-error-line: rgba(235, 97, 97, 0.3);
+    --w-on-brand: white;
+
+    /* Depth: the Console's levels. A panel rests; a menu or tooltip floats above everything. */
+    --w-shadow-rest: 0 2px 6px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    --w-shadow-float: 0 22px 52px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    --w-shadow-field: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+    --w-shadow: var(--w-shadow-rest);
+    --w-scrim: rgba(17, 22, 22, 0.88);
+
+    --w-radius: 10px;
+    --w-radius-small: 8px;
+    --w-radius-chip: 6px;
+    --w-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
+    /* UI transitions are 150–250 ms and ease out. The slide is the ui-react Tabs indicator's own. */
+    --w-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+    --w-slide: cubic-bezier(0.2, 0, 0, 1);
+    --w-measure: 64ch;
+    --w-footer-height: 76px;
+
+    /* The ui-react controls, in this page's material. */
+    --stp-control-height: 36px;
   }
 
   body {
     margin: 0;
-    background: var(--stp-surface-page, #161c1c);
-    color: var(--stp-text-primary);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-    font-size: 15px;
-    line-height: 1.55;
-    -webkit-font-smoothing: antialiased;
-    /* A single, very soft light from the top of the page. It gives the sections something to sit on
-     * without any of them needing a border. */
-    background-image: radial-gradient(120% 60% at 50% -10%, rgba(255, 255, 255, 0.045), transparent 70%);
+    min-height: 100vh;
+    background-color: var(--w-page);
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 2px, var(--w-page-grid) 3px, var(--w-page-grid) 5px),
+      repeating-linear-gradient(90deg, transparent, transparent 2px, var(--w-page-grid) 3px, var(--w-page-grid) 5px);
     background-attachment: fixed;
+    color: var(--w-text);
+    font-family: Montserrat, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* Both consuming applications suppress the browser ring globally and opt individual controls back
-   * in. Doing the same here keeps focus behaviour identical to Console rather than subtly different. */
   :focus {
     outline: none;
   }
 
-  html {
-    scroll-behavior: smooth;
+  :focus-visible {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: 2px;
   }
 
-  /* Tabbing into a field selects its value; the browser's own bright blue is in no palette. */
   ::selection {
-    background: color-mix(in srgb, var(--stp-color-brand) 32%, transparent);
-    color: var(--stp-text-primary);
+    background: color-mix(in srgb, var(--w-brand) 32%, transparent);
+    color: var(--w-text);
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
+  code,
+  kbd {
+    font-family: var(--w-mono);
   }
 }
 
 @layer components {
-  /* ── The page ──────────────────────────────────────────────────────────────────────────────── */
+  /* ── Frame ─────────────────────────────────────────────────────────────────────────────────── */
 
-  .wizard-shell {
-    max-width: 1080px;
-    margin: 0 auto;
-    padding: 72px 28px 140px;
-  }
-
-  .wizard-masthead {
-    max-width: var(--wizard-measure);
-    margin-bottom: 56px;
-  }
-
-  .wizard-step-label {
-    margin: 0;
-    font-size: 0.76rem;
-    font-weight: 600;
-    color: var(--stp-color-brand);
-  }
-
-  .wizard-title {
-    margin: 10px 0 0;
-    font-size: 2.1rem;
-    font-weight: 660;
-    line-height: 1.15;
-    letter-spacing: -0.02em;
-  }
-
-  .wizard-lede {
-    margin: 12px 0 0;
-    max-width: var(--wizard-measure);
-    color: var(--stp-text-muted);
-  }
-
-  /* Rail and flow. The rail is 168px because the labels are one word and a summary; wider and it
-   * starts competing with the content it is supposed to be indexing. */
-  .wizard-page {
-    display: grid;
-    grid-template-columns: 168px minmax(0, 1fr);
-    gap: 56px;
-    align-items: start;
-  }
-
-  .wizard-flow {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  /* ── The guide rail ────────────────────────────────────────────────────────────────────────── */
-
-  .wizard-rail {
+  .w-top {
     position: sticky;
-    top: 72px;
+    top: 0;
+    z-index: 30;
+    box-sizing: border-box;
+    height: var(--w-header-h);
+    border-bottom: 1px solid var(--w-line);
+    background: var(--w-chrome);
   }
 
-  .wizard-rail ol {
-    display: flex;
-    flex-direction: column;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .wizard-rail-step a,
-  .wizard-rail-entry {
-    position: relative;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 9px 0 22px;
-    color: var(--stp-text-subtle);
-    font-size: 0.92rem;
-    text-decoration: none;
-    transition: color var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  /* Not reached yet: readable, but quieter than the steps behind you. */
-  .wizard-rail-step.is-todo .wizard-rail-entry {
-    color: var(--stp-text-subtle);
-  }
-
-  .wizard-rail-step.is-todo .wizard-rail-marker {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  /* The connector, drawn from each marker to the next. Stops at the last step rather than trailing
-   * off into nothing, which would imply a fifth band. */
-  .wizard-rail-step:not(:last-child) a::before,
-  .wizard-rail-step:not(:last-child) .wizard-rail-entry::before {
-    content: '';
-    position: absolute;
-    left: 6px;
-    top: 26px;
-    bottom: 4px;
-    width: 1px;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .wizard-rail-marker {
+  .w-top-inner {
     display: grid;
-    place-items: center;
-    width: 13px;
-    height: 13px;
-    margin-top: 5px;
-    flex: none;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.14);
-    font-size: 0.55rem;
-    font-weight: 800;
-    line-height: 1;
-    color: var(--stp-surface-page, #161c1c);
-    transition: background var(--stp-motion-duration-base) var(--stp-motion-easing);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 24px;
+    height: 100%;
+    padding: 0 var(--w-gutter);
   }
 
-  /* Finished: a check on the brand colour. Upcoming: a quiet grey dot. Current: a solid dot and a bold
-   * label, with no glow or scale. */
-  .wizard-rail-step.is-done .wizard-rail-marker {
-    background: color-mix(in srgb, var(--stp-color-brand) 70%, var(--stp-surface-page, #161c1c));
-  }
-
-  .wizard-rail-step.is-done a {
-    color: var(--stp-text-muted);
-  }
-
-  /* The band you are reading, which is not always the band the run is on — you can scroll back. */
-  .wizard-rail-step.is-current a {
-    color: var(--stp-text-primary);
-    font-weight: 600;
-  }
-
-  .wizard-rail-step.is-current .wizard-rail-marker {
-    background: var(--stp-color-brand);
-  }
-
-  .wizard-rail-step a[href]:hover {
-    color: var(--stp-text-primary);
-  }
-
-  .wizard-rail-step a:focus-visible {
-    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
-    outline-offset: 2px;
-    border-radius: var(--stp-radius-small);
-  }
-
-  /* ── Sections ──────────────────────────────────────────────────────────────────────────────── */
-
-  .wizard-section {
-    padding: 0 0 64px;
-    scroll-margin-top: 64px;
-    animation: wizard-section-in var(--stp-motion-duration-slow, 420ms) var(--stp-motion-easing) both;
-  }
-
-  /* Behind you: still readable, still scrollable to, visibly not the thing to look at. */
-  .wizard-section.is-muted {
-    opacity: 0.58;
-    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  .wizard-section.is-muted:hover,
-  .wizard-section.is-muted:focus-within {
-    opacity: 1;
-  }
-
-  /* A finished band: its name, what came of it, and a way back in, on one row. The bands behind you
-   * stack tightly so the one you are on starts near the top of the screen. */
-  .wizard-section.is-collapsed {
-    padding-bottom: 20px;
-  }
-
-  .wizard-section.is-collapsed.is-expanded {
-    padding-bottom: 56px;
-  }
-
-  /* The band you are on starts a little apart from the recap lines above it. */
-  .wizard-section.is-collapsed + .wizard-section:not(.is-collapsed) {
-    padding-top: 12px;
-  }
-
-  .wizard-section-summary {
+  .w-brand {
     display: flex;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  /* The mark a finished step wears in the rail, so the recap lines and the rail read as one list. */
-  .wizard-section-check {
-    display: grid;
-    place-items: center;
-    width: 13px;
-    height: 13px;
-    margin-top: 5px;
-    flex: none;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--stp-color-brand) 70%, var(--stp-surface-page, #161c1c));
-    color: var(--stp-surface-page, #161c1c);
-    font-size: 0.55rem;
-    font-weight: 800;
-    line-height: 1;
-  }
-
-  /* The way back in follows the sentence it belongs to, as the Analyze line's own disclosure does. */
-  .wizard-section-summary-text {
-    display: flex;
+    align-items: center;
+    gap: 10px;
     min-width: 0;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 4px 16px;
-  }
-
-  .wizard-section-reopened {
-    margin-top: 24px;
-  }
-
-  /* Said once, above a review that cannot be changed right now, instead of disabling it silently. */
-  .wizard-locked-note {
-    margin: 0;
-    color: var(--stp-text-subtle);
-    font-size: 0.9rem;
-  }
-
-  .wizard-section-heading {
-    margin: 0 0 8px;
-    font-size: 1.08rem;
-    font-weight: 620;
-  }
-
-  .wizard-recap {
-    margin: 0;
-    color: var(--stp-text-muted);
-  }
-
-  .wizard-recap strong {
-    color: var(--stp-text-primary);
+    color: var(--w-text);
+    font-size: 14px;
     font-weight: 600;
   }
 
-  @keyframes wizard-section-in {
-    from {
-      opacity: 0;
-      transform: translateY(8px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
+  .w-brand img {
+    flex: none;
+    width: 20px;
+    height: 20px;
   }
 
-  /* ── The first screen ──────────────────────────────────────────────────────────────────────── */
-
-  .wizard-promises {
-    counter-reset: promise;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin: 0;
-    padding: 0;
-    max-width: var(--wizard-measure);
-    list-style: none;
-    color: var(--stp-text-muted);
+  .w-brand-name {
+    flex: none;
   }
 
-  .wizard-promises li {
-    position: relative;
-    padding-left: 34px;
-    font-size: 0.95rem;
+  .w-brand-project {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-muted);
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .wizard-promises li::before {
-    counter-increment: promise;
-    content: counter(promise);
-    position: absolute;
-    left: 0;
-    top: 1px;
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.05);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-    color: var(--stp-color-brand);
-    font-size: 0.72rem;
-    font-weight: 700;
+  .w-brand-project::before {
+    content: '/';
+    margin-right: 10px;
+    color: var(--w-faint);
   }
 
-  .wizard-promises strong {
-    color: var(--stp-text-primary);
-    font-weight: 600;
-  }
-
-  /* ── Reading ───────────────────────────────────────────────────────────────────────────────── */
-
-  .wizard-feed {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    max-height: 300px;
-    overflow-y: auto;
-    margin: 0;
-    padding: 14px 16px;
-    list-style: none;
-    border-radius: var(--stp-radius-large);
-    background: rgba(255, 255, 255, 0.02);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    scroll-behavior: smooth;
-  }
-
-  .wizard-feed li {
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
-
-  /* ── Review: summary, editor frame, file view ────────────────────────────────────── */
-
-  /* The one sentence someone reads if they read nothing else. Sized like a subheading, not a note. */
-  .wizard-summary {
-    margin: 0;
-    max-width: var(--wizard-measure);
-    font-size: 1.05rem;
-    line-height: 1.55;
-    color: var(--stp-text-primary);
-  }
-
-  .wizard-summary strong {
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* The frame takes the height its view needs. The diagram is a stage and keeps a fixed one; the
-   * resource list is a list and grows with its rows (two resources in a 560 px frame left most of it
-   * empty); the file is a code block, capped and scrolled like every code block. */
-  .wizard-editor .stp-config-editor {
-    border-radius: var(--stp-radius-large);
-    background: rgba(255, 255, 255, 0.02);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-  }
-
-  .wizard-editor[data-view='diagram'] .stp-config-editor {
-    height: min(64vh, 560px);
-  }
-
-  .wizard-editor[data-view='tree'] .stp-config-editor {
-    min-height: 200px;
-  }
-
-  .wizard-editor[data-view='source'] .stp-config-editor {
-    max-height: min(70vh, 640px);
-  }
-
-  .wizard-editor .stp-config-editor__panel {
-    overflow: auto;
-  }
-
-  .wizard-source {
-    margin: 0;
-    padding: 16px 18px;
-    font-family: var(--stp-font-mono, ui-monospace, monospace);
-    font-size: 0.85rem;
-    line-height: 1.6;
-    color: var(--stp-text-primary);
-    white-space: pre;
-  }
-
-  .wizard-format-toggle {
+  .w-top-side {
     display: inline-flex;
-    gap: 2px;
-    margin: 0;
-    padding: 2px;
-    border: 0;
-    border-radius: var(--stp-radius-medium, 8px);
-    background: rgba(255, 255, 255, 0.05);
+    align-items: center;
+    justify-self: end;
+    gap: 8px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
   }
 
-  .wizard-format-toggle button {
-    padding: 3px 10px;
-    border: 0;
-    border-radius: calc(var(--stp-radius-medium, 8px) - 2px);
-    background: none;
-    color: var(--stp-text-muted);
-    font: inherit;
-    font-size: 0.8rem;
-    cursor: pointer;
+  .w-top-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--w-ok);
   }
 
-  .wizard-format-toggle button[aria-pressed='true'] {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--stp-text-primary);
+  .w-top-side.is-reconnecting {
+    color: var(--w-warn);
   }
 
-  /* ── Resources ─────────────────────────────────────────────────────────────────────────────── */
+  .w-top-side.is-reconnecting .w-top-dot {
+    background: var(--w-warn);
+    animation: w-breathe 1.6s ease-in-out infinite;
+  }
 
-  .wizard-resources {
+  .w-main {
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  /* Deploy, Live and the failures: one column, centred. (Start is a wide page of its own, below.) */
+  .w-main.is-form {
+    max-width: calc(var(--w-column) + 2 * var(--w-gutter));
+    margin: 0 auto;
+    padding: 56px var(--w-gutter) 96px;
+  }
+
+  /* The two-pane screens fill the window under the header, and leave room for the bottom bar when there is one. */
+  .w-main.is-workspace {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    height: calc(100dvh - var(--w-header-h));
+    padding: var(--w-gap) var(--w-gutter);
   }
 
-  .wizard-resource {
-    display: flex;
-    gap: 14px;
-    padding: 16px;
-    border-radius: var(--stp-radius-large);
-    transition: background var(--stp-motion-duration-base) var(--stp-motion-easing);
+  /* At the end of the reveal the room opens as the bar slides up, so the panes never jump. Only then: a resized
+   * window is followed at once. */
+  .w-main.is-workspace:has(> .ws[data-settling]) {
+    transition: height 320ms 180ms var(--w-ease);
   }
 
-  /* No card, no border: a list of resources is a list, and eight bordered boxes in a column is a
-   * fence. The hover tint is enough to show which row you are on. */
-  .wizard-resource:hover {
-    background: rgba(255, 255, 255, 0.03);
+  .w-main.is-workspace:has(.w-bar) {
+    height: calc(100dvh - var(--w-header-h) - var(--w-bar-h));
   }
 
-  .wizard-resource-icon {
-    margin-top: 2px;
-    flex: none;
+  /* A page with the bar reserves the bar's measured height (ActionBar sets it) at the end of its scroll area. */
+  .w-main.is-form:has(.w-bar) {
+    padding-bottom: calc(var(--w-bar-space, var(--w-bar-h)) + 48px);
   }
 
-  .wizard-resource-name {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 620;
+  .w-main.is-form .w-lede {
+    max-width: none;
   }
 
-  .wizard-resource-reason {
-    margin: 3px 0 0;
-    max-width: var(--wizard-measure);
-    font-size: 0.92rem;
-    color: var(--stp-text-muted);
-  }
-
-  /* Pushed to the right of the row: the cost belongs to the resource but is not its headline. */
-  .wizard-resource-cost {
-    margin-left: auto;
-    flex: none;
-    font-size: 0.85rem;
-    font-variant-numeric: tabular-nums;
-    color: var(--stp-text-subtle);
-  }
-
-  .wizard-total-cost {
-    margin: 0;
-    max-width: var(--wizard-measure);
-    font-size: 0.9rem;
-    color: var(--stp-text-muted);
-  }
-
-  .wizard-total-cost strong {
-    color: var(--stp-text-primary);
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* Four models fit one row of the column; the shared 200 px basis wrapped the fourth alone. */
-  .wizard-model-cards {
-    --stp-selection-card-basis: 170px;
-  }
-
-  /* A question above its options, in the same voice as a row title and its description. */
-  .wizard-question {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-  }
-
-  .wizard-question-lede {
-    margin: 2px 0 0;
-    max-width: var(--wizard-measure);
-    font-size: 0.9rem;
-    color: var(--stp-text-muted);
-  }
-
-  /* Options as rows: a title line, a consequence, the price difference at the right. */
-  .wizard-choice-rows {
-    --stp-selection-card-gap: 8px;
-    --stp-selection-card-padding: 12px 16px;
-  }
-
-  .wizard-choice-rows .stp-ui-selection-card__meta {
-    align-self: center;
-    min-width: 104px;
-    text-align: right;
-  }
-
-  .wizard-choice-rows .stp-ui-selection-card__description {
-    max-width: 60ch;
-  }
-
-  /* A small heading for a group of controls, where the group's name is otherwise only in the tree. */
-  .wizard-group-label {
-    margin: 0 0 8px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--stp-text-subtle);
-  }
-
-  /* ── Decisions ─────────────────────────────────────────────────────────────────────────────── */
-
-  /* The other options of a decision, opened from its row. */
-  .wizard-decision-options {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    animation: wizard-expand var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  .wizard-decision-option {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 10px 12px;
-    border: 0;
-    border-radius: var(--stp-radius-medium);
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--stp-text-primary);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition:
-      background var(--stp-motion-duration-base) var(--stp-motion-easing),
-      transform var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  .wizard-decision-option:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    transform: translateX(2px);
-  }
-
-  .wizard-decision-option-label {
-    font-size: 0.92rem;
-    font-weight: 550;
-  }
-
-  .wizard-decision-option-consequence {
-    font-size: 0.82rem;
-    color: var(--stp-text-subtle);
-  }
-
-  @keyframes wizard-expand {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
-  /* ── Before you deploy ───────────────────────────────────────────────────────────────────────── */
-
-  /* Names the developer will type: one chip each, wrapping, so eight of them are eight things. */
-  .wizard-variable-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .wizard-variable-list li {
-    padding: 2px 8px;
-    border-radius: var(--stp-radius-small);
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  /* Counted things, listed as such. */
-  .wizard-plain-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 0;
-    padding: 0 0 0 18px;
-    list-style: disc;
-    max-width: var(--wizard-measure);
-    color: var(--stp-text-muted);
-    font-size: 0.9rem;
-  }
-
-  /* Names in one column and where the code reads them in the next, so both line up. */
-  .wizard-setting-list {
+  .w-workspace {
     display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: 4px 16px;
+    flex: 1;
+    grid-template-columns: minmax(0, 1fr) var(--w-pane-right);
+    gap: var(--w-gap);
+    min-height: 0;
+  }
+
+  .w-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .w-banners {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .w-main.is-workspace .w-banners {
+    margin-bottom: 16px;
+  }
+
+  /* ── Step navigation ───────────────────────────────────────────────────────────────────────── *
+   * A timeline track in the header: one 2 px line through four stops, the labels under them. The line is filled up to
+   * the current stop and the soft ring sits on it; both slide to the next stop when the page moves on. Done stops are
+   * filled with a check, the current one is outlined with a dot, upcoming ones are outlined in the border colour. */
+
+  .w-track {
+    --w-track-width: 480px;
+    --w-track-dot: 20px;
+    --w-track-gap: 8px;
+    /* How far the line runs past the first and last stop. */
+    --w-track-overhang: 30px;
+    --w-track-ring: 4px;
+    --w-track-tone: var(--w-brand);
+    --w-track-pending: color-mix(in srgb, var(--w-faint) 35%, var(--w-chrome));
+    /* The centre of stop n is (n + 0.5) columns from the left. */
+    --w-track-column: calc(var(--w-track-width) / var(--w-track-count));
+    --w-track-current: calc((var(--w-track-at) + 0.5) * var(--w-track-column));
+
+    position: relative;
+    justify-self: center;
+    width: var(--w-track-width);
+    max-width: 100%;
+  }
+
+  .w-track.is-failed {
+    --w-track-tone: var(--w-error);
+  }
+
+  .w-track-rail,
+  .w-track-fill {
+    position: absolute;
+    top: calc(var(--w-track-dot) / 2 - 1px);
+    left: var(--w-track-overhang);
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  .w-track-rail {
+    right: var(--w-track-overhang);
+    background: var(--w-line-strong);
+  }
+
+  /* Up to the edge of the current stop. */
+  .w-track-fill {
+    width: max(0px, calc(var(--w-track-current) - var(--w-track-dot) / 2 - var(--w-track-overhang)));
+    background: var(--w-brand);
+    transition: width 300ms var(--w-ease);
+  }
+
+  .w-track-ring {
+    position: absolute;
+    top: calc(var(--w-track-ring) * -1);
+    left: calc(var(--w-track-current) - var(--w-track-dot) / 2 - var(--w-track-ring));
+    width: calc(var(--w-track-dot) + 2 * var(--w-track-ring));
+    height: calc(var(--w-track-dot) + 2 * var(--w-track-ring));
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--w-track-tone) 16%, transparent);
+    transition:
+      left 300ms var(--w-ease),
+      background-color 200ms var(--w-ease);
+  }
+
+  .w-track-stops {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(var(--w-track-count), minmax(0, 1fr));
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: 0.85rem;
   }
 
-  .wizard-setting-list li {
-    display: contents;
+  .w-track-stops > li {
+    display: flex;
+    justify-content: center;
+    min-width: 0;
   }
 
-  .wizard-setting-list code {
-    justify-self: start;
-    padding: 2px 8px;
-    border-radius: var(--stp-radius-small);
-    background: rgba(255, 255, 255, 0.05);
+  .w-stop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--w-track-gap);
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--w-faint);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: nowrap;
+    transition: color 200ms var(--w-ease);
   }
 
-  .wizard-setting-where {
-    color: var(--stp-text-subtle);
+  .w-stop-dot {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: var(--w-track-dot);
+    height: var(--w-track-dot);
+    border: 2px solid var(--w-track-pending);
+    border-radius: 50%;
+    background: var(--w-chrome);
+    transition:
+      background-color 200ms var(--w-ease),
+      border-color 200ms var(--w-ease);
+  }
+
+  .w-stop-dot svg {
+    width: 11px;
+    height: 11px;
+    fill: none;
+    stroke: var(--w-chrome);
+    stroke-width: 1.9;
+  }
+
+  /* The dot inside the current stop. */
+  .w-stop-dot::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--w-track-tone);
+    opacity: 0;
+    transform: scale(0.4);
+    transition:
+      opacity 200ms var(--w-ease),
+      transform 300ms var(--w-ease);
+  }
+
+  .w-stop.is-done {
+    color: var(--w-muted);
+  }
+
+  .w-stop.is-done .w-stop-dot {
+    border-color: var(--w-brand);
+    background: var(--w-brand);
+  }
+
+  .w-stop.is-done .w-stop-dot::after {
+    display: none;
+  }
+
+  .w-stop.is-current,
+  .w-stop.is-working,
+  .w-stop.is-failed {
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  /* A stop becomes current as the line reaches it. */
+  .w-stop.is-current .w-stop-dot,
+  .w-stop.is-working .w-stop-dot,
+  .w-stop.is-failed .w-stop-dot {
+    border-color: var(--w-track-tone);
+    transition-delay: 150ms;
+  }
+
+  .w-stop.is-current .w-stop-dot::after,
+  .w-stop.is-working .w-stop-dot::after,
+  .w-stop.is-failed .w-stop-dot::after {
+    opacity: 1;
+    transform: none;
+    transition-delay: 200ms;
+  }
+
+  /* Analyzing or deploying: the dot breathes while the step runs. */
+  .w-stop.is-working .w-stop-dot::after {
+    animation: w-breathe 1.6s ease-in-out infinite;
+  }
+
+  .w-stop.is-failed {
+    color: var(--w-error);
+  }
+
+  button.w-stop {
+    cursor: pointer;
+  }
+
+  button.w-stop:hover {
+    color: var(--w-text);
+  }
+
+  button.w-stop:hover .w-stop-dot {
+    border-color: var(--w-brand-strong);
+    background: var(--w-brand-strong);
+  }
+
+  button.w-stop:focus-visible {
+    outline: 2px solid var(--w-brand);
+    outline-offset: 4px;
+  }
+
+  /* ── Type ──────────────────────────────────────────────────────────────────────────────────── */
+
+  .w-hero {
+    margin-bottom: 28px;
+  }
+
+  /* Kept for screens that still print one; the navigation says where you are. */
+
+  .w-title {
+    margin: 0;
+    color: var(--w-text-strong);
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 34px;
+    letter-spacing: -0.02em;
     overflow-wrap: anywhere;
   }
 
-  /* ── Shared surfaces ───────────────────────────────────────────────────────────────────────── */
-
-  .wizard-panel {
-    border-radius: var(--stp-radius-large);
-    background: rgba(255, 255, 255, 0.02);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  .w-lede {
+    max-width: var(--w-measure);
+    margin: 8px 0 0;
+    color: var(--w-muted);
+    font-size: 14px;
+    line-height: 22px;
   }
 
-  /* Relative to the text around it: an inline name in a sentence sits 1 px under its neighbours,
-   * not 3 px, and a name in small print scales with the small print. */
+  .w-section-title {
+    margin: 0 0 12px;
+    color: var(--w-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-subtle {
+    color: var(--w-subtle);
+  }
+
+  .w-small {
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-code {
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--w-code-fill);
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+  }
+
+  .w-mono {
+    font-family: var(--w-mono);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  /* A link inside text: the Console's dotted underline that turns solid under the cursor. */
+  .w-link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--w-text);
+    font: inherit;
+    text-decoration: underline dotted;
+    text-decoration-color: rgba(255, 255, 255, 0.45);
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: text-decoration-color 140ms ease;
+  }
+
+  .w-link:hover {
+    text-decoration-style: solid;
+    text-decoration-color: currentcolor;
+  }
+
+  /* A small action link beside a heading or under a list: quieter than the text it sits with. */
+  .w-link.w-small {
+    color: var(--w-muted);
+    text-decoration-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .w-link.w-small:hover {
+    color: var(--w-text);
+  }
+
+  .w-link:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .w-big {
+    --stp-control-height: 40px;
+    --stp-button-padding-x: 18px;
+    font-size: 14px;
+  }
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────────────────────────── */
+
+  /* The raised panel. Everything inside it stays flat. */
+  .w-card {
+    border: 1px solid transparent;
+    border-radius: var(--w-radius);
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+  }
+
+  /* A flat inner area for code, logs and lists. */
+  .w-well {
+    border-radius: var(--w-radius-small);
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+  }
+
+  /* The help mark: a `?` beside what it explains, as in the Console. */
+  .w-info {
+    display: inline-flex;
+    flex: none;
+    align-self: center;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--w-subtle);
+    cursor: help;
+    transition: color 120ms ease;
+    vertical-align: -2px;
+  }
+
+  .w-info:hover,
+  .w-info:focus-visible {
+    color: var(--w-text);
+  }
+
+  .stp-ui-tooltip {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 20px;
+  }
+
+  .stp-ui-tooltip p {
+    margin: 0 0 8px;
+  }
+
+  /* ── The bottom action bar ─────────────────────────────────────────────────────────────────── */
+
+  .w-bar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 25;
+    box-sizing: border-box;
+    border-top: 1px solid var(--w-line);
+    background: var(--w-chrome);
+    animation: w-bar-in 240ms var(--w-ease);
+  }
+
+  .w-bar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    /* 72 px with the bar's top border. */
+    min-height: calc(var(--w-bar-h) - 1px);
+    padding: 12px var(--w-gutter);
+    box-sizing: border-box;
+  }
+
+  /* On a form screen the bar's content sits in the column above it: the estimate, what the click creates and the
+   * button read as one commitment, under the checklist they finish. */
+  .w-bar.is-column .w-bar-inner {
+    max-width: calc(var(--w-column) + 2 * var(--w-gutter));
+    margin: 0 auto;
+  }
+
+  .w-bar-price {
+    min-width: 0;
+  }
+
+  .w-bar-end {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 20px;
+    min-width: 0;
+  }
+
+  .w-bar-note {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    text-align: right;
+  }
+
+  /* "Next: enter 4 values" on one line: the label and its link never part; a name too long for the bar is cut. */
+  .w-bar-next {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    max-width: 100%;
+    min-width: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 18px;
+    white-space: nowrap;
+  }
+
+  .w-bar-next-label {
+    flex: none;
+  }
+
+  .w-bar-next .w-link {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-text-strong);
+    font-weight: 600;
+    text-overflow: ellipsis;
+  }
+
+  /* While something is missing the next step carries the bar, not the button that cannot be pressed yet. */
+  .w-bar.is-blocked .w-bar-actions .stp-ui-button:disabled {
+    opacity: 0.4;
+    filter: saturate(0.4);
+  }
+
+  .w-bar-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 12px;
+  }
+
+  /* The next action as a button, for phones only: on a wide screen "Next:" beside the button says it. */
+  .w-bar-next-button.stp-ui-button {
+    display: none;
+  }
+
+  .w-bar-amount {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--w-text-strong);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 24px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+
+  .w-bar-figure {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    transition: color 400ms var(--w-ease);
+  }
+
+  .w-bar-figure.is-changed {
+    color: var(--w-brand);
+  }
+
+  .w-bar-amount small {
+    color: var(--w-muted);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0;
+  }
+
+  .w-bar-amount .w-info {
+    align-self: center;
+  }
+
+  /* ── Start ─────────────────────────────────────────────────────────────────────────────────── *
+   * The first screen: the four steps from here to a running app, each with a rough time, and one button. Three
+   * placements are built while one is picked (`?start=g1|g2|g3`): `.w-sg-*` is shared, `.w-sg1-*`, `.w-sg2-*` and
+   * `.w-sg3-*` belong to one placement each and go with it. */
+
+  /* A wide page that fills the window under the header; the small print sits at its bottom. */
+  .w-main.is-start {
+    display: flex;
+    flex-direction: column;
+    max-width: 1280px;
+    min-height: calc(100dvh - var(--w-header-h));
+    margin: 0 auto;
+    padding: clamp(32px, 10vh - 24px, 80px) 72px 32px;
+  }
+
+  .w-start {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .w-sg-head {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .w-sg-head.is-centred {
+    align-items: center;
+    text-align: center;
+  }
+
+  /* One size for every project name: a long one wraps after a dash onto a second line instead of shrinking. */
+  .w-start-title {
+    margin: 0;
+    color: var(--w-text-strong);
+    font-size: 34px;
+    font-weight: 600;
+    line-height: 42px;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  .w-start-name {
+    overflow-wrap: anywhere;
+  }
+
+  .w-sg-lede {
+    max-width: 680px;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 16px;
+    line-height: 26px;
+    text-wrap: balance;
+  }
+
+  /* A step's parts, the same in every placement. The next step (Analyze) carries the brand colour. */
+  .w-sg-stop {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--w-sg-pending);
+    border-radius: 50%;
+    background: var(--w-page);
+    color: var(--w-subtle);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .is-next > .w-sg-stop {
+    border-color: var(--w-brand);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--w-brand) 14%, transparent);
+    color: var(--w-brand-text);
+  }
+
+  .w-sg-name {
+    color: var(--w-text);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 24px;
+  }
+
+  .w-sg-time {
+    flex: none;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .is-next .w-sg-time {
+    background: var(--w-brand-soft);
+    color: var(--w-brand-text);
+  }
+
+  .w-sg-text {
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .w-start-go {
+    --stp-control-height: 46px;
+    --stp-button-padding-x: 26px;
+    --stp-button-font-weight: 600;
+    font-size: 16px;
+  }
+
+  /* Who analyzes the project, and "Change". */
+  .w-analyzer-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px 8px;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-analyzer-name {
+    color: var(--w-text);
+    white-space: nowrap;
+  }
+
+  .w-analyzer-name .w-info {
+    margin-left: 5px;
+  }
+
+  .w-analyzer-dot {
+    color: var(--w-faint);
+  }
+
+  .w-analyzer-options {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    box-sizing: border-box;
+    width: min(100%, 480px);
+    padding: 18px 20px;
+    border-radius: var(--w-radius);
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+    text-align: left;
+  }
+
+  .w-analyzer-options .w-quiet {
+    margin: 0;
+  }
+
+  .w-sg-foot {
+    margin: auto 0 0;
+    padding-top: 24px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  .w-sg-foot-line {
+    display: block;
+  }
+
+  /* G1: the big timeline. A large copy of the header's track across the page, the button centred under it. */
+  .w-sg1 {
+    align-items: center;
+    gap: 44px;
+  }
+
+  .w-sg1-track {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 24px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The line through the stops, filled a little past the first: the way starts here. */
+  .w-sg1-track::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    right: 12.5%;
+    left: 12.5%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--w-brand) 0 6%, var(--w-sg-pending) 6% 100%);
+  }
+
+  .w-sg1-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+  }
+
+  .w-sg1-step .w-sg-text {
+    max-width: 230px;
+  }
+
+  .w-sg1-go {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .w-sg1 .w-sg-foot,
+  .w-sg3 .w-sg-foot {
+    text-align: center;
+  }
+
+  /* G2: the steps down the left, the project card on the right. */
+  .w-sg2 {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: minmax(0, 1fr) 440px;
+    gap: 0 64px;
+    align-items: start;
+  }
+
+  .w-sg2-story {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .w-sg2-steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .w-sg2-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    column-gap: 18px;
+    padding-bottom: 22px;
+  }
+
+  .w-sg2-step:last-child {
+    padding-bottom: 0;
+  }
+
+  .w-sg2-step:not(:last-child)::before,
+  .w-sg1-step:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    top: 32px;
+    bottom: 0;
+    left: 15px;
+    width: 2px;
+    background: var(--w-sg-pending);
+  }
+
+  /* Horizontal on wide screens, the G1 track draws its own line. */
+  .w-sg1-step:not(:last-child)::before {
+    display: none;
+  }
+
+  .w-sg2-step-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 4px;
+  }
+
+  .w-sg2-step .w-sg-time {
+    align-self: start;
+    margin-top: 6px;
+  }
+
+  .w-sg2-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 8px;
+    padding: 24px;
+    border-radius: 14px;
+  }
+
+  .w-sg2-project {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--w-line);
+  }
+
+  .w-sg2-folder {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--w-panel-raised);
+    color: var(--w-brand-text);
+  }
+
+  .w-sg2-project-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .w-sg2-project-name {
+    color: var(--w-text);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 22px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-sg2-path {
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  /* In the card: who analyzes on the left, the model under it, "Change" at the right of the row. */
+  .w-analyzer-line.is-card {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  .w-analyzer-line.is-card p {
+    margin: 0;
+  }
+
+  .w-sg2-model {
+    display: block;
+    color: var(--w-subtle);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-analyzer-line.is-card strong {
+    font-weight: 600;
+  }
+
+  .w-sg2-card .w-start-go {
+    width: 100%;
+  }
+
+  /* Inside the card the options are flat, between the line and the button they configure. */
+  .w-sg2-card .w-analyzer-options {
+    width: 100%;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--w-line);
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  .w-sg2-assure {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 18px;
+    list-style: none;
+    text-wrap: balance;
+  }
+
+  .w-sg2 .w-sg-foot {
+    grid-column: 1 / -1;
+    align-self: end;
+  }
+
+  /* G3: four cards, each with a small generic picture of what that step looks like. */
+  .w-sg3 {
+    align-items: center;
+    gap: 32px;
+  }
+
+  .w-sg3 .w-sg-lede {
+    max-width: none;
+  }
+
+  .w-sg3-cards {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .w-sg3-card {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 14px;
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+  }
+
+  .w-sg3-card.is-next {
+    box-shadow:
+      var(--w-shadow-rest),
+      0 0 0 1px color-mix(in srgb, var(--w-brand) 50%, transparent);
+  }
+
+  .w-sg3-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .w-sg3-number {
+    margin-right: 10px;
+    color: var(--w-subtle);
+  }
+
+  .is-next .w-sg3-number {
+    color: var(--w-brand-text);
+  }
+
+  .w-sg3-art {
+    position: relative;
+    box-sizing: border-box;
+    height: 160px;
+    overflow: hidden;
+    border-radius: 9px;
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+  }
+
+  .w-sg3-art.is-tree {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12px 14px;
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 11.5px;
+  }
+
+  .w-sg3-tree-row {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 7px;
+    height: 21px;
+    padding-left: calc(var(--w-depth, 0) * 14px);
+  }
+
+  .w-sg3-tree-row.is-root {
+    color: var(--w-text);
+  }
+
+  .w-sg3-tree-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .w-sg3-bar {
+    width: var(--w-bar);
+    height: 6px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--w-subtle) 30%, transparent);
+  }
+
+  .w-sg3-tree-row.is-reading {
+    color: var(--w-brand-text);
+  }
+
+  .w-sg3-tree-row.is-reading .w-sg3-bar {
+    background: color-mix(in srgb, var(--w-brand) 60%, transparent);
+  }
+
+  /* The scanner line under the row being read, across the whole picture (the picture clips it). */
+  .w-sg3-tree-row.is-reading::after {
+    content: '';
+    position: absolute;
+    right: -40px;
+    bottom: -1px;
+    left: -80px;
+    height: 2px;
+    background: var(--w-brand);
+    box-shadow: 0 0 14px 3px color-mix(in srgb, var(--w-brand) 45%, transparent);
+  }
+
+  .w-sg3-tick {
+    color: var(--w-brand);
+  }
+
+  .w-sg3-art.is-review {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+  }
+
+  .w-sg3-blocks {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+  }
+
+  .w-sg3-iso.is-a {
+    --w-iso: var(--w-illo-a);
+  }
+
+  .w-sg3-iso.is-b {
+    --w-iso: var(--w-illo-b);
+  }
+
+  .w-sg3-iso-top {
+    fill: var(--w-iso);
+  }
+
+  .w-sg3-iso-left {
+    fill: color-mix(in srgb, var(--w-iso) 74%, black);
+  }
+
+  .w-sg3-iso-right {
+    fill: color-mix(in srgb, var(--w-iso) 87%, black);
+  }
+
+  .w-sg3-price {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--w-line);
+    color: var(--w-muted);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-sg3-price > span:last-child {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .w-sg3-eg {
+    color: var(--w-subtle);
+    font-weight: 500;
+  }
+
+  .w-sg3-art.is-deploy {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px;
+    color: var(--w-muted);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-sg3-progress {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .w-sg3-meter + .w-sg3-progress {
+    margin-top: 6px;
+  }
+
+  .w-sg3-progress .is-ready {
+    color: var(--w-brand-text);
+  }
+
+  .w-sg3-progress .is-creating {
+    color: var(--w-warn);
+  }
+
+  .w-sg3-meter {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--w-brand) 0 var(--w-done), var(--w-line-strong) var(--w-done));
+  }
+
+  .w-sg3-art.is-live {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+  }
+
+  .w-sg3-url {
+    padding: 8px 12px;
+    border: 1px solid color-mix(in srgb, var(--w-brand) 30%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--w-brand) 10%, transparent);
+    color: var(--w-brand-text);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .w-sg3-go {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .w-sg3-go-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .w-sg3-go-lines {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .w-sg3-go-lines .w-analyzer-line {
+    justify-content: flex-start;
+  }
+
+  .w-sg3-promise {
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-field-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 8px;
+    color: var(--w-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  /* ── Editor hovers and detail lists ────────────────────────────────────────────────────────── */
+
+  /* Monaco's hover widget, in the wizard's type and panel style. */
+  .monaco-editor .monaco-hover {
+    max-width: 460px;
+    border: 1px solid var(--w-line-strong) !important;
+    border-radius: 8px;
+    background: var(--w-panel-raised) !important;
+    box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
+    font-family: Montserrat, ui-sans-serif, system-ui, sans-serif;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .w-detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--w-muted);
+    font-size: 12.5px;
+  }
+
+  .w-detail-list li {
+    display: flex;
+    gap: 8px;
+  }
+
+  .w-detail-list svg {
+    flex: none;
+    margin-top: 3px;
+    color: var(--w-subtle);
+  }
+
+  /* ── Readiness rows (Deploy) ───────────────────────────────────────────────────────────────── */
+
+  .w-checks {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .w-check {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 20px;
+  }
+
+  .w-check + .w-check {
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-check-head {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px 16px;
+    min-height: 20px;
+  }
+
+  .w-check-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    margin: 0;
+    color: var(--w-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-check-title > .w-info {
+    margin-left: -3px;
+  }
+
+  /* Where a section stands, in words beside its title. */
+  .w-state {
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+  }
+
+  .w-state.is-ready {
+    color: var(--w-ok);
+  }
+
+  .w-state.is-needs-input {
+    color: var(--w-warn);
+  }
+
+  .w-state.is-blocked {
+    color: var(--w-error);
+  }
+
+  .w-state.is-note {
+    color: var(--w-warn);
+  }
+
+  .w-check-aside {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 16px;
+    height: 20px;
+    margin-left: auto;
+  }
+
+  /* A button beside a section title stays on the title's line. */
+  .w-check-aside .stp-ui-button {
+    --stp-control-height: 28px;
+    --stp-button-padding-x: 10px;
+    font-size: 13px;
+  }
+
+  /* A section waiting on an earlier one recedes. */
+  .w-check.is-waiting .w-check-title {
+    color: var(--w-muted);
+  }
+
+  .w-check-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 6px;
+    animation: w-rise 200ms var(--w-ease);
+  }
+
+  .w-check-content > .w-check-meta:first-child {
+    margin-top: 0;
+  }
+
+  .w-check-tag {
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+  }
+
+  .w-check-meta {
+    margin: 4px 0 0;
+    color: var(--w-muted);
+  }
+
+  .w-check-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .w-status {
+    box-sizing: border-box;
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border: 1.5px solid var(--w-line-strong);
+    border-radius: 50%;
+    color: var(--w-subtle);
+  }
+
+  .w-status.is-ok {
+    border: none;
+    background: var(--w-ok-soft);
+    color: var(--w-ok);
+    animation: w-pop 300ms var(--w-ease);
+  }
+
+  .w-status.is-todo {
+    border-color: var(--w-warn);
+  }
+
+  .w-status.is-warn {
+    border: none;
+    background: var(--w-warn-soft);
+    color: var(--w-warn);
+  }
+
+  .w-status.is-error {
+    border: none;
+    background: var(--w-error-soft);
+    color: var(--w-error);
+  }
+
+  .w-status.is-busy {
+    border-color: var(--w-line-strong);
+    border-top-color: var(--w-brand);
+    animation: w-spin 0.9s linear infinite;
+  }
+
+  .w-status.is-idle {
+    border-style: dashed;
+  }
+
+  .w-status.is-locked {
+    border-style: dashed;
+    border-color: var(--w-line-strong);
+  }
+
+  /* Where a deploy goes, as labelled parts on one line: "AWS account 4815 1623 4200 · Signed in as dev · Region …".
+   * A part never breaks inside itself; the line wraps between parts. */
+  .w-target-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    margin: 0;
+    color: var(--w-muted);
+  }
+
+  .w-target-fact {
+    white-space: nowrap;
+  }
+
+  .w-target-fact-value {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .w-target-fact strong {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .w-target-facts-dot {
+    color: var(--w-faint);
+  }
+
+  .w-target-facts-break {
+    flex-basis: 100%;
+    height: 0;
+  }
+
+  .w-problem {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 14px 16px;
+    border-radius: var(--w-radius-small);
+    background: var(--w-error-soft);
+  }
+
+  .w-problem-title {
+    margin: 0;
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .w-problem-text {
+    margin: 0;
+    color: var(--w-muted);
+  }
+
+  .w-error-text {
+    margin: 0;
+    color: var(--w-error);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-saved {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--w-ok);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .w-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--w-text);
+  }
+
+  .w-switch-row .w-code {
+    font-size: 13px;
+  }
+
+  .w-quiet {
+    margin: 0;
+    color: var(--w-subtle);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-quiet .w-link {
+    color: var(--w-muted);
+  }
+
+  .w-quiet .w-info,
+  .w-check-meta .w-info {
+    margin-left: 6px;
+  }
+
+  .w-path-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Two explicit choices with what each one means right under them. */
+  .w-choice {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .w-choice-effect {
+    margin: -4px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-choice-effect.is-warn {
+    color: var(--w-warn);
+  }
+
+  .w-path-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .w-path-body .w-check-meta {
+    margin: 0;
+  }
+
+  /* What the analysis noticed, under the checklist: one folded row; opened, each note leads with what it means. */
+  .w-notes {
+    margin-top: 16px;
+    border-radius: var(--w-radius);
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+  }
+
+  .w-notes-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 20px;
+    border: none;
+    border-radius: inherit;
+    background: none;
+    color: var(--w-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .w-notes-head:hover .w-notes-toggle {
+    color: var(--w-text);
+  }
+
+  .w-notes-icon {
+    flex: none;
+    color: var(--w-warn);
+  }
+
+  .w-notes-title {
+    flex: 1;
+    min-width: 0;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-notes-title span {
+    margin-left: 8px;
+    color: var(--w-muted);
+    font-weight: 500;
+  }
+
+  .w-notes-toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  .w-notes.is-open .w-task-chevron {
+    transform: rotate(90deg);
+  }
+
+  .w-notes-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0 20px 6px 49px;
+    list-style: none;
+  }
+
+  .w-notes-list li {
+    padding: 12px 0 14px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-note-title {
+    margin: 0;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-note-body {
+    margin: 4px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-task-chevron {
+    flex: none;
+    color: var(--w-subtle);
+    transition: transform 180ms var(--w-ease);
+  }
+
+  /* Choices that are each a sentence: outlined rows, so an unchosen one still reads as something to click. */
+  .w-choices {
+    --stp-checkbox-border: rgba(255, 255, 255, 0.42);
+  }
+
+  .w-choices .stp-ui-radio-group__legend {
+    margin: 0 0 10px;
+    padding: 0;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-choices .stp-ui-radio-group__options {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .w-choices .stp-ui-radio {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--w-line-strong);
+    border-radius: var(--w-radius-small);
+    background: var(--w-well);
+    transition:
+      background 140ms ease,
+      border-color 140ms ease;
+  }
+
+  /* Hover only sharpens the outline: an unchosen row under the pointer must not look chosen. */
+  .w-choices .stp-ui-radio:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
+  .w-choices .stp-ui-radio:has(:checked) {
+    border-color: var(--w-brand-line);
+    background: var(--w-brand-soft);
+  }
+
+  .w-choices .stp-ui-radio__control {
+    margin-top: 1px;
+  }
+
+  .w-choices .stp-ui-radio__content {
+    gap: 2px;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-choice-label {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+  }
+
+  .w-choices .stp-ui-radio__description {
+    color: var(--w-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+
+  /* An expired session: the command, then the check, then the other ways in behind a link. */
+  .w-relogin {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .w-relogin .w-field-label {
+    margin: 4px 0 0;
+    font-size: 14px;
+  }
+
+  .w-relogin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+  }
+
+  .w-relogin-other {
+    align-self: flex-start;
+    margin-top: 2px;
+  }
+
+  /* No AWS account yet: a quiet disclosure under the two ways in, with the way there and the way back. */
+  .w-aws-new {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-aws-new .w-path-body {
+    margin-left: 2px;
+  }
+
+  .w-hero-price {
+    display: none;
+    margin: 8px 0 0;
+    color: var(--w-muted);
+  }
+
+  .w-hero-price strong {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .w-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: w-step;
+  }
+
+  .w-steps-list > li {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 10px;
+    color: var(--w-muted);
+    counter-increment: w-step;
+  }
+
+  .w-steps-list > li::before {
+    content: counter(w-step);
+    display: grid;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .w-step-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .w-keys {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .w-terminal {
+    margin-top: 16px;
+  }
+
+  /* Old names other screens still print. */
+
+  .w-log {
+    max-height: 320px;
+    margin: 12px 0 0;
+    padding: 12px 14px;
+    overflow: auto;
+    border-radius: var(--w-radius-small);
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+    color: var(--w-muted);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  /* ── Deploy: where it deploys, the secrets, the summary ─────────────────────────────────────── *
+   * Two layouts while one is picked (`?deploy=split|column`): split puts the summary with the Deploy button beside
+   * the checklist from 1200 px up; column keeps it under the checklist and the button in the bar. */
+
+  .w-deploy-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .w-deploy-main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .w-deploy-main > .w-terminal,
+  .w-deploy-main > .w-notes {
+    margin-top: 0;
+  }
+
+  .w-deploy-side {
+    display: none;
+  }
+
+  @media (min-width: 1200px) {
+    .w-main.is-form:has(.w-deploy.is-split) {
+      max-width: calc(var(--w-column) + 372px + 2 * var(--w-gutter));
+    }
+
+    .w-deploy.is-split .w-deploy-grid {
+      grid-template-columns: minmax(0, 1fr) 348px;
+      align-items: start;
+      gap: 24px;
+    }
+
+    .w-deploy.is-split .w-deploy-side {
+      display: block;
+      position: sticky;
+      top: calc(var(--w-header-h) + 24px);
+    }
+
+    /* The side summary carries the price, the next step and the button: the bar and the copies are not needed. */
+    .w-deploy.is-split .w-bar,
+    .w-deploy.is-split .w-deploy-main > .w-summary,
+    .w-deploy.is-split .w-hero-price {
+      display: none;
+    }
+  }
+
+  /* Where it deploys: the account, the region and the stage as labelled controls, then what that does to the stack. */
+  .w-target {
+    --w-target-label: 112px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 2px;
+  }
+
+  .w-target-row {
+    display: grid;
+    grid-template-columns: var(--w-target-label) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .w-target-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 35px;
+    color: var(--w-muted);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 18px;
+  }
+
+  .w-target-control {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .w-target-stage {
+    max-width: 200px;
+  }
+
+  .w-target-region {
+    max-width: 320px;
+  }
+
+  .w-target-hint {
+    margin: 0;
+    padding-left: 2px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  /* Without a list of profiles to switch between: the account as a still field. */
+  .w-target-static {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 35px;
+    padding: 0 12px;
+    border-radius: var(--stp-radius-large);
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+  }
+
+  .w-acct-logo {
+    flex: none;
+    color: var(--w-muted);
+  }
+
+  /* The account in the control: the profile as a code chip, the alias, the ID quieter. One line, cut at the end. */
+  .w-acct {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .w-acct > * {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .w-acct-profile {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-acct-name {
+    flex: none;
+    max-width: 100%;
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  .w-target-hint-id {
+    display: none;
+  }
+
+  .w-acct-id {
+    color: var(--w-subtle);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .w-acct-id.is-problem {
+    color: var(--w-warn);
+  }
+
+  /* What the three choices do to the stack: under the controls, lined up with them. */
+  .w-target > .w-target-line,
+  .w-target > .w-problem {
+    margin: 4px 0 0 calc(var(--w-target-label) + 16px);
+  }
+
+  .w-target-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-target-line > svg {
+    flex: none;
+    margin-top: 2px;
+  }
+
+  .w-target-line.is-ok > svg {
+    color: var(--w-ok);
+  }
+
+  .w-target-line.is-quiet {
+    color: var(--w-subtle);
+  }
+
+  .w-target-line .w-code {
+    font-size: 12px;
+  }
+
+  .w-target-line .stp-ui-spinner {
+    flex: none;
+    margin-top: 2px;
+  }
+
+  .w-target-line .w-info {
+    margin-left: 6px;
+  }
+
+  .w-check-content > .w-target + .w-check-meta {
+    margin-top: 0;
+  }
+
+  /* "1 of 3 saved", beside a section's title. */
+  .w-check-count {
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* The secrets: one list. A row is the variable and where the code reads it, its value, and the × that removes it. */
+  .w-secrets {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .w-secret-list {
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--w-line);
+    list-style: none;
+  }
+
+  .w-secret {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 330px) 30px;
+    gap: 4px 12px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--w-line);
+    scroll-margin: 96px;
+  }
+
+  .w-secret-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  /* The whole name, wrapped if it must: a cut-off variable name cannot be matched against the code. */
+  .w-secret-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-secret-source {
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    overflow-wrap: anywhere;
+  }
+
+  /* A secret the app may well run without: a quiet amber word that explains itself on hover. */
+  .w-secret-maybe {
+    padding: 0 7px;
+    border: none;
+    border-radius: 999px;
+    background: var(--w-warn-soft);
+    color: var(--w-warn);
+    font-family: Montserrat, sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    white-space: nowrap;
+    cursor: help;
+  }
+
+  .w-secret-form {
+    min-width: 0;
+  }
+
+  .w-secret-form .stp-ui-text-field__trailing {
+    padding-right: 5px;
+  }
+
+  .w-secret.is-local .stp-ui-text-field {
+    --stp-field-border: color-mix(in srgb, var(--w-warn) 55%, transparent);
+  }
+
+  /* Where the value in a field came from, at its right edge: a random value (click for another) or the .env file. */
+  .w-draft-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 8px;
+    border: none;
+    border-radius: 6px;
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: default;
+    transition:
+      background 140ms ease,
+      color 140ms ease;
+  }
+
+  .w-draft-tag.is-action {
+    cursor: pointer;
+  }
+
+  .w-draft-tag.is-action:hover,
+  .w-draft-tag.is-action:focus-visible {
+    background: var(--w-brand-soft);
+    color: var(--w-brand-text);
+  }
+
+  .w-secret-saved {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 35px;
+  }
+
+  .w-secret-mask {
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+  }
+
+  .w-secret-saved .w-link {
+    margin-left: auto;
+  }
+
+  .w-secret-remove {
+    display: inline-flex;
+    justify-self: end;
+  }
+
+  .w-secret-remove .stp-ui-button {
+    color: var(--w-subtle);
+  }
+
+  .w-secret-remove .stp-ui-button:hover:not([aria-disabled='true']) {
+    color: var(--w-text);
+  }
+
+  .w-secret-note {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-secret-note.is-local {
+    color: var(--w-warn);
+  }
+
+  /* Removed from the config: struck through at the bottom of the list, with the way back. */
+  .w-secret.is-removed {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .w-secret.is-removed .w-secret-name {
+    color: var(--w-subtle);
+    text-decoration: line-through;
+    text-decoration-color: color-mix(in srgb, var(--w-subtle) 70%, transparent);
+  }
+
+  .w-secret.is-removed .w-secret-source {
+    color: var(--w-faint);
+  }
+
+  .w-secret-restore {
+    display: inline-flex;
+    align-items: center;
+    color: var(--w-muted);
+  }
+
+  .w-secret-aside {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-secret-aside .w-code {
+    font-size: 11px;
+  }
+
+  .w-secret-aside .w-info {
+    margin-left: 6px;
+  }
+
+  .w-secrets-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 35px;
+  }
+
+  .w-secrets-foot .w-link {
+    color: var(--w-muted);
+  }
+
+  /* Commands on the code plane of the wizard: its mono face, its well, its accent. */
+  .stp-ui-command-line {
+    --stp-ui-code-font: var(--w-mono);
+    --stp-ui-command-background: var(--w-well);
+    --stp-ui-command-border: transparent;
+    --stp-ui-command-shadow: var(--w-shadow-field);
+    --stp-ui-command-radius: var(--w-radius-small);
+    --stp-ui-command-program: var(--w-brand-text);
+  }
+
+  .w-terminal .stp-ui-command-line {
+    margin-top: 10px;
+  }
+
+  /* The summary: what the click creates where, what it costs and how long it takes, as a short receipt. */
+  .w-summary {
+    display: flex;
+    flex-direction: column;
+    border-radius: var(--w-radius);
+    background: var(--w-panel-fill);
+    box-shadow: var(--w-shadow-rest);
+    animation: w-rise 220ms var(--w-ease);
+  }
+
+  .w-summary-head {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--w-line);
+  }
+
+  .w-summary-eyebrow {
+    margin: 0;
+    color: var(--w-subtle);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .w-summary-stack {
+    margin: 4px 0 0;
+    color: var(--w-text-strong);
+    font-family: var(--w-mono);
+    font-size: 15px;
+    line-height: 22px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-summary-where {
+    margin: 2px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-summary-parts {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 6px 20px;
+    list-style: none;
+  }
+
+  .w-summary-parts li {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+  }
+
+  .w-summary-parts li + li {
+    border-top: 1px dashed var(--w-line);
+  }
+
+  .w-summary-part {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .w-summary-part-name {
+    color: var(--w-text);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-summary-part-kind {
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-summary-part-price {
+    color: var(--w-text);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .w-summary-part-price.is-usage {
+    color: var(--w-subtle);
+  }
+
+  .w-summary-totals {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 12px 20px 16px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-summary-totals > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .w-summary-totals dt {
+    color: var(--w-muted);
+    font-size: 13px;
+  }
+
+  .w-summary-totals dd {
+    margin: 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    text-align: right;
+  }
+
+  .w-summary-totals strong {
+    margin-right: 1px;
+    color: var(--w-text-strong);
+    font-size: 18px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .w-summary-pending {
+    color: var(--w-subtle);
+  }
+
+  .w-summary-action {
+    padding: 0 20px;
+  }
+
+  .w-summary-button.stp-ui-button {
+    --stp-control-height: 44px;
+    width: 100%;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .w-summary-foot {
+    padding: 10px 20px 18px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-summary-foot .w-bar-next {
+    display: inline;
+    white-space: normal;
+  }
+
+  .w-summary-note {
+    display: block;
+    text-align: center;
+  }
+
+  @media (max-width: 760px) {
+    .w-target-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 6px;
+    }
+
+    .w-target-label {
+      min-height: 0;
+    }
+
+    .w-target-stage,
+    .w-target-region {
+      max-width: none;
+    }
+
+    /* The control keeps the profile and the alias; the ID goes to the line under it. */
+    .w-acct-name + .w-acct-id {
+      display: none;
+    }
+
+    .w-target-hint-id {
+      display: inline;
+    }
+
+    .w-target > .w-target-line,
+    .w-target > .w-problem {
+      margin-left: 0;
+    }
+
+    /* The name and the × share the first line; the value takes the whole width under them. */
+    .w-secret {
+      grid-template-columns: minmax(0, 1fr) 30px;
+      gap: 8px 8px;
+    }
+
+    .w-secret-label {
+      grid-row: 1;
+      grid-column: 1;
+    }
+
+    .w-secret-remove {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .w-secret-form,
+    .w-secret-saved {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
+
+    .w-secrets-foot {
+      flex-direction: column-reverse;
+      align-items: stretch;
+    }
+
+    .w-secrets-foot .stp-ui-button {
+      width: 100%;
+    }
+
+    .w-secrets-foot .w-link {
+      align-self: center;
+    }
+  }
+
+  /* ── Deploying ─────────────────────────────────────────────────────────────────────────────── */
+
+  .w-run-head .w-lede {
+    margin: 4px 0 0;
+  }
+
+  /* How many parts of the app are ready, on the picture of them. */
+  .w-run-parts {
+    position: absolute;
+    top: 14px;
+    left: 18px;
+    z-index: 2;
+    margin: 0;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--w-scrim);
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
+
+  .w-run-parts strong {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  .w-run-diagram {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .w-run-diagram .stp-diagram:has(.stp-diagram__controls) .stp-diagram__hint {
+    right: 60px;
+  }
+
+  /* The legend says what faint and pulsing mean: it has to be read, not just seen. */
+  .w-run-diagram .stp-diagram__hint {
+    color: var(--w-muted);
+  }
+
+  .w-run-diagram .stp-diagram {
+    border: none;
+    border-radius: var(--w-radius);
+    background: transparent;
+  }
+
+  .w-run-side {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* What is happening now leads: the operation, then the time against the usual, then whether the tab matters. */
+  .w-run-now {
+    padding: 20px 20px 18px;
+    border-bottom: 1px solid var(--w-line);
+  }
+
+  .w-run-op {
+    margin: 0;
+    color: var(--w-text-strong);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 24px;
+  }
+
+  .w-run-op-detail {
+    margin: 4px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-run-time {
+    margin: 10px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .w-run-time strong {
+    color: var(--w-text);
+    font-weight: 600;
+  }
+
+  /* Whether the tab matters, at the foot of the panel: true, and only needed once. */
+  .w-run-tab {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: auto 0 0;
+    padding: 14px 20px 16px;
+    border-top: 1px solid var(--w-line);
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+  }
+
+  .w-run-tab svg {
+    flex: none;
+    margin-top: 1px;
+  }
+
+  .w-run-progress {
+    padding: 14px 0 0;
+  }
+
+  .w-run-meter {
+    display: block;
+    width: 100%;
+    height: 3px;
+    margin: 0;
+    overflow: hidden;
+    border: none;
+    border-radius: 999px;
+    background: var(--w-code-fill);
+    appearance: none;
+  }
+
+  .w-run-meter::-webkit-progress-bar {
+    background: var(--w-code-fill);
+  }
+
+  .w-run-meter::-webkit-progress-value {
+    border-radius: 999px;
+    background: var(--w-brand);
+    transition: width 600ms var(--w-ease);
+  }
+
+  .w-run-meter::-moz-progress-bar {
+    border-radius: 999px;
+    background: var(--w-brand);
+  }
+
+  .w-run-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 0;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Live ──────────────────────────────────────────────────────────────────────────────────── */
+
+  .w-live {
+    position: relative;
+    padding: 28px;
+    overflow: hidden;
+    background: radial-gradient(90% 140% at 0% 0%, var(--w-ok-soft), transparent 55%), var(--w-panel-fill);
+  }
+
+  .w-live-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .w-live-dot {
+    flex: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--w-ok);
+    animation: w-beacon 2.2s ease-out infinite;
+  }
+
+  .w-live-url {
+    min-width: 0;
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 15px;
+    line-height: 22px;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+
+  /* An address wraps after a dot or slash; only a part wider than the line breaks inside itself. */
+  .w-url-part {
+    display: inline-block;
+    max-width: 100%;
+  }
+
+  .w-live-url:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--w-brand-line);
+    text-underline-offset: 5px;
+  }
+
+  /* Each address is one row, the same for one or several: what it is over the address, and its own Open and Copy.
+   * The first is the one to open, so it is set larger with the primary button. */
+  .w-live-addresses {
+    display: flex;
+    flex-direction: column;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The buttons sit beside the address while it fits, and move under it when it does not, so it never breaks. */
+  .w-live-addresses li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    padding: 12px 0;
+  }
+
+  .w-live-where {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .w-live-addresses li + li {
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-live-label {
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  .w-live-addresses li.is-primary .w-live-url {
+    color: var(--w-text-strong);
+    font-size: 18px;
+    line-height: 26px;
+  }
+
+  .w-live-row-actions {
+    display: inline-flex;
+    flex: none;
+    gap: 8px;
+  }
+
+  .w-live-row-actions .stp-ui-button:not(.w-big) {
+    --stp-control-height: 32px;
+    --stp-button-padding-x: 12px;
+    font-size: 13px;
+  }
+
+  /* Where it runs and what it costs, each part with its label, as on the Deploy step. */
+  .w-live-meta {
+    margin: 10px 0 0;
+    padding: 14px 0 0;
+    border-top: 1px solid var(--w-line);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-live-meta .w-info {
+    margin-left: -2px;
+  }
+
+  /* Removing the deployment: its own quiet row at the end, away from the routine links. */
+  .w-manage {
+    margin-top: 32px;
+    padding-top: 18px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-manage-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px 24px;
+  }
+
+  .w-manage-title {
+    margin: 0 0 2px;
+    color: var(--w-muted);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-manage-head > .w-link {
+    flex: none;
+    margin-top: 2px;
+  }
+
+  .w-live-note {
+    margin: 14px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-next-title {
+    margin: 36px 0 12px;
+    color: var(--w-text);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-next-optional {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin-top: 28px;
+  }
+
+  .w-next-optional span {
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+  }
+
+  .w-next {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .w-next-row {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px 20px;
+  }
+
+  .w-next-row + .w-next-row {
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-next-icon {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    place-items: center;
+    border-radius: var(--w-radius-small);
+    background: var(--w-code-fill);
+    color: var(--w-muted);
+  }
+
+  .w-next-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    min-height: 32px;
+  }
+
+  .w-next-head > div {
+    min-width: 0;
+  }
+
+  .w-next-head > :last-child:not(:first-child) {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .w-next-row h3 {
+    margin: 0;
+    color: var(--w-text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .w-next-row p {
+    margin: 2px 0 0;
+    color: var(--w-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-next-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  /* The Console offer and its sign-in, inside a next-step row. */
+
   .wizard-code {
-    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-    font-size: 0.92em;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--w-code-fill);
+    font-family: var(--w-mono);
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
   }
 
   .wizard-link {
-    color: var(--stp-color-brand);
-    text-decoration: none;
-  }
-
-  .wizard-link:hover {
-    text-decoration: underline;
+    color: var(--w-text);
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
   }
 
   .wizard-disclosure {
     padding: 0;
-    border: 0;
+    border: none;
     background: none;
-    color: var(--stp-text-subtle);
+    color: var(--w-muted);
     font: inherit;
-    font-size: 0.85rem;
+    font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
-    text-decoration: underline;
-    text-underline-offset: 3px;
   }
 
-  .wizard-disclosure:hover:not(:disabled) {
-    color: var(--stp-text-primary);
-  }
-
-  .wizard-disclosure:disabled {
-    cursor: default;
-    opacity: 0.6;
-  }
-
-  /* The page suppresses the browser's focus ring, so every control that is not a shared component
-   * has to opt back in — otherwise a keyboard user cannot see where they are. Same ring as the
-   * shared controls draw. */
-  .wizard-disclosure:focus-visible,
-  .wizard-link:focus-visible,
-  .wizard-decision-option:focus-visible {
-    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
-    outline-offset: var(--stp-focus-outline-offset);
-  }
-
-  /* Inline text: the ring stands off the glyphs instead of cutting through the underline. */
-  .wizard-disclosure:focus-visible,
-  .wizard-link:focus-visible {
-    outline-offset: 3px;
-    border-radius: var(--stp-radius-small);
-  }
-
-  /* ── Where it deploys ───────────────────────────────────────────────────────────────────────── */
-
-  /* The target is one thing, not three headings: who deploys, to which account, region and stage. */
-  .wizard-target,
-  .wizard-console {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    padding: 16px 20px 18px;
-    border-radius: var(--stp-radius-large);
-    background: rgba(255, 255, 255, 0.02);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  }
-
-  .wizard-target-fields {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 16px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-  }
-
-  .wizard-target-note {
-    margin: -6px 0 0;
-    max-width: var(--wizard-measure);
-    color: var(--stp-text-subtle);
-    font-size: 0.82rem;
-  }
-
-  /* A disabled button gets no pointer events; this wrapper carries its explanation on hover and focus. */
-  .wizard-disabled-reason {
-    display: inline-flex;
-    border-radius: var(--stp-radius-large);
-    cursor: not-allowed;
-  }
-
-  /* ── Rows: optional extras and next steps ──────────────────────────────────────────────────── */
-
-  .wizard-rows {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    border-radius: var(--stp-radius-large);
-    background: rgba(255, 255, 255, 0.02);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  }
-
-  .wizard-row {
-    padding: 16px 20px;
-    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
-  }
-
-  .wizard-row.is-busy {
-    opacity: 0.6;
-  }
-
-  .wizard-row-done {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--stp-text-muted);
-    font-size: 0.9rem;
-  }
-
-  .wizard-row + .wizard-row {
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-  }
-
-  .wizard-row-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 24px;
-  }
-
-  .wizard-row-title {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 600;
-  }
-
-  .wizard-row-text {
-    margin: 2px 0 0;
-    max-width: 60ch;
-    color: var(--stp-text-muted);
-    font-size: 0.9rem;
-  }
-
-  /* A 35 px control centred on the 23 px title line. */
-  .wizard-row-action {
-    flex: none;
-    margin-top: -6px;
-  }
-
-  .wizard-row-action.wizard-row-done {
-    margin-top: 0;
-  }
-
-  .wizard-row-body {
-    margin-top: 12px;
-  }
-
-  /* ── It's live ─────────────────────────────────────────────────────────────────────────────── */
-
-  .wizard-live {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 16px 20px;
-    border-radius: var(--stp-radius-large);
-    background: rgba(255, 255, 255, 0.02);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  }
-
-  .wizard-live-status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--stp-color-brand);
-  }
-
-  .wizard-live-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 999px;
-    background: var(--stp-color-brand);
-  }
-
-  .wizard-live-dot.is-running {
-    animation: wizard-breathe 1.6s ease-in-out infinite;
-  }
-
-  .wizard-live-dot.is-failed {
-    background: var(--stp-status-error);
-  }
-
-  /* The status line of a stopped deploy is grey, not brand. */
-  .wizard-live-status:has(.is-failed) {
-    color: var(--stp-text-primary);
-  }
-
-  .wizard-live-urls {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .wizard-live-urls li {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-  }
-
-  .wizard-live-name {
-    display: block;
-    color: var(--stp-text-subtle);
-    font-size: 0.82rem;
-  }
-
-  /* Wrapped, never cut: the end of a generated hostname is what tells two services apart. */
-  .wizard-live-url {
-    display: block;
-    font-size: 1rem;
-    font-weight: 600;
-    overflow-wrap: anywhere;
-  }
-
-  /* The Console card under the live addresses shares the target's surface (above): never louder than the result. */
-
-  .wizard-console-note {
-    margin: -4px 0 0;
-    max-width: var(--wizard-measure);
-    color: var(--stp-text-subtle);
-    font-size: 0.82rem;
-  }
-
-  /* One block per checked service: a mark and its name on one line, what happened under them. */
-  .wizard-check {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .wizard-check-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .wizard-disclosure:hover {
+    color: var(--w-text);
   }
 
   .wizard-check-mark {
-    display: grid;
-    place-items: center;
-    width: 17px;
-    height: 17px;
-    flex: none;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.1);
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: var(--stp-surface-page, #161c1c);
-  }
-
-  .wizard-row-title .wizard-check-mark {
     display: inline-grid;
-    margin: 0 8px 0 0;
-    vertical-align: -2px;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--w-ok-soft);
+    color: var(--w-ok);
   }
 
-  .wizard-check-mark.is-passed {
-    background: var(--stp-color-brand);
-  }
-
-  .wizard-check-mark.is-failed {
-    background: var(--stp-status-error);
-  }
-
-  .wizard-check-mark.is-inconclusive,
-  .wizard-check-mark.is-skipped {
-    color: var(--stp-text-primary);
-  }
-
-  /* ── Signing in ────────────────────────────────────────────────────────────────────────────── */
-
-  /* Narrower than the prose around it, so the panel reads as one step. */
   .wizard-signin {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    width: 100%;
-    max-width: 420px;
-    padding: 20px;
+    gap: 12px;
   }
 
-  /* Inside a card that is already a panel: no second frame. */
-  .wizard-signin.is-bare {
-    padding: 0;
-  }
-
-  /* The code the person compares with the Console page: large enough to read at a glance. */
   .wizard-signin-code {
-    display: block;
-    color: var(--stp-text-primary);
-    font-size: 1.6rem;
+    align-self: flex-start;
+    padding: 8px 14px;
+    border-radius: var(--w-radius-small);
+    background: var(--w-well);
+    box-shadow: var(--w-shadow-field);
+    color: var(--w-text-strong);
+    font-size: 20px;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    line-height: 28px;
+    letter-spacing: 0.08em;
   }
 
-  /* The other ways in. Set apart by a hairline, because they are not part of signing in here. */
   .wizard-signin-footnote {
     margin: 0;
-    padding-top: 14px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    color: var(--stp-text-subtle);
-    font-size: 0.82rem;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 16px;
   }
 
-  .wizard-facts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 28px;
-    margin: 0;
-  }
-
-  .wizard-facts dt {
-    margin: 0 0 2px;
-    color: var(--stp-text-subtle);
-    font-size: 0.85rem;
-  }
-
-  .wizard-facts dd {
-    margin: 0;
-    color: var(--stp-text-primary);
-    font-size: 0.92rem;
-  }
-
-  .wizard-facts dd.wizard-code {
-    font-size: 0.86rem;
-    line-height: 1.55rem;
-  }
-
-  .wizard-input {
-    min-width: 190px;
-    padding: 7px 10px;
-    border: 0;
-    border-radius: var(--stp-radius-medium);
-    background: rgba(255, 255, 255, 0.05);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-    color: var(--stp-text-primary);
-    font: inherit;
-    font-size: 0.92rem;
-  }
-
-  .wizard-input:focus-visible {
-    box-shadow:
-      inset 0 0 0 1px var(--stp-color-brand),
-      0 0 0 3px color-mix(in srgb, var(--stp-color-brand) 18%, transparent);
-  }
-
-  .wizard-command {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 12px 12px 12px 16px;
-    border-radius: var(--stp-radius-large);
-    background: rgba(0, 0, 0, 0.28);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-  }
-
-  /* Wrapped rather than scrolled: a long deploy command clipped at the Copy button hid its region,
-   * which is the part someone checks before running it. */
-  .wizard-command code {
-    min-width: 0;
-    padding-top: 7px;
-    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-    font-size: 0.86rem;
-    line-height: 1.6;
-    color: var(--stp-text-primary);
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
-  }
-
-  .wizard-command .stp-ui-button {
-    flex-shrink: 0;
-  }
-
-  /* What a failed deploy or try-out printed: monospace, in a well, line breaks kept. */
-  .wizard-output {
-    margin: 0;
-    padding: 12px 16px;
-    overflow-x: auto;
-    border-radius: var(--stp-radius-large);
-    background: rgba(0, 0, 0, 0.28);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-    font-size: 0.82rem;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    overflow-wrap: break-word;
-  }
-
-  /* ── Deploy progress ───────────────────────────────────────────────────────────────────────── */
-
-  .wizard-phases {
+  .wizard-organizations {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 8px;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .wizard-phase {
-    position: relative;
-    display: flex;
-    gap: 12px;
-    padding: 10px 0 14px;
+  /* ── Failures ──────────────────────────────────────────────────────────────────────────────── */
+
+  .w-fail {
+    margin: 0;
   }
 
-  .wizard-phase:not(:last-child)::before {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: 28px;
-    bottom: 2px;
-    width: 1px;
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .wizard-phase-marker {
+  .w-fail-row {
     display: grid;
-    place-items: center;
-    width: 17px;
-    height: 17px;
-    margin-top: 3px;
-    flex: none;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: var(--stp-surface-page, #161c1c);
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px 20px;
   }
 
-  .wizard-phase.is-done .wizard-phase-marker {
-    background: var(--stp-color-brand);
-    box-shadow: none;
+  .w-fail-row + .w-fail-row {
+    border-top: 1px solid var(--w-line);
   }
 
-  .wizard-phase.is-failed .wizard-phase-marker {
-    background: var(--stp-status-error);
-    box-shadow: none;
-  }
-
-  /* The running phase breathes rather than spins: one moving thing on the screen, not five. */
-  .wizard-phase.is-running .wizard-phase-marker {
-    background: var(--stp-color-brand);
-    box-shadow: none;
-    animation: wizard-breathe 1.6s ease-in-out infinite;
-  }
-
-  .wizard-phase-label {
-    font-size: 0.95rem;
+  .w-fail-row dt {
+    color: var(--w-muted);
+    font-size: 12px;
     font-weight: 600;
+    line-height: 22px;
   }
 
-  .wizard-phase.is-pending .wizard-phase-label {
-    color: var(--stp-text-subtle);
+  /* The full error, on its own row under the diagnosis. */
+  .w-fail-more {
+    padding: 10px 20px 12px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .w-fail-more .w-log {
+    margin-top: 8px;
+  }
+
+  /* A disclosure: a chevron that turns, and the words for what opens. */
+  .w-disclosure {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: -3px;
+    padding: 4px 0;
+    border: none;
+    background: none;
+    color: var(--w-muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    cursor: pointer;
+  }
+
+  .w-disclosure:hover {
+    color: var(--w-text);
+  }
+
+  .w-disclosure-chevron {
+    flex: none;
+    transition: transform 180ms var(--w-ease);
+  }
+
+  .w-disclosure[aria-expanded='true'] .w-disclosure-chevron {
+    transform: rotate(90deg);
+  }
+
+  /* A name from the user's file inside a page title. */
+  .w-title-code {
+    padding: 0 6px;
+    border-radius: 6px;
+    background: var(--w-code-fill);
+    font-family: var(--w-mono);
+    font-size: 0.86em;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  .w-fail-row dd {
+    min-width: 0;
+    margin: 0;
+    color: var(--w-text);
+  }
+
+  .w-fail-row dd .w-quiet {
+    margin-top: 6px;
+  }
+
+  .w-fail-row.is-cause dt {
+    color: var(--w-error);
+  }
+
+  .w-fail-row dd > .w-link {
+    white-space: nowrap;
+  }
+
+  /* The fix, as a heading of its own, with the file it concerns one click away beside it. */
+  .w-fix {
+    margin-top: 16px;
+    padding: 18px 20px 20px;
+  }
+
+  .w-fix-label {
+    margin: 0 0 4px;
+    color: var(--w-brand);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+  }
+
+  .w-fix-title {
+    margin: 0;
+    color: var(--w-text-strong);
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 24px;
+  }
+
+  .w-fix-location {
+    margin: 2px 0 0;
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  .w-fix-text {
+    margin: 8px 0 0;
+    color: var(--w-muted);
+  }
+
+  .w-fix-actions {
+    margin-top: 14px;
+  }
+
+  .w-fix .w-quiet {
+    margin-top: 12px;
+  }
+
+  .w-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    margin-top: 24px;
+  }
+
+  .w-section {
+    margin-top: 36px;
+  }
+
+  .w-section:first-of-type {
+    margin-top: 0;
+  }
+
+  .w-lede.w-lede-next {
+    margin-top: 2px;
+  }
+
+  /* The folder a screen is about, on its own line under the title. */
+  .w-hero-path {
+    margin: 8px 0 0;
+    color: var(--w-text);
+    font-family: var(--w-mono);
+    font-size: 13px;
+    line-height: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .w-hero-path + .w-lede {
+    margin-top: 4px;
+  }
+
+  .w-candidate {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+  }
+
+  .w-candidate-kind {
+    color: var(--w-muted);
+    font-size: 13px;
     font-weight: 500;
   }
 
-  .wizard-phase-message {
-    margin: 3px 0 0;
-    font-size: 0.9rem;
-    color: var(--stp-text-muted);
+  /* The starters: the way on when there is no app yet, quieter than the folders above. */
+  .w-starters .w-section-title {
+    color: var(--w-muted);
+    font-size: 14px;
   }
 
-  .wizard-meter {
-    height: 4px;
-    margin-top: 10px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    overflow: hidden;
-  }
-
-  .wizard-meter span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--stp-color-brand);
-    /* Steps, not a crawl: the bar only moves when CloudFormation says something finished. */
-    transition: width 400ms ease-out;
-  }
-
-  .wizard-resource-list {
+  .w-starter {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin: 10px 0 0;
-    padding: 0;
-    list-style: none;
-    font-size: 0.84rem;
-    color: var(--stp-text-muted);
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--w-line);
+    border-radius: var(--w-radius);
   }
 
-  .wizard-resource-list li {
-    display: flex;
+  .w-starter-text {
+    margin: 0;
+    color: var(--w-text);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  .w-section-title + .w-section-lede {
+    margin: -6px 0 12px;
+    color: var(--w-muted);
+  }
+
+  /* Each way on: its button, and what it does in one column beside it, the same column for every row. */
+  .w-ways {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .w-way {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
-    gap: 8px;
+    gap: 8px 20px;
+    padding: 18px 20px;
   }
 
-  .wizard-pulse {
-    width: 5px;
-    height: 5px;
-    flex: none;
-    border-radius: 999px;
-    background: var(--stp-color-brand);
-    animation: wizard-breathe 1.6s ease-in-out infinite;
+  .w-way + .w-way {
+    border-top: 1px solid var(--w-line);
   }
 
-  .wizard-log {
-    max-height: 340px;
-    margin: 12px 0 0;
-    padding: 14px 16px;
-    overflow: auto;
-    border-radius: var(--stp-radius-large);
-    background: rgba(0, 0, 0, 0.3);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    color: var(--stp-text-muted);
-    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-    font-size: 0.78rem;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    word-break: break-word;
+  .w-way .stp-ui-button {
+    justify-self: stretch;
   }
 
-  @keyframes wizard-breathe {
+  .w-way > p {
+    margin: 0;
+    color: var(--w-muted);
+  }
+
+  /* Superseded by the failure rows above; the analysis failure in AnalyzeStep still prints these. */
+
+  /* ── Motion ────────────────────────────────────────────────────────────────────────────────── */
+
+  .w-enter {
+    animation: w-rise 240ms var(--w-ease);
+  }
+
+  @keyframes w-rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes w-bar-in {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes w-footer-in {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes w-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes w-breathe {
     0%,
     100% {
-      opacity: 1;
+      opacity: 0.45;
     }
     50% {
-      opacity: 0.35;
+      opacity: 1;
+    }
+  }
+
+  @keyframes w-pop {
+    0% {
+      transform: scale(0.7);
+    }
+    100% {
+      transform: none;
+    }
+  }
+
+  @keyframes w-glow {
+    0% {
+      color: var(--w-brand);
+    }
+    100% {
+      color: var(--w-text);
+    }
+  }
+
+  @keyframes w-beacon {
+    0% {
+      box-shadow: 0 0 0 0 var(--w-ok-line);
+    }
+    80%,
+    100% {
+      box-shadow: 0 0 0 8px transparent;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      animation-delay: 0ms !important;
+      transition-duration: 1ms !important;
+    }
+
+    .w-track-fill,
+    .w-track-ring,
+    .w-stop,
+    .w-stop-dot,
+    .w-stop-dot::after {
+      transition: none !important;
     }
   }
 
   /* ── Narrow screens ────────────────────────────────────────────────────────────────────────── */
 
-  @media (max-width: 780px) {
-    .wizard-shell {
-      padding: 40px 18px 96px;
+  @media (max-width: 1020px) {
+    /* The first screen: the gutter of the other pages; G2's card under the steps, G3's cards two by two. */
+    .w-main.is-start {
+      padding-right: var(--w-gutter);
+      padding-left: var(--w-gutter);
     }
 
-    .wizard-title {
-      font-size: 1.7rem;
-    }
-
-    /* A 168px rail beside content is not a layout on a phone, it is two columns of nothing. It
-     * becomes a row of dots above the flow, which still says where you are. */
-    .wizard-page {
+    .w-sg2 {
+      grid-template-rows: auto auto 1fr;
       grid-template-columns: minmax(0, 1fr);
-      gap: 28px;
+      gap: 32px;
     }
 
-    .wizard-rail {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      padding: 10px 0;
-      background: var(--stp-surface-page, #161c1c);
+    .w-sg2-card {
+      max-width: 520px;
+      margin-top: 0;
     }
 
-    .wizard-rail ol {
-      flex-direction: row;
-      gap: 18px;
+    .w-sg3-cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .wizard-rail-step a,
-    .wizard-rail-entry {
-      padding: 0;
-    }
+    /* One column: the settings come right after the picture, before the list and the file. */
 
-    .wizard-rail-step:not(:last-child) a::before,
-    .wizard-rail-step:not(:last-child) .wizard-rail-entry::before {
+    .w-top-side {
       display: none;
+    }
+
+    .w-top-inner {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    /* The connection status (or its placeholder) has no room here; the brand and the step take the row. */
+    .w-top-inner > :nth-child(3) {
+      display: none;
+    }
+
+    /* The workspace stacks and scrolls like a page. */
+    .w-main.is-workspace,
+    .w-main.is-workspace:has(.w-bar) {
+      height: auto;
+      min-height: calc(100dvh - var(--w-header-h));
+    }
+
+    .w-main.is-workspace:has(.w-bar) {
+      padding-bottom: calc(var(--w-bar-space, var(--w-bar-h)) + var(--w-gap));
+    }
+
+    .w-workspace {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Deploying: the title, then the progress, then a compact picture of it. */
+    .w-run .w-pane {
+      display: contents;
+    }
+
+    .w-run-head {
+      order: 0;
+    }
+
+    .w-run-side {
+      order: 1;
+      overflow: visible;
+    }
+
+    .w-run-diagram {
+      flex: none;
+      order: 2;
+      height: 300px;
+    }
+
+    .w-run-tab {
+      margin-top: 0;
     }
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .wizard-section,
-    .wizard-decision-options {
-      animation: none;
+  @media (max-width: 760px) {
+    :root {
+      --w-gutter: 16px;
+      --w-header-h: 60px;
     }
 
-    .wizard-pulse,
-    .wizard-phase.is-running .wizard-phase-marker {
-      animation: none;
+    .w-top-inner {
+      gap: 12px;
     }
+
+    .w-brand-name {
+      display: none;
+    }
+
+    .w-brand-project::before {
+      display: none;
+    }
+
+    /* The same track, smaller, with only the current label. */
+    .w-track {
+      --w-track-width: 176px;
+      --w-track-dot: 16px;
+      --w-track-gap: 6px;
+      --w-track-overhang: 8px;
+      --w-track-ring: 3px;
+    }
+
+    .w-stop-dot svg {
+      width: 9px;
+      height: 9px;
+    }
+
+    .w-stop-dot::after {
+      width: 5px;
+      height: 5px;
+    }
+
+    .w-stop:is(.is-done, .is-pending) .w-stop-label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+
+    .w-main.is-form {
+      padding-top: 28px;
+    }
+
+    .w-title {
+      font-size: 24px;
+      line-height: 30px;
+    }
+
+    /* The first screen: one column, the steps vertical, the button full width. */
+    .w-main.is-start {
+      padding: 28px var(--w-gutter) 24px;
+    }
+
+    .w-start-title {
+      font-size: 26px;
+      line-height: 32px;
+    }
+
+    .w-sg-lede {
+      font-size: 15px;
+      line-height: 23px;
+    }
+
+    .w-sg-head.is-centred {
+      align-items: stretch;
+      text-align: left;
+    }
+
+    .w-sg1,
+    .w-sg3 {
+      align-items: stretch;
+      gap: 28px;
+    }
+
+    .w-sg1-track {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+    }
+
+    .w-sg1-track::before {
+      display: none;
+    }
+
+    .w-sg1-step:not(:last-child)::before {
+      display: block;
+    }
+
+    /* G1 and G2 on a phone: stop, name and time on one line, what happens under the name. */
+    .w-sg1-step,
+    .w-sg2-step {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr) auto;
+      gap: 4px 14px;
+      align-items: center;
+      padding-bottom: 16px;
+      text-align: left;
+    }
+
+    .w-sg1-step:last-child,
+    .w-sg2-step:last-child {
+      padding-bottom: 0;
+    }
+
+    .w-sg2-step-body {
+      display: contents;
+    }
+
+    .w-sg1-step .w-sg-name,
+    .w-sg2-step .w-sg-name {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .w-sg1-step .w-sg-time,
+    .w-sg2-step .w-sg-time {
+      grid-row: 1;
+      grid-column: 3;
+      margin-top: 0;
+      align-self: center;
+    }
+
+    .w-sg1-step .w-sg-text,
+    .w-sg2-step .w-sg-text {
+      grid-row: 2;
+      grid-column: 2 / -1;
+      max-width: none;
+    }
+
+    .w-sg1-step > .w-sg-stop,
+    .w-sg2-step > .w-sg-stop {
+      grid-row: 1;
+      grid-column: 1;
+    }
+
+    .w-sg1-go {
+      align-items: stretch;
+      margin-top: 0;
+    }
+
+    .w-sg1-go .w-start-go,
+    .w-sg3-go .w-start-go {
+      width: 100%;
+    }
+
+    /* "Change" wraps under the line here, where the dot would be left hanging. */
+    .w-analyzer-dot {
+      display: none;
+    }
+
+    .w-sg-foot,
+    .w-sg1 .w-sg-foot,
+    .w-sg3 .w-sg-foot {
+      text-align: left;
+    }
+
+    .w-sg2-card {
+      gap: 14px;
+      padding: 18px;
+    }
+
+    .w-sg2-project {
+      padding-bottom: 14px;
+    }
+
+    /* G3 on a phone: each card a row, its picture a thumbnail on the left, so the button stays near the top. */
+    .w-sg3-cards {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    .w-sg3-card {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 6px 14px;
+      align-items: start;
+      padding: 14px;
+    }
+
+    .w-sg3-art {
+      grid-row: 1 / span 2;
+      width: 248px;
+      zoom: 0.42;
+    }
+
+    .w-sg3-card .w-sg-name {
+      font-size: 16px;
+      line-height: 22px;
+    }
+
+    .w-sg3-number {
+      margin-right: 8px;
+    }
+
+    .w-sg3-card .w-sg-time {
+      padding: 2px 8px;
+    }
+
+    .w-sg3-card .w-sg-text {
+      font-size: 13px;
+      line-height: 20px;
+    }
+
+    .w-sg3-go {
+      align-items: stretch;
+    }
+
+    .w-sg3-go-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+
+    .w-sg3-go-lines {
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+    }
+
+    .w-sg3-go-lines .w-analyzer-line {
+      justify-content: center;
+    }
+
+    .w-analyzer-options {
+      width: 100%;
+    }
+
+    .w-path-tabs .stp-ui-tab__label--full,
+    .w-choice .stp-ui-tab__label--full {
+      display: none;
+    }
+
+    .w-path-tabs .stp-ui-tab__label--compact,
+    .w-choice .stp-ui-tab__label--compact {
+      display: inline;
+    }
+
+    .w-problem {
+      padding: 12px;
+    }
+
+    .w-main.is-form:has(.w-bar) {
+      padding-bottom: calc(var(--w-bar-space, var(--w-bar-h)) + 32px);
+    }
+
+    .w-main.is-workspace:has(.w-bar) {
+      padding-bottom: calc(var(--w-bar-space, 120px) + 24px);
+    }
+
+    .w-fact {
+      padding: 12px 16px;
+    }
+
+    .w-check {
+      gap: 12px;
+      padding: 16px;
+    }
+
+    .w-check-aside {
+      margin-left: 0;
+    }
+
+    .w-hero-price {
+      display: block;
+    }
+
+    /* Blocked: one compact row, the next step and the button. The estimate is in the page until it is ready. */
+    .w-bar.is-blocked .w-bar-price {
+      display: none;
+    }
+
+    /* Blocked with something to do: the bar is that one action at full width; Deploy comes back once it can work. */
+    .w-bar.has-next .w-bar-note,
+    .w-bar.has-next .w-bar-actions > .w-big {
+      display: none;
+    }
+
+    .w-bar.has-next .w-bar-end,
+    .w-bar.has-next .w-bar-actions {
+      flex: 1 1 100%;
+    }
+
+    .w-bar.has-next .w-bar-next-button.stp-ui-button {
+      display: inline-flex;
+      flex: 1;
+      min-width: 0;
+      --stp-control-height: 44px;
+      font-size: 15px;
+    }
+
+    .w-bar.has-next .w-bar-next-button .stp-ui-button__label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Ready: the amount with its words wrapped beside it, as on Review, and the button. */
+    .w-bar.is-ready .w-bar-price {
+      flex: 1 1 auto;
+    }
+
+    .w-bar.is-ready .w-bar-amount,
+    .w-bar.is-ready .w-bar-figure {
+      align-items: center;
+      white-space: normal;
+    }
+
+    .w-bar.is-ready .w-bar-amount small {
+      max-width: 9.4em;
+      font-size: 12px;
+      line-height: 15px;
+    }
+
+    .w-bar.is-blocked .w-bar-end {
+      flex-wrap: nowrap;
+      justify-content: space-between;
+    }
+
+    .w-bar.is-blocked .w-bar-note {
+      flex: 1 1 auto;
+      order: 0;
+      text-align: left;
+    }
+
+    /* Ready: one row, the price and the button. What the click creates is said in the page, right above the bar. */
+    .w-bar.is-ready .w-bar-inner {
+      flex-wrap: nowrap;
+    }
+
+    .w-bar.is-ready .w-bar-note {
+      display: none;
+    }
+
+    .w-bar.is-ready .w-bar-end {
+      flex: none;
+    }
+
+    /* A section-wide button (Generate all) goes under the title rather than squeezing it. */
+    .w-check-head:has(.w-check-aside .stp-ui-button) {
+      flex-wrap: wrap;
+    }
+
+    .w-notes-head {
+      padding: 12px 16px;
+    }
+
+    .w-notes-list {
+      padding: 0 16px 4px;
+    }
+
+    .w-keys {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Labelled parts as a column of label and value: no dot left dangling at a line's end. */
+    .w-target-facts {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: 2px 12px;
+    }
+
+    .w-target-fact {
+      display: contents;
+    }
+
+    .w-target-fact-value {
+      min-width: 0;
+      white-space: normal;
+    }
+
+    .w-target-facts-dot,
+    .w-target-facts-break {
+      display: none;
+    }
+
+    .w-bar-inner {
+      flex-wrap: wrap;
+      gap: 8px 16px;
+    }
+
+    .w-bar-end {
+      flex: 1;
+      flex-wrap: wrap-reverse;
+      gap: 8px 16px;
+    }
+
+    .w-bar-note {
+      flex: 1 1 100%;
+      order: 2;
+      text-align: right;
+    }
+
+    .w-bar-amount {
+      font-size: 17px;
+    }
+
+    .w-live {
+      padding: 20px;
+    }
+
+    .w-next-row {
+      grid-template-columns: minmax(0, 1fr);
+      padding: 16px;
+    }
+
+    .w-next-icon {
+      display: none;
+    }
+
+    .w-next-head {
+      flex-wrap: wrap;
+    }
+
+    .w-ways,
+    .w-way {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .w-way .stp-ui-button {
+      justify-self: start;
+    }
+
+    .w-fail-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2px;
+      padding: 14px 16px;
+    }
+
+    .w-fix {
+      padding: 16px;
+    }
+
+    /* Each address: its name and its buttons on one line, the address under them at full width. */
+    .w-live-addresses li {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px 12px;
+    }
+
+    .w-live-where {
+      display: contents;
+    }
+
+    .w-live-addresses .w-live-label {
+      grid-row: 1;
+      grid-column: 1;
+    }
+
+    .w-live-addresses .w-live-row-actions {
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    .w-live-addresses .w-live-url {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
+
+    .w-live-addresses .w-live-url,
+    .w-live-addresses li.is-primary .w-live-url {
+      font-size: 15px;
+      line-height: 22px;
+    }
+
+    /* A long action label wraps here instead of being cut. */
+    .w-fix-actions .stp-ui-button {
+      height: auto;
+      min-height: var(--stp-control-height, 36px);
+      padding-block: 8px;
+    }
+
+    .w-fix-actions .stp-ui-button__label {
+      white-space: normal;
+      text-align: left;
+    }
+
+    .w-manage-head {
+      flex-direction: column;
+    }
+
+    .w-run-diagram {
+      height: 260px;
+    }
+
+    .w-run-now {
+      padding: 16px 16px 14px;
+    }
+
+    /* Review's own narrow rules, kept as they were. */
   }
 }

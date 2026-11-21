@@ -29,15 +29,50 @@
     box-shadow: inset 0 0 0 var(--stp-focus-outline-width) color-mix(in srgb, var(--stp-color-brand) 40%, transparent);
   }
 
+  /*
+   * The canvas fills the frame, except that a small picture is not enlarged past the scale its shapes and text were
+   * drawn for (the renderer caps its size); it is then centred, and the grid runs on past its edges.
+   */
   .stp-diagram__canvas {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
+    margin: auto;
+    overflow: visible;
     transform-origin: center center;
   }
 
   /* Hover focus: everything unrelated to the hovered node, connector or boundary fades back. */
   .stp-diagram__fade {
     transition: opacity var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  /* A deploy in progress: what AWS has not created yet is drawn faint, and what it is creating breathes. */
+  .stp-diagram__node[data-progress] {
+    transition:
+      opacity 600ms var(--stp-motion-easing),
+      filter 600ms var(--stp-motion-easing);
+  }
+
+  .stp-diagram__node[data-progress='pending'] {
+    filter: grayscale(1) brightness(0.8);
+    opacity: 0.32;
+  }
+
+  .stp-diagram__node[data-progress='creating'] {
+    filter: grayscale(0.4);
+    animation: stp-diagram-creating 1.8s ease-in-out infinite;
+  }
+
+  @keyframes stp-diagram-creating {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
   }
 
   .stp-diagram__zone {
@@ -917,8 +952,14 @@
 
   @media (prefers-reduced-motion: reduce) {
     .stp-diagram__fade,
-    .stp-diagram__zone {
+    .stp-diagram__zone,
+    .stp-diagram__node[data-progress] {
       transition: none;
+    }
+
+    .stp-diagram__node[data-progress='creating'] {
+      animation: none;
+      opacity: 0.75;
     }
 
     .stp-diagram__motion {

@@ -12,6 +12,8 @@ type StackCommandTarget = {
   region: string;
   /** The connected AWS account the wizard was started with, when it was named. */
   awsAccount?: string | undefined;
+  /** The AWS profile picked on the page, when it is not the one the CLI picks by itself. */
+  profile?: string | undefined;
 };
 
 export const quoteArgument = (argument: string): string => (argument.includes(' ') ? `"${argument}"` : argument);
@@ -28,6 +30,7 @@ export const stackCommand = (action: 'deploy' | 'delete' | 'stack recover', targ
     target.stage,
     '--region',
     target.region,
+    ...(target.profile === undefined ? [] : ['--profile', target.profile]),
     ...(target.awsAccount === undefined ? [] : ['--aws-account', target.awsAccount])
   ]
     .map(quoteArgument)

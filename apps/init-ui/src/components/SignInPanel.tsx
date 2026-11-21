@@ -83,7 +83,7 @@ export function SignInPanel({
   /** A request that never produced a step: the CLI is gone, or refused it outright. */
   const [requestFailure, setRequestFailure] = useState<string | undefined>();
   const [wasTabBlocked, setWasTabBlocked] = useState(wasTabBlockedAtStart);
-  const frame = isFramed ? 'wizard-panel wizard-signin' : 'wizard-signin is-bare';
+  const frame = isFramed ? 'w-card wizard-signin p-5' : 'wizard-signin';
 
   const startButton = useRef<HTMLButtonElement>(null);
   const firstOrganization = useRef<HTMLButtonElement>(null);
@@ -104,20 +104,19 @@ export function SignInPanel({
 
   const apiKeyRoute = (
     <p className="wizard-signin-footnote">
-      To use an API key instead, run <span className="wizard-code whitespace-nowrap">stacktape login</span> in a
-      terminal and choose “Enter API key manually”. Signed in there?{' '}
+      Prefer an API key? Run <span className="wizard-code whitespace-nowrap">stacktape login</span> in a terminal, then{' '}
       <QuietAction disabled={isRechecking} onClick={onRecheck}>
-        {isRechecking ? 'Checking…' : 'Check again'}
+        {isRechecking ? 'checking…' : 'check again'}
       </QuietAction>
+      .
     </p>
   );
 
   if (signIn === undefined) {
     return (
       <div className={frame}>
-        <p className="m-0 text-[var(--stp-text-muted)]">
-          Run <span className="wizard-code text-[var(--stp-text-primary)]">stacktape login</span> in a terminal, then
-          come back here.
+        <p className="w-quiet">
+          Run <span className="wizard-code">stacktape login</span> in a terminal, then come back here.
         </p>
         <div>
           <Button isLoading={isRechecking} onClick={onRecheck} variant="secondary">
@@ -161,19 +160,17 @@ export function SignInPanel({
       <div className={frame}>
         <div className="flex items-center gap-3">
           <Spinner />
-          <strong className="font-semibold">Waiting for approval in the Stacktape Console</strong>
+          <strong className="font-semibold">Waiting for approval in the Console tab</strong>
         </div>
-        <p className="m-0 text-[0.92rem] text-[var(--stp-text-muted)]">
+        <p className="w-quiet">
           {wasTabBlocked
-            ? 'Your browser blocked the new tab. Open it with the button below, sign in, and approve this code if the Console shows the same one:'
-            : 'Sign in to the Console in the new tab, then approve this code if the Console shows the same one:'}
+            ? 'Your browser blocked the new tab. Open it below, sign in, and approve this code if it shows the same one.'
+            : 'Sign in there, then approve this code if the Console shows the same one.'}
         </p>
-        <output aria-label="Sign-in code" className="wizard-code wizard-signin-code">
+        <output aria-label="Sign-in code" className="wizard-signin-code">
           {signIn.userCode}
         </output>
-        <p className="m-0 text-[0.85rem] text-[var(--stp-text-muted)]">
-          The code expires at {expiresAt}. This page continues by itself once you approve.
-        </p>
+        <p className="w-quiet">Expires at {expiresAt}. This page continues by itself once you approve.</p>
         {problem}
         <div className="flex flex-wrap items-center gap-3">
           <Button
@@ -192,7 +189,7 @@ export function SignInPanel({
         </div>
         <p className="wizard-signin-footnote">
           On another device, open <span className="wizard-code [overflow-wrap:anywhere]">{signIn.verificationUri}</span>{' '}
-          and enter the code. Never approve a code that someone else sent you.
+          and enter the code. Never approve a code someone else sent you.
         </p>
       </div>
     );
@@ -203,32 +200,29 @@ export function SignInPanel({
       <div className={frame}>
         <div>
           <strong className="font-semibold">Choose an organization</strong>
-          <p className="m-0 mt-1 text-[0.92rem] text-[var(--stp-text-muted)]">
-            Your account belongs to several. The AWS account on this machine is connected to the one you pick, and this
-            machine works as that organization from then on. Run <span className="wizard-code">stacktape login</span>{' '}
-            later to switch.
+          <p className="w-quiet mt-1">
+            The AWS account on this machine is connected to the one you pick. Switch later with{' '}
+            <span className="wizard-code">stacktape login</span>.
           </p>
         </div>
-        <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+        <ul className="wizard-organizations">
           {signIn.organizations.map((organization, index) => (
             <li className="flex flex-col" key={organization.id}>
-              <button
-                className="wizard-decision-option"
-                disabled={isBusy}
+              <Button
+                className="w-full justify-start"
+                disabled={isBusy && busy !== `organization-${organization.id}`}
+                isLoading={busy === `organization-${organization.id}`}
                 onClick={() =>
                   void send(`organization-${organization.id}`, {
                     route: 'organization',
                     organizationId: organization.id
                   })
                 }
-                type="button"
+                variant="secondary"
                 {...(index === 0 ? { ref: firstOrganization } : {})}
               >
-                <span className="wizard-decision-option-label">
-                  {organizationLabel(organization.name)}
-                  {busy === `organization-${organization.id}` ? ' (signing in…)' : ''}
-                </span>
-              </button>
+                {organizationLabel(organization.name)}
+              </Button>
             </li>
           ))}
         </ul>
@@ -244,13 +238,12 @@ export function SignInPanel({
 
   return (
     <div className={frame}>
-      <p className="m-0 text-[0.92rem] text-[var(--stp-text-muted)]">
-        Opens the Stacktape Console in a new tab. Sign in there with any method, or create an account, then approve this
-        machine.
+      <p className="w-quiet">
+        Opens the Console in a new tab. Sign in or create an account there, then approve this machine.
       </p>
       {problem}
       <Button
-        className="w-full"
+        className="self-start"
         disabled={isBusy && busy !== 'start'}
         isLoading={busy === 'start'}
         onClick={start}

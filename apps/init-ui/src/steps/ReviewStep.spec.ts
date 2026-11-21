@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { WizardState } from '../session';
-import { deploymentPreferenceKeysFor, summarise } from './ReviewStep';
+import { deploymentPreferenceKeysFor, resourceTitle, summarise } from './review-model';
 
 const state = ({
   services,
@@ -86,5 +86,21 @@ describe('conditional infrastructure preferences', () => {
       'dataProtection',
       'databaseAccess'
     ]);
+  });
+});
+
+describe('resource names in the workspace and on the diagram', () => {
+  it.each([
+    [{ type: 'relational-database', properties: { engine: { type: 'postgres' } } }, undefined, 'Postgres database'],
+    [{ type: 'nextjs-web', properties: {} }, 'Next.js', 'Next.js site'],
+    [{ type: 'hosting-bucket', properties: {} }, 'React', 'React site'],
+    [{ type: 'hosting-bucket', properties: {} }, undefined, 'Static site'],
+    [{ type: 'web-service', properties: {} }, 'FastAPI', 'FastAPI service'],
+    [{ type: 'web-service', properties: {} }, undefined, 'Web service'],
+    [{ type: 'worker-service', properties: {} }, 'Go', 'Go worker'],
+    [{ type: 'bastion', properties: {} }, undefined, 'Database access server'],
+    [{ type: 'bucket', properties: {} }, undefined, 'File storage']
+  ])('names %j built with %p as %p', (resource, technology, name) => {
+    expect(resourceTitle(resource, technology)).toBe(name);
   });
 });

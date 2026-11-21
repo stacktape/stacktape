@@ -11,7 +11,8 @@ import { test as base } from '@playwright/test';
 export type WizardScenario = {
   project: 'saas-starter' | 'epic-stack' | 'go-clean-template' | 'full-stack-fastapi' | 'empty';
   agents?: Array<'claude-code' | 'codex'>;
-  scan?: 'instant' | 'held' | 'fail';
+  /** Tests read instantly unless they ask for `paced`, the twelve-second scan a person sees. */
+  scan?: 'paced' | 'instant' | 'held' | 'fail';
   existingConfig?: boolean;
   aws?: 'available' | 'no-credentials' | 'rejected';
   account?: 'signed-in' | 'signed-out' | 'no-page-sign-in';
@@ -19,10 +20,16 @@ export type WizardScenario = {
   target?: 'absent' | 'updateable' | 'blocked';
   verify?: 'passed' | 'failed' | 'unavailable';
   deploy?: 'succeed' | 'fail' | 'held';
+  /** Tests deploy instantly unless they ask for `paced`, the half-minute deploy a person sees. */
+  deployPace?: 'paced' | 'instant';
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   agentSetup?: 'succeed' | 'fail';
   connect?: 'succeed' | 'fail';
   projectName?: string;
+  secrets?: 'succeed' | 'fail';
+  awsKeys?: 'succeed' | 'fail';
+  docker?: boolean;
+  singleProfile?: boolean;
 };
 
 export type ScriptedWizard = {
@@ -53,7 +60,7 @@ const startScriptedWizard = async (
       '--preload',
       './scripts/network-guard-preload.ts',
       'scripts/init-wizard-fixture/server.ts',
-      JSON.stringify(scenario)
+      JSON.stringify({ scan: 'instant', deployPace: 'instant', ...scenario })
     ],
     { cwd: cliDirectory, env: { ...process.env, STACKTAPE_WIZARD_BUNDLE: bundle }, stdio: 'pipe' }
   );

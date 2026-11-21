@@ -1,6 +1,7 @@
-// Both import nothing but Node built-ins, so loading them first adds no application modules to startup.
+// These import nothing but Node built-ins, so loading them first adds no application modules to startup.
 import { isTelemetrySender, sendHandedOffTelemetryRequest } from '@utils/telemetry-sender';
 import { markTiming, startTiming, timeAsync } from '@utils/timings';
+import { TEMPLATE_PREVIEW_ARGUMENT } from '../init/template-preview/protocol';
 
 // OpenTUI checks this process-wide flag when its modules initialize. Set it
 // before dynamically loading either the CLI application or interactive launcher.
@@ -11,6 +12,10 @@ const main = async () => {
   // The detached child that posts a finished command's telemetry report does nothing else.
   if (isTelemetrySender()) {
     return sendHandedOffTelemetryRequest();
+  }
+  // The init wizard's CloudFormation view: one template compiled offline, in a process of its own.
+  if (process.argv[2] === TEMPLATE_PREVIEW_ARGUMENT) {
+    return (await import('../init/template-preview/child')).runTemplatePreviewChild();
   }
   // Each span covers loading and evaluating a module graph, whatever work the runtime does for that.
   const { configureNativeRuntimeForPlatform } = await timeAsync(

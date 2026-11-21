@@ -26,6 +26,11 @@ export type TopologyNode = {
   implicit?: boolean | undefined;
   /** Short type line under the name, e.g. "Aurora Postgres · 2 instances". */
   typeLabel?: string | undefined;
+  /**
+   * The host's plain name for a declared resource ("Postgres database"), drawn as its name with `label` under it in
+   * place of the type line. Set by `buildDiagramModel` from its `resourceTitles`.
+   */
+  title?: string | undefined;
   /** Copies the resource really runs (tasks, instances, NAT gateways); absent for one. */
   replicas?: { min: number; max: number } | undefined;
   // Reachable only from inside the VPC (internal load balancers) — no user edge.
@@ -117,6 +122,9 @@ const SSR_FRAMEWORK_NAMES: Record<string, string> = {
 
 const CONTAINER_SERVICES = new Set(['web-service', 'private-service', 'worker-service', 'multi-container-workload']);
 
+/** Data stores in the VPC that a bastion reaches when they are not open to the internet (`bastionTunnels`). */
+const TUNNEL_TARGET_TYPES = new Set(['relational-database', 'redis-cluster', 'open-search-domain']);
+
 // Convex's backend is a container workload the CLI creates with `usePrivateSubnetsWithNAT: false`, so it runs in the
 // public subnets like a batch job or bastion.
 const VPC_COMPUTE = new Set([...CONTAINER_SERVICES, 'batch-job', 'bastion', 'convex']);
@@ -187,6 +195,29 @@ const SCHEDULE_NODE_ID = 'schedule--implicit';
 
 const getProps = (resource: any) => resource?.properties || {};
 const getField = (resource: any, key: string) => resource?.[key] ?? resource?.properties?.[key];
+
+/** The EFS file systems a resource mounts (`volumeMounts` of type `efs`), its own and its containers'. */
+const getEfsMounts = (resource: any): Array<{ filesystem: string; path?: string }> => {
+  const containers = getField(resource, 'containers');
+  const lists = [
+    getField(resource, 'volumeMounts'),
+    ...(containers && typeof containers === 'object' ? Object.values(containers).map((c: any) => c?.volumeMounts) : [])
+  ];
+  return lists.flatMap((list) =>
+    Array.isArray(list)
+      ? list.flatMap((mount: any) =>
+          mount?.type === 'efs' && typeof mount.properties?.efsFilesystemName === 'string'
+            ? [
+                {
+                  filesystem: mount.properties.efsFilesystemName as string,
+                  ...(typeof mount.properties.mountPath === 'string' ? { path: mount.properties.mountPath } : {})
+                }
+              ]
+            : []
+        )
+      : []
+  );
+};
 const getLoadBalancerName = (value: any) => value?.loadBalancerName;
 
 const getAccessibilityMode = (resource: any) => {
@@ -1311,9 +1342,22 @@ const addConvexParts = ({ edgeMap, nodeMap, node, resource }: GraphMaps & { node
 // ── Main topology builder ──
 
 export const buildDiagramTopology = ({
-  parsedConfig
+  parsedConfig,
+  volumeMounts = false,
+  bastionTunnels = false
 }: {
   parsedConfig: StacktapeConfig | null;
+  /**
+   * Draw a connector from a resource to each EFS file system it mounts. Off unless a host asks: Console's Viewer
+   * projection (`diagram-projection.ts`) does not carry `volumeMounts` yet, and both of its pictures must match.
+   */
+  volumeMounts?: boolean | undefined;
+  /**
+   * Draw a connector from each bastion to the data stores it is there to reach: the databases, Redis clusters and
+   * search domains that are not open to the internet. Off unless a host asks (the init wizard's review), so Console's
+   * picture stays as it is.
+   */
+  bastionTunnels?: boolean | undefined;
 }): DiagramTopology | null => {
   if (!parsedConfig?.resources) return null;
 
@@ -1740,6 +1784,18 @@ export const buildDiagramTopology = ({
       }
     }
 
+    // ── EFS volume mounts (a service's, a function's, or a container's of a workload) ──
+    for (const mount of volumeMounts ? getEfsMounts(resource) : []) {
+      addEdge({
+        edgeMap,
+        nodeMap,
+        from: node.id,
+        to: mount.filesystem,
+        semantic: 'dependency',
+        description: `Mounts this file system${mount.path ? ` at ${mount.path}` : ''}: files written there outlive deploys and restarts.`
+      });
+    }
+
     // ── Container events (multi-container-workload) ──
     const containers = getField(resource, 'containers');
     if (containers) {
@@ -1798,6 +1854,25 @@ export const buildDiagramTopology = ({
             ? 'Clients open a long-lived WebSocket connection. Either side can send a message at any time.'
             : 'Users call this public HTTPS address and wait for each answer.'
       });
+    }
+  }
+
+  // Phase 5b: What a bastion is for, when the host asks: the private data stores you reach through it from your machine.
+  if (bastionTunnels) {
+    const bastions = userNodes.filter((node) => node.resourceType === 'bastion');
+    const privateStores = userNodes.filter((node) => TUNNEL_TARGET_TYPES.has(node.resourceType) && !node.isPublic);
+    for (const bastion of bastions) {
+      for (const store of privateStores) {
+        addEdge({
+          edgeMap,
+          nodeMap,
+          from: bastion.id,
+          to: store.id,
+          semantic: 'dependency',
+          description:
+            'Your machine and your migrations connect to this private data store through an SSH tunnel to the bastion.'
+        });
+      }
     }
   }
 

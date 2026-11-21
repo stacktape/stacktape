@@ -5,6 +5,8 @@
  * run on that repository actually shows. Rerun after a probe change that should be visible in the wizard:
  *
  *   bun scripts/init-wizard-fixture/record-facts.ts <name> <repository-directory>
+ *
+ * Then record the files the page shows for it, from the same checkout, with `record-files.ts`.
  */
 
 import { writeFile } from 'node:fs/promises';

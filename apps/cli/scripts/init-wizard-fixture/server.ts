@@ -3,7 +3,9 @@
  *
  * The real wizard server and session run here, serving the built `apps/init-ui` bundle, so the page goes through the
  * real handshake, CSRF checks, event stream, recomposition and file writes. Only what lies outside this machine or
- * would spend money is scripted: the scan replays facts recorded from a real repository (`projects/*.json`), and the
+ * would spend money is scripted: the scan replays facts recorded from a real repository (`projects/*.json`), with the
+ * files it read recorded beside them (`projects/*.files.json`, written into the fixture's repository so the page can
+ * show them, with the rest of the recorded tree as empty files), and the
  * coding agent, AWS identity, Stacktape sign-in, price estimate, target check, local try-out, deploy child and
  * `stacktape connect` answer
  * from the scenario below. Every network request that is not loopback is refused (run with the network guard).
@@ -15,21 +17,26 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { ProjectFacts } from '@stacktape/config-inference/facts';
 import type { StackPriceEstimationResponse } from '@stacktape/console-api/anonymous';
+import { replayDeploy } from './deploy-replay';
 
 export type WizardFixtureScenario = {
   /** A recorded scan in `projects/`, e.g. `saas-starter`. */
   project: string;
   /** Coding agents this machine offers besides "Files only". */
   agents?: Array<'claude-code' | 'codex'>;
-  /** `held` stays in progress until `scan` arrives on stdin; `fail` ends the way an agent crash does. */
-  scan?: 'instant' | 'held' | 'fail';
+  /**
+   * `paced` (the default) reads one file after another, about 12 s in all, the way an agent run looks. `instant` reports
+   * everything at once, for tests. `held` stays in progress until `scan` arrives on stdin; `fail` ends the way an agent
+   * crash does.
+   */
+  scan?: 'paced' | 'instant' | 'held' | 'fail';
   /** A configuration already in the repository, which makes the wizard write beside it. */
   existingConfig?: boolean;
   aws?: 'available' | 'no-credentials' | 'rejected';
@@ -38,8 +45,16 @@ export type WizardFixtureScenario = {
   price?: boolean;
   target?: 'absent' | 'updateable' | 'blocked';
   verify?: 'passed' | 'failed' | 'unavailable';
-  /** `held` stops mid-way through CloudFormation until `deploy` arrives on stdin, then succeeds. */
+  /**
+   * `held` stops before the slowest AWS resource (a database, usually) is created, until `deploy` arrives on stdin,
+   * then succeeds.
+   */
   deploy?: 'succeed' | 'fail' | 'held';
+  /**
+   * `paced` (the default) plays a first deploy in about half a minute, each AWS resource in its turn; `instant` as
+   * fast as the page takes it, for tests. See `deploy-replay.ts`.
+   */
+  deployPace?: 'paced' | 'instant';
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** What connecting the coding agent to Stacktape does after a successful deploy. */
   agentSetup?: 'succeed' | 'fail';
@@ -47,6 +62,14 @@ export type WizardFixtureScenario = {
   connect?: 'succeed' | 'fail';
   /** A project name other than the recorded scan's, e.g. a long one for heavy-data captures. */
   projectName?: string;
+  /** What saving a secret from the Deploy step does. */
+  secrets?: 'succeed' | 'fail';
+  /** What saving pasted AWS keys does; after a success the identity check finds the account. */
+  awsKeys?: 'succeed' | 'fail';
+  /** Whether Docker answers on this machine (the release command of an SSR site needs it). Defaults to true. */
+  docker?: boolean;
+  /** Only the `default` profile on this machine, instead of three to switch between. */
+  singleProfile?: boolean;
 };
 
 // Wrapped rather than top-level awaits: the CLI's TypeScript settings do not allow them in scripts.
@@ -57,24 +80,197 @@ const main = async () => {
 
   const stdinLines = createInterface({ input: process.stdin });
   const waiting = new Map<string, Array<() => void>>();
+  // A release that arrives before the step reaches its wait is kept, so a quick test cannot lose it.
+  const released = new Set<string>();
   const waitFor = (command: string) =>
-    new Promise<void>((resolve) => waiting.set(command, [...(waiting.get(command) ?? []), resolve]));
+    released.delete(command)
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => waiting.set(command, [...(waiting.get(command) ?? []), resolve]));
   stdinLines.on('line', (line) => {
     const command = line.trim();
-    for (const resolve of waiting.get(command) ?? []) resolve();
+    const resolvers = waiting.get(command) ?? [];
+    if (resolvers.length === 0) released.add(command);
+    for (const resolve of resolvers) resolve();
     waiting.delete(command);
   });
 
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  /** Monthly prices by resource type, in the shape the anonymous price API returns them. */
-  const FLAT_MONTHLY_BY_TYPE: Readonly<Record<string, number>> = {
-    'relational-database': 15.33,
-    bastion: 3.8,
-    'web-service': 18.07,
-    'worker-service': 9.01,
-    redis: 12.41,
-    'multi-container-workload': 18.07
+  /**
+   * AWS list prices for us-east-1 (USD), close to what the real estimator returns, by the product names it uses. Hourly
+   * prices become monthly at 730 hours, as the estimator counts them.
+   */
+  const HOURS = 730;
+  const RDS_HOURLY: Readonly<Record<string, number>> = {
+    'db.t4g.micro': 0.016,
+    'db.t4g.small': 0.032,
+    'db.t4g.medium': 0.065,
+    'db.t4g.large': 0.129,
+    'db.t4g.xlarge': 0.258,
+    'db.m7g.large': 0.168,
+    'db.m7g.xlarge': 0.336,
+    'db.r7g.large': 0.239,
+    'db.r7g.xlarge': 0.478,
+    'db.m6g.2xlarge': 0.616
+  };
+  const CACHE_HOURLY: Readonly<Record<string, number>> = {
+    'cache.t4g.micro': 0.016,
+    'cache.t4g.small': 0.032,
+    'cache.t4g.medium': 0.065,
+    'cache.m7g.large': 0.158,
+    'cache.r7g.large': 0.219
+  };
+  const EC2_HOURLY: Readonly<Record<string, number>> = { 't3.micro': 0.0104, 't3.small': 0.0208 };
+  const PUBLIC_IP_HOURLY = 0.005;
+  const GP2_GB_MONTH = 0.115;
+  const FARGATE_VCPU_HOURLY = 0.04048;
+  const FARGATE_GB_HOURLY = 0.004445;
+
+  type Line = NonNullable<
+    StackPriceEstimationResponse['costs']
+  >['resourcesBreakdown'][string]['priceInfo']['costBreakdown'][number];
+  const flatLine = (name: string, description: string, hourly: number, multiplier = 1, unit = 'Hrs'): Line => ({
+    name,
+    description,
+    priceModel: 'flat',
+    pricePerUnit: hourly,
+    unit,
+    multiplier,
+    pricePerMonth: Math.round((unit === 'Hrs' ? hourly * HOURS : hourly) * multiplier * 100) / 100
+  });
+  const usageLine = (name: string, description: string, pricePerUnit: number, unit: string, multiplier = 1): Line => ({
+    name,
+    description,
+    priceModel: 'pay-per-use',
+    pricePerUnit,
+    unit,
+    multiplier,
+    pricePerMonth: false
+  });
+
+  /** What one resource costs, line by line, the way the estimator breaks it down. */
+  const linesFor = (resource: { type: string; properties?: Record<string, any> }): Line[] | undefined => {
+    const properties = resource.properties ?? {};
+    switch (resource.type) {
+      case 'relational-database': {
+        const engine = properties.engine?.properties ?? {};
+        const size = engine.primaryInstance?.instanceSize ?? 'db.t4g.micro';
+        const copies = engine.primaryInstance?.multiAz === true ? 2 : 1;
+        const storage = engine.storage?.initialSize ?? 20;
+        const replicas: Array<{ instanceSize?: string }> = Array.isArray(engine.readReplicas)
+          ? engine.readReplicas
+          : [];
+        const publicIp = properties.accessibility?.forceDisablePublicIp !== true;
+        const engineType = properties.engine?.type ?? 'postgres';
+        return [
+          flatLine(
+            `RDS-instance-${size}-${engineType}`,
+            'Price for database instance',
+            RDS_HOURLY[size] ?? 0.1,
+            copies
+          ),
+          ...(publicIp ? [flatLine('EC2-public-ip', 'Price for a public IP address', PUBLIC_IP_HOURLY)] : []),
+          flatLine(
+            `RDS-gp2-storage-${engineType}`,
+            'Price for database storage',
+            GP2_GB_MONTH,
+            copies * storage,
+            'GB-Mo'
+          ),
+          ...replicas.flatMap((replica) => [
+            flatLine(
+              `RDS-instance-${replica.instanceSize ?? size}-${engineType}`,
+              'Price for database instance',
+              RDS_HOURLY[replica.instanceSize ?? size] ?? 0.1
+            ),
+            ...(publicIp ? [flatLine('EC2-public-ip', 'Price for a public IP address', PUBLIC_IP_HOURLY)] : []),
+            flatLine(`RDS-gp2-storage-${engineType}`, 'Price for database storage', GP2_GB_MONTH, storage, 'GB-Mo')
+          ])
+        ];
+      }
+      case 'web-service':
+      case 'worker-service':
+      case 'private-service': {
+        const copies = properties.scaling?.minInstances ?? 1;
+        const cpu = properties.resources?.cpu ?? 0.25;
+        const memory = (properties.resources?.memory ?? 512) / 1024;
+        return [
+          flatLine('ECS-cpu-AMD64-Linux', 'Price for Fargate vCPUs', FARGATE_VCPU_HOURLY, cpu * copies),
+          flatLine('ECS-memory-AMD64-Linux', 'Price for Fargate memory', FARGATE_GB_HOURLY, memory * copies),
+          ...(resource.type === 'web-service'
+            ? [usageLine('ApiGateway-http-api-requests', 'Price per request', 1, '1M requests')]
+            : [])
+        ];
+      }
+      case 'bastion':
+        return [
+          flatLine('EC2-public-ip', 'Price for a public IP address', PUBLIC_IP_HOURLY),
+          flatLine(
+            `EC2-instance-${properties.instanceSize ?? 't3.micro'}-Linux`,
+            'Price for EC2 instances',
+            EC2_HOURLY[properties.instanceSize ?? 't3.micro'] ?? 0.0104
+          )
+        ];
+      case 'redis': {
+        const size = properties.engine?.properties?.instanceSize ?? 'cache.t4g.micro';
+        const nodes = 1 + (properties.engine?.properties?.numReplicaNodes ?? 0);
+        return [
+          flatLine(
+            `ElastiCache-instance-${size}`,
+            'Price for Redis(ElastiCache) instances',
+            CACHE_HOURLY[size] ?? 0.05,
+            nodes
+          )
+        ];
+      }
+      case 'function':
+      case 'nextjs-web':
+      case 'nuxt-web':
+      case 'sveltekit-web':
+      case 'astro-web':
+      case 'remix-web':
+      case 'solidstart-web':
+      case 'tanstack-web': {
+        const memory = (resource.type === 'function' ? properties.memory : properties.serverLambda?.memory) ?? 1024;
+        const edge = properties.useEdgeLambda === true;
+        return [
+          ...(resource.type === 'function'
+            ? []
+            : [
+                usageLine('S3-storage', 'Price for amount of data stored', 0.023, 'GB-Mo'),
+                usageLine('CloudFront-price-per-10000-req', 'Price per 10,000 requests', 0.01, '10K requests')
+              ]),
+          usageLine(
+            edge ? 'Lambda-edge-execution-time' : 'Lambda-execution-time',
+            'Price for one second of invocation duration of the function',
+            edge ? 0.00005001 : 0.0000166667,
+            'Lambda-GB-Second',
+            memory / 1024
+          ),
+          usageLine(
+            edge ? 'Lambda-edge-price-per-request' : 'Lambda-price-per-request',
+            'Price for each request (invocation)',
+            edge ? 0.6 : 0.2,
+            '1M requests'
+          )
+        ];
+      }
+      case 'hosting-bucket':
+        return [
+          usageLine('S3-storage', 'Price for amount of data stored', 0.023, 'GB-Mo'),
+          usageLine('CloudFront-price-per-10000-req', 'Price per 10,000 requests', 0.01, '10K requests')
+        ];
+      case 'bucket':
+        return [
+          usageLine('S3-storage', 'Price for amount of data stored', 0.023, 'GB-Mo'),
+          usageLine('S3-put-requests', 'Price for 1000 PUT, COPY, POST, or LIST requests', 0.005, '1K requests'),
+          usageLine('S3-get-requests', 'Price for 10000 GET and all other requests', 0.004, '10K requests')
+        ];
+      case 'efs-filesystem':
+        return [usageLine('EFS-storage', 'Price for EFS storage', 0.3, 'GB-Mo')];
+      default:
+        return undefined;
+    }
   };
 
   /** The device sign-in the stand-in API is waiting on: approved from its `/device` page. */
@@ -181,32 +377,24 @@ const main = async () => {
         const resources =
           (parse(stackConfig) as { resources?: Record<string, { type: string; properties?: Record<string, any> }> })
             .resources ?? {};
-        // Enough of the real estimator's shape for the wizard's comparisons: size, copies, a standby and the region.
-        const regionFactor = region === 'us-east-1' ? 0.9 : 1;
+        // The real estimator's shape, product by product, so sizes, copies, a standby, storage and the region all count.
+        const regionFactor = region === 'us-east-1' ? 1 : 1.1;
         const resourcesBreakdown: NonNullable<StackPriceEstimationResponse['costs']>['resourcesBreakdown'] = {};
         let flatMonthlyCost = 0;
         for (const [name, resource] of Object.entries(resources)) {
-          const base = FLAT_MONTHLY_BY_TYPE[resource.type];
-          const described = JSON.stringify(resource.properties ?? {});
-          const instanceSize = /"instanceSize":"[a-z0-9]+\.[a-z0-9]+\.([a-z0-9]+)"/.exec(described)?.[1];
-          const size =
-            ({ micro: 1, small: 2, medium: 4, large: 8 } as Record<string, number>)[instanceSize ?? ''] ??
-            (resource.properties?.resources?.cpu ?? 0.5) / 0.5;
-          const copies =
-            (resource.properties?.scaling?.minInstances ?? 1) * (described.includes('"multiAz":true') ? 2 : 1) * size;
-          const flat = base === undefined ? undefined : Math.round(base * copies * regionFactor * 100) / 100;
-          flatMonthlyCost += flat ?? 0;
-          resourcesBreakdown[name] = {
-            priceInfo: {
-              totalMonthlyFlat: flat ?? 0,
-              incomplete: false,
-              costBreakdown: [
-                flat === undefined
-                  ? { name: 'Requests', description: 'Billed per request', priceModel: 'pay-per-use' }
-                  : { name: 'Compute', description: 'Always on', priceModel: 'flat', pricePerMonth: flat }
-              ]
-            }
-          };
+          const lines = (linesFor(resource) ?? [usageLine('Requests', 'Billed per request', 0.4, '1M requests')]).map(
+            (line) =>
+              typeof line.pricePerMonth === 'number'
+                ? { ...line, pricePerMonth: Math.round(line.pricePerMonth * regionFactor * 100) / 100 }
+                : line
+          );
+          const flat =
+            Math.round(
+              lines.reduce((sum, line) => sum + (typeof line.pricePerMonth === 'number' ? line.pricePerMonth : 0), 0) *
+                100
+            ) / 100;
+          flatMonthlyCost += flat;
+          resourcesBreakdown[name] = { priceInfo: { totalMonthlyFlat: flat, incomplete: false, costBreakdown: lines } };
         }
         const estimate: StackPriceEstimationResponse = {
           success: true,
@@ -238,10 +426,12 @@ const main = async () => {
   const { writeComposedConfig } = await import('../../src/init/write-config');
   const { writePipeline } = await import('../../src/init/cicd/write-pipeline');
   const { deployCommandLine } = await import('../../src/init/deploy/run-deploy');
+  const { compileTemplatePreview } = await import('../../src/init/template-preview/compile');
   const { composeConfig } = await import('@stacktape/config-inference/compose');
   const { checkFactsCompleteness, projectFactsSchema } = await import('@stacktape/config-inference/facts');
   const { getStackName } = await import('@stacktape/naming/stacks');
   const { INIT_TARGET_SCHEMA_VERSION } = await import('../../src/init/deploy/stack-expectation');
+  const { CONFIG_SCHEMA_PATH } = await import('../../src/config/project-paths');
   const versionJson = (await import('@generated/db-engine-versions/versions.json', { with: { type: 'json' } })).default;
 
   // Parsed like a submitted scan, so a recording made before a field was added gets that field's default.
@@ -254,91 +444,89 @@ const main = async () => {
   if (scenario.existingConfig === true) {
     await Bun.write(join(repositoryRoot, 'stacktape.yml'), 'resources: {}\n');
   }
+  /** The files the recorded scan read and cited, from `record-files.ts`. Absent for a project with nothing to show. */
+  const recordedFiles = (() => {
+    try {
+      return JSON.parse(readFileSync(join(fixtureDirectory, 'projects', `${scenario.project}.files.json`), 'utf8')) as {
+        timeline: Array<{ kind: string; label: string }>;
+        files: Record<string, string[]>;
+        /**
+         * Files whose real text the session reads, recorded by hand over their masked copy in `files`: the template's
+         * own `.env`, which the Deploy step offers to import. Public example values only (`changethis`, `localhost`);
+         * the code window still shows them masked.
+         */
+        localValues?: Record<string, string[]>;
+        /** Every file name in the recorded repository, as the tree route lists it. */
+        tree?: string[];
+      };
+    } catch {
+      return undefined;
+    }
+  })();
+  const recordedText = { ...recordedFiles?.files, ...recordedFiles?.localValues };
+  // The rest of the recorded tree as empty files, so the real tree route draws the real project. The page never shows
+  // their text: only files the scan read or cited can be opened.
+  for (const path of recordedFiles?.tree ?? []) {
+    if (recordedText[path] !== undefined) continue;
+    await mkdir(dirname(join(repositoryRoot, path)), { recursive: true });
+    await writeFile(join(repositoryRoot, path), '');
+  }
+  for (const [path, lines] of Object.entries(recordedText)) {
+    await mkdir(dirname(join(repositoryRoot, path)), { recursive: true });
+    await writeFile(join(repositoryRoot, path), lines.join('\n'));
+  }
 
   const ACCOUNT_ID = '481516234200';
+  /** The AWS profiles on this machine: each its own account, as a developer with a work and a personal login has. */
+  const PROFILES = [
+    {
+      name: 'default',
+      kind: 'keys',
+      region: 'eu-west-1',
+      accountId: ACCOUNT_ID,
+      accountAlias: 'acme-dev',
+      arn: `arn:aws:iam::${ACCOUNT_ID}:user/dev`
+    },
+    {
+      name: 'acme-prod',
+      kind: 'sso',
+      region: 'us-east-1',
+      accountId: '270988120451',
+      accountAlias: 'acme-production',
+      arn: 'arn:aws:sts::270988120451:assumed-role/AWSReservedSSO_AdministratorAccess_5f3c2a1b/dev@acme.io'
+    },
+    {
+      name: 'personal',
+      kind: 'keys',
+      accountId: '112233445566',
+      arn: 'arn:aws:iam::112233445566:user/sam'
+    }
+  ] as const;
+  const profileNamed = (name: string | undefined) => PROFILES.find((entry) => entry.name === (name ?? 'default'))!;
   const AGENT_VERSIONS = { 'claude-code': '2.1.296 (Claude Code)', codex: 'codex-cli 0.98.0' } as const;
   /** Timeline entries as `toTimelineEntry` labels a Claude Code session's tool calls: the tool, then its path or pattern. */
-  const SCAN_TIMELINE: Array<{ kind: string; label: string }> = [
+  const SCAN_TIMELINE: Array<{ kind: string; label: string }> = recordedFiles?.timeline ?? [
     { kind: 'tool', label: 'get_project_brief get_project_brief' },
-    { kind: 'tool', label: 'read_file package.json' },
-    { kind: 'tool', label: 'list_dir app' },
-    { kind: 'tool', label: 'grep process.env' },
-    { kind: 'tool', label: 'read_file .env.example' },
+    { kind: 'tool', label: 'list_dir .' },
     { kind: 'tool', label: 'submit_facts submit_facts' }
   ];
-
-  /** One deploy, as the CLI's JSONL stream would report it for this composition. */
-  const deployEvents = (resourceNames: string[]) => {
-    const at = () => new Date().toISOString();
-    const event = (phase: string, eventType: string, status: string, message: string, detail?: object) => ({
-      type: 'event',
-      ts: at(),
-      phase,
-      eventType,
-      status,
-      message,
-      ...(detail === undefined ? {} : { detail })
-    });
-    const total = resourceNames.length * 9 + 6;
-    const progress = (completed: number, inProgress: string[]) =>
-      event(
-        'DEPLOY',
-        'UPDATE_STACK',
-        'running',
-        `${completed}/${total} resources (${Math.round((completed / total) * 100)}%)`,
-        {
-          kind: 'cloudformation-progress',
-          stackAction: 'create',
-          status: 'active',
-          completedCount: completed,
-          totalPlanned: total,
-          percent: Math.round((completed / total) * 100),
-          inProgressCount: inProgress.length,
-          inProgressResources: inProgress,
-          changeCounts: { created: total, updated: 0, deleted: 0 }
-        }
-      );
-    return {
-      before: [
-        event('INITIALIZE', 'LOAD_CONFIG_FILE', 'started', 'Loading configuration file'),
-        event('INITIALIZE', 'LOAD_CONFIG_FILE', 'completed', 'Configuration file loaded'),
-        event('INITIALIZE', 'FETCH_STACK_DATA', 'completed', 'Stack data fetched'),
-        event('BUILD_AND_PACKAGE', 'PACKAGE_ARTIFACTS', 'started', `Packaging ${resourceNames.join(', ')}`),
-        { type: 'output', ts: at(), stream: 'stdout', lines: ['Installing dependencies…', 'Built in 41.2s'] },
-        event('BUILD_AND_PACKAGE', 'PACKAGE_ARTIFACTS', 'completed', 'Packaged 1 artifact'),
-        event('UPLOAD', 'UPLOAD_DEPLOYMENT_ARTIFACTS', 'completed', 'Uploaded 1 artifact (38.4 MB)'),
-        event('DEPLOY', 'UPDATE_STACK', 'started', `Creating stack ${getStackName(projectName, 'dev')}`),
-        progress(4, resourceNames.slice(0, 2)),
-        progress(Math.round(total * 0.45), resourceNames.slice(-2))
-      ],
-      success: [
-        progress(total - 2, resourceNames.slice(-1)),
-        progress(total, []),
-        event('DEPLOY', 'UPDATE_STACK', 'completed', 'Stack created'),
-        event('POST_DEPLOY', 'INVALIDATE_CACHE', 'completed', 'Cache invalidated'),
-        { type: 'result', ts: at(), ok: true, code: 'OK', message: 'Deployed.' }
-      ],
-      failure: (failedResource: string) => [
-        progress(Math.round(total * 0.7), [failedResource]),
-        {
-          type: 'log',
-          ts: at(),
-          level: 'error',
-          source: 'cli',
-          message: `Service ${failedResource} failed to start\n\nEssential container in task exited (exit code 1). Last lines it printed:\n  Error: connect ECONNREFUSED 127.0.0.1:5432\n      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n  Server exited with code 1`
-        },
-        event('DEPLOY', 'ROLLBACK_STACK', 'completed', 'Rolled back: no resources were kept'),
-        {
-          type: 'result',
-          ts: at(),
-          ok: false,
-          // The result message the CLI emits for a container that cannot start: the CloudFormation summary with the
-          // container's exit and its last log lines.
-          code: 'STACK_ERROR',
-          message: `Stack action create failed.\n\n1. ${failedResource}\n   Service ${failedResource} failed to start\n\n   Exited with code 1 (Essential container in task exited)\n\n   Last logs before exit:\n     12:00:01 Error: connect ECONNREFUSED 127.0.0.1:5432\n     12:00:01     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n`
-        }
-      ]
-    };
+  /**
+   * How long each kind of tool call takes in a paced scan, relative to the others: opening a file and reading it is the
+   * slow part. Scaled so the whole scan takes `PACED_SCAN_MS`. Reading without an agent is the probe alone: a few seconds.
+   */
+  const PACED_SCAN_MS = 12_000;
+  const PACED_PROBE_MS = 2_500;
+  const TOOL_WEIGHTS: Readonly<Record<string, number>> = {
+    read_file: 3,
+    list_dir: 1.5,
+    grep: 2,
+    get_project_brief: 2,
+    submit_facts: 2.5
+  };
+  const pacing = (timeline: Array<{ kind: string; label: string }>) => {
+    const weights = timeline.map((entry) => TOOL_WEIGHTS[entry.label.split(' ')[0]!] ?? 2);
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    return weights.map((weight) => Math.round((weight / total) * PACED_SCAN_MS));
   };
 
   const agents = agentOptions(
@@ -360,6 +548,7 @@ const main = async () => {
   const session = await startWizardSession({
     projectName,
     repositoryPath,
+    repositoryRoot,
     ...(scenario.existingConfig === true ? { existingConfig: 'stacktape.yml' } : {}),
     agents: agents.map((agent, index) =>
       index === 0 ? { ...agent, recommended: true } : { ...agent, recommended: undefined }
@@ -368,17 +557,34 @@ const main = async () => {
     start: async (choice, onProgress) => {
       // Files only reads without an agent, so there are no tool calls to report.
       const timeline = choice.agentId === 'none' ? [] : SCAN_TIMELINE;
-      for (const entry of timeline.slice(0, 3)) onProgress(entry);
+      const isPaced = (scenario.scan ?? 'paced') === 'paced';
+      // Each entry is reported when the agent starts it, then takes its share of the scan.
+      const delays = pacing(timeline);
+      const report = async (from: number, to: number) => {
+        for (let index = from; index < Math.min(to, timeline.length); index += 1) {
+          onProgress(timeline[index]!);
+          if (isPaced) await sleep(delays[index]!);
+        }
+      };
+      await report(0, 3);
       if (scenario.scan === 'held') await waitFor('scan');
-      for (const entry of timeline.slice(3)) onProgress(entry);
+      await report(3, timeline.length);
+      if (isPaced && timeline.length === 0) await sleep(PACED_PROBE_MS);
       if (scenario.scan === 'fail') {
         throw new Error('Claude Code exited before it finished (exit code 1): Credit balance is too low.');
       }
       const composition = composeConfig({ facts, projectName, engineVersions: versionJson.rds });
       return { facts, composition, verification: [], completeness: checkFactsCompleteness(facts) };
     },
-    write: ({ composition, format, region }) =>
-      writeComposedConfig({ repositoryRoot, composition, format, ...(region === undefined ? {} : { region }) }),
+    write: ({ composition, format, region, contents, replaces }) =>
+      writeComposedConfig({
+        repositoryRoot,
+        composition,
+        format,
+        ...(region === undefined ? {} : { region }),
+        ...(contents === undefined ? {} : { contents }),
+        ...(replaces === undefined ? {} : { replaces })
+      }),
     verify: async ({ composition }) => {
       await sleep(300);
       if (scenario.verify === 'unavailable') return { status: 'unavailable', services: [] };
@@ -409,24 +615,67 @@ const main = async () => {
         }));
       return { status: 'completed', services };
     },
-    awsIdentity: async () => {
+    configSchemaPath: CONFIG_SCHEMA_PATH,
+    // The real offline compile, in a child under Bun with the same network guard: a template needs nothing scripted.
+    templatePreview: (request) =>
+      compileTemplatePreview(request, {
+        command: process.execPath,
+        args: [
+          '--preload',
+          join(fixtureDirectory, '..', 'network-guard-preload.ts'),
+          join(fixtureDirectory, '..', '..', 'src', 'init', 'template-preview', 'child.ts')
+        ]
+      }),
+    ...(scenario.project === 'empty'
+      ? { nearbyApps: ['web', 'services/api'], nearbyAppKinds: { web: 'Node.js', 'services/api': 'Go' } }
+      : {}),
+    setSecret: async ({ name }) => {
+      await sleep(250);
+      return scenario.secrets === 'fail'
+        ? {
+            ok: false,
+            detail: `User: arn:aws:iam::${ACCOUNT_ID}:user/dev is not authorized to perform: secretsmanager:CreateSecret on ${name}.`
+          }
+        : { ok: true, detail: 'Saved in AWS Secrets Manager.' };
+    },
+    createAwsProfile: async () => {
+      await sleep(250);
+      if (scenario.awsKeys === 'fail') return { ok: false, detail: 'Could not write ~/.aws/credentials.' };
+      scenario.aws = 'available';
+      return { ok: true, profile: 'default', detail: 'Saved as AWS profile default in ~/.aws/credentials.' };
+    },
+    // A machine without credentials has no AWS files either, so no profiles.
+    awsProfiles: async () =>
+      (scenario.aws === 'no-credentials' ? [] : scenario.singleProfile === true ? PROFILES.slice(0, 1) : PROFILES).map(
+        ({ name, kind, ...rest }) => ({
+          name,
+          kind,
+          ...('region' in rest ? { region: rest.region } : {})
+        })
+      ),
+    dockerAvailable: async () => scenario.docker !== false,
+    awsIdentity: async ({ profile }) => {
       await sleep(150);
       if (scenario.aws === 'no-credentials') {
         return { available: false, reason: 'no-credentials', detail: 'No AWS credentials were found on this machine.' };
       }
-      if (scenario.aws === 'rejected') {
+      // Only the default profile's session expired; another profile still works.
+      if (scenario.aws === 'rejected' && (profile === undefined || profile === 'default')) {
         return {
           available: false,
           reason: 'rejected',
-          detail: 'The security token included in the request is expired.'
+          detail: 'The security token included in the request is expired.',
+          profile: 'default'
         };
       }
+      const picked = profileNamed(profile);
       return {
         available: true,
-        accountId: ACCOUNT_ID,
-        arn: `arn:aws:iam::${ACCOUNT_ID}:user/dev`,
+        accountId: picked.accountId,
+        arn: picked.arn,
         region: 'eu-west-1',
-        profile: 'default'
+        profile: picked.name,
+        ...('accountAlias' in picked ? { accountAlias: picked.accountAlias } : {})
       };
     },
     stacktapeAccount: async () => {
@@ -492,11 +741,11 @@ const main = async () => {
           : { ok: true, detail: 'Restart Claude Code so it loads the Stacktape tools.' };
       }
     },
-    inspectDeployTarget: async ({ stage, region }) => {
+    inspectDeployTarget: async ({ stage, region, profile }) => {
       await sleep(250);
       const identity = {
         schemaVersion: INIT_TARGET_SCHEMA_VERSION,
-        accountId: ACCOUNT_ID,
+        accountId: profileNamed(profile).accountId,
         stackName: getStackName(projectName, stage),
         projectName,
         stage,
@@ -507,7 +756,7 @@ const main = async () => {
         return {
           ...identity,
           status: 'updateable',
-          stackId: `arn:aws:cloudformation:${region}:${ACCOUNT_ID}:stack/${identity.stackName}/0b6f7a10-5d2e-11f1-9c1e-0a1b2c3d4e5f`,
+          stackId: `arn:aws:cloudformation:${region}:${identity.accountId}:stack/${identity.stackName}/0b6f7a10-5d2e-11f1-9c1e-0a1b2c3d4e5f`,
           stackStatus: 'UPDATE_COMPLETE'
         };
       }
@@ -516,30 +765,43 @@ const main = async () => {
       }
       return { ...identity, status: 'absent' };
     },
-    deploy: async ({ configFile, stage, region, onEvent, onCommand }) => {
+    deploy: async ({ configFile, stage, region, profile, onEvent, onCommand }) => {
       // Signed out, the deploy runs on AWS credentials alone and gets AWS addresses, not Stacktape default domains.
       const accountFree = scenario.account === 'signed-out' || scenario.account === 'no-page-sign-in';
-      onCommand(deployCommandLine({ repositoryRoot, configPath: configFile.filename, stage, region, projectName }));
+      onCommand(
+        deployCommandLine({
+          repositoryRoot,
+          configPath: configFile.filename,
+          stage,
+          region,
+          projectName,
+          ...(profile === undefined ? {} : { profile })
+        })
+      );
       const resources = Object.entries(
         composeConfig({ facts, projectName, engineVersions: versionJson.rds }).config.resources
       );
       const resourceNames = resources.map(([name]) => name);
-      const script = deployEvents(resourceNames);
-      for (const entry of script.before) {
-        onEvent(entry);
-        await sleep(120);
-      }
-      if (scenario.deploy === 'held') await waitFor('deploy');
       // The app container is what fails to start; the bucket or database beside it never does.
       const failedResource =
-        resources.find(([, resource]) => resource.type === 'web-service' || resource.type === 'worker-service')?.[0] ??
+        resources.find(([, resource]) => /^(web-service|worker-service|[a-z-]+-web)$/.test(resource.type))?.[0] ??
         resourceNames[0]!;
-      const tail = scenario.deploy === 'fail' ? script.failure(failedResource) : script.success;
-      for (const entry of tail) {
-        onEvent(entry);
-        await sleep(120);
-      }
-      const result = tail.at(-1) as { ok: boolean; code: string; message: string };
+      const result = await replayDeploy({
+        resources: resources.map(([name, resource]) => [name, resource.type]),
+        accountId: ACCOUNT_ID,
+        accountFree,
+        pace: scenario.deployPace ?? 'paced',
+        outcome: scenario.deploy ?? 'succeed',
+        failedResource,
+        failureMessage: {
+          log: `Service ${failedResource} failed to start\n\nEssential container in task exited (exit code 1). Last lines it printed:\n  Error: connect ECONNREFUSED 127.0.0.1:5432\n      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n  Server exited with code 1`,
+          // The result message the CLI emits for a container that cannot start: the CloudFormation summary with the
+          // container's exit and its last log lines.
+          result: `Stack action create failed.\n\n1. ${failedResource}\n   Service ${failedResource} failed to start\n\n   Exited with code 1 (Essential container in task exited)\n\n   Last logs before exit:\n     12:00:01 Error: connect ECONNREFUSED 127.0.0.1:5432\n     12:00:01     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n`
+        },
+        release: () => waitFor('deploy'),
+        emit: onEvent
+      });
       return {
         ok: result.ok,
         code: result.code,

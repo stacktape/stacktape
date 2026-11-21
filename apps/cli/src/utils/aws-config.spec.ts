@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { listAwsProfiles, profileRegionFromConfig } from './aws-config';
+import { describeAwsProfiles, listAwsProfiles, profileRegionFromConfig } from './aws-config';
 import { parse as parseIni } from 'ini';
 
 test('lists complete static credentials from a real INI file without treating other sections as credentials', async () => {
@@ -58,4 +58,35 @@ region = eu-north-1
 output = json
 `);
   expect(profileRegionFromConfig(content, profile)).toBe(expected);
+});
+
+test('describes each profile by how it signs in and its region, without its keys', () => {
+  const config = parseIni(`[default]
+region = eu-west-1
+[profile acme-prod]
+sso_session = acme
+sso_account_id = 270988120451
+region = us-east-1
+[profile deployer]
+role_arn = arn:aws:iam::123456789012:role/deploy
+source_profile = default
+[sso-session acme]
+sso_start_url = https://acme.awsapps.com/start
+`);
+  const credentials = parseIni(`[default]
+aws_access_key_id = synthetic-id
+aws_secret_access_key = synthetic-secret
+[personal]
+aws_access_key_id = synthetic-id
+aws_secret_access_key = synthetic-secret
+`);
+  const described = describeAwsProfiles({ credentials, config });
+
+  expect(described).toEqual([
+    { name: 'default', kind: 'keys', region: 'eu-west-1' },
+    { name: 'acme-prod', kind: 'sso', region: 'us-east-1' },
+    { name: 'deployer', kind: 'role' },
+    { name: 'personal', kind: 'keys' }
+  ]);
+  expect(JSON.stringify(described)).not.toContain('synthetic');
 });

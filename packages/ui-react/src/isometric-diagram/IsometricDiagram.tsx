@@ -53,12 +53,53 @@ export type IsometricDiagramProps = DiagramViewProps & {
   /** The layers the reader can switch, in order. With none, the diagram has no layer switches. */
   layerChoices?: readonly DiagramLayer[] | undefined;
   /**
+   * How the layers share one layout.
+   *
+   * - `every-layer` (the default) lays the picture out once with room for every layer, so switching a layer neither
+   *   moves nor rescales anything. Without the Infrastructure layer, the picture keeps the room its nodes and zones
+   *   would take.
+   * - `shown-layers` lays out and fits only what the shown layers draw. The application picture is then as compact as
+   *   it can be, and switching the Infrastructure layer rearranges the picture. Meant for a small frame whose
+   *   application picture is much smaller than the full one, like the init wizard's review of a new app; it matches
+   *   what a diagram without layer switches draws.
+   */
+  layout?: 'every-layer' | 'shown-layers' | undefined;
+  /**
    * The deployed stage, for the Access layer's tags. Untrusted: anything unreadable is skipped. Omit it
    * where there is no deployed stage, and the Access layer is not offered. Pass `null` for a deployed stage whose
    * template could not be read, and the layer is offered disabled, saying so.
    */
   deployment?: DiagramDeployment | null | undefined;
+  /**
+   * The host's own words for what a declared resource is, by its name, in place of the type line under its name: an
+   * EFS file system the host knows holds SQLite data can say "SQLite data". Resources it does not name keep the
+   * diagram's words.
+   */
+  resourceTypeLabels?: Readonly<Record<string, string>> | undefined;
+  /**
+   * The host's plain name for a declared resource, by its name: "Postgres database", "Next.js site". Its name tag then
+   * leads with that name and shows the resource's name in the config (`mainDatabase`) under it in a code font, in
+   * place of the type line, for a reader who knows the app but not the AWS words. Resources it does not name keep the
+   * diagram's two lines; the layout keeps room for the longer names. Pass a stable object: a new one lays the picture
+   * out again.
+   */
+  resourceTitles?: Readonly<Record<string, string>> | undefined;
+  /**
+   * Draws a connector from each bastion to the databases, Redis clusters and search domains it is there to reach (the
+   * ones not open to the internet), so it does not stand alone in the picture. Off by default, so Console's picture
+   * stays as it is.
+   */
+  bastionTunnels?: boolean | undefined;
+  /**
+   * Draws a connector from a resource to each EFS file system it mounts. Off by default: Console's Viewer projection
+   * does not carry `volumeMounts` yet, and a Viewer's picture must match everyone else's.
+   */
+  volumeMounts?: boolean | undefined;
 };
+
+/** A name's size at the picture's own scale, and the most `minLabelSize` enlarges text. */
+const BASE_NAME_PX = 12;
+const MAX_TEXT_SCALE = 1.7;
 
 const DEFAULT_EMPTY_MESSAGE = 'No resources to display. Add resources to your config to see the diagram.';
 
@@ -174,10 +215,24 @@ export function IsometricDiagram({
   statuses,
   onNavigate,
   notices,
+  onSelectResource,
+  selectedResource,
+  resourceProgress,
+  hint,
+  minLabelSize,
+  resourceTooltip,
+  onHoverResource,
+  focusDimming,
+  framePadding,
+  resourceTypeLabels,
+  resourceTitles,
+  bastionTunnels = false,
+  volumeMounts = false,
   layers,
   defaultLayers,
   onLayersChange,
   layerChoices = DIAGRAM_LAYERS,
+  layout = 'every-layer',
   deployment
 }: IsometricDiagramProps) {
   // Role groups start collapsed; the reader expands them one by one.
@@ -192,6 +247,22 @@ export function IsometricDiagram({
   // A host that passes statuses at all gets room for a status line under every declared resource. The room depends
   // only on that, never on what the statuses say, so a refresh redraws pills and rings without moving a node.
   const statusLines = statuses !== undefined;
+  // A host that asks for a minimum label size gets names, type lines and chips set larger when the picture is scaled
+  // down to fit, and a layout with room for them. Laying it out again with larger text makes the picture larger, so the
+  // scale settles in a step or two; small changes are ignored so it does not hunt.
+  const [textScale, setTextScale] = useState(1);
+  const onFitScale = useCallback(
+    (fit: number) => {
+      if (minLabelSize === undefined) return;
+      setTextScale((current) => {
+        // Names are drawn at BASE_NAME_PX × scale × fit on screen.
+        const wanted = Math.max(1, Math.min(MAX_TEXT_SCALE, minLabelSize / (BASE_NAME_PX * fit)));
+        return Math.abs(wanted - current) < 0.04 ? current : Math.round(wanted * 100) / 100;
+      });
+    },
+    [minLabelSize]
+  );
+  const scale = minLabelSize === undefined ? 1 : textScale;
 
   // The diagram keeps its own copy of the layers. A layer the reader switches shows at once, before a host that keeps
   // the layers has passed them back; layers that change from outside (the host's URL, the back button) replace it.
@@ -205,9 +276,25 @@ export function IsometricDiagram({
   const wantsInfrastructure = requested.infrastructure === true;
   const wantsAccess = requested.access === true;
 
-  const model = useMemo(
-    () => buildDiagramModel({ parsedConfig: config, expandedGroups, statusLines }),
-    [config, expandedGroups, statusLines]
+  // Without an Infrastructure switch, the application picture is laid out on its own: no room is kept for nodes,
+  // zones and badges that only that layer draws. A host that asks for `shown-layers` gets that picture whenever the
+  // layer is off, and the full one when it is on.
+  const offersInfrastructure = layerChoices.includes('infrastructure');
+  const fullModel = useMemo(
+    () =>
+      offersInfrastructure
+        ? buildDiagramModel({
+            parsedConfig: config,
+            expandedGroups,
+            statusLines,
+            infrastructure: true,
+            textScale: scale,
+            volumeMounts,
+            bastionTunnels,
+            resourceTitles
+          })
+        : null,
+    [config, expandedGroups, statusLines, offersInfrastructure, scale, volumeMounts, bastionTunnels, resourceTitles]
   );
   const security = useMemo(() => {
     const input = readDiagramDeployment(deployment);
@@ -215,9 +302,27 @@ export function IsometricDiagram({
   }, [deployment]);
   // A layer shows only where the stage has something for it: a stack of functions and tables has no infrastructure to
   // add, and one with nothing in a VPC has no security groups.
-  const canShowInfrastructure = useMemo(() => Boolean(model && hasInfrastructure(model)), [model]);
+  const canShowInfrastructure = useMemo(() => Boolean(fullModel && hasInfrastructure(fullModel)), [fullModel]);
   const canShowAccess = Boolean(security && security.groups.length > 0);
   const showInfrastructure = wantsInfrastructure && canShowInfrastructure;
+  const needsApplicationModel = !fullModel || (layout === 'shown-layers' && !showInfrastructure);
+  const applicationModel = useMemo(
+    () =>
+      needsApplicationModel
+        ? buildDiagramModel({
+            parsedConfig: config,
+            expandedGroups,
+            statusLines,
+            infrastructure: false,
+            textScale: scale,
+            volumeMounts,
+            bastionTunnels,
+            resourceTitles
+          })
+        : null,
+    [config, expandedGroups, statusLines, needsApplicationModel, scale, volumeMounts, bastionTunnels, resourceTitles]
+  );
+  const model = needsApplicationModel ? applicationModel : fullModel;
   const showAccess = wantsAccess && canShowAccess;
   // A switch starts from what is shown, not from what was asked for: a layer the host requested but the stage has
   // nothing for is dropped on the next switch, so the host's copy (Console's URL) matches the checkboxes again.
@@ -239,20 +344,22 @@ export function IsometricDiagram({
     () => (model && canSwitchLayers ? diagramFrame({ model, security }) : undefined),
     [model, security, canSwitchLayers]
   );
-  const scene: IsoScene | null = useMemo(
-    () =>
-      model
-        ? {
-            ...selectDiagramView({
-              model,
-              layers: { infrastructure: showInfrastructure, access: showAccess },
-              security
-            }),
-            frame
-          }
-        : null,
-    [model, showInfrastructure, showAccess, security, frame]
-  );
+  const scene: IsoScene | null = useMemo(() => {
+    if (!model) return null;
+    const view = selectDiagramView({
+      model,
+      layers: { infrastructure: showInfrastructure, access: showAccess },
+      security
+    });
+    const nodes = resourceTypeLabels
+      ? view.nodes.map((node) =>
+          !node.isImplicit && !node.memberCount && resourceTypeLabels[node.id]
+            ? { ...node, typeLabel: resourceTypeLabels[node.id] }
+            : node
+        )
+      : view.nodes;
+    return { ...view, nodes, frame };
+  }, [model, showInfrastructure, showAccess, security, frame, resourceTypeLabels]);
 
   if (!scene || scene.nodes.length === 0) {
     if (emptyState === null) return null;
@@ -285,6 +392,16 @@ export function IsometricDiagram({
       statuses={statuses}
       onNavigate={onNavigate}
       notices={notices}
+      onSelectResource={onSelectResource}
+      selectedResource={selectedResource}
+      resourceProgress={resourceProgress}
+      hint={hint}
+      labelScale={scale}
+      onFitScale={minLabelSize === undefined ? undefined : onFitScale}
+      resourceTooltip={resourceTooltip}
+      onHoverResource={onHoverResource}
+      focusDimming={focusDimming}
+      framePadding={framePadding}
       onToggleGroup={toggleGroup}
       toolbar={
         choices.length > 0 ? (

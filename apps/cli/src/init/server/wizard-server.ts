@@ -17,11 +17,15 @@ import type { ServicePreflightResult } from '../preflight/preflight';
 import { AddressInfo, type Socket } from 'node:net';
 import { extname, join, normalize } from 'node:path';
 import type { DeployTargetObservation } from '../deploy/stack-expectation';
+import type { FileView } from './file-view';
+import type { RepositoryTree } from './repository-tree';
+import type { EnvironmentValues } from './environment-values';
 import {
   isDeploymentPreferenceChange,
   type DeploymentPreferenceChange,
   type DeploymentPreferences
 } from '@stacktape/config-inference/compose/preferences';
+import { isSettingChange, type SettingChange } from '@stacktape/config-inference/compose/resource-settings';
 import {
   createSessionSecrets,
   isSameOrigin,
@@ -32,6 +36,7 @@ import {
   type SessionSecrets
 } from './security';
 import { parseSignInAction, type WizardSignIn, type WizardSignInAction } from './wizard-sign-in';
+import type { DeployResource } from './deploy-resources';
 
 /**
  * One way of reading the project, offered on the first screen.
@@ -64,8 +69,16 @@ export type WizardAwsIdentity =
       region?: string;
       /** The AWS profile these credentials came from, when one was selected rather than environment variables. */
       profile?: string;
+      /** The account's alias (IAM account alias), the name people know it by, when the credentials may read it. */
+      accountAlias?: string;
     }
   | { available: false; reason: 'no-credentials' | 'rejected'; detail: string; profile?: string };
+
+/**
+ * An AWS profile on this machine, by name, as `~/.aws/config` and `~/.aws/credentials` declare it. Never its keys: `kind`
+ * says only how it signs in, so the page can say "SSO" or "access key" beside the name.
+ */
+export type WizardAwsProfile = { name: string; kind: 'sso' | 'keys' | 'role' | 'other'; region?: string };
 
 /**
  * The Stacktape Console, after a successful deploy.
@@ -94,6 +107,11 @@ export type WizardDeployment = {
   /** When this attempt began. The event list is capped, so its first entry cannot say. */
   startedAt?: string;
   events: unknown[];
+  /**
+   * Every AWS resource this attempt's CloudFormation progress named, with its state and times. Kept whole however
+   * long the deploy runs: `events` is capped, and its oldest progress leaves first.
+   */
+  resources?: DeployResource[];
   /** Output that was not part of the protocol: stderr, and anything unparseable. */
   lines: string[];
   /** Present once the deploy has finished. */
@@ -125,6 +143,25 @@ export type WizardVerification = {
   /** Per-service outcomes, once there are any. Shape owned by the preflight engine. */
   services?: ServicePreflightResult[];
 };
+
+/**
+ * The CloudFormation template the configuration under review compiles to (`template-preview/`), or why it does not.
+ * `config` is the configuration text it was compiled from, so the page knows which edit it describes.
+ */
+export type WizardTemplatePreview =
+  | {
+      status: 'ready';
+      config: string;
+      /** The template as `stacktape synth` writes it, its resources grouped by the configuration's resource. */
+      text: string;
+      /** The resource of the configuration each logical ID was created for; absent for the stack's shared ones. */
+      owners: Record<string, string>;
+      stage: string;
+      region: string;
+    }
+  | { status: 'failed'; config: string; error: string }
+  /** Nothing to compile yet, or the file does not parse. */
+  | { status: 'unavailable'; detail: string };
 
 export type WizardState = {
   /**
@@ -162,6 +199,8 @@ export type WizardState = {
   preferences?: DeploymentPreferences;
   /** Fact-aware defaults used to mark the recommended card without overriding a changed choice. */
   recommendedPreferences?: DeploymentPreferences;
+  /** The database engine versions RDS offers, newest first, by engine: what the version setting lists. */
+  engineVersions?: Record<string, string[]>;
   /**
    * The configuration on disk, once the user has asked for it.
    *
@@ -182,6 +221,17 @@ export type WizardState = {
   region?: string;
   /** Who this machine is to AWS, resolved before the deploy step offers a button. */
   awsIdentity?: WizardAwsIdentity;
+  /**
+   * The AWS profiles on this machine and the one the wizard uses. `selected` is absent while the wizard uses the profile
+   * the CLI would pick by itself (`AWS_PROFILE`, the Stacktape default, else `default`), which `awsIdentity.profile`
+   * names. Absent when profiles cannot be listed or switched here.
+   */
+  awsProfiles?: { available: WizardAwsProfile[]; selected?: string };
+  /**
+   * Whether Docker answers on this machine. A release command on an SSR site builds an image, so the page offers it as
+   * the migration runner only when it does. Absent until checked.
+   */
+  docker?: { available: boolean };
   /**
    * Whether this machine is signed in to Stacktape. Neither generating nor deploying needs it: signed out, the deploy
    * runs on this machine's AWS credentials alone. Absent while checking.
@@ -234,6 +284,28 @@ export type WizardState = {
    * hold on the deploy button — the user has seen them and decided to proceed anyway.
    */
   verification?: WizardVerification;
+  /**
+   * The configuration as the user edited it by hand on the Review step. While present it is what gets written and
+   * deployed, and the infrastructure settings that would regenerate the file are off.
+   *
+   * A YAML edit is `yaml`. A TypeScript edit is `typescript`, with `yaml` the configuration it evaluated to last, which
+   * the diagram, the price and the secrets read. `error` says why the text does not parse or evaluate, `errorLine`
+   * where, when known.
+   */
+  configEdit?: { yaml: string; typescript?: string; error?: string; errorLine?: number };
+  /** Secrets set from the page in this session, by name, and whether the user said the rest already exist. */
+  secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
+  /**
+   * Secrets the user removed from the configuration on the Deploy step, by name: the variables that read them are gone
+   * from the file, until they are put back.
+   */
+  dismissedSecrets?: string[];
+  /** Saving pasted AWS access keys as a profile on this machine. Never carries the keys. */
+  awsKeys?: { status: 'saving' | 'saved' | 'failed'; detail?: string; profile?: string };
+  /** Folders below the project that look like apps of their own, for an analysis that found nothing to run. */
+  nearbyApps?: string[];
+  /** What each of `nearbyApps` is written in, by folder, when its marker files say ("Node.js", "Go"). */
+  nearbyAppKinds?: Record<string, string>;
   /** Normalised agent timeline, newest last. */
   timeline: Array<{ kind: string; label: string }>;
   facts?: unknown;
@@ -262,6 +334,11 @@ export type WizardServerHooks = {
   onMode: (mode: 'low-cost' | 'standard' | 'production') => Promise<WizardState> | WizardState;
   /** Called when one explicit infrastructure preference changes. */
   onPreference: (change: DeploymentPreferenceChange) => Promise<WizardState> | WizardState;
+  /**
+   * Called when one setting of one resource changes: its size, a standby copy, a domain. The session checks the value
+   * against the settings that resource offers before anything is written. Absent, the route answers with the state.
+   */
+  onSetting?: (change: SettingChange) => Promise<WizardState> | WizardState;
   /** Called when the user asks for the configuration to be written, in the format they chose. */
   onWrite: (format: 'yaml' | 'typescript') => Promise<void> | void;
   /** Called when the user asks to deploy. Publishes for itself, like `onStart`. */
@@ -307,6 +384,42 @@ export type WizardServerHooks = {
    * `onSignIn`: signing in and connecting finish minutes after the click.
    */
   onConsoleConnection: (action: 'connect' | 'dismiss') => Promise<void> | void;
+  /** The configuration edited by hand, in either format, or `null` to go back to the generated one. */
+  onConfigText?: (edit: { yaml: string } | { typescript: string } | null) => Promise<WizardState> | WizardState;
+  /**
+   * The CloudFormation template the configuration under review compiles to, for the page's read-only view. Compiled
+   * on this machine without AWS; absent when the session cannot compile.
+   */
+  onTemplate?: () => Promise<WizardTemplatePreview>;
+  /** Sets one secret the configuration reads, in the user's AWS account. The value is never stored or logged here. */
+  onSecret?: (input: { name: string; value: string }) => Promise<WizardState> | WizardState;
+  /** The user says the secrets the configuration reads already exist in their AWS account. */
+  onSecretsConfirmed?: () => Promise<WizardState> | WizardState;
+  /** Saves pasted AWS access keys as a profile on this machine, then checks the identity again. */
+  onAwsKeys?: (input: { accessKeyId: string; secretAccessKey: string }) => Promise<WizardState> | WizardState;
+  /** Deploys with another AWS profile on this machine: checks who it is, then the target again. */
+  onAwsProfile?: (profile: string) => Promise<WizardState> | WizardState;
+  /**
+   * Removes a secret the app does not need from the configuration (its variables and their `$Secret` references), or
+   * puts it back. Refused while the file is edited by hand.
+   */
+  onDismissSecret?: (input: { name: string; dismissed: boolean }) => Promise<WizardState> | WizardState;
+  /**
+   * The text of a repository file this session has seen (see `file-view.ts`), for the page's code window. Absent when
+   * the session has no repository on disk to read.
+   */
+  onFile?: (path: string) => Promise<FileView>;
+  /**
+   * The repository's file names (see `repository-tree.ts`), for the page to draw the project while it is read. Names
+   * only. Absent when the session has no repository on disk.
+   */
+  onTree?: () => Promise<RepositoryTree>;
+  /**
+   * The values the project's `.env` sets for the secrets the configuration reads, for the Deploy step's "Use the values
+   * from .env" (see `environment-values.ts`). They go to the page on this machine and, when the user saves them, into
+   * their AWS account; never into a log. Absent when the session has no repository on disk.
+   */
+  onEnvironmentValues?: () => Promise<EnvironmentValues>;
 };
 
 const json = (response: ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) => {
@@ -338,6 +451,8 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  // The `stacktape` type declarations the TypeScript editor checks against (`stacktape-types/*.d.ts`).
+  '.ts': 'text/plain; charset=utf-8',
   '.woff2': 'font/woff2'
 };
 
@@ -376,13 +491,19 @@ export const startWizardServer = async ({
   hooks,
   idleTimeoutMs = 30 * 60_000,
   staticRoot,
-  watchStatic = false
+  watchStatic = false,
+  configSchemaPath
 }: {
   initialState: WizardState;
   hooks: WizardServerHooks;
   idleTimeoutMs?: number;
   /** Reload connected pages when the bundle changes. For working on the wizard itself. */
   watchStatic?: boolean;
+  /**
+   * The Stacktape config JSON schema, served at `/config-schema.json` for the page's YAML editor (hover docs,
+   * completion, validation). Same-origin, so the strict CSP needs no change. Omitted, the editor works without them.
+   */
+  configSchemaPath?: string;
   /**
    * Directory holding the built wizard bundle.
    *
@@ -535,6 +656,18 @@ export const startWizardServer = async ({
       // byte-identical for every user and every run — the session data behind the gate below is what
       // actually needs protecting. Restricted to GET and to non-/api/ paths so no API route can ever
       // be shadowed by a file that happens to share its name.
+      // The config schema is public product data, the same file the CLI release ships beside its binary.
+      if (configSchemaPath !== undefined && request.method === 'GET' && url.pathname === '/config-schema.json') {
+        try {
+          const body = await readFile(configSchemaPath);
+          response.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': CONTENT_TYPES['.json']! });
+          response.end(body);
+        } catch {
+          json(response, 404, { error: 'The configuration schema is not available.' });
+        }
+        return;
+      }
+
       if (staticRoot !== undefined && request.method === 'GET' && !url.pathname.startsWith('/api/')) {
         // Normalised and confined to the bundle directory. The bundle is ours, but the path in the
         // request is not, and `/assets/../../..` is the oldest trick there is.
@@ -575,6 +708,47 @@ export const startWizardServer = async ({
       // Resuming an established session. The handshake token is single-use, so a page reload — which
       // is an entirely ordinary thing to do — has no token to present and must be able to continue
       // on the cookie alone. Without this, opening the wizard and pressing F5 ends the session.
+      // Repository content: same cookie as every route, and the CSRF token as well, although it only reads. Which files
+      // it may return is decided by `file-view.ts`, not by what the request asks for.
+      if (url.pathname === '/api/file' && request.method === 'GET' && hooks.onFile !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        const path = url.searchParams.get('path');
+        if (path === null || path.length === 0 || path.length > 1024) {
+          json(response, 400, { error: 'Expected a file path.' });
+          return;
+        }
+        json(response, 200, await hooks.onFile(path));
+        return;
+      }
+
+      // The repository's file names: same cookie and CSRF token as the file route. The session decides what is listed.
+      if (url.pathname === '/api/tree' && request.method === 'GET' && hooks.onTree !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        json(response, 200, await hooks.onTree());
+        return;
+      }
+
+      // Secret values from the project's `.env`: same cookie and CSRF token as the file route, and never logged. The
+      // session decides which variables, not the request.
+      if (
+        url.pathname === '/api/environment-values' &&
+        request.method === 'GET' &&
+        hooks.onEnvironmentValues !== undefined
+      ) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        json(response, 200, await hooks.onEnvironmentValues());
+        return;
+      }
+
       if (url.pathname === '/api/session' && request.method === 'GET') {
         json(response, 200, { csrfToken: secrets.csrfToken, state });
         return;
@@ -667,6 +841,25 @@ export const startWizardServer = async ({
             return;
           }
           json(response, 200, await hooks.onPreference(body));
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/setting' && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body: unknown = JSON.parse(await readBody(request));
+          // Only the shape here; whether the resource offers that setting and value is the session's to check.
+          if (!isSettingChange(body)) {
+            json(response, 400, { error: 'That is not a resource setting.' });
+            return;
+          }
+          json(response, 200, hooks.onSetting === undefined ? state : await hooks.onSetting(body));
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
         }
@@ -896,6 +1089,154 @@ export const startWizardServer = async ({
           json(response, 200, state);
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      // The four requests below carry what the user typed: a configuration, a secret value, AWS keys. Each is
+      // shape-checked here, and none of it is echoed in an error or written to a log.
+      if (url.pathname === '/api/config-text' && request.method === 'POST' && hooks.onConfigText !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request, 512 * 1024)) as { yaml?: unknown; typescript?: unknown };
+          const edit =
+            typeof body.typescript === 'string'
+              ? { typescript: body.typescript }
+              : typeof body.yaml === 'string'
+                ? { yaml: body.yaml }
+                : body.yaml === null
+                  ? null
+                  : undefined;
+          const text = edit === null || edit === undefined ? '' : 'yaml' in edit ? edit.yaml : edit.typescript;
+          if (edit === undefined || text.length > 256 * 1024) {
+            json(response, 400, { error: 'Expected the configuration text, or null.' });
+            return;
+          }
+          json(response, 200, await hooks.onConfigText(edit));
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
+        }
+        return;
+      }
+
+      // The compiled template: same cookie and CSRF token as the file route. It only reads, and compiling can take a
+      // second, so the page asks for it when it shows it rather than with every state.
+      if (url.pathname === '/api/template' && request.method === 'GET' && hooks.onTemplate !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        json(response, 200, await hooks.onTemplate());
+        return;
+      }
+
+      if (url.pathname === '/api/secret' && request.method === 'POST' && hooks.onSecret !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { name?: unknown; value?: unknown };
+          if (
+            typeof body.name !== 'string' ||
+            !/^[A-Za-z0-9_./+=@-]{1,256}$/.test(body.name) ||
+            typeof body.value !== 'string' ||
+            body.value.length === 0 ||
+            body.value.length > 32 * 1024
+          ) {
+            json(response, 400, { error: 'Expected a secret name and a value of up to 32 KB.' });
+            return;
+          }
+          json(response, 200, await hooks.onSecret({ name: body.name, value: body.value }));
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
+        }
+        return;
+      }
+
+      if (
+        url.pathname === '/api/secrets/confirm' &&
+        request.method === 'POST' &&
+        hooks.onSecretsConfirmed !== undefined
+      ) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        json(response, 200, await hooks.onSecretsConfirmed());
+        return;
+      }
+
+      if (url.pathname === '/api/aws-keys' && request.method === 'POST' && hooks.onAwsKeys !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { accessKeyId?: unknown; secretAccessKey?: unknown };
+          if (
+            typeof body.accessKeyId !== 'string' ||
+            !/^[A-Z0-9]{16,128}$/.test(body.accessKeyId) ||
+            typeof body.secretAccessKey !== 'string' ||
+            !/^[A-Za-z0-9/+=]{16,128}$/.test(body.secretAccessKey)
+          ) {
+            json(response, 400, {
+              error:
+                'Those do not look like AWS access keys. The key ID starts with AKIA and the secret is 40 characters.'
+            });
+            return;
+          }
+          json(
+            response,
+            200,
+            await hooks.onAwsKeys({ accessKeyId: body.accessKeyId, secretAccessKey: body.secretAccessKey })
+          );
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/aws-profile' && request.method === 'POST' && hooks.onAwsProfile !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { profile?: unknown };
+          // Only a name the session listed is used; the shape check keeps anything else out of an argument list.
+          if (typeof body.profile !== 'string' || !/^[A-Za-z0-9_.+=@-]{1,128}$/.test(body.profile)) {
+            json(response, 400, { error: 'Expected the name of an AWS profile on this machine.' });
+            return;
+          }
+          json(response, 200, await hooks.onAwsProfile(body.profile));
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/secret-dismiss' && request.method === 'POST' && hooks.onDismissSecret !== undefined) {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body = JSON.parse(await readBody(request)) as { name?: unknown; dismissed?: unknown };
+          if (
+            typeof body.name !== 'string' ||
+            !/^[A-Za-z0-9_./+=@-]{1,256}$/.test(body.name) ||
+            typeof body.dismissed !== 'boolean'
+          ) {
+            json(response, 400, { error: 'Expected a secret name and whether to remove it.' });
+            return;
+          }
+          json(response, 200, await hooks.onDismissSecret({ name: body.name, dismissed: body.dismissed }));
+        } catch {
+          json(response, 400, { error: 'Bad request.' });
         }
         return;
       }

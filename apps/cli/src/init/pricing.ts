@@ -38,6 +38,29 @@ export type PriceEstimate = {
    * by answer: `+$15/mo`, `-$4/mo`, or `Same price`. Only for answers that could be priced.
    */
   options?: Record<string, Record<string, string>>;
+  /** Each resource's fixed monthly amount, by name, for the share each takes of the total. Absent when unpriced. */
+  resourceFlat?: Record<string, number>;
+  /** What each resource's price is made of, as the estimator lists it: the instance, its storage, requests. */
+  lines?: Record<string, CostLine[]>;
+  /**
+   * For each resource's priced settings, what each option would cost: the resource's own fixed monthly amount and
+   * the whole stack's, keyed by resource, setting and the option's value as text.
+   */
+  settings?: Record<string, Record<string, Record<string, { resource?: number; total?: number }>>>;
+};
+
+/** One product of a resource's price: "RDS-instance-db.t4g.micro-postgres" at $11.68 a month. */
+export type CostLine = {
+  /** The estimator's product name, which the page turns into words. */
+  name: string;
+  priceModel: string;
+  /** The fixed monthly amount, for a flat-priced product. */
+  monthly?: number;
+  /** The rate, for a product billed by use: `0.2` per `1M requests`. */
+  rate?: number;
+  unit?: string;
+  /** How many units the configuration asks for (two instances, 20 GB). */
+  quantity?: number;
 };
 
 /**
@@ -67,8 +90,25 @@ export const estimateMonthlyCost = async (
     if (!result.success || result.costs === null) return undefined;
 
     const byResource: Record<string, string> = {};
+    const resourceFlat: Record<string, number> = {};
+    const lines: Record<string, CostLine[]> = {};
     for (const [name, info] of Object.entries(result.costs.resourcesBreakdown)) {
       const total = info.priceInfo.totalMonthlyFlat;
+      if (info.priceInfo.incomplete === false && total !== undefined) resourceFlat[name] = total;
+      lines[name] = info.priceInfo.costBreakdown.flatMap((item): CostLine[] =>
+        item.unsupportedProduct === true
+          ? []
+          : [
+              {
+                name: item.name,
+                priceModel: item.priceModel,
+                ...(typeof item.pricePerMonth === 'number' ? { monthly: item.pricePerMonth } : {}),
+                ...(typeof item.pricePerUnit === 'number' ? { rate: item.pricePerUnit } : {}),
+                ...(typeof item.unit === 'string' ? { unit: item.unit } : {}),
+                ...(typeof item.multiplier === 'number' ? { quantity: item.multiplier } : {})
+              }
+            ]
+      );
       const hasUsageCosts = info.priceInfo.costBreakdown.some(({ priceModel }) => priceModel === 'pay-per-use');
       byResource[name] =
         info.priceInfo.incomplete !== false
@@ -88,6 +128,8 @@ export const estimateMonthlyCost = async (
           : `${formatMonthly(result.costs.flatMonthlyCost)}${hasUsageCosts ? ' + pay-per-use costs' : ''}`,
       byResource,
       region,
+      resourceFlat,
+      lines,
       ...(result.costs.incomplete !== false ? {} : { flatMonthly: result.costs.flatMonthlyCost })
     };
   } catch {

@@ -21,14 +21,21 @@ import { writePipeline } from './cicd/write-pipeline';
 import { CODING_AGENT_IDS, getCodingAgent, type CodingAgentId } from '@domain-services/coding-agent-setup/agents';
 import { setUpCodingAgents } from '@domain-services/coding-agent-setup/setup';
 import { resolveAwsIdentity } from './deploy/credentials';
+import { setSecretWithCli } from './deploy/set-secret';
+import { findNearbyApps } from './nearby-apps';
+import { getAwsProfileDescriptions, upsertAwsProfile } from '@utils/aws-config';
+import { isDockerRunning } from '@utils/docker';
+import { CONFIG_SCHEMA_PATH } from '../config/project-paths';
 import { connectConsole, resolveStacktapeAccount } from './deploy/stacktape-account';
 import {
   deployCommandLine,
   inspectDeployTarget,
   readResourceUrl,
+  resolveSelfCommand,
   startDeploy,
   type DeployHandle
 } from './deploy/run-deploy';
+import { compileTemplatePreview } from './template-preview/compile';
 import { runAgentSessionWithRetry } from './agent/session-runner';
 import type { AgentEvent } from './agent/transport';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from './missions/greenfield';
@@ -200,6 +207,10 @@ export const canOpenBrowser = (env: NodeJS.ProcessEnv = process.env): boolean =>
  * a development checkout has it wherever Vite last wrote it. Returning undefined is a supported
  * outcome — the server simply has nothing to serve, and the URL is still printed.
  */
+/** The Stacktape config schema for the wizard's editor: beside a released binary, or in the workspace. */
+const findConfigSchema = (): string | undefined =>
+  [join(dirname(process.execPath), 'config-schema.json'), CONFIG_SCHEMA_PATH].find((path) => existsSync(path));
+
 export const findWizardBundle = (): string | undefined => {
   const candidates = [
     process.env.STACKTAPE_WIZARD_BUNDLE,
@@ -437,9 +448,11 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
   // Opened before anything is read, and nothing is read until the user says so. The analysis spends
   // their own agent subscription, so it starts on a button they pressed after seeing what it will do
   // — not as a side effect of typing a command.
+  const configSchemaPath = findConfigSchema();
   const session = await startWizardSession({
     projectName,
     repositoryPath: repositoryRoot,
+    repositoryRoot,
     ...(existingConfig === undefined ? {} : { existingConfig }),
     ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
     consoleUrl: new URL(stacktapeConsoleUrl()).origin,
@@ -476,12 +489,14 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       }
       return result;
     },
-    write: async ({ composition, format, region }) => {
+    write: async ({ composition, format, region, contents, replaces }) => {
       const written = await writeComposedConfig({
         repositoryRoot,
         composition,
         format,
         ...(region === undefined ? {} : { region }),
+        ...(contents === undefined ? {} : { contents }),
+        ...(replaces === undefined ? {} : { replaces }),
         ...(format === 'typescript' ? { stacktapeVersion: getStacktapeVersion() } : {})
       });
       for (const line of describeDevDependency(written)) say(line);
@@ -527,11 +542,14 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             return repaired;
           }
         }),
-    awsIdentity: () =>
+    // A profile picked on the page wins over the one this run started with, for every AWS call below.
+    awsIdentity: ({ profile }) =>
       resolveAwsIdentity({
         region: regionForNewConfig(options.machineRegion),
-        ...(options.awsProfile === undefined ? {} : { profile: options.awsProfile })
+        ...((profile ?? options.awsProfile) === undefined ? {} : { profile: profile ?? options.awsProfile })
       }),
+    awsProfiles: () => getAwsProfileDescriptions(),
+    dockerAvailable: () => isDockerRunning(),
     machineRegion: regionForNewConfig(options.machineRegion),
     stacktapeAccount: () => resolveStacktapeAccount(),
     ...(options.signIn === undefined ? {} : { signIn: options.signIn, connectConsole: () => connectConsole() }),
@@ -598,7 +616,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         };
       }
     },
-    inspectDeployTarget: async ({ configFile, stage, region }) => {
+    inspectDeployTarget: async ({ configFile, stage, region, profile }) => {
       const controller = new AbortController();
       const finished = inspectDeployTarget({
         request: {
@@ -607,6 +625,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
           projectName,
           stage,
           region,
+          ...(profile === undefined ? {} : { profile }),
           ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
         },
         signal: controller.signal
@@ -623,6 +642,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       configFile,
       stage,
       region,
+      profile,
       keepPartialProgress,
       targetExpectation,
       urlResourceNames,
@@ -637,6 +657,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         stage,
         region,
         projectName,
+        ...(profile === undefined ? {} : { profile }),
         ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
         ...(targetExpectation === undefined ? {} : { targetExpectation }),
         ...(keepPartialProgress === true ? { keepPartialProgress: true } : {})
@@ -691,6 +712,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
                 stage,
                 region,
                 resourceName,
+                ...(profile === undefined ? {} : { profile }),
                 ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
               }
             });
@@ -704,6 +726,33 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       return { ...outcome, urls: [...byUrl].map(([url, names]) => ({ resourceName: names.join(' and '), url })) };
     },
     ...(bundle === undefined ? {} : { staticRoot: bundle }),
+    ...(configSchemaPath === undefined ? {} : { configSchemaPath }),
+    // The CloudFormation view: this CLI compiles each template in a child of its own, offline.
+    templatePreview: (request) => compileTemplatePreview(request, resolveSelfCommand()),
+    setSecret: ({ name, value, region, profile }) =>
+      setSecretWithCli({
+        name,
+        value,
+        region,
+        ...((profile ?? options.awsProfile) === undefined ? {} : { profile: profile ?? options.awsProfile }),
+        ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
+      }),
+    // The profile the deploy would use, or `default` when there is none: the profile the AWS chain reads first.
+    createAwsProfile: async ({ accessKeyId, secretAccessKey, profile: picked }) => {
+      const profile = picked ?? options.awsProfile ?? 'default';
+      await upsertAwsProfile(profile, accessKeyId, secretAccessKey);
+      say(`\nSaved AWS access keys as profile ${profile}.`);
+      return { ok: true, profile, detail: `Saved as AWS profile ${profile} in ~/.aws/credentials.` };
+    },
+    ...(await (async () => {
+      const apps = await findNearbyApps(repositoryRoot);
+      return {
+        nearbyApps: apps.map((app) => app.path),
+        nearbyAppKinds: Object.fromEntries(
+          apps.flatMap((app) => (app.kind === undefined ? [] : [[app.path, app.kind]]))
+        )
+      };
+    })()),
     // Only in a development checkout. A released CLI serves a bundle that cannot change underneath
     // it, so watching would burn a file handle to wait for something that never happens.
     ...(process.env.STP_DEV_MODE === 'true' ? { watchStatic: true } : {})

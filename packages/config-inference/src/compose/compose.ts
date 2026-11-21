@@ -1493,7 +1493,9 @@ export const composeConfig = ({
         buildRoot: service.buildRoot ?? service.path,
         servicePath: service.path
       };
-    }
+    },
+    releaseTaskTargetOf: (service) =>
+      classifyService(service).resourceType.endsWith('-web') ? { servicePath: service.path } : undefined
   });
   gaps.push(...migrationHooks.gaps);
 
@@ -2503,6 +2505,7 @@ const buildServiceResource = ({
         ...(requiresVpc ? { serverLambda: { joinDefaultVpc: true } } : {}),
         ...shared,
         ...(webEnvironment.length === 0 ? {} : { environment: webEnvironment }),
+        ...(releaseCommand === undefined ? {} : { releaseCommand }),
         ...(service.devCommand === undefined ? {} : { dev: { command: service.devCommand } })
       }
     };

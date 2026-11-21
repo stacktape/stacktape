@@ -12,8 +12,20 @@
  * explainable, which is the whole point of carrying provenance around.
  */
 
+import { isMap, parse as parseYaml, parseDocument } from 'yaml';
 import { composeConfig, type CompositionResult } from '@stacktape/config-inference/compose';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
+import { engineReleaseLines } from '@stacktape/config-inference/compose/engine-versions';
+import {
+  applyWrites,
+  settingsForResource,
+  settingWrites,
+  type ResourceSetting,
+  type SettingChange,
+  type SettingsContext,
+  type SettingValue,
+  type SettingWrite
+} from '@stacktape/config-inference/compose/resource-settings';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import {
   DEPLOYMENT_PREFERENCE_OPTIONS,
@@ -29,19 +41,28 @@ import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-
 import { getStackName } from '@stacktape/naming/stacks';
 import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
 import type { DeployTargetExpectation, DeployTargetObservation } from '../deploy/stack-expectation';
-import { DEFAULT_PRICING_REGION, estimateMonthlyCost, formatMonthlyDelta, type PriceEstimate } from '../pricing';
+import { DEFAULT_PRICING_REGION, estimateMonthlyCost, type PriceEstimate } from '../pricing';
 import { renderTypeScript, renderYaml } from '../write-config';
 import type { PreflightResult } from '../preflight/preflight';
 import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
+import { readSeenFile, seenFilePaths } from './file-view';
+import { readRepositoryTree, type RepositoryTree } from './repository-tree';
+import { readEnvironmentValues } from './environment-values';
+import { evaluateTypescriptConfig } from './typescript-config';
+import type { TemplatePreviewRequest, TemplatePreviewResult } from '../template-preview/protocol';
+import { requiredSecretVariables } from '@stacktape/config-inference/compose/required-secrets';
 import {
   startWizardServer,
   type WizardAgentOption,
   type WizardAwsIdentity,
+  type WizardAwsProfile,
   type WizardDeployment,
   type WizardServer,
   type WizardState,
+  type WizardTemplatePreview,
   type WizardVerification
 } from './wizard-server';
+import { deployResourceList, foldDeployResource, recordDeployEvent, type DeployResource } from './deploy-resources';
 
 /** How often the page hears about a running deploy. Fast enough to feel live, slow enough to be cheap. */
 const PROGRESS_PUBLISH_INTERVAL_MS = 200;
@@ -79,6 +100,43 @@ const PUBLIC_URL_RESOURCE_TYPES: ReadonlySet<string> = new Set([
   'application-load-balancer'
 ]);
 
+const SECRET_REFERENCE = /\$Secret\('([^'.]+)(?:\.[^']*)?'\)/g;
+
+/**
+ * The composition without the variables that read secrets the user removed on the Deploy step: every `environment`
+ * entry whose value references one, wherever it sits (a resource, a container, a script). Nothing else changes, so the
+ * same facts and decisions with the same removals always give the same file.
+ */
+export const withoutDismissedSecrets = (
+  composition: CompositionResult,
+  dismissed: ReadonlySet<string>
+): CompositionResult => {
+  if (dismissed.size === 0) return composition;
+  const readsDismissed = (value: unknown): boolean =>
+    typeof value === 'string' && [...value.matchAll(SECRET_REFERENCE)].some((match) => dismissed.has(match[1]!));
+  const strip = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(strip);
+    if (typeof node !== 'object' || node === null) return node;
+    return Object.fromEntries(
+      Object.entries(node).flatMap(([key, value]) => {
+        if (key === 'environment' && Array.isArray(value)) {
+          const kept = value.filter(
+            (entry) =>
+              !(typeof entry === 'object' && entry !== null && readsDismissed((entry as { value?: unknown }).value))
+          );
+          return kept.length === 0 ? [] : [[key, kept.map(strip)]];
+        }
+        if (key === 'environment' && typeof value === 'object' && value !== null) {
+          const kept = Object.entries(value).filter(([, entry]) => !readsDismissed(entry));
+          return kept.length === 0 ? [] : [[key, Object.fromEntries(kept)]];
+        }
+        return [[key, strip(value)]];
+      })
+    );
+  };
+  return { ...composition, config: strip(composition.config) as CompositionResult['config'] };
+};
+
 /** Which top-level resources differ between two compositions — added, removed, or rewritten. */
 const changedResourceNames = (before: CompositionResult | undefined, after: CompositionResult): string[] => {
   const beforeResources: Record<string, unknown> = before?.config.resources ?? {};
@@ -105,6 +163,7 @@ export type WizardSession = {
 export const startWizardSession = async ({
   projectName,
   repositoryPath,
+  repositoryRoot = repositoryPath,
   existingConfig,
   awsAccount,
   consoleUrl,
@@ -117,6 +176,8 @@ export const startWizardSession = async ({
   verify,
   repair,
   awsIdentity,
+  awsProfiles,
+  dockerAvailable,
   machineRegion,
   stacktapeAccount,
   signIn,
@@ -128,11 +189,22 @@ export const startWizardSession = async ({
   preferences: initialPreferences,
   timeline = [],
   staticRoot,
-  watchStatic
+  watchStatic,
+  configSchemaPath,
+  setSecret,
+  createAwsProfile,
+  templatePreview,
+  nearbyApps,
+  nearbyAppKinds
 }: {
   projectName: string;
   /** Shown on the first screen so the user can see exactly which directory will be read. */
   repositoryPath?: string;
+  /**
+   * Where the repository is on disk, for showing the page the files the analysis looked at. Defaults to
+   * `repositoryPath`; a fixture shows one path and reads another. Absent, the page shows no file content.
+   */
+  repositoryRoot?: string;
   /** A configuration already in the repository. Never modified; the page names it before writing. */
   existingConfig?: string;
   /** The `--awsAccount` this run was started with, so commands the page hands out target the same account. */
@@ -164,6 +236,10 @@ export const startWizardSession = async ({
     format: 'yaml' | 'typescript';
     /** Region the file declares. The Deploy step then deploys there; changing it means editing the file. */
     region?: string;
+    /** The user's hand-edited file in `format`, written as it is instead of rendering the composition. */
+    contents?: string;
+    /** The file this session wrote before, replaced rather than kept as the user's own configuration. */
+    replaces?: string;
   }) => Promise<{ path: string; filename: string; existingPath?: string; region?: string }>;
   /**
    * Deploys the written configuration, reporting the CLI's own event stream as it goes.
@@ -175,6 +251,8 @@ export const startWizardSession = async ({
     configFile: { path: string; filename: string };
     stage: string;
     region: string;
+    /** The AWS profile the user picked on the page; absent for the one the CLI picks by itself. */
+    profile?: string;
     /**
      * Keep whatever was created when this attempt fails.
      *
@@ -198,6 +276,8 @@ export const startWizardSession = async ({
     configFile: { path: string; filename: string };
     stage: string;
     region: string;
+    /** The AWS profile the user picked on the page; absent for the one the CLI picks by itself. */
+    profile?: string;
   }) => Promise<DeployTargetObservation | undefined>;
   /**
    * Tries the composed services on this machine — build them, start them, watch what happens.
@@ -221,8 +301,15 @@ export const startWizardSession = async ({
     failure: DeployFailure;
     onProgress: (entry: { kind: string; label: string }) => void;
   }) => Promise<{ facts: ProjectFacts; composition: CompositionResult; changed: boolean }>;
-  /** Resolves who this machine is to AWS. Awaited lazily, so a slow answer never delays the page. */
-  awsIdentity?: () => Promise<WizardAwsIdentity>;
+  /**
+   * Resolves who this machine is to AWS, with the profile the user picked on the page, or the one the CLI picks by
+   * itself. Awaited lazily, so a slow answer never delays the page.
+   */
+  awsIdentity?: (input: { profile?: string }) => Promise<WizardAwsIdentity>;
+  /** The AWS profiles on this machine, by name and how they sign in. Absent, the page cannot switch profiles. */
+  awsProfiles?: () => Promise<WizardAwsProfile[]>;
+  /** Whether Docker answers on this machine, for the release command an SSR site builds an image for. */
+  dockerAvailable?: () => Promise<boolean>;
   /**
    * The region this machine's AWS setup names, resolved the way the CLI resolves it (`AWS_DEFAULT_REGION`,
    * `AWS_REGION`, the machine-wide Stacktape default, the AWS profile). The file declares it unless the user picks
@@ -273,9 +360,86 @@ export const startWizardSession = async ({
   staticRoot?: string;
   /** Reload connected pages when that bundle changes. For working on the wizard itself. */
   watchStatic?: boolean;
+  /** The Stacktape config JSON schema the page's YAML editor uses for hover docs, completion and validation. */
+  configSchemaPath?: string;
+  /**
+   * Stores one secret in the user's AWS account the way `stacktape secret set` does. The value goes to that command
+   * and nowhere else: not to the state, not to a log, not to Stacktape. Absent, the page shows the commands instead.
+   */
+  setSecret?: (input: {
+    name: string;
+    value: string;
+    region: string;
+    /** The AWS profile the user picked on the page; absent for the one the CLI picks by itself. */
+    profile?: string;
+  }) => Promise<{ ok: boolean; detail: string }>;
+  /**
+   * Saves pasted AWS access keys as a profile on this machine, like `stacktape aws-profile:create`, and says which
+   * profile it wrote. The identity is checked again afterwards. Absent, the page explains the terminal way only.
+   */
+  createAwsProfile?: (input: {
+    accessKeyId: string;
+    secretAccessKey: string;
+    /** The profile picked on the page, which the keys are saved as; absent for the one the CLI picks by itself. */
+    profile?: string;
+  }) => Promise<{ ok: boolean; detail: string; profile?: string }>;
+  /**
+   * Compiles the CloudFormation template for a configuration without AWS (`template-preview/compile.ts`), for the
+   * page's read-only template view. Absent, the page offers no template.
+   */
+  templatePreview?: (request: TemplatePreviewRequest) => Promise<TemplatePreviewResult>;
+  /** Folders below the project that look like apps of their own, offered when the analysis finds nothing to run. */
+  nearbyApps?: string[];
+  /** What each nearby folder is written in, by folder, when its marker files say ("Node.js", "Go"). */
+  nearbyAppKinds?: Record<string, string>;
 }): Promise<WizardSession> => {
   let facts = result?.facts;
   let composition = result?.composition;
+  /** The composition before the resource settings changed on the page were applied to it. */
+  let untweaked = composition;
+  /**
+   * Resource settings changed on the page, by resource and setting, in the order they were made. Applied on top of
+   * every recomposition, so changing a decision or a preference never undoes a size someone picked.
+   */
+  const tweaks = new Map<string, Map<string, SettingValue>>();
+  /** Secrets the user removed from the configuration on the Deploy step, by name. */
+  const dismissedSecrets = new Set<string>();
+  /**
+   * The composition without the secrets the user removed, and with every setting changed on the page applied, in order.
+   * A setting that no longer applies is skipped.
+   */
+  const withTweaks = (composed: CompositionResult): CompositionResult => {
+    const next = withoutDismissedSecrets(composed, dismissedSecrets);
+    if (tweaks.size === 0) return next;
+    const resources = { ...next.config.resources };
+    for (const [name, settings] of tweaks) {
+      let resource = resources[name];
+      if (resource === undefined) continue;
+      for (const [setting, value] of settings) {
+        const outcome = settingWrites(resource, { setting, value }, SETTINGS_CONTEXT);
+        if ('writes' in outcome)
+          resource = { ...resource, properties: applyWrites(resource.properties, outcome.writes) };
+      }
+      resources[name] = resource;
+    }
+    return { ...next, config: { ...next.config, resources } };
+  };
+  /**
+   * The configuration as edited by hand. While set, it is the file that is written and deployed. A TypeScript edit
+   * carries the text and, as `yaml`, the configuration it evaluated to last.
+   */
+  let configEdit: NonNullable<WizardState['configEdit']> | undefined;
+  /** Counts edits, so an evaluation that finishes after a newer edit arrived is dropped. */
+  let configEditCount = 0;
+  /** Compiled templates by what they were compiled from, newest last: the page asks again after every change. */
+  const templates = new Map<string, Promise<WizardTemplatePreview>>();
+  /** Secrets set from the page this session; the values themselves are never kept. */
+  const secretsSet = new Set<string>();
+  let secretsConfirmed = false;
+  /** The file this session last wrote, which a later save replaces. */
+  let ownFile: string | undefined;
+  let secretFailure: { name: string; detail: string } | undefined;
+  let awsKeys: WizardState['awsKeys'];
   let price: PriceEstimate | undefined;
   /** The last price request came back empty, so the page says so instead of waiting for it. */
   let priceUnavailable = false;
@@ -297,6 +461,18 @@ export const startWizardSession = async ({
     const region = declaredRegion();
     price = undefined;
     priceUnavailable = false;
+    if (configEdit !== undefined) {
+      // The edited text is what deploys, so it is what gets priced, with each setting's options written into it.
+      const edit = configEdit;
+      if (edit.error !== undefined) return;
+      void priceEditWithOptions(edit.yaml, regionOfText(edit.yaml) ?? region).then((estimate) => {
+        if (configEdit !== edit) return;
+        price = estimate;
+        priceUnavailable = estimate === undefined;
+        publish(buildState());
+      });
+      return;
+    }
     void priceWithOptions(current, region).then((estimate) => {
       // Another recomposition or region may have come in while this was in flight. Its own call publishes.
       if (composition !== current || declaredRegion() !== region) return;
@@ -306,49 +482,149 @@ export const startWizardSession = async ({
     });
   };
 
+  /** Estimates by region and file: a setting changed back, or an option priced before, costs no second request. */
+  const estimates = new Map<string, Promise<PriceEstimate | undefined>>();
+  const estimateOnce = (yaml: string, region: string | undefined): Promise<PriceEstimate | undefined> => {
+    const key = `${region ?? ''}\n${yaml}`;
+    let estimate = estimates.get(key);
+    if (estimate === undefined) {
+      // A long session prices many files; the oldest are the least likely to come back.
+      if (estimates.size > 300) estimates.delete(estimates.keys().next().value!);
+      estimate = estimateMonthlyCost(yaml, region);
+      estimates.set(key, estimate);
+      // An answer that did not come (offline, rate-limited) is asked for again next time.
+      void estimate.then((answer) => {
+        if (answer === undefined) estimates.delete(key);
+      });
+    }
+    return estimate;
+  };
+
   /**
-   * The price, and what every other answer to each infrastructure choice would change it by.
+   * The price, and what each option of each resource's priced settings would cost.
    *
-   * A choice card that says "Roughly doubles them" makes the developer guess. Each alternative is
-   * the same facts and decisions composed with one choice changed, priced the same way. An
-   * alternative that composes to the same file costs the same and needs no request, so a project
-   * without a database never prices the database choices.
+   * A size list that says "Large" makes the developer guess. Each option is the same file with that one setting
+   * changed, priced the same way: the resource's own amount for its size list, and the stack's total for a change
+   * that adds resources (a private database adds its access server). An option that composes the same file costs the
+   * same and needs no request.
    */
   const priceWithOptions = async (
     current: CompositionResult,
     region: string | undefined
   ): Promise<PriceEstimate | undefined> => {
-    const baseYaml = renderYaml(current);
-    const base = await estimateMonthlyCost(baseYaml, region);
-    if (base?.flatMonthly === undefined || facts === undefined) return base;
-    const baseFlat = base.flatMonthly;
     const currentFacts = facts;
-    const alternatives = (Object.keys(DEPLOYMENT_PREFERENCE_OPTIONS) as DeploymentPreferenceKey[]).flatMap((key) =>
-      DEPLOYMENT_PREFERENCE_OPTIONS[key]
-        .filter((value) => value !== current.preferences[key])
-        .map((value) => ({ key, value }))
-    );
-    const priced = await Promise.all(
-      alternatives.map(async ({ key, value }) => {
-        const alternative = composeConfig({
-          facts: currentFacts,
-          projectName,
-          preferences: { ...current.preferences, [key]: value },
-          decisions: answers,
-          engineVersions: versionJson.rds
-        });
-        const yaml = renderYaml(alternative);
-        if (yaml === baseYaml) return { key, value, delta: 0 };
-        const estimate = await estimateMonthlyCost(yaml, region);
-        return { key, value, delta: estimate?.flatMonthly === undefined ? undefined : estimate.flatMonthly - baseFlat };
-      })
-    );
-    const options: Record<string, Record<string, string>> = {};
-    for (const { key, value, delta } of priced) {
-      if (delta === undefined) continue;
-      options[key] = { ...options[key], [value]: formatMonthlyDelta(delta) };
+    return priceSettings({
+      resources: current.config.resources,
+      baseYaml: renderYaml(current),
+      region,
+      variantYaml: (name, setting, value) => {
+        const preference = setting.preference;
+        if (preference !== undefined && currentFacts === undefined) return undefined;
+        const variant =
+          preference === undefined
+            ? withSetting(current, name, setting.id, value)
+            : withTweaks(
+                composeConfig({
+                  facts: currentFacts!,
+                  projectName,
+                  preferences: { ...current.preferences, [preference]: value } as DeploymentPreferences,
+                  decisions: answers,
+                  engineVersions: versionJson.rds
+                })
+              );
+        return variant === undefined ? undefined : renderYaml(variant);
+      }
+    });
+  };
+
+  /**
+   * The same for a file edited by hand: each option is written into the text the way the setting would write it. A
+   * setting that recomposes the file (a private database) waits while it has hand edits, so it is not priced.
+   */
+  const priceEditWithOptions = async (yaml: string, region: string | undefined): Promise<PriceEstimate | undefined> => {
+    const resources = resourcesOfText(yaml);
+    if (resources === undefined) return estimateOnce(yaml, region);
+    return priceSettings({
+      resources,
+      baseYaml: yaml,
+      region,
+      variantYaml: (name, setting, value) => {
+        if (setting.preference !== undefined) return undefined;
+        const outcome = settingWrites(resources[name]!, { setting: setting.id, value }, SETTINGS_CONTEXT);
+        return 'refused' in outcome ? undefined : writeIntoText(yaml, name, outcome.writes);
+      }
+    });
+  };
+
+  /** The file's price, and each option of each priced setting priced as the same file with that one option changed. */
+  const priceSettings = async ({
+    resources,
+    baseYaml,
+    region,
+    variantYaml
+  }: {
+    resources: Record<string, { type: string; properties: Record<string, unknown> }>;
+    baseYaml: string;
+    region: string | undefined;
+    variantYaml: (resourceName: string, setting: ResourceSetting, value: SettingValue) => string | undefined;
+  }): Promise<PriceEstimate | undefined> => {
+    const base = await estimateOnce(baseYaml, region);
+    if (base?.flatMonthly === undefined) return base;
+    const settings: NonNullable<PriceEstimate['settings']> = {};
+    const record = (resource: string, setting: string, value: SettingValue, estimate: PriceEstimate | undefined) => {
+      const resourceAmount = estimate?.resourceFlat?.[resource];
+      settings[resource] ??= {};
+      settings[resource][setting] = {
+        ...settings[resource][setting],
+        [String(value)]: {
+          ...(resourceAmount === undefined ? {} : { resource: resourceAmount }),
+          ...(estimate?.flatMonthly === undefined ? {} : { total: estimate.flatMonthly })
+        }
+      };
+    };
+    const variants: Array<() => Promise<void>> = [];
+    for (const [name, resource] of Object.entries(resources)) {
+      for (const setting of settingsForResource(resource, SETTINGS_CONTEXT)) {
+        if (!setting.priced || setting.disabledReason !== undefined) continue;
+        for (const option of setting.options) {
+          if (option.disabledReason !== undefined) continue;
+          if (option.value === setting.value) {
+            record(name, setting.id, option.value, base);
+            continue;
+          }
+          variants.push(async () => {
+            const yaml = variantYaml(name, setting, option.value);
+            if (yaml === undefined) return;
+            record(name, setting.id, option.value, yaml === baseYaml ? base : await estimateOnce(yaml, region));
+          });
+        }
+      }
     }
-    return { ...base, options };
+    await Promise.all(variants.map((variant) => variant()));
+    return { ...base, settings };
+  };
+
+  /** `current` with one resource's setting changed, or undefined when the resource does not offer that value. */
+  const withSetting = (
+    current: CompositionResult,
+    resourceName: string,
+    setting: string,
+    value: SettingValue
+  ): CompositionResult | undefined => {
+    const resource = current.config.resources[resourceName];
+    if (resource === undefined) return undefined;
+    const outcome = settingWrites(resource, { setting, value }, SETTINGS_CONTEXT);
+    if ('refused' in outcome) return undefined;
+    return {
+      ...current,
+      config: {
+        ...current.config,
+        resources: {
+          ...current.config.resources,
+          [resourceName]: { ...resource, properties: applyWrites(resource.properties, outcome.writes) }
+        }
+      }
+    };
   };
 
   /**
@@ -366,13 +642,15 @@ export const startWizardSession = async ({
         .every(
           (value) =>
             renderYaml(
-              composeConfig({
-                facts: currentFacts,
-                projectName,
-                preferences: { ...current.preferences, [key]: value },
-                decisions: answers,
-                engineVersions: versionJson.rds
-              })
+              withTweaks(
+                composeConfig({
+                  facts: currentFacts,
+                  projectName,
+                  preferences: { ...current.preferences, [key]: value },
+                  decisions: answers,
+                  engineVersions: versionJson.rds
+                })
+              )
             ) === baseYaml
         )
     );
@@ -392,8 +670,10 @@ export const startWizardSession = async ({
    * YAML is rendered inline because it is a string join; the TypeScript rendering runs Prettier, so
    * it arrives a beat later, like the price.
    */
-  const adoptComposition = (next: NonNullable<typeof composition>): void => {
-    composition = next;
+  const adoptComposition = (adopted: NonNullable<typeof composition>): void => {
+    // Whatever produced it (an answer, a repair), the secrets the user removed stay removed.
+    untweaked = withoutDismissedSecrets(adopted, dismissedSecrets);
+    composition = withTweaks(untweaked);
     // A different configuration is a different thing to prove. Results earned against the old one
     // must neither gate nor vouch for the new one. The file on disk is another derivative: keeping
     // its handle would let a direct mode/answer request show one configuration while deploy reads
@@ -401,7 +681,8 @@ export const startWizardSession = async ({
     verification = undefined;
     deployTarget = undefined;
     configFile = undefined;
-    renderConfigText(next);
+    configEdit = undefined;
+    renderConfigText(composition);
     // The request that caused this change gets the new state in its response, but other connected
     // tabs only hear broadcasts. Publish the synchronous YAML state now rather than making them
     // wait for pricing or TypeScript rendering to finish successfully.
@@ -471,6 +752,13 @@ export const startWizardSession = async ({
   let mode: InfrastructureMode | undefined = initialMode;
   let verification: WizardVerification | undefined;
   const answers: Record<string, string> = {};
+  /** The AWS profile the user picked on the page. Absent: the one the CLI picks by itself. */
+  let selectedProfile: string | undefined;
+  /** The profiles on this machine, listed once and again on a recheck. */
+  let profiles: WizardAwsProfile[] | undefined;
+  let docker: boolean | undefined;
+  /** The profile flag every AWS call from here passes, so the page, the target check and the deploy agree. */
+  const profileInput = (): { profile?: string } => (selectedProfile === undefined ? {} : { profile: selectedProfile });
 
   /**
    * Whether the local try-out holds the deploy button.
@@ -576,7 +864,7 @@ export const startWizardSession = async ({
         adoptComposition(repaired.composition);
         if (write !== undefined && previousConfigFile !== undefined) {
           const written = await write({
-            composition: repaired.composition,
+            composition: composition!,
             format: previousConfigFile.format,
             region: previousConfigFile.region
           }).catch(() => undefined);
@@ -640,6 +928,12 @@ export const startWizardSession = async ({
     ...(configFile === undefined ? {} : { configFile }),
     region: declaredRegion(),
     ...(identity === undefined ? {} : { awsIdentity: identity }),
+    ...(profiles === undefined || profiles.length === 0
+      ? {}
+      : {
+          awsProfiles: { available: profiles, ...(selectedProfile === undefined ? {} : { selected: selectedProfile }) }
+        }),
+    ...(docker === undefined ? {} : { docker: { available: docker } }),
     ...(account === undefined ? {} : { stacktapeAccount: account }),
     // Only while signed out: once the account check passes there is no step left to render.
     ...(signInFlow === undefined || account?.signedIn === true ? {} : { signIn: signInFlow.state() }),
@@ -652,9 +946,24 @@ export const startWizardSession = async ({
       ? {}
       : {
           preferences: composition.preferences,
-          recommendedPreferences: composition.recommendedPreferences
+          recommendedPreferences: composition.recommendedPreferences,
+          engineVersions: SETTINGS_CONTEXT.engineVersions as Record<string, string[]>
         }),
     ...(pipeline === undefined ? {} : { pipeline }),
+    ...(configEdit === undefined ? {} : { configEdit }),
+    ...(setSecret === undefined
+      ? {}
+      : {
+          secrets: {
+            set: [...secretsSet],
+            confirmed: secretsConfirmed,
+            ...(secretFailure === undefined ? {} : { failure: secretFailure })
+          }
+        }),
+    ...(awsKeys === undefined ? {} : { awsKeys }),
+    ...(dismissedSecrets.size === 0 ? {} : { dismissedSecrets: [...dismissedSecrets] }),
+    ...(nearbyApps === undefined || nearbyApps.length === 0 ? {} : { nearbyApps }),
+    ...(nearbyAppKinds === undefined || Object.keys(nearbyAppKinds).length === 0 ? {} : { nearbyAppKinds }),
     ...codingAgentSetupState(),
     ...consoleConnectionState(),
     timeline,
@@ -693,6 +1002,16 @@ export const startWizardSession = async ({
     ...(failure === undefined ? {} : { error: failure })
   });
 
+  /**
+   * Publishes the current state and returns it as published, with its revision. The page drops a reply older than
+   * what it holds, so a reply without a revision would be ignored.
+   */
+  const publishNow = (): WizardState => {
+    publish(buildState());
+    return currentPublished();
+  };
+  let currentPublished: () => WizardState = buildState;
+
   const deploymentInFlight = (): boolean => deployment?.status === 'running' || deployment?.status === 'repairing';
 
   /** Set once the server exists, so the mission can push progress after the start request returns. */
@@ -706,12 +1025,30 @@ export const startWizardSession = async ({
   /** Ask AWS who this machine is, again if asked: a failure to ask is a failure to answer. */
   const resolveIdentity = async (): Promise<void> => {
     if (awsIdentity === undefined) return;
+    const asked = selectedProfile;
+    let answer: WizardAwsIdentity;
     try {
-      identity = await awsIdentity();
+      answer = await awsIdentity(profileInput());
     } catch {
-      identity = { available: false, reason: 'rejected', detail: 'Could not check AWS credentials.' };
+      answer = { available: false, reason: 'rejected', detail: 'Could not check AWS credentials.' };
     }
+    // Another profile was picked while this one was asked about: its own check publishes.
+    if (asked !== selectedProfile) return;
+    identity = answer;
     followDeclaredRegion();
+    publish(buildState());
+  };
+
+  /** The profiles on this machine, for the page's profile picker. Names and kinds only. */
+  const resolveProfiles = async (): Promise<void> => {
+    if (awsProfiles === undefined) return;
+    profiles = await awsProfiles().catch(() => undefined);
+    publish(buildState());
+  };
+
+  const resolveDocker = async (): Promise<void> => {
+    if (dockerAvailable === undefined) return;
+    docker = await dockerAvailable().catch(() => false);
     publish(buildState());
   };
 
@@ -773,10 +1110,14 @@ export const startWizardSession = async ({
     });
   }
 
+  /** The repository's file names, listed on the page's first request for them. */
+  let repositoryTree: Promise<RepositoryTree> | undefined;
+
   const server = await startWizardServer({
     initialState: buildState(),
     ...(staticRoot === undefined ? {} : { staticRoot }),
     ...(watchStatic === undefined ? {} : { watchStatic }),
+    ...(configSchemaPath === undefined ? {} : { configSchemaPath }),
     hooks: {
       onRecheck: async () => {
         // Cleared first, so the page shows "checking…" rather than yesterday's answer while it waits.
@@ -784,7 +1125,7 @@ export const startWizardSession = async ({
         account = undefined;
         deployTarget = undefined;
         publish(buildState());
-        await Promise.all([resolveIdentity(), resolveAccount()]);
+        await Promise.all([resolveIdentity(), resolveAccount(), resolveProfiles(), resolveDocker()]);
         return buildState();
       },
       onStart: (requested) => {
@@ -874,9 +1215,12 @@ export const startWizardSession = async ({
         let targetExpectation: DeployTargetExpectation | undefined;
         if (inspectDeployTarget !== undefined) {
           checkingDeployTarget = true;
-          const observed = await inspectDeployTarget({ configFile: reviewedConfigFile, stage, region }).catch(
-            () => undefined
-          );
+          const observed = await inspectDeployTarget({
+            configFile: reviewedConfigFile,
+            stage,
+            region,
+            ...profileInput()
+          }).catch(() => undefined);
           checkingDeployTarget = false;
           // A target approval is for the configuration on screen when the check began. A concurrent
           // mode/decision/write request invalidates it even if account and stack name stayed equal.
@@ -961,6 +1305,9 @@ export const startWizardSession = async ({
           }, PROGRESS_PUBLISH_INTERVAL_MS).unref?.();
         };
 
+        // Every CloudFormation tick, folded per resource: the event list below is capped, this is not.
+        let resources = new Map<string, DeployResource>();
+
         const record = <T>(list: T[], entry: T, cap: number): T[] => {
           list.push(entry);
           // Oldest first out. A long deploy must not grow the state without bound, and the interesting
@@ -975,6 +1322,7 @@ export const startWizardSession = async ({
               configFile: configFile!,
               stage,
               region,
+              ...profileInput(),
               ...(targetExpectation === undefined ? {} : { targetExpectation }),
               urlResourceNames:
                 composition === undefined
@@ -995,7 +1343,8 @@ export const startWizardSession = async ({
                   const { data: _data, ...withoutData } = event as Record<string, unknown>;
                   return withoutData;
                 })();
-                deployment.events = record(deployment.events, browserEvent, MAX_DEPLOY_EVENTS);
+                deployment.events = recordDeployEvent(deployment.events, browserEvent, MAX_DEPLOY_EVENTS);
+                if (foldDeployResource(resources, event)) deployment.resources = deployResourceList(resources);
                 publishSoon();
               },
               onLine: (line) => {
@@ -1071,6 +1420,8 @@ export const startWizardSession = async ({
               failed?.worthRetrying === true &&
               attempt < MAX_DEPLOY_ATTEMPTS &&
               repair !== undefined &&
+              // A repair rewrites the file from the composition, which would throw away the user's own edits.
+              configEdit === undefined &&
               facts !== undefined &&
               write !== undefined &&
               // "Files only" was an explicit decision that no agent reads this code. A failed
@@ -1119,7 +1470,7 @@ export const startWizardSession = async ({
 
             // Named by diffing what was reviewed against what will deploy now, so the page can say
             // where the configurations differ. Computed here, never taken from the agent's words.
-            const changedResources = changedResourceNames(composition, repaired.composition);
+            const changedResources = changedResourceNames(composition, withTweaks(repaired.composition));
             const previousConfigFile = configFile!;
             facts = repaired.facts;
             adoptComposition(repaired.composition);
@@ -1140,8 +1491,10 @@ export const startWizardSession = async ({
               // A retry is a fresh attempt as far as the page is concerned; keeping the old stream
               // would make it look like one long failing deploy.
               events: [],
+              resources: [],
               lines: []
             };
+            resources = new Map();
             publish(buildState());
             repriceInBackground();
           }
@@ -1213,20 +1566,85 @@ export const startWizardSession = async ({
       onRegion: (region) => {
         // A written file declares its region; it is picked before writing. Only a region the CLI deploys to can be
         // written into the file.
-        if (configFile !== undefined || !(SUPPORTED_AWS_REGIONS as readonly string[]).includes(region)) {
+        // An edited file declares its own region, and a deploy reads the file on disk; neither is changed under them.
+        if (
+          configEdit !== undefined ||
+          deploymentInFlight() ||
+          !(SUPPORTED_AWS_REGIONS as readonly string[]).includes(region)
+        ) {
           return buildState();
         }
         chosenRegion = region;
+        // A written file declares the old region. Dropping its handle makes the page write it again before a deploy.
+        if (configFile !== undefined && configFile.region !== region) {
+          configFile = undefined;
+          deployTarget = undefined;
+        }
         followDeclaredRegion();
         return buildState();
       },
       onPreference: (change: DeploymentPreferenceChange) => {
-        if (facts === undefined || composition === undefined || deploymentInFlight()) return buildState();
+        if (facts === undefined || composition === undefined || deploymentInFlight() || configEdit !== undefined) {
+          return buildState();
+        }
         mode = undefined;
         const preferences = { ...composition.preferences, [change.key]: change.value } as DeploymentPreferences;
         adoptComposition(
           composeConfig({ facts, projectName, preferences, decisions: answers, engineVersions: versionJson.rds })
         );
+        return buildState();
+      },
+      onSetting: (change: SettingChange) => {
+        if (facts === undefined || composition === undefined || untweaked === undefined || deploymentInFlight()) {
+          return buildState();
+        }
+        const edit = configEdit;
+        // The file being shown: the edited text when there is one, which the setting then edits in place.
+        const resources = edit === undefined ? composition.config.resources : resourcesOfText(edit.yaml);
+        const resource = resources?.[change.resource];
+        const setting =
+          resource === undefined
+            ? undefined
+            : settingsForResource(resource, SETTINGS_CONTEXT).find((candidate) => candidate.id === change.setting);
+        if (resource === undefined || setting === undefined || setting.disabledReason !== undefined) {
+          return buildState();
+        }
+        if (setting.preference !== undefined) {
+          // A preference recomposes the generated file (it can add the database's access server); an edited file is
+          // the user's, and is not regenerated under them.
+          const allowed = DEPLOYMENT_PREFERENCE_OPTIONS[setting.preference] as readonly SettingValue[];
+          if (edit !== undefined || !allowed.includes(change.value)) return buildState();
+          mode = undefined;
+          adoptComposition(
+            composeConfig({
+              facts,
+              projectName,
+              preferences: { ...composition.preferences, [setting.preference]: change.value } as DeploymentPreferences,
+              decisions: answers,
+              engineVersions: versionJson.rds
+            })
+          );
+          return buildState();
+        }
+        const outcome = settingWrites(resource, change, SETTINGS_CONTEXT);
+        if ('refused' in outcome) return buildState();
+        if (edit !== undefined) {
+          // A setting is written into YAML text; a stacktape.ts edit is the user's code, so settings wait for it.
+          if (edit.error !== undefined || edit.typescript !== undefined) return buildState();
+          const yaml = writeIntoText(edit.yaml, change.resource, outcome.writes);
+          configEdit = { yaml, ...yamlError(yaml) };
+          configFile = undefined;
+          deployTarget = undefined;
+          verification = undefined;
+          repriceInBackground();
+          return publishNow();
+        }
+        const forResource = tweaks.get(change.resource) ?? new Map<string, SettingValue>();
+        // Moved to the end: re-applied after anything it may depend on (copies running before the most copies).
+        forResource.delete(change.setting);
+        forResource.set(change.setting, change.value);
+        tweaks.set(change.resource, forResource);
+        adoptComposition(untweaked);
         return buildState();
       },
       onWrite: async (format) => {
@@ -1235,10 +1653,25 @@ export const startWizardSession = async ({
         if (write === undefined || composition === undefined || deploymentInFlight()) return;
         // Decided now, not when the preview was rendered: the identity check may have answered since.
         const region = declaredRegion();
-        const written = await write({ composition, format, region });
+        const edit = configEdit;
+        if (edit?.error !== undefined) return;
+        const replaces = ownFile === undefined ? {} : { replaces: ownFile };
+        // An edited file is written in the format it was edited in, exactly as typed.
+        const editedFormat = edit?.typescript === undefined ? 'yaml' : 'typescript';
+        const written =
+          edit === undefined
+            ? await write({ composition, format, region, ...replaces })
+            : await write({
+                composition,
+                format: editedFormat,
+                region: regionOfText(edit.yaml) ?? region,
+                contents: edit.typescript ?? edit.yaml,
+                ...replaces
+              });
+        ownFile = written.path;
         // A later change of decisions rewrites the file to the region the user has already seen in it.
         chosenRegion = written.region ?? region;
-        configFile = { ...written, format };
+        configFile = { ...written, format: edit === undefined ? format : editedFormat };
         deployTarget = undefined;
         publish(buildState());
       },
@@ -1258,11 +1691,238 @@ export const startWizardSession = async ({
         }
         return buildState();
       },
+      ...(repositoryRoot === undefined
+        ? {}
+        : {
+            // Walked once: the page asks while the analysis reads, and nothing it lists changes meanwhile.
+            onTree: () => (repositoryTree ??= readRepositoryTree({ repositoryRoot })),
+            onFile: (path: string) =>
+              readSeenFile({
+                repositoryRoot,
+                path,
+                // Recomputed per request: the timeline grows while the agent reads, and the facts arrive at the end.
+                seen: seenFilePaths({
+                  timeline,
+                  evidenceSources: [
+                    facts,
+                    composition?.provenance,
+                    composition?.assumptions,
+                    composition?.unsetSettings
+                  ]
+                })
+              }),
+            // Only the variables the configuration about to be deployed reads as secrets: the hand-edited text when
+            // there is one, else the composition. No other key of `.env` leaves the file.
+            onEnvironmentValues: () => {
+              let resources: Record<string, unknown> = composition?.config.resources ?? {};
+              if (configEdit !== undefined) {
+                try {
+                  const parsed = parseYaml(configEdit.yaml) as { resources?: unknown } | null;
+                  resources =
+                    typeof parsed?.resources === 'object' && parsed.resources !== null
+                      ? (parsed.resources as Record<string, unknown>)
+                      : {};
+                } catch {
+                  resources = {};
+                }
+              }
+              return readEnvironmentValues({ repositoryRoot, names: new Set(requiredSecretVariables(resources)) });
+            }
+          }),
+      onConfigText: async (edit) => {
+        if (composition === undefined || deploymentInFlight()) return buildState();
+        const count = (configEditCount += 1);
+        // Back to generated, or an edit that changed nothing: the composition is the file again.
+        if (
+          edit === null ||
+          ('yaml' in edit && edit.yaml === configText?.yaml) ||
+          ('typescript' in edit && edit.typescript === configText?.typescript)
+        ) {
+          if (configEdit === undefined) return buildState();
+          configEdit = undefined;
+        } else if ('yaml' in edit) {
+          configEdit = { yaml: edit.yaml, ...yamlError(edit.yaml) };
+        } else {
+          // TypeScript is run to learn the configuration it defines; the diagram, price and secrets follow that.
+          const evaluation = await evaluateTypescriptConfig({
+            source: edit.typescript,
+            projectName,
+            region: declaredRegion()
+          });
+          if (count !== configEditCount || composition === undefined || deploymentInFlight()) return buildState();
+          configEdit =
+            'yaml' in evaluation
+              ? { yaml: evaluation.yaml, typescript: edit.typescript }
+              : {
+                  // The last configuration it evaluated to, so the picture holds still while the text is being fixed.
+                  yaml: configEdit?.typescript === undefined ? (configText?.yaml ?? '') : configEdit.yaml,
+                  typescript: edit.typescript,
+                  error: evaluation.error,
+                  ...(evaluation.line === undefined ? {} : { errorLine: evaluation.line })
+                };
+        }
+        configFile = undefined;
+        deployTarget = undefined;
+        verification = undefined;
+        repriceInBackground();
+        return publishNow();
+      },
+      ...(templatePreview === undefined
+        ? {}
+        : {
+            onTemplate: (): Promise<WizardTemplatePreview> => {
+              const edit = configEdit;
+              if (edit?.error !== undefined) {
+                return Promise.resolve({
+                  status: 'unavailable',
+                  detail: 'The file has an error. Fix it to see its template.'
+                });
+              }
+              const yaml = edit?.yaml ?? configText?.yaml;
+              if (yaml === undefined) {
+                return Promise.resolve({ status: 'unavailable', detail: 'There is no configuration yet.' });
+              }
+              const region = regionOfText(yaml) ?? declaredRegion();
+              const accountId = identity?.available === true ? identity.accountId : undefined;
+              const consoleConnected = account?.signedIn === true;
+              const key = JSON.stringify([yaml, region, accountId, consoleConnected]);
+              const cached = templates.get(key);
+              if (cached !== undefined) return cached;
+              const parsed = parseYaml(yaml) as Record<string, unknown>;
+              const stage = 'dev';
+              const compiled = templatePreview({
+                config: parsed,
+                projectName: typeof parsed.projectName === 'string' ? parsed.projectName : projectName,
+                stage,
+                region,
+                ...(accountId === undefined ? {} : { accountId }),
+                workingDir: repositoryRoot ?? process.cwd(),
+                consoleConnected
+              }).then((result): WizardTemplatePreview =>
+                'error' in result
+                  ? { status: 'failed', config: yaml, error: result.error }
+                  : { status: 'ready', config: yaml, text: result.text, owners: result.owners, stage, region }
+              );
+              templates.set(key, compiled);
+              // A handful is plenty: the page asks for the current configuration, and going back to one is common.
+              for (const old of [...templates.keys()].slice(0, -4)) templates.delete(old);
+              return compiled;
+            }
+          }),
+      onSecret: async ({ name, value }) => {
+        if (setSecret === undefined) return buildState();
+        const outcome = await setSecret({ name, value, region: declaredRegion(), ...profileInput() }).catch(
+          (error: unknown) => ({
+            ok: false,
+            detail: error instanceof Error ? error.message : 'The secret could not be saved.'
+          })
+        );
+        if (outcome.ok) {
+          secretsSet.add(name);
+          if (secretFailure?.name === name) secretFailure = undefined;
+        } else {
+          secretFailure = { name, detail: outcome.detail };
+        }
+        return publishNow();
+      },
+      onSecretsConfirmed: () => {
+        secretsConfirmed = true;
+        return publishNow();
+      },
+      onAwsKeys: async (keys) => {
+        if (createAwsProfile === undefined) return buildState();
+        awsKeys = { status: 'saving' };
+        publish(buildState());
+        const outcome = await createAwsProfile({ ...keys, ...profileInput() }).catch((error: unknown) => ({
+          ok: false,
+          detail: error instanceof Error ? error.message : 'The keys could not be saved.',
+          profile: undefined
+        }));
+        awsKeys = {
+          status: outcome.ok ? 'saved' : 'failed',
+          detail: outcome.detail,
+          ...(outcome.profile === undefined ? {} : { profile: outcome.profile })
+        };
+        if (outcome.ok) {
+          identity = undefined;
+          deployTarget = undefined;
+          publish(buildState());
+          await Promise.all([resolveIdentity(), resolveProfiles()]);
+        }
+        return publishNow();
+      },
+      onAwsProfile: async (profile) => {
+        // Only a profile this machine has, and never under a running deploy: it reads the profile it started with.
+        if (profiles?.some((entry) => entry.name === profile) !== true || deploymentInFlight()) return buildState();
+        const current = selectedProfile ?? (identity === undefined ? undefined : identity.profile);
+        if (profile === current) return buildState();
+        selectedProfile = profile;
+        // Everything learned with the old credentials belongs to the old account: who it is, the stack there, and which
+        // secrets exist in it.
+        identity = undefined;
+        deployTarget = undefined;
+        secretsSet.clear();
+        secretsConfirmed = false;
+        secretFailure = undefined;
+        awsKeys = undefined;
+        publish(buildState());
+        await resolveIdentity();
+        return publishNow();
+      },
+      onDismissSecret: ({ name, dismissed }) => {
+        // A hand-edited file is the user's own: they remove a variable there. Nor is the file changed under a deploy.
+        if (facts === undefined || composition === undefined || configEdit !== undefined || deploymentInFlight()) {
+          return buildState();
+        }
+        if (dismissed === dismissedSecrets.has(name)) return buildState();
+        if (dismissed) dismissedSecrets.add(name);
+        else dismissedSecrets.delete(name);
+        // Recomposed from the facts, the decisions and the removals, like an answer: putting one back restores exactly
+        // what was there.
+        adoptComposition(
+          composeConfig({
+            facts,
+            projectName,
+            ...(mode === undefined ? { preferences: composition.preferences } : { mode }),
+            decisions: answers,
+            engineVersions: versionJson.rds
+          })
+        );
+        return publishNow();
+      },
       onAnswer: (decisionId, value) => {
         // Nothing to change before the mission has produced anything. During a deploy, a new
         // composition would drop the file the deploy is reading; the page locks these controls too.
-        if (facts === undefined || composition === undefined || deploymentInFlight()) {
+        if (facts === undefined || composition === undefined || deploymentInFlight() || configEdit !== undefined) {
           return buildState();
+        }
+        // "Run the migration on each deploy" for a migration nothing runs yet: the same decision an agent raises when it
+        // is unsure, raised here by the user's click, so the composer emits the hook from the reviewed command.
+        const migrationService = /^migration-timing:(.+)$/.exec(decisionId)?.[1];
+        if (migrationService !== undefined && !facts.uncertainties.some((entry) => entry.id === decisionId)) {
+          const migration = facts.migrations.find((entry) => entry.serviceName === migrationService);
+          if (
+            migration === undefined ||
+            !['deploy-hook', 'release-command', 'service-startup', 'manual'].includes(value)
+          ) {
+            return buildState();
+          }
+          facts = {
+            ...facts,
+            uncertainties: [
+              ...facts.uncertainties,
+              {
+                id: decisionId,
+                kind: 'migration-timing-unknown',
+                serviceName: migrationService,
+                command: migration.command,
+                recommended: 'deploy-hook',
+                blocksDeploy: false,
+                evidence: migration.evidence,
+                source: 'probe'
+              }
+            ]
+          };
         }
         answers[decisionId] = value;
         // Recomposed from the original facts plus the user's decisions. Nothing is edited in place,
@@ -1282,11 +1942,14 @@ export const startWizardSession = async ({
   });
 
   publish = server.publish;
+  currentPublished = server.current;
 
   // Resolved in the background: asking AWS who we are takes a round trip, and the first screen has
   // nothing to do with AWS. By the time anyone reaches the deploy step the answer is already here.
   void resolveIdentity();
   void resolveAccount();
+  void resolveProfiles();
+  void resolveDocker();
 
   // A session created with a finished result never goes through `onStart`, so its derived outputs —
   // the TypeScript text, the price — have to be kicked off here, now that `publish` can reach a page.
@@ -1319,4 +1982,79 @@ export const startWizardSession = async ({
 export const toTimelineEntry = (event: AgentEvent): { kind: string; label: string } | undefined => {
   if (event.type === 'tool-call') return { kind: 'tool', label: `${event.name} ${event.summary}`.trim() };
   return undefined;
+};
+
+/** The engine versions the version setting offers: each engine's release lines, newest first. */
+const SETTINGS_CONTEXT: SettingsContext = {
+  engineVersions: Object.fromEntries(
+    Object.keys(versionJson.rds).map((engine) => [
+      engine,
+      engineReleaseLines(engine, versionJson.rds as Record<string, readonly string[]>)
+    ])
+  )
+};
+
+/** The resources an edited configuration declares, when it parses. */
+const resourcesOfText = (
+  yaml: string
+): Record<string, { type: string; properties: Record<string, unknown> }> | undefined => {
+  try {
+    const parsed = parseYaml(yaml) as { resources?: unknown } | null;
+    const resources = parsed?.resources;
+    return resources !== null && typeof resources === 'object' && !Array.isArray(resources)
+      ? (resources as Record<string, { type: string; properties: Record<string, unknown> }>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * A setting's writes made to text someone edited, through the YAML document, so their comments, order and formatting
+ * stay as they wrote them. A removal also removes a mapping it leaves empty.
+ */
+const writeIntoText = (yaml: string, resourceName: string, writes: readonly SettingWrite[]): string => {
+  const document = parseDocument(yaml);
+  const base = ['resources', resourceName, 'properties'];
+  for (const write of writes) {
+    const path = [...base, ...write.path];
+    if (write.value !== undefined) {
+      document.setIn(path, document.createNode(write.value));
+      continue;
+    }
+    document.deleteIn(path);
+    for (let depth = path.length - 1; depth > base.length; depth -= 1) {
+      const parent = document.getIn(path.slice(0, depth), true);
+      if (!isMap(parent) || parent.items.length > 0) break;
+      document.deleteIn(path.slice(0, depth));
+    }
+  }
+  return document.toString({ lineWidth: 0 });
+};
+
+/** The `region` an edited configuration declares at its top level, when it declares one the CLI deploys to. */
+const regionOfText = (yaml: string): string | undefined => {
+  try {
+    const parsed = parseYaml(yaml) as { region?: unknown } | null;
+    const region = parsed?.region;
+    return typeof region === 'string' && (SUPPORTED_AWS_REGIONS as readonly string[]).includes(region)
+      ? region
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** The parser's complaint about edited text, short enough for one line on the page. */
+const yamlError = (yaml: string): { error?: string } => {
+  try {
+    const parsed = parseYaml(yaml) as unknown;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { error: 'The file must be a YAML mapping with a resources section.' };
+    }
+    return {};
+  } catch (error) {
+    const message = error instanceof Error ? error.message.split('\n')[0]! : 'The YAML does not parse.';
+    return { error: message.slice(0, 240) };
+  }
 };
