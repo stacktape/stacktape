@@ -1490,11 +1490,13 @@
     list-style: none;
   }
 
+  /* A section: its mark, title and where it stands on one row, then a summary or its controls under the title. */
   .w-check {
-    display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    gap: 14px;
-    padding: 18px 20px;
+    --w-check-x: 20px;
+    --w-check-y: 18px;
+    --w-check-gap: 14px;
+
+    position: relative;
   }
 
   .w-check + .w-check {
@@ -1502,12 +1504,15 @@
   }
 
   .w-check-head {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 6px 16px;
-    min-height: 20px;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: start;
+    column-gap: var(--w-check-gap);
+    padding: var(--w-check-y) var(--w-check-x) 0;
+  }
+
+  .w-check-body {
+    padding: 0 var(--w-check-x) var(--w-check-y) calc(var(--w-check-x) + 20px + var(--w-check-gap));
   }
 
   .w-check-title {
@@ -1515,6 +1520,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 2px 8px;
+    min-width: 0;
     margin: 0;
     color: var(--w-text);
     font-size: 15px;
@@ -1552,18 +1558,72 @@
 
   .w-check-aside {
     display: inline-flex;
-    flex: none;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     height: 20px;
-    margin-left: auto;
+    color: var(--w-subtle);
+    font-size: 13px;
   }
 
-  /* A button beside a section title stays on the title's line. */
-  .w-check-aside .stp-ui-button {
-    --stp-control-height: 28px;
-    --stp-button-padding-x: 10px;
-    font-size: 13px;
+  /*
+   * A section that opens and closes: the whole title row is its control, with the chevron at the end, as the steps
+   * on Deploying. Closed, the whole section is; the button stays the one thing keyboards and screen readers reach.
+   */
+  .w-check-toggle {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    margin-right: -2px;
+    padding: 0;
+    place-items: center;
+    border: none;
+    background: none;
+    color: var(--w-subtle);
+    cursor: pointer;
+  }
+
+  .w-check-toggle::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    transition: background-color 160ms var(--w-ease);
+  }
+
+  .w-check.is-open .w-check-head:has(.w-check-toggle) {
+    position: relative;
+  }
+
+  .w-check.is-open .w-check-toggle::before {
+    bottom: -6px;
+  }
+
+  .w-check:last-child:not(.is-open) .w-check-toggle::before {
+    border-radius: 0 0 var(--w-radius) var(--w-radius);
+  }
+
+  .w-check-toggle:hover::before {
+    background: var(--w-hover);
+  }
+
+  .w-check-toggle:hover,
+  .w-check-toggle:focus-visible {
+    color: var(--w-text);
+  }
+
+  .w-check-toggle:focus-visible {
+    outline: none;
+  }
+
+  .w-check-toggle:focus-visible::before {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: -2px;
+  }
+
+  /* What sits on the title row and is its own control stays above it. */
+  .w-check-head .w-info {
+    position: relative;
+    z-index: 1;
   }
 
   /* A section waiting on an earlier one recedes. */
@@ -1572,34 +1632,27 @@
   }
 
   .w-check-content {
+    --w-expand-gap: 14px;
+
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    margin-top: 6px;
-    animation: w-rise 200ms var(--w-ease);
+    gap: var(--w-expand-gap);
+    padding-top: 6px;
+  }
+
+  .w-aws-paths-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--w-expand-gap);
   }
 
   .w-check-content > .w-check-meta:first-child {
     margin-top: 0;
   }
 
-  .w-check-tag {
-    color: var(--w-subtle);
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 16px;
-  }
-
   .w-check-meta {
     margin: 4px 0 0;
     color: var(--w-muted);
-  }
-
-  .w-check-body {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 14px;
   }
 
   .w-status {
@@ -1805,7 +1858,24 @@
     cursor: pointer;
   }
 
-  .w-notes-head:hover .w-notes-toggle {
+  .w-notes-head:hover {
+    background: var(--w-hover);
+  }
+
+  .w-notes.is-open .w-notes-head {
+    border-radius: var(--w-radius) var(--w-radius) 0 0;
+  }
+
+  .w-notes-head:focus-visible {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: -2px;
+  }
+
+  .w-notes-head > .w-chevron {
+    color: var(--w-subtle);
+  }
+
+  .w-notes-head:hover > .w-chevron {
     color: var(--w-text);
   }
 
@@ -1827,19 +1897,6 @@
     margin-left: 8px;
     color: var(--w-muted);
     font-weight: 500;
-  }
-
-  .w-notes-toggle {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 2px;
-    color: var(--w-muted);
-    font-size: 13px;
-  }
-
-  .w-notes.is-open .w-task-chevron {
-    transform: rotate(90deg);
   }
 
   .w-notes-list {
@@ -1870,12 +1927,6 @@
     font-size: 13px;
     line-height: 20px;
     overflow-wrap: anywhere;
-  }
-
-  .w-task-chevron {
-    flex: none;
-    color: var(--w-subtle);
-    transition: transform 180ms var(--w-ease);
   }
 
   /* Choices that are each a sentence: outlined rows, so an unchosen one still reads as something to click. */
@@ -1971,9 +2022,11 @@
 
   /* No AWS account yet: a quiet disclosure under the two ways in, with the way there and the way back. */
   .w-aws-new {
+    --w-expand-gap: 10px;
+
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--w-expand-gap);
     padding-top: 12px;
     border-top: 1px solid var(--w-line);
   }
@@ -2061,8 +2114,8 @@
   }
 
   /* ── Deploy: where it deploys, the secrets, the summary ─────────────────────────────────────── *
-   * Two layouts while one is picked (`?deploy=split|column`): split puts the summary with the Deploy button beside
-   * the checklist from 1200 px up; column keeps it under the checklist and the button in the bar. */
+   * From 1200 px up the summary with the Deploy button sits beside the checklist; below that it follows the
+   * checklist and the button is in the bar. */
 
   .w-deploy-grid {
     display: grid;
@@ -2087,26 +2140,26 @@
   }
 
   @media (min-width: 1200px) {
-    .w-main.is-form:has(.w-deploy.is-split) {
+    .w-main.is-form:has(.w-deploy) {
       max-width: calc(var(--w-column) + 372px + 2 * var(--w-gutter));
     }
 
-    .w-deploy.is-split .w-deploy-grid {
+    .w-deploy .w-deploy-grid {
       grid-template-columns: minmax(0, 1fr) 348px;
       align-items: start;
       gap: 24px;
     }
 
-    .w-deploy.is-split .w-deploy-side {
+    .w-deploy .w-deploy-side {
       display: block;
       position: sticky;
       top: calc(var(--w-header-h) + 24px);
     }
 
     /* The side summary carries the price, the next step and the button: the bar and the copies are not needed. */
-    .w-deploy.is-split .w-bar,
-    .w-deploy.is-split .w-deploy-main > .w-summary,
-    .w-deploy.is-split .w-hero-price {
+    .w-deploy .w-bar,
+    .w-deploy .w-deploy-main > .w-summary,
+    .w-deploy .w-hero-price {
       display: none;
     }
   }
@@ -2249,21 +2302,12 @@
     margin-top: 2px;
   }
 
-  .w-target-line.is-ok > svg {
-    color: var(--w-ok);
-  }
-
-  .w-target-line.is-quiet {
-    color: var(--w-subtle);
+  .w-target-line.is-warn > svg {
+    color: var(--w-warn);
   }
 
   .w-target-line .w-code {
     font-size: 12px;
-  }
-
-  .w-target-line .stp-ui-spinner {
-    flex: none;
-    margin-top: 2px;
   }
 
   .w-target-line .w-info {
@@ -3016,9 +3060,12 @@
     line-height: 20px;
   }
 
-  .w-manage-head > .w-link {
+  .w-manage-head > .w-disclosure {
     flex: none;
-    margin-top: 2px;
+  }
+
+  .w-manage .stp-ui-command-line {
+    margin-top: 10px;
   }
 
   .w-live-note {
@@ -3227,6 +3274,58 @@
 
   .w-fail-more .w-log {
     margin-top: 8px;
+  }
+
+  /* The one expand animation: a part grows to its content's height and shrinks back, the content fading with it. */
+  .w-expand {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition:
+      grid-template-rows 240ms var(--w-ease),
+      visibility 0s linear 240ms;
+  }
+
+  .w-expand[data-open] {
+    grid-template-rows: 1fr;
+    visibility: visible;
+    transition: grid-template-rows 240ms var(--w-ease);
+  }
+
+  /* It clips while it moves; 4px of slack keeps the focus rings and shadows at its edges. */
+  .w-expand-inner {
+    min-height: 0;
+    margin: -4px;
+    padding: 4px;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 120ms var(--w-ease);
+  }
+
+  .w-expand[data-open] > .w-expand-inner {
+    opacity: 1;
+    transition: opacity 180ms var(--w-ease);
+  }
+
+  /* In a column spaced by gap (--w-expand-gap), the gap before it moves inside, so a closed part leaves no space. */
+  .w-expand:not(:first-child) {
+    margin-top: calc(-1 * var(--w-expand-gap, 0px));
+  }
+
+  .w-expand:not(:first-child) > .w-expand-inner::before {
+    content: '';
+    display: block;
+    height: var(--w-expand-gap, 0px);
+  }
+
+  /* The disclosure chevron: it points at what opens, and turns down once that is open. */
+  .w-chevron {
+    flex: none;
+    transition: transform 200ms var(--w-ease);
+  }
+
+  [aria-expanded='true'] > .w-chevron {
+    transform: rotate(90deg);
   }
 
   /* A disclosure: a chevron that turns, and the words for what opens. */
@@ -3871,12 +3970,9 @@
     }
 
     .w-check {
-      gap: 12px;
-      padding: 16px;
-    }
-
-    .w-check-aside {
-      margin-left: 0;
+      --w-check-x: 16px;
+      --w-check-y: 16px;
+      --w-check-gap: 12px;
     }
 
     .w-hero-price {
@@ -3951,11 +4047,6 @@
 
     .w-bar.is-ready .w-bar-end {
       flex: none;
-    }
-
-    /* A section-wide button (Generate all) goes under the title rather than squeezing it. */
-    .w-check-head:has(.w-check-aside .stp-ui-button) {
-      flex-wrap: wrap;
     }
 
     .w-notes-head {

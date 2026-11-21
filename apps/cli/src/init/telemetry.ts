@@ -100,41 +100,7 @@ export const initTelemetryEvent = (
       ? { deploy_error_code: state.deployment.outcome.code }
       : {}),
     existing_deployment_tools: (facts.existingDeployments ?? []).map((deployment) => deployment.tool),
-    ...verificationSummary(state),
     ...(agentSkipped === true ? { agent_skipped: true } : {})
-  };
-};
-
-/**
- * How the local try-out went, reduced to a category. Statuses only — nothing a container printed
- * ever leaves the machine, because a log line is repository content.
- */
-const verificationSummary = (
-  state: WizardState
-): Pick<
-  InitCompleted,
-  | 'verification'
-  | 'verification_passed_services'
-  | 'verification_failed_services'
-  | 'verification_inconclusive_services'
-  | 'verification_skipped_services'
-> => {
-  const verification = state.verification;
-  if (verification === undefined) return {};
-  if (verification.status === 'unavailable' || verification.status === 'dismissed') {
-    return { verification: verification.status };
-  }
-  const services = verification.services ?? [];
-  const passed = services.filter((service) => service.status === 'passed').length;
-  const failed = services.filter((service) => service.status === 'failed').length;
-  const inconclusive = services.filter((service) => service.status === 'inconclusive').length;
-  const skipped = services.filter((service) => service.status === 'skipped').length;
-  return {
-    verification: failed > 0 ? 'failed' : inconclusive > 0 || skipped > 0 || passed === 0 ? 'inconclusive' : 'passed',
-    ...(passed > 0 ? { verification_passed_services: passed } : {}),
-    ...(failed > 0 ? { verification_failed_services: failed } : {}),
-    ...(inconclusive > 0 ? { verification_inconclusive_services: inconclusive } : {}),
-    ...(skipped > 0 ? { verification_skipped_services: skipped } : {})
   };
 };
 

@@ -5,6 +5,7 @@ import { Spinner } from '@stacktape/ui-react/spinner';
 import { Fragment, lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { BiBot, BiCheck, BiChevronRight, BiCodeAlt, BiCopy, BiInfoCircle, BiLinkExternal } from 'react-icons/bi';
 import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
+import { Expand } from '../components/Expand';
 import { CommandLine } from '@stacktape/ui-react/command-line';
 import { FailureExplanationText } from '../components/FailureExplanation';
 import { InfoTip } from '../components/InfoTip';
@@ -18,9 +19,7 @@ import { partName } from '../part-names';
 import type { SignInRequest, WizardState } from '../session';
 import { plainList, splitMonthly } from './review-model';
 import { DeployActivity } from './run/DeployActivity';
-import { deployingVersion } from './run/deploying-version';
-import { DeployLog } from './run/DeployLog';
-import { DeploySteps, outputTail } from './run/DeploySteps';
+import { outputTail } from './run/DeploySteps';
 import { useNow } from './run/use-now';
 import './run/run.css';
 
@@ -209,14 +208,11 @@ const activeOperation = (
 /**
  * A deploy in progress, or one that has just been repaired and is running again.
  *
- * Two layouts while the owner compares them (`?deploying=steps|log`, see `run/deploying-version.ts`). `steps`: the
- * diagram Review showed fills in on the left as AWS creates each part; the right leads with what is happening now and
- * the time against the usual, then every step of the deploy (each phase, what it did, each AWS resource by part of
- * the app), with the log one tab away. `log`: the log leads, a section per phase, and the diagram and the phases sit
- * in a column beside it. On a phone the progress comes first and the diagram after it.
+ * The diagram Review showed fills in on the left as AWS creates each part. The right leads with what is happening now
+ * and the time against the usual, then every step of the deploy (each phase, what it did, each AWS resource by part of
+ * the app), with the log one tab away. On a phone the progress comes first and the diagram after it.
  */
 export function DeployingStep({ state, model }: { state: WizardState; model: DeployModel }) {
-  const [version] = useState(() => deployingVersion(window.location.search));
   const deployment = state.deployment!;
   const resources = resourcesOf(state);
   const services = state.facts?.services ?? [];
@@ -308,29 +304,8 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
     />
   );
 
-  if (version === 'log') {
-    return (
-      <div className="w-workspace w-run r-run is-log w-enter" data-deploy-phase={model.current?.id}>
-        <div className="w-pane">
-          {header}
-          <section aria-label="Deploy log" className="w-card r-log-card">
-            <DeployLog collapseDone live model={model} />
-          </section>
-        </div>
-        <aside aria-label="Deploy progress" className="w-card w-run-side r-side">
-          {now}
-          {diagram}
-          <div className="r-side-steps">
-            <DeploySteps context={context} live model={model} summary />
-          </div>
-          {tabNote}
-        </aside>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-workspace w-run r-run is-steps w-enter" data-deploy-phase={model.current?.id}>
+    <div className="w-workspace w-run r-run w-enter" data-deploy-phase={model.current?.id}>
       <div className="w-pane">
         {header}
         {diagram}
@@ -498,23 +473,21 @@ export function LiveStep({
             onClick={() => setShowDetails(!showDetails)}
             type="button"
           >
-            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
+            <BiChevronRight aria-hidden className="w-chevron" size={16} />
             Deploy details
             <span className="r-live-details-summary">
               {created.length > 0 ? `${created.length} AWS resources created` : 'Steps and log'}
             </span>
           </button>
-          {showDetails && (
-            <div id="deploy-details">
-              <DeployActivity
-                className="is-inline"
-                context={{ resources, services: state.facts?.services ?? [] }}
-                initiallyOpen={['DEPLOY']}
-                live={false}
-                model={model}
-              />
-            </div>
-          )}
+          <Expand id="deploy-details" isOpen={showDetails}>
+            <DeployActivity
+              className="is-inline"
+              context={{ resources, services: state.facts?.services ?? [] }}
+              initiallyOpen={['DEPLOY']}
+              live={false}
+              model={model}
+            />
+          </Expand>
         </div>
       </section>
 
@@ -577,15 +550,19 @@ export function LiveStep({
             </p>
           </div>
           <button
+            aria-controls="delete-command"
             aria-expanded={showRemoval}
-            className="w-link w-small"
+            className="w-disclosure"
             onClick={() => setShowRemoval(!showRemoval)}
             type="button"
           >
-            {showRemoval ? 'Hide the command' : 'Show the command'}
+            <BiChevronRight aria-hidden className="w-chevron" size={16} />
+            Delete command
           </button>
         </div>
-        {showRemoval && <CommandLine command={stackCommand('delete', target)} fill label="Copy the delete command" />}
+        <Expand id="delete-command" isOpen={showRemoval}>
+          <CommandLine command={stackCommand('delete', target)} fill label="Copy the delete command" />
+        </Expand>
       </section>
     </div>
   );
@@ -938,25 +915,29 @@ export function DeployFailedStep({
         )}
         <div className="w-fail-more">
           <button
+            aria-controls="full-error"
             aria-expanded={showError}
             className="w-disclosure"
             onClick={() => setShowError(!showError)}
             type="button"
           >
-            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
-            {showError ? 'Hide the full error' : 'Show the full error'}
+            <BiChevronRight aria-hidden className="w-chevron" size={16} />
+            Full error
           </button>
-          {showError && <pre className="w-log">{message}</pre>}
+          <Expand id="full-error" isOpen={showError}>
+            <pre className="w-log">{message}</pre>
+          </Expand>
           <button
+            aria-controls="failed-deploy-log"
             aria-expanded={showDetails}
             className="w-disclosure"
             onClick={() => setShowDetails(!showDetails)}
             type="button"
           >
-            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
-            {showDetails ? 'Hide the deploy log' : 'Show the deploy log'}
+            <BiChevronRight aria-hidden className="w-chevron" size={16} />
+            Deploy log
           </button>
-          {showDetails && (
+          <Expand id="failed-deploy-log" isOpen={showDetails}>
             <DeployActivity
               className="is-inline"
               context={{ resources, services: state.facts?.services ?? [] }}
@@ -966,7 +947,7 @@ export function DeployFailedStep({
               live={false}
               model={model}
             />
-          )}
+          </Expand>
         </div>
       </dl>
 

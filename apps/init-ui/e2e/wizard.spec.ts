@@ -19,9 +19,9 @@ const continueToDeploy = async (page: Page) => {
   await expect(page.getByRole('heading', { level: 1, name: /deploy/i })).toBeVisible();
 };
 
-/** The read-only target check runs by itself; the account row turns green once it has answered. */
+/** The read-only target check runs by itself; where it deploys turns ready once it has answered. */
 const waitForTarget = async (page: Page) => {
-  await expect(page.getByText(/Creates the stack .*\. Nothing is there yet\./)).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#deploy-aws')).toHaveClass(/\bis-ready\b/, { timeout: 10_000 });
 };
 
 /** The ui-react radio hides its input; the label is what gets clicked. */
@@ -103,6 +103,8 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await continueToDeploy(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Deploy to dev' })).toBeVisible();
   await waitForTarget(page);
+  // A new stack needs no words under the three controls; only a stack that is already there does.
+  await expect(page.locator('#deploy-aws .w-target-line')).toHaveCount(0);
   // Where it deploys is three controls, never a line of facts: the account by its profile and alias, then its ID.
   await expect(accountControl(page)).toContainText('default');
   await expect(accountControl(page)).toContainText('acme-dev');
@@ -139,6 +141,15 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await page.getByRole('button', { name: 'Save 2 secrets', exact: true }).click();
   // Done, the section folds to one line and the next one opens.
   await expect(page.locator('#deploy-secrets')).toContainText('All 2 saved in acme-dev, in us-east-1.');
+  // Its title row opens it again, and closes it.
+  const secretsToggle = page.locator('#deploy-secrets').getByRole('button', { name: /^Secrets/ });
+  await expect(secretsToggle).toHaveAttribute('aria-expanded', 'false');
+  // Anywhere on the row, here on the title's words.
+  await page.locator('#deploy-secrets .w-check-head').click({ position: { x: 80, y: 28 } });
+  await expect(secretsToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#deploy-secrets-content')).toContainText('Saved in AWS Secrets Manager');
+  await secretsToggle.click();
+  await expect(page.locator('#deploy-secrets-content')).toBeHidden();
   // A Next.js site can run its migration as a release command, before each deploy goes live; the file says so.
   await choose(page, /Before each deploy goes live/);
   await expect(page.locator('#deploy-migrations')).toContainText(
@@ -470,7 +481,7 @@ test('a failed deploy names the fix in this project, keeps the retry, and a stop
   await expect(page.getByText(/AWS rolled back the deploy to dev/)).toBeVisible();
   await expect(page.getByRole('heading', { name: /Update your code to read POSTGRES_URL/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Deploy again' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Show the full error' }).click();
+  await page.getByRole('button', { name: 'Full error' }).click();
   await expect(page.locator('pre', { hasText: 'Stack action create failed.' })).toBeVisible();
 
   await wizard.stop();
@@ -581,6 +592,18 @@ test('a stack left behind by a failed first deploy says how to clear it, and can
   await expect(page.getByText(/stacktape delete --config stacktape\.yml/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Check again' })).toBeEnabled();
   await expect(deployButton(page)).toBeDisabled();
+});
+
+test('a stack that is already there is named, with what updating it does', async ({ page, startWizard }) => {
+  const wizard = await startWizard({ project: 'saas-starter', target: 'updateable' });
+  await page.goto(wizard.url);
+  await analyzeAndReview(page);
+  await continueToDeploy(page);
+  await expect(page.locator('#deploy-aws')).toContainText(
+    'saas-starter-dev already exists. This deploy updates it and removes anything the file no longer has.',
+    { timeout: 10_000 }
+  );
+  await expect(page.getByRole('region', { name: 'Deploy summary' })).toContainText('a few minutes');
 });
 
 test('an empty folder offers app folders below it and starter projects; a failed analysis offers a way on', async ({

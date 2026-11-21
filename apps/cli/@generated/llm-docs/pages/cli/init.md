@@ -38,13 +38,7 @@ with Ctrl+C.
    the code could not settle was decided for you, listed under "Decided for you", and can be changed
    with one click — the configuration is rebuilt from your choice, and the price updates with it.
    Nothing blocks. You choose YAML or TypeScript, and the file is written.
-4. **Try it locally (optional).** With your explicit click, the wizard can build and start supported
-   services in Docker. Building may download dependencies and run their install hooks. The started
-   app receives throwaway settings and has no network. Every result says whether the service passed,
-   failed, was inconclusive, or could not be checked. A proven startup failure holds the Deploy
-   button until you fix it or explicitly set the result aside; a skipped check is never shown as a
-   pass.
-5. **Deploy.** No Stacktape account is needed: without one, the wizard deploys with your local AWS
+4. **Deploy.** No Stacktape account is needed: without one, the wizard deploys with your local AWS
    credentials. The first click is read-only:
    a short-lived CLI process resolves the same AWS credentials or connected AWS account that deploy will use,
    then shows the exact account, region and stack name. You separately confirm creating a new stack or
@@ -228,16 +222,6 @@ Stacktape Console (free up to $200 a month of AWS spend) for deploy history, cos
 access. You can connect it there or later with `stacktape connect`, or skip it. If this machine is
 already signed in, the wizard deploys through your Stacktape organization and links to the stage in
 the Console.
-
-### What does “Try it here first” run?
-
-Only after you click it, `init` runs your project's build and start commands using disposable Docker
-images and containers. The image build may access the network to download dependencies and may run
-package-manager install hooks from the project. The started application receives throwaway values
-instead of your secrets and has no network access. This is not supported for every packaging and
-resource type yet: the wizard labels each service **Passed**, **Failed**, **Inconclusive**, or **Not
-checked** and never presents a skipped check as proof. Docker is optional; if it is missing, your
-generated file is unaffected and the wizard says that AWS would be the first full run.
 
 ### How do I run init non-interactively, in CI or from an AI coding agent?
 

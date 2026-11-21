@@ -3,17 +3,6 @@ import type { WizardState } from './session';
 type ObservedTarget = NonNullable<WizardState['deployTarget']>;
 type BlockedTarget = Extract<ObservedTarget, { status: 'blocked' }>;
 
-/** A stack that can be updated, in words: what happened to it last. */
-export const stackStatusWords = (stackStatus: string): string =>
-  ({
-    CREATE_COMPLETE: 'it was created and has not changed since',
-    UPDATE_COMPLETE: 'its last update finished',
-    UPDATE_ROLLBACK_COMPLETE: 'its last update failed and was rolled back',
-    UPDATE_FAILED: 'its last update failed',
-    IMPORT_COMPLETE: 'its last change finished',
-    IMPORT_ROLLBACK_COMPLETE: 'its last change was rolled back'
-  })[stackStatus] ?? `its status is ${stackStatus}`;
-
 /**
  * Why Stacktape will not touch a stack, and the way out.
  *

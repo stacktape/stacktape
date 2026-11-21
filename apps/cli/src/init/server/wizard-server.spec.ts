@@ -48,8 +48,6 @@ const start = async (overrides: Partial<Parameters<typeof startWizardServer>[0]>
       onDeploy: (input) => {
         deployed.push(input);
       },
-      onVerify: () => {},
-      onVerifyDismiss: () => baseState,
       onPipeline: () => {},
       onCodingAgentSetup: () => {},
       onRecheck: () => baseState,
@@ -178,8 +176,6 @@ describe('showing a repository file', () => {
         onStart: () => {},
         onWrite: () => {},
         onDeploy: () => {},
-        onVerify: () => {},
-        onVerifyDismiss: () => baseState,
         onPipeline: () => {},
         onCodingAgentSetup: () => {},
         onRecheck: () => baseState,
@@ -223,8 +219,6 @@ describe('listing the repository tree', () => {
         onStart: () => {},
         onWrite: () => {},
         onDeploy: () => {},
-        onVerify: () => {},
-        onVerifyDismiss: () => baseState,
         onPipeline: () => {},
         onCodingAgentSetup: () => {},
         onRecheck: () => baseState,
@@ -304,8 +298,6 @@ describe("reading the project's .env values", () => {
         onStart: () => {},
         onWrite: () => {},
         onDeploy: () => {},
-        onVerify: () => {},
-        onVerifyDismiss: () => baseState,
         onPipeline: () => {},
         onCodingAgentSetup: () => {},
         onRecheck: () => baseState,
@@ -781,18 +773,6 @@ describe('idle shutdown', () => {
     expect(alive.status).toBe(401);
 
     started.publish({ ...quietState, deployment: { ...running, status: 'succeeded' as const } });
-    expect(await started.whenClosed).toBe('idle');
-  });
-
-  it('stays up while the consented local try-out is running without a page', async () => {
-    const { origin, server: started } = await start({ initialState: quietState, idleTimeoutMs: 50 });
-    started.publish({ ...quietState, verification: { status: 'running' } });
-
-    await new Promise((resolveWait) => setTimeout(resolveWait, 160));
-    const alive = await fetch(`${origin}/api/state`, { headers: { Origin: origin } });
-    expect(alive.status).toBe(401);
-
-    started.publish({ ...quietState, verification: { status: 'unavailable' } });
     expect(await started.whenClosed).toBe('idle');
   });
 });

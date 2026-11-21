@@ -2742,7 +2742,6 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/init/eval/sensors.spec.ts',
       'apps/cli/src/init/eval/source-inference-e2e.spec.ts',
       'apps/cli/src/init/mcp/session-server.spec.ts',
-      'apps/cli/src/init/preflight/preflight.spec.ts',
       'apps/cli/src/init/pricing.spec.ts',
       'apps/cli/src/init/project-name.spec.ts',
       'apps/cli/src/init/run-init.spec.ts',
@@ -4249,8 +4248,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/commands/init/**',
       'apps/cli/src/init/**',
       'apps/cli/src/init/cicd/**',
-      'apps/cli/src/init/deploy/**',
-      'apps/cli/src/init/preflight/**'
+      'apps/cli/src/init/deploy/**'
     ],
     tests: [
       'apps/cli/tests/ssr/tanstack-starter-materialization.spec.ts',
@@ -4268,7 +4266,6 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/init/deploy/run-deploy.spec.ts',
       'apps/cli/src/init/deploy/stack-expectation.spec.ts',
       'apps/cli/src/init/deploy/stacktape-account.spec.ts',
-      'apps/cli/src/init/preflight/preflight.spec.ts',
       'apps/cli/src/init/write-config.spec.ts',
       'apps/cli/scripts/starter-projects/starters-mdx.spec.ts',
       'apps/cli/scripts/starter-projects/utils.spec.ts',
