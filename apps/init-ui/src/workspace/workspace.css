@@ -875,9 +875,10 @@
 
   .ws-editor-head-end {
     display: flex;
-    flex: none;
+    flex: 0 1 auto;
     align-items: center;
     gap: 4px;
+    min-width: 0;
     margin-left: auto;
   }
 
@@ -937,19 +938,10 @@
     display: none;
   }
 
-  /* e2: the template docked under the file, the two one column of code. */
-  .ws-editor-dock {
-    display: flex;
-    flex: 0 0 44%;
-    flex-direction: column;
-    min-height: 0;
-    border-top: 1px solid var(--w-line-strong);
-    box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.28);
-  }
-
   /* ── The head: the file and its template as tabs, the format, copy ─────────────────────────────── */
 
   .ws-editor-tabs {
+    flex: none;
     align-self: stretch;
     min-width: 0;
     margin-left: -8px;
@@ -1011,8 +1003,7 @@
     --stp-tab-font-size: 12px;
   }
 
-  .ws-editor-icon-button,
-  .ws-editor-toggle {
+  .ws-editor-icon-button {
     display: inline-flex;
     flex: none;
     align-items: center;
@@ -1034,8 +1025,7 @@
       color 140ms var(--w-ease);
   }
 
-  .ws-editor-icon-button:hover:not(:disabled),
-  .ws-editor-toggle:hover {
+  .ws-editor-icon-button:hover:not(:disabled) {
     background: var(--w-hover);
     color: var(--w-text);
   }
@@ -1045,13 +1035,7 @@
     cursor: default;
   }
 
-  .ws-editor-toggle[aria-pressed='true'] {
-    background: var(--w-brand-soft);
-    color: var(--w-brand-text);
-  }
-
-  .ws-editor-icon-button:focus-visible,
-  .ws-editor-toggle:focus-visible {
+  .ws-editor-icon-button:focus-visible {
     outline: 2px solid var(--w-brand);
     outline-offset: 1px;
   }
@@ -1213,15 +1197,32 @@
     }
   }
 
-  @container ws-editor (max-width: 470px) {
-    .ws-editor-toggle-label,
-    .ws-editor-format .stp-ui-tab__label--full,
+  /* A panel with no room for both tab names in full and the template's select: the tabs' short names, no icons. */
+  @container ws-editor (max-width: 560px) {
     .ws-editor-tabs .stp-ui-tab__label--full {
       display: none;
     }
 
-    .ws-editor-format .stp-ui-tab__label--compact,
     .ws-editor-tabs .stp-ui-tab__label--compact {
+      display: inline;
+    }
+
+    .ws-editor-tabs {
+      --stp-tab-gap: 6px;
+      --stp-tab-padding-x: 6px;
+    }
+
+    .ws-editor-tabs .stp-ui-tab__icon {
+      display: none;
+    }
+  }
+
+  @container ws-editor (max-width: 470px) {
+    .ws-editor-format .stp-ui-tab__label--full {
+      display: none;
+    }
+
+    .ws-editor-format .stp-ui-tab__label--compact {
       display: inline;
     }
 
@@ -1239,13 +1240,13 @@
       padding-right: 8px;
     }
 
-    .ws-editor-tabs {
-      --stp-tab-gap: 6px;
-      --stp-tab-padding-x: 6px;
+    /* The template's select moves out of the head, to a bar of its own across the top of the template. */
+    .ws-editor-head .ws-cf-select.is-head {
+      display: none;
     }
 
-    .ws-editor-tabs .stp-ui-tab__icon {
-      display: none;
+    .ws-cf .ws-cf-bar {
+      display: block;
     }
   }
 
@@ -1312,86 +1313,49 @@
     min-height: 0;
   }
 
-  .ws-cf-groups {
-    display: flex;
+  /* Which part of the template is shown: a select in the head, where the file's format switch is. As wide as what it
+   * shows; it gives way before the tabs do. */
+  .ws-cf-select {
+    --stp-control-height: 30px;
+    flex: 0 1 auto;
+    min-width: 96px;
+    max-width: 220px;
+    margin-right: 4px;
+    font-size: 12.5px;
+  }
+
+  /* Across the top of the template, only where the head has no room for the select (see the container query). */
+  .ws-cf-bar {
+    display: none;
     flex: none;
-    align-items: center;
-    gap: 6px;
-    padding: 10px 12px 10px 16px;
-    overflow-x: auto;
+    padding: 8px 12px;
     border-bottom: 1px solid var(--w-line);
-    background: color-mix(in srgb, var(--ws-code-bg) 70%, var(--w-panel));
-    scrollbar-width: none;
-    /* More chips than room: the row fades at its end and scrolls. */
-    mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
   }
 
-  .ws-cf[data-compact] .ws-cf-groups {
-    padding-top: 8px;
-    padding-bottom: 8px;
+  .ws-cf-select.is-bar {
+    max-width: none;
+    margin-right: 0;
   }
 
-  .ws-cf-chip {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-    height: 26px;
-    padding: 0 8px;
-    border: 0;
-    border-radius: var(--w-radius-chip);
-    background: transparent;
-    box-shadow: inset 0 0 0 1px var(--w-line-strong);
-    color: var(--w-muted);
-    font: inherit;
-    font-size: 12px;
+  .ws-cf-value {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    max-width: 100%;
+  }
+
+  .ws-cf-value-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--w-text);
     font-weight: 600;
-    cursor: pointer;
-    transition:
-      background 140ms var(--w-ease),
-      color 140ms var(--w-ease),
-      box-shadow 140ms var(--w-ease);
+    text-overflow: ellipsis;
   }
 
-  .ws-cf-chip:hover {
-    background: var(--w-hover);
-    color: var(--w-text);
-  }
-
-  .ws-cf-chip[aria-pressed='true'] {
-    background: var(--w-brand-soft);
-    box-shadow: inset 0 0 0 1px var(--w-brand-line);
-    color: var(--w-text);
-  }
-
-  .ws-cf-chip:focus-visible {
-    outline: 2px solid var(--w-brand);
-    outline-offset: 1px;
-  }
-
-  .ws-cf-chip-count {
+  .ws-cf-value-count {
+    flex: none;
     color: var(--w-faint);
     font-variant-numeric: tabular-nums;
-    font-weight: 500;
-  }
-
-  .ws-cf-chip[aria-pressed='true'] .ws-cf-chip-count {
-    color: var(--w-brand-text);
-  }
-
-  .ws-cf-updating {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-    margin-left: auto;
-    color: var(--w-faint);
-    font-size: 12px;
-  }
-
-  .ws-cf-updating .stp-ui-spinner {
-    width: 12px;
-    height: 12px;
   }
 
   .ws-cf-body {

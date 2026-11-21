@@ -68,6 +68,8 @@ export type WizardAgentOption = {
   description: string;
   models: WizardModelOption[];
   recommended?: boolean;
+  /** One Stacktape can drive that is not on this machine: shown so people know it exists, never started. */
+  installed?: false;
 };
 
 /** What went wrong at the current sign-in step. `code` selects the way out the panel offers. */
@@ -380,8 +382,7 @@ export class SessionError extends Error {}
 const takeTokenFromFragment = (): string | undefined => {
   const match = /(?:^|[#&])token=([^&]+)/.exec(window.location.hash);
   if (match === null) return undefined;
-  // The query stays: `?start=g2` picks a version of the first screen and survives a reload.
-  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  window.history.replaceState(null, '', window.location.pathname);
   return decodeURIComponent(match[1]!);
 };
 

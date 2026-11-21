@@ -77,6 +77,11 @@ export type SelectProps<Value> = {
    */
   appearance?: 'field' | 'button';
   menuPlacement?: MenuPlacement;
+  /**
+   * Which edge of the control a menu wider than it lines up with. `end` grows it leftwards from the control's right
+   * edge, for a select at the right of a toolbar, where a menu growing rightwards would run out of window.
+   */
+  menuAlignment?: 'start' | 'end';
   minMenuHeight?: number;
   maxMenuHeight?: number;
   menuIsOpen?: boolean;
@@ -224,6 +229,7 @@ export function Select<Value>({
   loading = false,
   maxMenuHeight,
   menuIsOpen,
+  menuAlignment = 'start',
   menuPlacement = 'auto',
   message,
   messageTone = 'error',
@@ -272,11 +278,13 @@ export function Select<Value>({
         hasLeading: !!leading || !!inlineLabel,
         hideDropdownIndicator,
         isKeyboardFocused: keyboardFocus.isKeyboardFocused,
+        menuAlignment,
         multiple,
         searchable
       }),
     [
       appearance,
+      menuAlignment,
       controlHeight,
       cursor,
       leading,
@@ -407,10 +415,12 @@ function createStyles<Value>({
   hasLeading,
   hideDropdownIndicator,
   isKeyboardFocused,
+  menuAlignment,
   multiple,
   searchable
 }: {
   appearance: 'field' | 'button' | undefined;
+  menuAlignment: 'start' | 'end';
   controlHeight: number | string;
   cursor: CSSProperties['cursor'];
   hasLeading: boolean;
@@ -511,15 +521,18 @@ function createStyles<Value>({
       background: 'var(--stp-menu-background)',
       boxShadow: 'var(--stp-menu-shadow)',
       // It fades in like every other menu. Opacity only, so what places or measures the menu sees its final size.
-      animation: 'stp-ui-fade-in var(--stp-motion-duration-fast) var(--stp-motion-easing-out)'
+      animation: 'stp-ui-fade-in var(--stp-motion-duration-fast) var(--stp-motion-easing-out)',
+      ...(menuAlignment === 'end' ? { left: 'auto', right: 0 } : {})
     }),
     menuList: (base) => ({ ...base, padding: 0, color: 'var(--stp-text-primary)' }),
-    // The menu may be wider than its control, but never past the window's right edge.
+    // The menu may be wider than its control, but never past the window's edge on the side it grows towards.
     menuPortal: (base, { rect }) => ({
       ...base,
       zIndex: 10001,
       ['--stp-select-menu-max-width' as string]:
-        typeof window === 'undefined' ? undefined : `${Math.max(rect.width, window.innerWidth - rect.left - 12)}px`
+        typeof window === 'undefined'
+          ? undefined
+          : `${Math.max(rect.width, menuAlignment === 'end' ? rect.left + rect.width - 12 : window.innerWidth - rect.left - 12)}px`
     }),
     multiValue: (base) => ({
       ...base,
@@ -542,10 +555,12 @@ function createStyles<Value>({
       borderRadius: 'var(--stp-menu-item-radius)',
       background: state.isSelected
         ? 'var(--stp-menu-item-selected)'
-        : state.isFocused
+        : state.isFocused && !state.isDisabled
           ? 'var(--stp-menu-item-hover)'
           : 'transparent',
       color: 'var(--stp-text-primary)',
+      // An option that cannot be chosen reads faded, like a disabled control, and does not light up under the pointer.
+      opacity: state.isDisabled ? 0.5 : undefined,
       // The chosen option differs from the hovered one by weight as well as by fill.
       fontWeight: state.isSelected ? 700 : undefined,
       cursor: state.isDisabled ? 'not-allowed' : 'pointer',

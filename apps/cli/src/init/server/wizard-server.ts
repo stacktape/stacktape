@@ -52,6 +52,8 @@ export type WizardAgentOption = {
   description: string;
   models: Array<{ id: string; label: string; description: string }>;
   recommended?: boolean;
+  /** One Stacktape can drive that is not on this machine: listed so the page can say so, never started. */
+  installed?: false;
 };
 
 /**

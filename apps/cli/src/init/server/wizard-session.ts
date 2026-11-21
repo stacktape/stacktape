@@ -1132,7 +1132,7 @@ export const startWizardSession = async ({
         // Both ids are looked up in the lists this session published. Nothing typed in a browser
         // reaches an argument list; an unknown id is a rejected request, not a new option.
         const agent = agents.find((option) => option.id === requested.agentId);
-        if (agent === undefined) {
+        if (agent === undefined || agent.installed === false) {
           throw new Error('That is not one of the agents offered for this run.');
         }
         if (!agent.models.some((model) => model.id === requested.modelId)) {
