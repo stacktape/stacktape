@@ -1,6 +1,6 @@
 import type { EnvironmentVar } from '@stacktape/config/shared';
-import { randomBytes } from 'node:crypto';
-import { link, rename, stat } from 'node:fs/promises';
+import { createHash, randomBytes } from 'node:crypto';
+import { rename, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -85,20 +85,27 @@ const readStaleLock = async (lockPath: string): Promise<string | undefined> => {
 };
 
 /**
- * Takes a stale lock out of the way. Every waiting process may find it stale, but only one rename of it succeeds; a
- * process whose rename caught a lock that another one created meanwhile puts that lock back.
+ * Deletes a stale lock if it still holds `staleContent`. Several waiting processes may find the same stale lock, and by
+ * the time one acts another may have replaced it with a live lock. So one process at a time handles a given stale lock:
+ * the one that creates its claim file. It checks again that the lock is the same stale one before it deletes it. Lock
+ * contents are unique, so a lock that was replaced never becomes that stale lock again. A claim left by a process that
+ * ended is removed the same way.
  */
-export const removeStaleLock = async (lockPath: string, staleContent: string) => {
-  const aside = `${lockPath}.${process.pid}-${randomBytes(4).toString('hex')}.stale`;
+export const removeStaleLock = async (lockPath: string, staleContent: string): Promise<void> => {
+  const claim = `${lockPath}.${createHash('sha256').update(staleContent).digest('hex').slice(0, 16)}.claim`;
   try {
-    await rename(lockPath, aside);
-  } catch {
+    await writeFile(claim, `${process.pid}:${randomBytes(8).toString('hex')}`, { flag: 'wx' });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    const staleClaim = await readStaleLock(claim);
+    if (staleClaim !== undefined) await removeStaleLock(claim, staleClaim);
     return;
   }
-  if ((await readFile(aside, 'utf8').catch(() => undefined)) !== staleContent) {
-    await link(aside, lockPath).catch(() => {});
+  try {
+    if ((await readStaleLock(lockPath)) === staleContent) await remove(lockPath);
+  } finally {
+    await remove(claim).catch(() => {});
   }
-  await remove(aside).catch(() => {});
 };
 
 /**
@@ -119,7 +126,8 @@ export const withEnvFileLock = async <T>(envFilePath: string, write: () => Promi
       const stale = await readStaleLock(lockPath);
       if (stale !== undefined) {
         await removeStaleLock(lockPath, stale);
-        continue;
+        // Another process may still be removing it.
+        if (!(await pathExists(lockPath))) continue;
       }
       if (Date.now() > deadline) {
         throw new Error(
