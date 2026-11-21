@@ -29,6 +29,7 @@ import {
   buildClaudeStdin,
   buildMcpConfig,
   interpretClaudeRun,
+  parseClaudeStream,
   spawnProcess,
   type Spawner
 } from './transports/claude-cli';
@@ -205,7 +206,19 @@ export const runAgentSession = async (
       ? buildClaudeStdin(input.userPrompt)
       : combineCodexPrompt(input.systemPrompt, input.userPrompt);
 
+    // Tool calls go to the page as the agent makes them, so it can show the file being read; the rest of the stream
+    // is interpreted once the process has ended, as before.
+    let streamedToolCalls = 0;
+    const onStdoutLine = (line: string) => {
+      const events = isClaude ? parseClaudeStream([line]).events : parseCodexStream([line]).events;
+      for (const event of events) {
+        if (event.type !== 'tool-call') continue;
+        streamedToolCalls += 1;
+        hooks.onEvent(event);
+      }
+    };
     const result = await spawner({
+      onStdoutLine,
       command: options.executable,
       args,
       // Claude is fully inert so it can run in the project; Codex runs in scratch because its patch
@@ -223,8 +236,16 @@ export const runAgentSession = async (
       throw new DOMException('Agent analysis cancelled.', 'AbortError');
     }
 
+    /** Everything the stream held, except the tool calls already sent while it ran. */
     const emit = (events: readonly AgentEvent[]) => {
-      for (const event of events) hooks.onEvent(event);
+      let alreadySent = streamedToolCalls;
+      for (const event of events) {
+        if (event.type === 'tool-call' && alreadySent > 0) {
+          alreadySent -= 1;
+          continue;
+        }
+        hooks.onEvent(event);
+      }
     };
 
     if (isClaude) {

@@ -1,13 +1,9 @@
 import { Select, type SelectOption } from '@stacktape/ui-react/select';
 
 /**
- * Which AWS region to deploy into.
- *
- * A short list rather than all thirty-odd. Someone deploying for the first time wants the one
- * nearest their users, and a menu of every region AWS operates — including ones that need to be
- * enabled first — is a worse answer than six that always work plus the ability to type another.
+ * The region the file declares, picked from the ones most people choose. A region already set to something else (by
+ * the AWS profile, say) is added to the list rather than silently replaced.
  */
-
 const COMMON_REGIONS: Array<{ id: string; label: string }> = [
   { id: 'us-east-1', label: 'N. Virginia (us-east-1)' },
   { id: 'us-west-2', label: 'Oregon (us-west-2)' },
@@ -17,16 +13,31 @@ const COMMON_REGIONS: Array<{ id: string; label: string }> = [
   { id: 'ap-southeast-2', label: 'Sydney (ap-southeast-2)' }
 ];
 
-export function RegionPicker({ value, onChange }: { value: string; onChange: (region: string) => void }) {
+export function RegionPicker({
+  value,
+  onChange,
+  isDisabled = false,
+  hideLabel = false,
+  width
+}: {
+  value: string;
+  onChange: (region: string) => void;
+  isDisabled?: boolean;
+  /** For a row that names the setting itself; the select keeps "Region" as its accessible name. */
+  hideLabel?: boolean;
+  width?: string | number;
+}) {
   const isCommon = COMMON_REGIONS.some((region) => region.id === value);
   const options = [
     ...COMMON_REGIONS.map((region) => ({ value: region.id, label: region.label })),
-    // Whatever the environment already named, when it is not one of the six above.
     ...(isCommon ? [] : [{ value, label: value }])
   ];
 
   return (
     <Select
+      disabled={isDisabled}
+      hideLabel={hideLabel}
+      {...(width === undefined ? {} : { width })}
       label="Region"
       name="region"
       onChange={(selected) => {
@@ -35,7 +46,6 @@ export function RegionPicker({ value, onChange }: { value: string; onChange: (re
       options={options}
       reserveMessageSpace={false}
       value={options.find((option) => option.value === value) ?? null}
-      width={260}
     />
   );
 }

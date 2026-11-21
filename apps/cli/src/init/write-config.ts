@@ -12,7 +12,7 @@
  * wizard, next to the resource, where it can link to the line it came from.
  */
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { convertYamlToTypescript } from '@stacktape/config-authoring/converter';
@@ -107,23 +107,40 @@ export const writeComposedConfig = async ({
   composition,
   format = 'yaml',
   stacktapeVersion,
-  region
+  region,
+  contents: editedContents,
+  replaces
 }: {
   repositoryRoot: string;
   composition: CompositionResult;
   format?: ConfigFormat;
   /** Region to declare in the file. */
   region?: string;
+  /** The file as the user edited it by hand, in `format`. Written exactly as given, instead of rendering the composition. */
+  contents?: string;
+  /**
+   * A file this same init run wrote before. It is replaced rather than treated as the user's own configuration, so
+   * saving again after a change does not land a `stacktape.generated.*` beside the wizard's own earlier file.
+   */
+  replaces?: string;
   /** The running CLI's version. A TypeScript config in a project with a `package.json` depends on it. */
   stacktapeVersion?: string;
 }): Promise<WriteConfigResult> => {
-  const existing = findExistingConfig(repositoryRoot);
+  const existing = CANDIDATE_FILENAMES.map((name) => join(repositoryRoot, name)).find(
+    (candidate) => candidate !== replaces && existsSync(candidate)
+  );
   const filename = existing === undefined ? CANONICAL[format] : ALONGSIDE[format];
   const path = join(repositoryRoot, filename);
 
   const contents =
-    format === 'typescript' ? await renderTypeScript(composition, { region }) : renderYaml(composition, { region });
+    editedContents !== undefined
+      ? editedContents
+      : format === 'typescript'
+        ? await renderTypeScript(composition, { region })
+        : renderYaml(composition, { region });
   await writeFile(path, contents, 'utf8');
+  // Switching between YAML and TypeScript leaves exactly one file of ours behind.
+  if (replaces !== undefined && replaces !== path) await rm(replaces, { force: true });
   const devDependency =
     format === 'typescript' && stacktapeVersion !== undefined
       ? await pinStacktapeDevDependency({ repositoryRoot, version: stacktapeVersion })

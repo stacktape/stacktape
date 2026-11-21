@@ -1822,6 +1822,220 @@
       background: Highlight;
     }
   }
+
+  /* ── Copy buttons ──────────────────────────────────────────────────────────────────────────────
+   * The copy icon turns into a check mark (copied) or a cross (the browser refused) and back. The three
+   * glyphs are stacked; the one for the state scales and fades in. */
+  .stp-ui-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .stp-ui-copy-icon {
+    position: relative;
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+  }
+
+  .stp-ui-copy-icon__glyph {
+    grid-area: 1 / 1;
+    opacity: 0;
+    transform: scale(0.6);
+    transition:
+      opacity 140ms var(--stp-motion-easing),
+      transform 220ms var(--stp-motion-easing-out);
+  }
+
+  .stp-ui-copy-icon__glyph[data-shown] {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .stp-ui-copy-icon[data-copy-state='copied'] {
+    color: var(--stp-ui-copy-success, color-mix(in srgb, var(--stp-color-brand) 75%, white));
+  }
+
+  .stp-ui-copy-icon[data-copy-state='failed'] {
+    color: var(--stp-status-error);
+  }
+
+  /* Both labels in one cell, so "Copy" turning into "Copied" never changes the button's width. */
+  .stp-ui-copy-button__label {
+    display: inline-grid;
+  }
+
+  .stp-ui-copy-button__label > *,
+  .stp-ui-copy-button__label::after {
+    grid-area: 1 / 1;
+  }
+
+  .stp-ui-copy-button__label::after {
+    content: attr(data-reserved);
+    visibility: hidden;
+  }
+
+  /* ── Command line ──────────────────────────────────────────────────────────────────────────────
+   * A command to paste into a terminal, on the code plane: a prompt, the program in the accent colour, flags muted, a
+   * copy icon in the corner. As wide as its longest line (set inline in characters of the code font), never wider than
+   * its column. */
+  .stp-ui-command-line {
+    box-sizing: border-box;
+    display: grid;
+    /* One track that never grows past the box, so the command wraps instead of pushing the copy button out. */
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 1fr;
+    width: fit-content;
+    min-width: min(100%, 320px);
+    max-width: 100%;
+    border: 1px solid var(--stp-ui-command-border, var(--stp-border-subtle));
+    border-radius: var(--stp-ui-command-radius, var(--stp-radius-large));
+    background: var(--stp-ui-command-background, var(--stp-surface-input));
+    box-shadow: var(--stp-ui-command-shadow, none);
+    /* Left-aligned even inside a centred empty state, so every line starts under the first. */
+    text-align: left;
+  }
+
+  .stp-ui-command-line[data-has-header] {
+    grid-template-rows: auto 1fr;
+  }
+
+  .stp-ui-command-line--fill {
+    width: 100%;
+  }
+
+  .stp-ui-command-line__header {
+    display: flex;
+    align-items: center;
+    gap: var(--stp-space-8);
+    min-width: 0;
+    padding: var(--stp-space-4);
+    border-bottom: 1px solid var(--stp-ui-command-border, var(--stp-border-subtle));
+  }
+
+  .stp-ui-command-line__body {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    align-content: center;
+    gap: var(--stp-space-8);
+    /* The width is set inline, in the code font's characters; as wide as the box when the header is wider, and never
+     * wider than the box. */
+    min-width: 100%;
+    max-width: 100%;
+    padding: 8px 8px 8px 14px;
+    font-family: var(--stp-ui-code-font, Consolas, Menlo, Monaco, 'Courier New', monospace);
+    font-size: var(--stp-ui-code-size, 13px);
+  }
+
+  .stp-ui-command-line__stack {
+    display: grid;
+    align-self: stretch;
+    min-width: 0;
+  }
+
+  .stp-ui-command-line__stack > * {
+    grid-area: 1 / 1;
+  }
+
+  .stp-ui-command-line__session {
+    display: grid;
+    align-content: start;
+    gap: var(--stp-space-12);
+    min-width: 0;
+  }
+
+  .stp-ui-command-line__session[data-hidden],
+  .stp-ui-command-line__text[data-hidden] {
+    visibility: hidden;
+  }
+
+  .stp-ui-command-line__text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding-top: 4px;
+  }
+
+  /* A command is code, not running text: a host's reading measure for paragraphs must not wrap it. */
+  .stp-ui-command-line__line {
+    display: flex;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+    line-height: var(--stp-ui-code-line-height, 20px);
+  }
+
+  .stp-ui-command-line__prompt {
+    flex: none;
+    margin-right: 1ch;
+    color: var(--stp-text-subtle);
+    user-select: none;
+  }
+
+  .stp-ui-command-line__words {
+    flex: 1;
+    min-width: 0;
+    color: var(--stp-text-primary);
+    white-space: pre-wrap;
+  }
+
+  .stp-ui-command-line__group {
+    display: inline-block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .stp-ui-command-line__program {
+    color: var(--stp-ui-command-program, var(--stp-text-secondary));
+    font-weight: 600;
+  }
+
+  .stp-ui-command-line__flag {
+    color: var(--stp-text-muted);
+  }
+
+  .stp-ui-command-line__output {
+    display: grid;
+    gap: var(--stp-space-4);
+    padding-bottom: var(--stp-space-4);
+    color: var(--stp-text-subtle);
+    line-height: var(--stp-ui-code-line-height, 20px);
+    user-select: none;
+  }
+
+  .stp-ui-command-line__output p {
+    max-width: none;
+    margin: 0;
+  }
+
+  .stp-ui-command-line__address {
+    color: var(--stp-text-muted);
+  }
+
+  /* Drawn through CSS: it holds its line's height without being text on the page. */
+  .stp-ui-command-line__ghost::before {
+    content: attr(data-text);
+  }
+
+  .stp-ui-command-line__copy.stp-ui-button {
+    color: var(--stp-text-muted);
+  }
+
+  .stp-ui-command-line__copy.stp-ui-button:hover {
+    color: var(--stp-text-primary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stp-ui-copy-icon__glyph {
+      transition: none;
+    }
+  }
 }
 
 @keyframes stp-ui-spinner-pulse {

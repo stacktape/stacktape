@@ -1,178 +1,113 @@
-import { useState } from 'react';
 import { Button } from '@stacktape/ui-react/button';
-import { SelectionCard, SelectionCardGroup } from '@stacktape/ui-react/selection-card';
-import type { WizardAgentOption, WizardState } from '../session';
+import { Fragment } from 'react';
+import type { WizardState } from '../session';
+import { type AnalyzerChoice, AnalyzerPicker, useAnalyzerChoice } from './start/analyzer';
+
+type JourneyStep = { id: 'analyze' | 'review' | 'deploy' | 'live'; name: string; time: string; text: string };
+
+/** The four steps from here to a running app, each with a rough time and what happens in it. */
+const journey = (choice: AnalyzerChoice): JourneyStep[] => [
+  {
+    id: 'analyze',
+    name: 'Analyze',
+    // Without an agent the analysis reads a handful of files and is done in seconds.
+    time: choice.usesAi ? 'about 1 min' : 'a few seconds',
+    text: choice.usesAi
+      ? `${choice.agent?.label} analyzes your code and works out what your app needs.`
+      : 'Stacktape analyzes your manifests and config files and works out what your app needs.'
+  },
+  {
+    id: 'review',
+    name: 'Review',
+    time: 'a few minutes',
+    text: "See the architecture and the monthly price. Change anything you don't like."
+  },
+  {
+    id: 'deploy',
+    name: 'Deploy',
+    time: '10–15 min',
+    text: 'Stacktape creates it all in your AWS account. Only when you click Deploy.'
+  },
+  { id: 'live', name: 'Live', time: 'right after', text: 'Your app runs on AWS, with a URL you can open and share.' }
+];
 
 /**
- * The first screen, rebuilt around what a first-time user actually needs to know.
- *
- * Which is three things, in their words: nothing leaves my machine, nothing is created or billed
- * yet, and I get a file I can read. Then one button.
- *
- * Everything else that used to live here moved out or under. The size question moved to the Review
- * step — before seeing what exists and what it costs there is nothing to size. The agent choice is
- * an implementation detail with a good default, so it sits behind a disclosure: someone who has
- * never seen this tool should not have to hold "which AI reads my code, with which model" before
- * pressing the only button on the page.
+ * A project name with places to wrap after its separators: `acme-customer-portal` breaks after a dash, as a person
+ * would hyphenate it, and the heading keeps one size for every name.
+ */
+const wrappableName = (name: string): string[] => name.split(/(?<=[-_./])/);
+
+/**
+ * The first screen: the four steps from here to a running app as a track across the page (on a phone, down it), then
+ * how the project is analyzed and the button that starts it. The analyzer starts on the CLI's recommendation: the best
+ * coding agent on this machine with its own model, or Stacktape without AI when there is none.
  */
 export function StartStep({
   state,
   onStart,
   isBusy,
-  isDone
+  isLocked
 }: {
   state: WizardState;
   onStart: (agentId: string, modelId: string) => void;
   isBusy: boolean;
-  /** Behind the user: the choice is made and the section is a record of it. */
-  isDone: boolean;
+  /** Disconnected from the CLI: the analysis cannot start until it is back. */
+  isLocked: boolean;
 }) {
-  const agents = state.agents ?? [];
-  const [showOptions, setShowOptions] = useState(false);
-  const [agentId, setAgentId] = useState<string>(
-    agents.find((agent) => agent.recommended)?.id ?? agents[0]?.id ?? 'none'
-  );
-  const [modelId, setModelId] = useState<string>('default');
-
-  const agent: WizardAgentOption | undefined = agents.find((option) => option.id === agentId);
-  const models = agent?.models ?? [];
-  const chosenModel = models.some((model) => model.id === modelId) ? modelId : 'default';
-
-  if (isDone) {
-    const chosen = state.agents?.find((option) => option.id === state.choice?.agentId);
-    return (
-      <p className="wizard-recap">
-        {state.phase === 'analysing' ? 'Analyzing' : state.phase === 'failed' ? 'Started' : 'Analyzed'} with{' '}
-        <strong>{chosen?.label ?? 'the built-in scanner'}</strong>.
-      </p>
-    );
-  }
-
+  const choice = useAnalyzerChoice(state.agents ?? []);
   return (
-    <div className="flex flex-col gap-7">
-      {state.repositoryPath !== undefined && (
-        <dl className="wizard-facts">
-          <div className="min-w-0">
-            <dt>Project</dt>
-            <dd className="wizard-code [overflow-wrap:anywhere]">{state.repositoryPath}</dd>
-          </div>
-        </dl>
-      )}
+    <div className="w-start w-enter">
+      <div className="w-start-body">
+        <h1 className="w-start-title">
+          Deploy{' '}
+          <span className="w-start-name">
+            {wrappableName(state.projectName).map((part, index) => (
+              // oxlint-disable-next-line react/no-array-index-key -- positions in a fixed name.
+              <Fragment key={index}>
+                {index > 0 && <wbr />}
+                {part}
+              </Fragment>
+            ))}
+          </span>{' '}
+          to your AWS account
+        </h1>
 
-      <ol className="wizard-promises">
-        <li>
-          {agent !== undefined && agent.id !== 'none' ? (
-            <>
-              <strong>No code is sent to Stacktape.</strong> Your own {agent.label} reads the project right here, under
-              the account you already have with it, with read-only tools. It cannot run scripts or install anything.
-              Prefer that no AI provider receives code? Pick “Files only” under Options.
-            </>
-          ) : (
-            <>
-              <strong>Your code stays on this machine.</strong> The built-in scanner reads your manifests and config
-              files right here. Nothing goes to Stacktape or to any AI provider, and no account is needed.
-            </>
-          )}
-        </li>
-        <li>
-          <strong>Nothing is created on AWS and nothing is billed.</strong> The result is one file in your project. AWS
-          only comes into it if you confirm a deploy at the end, and that step says so before it does anything. No
-          Stacktape account is needed for any of it.
-        </li>
-        <li>
-          <strong>You will see everything before you commit to it.</strong> Every piece of infrastructure comes with the
-          place in your own code that made us propose it, what it costs per month, and a way to change it.
-        </li>
-      </ol>
+        <ol aria-label="From here to a running app" className="w-start-track">
+          {journey(choice).map((step, index) => (
+            <li className={`w-start-step${index === 0 ? ' is-next' : ''}`} key={step.id}>
+              <span aria-hidden className="w-start-stop">
+                {index + 1}
+              </span>
+              <span className="w-start-step-name">{step.name}</span>
+              <span className="w-start-time">{step.time}</span>
+              <p className="w-start-text">{step.text}</p>
+            </li>
+          ))}
+        </ol>
 
-      <div className="flex items-center gap-4">
-        <Button isLoading={isBusy} onClick={() => onStart(agentId, chosenModel)} variant="primary">
-          Analyze my project
-        </Button>
-        <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
-          {agent === undefined || agent.id === 'none'
-            ? 'Takes a second.'
-            : `Usually under a minute, on your own ${agent.label} plan.`}
-        </span>
+        <div className="w-start-action">
+          <AnalyzerPicker choice={choice} isDisabled={isBusy} />
+          <Button
+            className="w-start-button"
+            disabled={isLocked}
+            isLoading={isBusy}
+            onClick={() => onStart(choice.agentId, choice.modelId)}
+            variant="primary"
+          >
+            Analyze my project
+          </Button>
+        </div>
       </div>
 
-      {agents.length > 1 && (
-        <div>
-          <button className="wizard-disclosure" onClick={() => setShowOptions(!showOptions)} type="button">
-            {showOptions ? 'Hide options' : `Options: analyzing with ${agent?.label ?? 'the built-in scanner'}`}
-          </button>
-
-          {showOptions && (
-            <div className="mt-4 flex flex-col gap-5">
-              <div>
-                <p className="wizard-group-label">Which agent reads the project</p>
-                <SelectionCardGroup
-                  ariaLabel="Which agent reads the project"
-                  direction="column"
-                  onValueChange={(value) => {
-                    setAgentId(value);
-                    setModelId('default');
-                  }}
-                  value={agentId}
-                  values={agents.map((option) => option.id)}
-                >
-                  {agents.map((option) => (
-                    <SelectionCard
-                      description={option.description}
-                      isRecommended={option.recommended === true}
-                      isSelected={option.id === agentId}
-                      key={option.id}
-                      onSelect={(value) => {
-                        setAgentId(value);
-                        setModelId('default');
-                      }}
-                      title={option.label}
-                      value={option.id}
-                      {...(option.version === undefined ? {} : { meta: versionLabel(option.version) })}
-                    />
-                  ))}
-                </SelectionCardGroup>
-              </div>
-
-              {models.length > 1 && (
-                <div>
-                  <p className="wizard-group-label">Which model it uses</p>
-                  <SelectionCardGroup
-                    ariaLabel="Which model the agent uses"
-                    className="wizard-model-cards"
-                    direction="row"
-                    onValueChange={setModelId}
-                    value={chosenModel}
-                    values={models.map((model) => model.id)}
-                  >
-                    {models.map((model) => (
-                      <SelectionCard
-                        description={model.description}
-                        isSelected={model.id === chosenModel}
-                        key={model.id}
-                        onSelect={setModelId}
-                        title={model.label}
-                        value={model.id}
-                      />
-                    ))}
-                  </SelectionCardGroup>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      <p className="m-0 max-w-[var(--wizard-measure)] text-[0.82rem] text-[var(--stp-text-subtle)]">
-        Anonymous outcome statistics are recorded (which frameworks were found, whether the deploy worked), never your
-        code, names or files. <span className="wizard-code">STP_DISABLE_TELEMETRY=1</span> turns that off.
+      <p className="w-start-foot">
+        <span className="w-start-foot-line">
+          Analyzing doesn't change your code or create anything on AWS. No Stacktape account needed.
+        </span>
+        <span className="w-start-foot-line">
+          Sends anonymous usage statistics, never code or names.{' '}
+          <span className="w-code whitespace-nowrap">STP_DISABLE_TELEMETRY=1</span> turns them off.
+        </span>
       </p>
     </div>
   );
 }
-
-/** "2.1.296 (Claude Code)" and "codex-cli 0.98.0" are what the agents print; the card already names the agent. */
-export const versionLabel = (version: string): string => {
-  const number = /\d+\.\d+(?:\.\d+)?/.exec(version)?.[0];
-  return number === undefined ? version : `v${number}`;
-};

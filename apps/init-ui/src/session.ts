@@ -7,10 +7,13 @@
  * token is single-use anyway, so leaving it visible only invites confusion when it stops working.
  */
 
+import type { DeployResource } from './deploy-model';
+import { keepPriceWhileRepricing } from './reprice';
 import type {
   DeploymentPreferenceChange,
   DeploymentPreferences
 } from '@stacktape/config-inference/compose/preferences';
+import type { SettingChange } from '@stacktape/config-inference/compose/resource-settings';
 
 /** A decision taken on the user's behalf, with what else it could have been. */
 export type WizardDecision = {
@@ -56,6 +59,9 @@ type WizardExistingDeployment = {
 
 type WizardModelOption = { id: string; label: string; description: string };
 
+/** An AWS profile on this machine, as `~/.aws` declares it: its name, how it signs in, and its region. */
+export type WizardAwsProfile = { name: string; kind: 'sso' | 'keys' | 'role' | 'other'; region?: string };
+
 export type WizardAgentOption = {
   id: string;
   label: string;
@@ -63,6 +69,8 @@ export type WizardAgentOption = {
   description: string;
   models: WizardModelOption[];
   recommended?: boolean;
+  /** One Stacktape can drive that is not on this machine: shown so people know it exists, never started. */
+  installed?: false;
 };
 
 /** What went wrong at the current sign-in step. `code` selects the way out the panel offers. */
@@ -110,6 +118,8 @@ export type WizardState = {
   mode?: 'low-cost' | 'standard' | 'production';
   preferences?: DeploymentPreferences;
   recommendedPreferences?: DeploymentPreferences;
+  /** The database engine versions RDS offers, newest first, by engine: what a version setting lists. */
+  engineVersions?: Record<string, string[]>;
   /** Set once the configuration is on disk. `existingPath` means this is a file written beside one. */
   configFile?: {
     path: string;
@@ -122,8 +132,15 @@ export type WizardState = {
   region?: string;
   /** Who this machine is to AWS. Absent until the check has answered. */
   awsIdentity?:
-    | { available: true; accountId: string; arn: string; region?: string; profile?: string }
+    | { available: true; accountId: string; arn: string; region?: string; profile?: string; accountAlias?: string }
     | { available: false; reason: 'no-credentials' | 'rejected'; detail: string; profile?: string };
+  /**
+   * The AWS profiles on this machine (names and how they sign in, never keys) and the one picked on this page. Absent
+   * `selected`: the profile the CLI picks by itself, which `awsIdentity.profile` names.
+   */
+  awsProfiles?: { available: WizardAwsProfile[]; selected?: string };
+  /** Whether Docker answers on this machine, which a release command on an SSR site needs. Absent until checked. */
+  docker?: { available: boolean };
   /**
    * Whether this machine is signed in to Stacktape. Nothing in the wizard needs it: signed out, the deploy runs on this
    * machine's AWS credentials alone. Absent while checking. `email` and `organization` are present when the account
@@ -171,6 +188,11 @@ export type WizardState = {
     /** When this attempt began; the event list is capped, so its first entry cannot say. */
     startedAt?: string;
     events: unknown[];
+    /**
+     * Every AWS resource this attempt's CloudFormation progress named, with its state and times. Kept whole however
+     * long the deploy runs, unlike `events`.
+     */
+    resources?: DeployResource[];
     lines: string[];
     outcome?: { ok: boolean; code: string; message: string };
     /**
@@ -218,26 +240,20 @@ export type WizardState = {
       }
     | { status: 'unverified'; stackName: string; stage: string; region: string; detail: string };
   /**
-   * The local try-out of the composed services, once one has been asked for.
-   *
-   * `dismissed` keeps the last results visible while removing their hold on the deploy button.
-   * Absent until the user clicks — running their code is a permission the page never assumes.
+   * The configuration as edited by hand. While present it is what gets written and deployed. A TypeScript edit carries
+   * its text, with `yaml` the configuration it evaluated to last. `error` says why the text does not parse or run.
    */
-  verification?: {
-    status: 'running' | 'repairing' | 'completed' | 'unavailable' | 'dismissed';
-    services?: Array<{
-      serviceName: string;
-      resourceName: string;
-      status: 'passed' | 'failed' | 'inconclusive' | 'skipped';
-      reason: string;
-      observations: {
-        listeningPorts: number[];
-        dialedDependency: boolean;
-        missingEnvironmentVariables: string[];
-        logTail: string[];
-      };
-    }>;
-  };
+  configEdit?: ConfigEdit;
+  /** Secrets set from this page, and whether the user said the others already exist. Absent: setting is unavailable. */
+  secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
+  /** Saving pasted AWS keys as a profile on this machine. */
+  awsKeys?: { status: 'saving' | 'saved' | 'failed'; detail?: string; profile?: string };
+  /** Secrets removed from the configuration on the Deploy step, by name, until they are put back. */
+  dismissedSecrets?: string[];
+  /** Folders below the project that look like apps, offered when nothing was found here. */
+  nearbyApps?: string[];
+  /** What each of `nearbyApps` is written in, by folder, when its files say ("Node.js", "Go"). */
+  nearbyAppKinds?: Record<string, string>;
   timeline: Array<{ kind: string; label: string }>;
   facts?: {
     services: WizardService[];
@@ -269,6 +285,14 @@ export type WizardState = {
       region: string;
       /** What each other answer to a choice changes the monthly price by, by choice and answer. */
       options?: Record<string, Record<string, string>>;
+      /** The fixed monthly total as a number. Absent when the estimate is incomplete. */
+      flatMonthly?: number;
+      /** Each resource's fixed monthly amount, by name. Absent for a resource that could not be priced. */
+      resourceFlat?: Record<string, number>;
+      /** What each resource's price is made of: its instance, storage, requests. */
+      lines?: Record<string, CostLine[]>;
+      /** What each option of each priced setting would cost: the resource's amount and the stack's, by option value. */
+      settings?: Record<string, Record<string, Record<string, { resource?: number; total?: number }>>>;
     };
     /** The price service did not answer for this configuration; nothing else depends on it. */
     priceUnavailable?: boolean;
@@ -286,6 +310,52 @@ export type WizardState = {
   error?: string;
 };
 
+/** One product of a resource's price, as the estimator names it ("RDS-instance-db.t4g.micro-postgres"). */
+export type CostLine = {
+  name: string;
+  priceModel: string;
+  /** The fixed monthly amount, for a flat-priced product. */
+  monthly?: number;
+  /** The rate, for a product billed by use, per `unit`. */
+  rate?: number;
+  unit?: string;
+  /** How many units the configuration asks for: two instances, 20 GB. */
+  quantity?: number;
+};
+
+/**
+ * A repository file as the CLI lets the page show it: only one the analysis read or cited, with `.env` values and URL
+ * credentials masked. `not-shown` names the file and says why its text is not there.
+ */
+/** A hand edit of the configuration, as the CLI holds it (`WizardState['configEdit']` in the CLI). */
+export type ConfigEdit = { yaml: string; typescript?: string; error?: string; errorLine?: number };
+
+/** The template the configuration compiles to (`WizardTemplatePreview` in the CLI). */
+export type TemplatePreview =
+  | {
+      status: 'ready';
+      /** The configuration text it was compiled from. */
+      config: string;
+      text: string;
+      /** The configuration's resource each logical ID belongs to; absent for the stack's shared ones. */
+      owners: Record<string, string>;
+      stage: string;
+      region: string;
+    }
+  | { status: 'failed'; config: string; error: string }
+  | { status: 'unavailable'; detail: string };
+
+export type FileView =
+  | { path: string; status: 'shown'; text: string; lineCount: number; truncated: boolean; masked: boolean }
+  | {
+      path: string;
+      status: 'not-shown';
+      reason: 'not-seen' | 'outside' | 'missing' | 'not-a-file' | 'too-large' | 'binary';
+    };
+
+/** The repository's file names, as the CLI lists them for the scan (no dependencies, build output or ignored files). */
+export type RepositoryTree = { files: string[]; truncated: boolean };
+
 export class SessionError extends Error {}
 
 /** Reads the handshake token out of the fragment and removes it from the address bar. */
@@ -302,6 +372,8 @@ export type Session = {
   start: (agentId: string, modelId: string) => Promise<WizardState>;
   /** Change one explicit infrastructure choice. The configuration and price are rebuilt from it. */
   setPreference: (change: DeploymentPreferenceChange) => Promise<WizardState>;
+  /** Change one setting of one resource: its size, a standby copy, a domain. The CLI checks it against what it offers. */
+  setSetting: (change: SettingChange) => Promise<WizardState>;
   /** Write the configuration to the repository, in the format chosen on the Review step. */
   write: (format: 'yaml' | 'typescript') => Promise<WizardState>;
   /** Deploy it. Besides connecting a coding agent, the only thing here that changes anything outside the repository. */
@@ -310,10 +382,6 @@ export type Session = {
     region: string,
     expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string }
   ) => Promise<WizardState>;
-  /** Try the composed services on this machine. The click is the consent to run the project's code. */
-  verify: () => Promise<WizardState>;
-  /** Set a verification result aside: it stays visible, but stops holding the deploy button. */
-  dismissVerification: () => Promise<WizardState>;
   /** Write a deployment pipeline for the project's git host. */
   pipeline: (stage: string, region: string) => Promise<WizardState>;
   /** Connect the coding agent picked on the Start step to Stacktape, at user level. */
@@ -330,6 +398,31 @@ export type Session = {
    */
   consoleConnection: (action: 'connect' | 'dismiss') => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
+  /** Replaces the generated configuration with hand-edited text, or goes back to the generated one with `null`. */
+  setConfigText: (edit: { yaml: string } | { typescript: string } | null) => Promise<WizardState>;
+  /** The CloudFormation template the configuration under review compiles to, compiled offline by the CLI. */
+  readTemplate: () => Promise<TemplatePreview>;
+  /** Stores one secret in the user's AWS account. The value goes to the CLI on this machine and nowhere else. */
+  setSecret: (name: string, value: string) => Promise<WizardState>;
+  /** The secrets the configuration reads already exist. */
+  confirmSecrets: () => Promise<WizardState>;
+  /** Saves pasted AWS access keys as a profile on this machine and checks the identity again. */
+  saveAwsKeys: (accessKeyId: string, secretAccessKey: string) => Promise<WizardState>;
+  /** Deploys with another AWS profile on this machine. The identity and the target are checked again. */
+  setAwsProfile: (profile: string) => Promise<WizardState>;
+  /** Removes a secret from the configuration (the variables that read it), or puts it back. */
+  dismissSecret: (name: string, dismissed: boolean) => Promise<WizardState>;
+  /** The text of a file the analysis read or cited, for the evidence it shows. Read-only. */
+  readFile: (path: string) => Promise<FileView>;
+  /** The repository's file names, for the tree the scan draws. Names only. */
+  readTree: () => Promise<RepositoryTree>;
+  /**
+   * What the project's `.env` sets for the secrets the configuration reads, for "Use the values from .env". Held in
+   * memory by the page only; saved only when the user saves them, through `setSecret`.
+   */
+  readEnvironmentValues: () => Promise<
+    { file: string; values: Array<{ name: string; value: string }> } | { file: undefined }
+  >;
   /** Calls back on every server-pushed update and connection transition. */
   subscribe: (
     onState: (state: WizardState) => void,
@@ -375,9 +468,16 @@ export const connect = async (): Promise<Session> => {
    */
   const publish = (next: WizardState) => {
     if ((next.revision ?? 0) < (current.revision ?? 0)) return;
-    current = next;
-    for (const listener of listeners) listener(next);
+    current = keepPriceWhileRepricing(current, next);
+    for (const listener of listeners) listener(current);
   };
+
+  const post = (path: string, body: unknown) =>
+    fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+      body: JSON.stringify(body)
+    });
 
   return {
     get state() {
@@ -421,30 +521,6 @@ export const connect = async (): Promise<Session> => {
       publish((await deploying.json()) as WizardState);
       return current;
     },
-    verify: async () => {
-      const verifying = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        body: '{}'
-      });
-      if (!verifying.ok) {
-        throw new SessionError('The local try-out could not be started.');
-      }
-      publish((await verifying.json()) as WizardState);
-      return current;
-    },
-    dismissVerification: async () => {
-      const dismissed = await fetch('/api/verify/dismiss', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        body: '{}'
-      });
-      if (!dismissed.ok) {
-        throw new SessionError('Could not set the result aside.');
-      }
-      publish((await dismissed.json()) as WizardState);
-      return current;
-    },
     pipeline: async (stage, region) => {
       const written = await fetch('/api/pipeline', {
         method: 'POST',
@@ -476,6 +552,18 @@ export const connect = async (): Promise<Session> => {
       });
       if (!changed.ok) {
         throw new SessionError('That infrastructure choice could not be applied.');
+      }
+      publish((await changed.json()) as WizardState);
+      return current;
+    },
+    setSetting: async (change) => {
+      const changed = await fetch('/api/setting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: JSON.stringify(change)
+      });
+      if (!changed.ok) {
+        throw new SessionError('That setting could not be applied.');
       }
       publish((await changed.json()) as WizardState);
       return current;
@@ -530,6 +618,53 @@ export const connect = async (): Promise<Session> => {
       publish((await changed.json()) as WizardState);
       return current;
     },
+    setConfigText: async (edit) => {
+      const changed = await post('/api/config-text', edit ?? { yaml: null });
+      if (!changed.ok) throw new SessionError('The edited file could not be sent to stacktape init.');
+      publish((await changed.json()) as WizardState);
+      return current;
+    },
+    setSecret: async (name, value) => {
+      const saved = await post('/api/secret', { name, value });
+      if (!saved.ok) {
+        const problem = (await saved.json().catch(() => ({}))) as { error?: string };
+        throw new SessionError(problem.error ?? 'The secret could not be saved.');
+      }
+      publish((await saved.json()) as WizardState);
+      return current;
+    },
+    confirmSecrets: async () => {
+      const confirmed = await post('/api/secrets/confirm', {});
+      if (!confirmed.ok) throw new SessionError('Could not record that.');
+      publish((await confirmed.json()) as WizardState);
+      return current;
+    },
+    saveAwsKeys: async (accessKeyId, secretAccessKey) => {
+      const saved = await post('/api/aws-keys', { accessKeyId, secretAccessKey });
+      if (!saved.ok) {
+        const problem = (await saved.json().catch(() => ({}))) as { error?: string };
+        throw new SessionError(problem.error ?? 'The keys could not be saved.');
+      }
+      publish((await saved.json()) as WizardState);
+      return current;
+    },
+    setAwsProfile: async (profile) => {
+      const switched = await post('/api/aws-profile', { profile });
+      if (!switched.ok) {
+        const problem = (await switched.json().catch(() => ({}))) as { error?: string };
+        throw new SessionError(problem.error ?? 'That AWS profile could not be used.');
+      }
+      publish((await switched.json()) as WizardState);
+      return current;
+    },
+    dismissSecret: async (name, dismissed) => {
+      const changed = await post('/api/secret-dismiss', { name, dismissed });
+      if (!changed.ok) {
+        throw new SessionError(dismissed ? 'The secret could not be removed.' : 'The secret could not be put back.');
+      }
+      publish((await changed.json()) as WizardState);
+      return current;
+    },
     answer: async (questionId, value) => {
       const answered = await fetch('/api/answer', {
         method: 'POST',
@@ -544,6 +679,30 @@ export const connect = async (): Promise<Session> => {
       // `current`, not `next`: the reply may already have been superseded by the stream, and the
       // caller should be told what the page is showing rather than what this request happened to see.
       return current;
+    },
+    readFile: async (path) => {
+      const read = await fetch(`/api/file?path=${encodeURIComponent(path)}`, {
+        headers: { 'x-csrf-token': csrfToken }
+      });
+      if (!read.ok) throw new SessionError('The file could not be read.');
+      return (await read.json()) as FileView;
+    },
+    readTemplate: async () => {
+      const read = await fetch('/api/template', { headers: { 'x-csrf-token': csrfToken } });
+      if (!read.ok) throw new SessionError('The template could not be compiled.');
+      return (await read.json()) as TemplatePreview;
+    },
+    readTree: async () => {
+      const read = await fetch('/api/tree', { headers: { 'x-csrf-token': csrfToken } });
+      if (!read.ok) throw new SessionError('The file tree could not be read.');
+      return (await read.json()) as RepositoryTree;
+    },
+    readEnvironmentValues: async () => {
+      const read = await fetch('/api/environment-values', { headers: { 'x-csrf-token': csrfToken } });
+      if (!read.ok) return { file: undefined };
+      return (await read.json()) as
+        | { file: string; values: Array<{ name: string; value: string }> }
+        | { file: undefined };
     },
     subscribe: (onState, onConnectionState) => {
       listeners.add(onState);

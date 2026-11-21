@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'bun:test';
+import { request } from 'node:http';
 import { startWizardServer, type WizardServer, type WizardState } from './wizard-server';
 import type { WizardSignInAction } from './wizard-sign-in';
 
@@ -47,8 +48,6 @@ const start = async (overrides: Partial<Parameters<typeof startWizardServer>[0]>
       onDeploy: (input) => {
         deployed.push(input);
       },
-      onVerify: () => {},
-      onVerifyDismiss: () => baseState,
       onPipeline: () => {},
       onCodingAgentSetup: () => {},
       onRecheck: () => baseState,
@@ -163,6 +162,171 @@ describe('authorisation', () => {
 
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
     expect(response.headers.get('x-frame-options')).toBe('DENY');
+  });
+});
+
+describe('showing a repository file', () => {
+  const requested: string[] = [];
+  const startWithFiles = () =>
+    start({
+      hooks: {
+        onAnswer: () => baseState,
+        onMode: () => baseState,
+        onPreference: () => baseState,
+        onStart: () => {},
+        onWrite: () => {},
+        onDeploy: () => {},
+        onPipeline: () => {},
+        onCodingAgentSetup: () => {},
+        onRecheck: () => baseState,
+        onSignIn: () => {},
+        onConsoleConnection: () => {},
+        onFile: async (path) => {
+          requested.push(path);
+          return { path, status: 'not-shown', reason: 'not-seen' };
+        }
+      }
+    });
+
+  it('needs the session cookie and the CSRF token, and leaves the path to the file rules', async () => {
+    const { origin, token } = await startWithFiles();
+    const { cookie, body } = await handshake(origin, token);
+    const url = `${origin}/api/file?path=${encodeURIComponent('../.ssh/id_rsa')}`;
+
+    expect((await fetch(url, { headers: { Origin: origin } })).status).toBe(401);
+    expect((await fetch(url, { headers: { Origin: origin, Cookie: cookie } })).status).toBe(403);
+    expect(
+      (await fetch(url, { headers: { Origin: 'http://evil.test', Cookie: cookie, 'x-csrf-token': body.csrfToken! } }))
+        .status
+    ).toBe(403);
+    expect(requested).toEqual([]);
+
+    const response = await fetch(url, { headers: { Origin: origin, Cookie: cookie, 'x-csrf-token': body.csrfToken! } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ path: '../.ssh/id_rsa', status: 'not-shown', reason: 'not-seen' });
+    expect(requested).toEqual(['../.ssh/id_rsa']);
+  });
+});
+
+describe('listing the repository tree', () => {
+  let calls = 0;
+  const startWithTree = () =>
+    start({
+      hooks: {
+        onAnswer: () => baseState,
+        onMode: () => baseState,
+        onPreference: () => baseState,
+        onStart: () => {},
+        onWrite: () => {},
+        onDeploy: () => {},
+        onPipeline: () => {},
+        onCodingAgentSetup: () => {},
+        onRecheck: () => baseState,
+        onSignIn: () => {},
+        onConsoleConnection: () => {},
+        onTree: async () => {
+          calls += 1;
+          return { files: ['package.json', 'src/index.ts'], truncated: false };
+        }
+      }
+    });
+
+  /** A request with a Host header of our choosing, which `fetch` does not allow. */
+  const withHost = (origin: string, host: string, headers: Record<string, string>) =>
+    new Promise<number>((resolveStatus, reject) => {
+      const { port } = new URL(origin);
+      const outgoing = request(
+        { host: '127.0.0.1', port, path: '/api/tree', headers: { ...headers, Host: host } },
+        (incoming) => {
+          incoming.resume();
+          resolveStatus(incoming.statusCode ?? 0);
+        }
+      );
+      outgoing.on('error', reject);
+      outgoing.end();
+    });
+
+  it('needs the session cookie, the page origin and host, and the CSRF token', async () => {
+    const { origin, token } = await startWithTree();
+    const { cookie, body } = await handshake(origin, token);
+    const url = `${origin}/api/tree`;
+    const csrf = body.csrfToken!;
+
+    expect((await fetch(url, { headers: { Origin: origin } })).status).toBe(401);
+    expect((await fetch(url, { headers: { Origin: origin, Cookie: 'stacktape_init=guess' } })).status).toBe(401);
+    expect((await fetch(url, { headers: { Origin: origin, Cookie: cookie } })).status).toBe(403);
+    expect(
+      (await fetch(url, { headers: { Origin: origin, Cookie: cookie, 'x-csrf-token': 'not-the-token' } })).status
+    ).toBe(403);
+    expect(
+      (await fetch(url, { headers: { Origin: 'http://evil.test', Cookie: cookie, 'x-csrf-token': csrf } })).status
+    ).toBe(403);
+    // DNS rebinding: a page on another name resolved to loopback sends its own Host.
+    expect(await withHost(origin, `evil.test:${new URL(origin).port}`, { Cookie: cookie, 'x-csrf-token': csrf })).toBe(
+      403
+    );
+    expect(calls).toBe(0);
+
+    const response = await fetch(url, { headers: { Origin: origin, Cookie: cookie, 'x-csrf-token': csrf } });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ files: ['package.json', 'src/index.ts'], truncated: false });
+    expect(calls).toBe(1);
+  });
+
+  it('is only a read: other methods are not the tree', async () => {
+    const { origin, token } = await startWithTree();
+    const { cookie, body } = await handshake(origin, token);
+
+    const response = await fetch(`${origin}/api/tree`, {
+      method: 'POST',
+      headers: { Origin: origin, Cookie: cookie, 'x-csrf-token': body.csrfToken! }
+    });
+    expect(response.status).toBe(404);
+    expect(calls).toBe(1);
+  });
+});
+
+describe("reading the project's .env values", () => {
+  let calls = 0;
+  const startWithValues = () =>
+    start({
+      hooks: {
+        onAnswer: () => baseState,
+        onMode: () => baseState,
+        onPreference: () => baseState,
+        onStart: () => {},
+        onWrite: () => {},
+        onDeploy: () => {},
+        onPipeline: () => {},
+        onCodingAgentSetup: () => {},
+        onRecheck: () => baseState,
+        onSignIn: () => {},
+        onConsoleConnection: () => {},
+        onEnvironmentValues: async () => {
+          calls += 1;
+          return { file: '.env', values: [{ name: 'DOMAIN', value: 'example.org' }] };
+        }
+      }
+    });
+
+  it('needs the session cookie, the page origin and the CSRF token', async () => {
+    const { origin, token } = await startWithValues();
+    const { cookie, body } = await handshake(origin, token);
+    const url = `${origin}/api/environment-values`;
+
+    expect((await fetch(url, { headers: { Origin: origin } })).status).toBe(401);
+    expect((await fetch(url, { headers: { Origin: origin, Cookie: cookie } })).status).toBe(403);
+    expect(
+      (await fetch(url, { headers: { Origin: 'http://evil.test', Cookie: cookie, 'x-csrf-token': body.csrfToken! } }))
+        .status
+    ).toBe(403);
+    expect(calls).toBe(0);
+
+    const response = await fetch(url, { headers: { Origin: origin, Cookie: cookie, 'x-csrf-token': body.csrfToken! } });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(await response.json()).toEqual({ file: '.env', values: [{ name: 'DOMAIN', value: 'example.org' }] });
   });
 });
 
@@ -609,18 +773,6 @@ describe('idle shutdown', () => {
     expect(alive.status).toBe(401);
 
     started.publish({ ...quietState, deployment: { ...running, status: 'succeeded' as const } });
-    expect(await started.whenClosed).toBe('idle');
-  });
-
-  it('stays up while the consented local try-out is running without a page', async () => {
-    const { origin, server: started } = await start({ initialState: quietState, idleTimeoutMs: 50 });
-    started.publish({ ...quietState, verification: { status: 'running' } });
-
-    await new Promise((resolveWait) => setTimeout(resolveWait, 160));
-    const alive = await fetch(`${origin}/api/state`, { headers: { Origin: origin } });
-    expect(alive.status).toBe(401);
-
-    started.publish({ ...quietState, verification: { status: 'unavailable' } });
     expect(await started.whenClosed).toBe('idle');
   });
 });

@@ -21,21 +21,26 @@ import { writePipeline } from './cicd/write-pipeline';
 import { CODING_AGENT_IDS, getCodingAgent, type CodingAgentId } from '@domain-services/coding-agent-setup/agents';
 import { setUpCodingAgents } from '@domain-services/coding-agent-setup/setup';
 import { resolveAwsIdentity } from './deploy/credentials';
+import { setSecretWithCli } from './deploy/set-secret';
+import { findNearbyApps } from './nearby-apps';
+import { getAwsProfileDescriptions, upsertAwsProfile } from '@utils/aws-config';
+import { isDockerRunning } from '@utils/docker';
+import { CONFIG_SCHEMA_PATH } from '../config/project-paths';
 import { connectConsole, resolveStacktapeAccount } from './deploy/stacktape-account';
 import {
   deployCommandLine,
   inspectDeployTarget,
   readResourceUrl,
+  resolveSelfCommand,
   startDeploy,
   type DeployHandle
 } from './deploy/run-deploy';
+import { compileTemplatePreview } from './template-preview/compile';
 import { runAgentSessionWithRetry } from './agent/session-runner';
 import type { AgentEvent } from './agent/transport';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from './missions/greenfield';
 import { projectNameFor } from './project-name';
 import { createRailpackPlanner } from './railpack-planner';
-import { runPreflight } from './preflight/preflight';
-import { createPreflightRunners } from './preflight/runners';
 import { runRepairMission } from './missions/repair';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import type { DeploymentPreferences } from '@stacktape/config-inference/compose/preferences';
@@ -141,16 +146,17 @@ export const chooseAgent = (
 const AGENT_COPY: Readonly<Record<string, { label: string; description: string }>> = {
   'claude-code': {
     label: 'Claude Code',
-    description: 'Reads your project on this machine using your own Claude subscription.'
+    description: 'Reads your code locally, on your Claude plan'
   },
   codex: {
     label: 'Codex',
-    description: 'Reads your project on this machine using your own Codex subscription.'
+    description: 'Reads your code locally, on your Codex plan'
   }
 };
 
 /**
- * The ways this project can be read, as the first screen offers them.
+ * The ways this project can be read, as the first screen offers them: the agents on this machine, then working
+ * without one, then the agents Stacktape can drive that are not installed (so the page can say what else there is).
  *
  * Working without an agent is a real option rather than a fallback: it reads nothing but the files
  * the probes already look at, costs nothing, and produces a configuration that leans on defaults
@@ -172,12 +178,20 @@ export const agentOptions = (
     })),
   {
     id: 'none',
-    label: 'Files only, no agent',
-    description:
-      'Reads manifests, compose files, Dockerfiles and environment files. Fast, free, and guesses a bit more.',
+    label: 'Stacktape, without AI',
+    description: 'Reads only manifests and config files',
     models: [{ id: 'default', label: 'No model', description: 'Nothing is sent to a model.' }],
     ...(recommended === undefined ? { recommended: true } : {})
-  }
+  },
+  ...Object.entries(AGENT_COPY)
+    .filter(([id]) => !available.some((entry) => entry.id === id))
+    .map(([id, copy]) => ({
+      id,
+      label: copy.label,
+      description: 'Not installed on this machine',
+      models: [],
+      installed: false as const
+    }))
 ];
 
 /** Said in both presentations, so "Using claude-code" is never left implying that the agent read the code. */
@@ -200,6 +214,10 @@ export const canOpenBrowser = (env: NodeJS.ProcessEnv = process.env): boolean =>
  * a development checkout has it wherever Vite last wrote it. Returning undefined is a supported
  * outcome — the server simply has nothing to serve, and the URL is still printed.
  */
+/** The Stacktape config schema for the wizard's editor: beside a released binary, or in the workspace. */
+const findConfigSchema = (): string | undefined =>
+  [join(dirname(process.execPath), 'config-schema.json'), CONFIG_SCHEMA_PATH].find((path) => existsSync(path));
+
 export const findWizardBundle = (): string | undefined => {
   const candidates = [
     process.env.STACKTAPE_WIZARD_BUNDLE,
@@ -437,9 +455,11 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
   // Opened before anything is read, and nothing is read until the user says so. The analysis spends
   // their own agent subscription, so it starts on a button they pressed after seeing what it will do
   // — not as a side effect of typing a command.
+  const configSchemaPath = findConfigSchema();
   const session = await startWizardSession({
     projectName,
     repositoryPath: repositoryRoot,
+    repositoryRoot,
     ...(existingConfig === undefined ? {} : { existingConfig }),
     ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
     consoleUrl: new URL(stacktapeConsoleUrl()).origin,
@@ -476,22 +496,19 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       }
       return result;
     },
-    write: async ({ composition, format, region }) => {
+    write: async ({ composition, format, region, contents, replaces }) => {
       const written = await writeComposedConfig({
         repositoryRoot,
         composition,
         format,
         ...(region === undefined ? {} : { region }),
+        ...(contents === undefined ? {} : { contents }),
+        ...(replaces === undefined ? {} : { replaces }),
         ...(format === 'typescript' ? { stacktapeVersion: getStacktapeVersion() } : {})
       });
       for (const line of describeDevDependency(written)) say(line);
       return written;
     },
-    // The local try-out: build the composed services the way the deploy will, start them in an
-    // isolated container with stub values, and watch. Only ever invoked after the user's click —
-    // the session owns that consent — and every machinery failure reads as "unavailable" there.
-    verify: ({ facts, composition }) =>
-      runPreflight({ repositoryRoot, facts, composition, runners: createPreflightRunners() }),
     // Only with an agent. The probes read files, and a deploy failure is not in a file: without a
     // model there is nothing new to learn between one attempt and the next. The session enforces
     // the user's own choice on top of this — someone who picked "Files only" is never repaired by
@@ -527,11 +544,14 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             return repaired;
           }
         }),
-    awsIdentity: () =>
+    // A profile picked on the page wins over the one this run started with, for every AWS call below.
+    awsIdentity: ({ profile }) =>
       resolveAwsIdentity({
         region: regionForNewConfig(options.machineRegion),
-        ...(options.awsProfile === undefined ? {} : { profile: options.awsProfile })
+        ...((profile ?? options.awsProfile) === undefined ? {} : { profile: profile ?? options.awsProfile })
       }),
+    awsProfiles: () => getAwsProfileDescriptions(),
+    dockerAvailable: () => isDockerRunning(),
     machineRegion: regionForNewConfig(options.machineRegion),
     stacktapeAccount: () => resolveStacktapeAccount(),
     ...(options.signIn === undefined ? {} : { signIn: options.signIn, connectConsole: () => connectConsole() }),
@@ -598,7 +618,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         };
       }
     },
-    inspectDeployTarget: async ({ configFile, stage, region }) => {
+    inspectDeployTarget: async ({ configFile, stage, region, profile }) => {
       const controller = new AbortController();
       const finished = inspectDeployTarget({
         request: {
@@ -607,6 +627,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
           projectName,
           stage,
           region,
+          ...(profile === undefined ? {} : { profile }),
           ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
         },
         signal: controller.signal
@@ -623,6 +644,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       configFile,
       stage,
       region,
+      profile,
       keepPartialProgress,
       targetExpectation,
       urlResourceNames,
@@ -637,6 +659,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         stage,
         region,
         projectName,
+        ...(profile === undefined ? {} : { profile }),
         ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
         ...(targetExpectation === undefined ? {} : { targetExpectation }),
         ...(keepPartialProgress === true ? { keepPartialProgress: true } : {})
@@ -691,6 +714,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
                 stage,
                 region,
                 resourceName,
+                ...(profile === undefined ? {} : { profile }),
                 ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
               }
             });
@@ -704,6 +728,33 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       return { ...outcome, urls: [...byUrl].map(([url, names]) => ({ resourceName: names.join(' and '), url })) };
     },
     ...(bundle === undefined ? {} : { staticRoot: bundle }),
+    ...(configSchemaPath === undefined ? {} : { configSchemaPath }),
+    // The CloudFormation view: this CLI compiles each template in a child of its own, offline.
+    templatePreview: (request) => compileTemplatePreview(request, resolveSelfCommand()),
+    setSecret: ({ name, value, region, profile }) =>
+      setSecretWithCli({
+        name,
+        value,
+        region,
+        ...((profile ?? options.awsProfile) === undefined ? {} : { profile: profile ?? options.awsProfile }),
+        ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
+      }),
+    // The profile the deploy would use, or `default` when there is none: the profile the AWS chain reads first.
+    createAwsProfile: async ({ accessKeyId, secretAccessKey, profile: picked }) => {
+      const profile = picked ?? options.awsProfile ?? 'default';
+      await upsertAwsProfile(profile, accessKeyId, secretAccessKey);
+      say(`\nSaved AWS access keys as profile ${profile}.`);
+      return { ok: true, profile, detail: `Saved as AWS profile ${profile} in ~/.aws/credentials.` };
+    },
+    ...(await (async () => {
+      const apps = await findNearbyApps(repositoryRoot);
+      return {
+        nearbyApps: apps.map((app) => app.path),
+        nearbyAppKinds: Object.fromEntries(
+          apps.flatMap((app) => (app.kind === undefined ? [] : [[app.path, app.kind]]))
+        )
+      };
+    })()),
     // Only in a development checkout. A released CLI serves a bundle that cannot change underneath
     // it, so watching would burn a file handle to wait for something that never happens.
     ...(process.env.STP_DEV_MODE === 'true' ? { watchStatic: true } : {})

@@ -109,3 +109,13 @@ export const resolveEngineVersion = ({
   }
   return { version: releaseLineOf(engine, newest(accepted)), movedOffPin: pin !== undefined };
 };
+
+/**
+ * The release lines an engine offers, newest first: `['18', '17', '16', …]` for Postgres. Engines without release
+ * lines list their full versions. What the wizard offers when someone picks another version.
+ */
+export const engineReleaseLines = (engine: string, catalogue: EngineVersionCatalogue | undefined): string[] => {
+  const accepted = catalogue?.[engine] ?? [];
+  const lines = new Set(accepted.map((version) => releaseLineOf(engine, version)));
+  return [...lines].toSorted((a, b) => compareVersions(b, a));
+};

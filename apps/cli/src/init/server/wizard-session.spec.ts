@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { composeConfig } from '@stacktape/config-inference/compose';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema, type ProjectFacts } from '@stacktape/config-inference/facts';
 import type { GreenfieldResult } from '../missions/greenfield';
@@ -220,6 +223,24 @@ describe('startWizardSession', () => {
 
       expect((await post(opened, { agentId: 'something-else', modelId: 'default' })).status).toBe(400);
       expect((await post(opened, { agentId: 'claude-code', modelId: 'gpt-9' })).status).toBe(400);
+    });
+
+    it('refuses an agent it lists as not installed', async () => {
+      session = await startWizardSession({
+        projectName: 'demo',
+        agents: [...agents, { ...agents[0]!, id: 'codex', label: 'Codex', installed: false }],
+        start: async () => resultFor(factsWith({}))
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+
+      expect((await post({ origin, cookie, csrfToken }, { agentId: 'codex', modelId: 'default' })).status).toBe(400);
     });
 
     it('lets a failed analysis be started again from the page', async () => {
@@ -641,8 +662,10 @@ describe('startWizardSession', () => {
 
         await post('/api/write', { format: 'yaml' });
         expect(declared).toEqual(['eu-north-1']);
-        // The written file declares the region; the page says where to change it rather than deploying elsewhere.
-        expect((await post('/api/region', { region: 'us-west-2' })).region).toBe('eu-north-1');
+        // Changing it on the Deploy step drops the written file, which the page then writes again with the new region.
+        const moved = await post('/api/region', { region: 'us-west-2' });
+        expect(moved.region).toBe('us-west-2');
+        expect(moved.configFile).toBeUndefined();
       });
     });
 
@@ -1181,191 +1204,6 @@ describe('toTimelineEntry', () => {
   });
 });
 
-describe('the local try-out', () => {
-  const result = () => {
-    const facts = projectFactsSchema.parse({ schemaVersion: PROJECT_FACTS_SCHEMA_VERSION, services: [service] });
-    return { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] };
-  };
-
-  const failedService = {
-    serviceName: 'api',
-    resourceName: 'api',
-    status: 'failed' as const,
-    reason: 'Exited on startup asking for: X_API_KEY.',
-    observations: {
-      listeningPorts: [],
-      dialedDependency: false,
-      missingEnvironmentVariables: ['X_API_KEY'],
-      logTail: []
-    }
-  };
-
-  const open = async (verify: NonNullable<Parameters<typeof startWizardSession>[0]['verify']>, deploys: unknown[]) => {
-    session = await startWizardSession({
-      projectName: 'demo',
-      result: result(),
-      write: async () => ({ path: 'C:/repo/stacktape.yml', filename: 'stacktape.yml' }),
-      deploy: async (input) => {
-        deploys.push(input);
-        return { ok: true, code: 'OK', message: 'done' };
-      },
-      verify
-    });
-    const origin = `http://127.0.0.1:${session.server.port}`;
-    const token = new URL(session.server.url).hash.replace('#token=', '');
-    const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
-      method: 'POST',
-      headers: { Origin: origin }
-    });
-    const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
-    const { csrfToken } = (await handshake.json()) as { csrfToken: string };
-    const post = (path: string, body: Record<string, unknown> = {}) =>
-      fetch(`${origin}${path}`, {
-        method: 'POST',
-        headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        body: JSON.stringify(body)
-      });
-    const stateNow = async () =>
-      (await (await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } })).json()) as {
-        verification?: { status: string; services?: Array<{ status: string }> };
-        deployment?: { status: string };
-      };
-    const until = async (predicate: (state: Awaited<ReturnType<typeof stateNow>>) => boolean) => {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        const state = await stateNow();
-        if (predicate(state)) return state;
-        await new Promise((settle) => setTimeout(settle, 10));
-      }
-      throw new Error('The state never reached the expected shape.');
-    };
-    return { post, stateNow, until };
-  };
-
-  it('holds the deploy on a proven failure until the user sets it aside', async () => {
-    let finishVerify: (value: { status: 'completed'; services: Array<typeof failedService> }) => void = () => {};
-    const deploys: unknown[] = [];
-    const { post, until, stateNow } = await open(
-      () =>
-        new Promise((resolve) => {
-          finishVerify = resolve as typeof finishVerify;
-        }),
-      deploys
-    );
-
-    await post('/api/write', { format: 'yaml' });
-    await post('/api/verify');
-    expect((await stateNow()).verification?.status).toBe('running');
-
-    // While it runs, the button does nothing — a deploy racing the evidence would defeat the gate.
-    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
-    expect(deploys).toEqual([]);
-
-    finishVerify({ status: 'completed', services: [failedService] });
-    await until((state) => state.verification?.status === 'completed');
-
-    // A proven failure holds the deploy: the click is answered by the state, not by AWS spend.
-    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
-    expect(deploys).toEqual([]);
-
-    // Setting it aside is the user's call, and it is honoured immediately.
-    await post('/api/verify/dismiss');
-    expect((await stateNow()).verification?.status).toBe('dismissed');
-    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
-    await until((state) => state.deployment !== undefined);
-    expect(deploys.length).toBe(1);
-  });
-
-  it('repairs a proven local failure once, then proves the fix the same way', async () => {
-    const verifyCalls: number[] = [];
-    let repairCalls = 0;
-    let repairFailure:
-      | Parameters<NonNullable<Parameters<typeof startWizardSession>[0]['repair']>>[0]['failure']
-      | undefined;
-    const facts = projectFactsSchema.parse({ schemaVersion: PROJECT_FACTS_SCHEMA_VERSION, services: [service] });
-    const failureWithPrivateLog = {
-      ...failedService,
-      observations: {
-        ...failedService.observations,
-        logTail: ['DATABASE_URL=postgresql://user:do-not-send@database.example/app']
-      }
-    };
-
-    session = await startWizardSession({
-      projectName: 'demo',
-      result: { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] },
-      verify: async () => {
-        verifyCalls.push(Date.now());
-        // First look fails; the look after the repair passes.
-        return verifyCalls.length === 1
-          ? { status: 'completed', services: [failureWithPrivateLog] }
-          : {
-              status: 'completed',
-              services: [{ ...failedService, status: 'passed' as const, reason: 'Listening on port 8080.' }]
-            };
-      },
-      repair: async ({ failure }) => {
-        repairCalls += 1;
-        repairFailure = failure;
-        return { facts, composition: composeConfig({ facts, projectName: 'demo' }), changed: true };
-      }
-    });
-    const origin = `http://127.0.0.1:${session.server.port}`;
-    const token = new URL(session.server.url).hash.replace('#token=', '');
-    const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
-      method: 'POST',
-      headers: { Origin: origin }
-    });
-    const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
-    const { csrfToken } = (await handshake.json()) as { csrfToken: string };
-
-    await fetch(`${origin}/api/verify`, {
-      method: 'POST',
-      headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-      body: '{}'
-    });
-
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-      const state = (await (
-        await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } })
-      ).json()) as { verification?: { status: string; services?: Array<{ status: string }> } };
-      if (state.verification?.status === 'completed') {
-        // The failure was repaired locally and re-proven locally — one repair, two looks, no AWS.
-        expect(state.verification.services?.[0]?.status).toBe('passed');
-        expect(repairCalls).toBe(1);
-        expect(verifyCalls.length).toBe(2);
-        expect(repairFailure?.output).toEqual([]);
-        expect(JSON.stringify(repairFailure)).not.toContain('do-not-send');
-        return;
-      }
-      await new Promise((settle) => setTimeout(settle, 10));
-    }
-    throw new Error('Verification never completed.');
-  });
-
-  it('drops a result earned against a configuration the user has since changed', async () => {
-    let finishVerify: (value: { status: 'completed'; services: Array<typeof failedService> }) => void = () => {};
-    const { post, stateNow } = await open(
-      () =>
-        new Promise((resolve) => {
-          finishVerify = resolve as typeof finishVerify;
-        }),
-      []
-    );
-
-    await post('/api/verify');
-    expect((await stateNow()).verification?.status).toBe('running');
-
-    // Changing anything recomposes, and a different configuration is a different thing to prove.
-    await post('/api/preferences', { key: 'capacity', value: 'performance' });
-    expect((await stateNow()).verification).toBeUndefined();
-
-    // The old run finishing late must not resurrect its verdict against the new configuration.
-    finishVerify({ status: 'completed', services: [failedService] });
-    await new Promise((settle) => setTimeout(settle, 30));
-    expect((await stateNow()).verification).toBeUndefined();
-  });
-});
-
 describe('signing in to Stacktape from the page', () => {
   type Organization = { id: string; name: string };
 
@@ -1787,5 +1625,437 @@ describe('signing in to Stacktape from the page', () => {
     const pollsAtRecheck = fake.device.polls.length;
     await Bun.sleep(300);
     expect(fake.device.polls).toHaveLength(pollsAtRecheck);
+  });
+});
+
+describe('what the page sets besides choices', () => {
+  type PageState = WizardState & {
+    configEdit?: { yaml: string; error?: string };
+    secrets?: { set: string[]; confirmed: boolean; failure?: { name: string; detail: string } };
+    awsKeys?: { status: string; profile?: string };
+    configFile?: { path: string; filename: string };
+    composition?: { configText?: { yaml: string }; gaps: Array<{ subject: string }> };
+    facts?: { decisions: Array<{ id: string; chosen: string }> };
+    awsIdentity?: { available: boolean; accountId?: string; profile?: string; accountAlias?: string };
+    awsProfiles?: { available: Array<{ name: string }>; selected?: string };
+    dismissedSecrets?: string[];
+  };
+  const factsFor = (overrides: Record<string, unknown> = {}): GreenfieldResult => {
+    const facts = factsWith(overrides);
+    return { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] };
+  };
+  const connect = async () => {
+    const origin = `http://127.0.0.1:${session!.server.port}`;
+    const token = new URL(session!.server.url).hash.replace('#token=', '');
+    const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+      method: 'POST',
+      headers: { Origin: origin }
+    });
+    const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+    const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
+    const post = async (path: string, body: unknown = {}) => {
+      const response = await fetch(`${origin}${path}`, { method: 'POST', headers, body: JSON.stringify(body) });
+      return { status: response.status, state: (await response.json()) as PageState };
+    };
+    const get = async (path: string) => (await fetch(`${origin}${path}`, { headers })).json();
+    return { post, get };
+  };
+
+  it('applies a resource setting to the composed file, keeps it through a recomposition, and refuses what was not offered', async () => {
+    const database = {
+      name: 'mainDatabase',
+      kind: 'postgres',
+      extensions: [],
+      consumedBy: ['api'],
+      evidence: [],
+      source: 'probe'
+    };
+    session = await startWizardSession({ projectName: 'demo', result: factsFor({ dependencies: [database] }) });
+    const { post } = await connect();
+    type Resources = Record<string, { properties: Record<string, any> }>;
+    const resourcesOf = (state: PageState) => (state.composition as unknown as { resources: Resources }).resources;
+
+    const sized = await post('/api/setting', {
+      resource: 'mainDatabase',
+      setting: 'instanceSize',
+      value: 'db.m7g.large'
+    });
+    expect(resourcesOf(sized.state).mainDatabase!.properties.engine.properties.primaryInstance.instanceSize).toBe(
+      'db.m7g.large'
+    );
+    // The preview the page shows and saves is the file with the setting in it, not a hand edit.
+    expect(sized.state.composition!.configText!.yaml).toContain('instanceSize: db.m7g.large');
+    expect(sized.state.configEdit).toBeUndefined();
+    const standby = await post('/api/setting', { resource: 'mainDatabase', setting: 'multiAz', value: true });
+    expect(resourcesOf(standby.state).mainDatabase!.properties.engine.properties.primaryInstance.multiAz).toBe(true);
+
+    // Going private recomposes (it adds the access server); the size and the standby picked before stay.
+    const privateNetwork = await post('/api/setting', {
+      resource: 'mainDatabase',
+      setting: 'access',
+      value: 'private'
+    });
+    const resources = resourcesOf(privateNetwork.state);
+    expect(Object.values(resources).some((resource) => (resource as { type?: string }).type === 'bastion')).toBe(true);
+    expect(resources.mainDatabase!.properties.engine.properties.primaryInstance).toEqual({
+      instanceSize: 'db.m7g.large',
+      multiAz: true
+    });
+
+    // Anything the resource did not offer changes nothing; a malformed change is a bad request.
+    const before = privateNetwork.state.composition!.configText!.yaml;
+    for (const change of [
+      { resource: 'mainDatabase', setting: 'instanceSize', value: 'db.x2iedn.32xlarge' },
+      { resource: 'mainDatabase', setting: 'masterUserPassword', value: 'hunter2' },
+      { resource: 'nothing', setting: 'multiAz', value: true }
+    ]) {
+      expect((await post('/api/setting', change)).state.composition!.configText!.yaml).toBe(before);
+    }
+    expect((await post('/api/setting', { resource: 'mainDatabase', setting: 'multiAz', value: { a: 1 } })).status).toBe(
+      400
+    );
+  });
+
+  it('writes a setting into a hand-edited file in place, keeping the edits', async () => {
+    session = await startWizardSession({ projectName: 'demo', result: factsFor() });
+    const { post } = await connect();
+    const generated = (await post('/api/region', { region: 'eu-west-1' })).state.composition!.configText!.yaml;
+    await post('/api/config-text', { yaml: `# my notes\n${generated}` });
+    const resized = await post('/api/setting', { resource: 'api', setting: 'size', value: '1/2048' });
+    expect(resized.state.configEdit?.yaml).toStartWith('# my notes\n');
+    expect(resized.state.configEdit?.yaml).toContain('cpu: 1\n');
+    expect(resized.state.configEdit?.yaml).toContain('memory: 2048');
+  });
+
+  it('reads from .env only the variables the configuration reads as secrets', async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), 'stacktape-session-env-'));
+    try {
+      await writeFile(
+        join(repositoryRoot, '.env'),
+        'DOMAIN=localhost\nPLAIN=not-a-secret\nAWS_SECRET_ACCESS_KEY=never-sent\n'
+      );
+      session = await startWizardSession({ projectName: 'demo', result: factsFor(), repositoryRoot });
+      const { post, get } = await connect();
+      await post('/api/config-text', {
+        yaml: [
+          'resources:',
+          '  api:',
+          '    type: web-service',
+          '    properties:',
+          '      environment:',
+          '        - { name: DOMAIN, value: "$Secret(\'domain\')" }',
+          '        - { name: PLAIN, value: plain }'
+        ].join('\n')
+      });
+      expect(await get('/api/environment-values')).toEqual({
+        file: '.env',
+        values: [{ name: 'DOMAIN', value: 'localhost' }]
+      });
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("lists the repository's file names for the page, without dependencies or ignored files", async () => {
+    const repositoryRoot = await mkdtemp(join(tmpdir(), 'stacktape-session-tree-'));
+    try {
+      await mkdir(join(repositoryRoot, 'src'), { recursive: true });
+      await mkdir(join(repositoryRoot, 'node_modules', 'pg'), { recursive: true });
+      await writeFile(join(repositoryRoot, '.gitignore'), '*.log\n');
+      await writeFile(join(repositoryRoot, 'package.json'), '{}');
+      await writeFile(join(repositoryRoot, 'src', 'server.ts'), 'listen(3000)');
+      await writeFile(join(repositoryRoot, 'debug.log'), 'noise');
+      await writeFile(join(repositoryRoot, 'node_modules', 'pg', 'index.js'), '');
+      session = await startWizardSession({ projectName: 'demo', result: factsFor(), repositoryRoot });
+      const { get } = await connect();
+      expect(await get('/api/tree')).toEqual({
+        files: ['.gitignore', 'package.json', 'src/server.ts'],
+        truncated: false
+      });
+    } finally {
+      await rm(repositoryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('writes and deploys hand-edited YAML, keeps settings off while edited, and goes back to generated', async () => {
+    const written: Array<{ contents?: string; replaces?: string }> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      write: async ({ contents, replaces }) => {
+        written.push({
+          ...(contents === undefined ? {} : { contents }),
+          ...(replaces === undefined ? {} : { replaces })
+        });
+        return { path: '/repo/stacktape.yml', filename: 'stacktape.yml' };
+      }
+    });
+    const { post } = await connect();
+    const generated = (await post('/api/region', { region: 'eu-west-1' })).state.composition!.configText!.yaml;
+    const edited = `${generated}# tuned by hand\n`;
+
+    const reply = await post('/api/config-text', { yaml: edited });
+    // The reply carries a revision, or the page would drop it as older than what it holds.
+    expect(reply.state.revision).toBeGreaterThan(0);
+    expect(reply.state.configEdit).toEqual({ yaml: edited });
+    // A setting would regenerate the file over the edit, so it is refused while the edit stands.
+    const refused = await post('/api/preferences', { key: 'capacity', value: 'performance' });
+    expect(refused.state.preferences?.capacity).not.toBe('performance');
+
+    await post('/api/write', { format: 'yaml' });
+    await post('/api/write', { format: 'yaml' });
+    expect(written[0]).toEqual({ contents: edited });
+    // A second save replaces the session's own file instead of writing a second one beside it.
+    expect(written[1]).toEqual({ contents: edited, replaces: '/repo/stacktape.yml' });
+
+    expect((await post('/api/config-text', { yaml: 'resources: [' })).state.configEdit?.error).toBeDefined();
+    const reset = await post('/api/config-text', { yaml: null });
+    expect(reset.state.configEdit).toBeUndefined();
+    expect(reset.state.configFile).toBeUndefined();
+  });
+
+  it('writes hand-edited TypeScript as typed, and follows the configuration it defines', async () => {
+    const written: Array<{ format: string; contents?: string }> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      write: async ({ format, contents }) => {
+        written.push({ format, ...(contents === undefined ? {} : { contents }) });
+        return { path: '/repo/stacktape.ts', filename: 'stacktape.ts' };
+      }
+    });
+    const { post, get } = await connect();
+    // The TypeScript rendering runs Prettier, so it arrives a beat after the YAML.
+    let typescript: string | undefined;
+    for (let attempt = 0; attempt < 50 && typescript === undefined; attempt += 1) {
+      const state = (await get('/api/state')) as PageState & { composition?: { configText?: { typescript?: string } } };
+      typescript = state.composition?.configText?.typescript;
+      if (typescript === undefined) await Bun.sleep(50);
+    }
+    expect(typescript).toContain("from 'stacktape'");
+    const edited = typescript!.replace("'node index.js'", "'node server.js'");
+    expect(edited).not.toBe(typescript);
+
+    const reply = await post('/api/config-text', { typescript: edited });
+    const edit = reply.state.configEdit as { yaml: string; typescript?: string; error?: string } | undefined;
+    expect(edit?.typescript).toBe(edited);
+    expect(edit?.error).toBeUndefined();
+    // What it defines, for the diagram, the price and the secrets.
+    expect(edit?.yaml).toContain('node server.js');
+
+    await post('/api/write', { format: 'yaml' });
+    expect(written.at(-1)).toEqual({ format: 'typescript', contents: edited });
+
+    // Text that does not run says why and where, and keeps the last configuration it defined.
+    const broken = await post('/api/config-text', { typescript: edited.replace('defineConfig(', 'defineConfig((') });
+    const brokenEdit = broken.state.configEdit as { yaml: string; error?: string; errorLine?: number } | undefined;
+    expect(brokenEdit?.error).toBeDefined();
+    expect(brokenEdit?.yaml).toContain('node server.js');
+  });
+
+  it('compiles the template of the configuration under review once per configuration', async () => {
+    const compiled: Array<{ config: Record<string, unknown>; stage: string; region: string }> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      templatePreview: async (request) => {
+        compiled.push(request);
+        return {
+          ok: true,
+          text: 'Resources:\n  ApiService:\n    Type: AWS::ECS::Service\n',
+          owners: { ApiService: 'api' }
+        };
+      }
+    });
+    const { post, get } = await connect();
+    await post('/api/region', { region: 'eu-west-1' });
+    const first = (await get('/api/template')) as { status: string; owners?: Record<string, string>; region?: string };
+    expect(first).toMatchObject({ status: 'ready', owners: { ApiService: 'api' }, stage: 'dev', region: 'eu-west-1' });
+    await get('/api/template');
+    expect(compiled).toHaveLength(1);
+    expect(Object.keys(compiled[0]!.config.resources as object)).toEqual(['api']);
+
+    // An edit is compiled as edited; a file that does not parse has no template.
+    const generated = (await get('/api/state')) as PageState;
+    await post('/api/config-text', { yaml: generated.composition!.configText!.yaml.replace('api:', 'web:') });
+    await get('/api/template');
+    expect(Object.keys(compiled[1]!.config.resources as object)).toEqual(['web']);
+    await post('/api/config-text', { yaml: 'resources: [' });
+    expect(await get('/api/template')).toMatchObject({ status: 'unavailable' });
+  });
+
+  it('sets secrets through the CLI dependency without keeping their values, and reports a failure by name', async () => {
+    const received: Array<{ name: string; value: string; region: string }> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      setSecret: async (input) => {
+        received.push(input);
+        return input.name === 'broken' ? { ok: false, detail: 'Access denied.' } : { ok: true, detail: 'Saved.' };
+      }
+    });
+    const { post } = await connect();
+    const saved = await post('/api/secret', { name: 'auth_secret', value: 'hunter2' });
+    expect(saved.state.secrets).toEqual({ set: ['auth_secret'], confirmed: false });
+    expect(JSON.stringify(saved.state)).not.toContain('hunter2');
+    expect(received).toEqual([{ name: 'auth_secret', value: 'hunter2', region: expect.any(String) }]);
+
+    const failed = await post('/api/secret', { name: 'broken', value: 'x' });
+    expect(failed.state.secrets?.failure).toEqual({ name: 'broken', detail: 'Access denied.' });
+    expect((await post('/api/secret', { name: 'bad name;', value: 'x' })).status).toBe(400);
+    expect((await post('/api/secrets/confirm')).state.secrets?.confirmed).toBe(true);
+  });
+
+  it('saves pasted AWS keys as a profile and checks the identity again', async () => {
+    let hasKeys = false;
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      awsIdentity: async () =>
+        hasKeys
+          ? { available: true, accountId: '123456789012', arn: 'arn:aws:iam::123456789012:user/dev' }
+          : { available: false, reason: 'no-credentials', detail: 'None found.' },
+      createAwsProfile: async () => {
+        hasKeys = true;
+        return { ok: true, profile: 'default', detail: 'Saved.' };
+      }
+    });
+    const { post } = await connect();
+    expect((await post('/api/aws-keys', { accessKeyId: 'nope', secretAccessKey: 'x' })).status).toBe(400);
+    const saved = await post('/api/aws-keys', {
+      accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+      secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+    });
+    expect(saved.state.awsKeys).toEqual({ status: 'saved', detail: 'Saved.', profile: 'default' });
+    expect(saved.state.awsIdentity?.available).toBe(true);
+    expect(JSON.stringify(saved.state)).not.toContain('wJalrXUtnFEMI');
+  });
+
+  it('switches to another AWS profile on this machine, and every AWS call after it uses that profile', async () => {
+    const asked: Array<string | undefined> = [];
+    const secretProfiles: Array<string | undefined> = [];
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor(),
+      awsProfiles: async () => [
+        { name: 'default', kind: 'keys' },
+        { name: 'acme-prod', kind: 'sso', region: 'us-east-1' }
+      ],
+      awsIdentity: async ({ profile }) => {
+        asked.push(profile);
+        return profile === 'acme-prod'
+          ? {
+              available: true,
+              accountId: '270988120451',
+              arn: 'arn:aws:sts::270988120451:assumed-role/AWSReservedSSO_Admin_1/dev',
+              profile,
+              accountAlias: 'acme-production'
+            }
+          : {
+              available: true,
+              accountId: '123456789012',
+              arn: 'arn:aws:iam::123456789012:user/dev',
+              profile: 'default'
+            };
+      },
+      setSecret: async ({ name, profile }) => {
+        secretProfiles.push(profile);
+        return { ok: true, detail: `Saved ${name}.` };
+      }
+    });
+    const { post } = await connect();
+    await post('/api/secret', { name: 'auth_secret', value: 'x' });
+    // Only a profile this machine has; anything else changes nothing.
+    expect((await post('/api/aws-profile', { profile: 'nobody' })).state.awsProfiles?.selected).toBeUndefined();
+    expect((await post('/api/aws-profile', { profile: 'bad name;' })).status).toBe(400);
+
+    const switched = await post('/api/aws-profile', { profile: 'acme-prod' });
+    expect(switched.state.awsProfiles?.selected).toBe('acme-prod');
+    expect(switched.state.awsIdentity).toMatchObject({ accountId: '270988120451', accountAlias: 'acme-production' });
+    expect(asked.at(-1)).toBe('acme-prod');
+    // A secret saved in the other account does not exist in this one.
+    expect(switched.state.secrets?.set).toEqual([]);
+    await post('/api/secret', { name: 'auth_secret', value: 'x' });
+    expect(secretProfiles).toEqual([undefined, 'acme-prod']);
+  });
+
+  it('removes a secret the app does not need from the configuration, and puts it back', async () => {
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor({
+        services: [
+          {
+            ...service,
+            environmentVariables: [
+              { name: 'STRIPE_SECRET_KEY', role: 'third-party-secret', required: true, evidence: [] },
+              { name: 'STRIPE_WEBHOOK_SECRET', role: 'third-party-secret', required: true, evidence: [] }
+            ]
+          }
+        ]
+      })
+    });
+    const { post } = await connect();
+    const before = await post('/api/region', { region: 'eu-west-1' });
+    expect(before.state.composition!.configText!.yaml).toContain("$Secret('stripe_webhook_secret')");
+
+    const removed = await post('/api/secret-dismiss', { name: 'stripe_webhook_secret', dismissed: true });
+    expect(removed.state.dismissedSecrets).toEqual(['stripe_webhook_secret']);
+    expect(removed.state.composition!.configText!.yaml).not.toContain('STRIPE_WEBHOOK_SECRET');
+    expect(removed.state.composition!.configText!.yaml).toContain("$Secret('stripe_secret_key')");
+    // A later recomposition keeps it out.
+    const recomposed = await post('/api/region', { region: 'us-east-1' });
+    expect(recomposed.state.composition!.configText!.yaml).not.toContain('STRIPE_WEBHOOK_SECRET');
+
+    const restored = await post('/api/secret-dismiss', { name: 'stripe_webhook_secret', dismissed: false });
+    expect(restored.state.dismissedSecrets).toBeUndefined();
+    expect(restored.state.composition!.configText!.yaml).toContain("$Secret('stripe_webhook_secret')");
+    expect((await post('/api/secret-dismiss', { name: 'x', dismissed: 'yes' })).status).toBe(400);
+  });
+
+  it('runs a Next.js site migration as its release command when that is the answer', async () => {
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor({
+        services: [{ ...service, name: 'web', framework: 'nextjs' }],
+        dependencies: [
+          { name: 'mainDatabase', kind: 'postgres', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' }
+        ],
+        migrations: [
+          { serviceName: 'web', tool: 'drizzle', command: 'npx drizzle-kit migrate', runsAt: 'unknown', evidence: [] }
+        ]
+      })
+    });
+    const { post } = await connect();
+    const after = await post('/api/answer', { id: 'migration-timing:web', value: 'release-command' });
+    expect(after.state.composition!.configText!.yaml).toContain('releaseCommand: npx drizzle-kit migrate');
+    expect(after.state.composition!.configText!.yaml).not.toContain('afterDeploy');
+  });
+
+  it('turns a migration nothing runs into a deploy hook with one answer', async () => {
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: factsFor({
+        dependencies: [
+          { name: 'mainDatabase', kind: 'postgres', extensions: [], consumedBy: ['api'], evidence: [], source: 'probe' }
+        ],
+        migrations: [
+          { serviceName: 'api', tool: 'drizzle', command: 'npx drizzle-kit migrate', runsAt: 'unknown', evidence: [] }
+        ]
+      })
+    });
+    const { post } = await connect();
+    const before = await post('/api/region', { region: 'eu-west-1' });
+    expect(before.state.composition!.gaps.map((gap) => gap.subject)).toContain('api.migrations');
+
+    const after = await post('/api/answer', { id: 'migration-timing:api', value: 'deploy-hook' });
+    expect(after.state.composition!.gaps.map((gap) => gap.subject)).not.toContain('api.migrations');
+    expect(after.state.facts!.decisions).toContainEqual(
+      expect.objectContaining({ id: 'migration-timing:api', chosen: 'deploy-hook' })
+    );
+    expect(after.state.composition!.configText!.yaml).toContain('npx drizzle-kit migrate');
+    // Only a service that has a migration can be answered this way.
+    const ignored = await post('/api/answer', { id: 'migration-timing:nobody', value: 'deploy-hook' });
+    expect(ignored.state.facts!.decisions.some((decision) => decision.id === 'migration-timing:nobody')).toBe(false);
   });
 });

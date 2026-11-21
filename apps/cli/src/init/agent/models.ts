@@ -23,7 +23,7 @@ export type SelectableModel = {
 const PROVIDER_DEFAULT: SelectableModel = {
   id: 'default',
   label: 'Your default',
-  description: 'Whatever the agent is already configured to use. The safe choice.'
+  description: 'The one set in the agent itself'
 };
 
 const MODELS_BY_PROVIDER: Readonly<Record<string, readonly SelectableModel[]>> = {
@@ -32,19 +32,19 @@ const MODELS_BY_PROVIDER: Readonly<Record<string, readonly SelectableModel[]>> =
     {
       id: 'opus',
       label: 'Opus',
-      description: 'The most careful reader. Best on an unfamiliar or unusual project.',
+      description: 'Most careful. Best for an unusual project',
       flag: 'opus'
     },
     {
       id: 'sonnet',
       label: 'Sonnet',
-      description: 'Quicker, and enough for a project that follows the usual conventions.',
+      description: 'Quicker. Enough for a conventional project',
       flag: 'sonnet'
     },
     {
       id: 'haiku',
       label: 'Haiku',
-      description: 'Fastest and cheapest. Fine for a small project with one service.',
+      description: 'Fastest and cheapest. For one small service',
       flag: 'haiku'
     }
   ],

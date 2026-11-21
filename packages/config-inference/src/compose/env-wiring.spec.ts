@@ -15,6 +15,8 @@ describe('wiringFor', () => {
     expect(wiringFor('postgres', 'POSTGRES_JDBC_URL')).toEqual({ kind: 'param', param: 'jdbcConnectionString' });
     expect(wiringFor('postgres', 'POSTGRES_DB')).toEqual({ kind: 'param', param: 'dbName' });
     expect(wiringFor('mysql', 'DB_HOST')).toEqual({ kind: 'param', param: 'host' });
+    expect(wiringFor('postgres', 'POSTGRES_SERVER')).toEqual({ kind: 'param', param: 'host' });
+    expect(wiringFor('redis', 'REDIS_SERVER')).toEqual({ kind: 'param', param: 'host' });
     expect(wiringFor('redis', 'REDIS_PORT')).toEqual({ kind: 'param', param: 'port' });
     expect(wiringFor('mongodb', 'MONGODB_URI')).toEqual({ kind: 'param', param: 'connectionString' });
     expect(wiringFor('queue', 'SQS_QUEUE_URL')).toEqual({ kind: 'param', param: 'url' });

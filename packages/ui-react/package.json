@@ -21,11 +21,19 @@
       "types": "./dist/checkbox/Checkbox.d.ts",
       "default": "./dist/checkbox/Checkbox.js"
     },
+    "./command-line": {
+      "types": "./dist/command-line/CommandLine.d.ts",
+      "default": "./dist/command-line/CommandLine.js"
+    },
     "./config-editor": {
       "types": "./dist/config-editor/ConfigEditor.d.ts",
       "default": "./dist/config-editor/ConfigEditor.js"
     },
     "./config-editor.css": "./src/config-editor/config-editor.css",
+    "./copy-button": {
+      "types": "./dist/copy-button/CopyButton.d.ts",
+      "default": "./dist/copy-button/CopyButton.js"
+    },
     "./dialog": {
       "types": "./dist/dialog/Dialog.d.ts",
       "default": "./dist/dialog/Dialog.js"
@@ -74,6 +82,14 @@
     "./monaco-editor": {
       "types": "./dist/monaco-editor/MonacoEditor.d.ts",
       "default": "./dist/monaco-editor/MonacoEditor.js"
+    },
+    "./monaco-yaml": {
+      "types": "./dist/monaco-yaml/monaco-yaml.d.ts",
+      "default": "./dist/monaco-yaml/monaco-yaml.js"
+    },
+    "./monaco-yaml/model-path": {
+      "types": "./dist/monaco-yaml/yaml-schema-associations.d.ts",
+      "default": "./dist/monaco-yaml/yaml-schema-associations.js"
     },
     "./progress": {
       "types": "./dist/progress/Progress.d.ts",
@@ -145,6 +161,7 @@
     "@tippyjs/react": "^4.2.6",
     "aws-react-icons": "^3.3.0",
     "monaco-types": "^0.1.0",
+    "monaco-yaml": "5.5.1",
     "react-icons": "^5.7.0",
     "react-select": "^5.10.2",
     "thinking-orbs": "0.2.0",

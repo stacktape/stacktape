@@ -17,10 +17,17 @@ function WithCode({ text }: { text: string }) {
 }
 
 /** What went wrong and what to do, from the shared failure explanations. The original error stays one click away. */
-export function FailureExplanationText({ explanations }: { explanations: Explanation[] }) {
+export function FailureExplanationText({
+  explanations,
+  part = 'both'
+}: {
+  explanations: Explanation[];
+  /** The cause alone ("what happened"), the action alone ("the fix"), or both in one sentence pair. */
+  part?: 'cause' | 'action' | 'both';
+}) {
   return explanations.map(({ id, cause, action, link }) => (
     <span className="mb-1.5 block" key={id}>
-      <WithCode text={cause} /> <WithCode text={action} />
+      {part !== 'action' && <WithCode text={cause} />} {part !== 'cause' && <WithCode text={action} />}
       {link !== undefined && !link.url.startsWith('/') && (
         <>
           {' '}

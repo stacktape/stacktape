@@ -1,0 +1,1046 @@
+/*
+ * Deploying, and the deploy's details under a live app or a failure: the steps (phases, what each did, the AWS
+ * resources by part of the app) and the log. Colours and sizes are the shared --w-* variables.
+ */
+
+@layer components {
+  /* ── Layouts ─────────────────────────────────────────────────────────────────────────────── */
+
+  /* Steps beside the diagram: the side gets the room the resources need. */
+  .r-run {
+    --w-pane-right: clamp(540px, 45vw, 880px);
+  }
+
+  .r-side {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ── Steps and log in tabs ───────────────────────────────────────────────────────────────── */
+
+  .r-activity {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .r-activity-tabs {
+    flex: none;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--w-line);
+  }
+
+  .r-activity-panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .r-activity-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-color: var(--w-line-strong) transparent;
+    scrollbar-width: thin;
+  }
+
+  .r-tab-count {
+    margin-left: 6px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--w-code-fill);
+    color: var(--w-subtle);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 16px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .r-tab-count.is-warn {
+    background: var(--w-warn-soft);
+    color: var(--w-warn);
+  }
+
+  .r-tab-count.is-error {
+    background: var(--w-error-soft);
+    color: var(--w-error);
+  }
+
+  /* Under a live app or a failure: a framed panel. The steps take their own height, the log a fixed one. */
+  .r-activity.is-inline {
+    flex: none;
+    margin-top: 12px;
+    overflow: hidden;
+    border: 1px solid var(--w-line);
+    border-radius: var(--w-radius-small);
+    background: rgba(0, 0, 0, 0.12);
+  }
+
+  .r-activity.is-inline .r-activity-tabs {
+    padding: 0 16px;
+  }
+
+  .r-activity.is-inline .r-activity-scroll {
+    max-height: min(620px, 72vh);
+  }
+
+  .r-activity.is-inline[data-view='log'] .r-activity-panel {
+    flex: none;
+    height: min(620px, 72vh);
+  }
+
+  /* ── Marks ───────────────────────────────────────────────────────────────────────────────── */
+
+  .r-mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    border-radius: 50%;
+  }
+
+  .r-mark.is-normal {
+    width: 22px;
+    height: 22px;
+    background: var(--w-panel);
+    box-shadow: inset 0 0 0 1px var(--w-line-strong);
+  }
+
+  .r-mark.is-normal.is-done {
+    background: color-mix(in srgb, var(--w-ok) 16%, var(--w-panel));
+    box-shadow: none;
+    color: var(--w-ok);
+  }
+
+  .r-mark.is-normal.is-failed {
+    background: color-mix(in srgb, var(--w-error) 18%, var(--w-panel));
+    box-shadow: none;
+    color: var(--w-error);
+  }
+
+  .r-mark.is-normal.is-running {
+    background: color-mix(in srgb, var(--w-brand) 16%, var(--w-panel));
+    box-shadow: inset 0 0 0 1px var(--w-brand-line);
+  }
+
+  .r-mark.is-normal .stp-ui-spinner {
+    width: 12px;
+    height: 12px;
+  }
+
+  .r-mark.is-small {
+    width: 16px;
+    height: 16px;
+  }
+
+  .r-mark.is-small.is-done {
+    color: var(--w-ok);
+  }
+
+  .r-mark.is-small.is-removed {
+    color: var(--w-faint);
+  }
+
+  .r-mark.is-small.is-failed {
+    color: var(--w-error);
+  }
+
+  .r-mark.is-small .stp-ui-spinner {
+    width: 11px;
+    height: 11px;
+  }
+
+  .r-mark-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--w-line-strong);
+  }
+
+  .r-time {
+    min-width: 44px;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 18px;
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .r-chevron {
+    color: var(--w-faint);
+    transition: transform 160ms var(--w-ease);
+  }
+
+  [aria-expanded='true'] > .r-chevron {
+    transform: rotate(90deg);
+  }
+
+  /* ── Phases: a timeline, one line each, the open one with what it did ───────────────────── */
+
+  .r-phases {
+    margin: 0;
+    padding: 8px 0 14px;
+    list-style: none;
+  }
+
+  .r-phase {
+    position: relative;
+  }
+
+  /* The line between the marks: done stretches are tinted, what is ahead is plain. */
+  .r-phase:not(:last-child)::before {
+    position: absolute;
+    top: 30px;
+    bottom: -10px;
+    left: 30px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--w-line);
+    content: '';
+  }
+
+  .r-phase.is-done:not(:last-child)::before {
+    background: color-mix(in srgb, var(--w-ok) 38%, transparent);
+  }
+
+  .r-phase-head {
+    position: relative;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) auto auto 18px;
+    gap: 0 12px;
+    align-items: center;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 20px;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .r-phase-head:hover:not(:disabled) {
+    background: var(--w-hover);
+  }
+
+  .r-phase-head:focus-visible {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: -2px;
+  }
+
+  .r-phase-head:disabled,
+  .r-phase-head.is-static {
+    cursor: default;
+  }
+
+  .r-phase-label {
+    overflow: hidden;
+    color: var(--w-muted);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .r-phase.is-running .r-phase-label,
+  .r-phase.is-failed .r-phase-label {
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  .r-phase.is-pending .r-phase-label {
+    color: var(--w-faint);
+  }
+
+  .r-phase-meta {
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .r-phase.is-running .r-phase-meta,
+  .r-phase.is-running > .r-phase-head .r-time {
+    color: var(--w-text);
+  }
+
+  .r-phase-body {
+    position: relative;
+    padding: 2px 20px 12px 54px;
+  }
+
+  .r-empty {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 4px 0;
+    color: var(--w-subtle);
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  /* ── Steps inside a phase ────────────────────────────────────────────────────────────────── */
+
+  .r-steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .r-steps.is-nested {
+    margin: 2px 0 4px 7px;
+    padding-left: 15px;
+    border-left: 1px solid var(--w-line);
+  }
+
+  .r-step-line {
+    display: grid;
+    grid-template-columns: 16px auto minmax(0, 1fr) auto;
+    gap: 0 10px;
+    align-items: center;
+    min-height: 28px;
+  }
+
+  .r-step-label {
+    color: var(--w-text);
+    font-size: 13px;
+    line-height: 20px;
+    white-space: nowrap;
+  }
+
+  .r-step-label.is-code {
+    font-family: var(--w-mono);
+    font-size: 12.5px;
+  }
+
+  .r-step.is-nested .r-step-label {
+    color: var(--w-muted);
+  }
+
+  .r-step-detail {
+    overflow: hidden;
+    color: var(--w-subtle);
+    font-size: 12.5px;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* A running build's last lines, under its row. */
+  .r-step-tail {
+    margin: 2px 0 6px 26px;
+    padding: 6px 10px;
+    overflow: hidden;
+    border-left: 1px solid var(--w-line-strong);
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 11.5px;
+    line-height: 18px;
+    white-space: pre;
+    mask-image: linear-gradient(90deg, black 85%, transparent);
+  }
+
+  /* ── AWS resources, by part of the app ──────────────────────────────────────────────────── */
+
+  .r-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 2px 0 8px;
+  }
+
+  .r-group {
+    overflow: hidden;
+    border: 1px solid var(--w-line);
+    border-radius: var(--w-radius-small);
+    background: rgba(255, 255, 255, 0.015);
+  }
+
+  .r-group.is-running {
+    border-color: color-mix(in srgb, var(--w-brand) 30%, transparent);
+    background: color-mix(in srgb, var(--w-brand) 4%, transparent);
+  }
+
+  .r-group.is-failed {
+    border-color: var(--w-error-line);
+  }
+
+  .r-group-head {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto auto 18px;
+    gap: 0 10px;
+    align-items: center;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px 8px 12px;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .r-group-head:hover {
+    background: var(--w-hover);
+  }
+
+  .r-group-head:focus-visible {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: -2px;
+  }
+
+  .r-group-icon {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    color: var(--w-muted);
+  }
+
+  .r-group-title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .r-group-part {
+    flex: none;
+    color: var(--w-text-strong);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+  }
+
+  .r-group-name {
+    overflow: hidden;
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .r-group-count {
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 18px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .r-group.is-running .r-group-count {
+    color: var(--w-brand-text);
+  }
+
+  .r-resources {
+    margin: 0;
+    padding: 4px 0 6px;
+    border-top: 1px solid var(--w-line);
+    list-style: none;
+  }
+
+  /* Type, then the logical ID: the type says what it is, the ID which one, as CloudFormation names it. */
+  .r-res {
+    display: grid;
+    grid-template-columns: 16px minmax(0, 156px) minmax(0, 1fr) auto;
+    gap: 0 12px;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 28px 0 16px;
+  }
+
+  .r-res:hover {
+    background: var(--w-hover);
+  }
+
+  .r-res-type {
+    overflow: hidden;
+    color: var(--w-text);
+    font-size: 13px;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .r-res-id {
+    overflow: hidden;
+    color: var(--w-subtle);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .r-res.is-running .r-res-type {
+    color: var(--w-text-strong);
+    font-weight: 600;
+  }
+
+  .r-res.is-running .r-time {
+    color: var(--w-brand-text);
+  }
+
+  .r-res.is-removed .r-res-type,
+  .r-res.is-removed .r-res-id {
+    color: var(--w-faint);
+  }
+
+  .r-res-more {
+    padding: 4px 16px 2px 44px;
+  }
+
+  .r-not-started {
+    margin: 0 0 8px;
+    padding-left: 2px;
+    color: var(--w-subtle);
+    font-size: 12.5px;
+    line-height: 18px;
+  }
+
+  /* ── The log ─────────────────────────────────────────────────────────────────────────────── */
+
+  .r-log {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    container: deploy-log / inline-size;
+  }
+
+  .r-log-tools {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--w-line);
+  }
+
+  .r-log-search {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 6px;
+    min-width: 150px;
+    max-width: 280px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: var(--w-radius-chip);
+    background: var(--w-field);
+    box-shadow: var(--w-shadow-field);
+    color: var(--w-subtle);
+  }
+
+  .r-log-search:focus-within {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: 0;
+  }
+
+  .r-log-search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: none;
+    color: var(--w-text);
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .r-log-search input::placeholder {
+    color: var(--w-faint);
+  }
+
+  .r-log-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    margin-left: auto;
+    padding: 0 10px;
+    border: none;
+    border-radius: var(--w-radius-chip);
+    background: none;
+    color: var(--w-muted);
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .r-log-copy:hover {
+    background: var(--w-hover);
+    color: var(--w-text);
+  }
+
+  .r-log-lines {
+    flex: 1;
+    min-height: 0;
+    padding-bottom: 8px;
+    overflow: auto;
+    background: rgba(0, 0, 0, 0.16);
+    font-family: var(--w-mono);
+    font-size: 12px;
+    line-height: 20px;
+    scrollbar-color: var(--w-line-strong) transparent;
+    scrollbar-width: thin;
+  }
+
+  .r-log-lines:focus-visible {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: -2px;
+  }
+
+  .r-log-empty {
+    margin: 0;
+    padding: 24px 16px;
+    color: var(--w-subtle);
+    font-family: var(--font-sans, inherit);
+    font-size: 13px;
+  }
+
+  /* A phase's start: stays at the top while its lines scroll under it. */
+  .r-section {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 16px 16px minmax(0, 1fr) auto auto;
+    gap: 0 10px;
+    align-items: center;
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 16px;
+    border: none;
+    border-bottom: 1px solid var(--w-line);
+    background: rgb(26, 31, 31);
+    color: var(--w-text);
+    font-family: Montserrat, system-ui, sans-serif;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .r-section:not(:first-child) {
+    border-top: 1px solid var(--w-line);
+  }
+
+  .r-section:hover {
+    background: rgb(31, 37, 37);
+  }
+
+  .r-section:focus-visible {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: -2px;
+  }
+
+  .r-section-label {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .r-section.is-pending .r-section-label {
+    color: var(--w-subtle);
+  }
+
+  .r-section-count {
+    color: var(--w-faint);
+    font-size: 12px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .r-line {
+    display: grid;
+    grid-template-columns: 62px 16px minmax(0, 190px) minmax(0, 1fr);
+    gap: 0 12px;
+    padding: 1px 16px;
+    color: var(--w-text);
+  }
+
+  .r-line:hover {
+    background: var(--w-hover);
+  }
+
+  .r-line-time {
+    color: var(--w-faint);
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  .r-line-mark {
+    display: flex;
+    align-items: center;
+    height: 20px;
+    color: var(--w-faint);
+  }
+
+  .r-line-source {
+    overflow: hidden;
+    color: var(--w-subtle);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .r-line-text {
+    min-width: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .r-line.is-success .r-line-mark {
+    color: var(--w-ok);
+  }
+
+  .r-line.is-info .r-line-text {
+    color: var(--w-muted);
+  }
+
+  /* A build's own output: a quiet block under the workload that printed it. */
+  .r-line.is-output .r-line-text {
+    padding-left: 10px;
+    border-left: 1px solid var(--w-line-strong);
+    color: var(--w-subtle);
+  }
+
+  .r-line.is-warn {
+    background: var(--w-warn-soft);
+  }
+
+  .r-line.is-warn .r-line-mark,
+  .r-line.is-warn .r-line-text {
+    color: var(--w-warn);
+  }
+
+  .r-line.is-error {
+    background: var(--w-error-soft);
+  }
+
+  .r-line.is-error .r-line-mark {
+    color: var(--w-error);
+  }
+
+  .r-line.is-error .r-line-text {
+    color: var(--w-text-strong);
+  }
+
+  .r-line mark {
+    border-radius: 2px;
+    background: rgba(230, 178, 90, 0.32);
+    color: inherit;
+  }
+
+  .r-log-foot {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 34px;
+    padding: 4px 16px;
+    border-top: 1px solid var(--w-line);
+    color: var(--w-subtle);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .r-log-latest {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px 3px 8px;
+    border: none;
+    border-radius: 999px;
+    background: var(--w-brand-soft);
+    color: var(--w-brand-text);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  /* A log in a side panel: the time, the mark and the text. What wrote a line is in its tooltip. */
+  @container deploy-log (max-width: 720px) {
+    .r-line {
+      grid-template-columns: 62px 16px minmax(0, 1fr);
+    }
+
+    .r-line-source {
+      display: none;
+    }
+  }
+
+  /* ── Live and failure ────────────────────────────────────────────────────────────────────── */
+
+  .r-live-details {
+    margin-top: 16px;
+    padding-top: 10px;
+    border-top: 1px solid var(--w-line);
+  }
+
+  .r-live-details-summary {
+    margin-left: 8px;
+    color: var(--w-subtle);
+    font-weight: 400;
+  }
+
+  .w-fail-more {
+    --w-expand-gap: 2px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--w-expand-gap);
+  }
+
+  .w-fail-more > .w-expand {
+    align-self: stretch;
+  }
+
+  .w-fail-more .w-expand-inner > .w-log,
+  .w-fail-more .w-expand-inner > .r-activity {
+    margin-bottom: 8px;
+  }
+
+  /* ── Things to ask a coding agent ────────────────────────────────────────────────────────── */
+
+  .r-prompts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 2px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .r-prompt {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 100%;
+    min-height: 32px;
+    padding: 5px 10px 5px 12px;
+    border: 1px solid var(--w-line-strong);
+    border-radius: var(--w-radius-small);
+    background: var(--w-code-fill);
+    color: var(--w-text);
+    font: inherit;
+    font-size: 13px;
+    line-height: 18px;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color 120ms var(--w-ease),
+      background 120ms var(--w-ease);
+  }
+
+  .r-prompt:hover {
+    border-color: var(--w-brand-line);
+    background: var(--w-brand-soft);
+  }
+
+  .r-prompt:focus-visible {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: 1px;
+  }
+
+  .r-prompt-copy {
+    display: inline-flex;
+    flex: none;
+    color: var(--w-faint);
+  }
+
+  .r-prompt:hover .r-prompt-copy {
+    color: var(--w-brand-text);
+  }
+
+  .r-prompt.is-copied .r-prompt-copy {
+    color: var(--w-ok);
+  }
+
+  .r-prompts-note {
+    margin: 10px 0 0;
+    color: var(--w-subtle);
+    font-size: 12px;
+    line-height: 18px;
+  }
+
+  /* ── Narrow screens: the page scrolls, and the panels take their content's height ───────── */
+
+  @media (max-width: 1020px) {
+    .r-side .r-activity {
+      flex: none;
+    }
+
+    .r-side .r-activity-scroll {
+      overflow: visible;
+    }
+
+    .r-side .r-activity[data-view='log'] .r-activity-panel {
+      flex: none;
+      height: 68vh;
+    }
+  }
+
+  @media (max-width: 760px) {
+    .r-phase-head {
+      padding-inline: 14px;
+    }
+
+    .r-phase:not(:last-child)::before {
+      left: 24px;
+    }
+
+    /* The body takes the full width here, so the rail would run through it: an open phase ends its rail. */
+    .r-phase.is-open::before {
+      display: none;
+    }
+
+    /* The header above says the same count. */
+    .r-phase-meta {
+      display: none;
+    }
+
+    .r-phase-head {
+      grid-template-columns: 22px minmax(0, 1fr) auto 18px;
+    }
+
+    .r-phase-body {
+      padding: 2px 12px 12px 14px;
+    }
+
+    .r-activity-tabs {
+      padding: 0 14px;
+    }
+
+    /* The type over the logical ID, the time beside both. */
+    .r-res {
+      grid-template-columns: 16px minmax(0, 1fr) auto;
+      grid-template-areas:
+        'mark type time'
+        'mark id time';
+      padding: 4px 12px;
+    }
+
+    .r-res .r-mark {
+      grid-area: mark;
+      align-self: start;
+      margin-top: 2px;
+    }
+
+    .r-res-type {
+      grid-area: type;
+    }
+
+    .r-res-id {
+      grid-area: id;
+      font-size: 11.5px;
+      line-height: 16px;
+    }
+
+    .r-res .r-time {
+      grid-area: time;
+    }
+
+    .r-res-more {
+      padding-left: 40px;
+    }
+
+    .r-group-head {
+      grid-template-columns: 20px minmax(0, 1fr) auto 18px;
+      grid-template-areas:
+        'icon title time chevron'
+        'icon count time chevron';
+      gap: 0 10px;
+    }
+
+    .r-group-icon {
+      grid-area: icon;
+      align-self: start;
+    }
+
+    .r-group-title {
+      grid-area: title;
+    }
+
+    .r-group-count {
+      grid-area: count;
+    }
+
+    .r-group-head .r-time {
+      grid-area: time;
+    }
+
+    .r-group-head .r-chevron {
+      grid-area: chevron;
+    }
+
+    .r-step-line {
+      grid-template-columns: 16px minmax(0, 1fr) auto;
+    }
+
+    .r-step-detail {
+      grid-column: 2 / 3;
+      grid-row: 2;
+      margin-top: -4px;
+      padding-bottom: 4px;
+    }
+
+    .r-step-line .r-time {
+      grid-column: 3;
+      grid-row: 1;
+    }
+
+    .r-log-tools {
+      padding: 10px 12px;
+    }
+
+    .r-log-search {
+      order: 3;
+      max-width: none;
+      flex-basis: 100%;
+    }
+
+    /* The time and the mark, then the text; what wrote it goes above the text. */
+    .r-line {
+      grid-template-columns: 54px 14px minmax(0, 1fr);
+      gap: 0 8px;
+      padding: 1px 12px;
+      font-size: 11.5px;
+    }
+
+    .r-line-source {
+      grid-column: 3;
+      grid-row: 1;
+    }
+
+    .r-line-source:empty {
+      display: none;
+    }
+
+    .r-line-text {
+      grid-column: 3;
+    }
+
+    .r-section {
+      padding: 6px 12px;
+    }
+
+    .r-activity.is-inline[data-view='log'] .r-activity-panel {
+      height: 76vh;
+    }
+  }
+}

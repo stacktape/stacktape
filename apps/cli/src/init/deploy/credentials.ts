@@ -11,6 +11,7 @@
  * part of a command that is already running.
  */
 
+import { IAMClient, ListAccountAliasesCommand } from '@aws-sdk/client-iam';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { createFetchHandler } from 'src/aws/fetch-handler';
@@ -25,6 +26,8 @@ export type AwsIdentity =
       region?: string;
       /** The AWS profile the credentials came from; absent when they came from environment variables. */
       profile?: string;
+      /** The account's IAM alias, the name people know it by, when these credentials may read it. */
+      accountAlias?: string;
     }
   | {
       available: false;
@@ -64,13 +67,14 @@ export const resolveAwsIdentity = async ({
   // The SDK's chain reads access keys in the environment before any profile, so those win, as they do for a deploy.
   const fromEnvironment = Boolean(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY);
   const source = fromEnvironment ? {} : { profile: profile ?? env.AWS_PROFILE ?? 'default' };
+  const credentials = fromNodeProviderChain({
+    ...(profile === undefined ? {} : { profile }),
+    timeout: timeoutMs,
+    maxRetries: 1
+  });
   const client = new STSClient({
     region: region ?? 'us-east-1',
-    credentials: fromNodeProviderChain({
-      ...(profile === undefined ? {} : { profile }),
-      timeout: timeoutMs,
-      maxRetries: 1
-    }),
+    credentials,
     // Bun's `node:https` stalls against the AWS SDK; every client in this CLI uses fetch instead.
     requestHandler: createFetchHandler({ requestTimeout: timeoutMs }),
     maxAttempts: 1
@@ -81,11 +85,13 @@ export const resolveAwsIdentity = async ({
     if (identity.Account === undefined || identity.Arn === undefined) {
       return { available: false, reason: 'rejected', detail: 'AWS answered without an account identity.', ...source };
     }
+    const accountAlias = await readAccountAlias(credentials);
     return {
       available: true,
       accountId: identity.Account,
       arn: identity.Arn,
       ...(region === undefined ? {} : { region }),
+      ...(accountAlias === undefined ? {} : { accountAlias }),
       ...source
     };
   } catch (error) {
@@ -94,6 +100,30 @@ export const resolveAwsIdentity = async ({
     // problem for the user than credentials AWS actively refused.
     const missing = /could not load credentials|credentialsproviderror|no credentials/i.test(detail);
     return { available: false, reason: missing ? 'no-credentials' : 'rejected', detail, ...source };
+  } finally {
+    client.destroy();
+  }
+};
+
+/**
+ * The account's IAM alias ("acme-production"), the name people recognise an account by. Best effort and quick: many
+ * deploy roles may not call `iam:ListAccountAliases`, and the wizard then shows the account ID alone.
+ */
+const readAccountAlias = async (
+  credentials: ReturnType<typeof fromNodeProviderChain>,
+  timeoutMs = 3_000
+): Promise<string | undefined> => {
+  const client = new IAMClient({
+    region: 'us-east-1',
+    credentials,
+    requestHandler: createFetchHandler({ requestTimeout: timeoutMs }),
+    maxAttempts: 1
+  });
+  try {
+    const { AccountAliases } = await client.send(new ListAccountAliasesCommand({}));
+    return AccountAliases?.[0];
+  } catch {
+    return undefined;
   } finally {
     client.destroy();
   }

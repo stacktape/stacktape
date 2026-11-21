@@ -170,9 +170,11 @@ export type Spawner = (input: {
   stdin: string;
   timeoutMs: number;
   signal?: AbortSignal;
+  /** Each complete line of stdout as it arrives, before the process ends. The result still carries all of it. */
+  onStdoutLine?: (line: string) => void;
 }) => Promise<SpawnResult>;
 
-export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeoutMs, signal }) =>
+export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeoutMs, signal, onStdoutLine }) =>
   new Promise((resolveSpawn, rejectSpawn) => {
     const extension = extname(command).toLowerCase();
     const needsShell =
@@ -239,8 +241,14 @@ export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeout
     signal?.addEventListener('abort', onAbort, { once: true });
     if (signal?.aborted) onAbort();
 
+    let pendingLine = '';
     child.stdout?.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
+      const text = chunk.toString();
+      stdout += text;
+      if (onStdoutLine === undefined) return;
+      const lines = (pendingLine + text).split('\n');
+      pendingLine = lines.pop() ?? '';
+      for (const line of lines) onStdoutLine(line);
     });
     child.stderr?.on('data', (chunk: Buffer) => {
       stderr += chunk.toString();

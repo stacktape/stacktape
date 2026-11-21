@@ -1734,6 +1734,44 @@ describe('composing detected migrations into deploy hooks', () => {
     });
   });
 
+  it('runs a Next.js site migration as its release command only when that is the choice', () => {
+    const withTiming = (decisions: Record<string, string>) =>
+      composeConfig({
+        decisions,
+        facts: facts({
+          services: [service({ ...webWithDatabaseUrl, framework: 'nextjs', path: 'apps/site' })],
+          dependencies: [database],
+          migrations: [
+            { serviceName: 'web', tool: 'drizzle', command: 'npx drizzle-kit migrate', runsAt: 'unknown', evidence: [] }
+          ],
+          uncertainties: [
+            {
+              kind: 'migration-timing-unknown',
+              id: 'migration-timing:web',
+              blocksDeploy: false,
+              evidence: [],
+              source: 'probe',
+              serviceName: 'web',
+              command: 'npx drizzle-kit migrate',
+              recommended: 'deploy-hook'
+            }
+          ]
+        })
+      });
+
+    // Its image needs Docker to build, so it is never assumed: the default stays the script after the deploy.
+    const byDefault = withTiming({}).config;
+    expect(byDefault.resources.web?.type).toBe('nextjs-web');
+    expect(byDefault.resources.web?.properties.releaseCommand).toBeUndefined();
+    expect(byDefault.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+
+    // Chosen, it runs from the project root in the project image, and no script or hook is left.
+    const chosen = withTiming({ 'migration-timing:web': 'release-command' }).config;
+    expect(chosen.resources.web?.properties.releaseCommand).toBe('cd apps/site && npx drizzle-kit migrate');
+    expect(chosen.scripts).toBeUndefined();
+    expect(chosen.hooks).toBeUndefined();
+  });
+
   it('respects the migration-timing decision in both directions', () => {
     const withTiming = (decisions: Record<string, string>) =>
       composeConfig({

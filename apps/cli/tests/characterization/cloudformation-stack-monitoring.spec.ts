@@ -67,7 +67,9 @@ const withMonitor = async (
     startedAfter,
     onResourceDeletesStarted,
     canFinishDeleteInBackground,
-    stackResources = []
+    stackResources = [],
+    agent = false,
+    onProgress = () => {}
   }: {
     startedAfter?: Date;
     action?: 'update' | 'delete';
@@ -78,6 +80,9 @@ const withMonitor = async (
     canFinishDeleteInBackground?: (pending: PendingDelete[]) => Promise<PendingDelete[] | undefined>;
     /** The stack's resources before a delete: logical ID and type. */
     stackResources?: [string, string][];
+    /** Runs as `--agent`, which reports progress in the machine-readable shape. */
+    agent?: boolean;
+    onProgress?: (progress: { message: string; detail?: unknown }) => void;
   } = {}
 ) => {
   await withCredentiallessSynthesisBoundary(async () => {
@@ -89,7 +94,7 @@ const withMonitor = async (
       )
     };
     globalStateManager.rawCommands = ['deploy'];
-    globalStateManager.rawArgs = { region: 'eu-west-1' };
+    globalStateManager.rawArgs = { region: 'eu-west-1', ...(agent ? { agent: true } : {}) };
     let pollOnce: (() => Promise<void>) | undefined;
     let pollingIntervalMs: number | undefined;
     const interval = spyOn(globalThis, 'setInterval').mockImplementation(((
@@ -113,7 +118,7 @@ const withMonitor = async (
       PhysicalResourceId: `${LogicalResourceId}-id`
     })) as typeof stackManager.existingStackResources;
     try {
-      const monitoring = stackManager.monitorStack(action, stackName, () => {}, {
+      const monitoring = stackManager.monitorStack(action, stackName, onProgress, {
         finishWhenCleanupStarts,
         operationId,
         startedAfter,
@@ -146,6 +151,45 @@ const withMonitor = async (
     }
   });
 };
+
+test('in agent mode, each resource in progress reports its type and since when, and each finished one its type', async () => {
+  const reports: Array<{ detail?: unknown }> = [];
+  await withMonitor(
+    async ({ poll, events }) => {
+      events.mockResolvedValue([
+        resourceEvent('AppCdnDistribution0', 'UPDATE_IN_PROGRESS', 5),
+        stackEvent('UPDATE_IN_PROGRESS', 1)
+      ]);
+      await poll();
+      expect(reports.at(-1)?.detail).toMatchObject({
+        kind: 'cloudformation-progress',
+        inProgressResources: ['AppCdnDistribution0'],
+        inProgressDetails: [
+          {
+            name: 'AppCdnDistribution0',
+            action: 'UPDATE',
+            resourceType: 'AWS::CloudFront::Distribution',
+            since: started.getTime() + 5000
+          }
+        ]
+      });
+      events.mockResolvedValue([
+        resourceEvent('AppCdnDistribution0', 'UPDATE_COMPLETE', 9),
+        resourceEvent('AppCdnDistribution0', 'UPDATE_IN_PROGRESS', 5),
+        stackEvent('UPDATE_IN_PROGRESS', 1)
+      ]);
+      await poll();
+      expect(reports.at(-1)?.detail).toMatchObject({
+        inProgressResources: [],
+        inProgressDetails: [],
+        recentlyCompleted: [
+          { name: 'AppCdnDistribution0', action: 'UPDATE', resourceType: 'AWS::CloudFront::Distribution' }
+        ]
+      });
+    },
+    { agent: true, onProgress: (progress) => reports.push(progress) }
+  );
+});
 
 test('a slow stack status request does not hold up the completion event', async () => {
   await withMonitor(async ({ monitoring, poll, events, getDetails }) => {

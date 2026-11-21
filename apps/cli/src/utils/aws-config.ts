@@ -82,3 +82,55 @@ export const listAwsProfiles = async (credentialsFilePath = fsPaths.awsCredentia
     ];
   });
 };
+
+export type AwsProfileDescription = { name: string; kind: 'sso' | 'keys' | 'role' | 'other'; region?: string };
+
+/**
+ * The AWS profiles on this machine, by name, with how each signs in and its region: what a person needs to pick one.
+ * Never the keys. A profile in either file counts; the config file's `[profile name]` and `[default]` sections and the
+ * credentials file's `[name]` sections name the same profiles.
+ */
+export const describeAwsProfiles = ({
+  credentials,
+  config
+}: {
+  credentials: unknown;
+  config: unknown;
+}): AwsProfileDescription[] => {
+  const sections = (content: unknown) =>
+    content !== null && typeof content === 'object' ? (content as Record<string, unknown>) : {};
+  const field = (section: unknown, key: string) =>
+    section !== null && typeof section === 'object' ? (section as Record<string, unknown>)[key] : undefined;
+  const configSections = sections(config);
+  const credentialSections = sections(credentials);
+  const names = uniq([
+    ...Object.keys(configSections)
+      .filter((name) => name === 'default' || name.startsWith('profile '))
+      .map((name) => name.replace(/^profile /, '')),
+    ...Object.keys(credentialSections).filter((name) => typeof credentialSections[name] === 'object')
+  ]);
+  return names.map((name) => {
+    const settings = configSections[name === 'default' ? 'default' : `profile ${name}`] ?? configSections[name];
+    const keys = credentialSections[name];
+    const kind =
+      field(settings, 'sso_session') !== undefined || field(settings, 'sso_start_url') !== undefined
+        ? 'sso'
+        : field(settings, 'role_arn') !== undefined || field(keys, 'role_arn') !== undefined
+          ? 'role'
+          : typeof field(keys, 'aws_access_key_id') === 'string' ||
+              typeof field(settings, 'aws_access_key_id') === 'string'
+            ? 'keys'
+            : 'other';
+    const region = profileRegionFromConfig(config, name);
+    return { name, kind, ...(region === undefined ? {} : { region }) };
+  });
+};
+
+/** {@link describeAwsProfiles} for this machine's `~/.aws` files. */
+export const getAwsProfileDescriptions = async (): Promise<AwsProfileDescription[]> => {
+  const [credentials, config] = await Promise.all([
+    getIniFileContent(fsPaths.awsCredentialsFilePath()),
+    getIniFileContent(fsPaths.awsConfigFilePath())
+  ]);
+  return describeAwsProfiles({ credentials, config });
+};

@@ -1,13 +1,6 @@
 import { reportInitTelemetry } from './telemetry';
 import type { WizardState } from './server/wizard-server';
 
-const observations = {
-  listeningPorts: [],
-  dialedDependency: false,
-  missingEnvironmentVariables: [],
-  logTail: []
-};
-
 const state = {
   phase: 'reviewing',
   projectName: 'customer-project-name',
@@ -60,25 +53,6 @@ const state = {
     provenance: {},
     gaps: [],
     deployable: true
-  },
-  verification: {
-    status: 'completed',
-    services: [
-      {
-        serviceName: 'customer-service-name',
-        resourceName: 'customerResourceName',
-        status: 'passed',
-        reason: 'private result text',
-        observations
-      },
-      {
-        serviceName: 'private-worker-name',
-        resourceName: 'privateWorkerResource',
-        status: 'skipped',
-        reason: 'private result text',
-        observations
-      }
-    ]
   }
 } satisfies WizardState;
 
