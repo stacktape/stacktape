@@ -225,6 +225,24 @@ describe('startWizardSession', () => {
       expect((await post(opened, { agentId: 'claude-code', modelId: 'gpt-9' })).status).toBe(400);
     });
 
+    it('refuses an agent it lists as not installed', async () => {
+      session = await startWizardSession({
+        projectName: 'demo',
+        agents: [...agents, { ...agents[0]!, id: 'codex', label: 'Codex', installed: false }],
+        start: async () => resultFor(factsWith({}))
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+
+      expect((await post({ origin, cookie, csrfToken }, { agentId: 'codex', modelId: 'default' })).status).toBe(400);
+    });
+
     it('lets a failed analysis be started again from the page', async () => {
       let attempts = 0;
       const opened = await openSession(async () => {

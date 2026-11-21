@@ -83,10 +83,6 @@ export const typescriptResourceBlocks = (text: string): Record<string, LineRange
 export const resourceBlocks = (text: string, language: 'yaml' | 'typescript') =>
   language === 'yaml' ? yamlResourceBlocks(text) : typescriptResourceBlocks(text);
 
-/** The resource whose block holds `line`, if any. */
-export const blockAt = (blocks: Record<string, LineRange>, line: number): string | undefined =>
-  Object.entries(blocks).find(([, range]) => line >= range.from && line <= range.to)?.[0];
-
 /** One AWS resource of a compiled template: its logical ID, its type, the lines it spans and who it is for. */
 export type TemplateResource = LineRange & {
   logicalId: string;
@@ -139,18 +135,17 @@ export const templateLayout = (text: string, owners: Record<string, string>): Te
 };
 
 /**
- * The template as shown for one group: its head (unless `head` is false), the `Resources:` of that group only. Line `n`
- * of the result is line `lineMap[n - 1]` of the full template.
+ * The template as shown for one group: its head, the `Resources:` of that group only. Line `n` of the result is line
+ * `lineMap[n - 1]` of the full template.
  */
 export const templateExcerpt = (
   text: string,
   layout: TemplateLayout,
-  keep: (resource: TemplateResource) => boolean,
-  { head = true }: { head?: boolean } = {}
+  keep: (resource: TemplateResource) => boolean
 ): { text: string; lineMap: number[] } => {
   const lines = text.split('\n');
   const lineMap: number[] = [];
-  if (head) for (let line = layout.head.from; line <= layout.head.to; line += 1) lineMap.push(line);
+  for (let line = layout.head.from; line <= layout.head.to; line += 1) lineMap.push(line);
   for (const resource of layout.resources) {
     if (!keep(resource)) continue;
     for (let line = resource.from; line <= resource.to; line += 1) lineMap.push(line);

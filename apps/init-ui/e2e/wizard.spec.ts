@@ -277,18 +277,23 @@ test('stacktape.ts is edited with the stacktape types, saved as typed, and the t
   await page.goto(wizard.url);
   await analyzeAndReview(page);
 
-  // The CloudFormation template, compiled by the CLI on this machine, grouped by the resource each part is for.
-  await page.getByRole('tab', { name: 'CloudFormation' }).click();
-  const groups = page.getByRole('toolbar', { name: 'Show the AWS resources of' });
-  await expect(groups.getByRole('button', { name: /mainDatabase/ })).toBeVisible({ timeout: 20_000 });
-  await groups.getByRole('button', { name: /mainDatabase/ }).click();
+  // The CloudFormation template, compiled by the CLI on this machine, one resource's part at a time if picked in the
+  // panel's head (its tab is "Template" where the panel is narrow).
+  await page.getByRole('tab', { name: /^(CloudFormation|Template)$/ }).click();
+  const group = page.locator('#config-file .ws-cf-select').filter({ visible: true });
+  await expect(group).toContainText('All', { timeout: 20_000 });
+  await group.click();
+  await page.getByRole('option', { name: /mainDatabase.*Postgres database/ }).click();
+  await expect(group).toContainText('mainDatabase');
   await expect(page.locator('#config-file .ws-cf-section')).toContainText('Postgres database');
   await expect(page.locator('#config-file .ws-cf-body .view-lines')).toContainText('AWS::RDS::DBParameterGroup');
   await expect(editorStatus(page)).toContainText('compiled on this machine without AWS');
   // A resource picked on the diagram is the one the template shows.
-  await groups.getByRole('button', { name: /^All/ }).click();
+  await group.click();
+  await page.getByRole('option', { name: /Whole template/ }).click();
+  await expect(group).toContainText('All');
   await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
-  await expect(groups.getByRole('button', { name: /mainDatabase/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(group).toContainText('mainDatabase');
 
   // TypeScript, checked against the stacktape package's own types.
   await page.getByRole('tab', { name: 'stacktape.yml' }).click();
@@ -316,6 +321,41 @@ test('stacktape.ts is edited with the stacktape types, saved as typed, and the t
   await expect(page.getByRole('button', { name: 'Continue to deploy' })).toBeEnabled({ timeout: 10_000 });
   await continueToDeploy(page);
   await expect(page.getByText('stacktape.ts', { exact: true }).first()).toBeVisible();
+});
+
+test('the first screen offers every analyzer, and the one picked runs the analysis', async ({ page, startWizard }) => {
+  const analyzer = page.locator('.w-analyzer-select');
+  const pickAnalyzer = async (name: RegExp) => {
+    await analyzer.click();
+    await page.getByRole('option', { name }).click();
+  };
+
+  // No coding agent on this machine: Stacktape analyzes without AI, and the agents it could use say they are missing.
+  const plain = await startWizard({ project: 'go-clean-template', agents: [] });
+  await page.goto(plain.url);
+  await expect(analyzer).toContainText('Stacktape, without AI');
+  await analyzer.click();
+  await expect(page.getByRole('option', { name: /Claude Code.*Not installed/ })).toHaveAttribute(
+    'aria-disabled',
+    'true'
+  );
+  await page.keyboard.press('Escape');
+
+  // Two agents: the recommended one with its own model first; another agent, or none, is one pick away.
+  const wizard = await startWizard({ project: 'saas-starter', agents: ['claude-code', 'codex'] });
+  await page.goto(wizard.url);
+  await expect(analyzer).toContainText('Claude Code');
+  await expect(page.locator('.w-model-select')).toContainText('Your default');
+  await pickAnalyzer(/^Codex/);
+  // Codex reads its model from its own settings, so there is no model to pick.
+  await expect(page.locator('.w-model-select')).toHaveCount(0);
+  await expect(page.getByText('Codex analyzes your code')).toBeVisible();
+  await page.getByRole('button', { name: 'Analyze my project' }).click();
+  await expect(page.getByRole('heading', { name: / on AWS$|^Writing/ })).toBeVisible({ timeout: 15_000 });
+  const choice = await page.evaluate(
+    async () => ((await (await fetch('/api/state')).json()) as { choice?: { agentId: string } }).choice
+  );
+  expect(choice?.agentId).toBe('codex');
 });
 
 test('the analysis draws the project as a file tree, then ties each resource to the line that called for it, once', async ({

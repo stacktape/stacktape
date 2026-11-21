@@ -171,10 +171,10 @@ describe('the reveal', () => {
   });
 
   it.each([
-    [1, 1400],
-    [4, 1400],
-    [8, 1000],
-    [20, 700]
+    [1, 1000],
+    [4, 1000],
+    [5, 800],
+    [20, 600]
   ])('gives %p resources %p ms each', (count, duration) => {
     expect(stepDuration(count)).toBe(duration);
   });

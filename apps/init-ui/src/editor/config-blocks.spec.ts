@@ -1,11 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  blockAt,
-  templateExcerpt,
-  templateLayout,
-  typescriptResourceBlocks,
-  yamlResourceBlocks
-} from './config-blocks';
+import { templateExcerpt, templateLayout, typescriptResourceBlocks, yamlResourceBlocks } from './config-blocks';
 
 const YAML = `projectName: saas-starter
 region: us-east-1
@@ -61,12 +55,6 @@ describe('typescriptResourceBlocks', () => {
       app: { from: 9, to: 12 }
     });
   });
-
-  test('blockAt finds the resource around a line', () => {
-    const blocks = typescriptResourceBlocks(TYPESCRIPT);
-    expect(blockAt(blocks, 6)).toBe('mainDatabase');
-    expect(blockAt(blocks, 13)).toBeUndefined();
-  });
 });
 
 const TEMPLATE = `AWSTemplateFormatVersion: 2010-09-09
@@ -107,12 +95,5 @@ describe('templateLayout', () => {
       'AWSTemplateFormatVersion: 2010-09-09\nDescription: STP-stack_saas-starter_dev\nResources:\n  AppServerFunction:\n    Type: AWS::Lambda::Function\n    Properties: {}'
     );
     expect(excerpt.lineMap).toEqual([1, 2, 3, 8, 9, 10]);
-  });
-
-  test('an excerpt without the head is the resources alone', () => {
-    const layout = templateLayout(TEMPLATE, owners);
-    const excerpt = templateExcerpt(TEMPLATE, layout, (resource) => resource.owner === undefined, { head: false });
-    expect(excerpt.text).toBe('  StpVpc:\n    Type: AWS::EC2::VPC');
-    expect(excerpt.lineMap).toEqual([11, 12]);
   });
 });

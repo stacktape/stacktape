@@ -512,10 +512,11 @@ const main = async () => {
   ];
   /**
    * How long each kind of tool call takes in a paced scan, relative to the others: opening a file and reading it is the
-   * slow part. Scaled so the whole scan takes `PACED_SCAN_MS`. Reading without an agent is the probe alone: a few seconds.
+   * slow part. Scaled so the whole scan takes `PACED_SCAN_MS`. Reading without an agent is the probe alone, under a
+   * second on a real project.
    */
   const PACED_SCAN_MS = 12_000;
-  const PACED_PROBE_MS = 2_500;
+  const PACED_PROBE_MS = 700;
   const TOOL_WEIGHTS: Readonly<Record<string, number>> = {
     read_file: 3,
     list_dir: 1.5,

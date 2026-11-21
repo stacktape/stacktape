@@ -126,7 +126,6 @@ export default function ConfigFileEditor({
   onChange,
   onProblems,
   onReady,
-  onCursorLine,
   labels,
   sections,
   highlight,
@@ -152,8 +151,6 @@ export default function ConfigFileEditor({
   onChange?: (value: string) => void;
   onProblems?: (problems: EditorProblems) => void;
   onReady?: (handle: ConfigEditorHandle) => void;
-  /** The line the cursor is on, as it moves. */
-  onCursorLine?: (line: number) => void;
   labels?: readonly EditorLabel[];
   sections?: readonly EditorSection[];
   /**
@@ -198,8 +195,6 @@ export default function ConfigFileEditor({
   onReadyRef.current = onReady;
   const onProblemsRef = useRef(onProblems);
   onProblemsRef.current = onProblems;
-  const onCursorLineRef = useRef(onCursorLine);
-  onCursorLineRef.current = onCursorLine;
   const docsOnTapRef = useRef(docsOnTap);
   docsOnTapRef.current = docsOnTap;
   const resourceNamesRef = useRef(resourceNames);
@@ -429,7 +424,6 @@ export default function ConfigFileEditor({
           let tapDocs: ReturnType<typeof setTimeout> | undefined;
           const selections = instance.onDidChangeCursorSelection((event) => {
             if (event.source !== 'modelChange') userSelection.current = event.selection;
-            onCursorLineRef.current?.(event.selection.positionLineNumber);
             // A tap that puts the cursor on a key opens its docs; a drag that selects text does not.
             const { selection } = event;
             if (event.source !== 'mouse' || !docsOnTapRef.current || !selection.isEmpty()) return;

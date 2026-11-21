@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import type { DetectedAgent } from './agent/detect';
-import { canOpenBrowser, chooseAgent, runInit, type InitOutcome } from './run-init';
+import { agentOptions, canOpenBrowser, chooseAgent, runInit, type InitOutcome } from './run-init';
 import type { WizardState } from './server/wizard-server';
 
 const agent = (id: DetectedAgent['id'], executable = id): DetectedAgent => ({
@@ -48,6 +48,28 @@ describe('chooseAgent', () => {
 
   it('returns nothing when the agent is declined', () => {
     expect(chooseAgent([agent('claude-code')], 'none')).toBeUndefined();
+  });
+});
+
+describe('agentOptions', () => {
+  it('offers the agents on this machine, then no agent, then the ones that are not installed', () => {
+    const options = agentOptions([agent('codex'), agent('copilot')], agent('codex'));
+
+    expect(options.map(({ id, recommended, installed }) => ({ id, recommended, installed }))).toEqual([
+      { id: 'codex', recommended: true, installed: undefined },
+      { id: 'none', recommended: undefined, installed: undefined },
+      { id: 'claude-code', recommended: undefined, installed: false }
+    ]);
+    // Nothing can be started on an agent that is not there.
+    expect(options.at(-1)?.models).toEqual([]);
+  });
+
+  it('recommends working without an agent when there is none', () => {
+    expect(
+      agentOptions([], undefined)
+        .filter((option) => option.recommended)
+        .map((option) => option.id)
+    ).toEqual(['none']);
   });
 });
 
