@@ -2,12 +2,13 @@ import type { StacktapeConfig } from '@stacktape/config';
 import { explainFailure } from '@stacktape/console-api/failure-explanations';
 import { Button, ButtonLink } from '@stacktape/ui-react/button';
 import { Spinner } from '@stacktape/ui-react/spinner';
-import { Fragment, lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { BiBot, BiCheck, BiChevronRight, BiCodeAlt, BiCopy, BiInfoCircle, BiLinkExternal } from 'react-icons/bi';
 import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
 import { CommandLine } from '@stacktape/ui-react/command-line';
 import { FailureExplanationText } from '../components/FailureExplanation';
 import { InfoTip } from '../components/InfoTip';
+import { Diagram } from '../components/lazy-diagram';
 import { PipelineCard } from '../components/PipelineCard';
 import { Row } from '../components/RowList';
 import { groupedAccount, TargetFacts } from '../components/TargetFacts';
@@ -23,8 +24,6 @@ import { DeployLog } from './run/DeployLog';
 import { DeploySteps, outputTail } from './run/DeploySteps';
 import { useNow } from './run/use-now';
 import './run/run.css';
-
-const Diagram = lazy(() => import('../components/Diagram'));
 
 type Deployment = NonNullable<WizardState['deployment']>;
 type Progress = 'pending' | 'creating' | 'ready';
@@ -236,10 +235,15 @@ export function DeployingStep({ state, model }: { state: WizardState; model: Dep
 
   const now = (
     <div className="w-run-now">
-      <p aria-live="polite" className="w-run-op">
-        {operation.title}
-      </p>
-      {operation.detail !== undefined && <p className="w-run-op-detail">{operation.detail}</p>}
+      {/* A fixed height whatever the words: they change every few seconds, and the progress under them stays put. */}
+      <div className="w-run-what">
+        <p aria-live="polite" className="w-run-op" title={operation.title}>
+          {operation.title}
+        </p>
+        <p className="w-run-op-detail" title={operation.detail}>
+          {operation.detail}
+        </p>
+      </div>
       <p className="w-run-time">
         <strong>{elapsed === undefined ? '—' : clock(elapsed)}</strong> elapsed
         {repairing ? '' : ` · usually ${hasDatabase ? '10–15' : '3–6'} min`}

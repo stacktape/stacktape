@@ -204,9 +204,7 @@ export function App() {
   if (state === undefined || session === undefined || screen === undefined) {
     return (
       <Frame layout="form">
-        <div className="flex items-center gap-3 text-[var(--w-muted)]">
-          <Spinner /> Connecting to stacktape init…
-        </div>
+        <Connecting />
       </Frame>
     );
   }
@@ -450,7 +448,28 @@ function Frame({
           )}
         </div>
       </header>
-      <main className={`w-main is-${layout}`}>{children}</main>
+      {/* One element per layout: a step that changes the layout replaces the page rather than moving it. */}
+      <main className={`w-main is-${layout}`} key={layout}>
+        {children}
+      </main>
     </>
+  );
+}
+
+/**
+ * The page before the session answers. The local server answers within a few frames, so the line shows only when it
+ * does not: a flash of it before the first screen read as a loading step.
+ */
+function Connecting() {
+  const [isSlow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), 600);
+    return () => clearTimeout(timer);
+  }, []);
+  if (!isSlow) return null;
+  return (
+    <div className="w-enter flex items-center gap-3 text-[var(--w-muted)]">
+      <Spinner /> Connecting to stacktape init…
+    </div>
   );
 }

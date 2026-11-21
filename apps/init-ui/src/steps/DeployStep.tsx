@@ -33,6 +33,14 @@ import { monthlySuffix, plainList, splitMonthly } from './review-model';
 
 type Expectation = { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
 
+/** What a click on Deploy asks for, by what the stack check found. Without an answer, it only checks. */
+const expectationOf = (target: WizardState['deployTarget']): Expectation =>
+  target?.status === 'absent'
+    ? { kind: 'create' }
+    : target?.status === 'updateable'
+      ? { kind: 'update', stackId: target.stackId }
+      : { kind: 'check' };
+
 /** Container services, the only ones the local try-out can start. */
 const CONTAINER_TYPES = new Set(['web-service', 'worker-service', 'private-service', 'multi-container-workload']);
 
@@ -166,7 +174,12 @@ export function DeployStep({
   const hasDatabase = Object.values(resources).some((resource) => resource.type === 'relational-database');
   const target =
     state.deployTarget?.stage === stage && state.deployTarget.region === region ? state.deployTarget : undefined;
-  const [checking, setChecking] = useState(false);
+  // A choice made here (when the migration runs, a secret taken out) rewrites the file, and the stack is checked again
+  // for it. Until the new answer comes, the last one for the same stack stays on the page, so only what the user
+  // changed moves. Deploying waits for the new answer: the CLI deploys only against a check of the file it deploys.
+  const shownFile = useHeld(file, state.projectName);
+  const account = identity?.available === true ? identity.accountId : '';
+  const shownTarget = useHeld(target, `${state.projectName}|${stage}|${region}|${account}`);
   const [showTerminal, setShowTerminal] = useState(false);
   /** The user runs the migration some other way, and said so. */
   const [skipMigration, setSkipMigration] = useState(false);
@@ -194,8 +207,7 @@ export function DeployStep({
     }
     const timer = setTimeout(() => {
       checkedFor.current = key;
-      setChecking(true);
-      void onCheckTarget(stage, region).finally(() => setChecking(false));
+      void onCheckTarget(stage, region);
     }, 450);
     return () => clearTimeout(timer);
   }, [file, identity, stage, region, target, isLocked, onCheckTarget]);
@@ -314,6 +326,7 @@ export function DeployStep({
   const migrationOn = migrationDecision?.chosen === 'deploy-hook' || migrationDecision?.chosen === 'release-command';
   const migrationNeeded = migration !== undefined && !migrationOn && !skipMigration;
 
+  // The stack's answer counts once it is on the page, a beat before the request that asked for it returns.
   const awsState: SectionState =
     identity === undefined || state.awsKeys?.status === 'saving' || switching
       ? 'checking'
@@ -321,9 +334,9 @@ export function DeployStep({
         ? 'needs-input'
         : stage === ''
           ? 'needs-input'
-          : checking || target === undefined
+          : shownTarget === undefined
             ? 'checking'
-            : target.status === 'blocked' || target.status === 'unverified'
+            : shownTarget.status === 'blocked' || shownTarget.status === 'unverified'
               ? 'blocked'
               : 'ready';
   const secretsState: SectionState = secretsDone
@@ -388,23 +401,21 @@ export function DeployStep({
   };
 
   const notDeployable = state.composition?.deployable !== true;
-  const ready =
-    file !== undefined &&
+  /** Nothing is left for the user. The page reads as ready while the file is rewritten and its stack checked again. */
+  const settledReady =
+    shownFile !== undefined &&
     awsState === 'ready' &&
     secretsDone &&
     !migrationNeeded &&
     !verificationBlocks &&
     !notDeployable &&
     stage !== '';
-  const expectation: Expectation =
-    target?.status === 'absent'
-      ? { kind: 'create' }
-      : target?.status === 'updateable'
-        ? { kind: 'update', stackId: target.stackId }
-        : { kind: 'check' };
+  /** The file is on disk and its stack checked: a deploy can start now. */
+  const ready = settledReady && file !== undefined && target !== undefined;
+  const expectation = expectationOf(target);
   const releaseRuns = migrationDecision?.chosen === 'release-command';
   const estimate =
-    target?.status === 'updateable'
+    shownTarget?.status === 'updateable'
       ? 'a few minutes'
       : hasDatabase
         ? releaseRuns
@@ -420,7 +431,7 @@ export function DeployStep({
     awsAccount: state.awsAccount,
     ...(profile === undefined ? {} : { profile })
   };
-  const stackName = target?.stackName ?? `${state.projectName}-${stage || 'dev'}`;
+  const stackName = shownTarget?.stackName ?? `${state.projectName}-${stage || 'dev'}`;
 
   /**
    * What the bar says while the button is off: the next thing as a verb and a count, linking to the control that does
@@ -454,15 +465,16 @@ export function DeployStep({
     secrets: secretsNext,
     migrations: migrationsNext
   };
+  // Something the user can do comes before what is still being checked: the check finishes by itself.
+  const firstAction = [awsNext, secretsNext, migrationsNext].find((candidate) => candidate?.section !== undefined);
   const next: Next | undefined =
-    file === undefined
+    shownFile === undefined
       ? { text: `Saving ${commandTarget.configPath}…` }
       : identity === undefined || switching
         ? { text: 'Checking the AWS credentials on this machine…' }
         : ((activeSection === undefined ? undefined : bySection[activeSection]) ??
+          firstAction ??
           awsNext ??
-          secretsNext ??
-          migrationsNext ??
           (verificationBlocks
             ? { text: 'the local try-out' }
             : notDeployable
@@ -473,12 +485,40 @@ export function DeployStep({
   const price = state.composition?.price;
   const monthly = price === undefined ? undefined : splitMonthly(price.monthly);
   const noCredentials = identity?.available === false && identity.reason === 'no-credentials';
+  // A click while the file is rewritten waits for the new check, then deploys if the stack is as the page showed it.
+  const [queued, setQueued] = useState<{ status: string; stackId: string | undefined } | undefined>();
+  const deployNow = ready && (busy === undefined || busy === 'deploy');
+  useEffect(() => {
+    if (queued === undefined) return;
+    if (!settledReady || isLocked) {
+      setQueued(undefined);
+      return;
+    }
+    if (!deployNow || target === undefined) return;
+    setQueued(undefined);
+    const stackId = target.status === 'updateable' ? target.stackId : undefined;
+    if (target.status === queued.status && stackId === queued.stackId) onDeploy(stage, region, expectationOf(target));
+  }, [queued, settledReady, isLocked, deployNow, target, stage, region, onDeploy]);
+  // A file that could not be written again never gets its check; the click is let go, and the alert says why.
+  useEffect(() => {
+    if (queued === undefined) return;
+    const timer = setTimeout(() => setQueued(undefined), 15_000);
+    return () => clearTimeout(timer);
+  }, [queued]);
   const deployButton = (className?: string) => (
     <Button
       className={className}
-      disabled={!ready || isLocked || (busy !== undefined && busy !== 'deploy')}
-      isLoading={busy === 'deploy'}
-      onClick={() => onDeploy(stage, region, expectation)}
+      disabled={!settledReady || isLocked}
+      isLoading={busy === 'deploy' || queued !== undefined}
+      onClick={() => {
+        if (deployNow) onDeploy(stage, region, expectation);
+        else if (shownTarget !== undefined) {
+          setQueued({
+            status: shownTarget.status,
+            stackId: shownTarget.status === 'updateable' ? shownTarget.stackId : undefined
+          });
+        }
+      }}
       variant="primary"
     >
       Deploy to {stage || 'dev'}
@@ -501,7 +541,7 @@ export function DeployStep({
   const summary = (inSide: boolean) => (
     <DeploySummary
       estimate={estimate}
-      isUpdate={target?.status === 'updateable'}
+      isUpdate={shownTarget?.status === 'updateable'}
       region={region}
       resources={resources}
       stackName={stackName}
@@ -509,7 +549,7 @@ export function DeployStep({
       {...(inSide
         ? {
             action: deployButton('w-summary-button'),
-            footnote: ready ? (
+            footnote: settledReady ? (
               <span className="w-summary-note">AWS bills your account for these from the moment they exist.</span>
             ) : (
               nextLink(true)
@@ -524,16 +564,19 @@ export function DeployStep({
       <header className="w-hero">
         <h1 className="w-title">{noCredentials ? 'Connect AWS to deploy' : `Deploy to ${stage || 'dev'}`}</h1>
         <p className="w-lede">
-          {file === undefined ? (
+          {shownFile === undefined ? (
             'Saving the file to your project…'
           ) : (
             <>
-              <span className="w-code">{file.filename}</span> is saved in your project
-              {file.existingPath === undefined ? '' : `, beside your ${file.existingPath.split(/[\\/]/).at(-1)}`}.
+              <span className="w-code">{shownFile.filename}</span> is saved in your project
+              {shownFile.existingPath === undefined
+                ? ''
+                : `, beside your ${shownFile.existingPath.split(/[\\/]/).at(-1)}`}
+              .
             </>
           )}
         </p>
-        {!ready && monthly?.amount !== undefined && (
+        {!settledReady && monthly?.amount !== undefined && (
           // On a phone the bar holds only the next step while something is missing; the estimate waits here.
           <p className="w-hero-price">
             Estimated <strong>{monthly.amount}/month</strong>
@@ -578,12 +621,12 @@ export function DeployStep({
                         stackLine={
                           identity?.available === true && !switching ? (
                             <TargetLine
-                              checking={checking}
+                              checking={shownTarget === undefined}
                               commandTarget={commandTarget}
                               isRechecking={busy === 'recheck'}
                               onRecheck={onRecheck}
                               stage={stage}
-                              target={target}
+                              target={shownTarget}
                             />
                           ) : undefined
                         }
@@ -751,11 +794,11 @@ export function DeployStep({
 
       <ActionBar
         align="column"
-        className={ready ? 'is-ready' : next?.section === undefined ? 'is-blocked' : 'is-blocked has-next'}
-        note={ready ? undefined : nextLink(false)}
+        className={settledReady ? 'is-ready' : next?.section === undefined ? 'is-blocked' : 'is-blocked has-next'}
+        note={settledReady ? undefined : nextLink(false)}
         price={<MonthlyPrice state={state} suffix={monthlySuffix} />}
       >
-        {!ready && next?.section !== undefined && (
+        {!settledReady && next?.section !== undefined && (
           // On a phone the bar is this one action, full width, until Deploy can work.
           <Button className="w-bar-next-button" onClick={() => goTo(next.section!)} variant="secondary">
             {next.text.charAt(0).toUpperCase()}
@@ -1513,4 +1556,17 @@ function MigrationNote({ message }: { message: string }) {
       <CommandLine command={command ?? ''} fill label="Copy the migration command" />
     </>
   );
+}
+
+/**
+ * The last value given for the same key, while the value is away: a file being written again, a check running again.
+ * A different key (another stage, region or account) drops it.
+ */
+function useHeld<T>(value: T | undefined, key: string): T | undefined {
+  const [held, setHeld] = useState<{ key: string; value: T } | undefined>(() =>
+    value === undefined ? undefined : { key, value }
+  );
+  // Adjusted while rendering, as React recommends for state derived from a change: no paint without it.
+  if (value !== undefined && (held?.value !== value || held.key !== key)) setHeld({ key, value });
+  return value ?? (held?.key === key ? held.value : undefined);
 }

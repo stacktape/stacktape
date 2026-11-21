@@ -8,6 +8,7 @@
  */
 
 import type { DeployResource } from './deploy-model';
+import { keepPriceWhileRepricing } from './reprice';
 import type {
   DeploymentPreferenceChange,
   DeploymentPreferences
@@ -491,8 +492,8 @@ export const connect = async (): Promise<Session> => {
    */
   const publish = (next: WizardState) => {
     if ((next.revision ?? 0) < (current.revision ?? 0)) return;
-    current = next;
-    for (const listener of listeners) listener(next);
+    current = keepPriceWhileRepricing(current, next);
+    for (const listener of listeners) listener(current);
   };
 
   const post = (path: string, body: unknown) =>

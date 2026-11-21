@@ -49,6 +49,21 @@ const configYaml = (page: Page) =>
 
 const deployButton = (page: Page) => page.getByRole('button', { name: /^Deploy to / });
 
+/** Starts noting whether the AWS account section shows "Checking…" at any moment from now on. */
+const watchForChecking = (page: Page) =>
+  page.evaluate(() => {
+    const section = document.getElementById('deploy-aws');
+    const flags = window as unknown as { sawChecking?: boolean };
+    flags.sawChecking = false;
+    if (section === null) return;
+    new MutationObserver(() => {
+      if (/Checking/.test(section.textContent ?? '')) flags.sawChecking = true;
+    }).observe(section, { subtree: true, childList: true, characterData: true });
+  });
+
+const sawChecking = (page: Page) =>
+  page.evaluate(() => (window as unknown as { sawChecking?: boolean }).sawChecking === true);
+
 test('a first deploy goes from analysis to a live URL, with settings, secrets and the migration resolved in the page', async ({
   page,
   startWizard
@@ -139,6 +154,9 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await page.getByRole('button', { name: 'Save 2 secrets', exact: true }).click();
   // Done, the section folds to one line and the next one opens.
   await expect(page.locator('#deploy-secrets')).toContainText('All 2 saved in acme-dev, in us-east-1.');
+  // The choice rewrites the file, and the stack is checked again for it. The page keeps the last answer meanwhile:
+  // the account section never drops back to checking, and Deploy stays on.
+  await watchForChecking(page);
   // A Next.js site can run its migration as a release command, before each deploy goes live; the file says so.
   await choose(page, /Before each deploy goes live/);
   await expect(page.locator('#deploy-migrations')).toContainText(
@@ -147,6 +165,7 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   expect(await configYaml(page)).toContain('releaseCommand: npx drizzle-kit migrate');
   await waitForTarget(page);
   await expect(deployButton(page)).toBeEnabled();
+  expect(await sawChecking(page)).toBe(false);
   // Ready, the summary says what the click creates, where, what it costs and how long it takes.
   const summary = page.getByRole('region', { name: 'Deploy summary' });
   await expect(summary).toContainText('saas-starter-dev');

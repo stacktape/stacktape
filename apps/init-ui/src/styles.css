@@ -2792,17 +2792,24 @@
 
   .w-run-op {
     margin: 0;
+    overflow: hidden;
     color: var(--w-text-strong);
     font-size: 17px;
     font-weight: 600;
     line-height: 24px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .w-run-op-detail {
+    min-height: 20px;
     margin: 4px 0 0;
+    overflow: hidden;
     color: var(--w-muted);
     font-size: 13px;
     line-height: 20px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .w-run-time {
@@ -3601,6 +3608,39 @@
       overflow: visible;
     }
 
+    /* The steps open and fold while AWS works, so they come last and nothing under them moves: the progress, the
+     * note about the tab and the picture first, each on its own. */
+    .w-run:not(.is-log) .w-run-side {
+      display: contents;
+    }
+
+    .w-run:not(.is-log) .w-run-now,
+    .w-run:not(.is-log) .w-run-side > .r-activity {
+      border: 1px solid transparent;
+      border-radius: var(--w-radius);
+      background: var(--w-panel-fill);
+      box-shadow: var(--w-shadow-rest);
+    }
+
+    .w-run:not(.is-log) .w-run-now {
+      order: 1;
+    }
+
+    .w-run:not(.is-log) .w-run-side > .w-run-tab {
+      order: 2;
+      padding: 0 4px;
+      border-top: none;
+    }
+
+    .w-run:not(.is-log) .w-run-diagram {
+      order: 3;
+    }
+
+    .w-run:not(.is-log) .w-run-side > .r-activity {
+      order: 4;
+      overflow: hidden;
+    }
+
     .w-run-diagram {
       flex: none;
       order: 2;
@@ -4102,6 +4142,18 @@
 
     .w-run-now {
       padding: 16px 16px 14px;
+    }
+
+    /* Up to two lines for what is happening on a phone; the room for both is kept under the detail. */
+    .w-run-what {
+      min-height: 72px;
+    }
+
+    .w-run-op {
+      display: -webkit-box;
+      white-space: normal;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
     }
 
     /* Review's own narrow rules, kept as they were. */

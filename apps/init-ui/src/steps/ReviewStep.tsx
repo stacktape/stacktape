@@ -9,10 +9,11 @@ import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BiChevronDown, BiInfoCircle, BiLinkExternal } from 'react-icons/bi';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { InfoTip } from '../components/InfoTip';
+import { Diagram } from '../components/lazy-diagram';
 import { RegionPicker } from '../components/RegionPicker';
 import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
@@ -30,9 +31,6 @@ import {
   type ResourceEntry
 } from './ReviewSettings';
 import './review.css';
-
-/** Heavy on purpose, light on arrival: the diagram loads after the page. */
-const Diagram = lazy(() => import('../components/Diagram'));
 
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
 type Price = NonNullable<NonNullable<WizardState['composition']>['price']>;

@@ -1658,6 +1658,12 @@
       display: none;
     }
 
+    /* Review's heading is taller than the reveal's, so the analysis would slide down while it fades: it goes at once,
+     * and the picture fades in where it was. */
+    .ws-scan[data-leaving] {
+      display: none;
+    }
+
     .ws-head-side {
       align-self: flex-start;
     }

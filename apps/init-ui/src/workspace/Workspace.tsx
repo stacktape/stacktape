@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { BiKey, BiLinkExternal } from 'react-icons/bi';
 import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { AnimatedPrice } from '../components/AnimatedPrice';
+import { loadDiagram } from '../components/lazy-diagram';
 import type { ConfigEditorHandle } from '../editor/ConfigFileEditor';
 import { ConfigPanel } from '../editor/ConfigPanel';
 import { editorVersion } from '../editor/editor-version';
@@ -36,9 +37,6 @@ import { tokenizeFile, type Token } from './syntax';
 import { EXCERPT_HEIGHT, TreeWindow, type TreeFocus, type TreeMark } from './TreeWindow';
 import { useMediaQuery } from './use-media-query';
 import './workspace.css';
-
-// The diagram is shown the moment the reveal ends; start loading it while the analysis runs.
-const loadDiagram = () => import('../components/Diagram');
 
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
 type Phase = 'scan' | 'reveal' | 'review';
@@ -930,6 +928,9 @@ function Finding({
   );
 }
 
+/** How much of a block the phone's reveal shows. */
+const PHONE_YAML_ROWS = 5;
+
 /**
  * The phone's reveal: the finding, the file it came from in the project's tree with its lines under it, and the YAML
  * it became, in one column, where the desktop has two panes side by side.
@@ -948,7 +949,9 @@ function PhoneFinding({
   isPriced: boolean;
 }) {
   const ownPrice = resourcePrice(story);
-  const yaml = typed.split('\n').slice(0, 5);
+  // Five rows from the first letter: the block fills its place as it is typed, and nothing under it moves.
+  const typedLines = typed.split('\n');
+  const yaml = Array.from({ length: PHONE_YAML_ROWS }, (_, index) => typedLines[index] ?? '');
   return (
     <div className="ws-phone-finding" key={story.name}>
       <div className="ws-phone-finding-text">
@@ -972,7 +975,7 @@ function PhoneFinding({
         <span className="ws-tag">Preview</span>
       </p>
       <div className="ws-excerpt" data-kind="yaml">
-        {(yaml.length === 0 || yaml[0] === '' ? ['  '] : yaml).map((text, index) => (
+        {yaml.map((text, index) => (
           // oxlint-disable-next-line react/no-array-index-key -- consecutive lines being typed; position is identity.
           <div className="ws-excerpt-row" data-focus="true" key={index}>
             <span className="ws-excerpt-text">{text || ' '}</span>
