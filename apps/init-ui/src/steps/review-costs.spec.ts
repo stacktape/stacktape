@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 import type { WizardState } from '../session';
 import {
+  byMonthlyCost,
   costLineLabel,
   costLinesOf,
-  costShares,
   money,
   monthlyDelta,
   optionPrice,
@@ -13,7 +13,6 @@ import {
   usageRate
 } from './review-costs';
 import { awsServiceOf, sizeSummary } from './review-model';
-import { reviewLayout, settingTerms } from './review-version';
 
 type Price = NonNullable<NonNullable<WizardState['composition']>['price']>;
 
@@ -81,11 +80,9 @@ describe('the money on the Review step', () => {
     expect(usageRate({ rate: 0.0000002, unit: 'Requests' })).toBe('$0.20 per 1M requests');
   });
 
-  it('splits the total by resource for the bar, priced ones first', () => {
-    expect(costShares(price, ['app', 'mainDatabase'])).toEqual([
-      { name: 'mainDatabase', amount: 32.5, usage: false, share: 1 },
-      { name: 'app', amount: 0, usage: true, share: 0 }
-    ]);
+  it('lists resources like a bill: the largest fixed amount first, then pay-per-use, then unpriced', () => {
+    expect(byMonthlyCost(price, ['app', 'unknown', 'mainDatabase'])).toEqual(['mainDatabase', 'app', 'unknown']);
+    expect(byMonthlyCost(undefined, ['app', 'mainDatabase'])).toEqual(['app', 'mainDatabase']);
   });
 
   it('prices a size by its own amount and any other choice by what it changes the total by', () => {
@@ -146,16 +143,5 @@ describe('what a resource is, for people who know AWS', () => {
         { id: 'minInstances', control: 'choice', value: 2, options: [] }
       ])
     ).toBe('0.5 vCPU · 1 GB · ×2');
-  });
-});
-
-describe('the layouts to compare', () => {
-  it('reads ?review= and ?terms=, with columns and both names by default', () => {
-    expect(reviewLayout('')).toBe('columns');
-    expect(reviewLayout('?review=stack')).toBe('stack');
-    expect(reviewLayout('?review=CANVAS&start=g2')).toBe('canvas');
-    expect(reviewLayout('?review=nonsense')).toBe('columns');
-    expect(settingTerms('?terms=aws')).toBe('aws');
-    expect(settingTerms('?review=stack')).toBe('both');
   });
 });

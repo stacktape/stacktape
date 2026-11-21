@@ -55,8 +55,9 @@ fixtures.
 
 A host that explains resources beside the picture (the init wizard's review) passes `onHoverResource`: it is told the
 node under the pointer or keyboard focus, and nodes show no hover card of their own. `focusDimming="soft"` steps back
-less of a small picture on hover, and `framePadding` lowers the room left around the picture in a short frame. Keyboard
-focus dims what a node does not connect to; a click that focuses it does not.
+less of a small picture on hover, `framePadding` lowers the room left around the picture in a short frame, and
+`maxFitScale` lets a picture of a few resources grow past 1.15 to fill a large frame. Keyboard focus dims what a node
+does not connect to; a click that focuses it does not.
 
 A host whose frame is small for what it shows (the init wizard's review) can pass `minLabelSize`: when the picture is
 fitted below that size, names, type lines and chips are set larger and the layout is run again with room for them

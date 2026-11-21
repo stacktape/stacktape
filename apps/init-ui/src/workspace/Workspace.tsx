@@ -14,7 +14,6 @@ import { useConfigDraft, type ConfigTextEdit } from '../editor/use-config-draft'
 import type { FileView, RepositoryTree, Session, WizardState } from '../session';
 import { ReviewPane } from '../steps/ReviewStep';
 import { filenameFor, monthlySuffix, summarise } from '../steps/review-model';
-import { reviewLayout } from '../steps/review-version';
 import { buildTree, fileCountLabel } from './file-tree';
 import {
   allChips,
@@ -230,11 +229,6 @@ export function Workspace({
   };
   const resources: Resources = draft.resources;
   const stories = useMemo(() => storiesOf(state, resources), [state, resources]);
-  // Every resource's "why" reads its file, so the lines it shows are the file's own, checked.
-  useEffect(() => {
-    if (phase !== 'review') return;
-    for (const story of Object.values(stories)) if (story.evidence !== undefined) load(story.evidence.file);
-  }, [phase, stories, load]);
   const citations = useMemo(() => {
     const all: Record<string, Citation> = {};
     for (const [name, story] of Object.entries(stories)) {
@@ -509,13 +503,6 @@ export function Workspace({
     (name: string) => setSelected((current) => (current === name || resources[name] === undefined ? undefined : name)),
     [resources]
   );
-  /** Bumped to bring the picked block into view again, after the user scrolled away from it. */
-  const [revealCount, setRevealCount] = useState(0);
-  const showInFile = useCallback((name: string) => {
-    setSelected(name);
-    setRevealCount((count) => count + 1);
-    if (stackedRef.current) setStackedView('file');
-  }, []);
   const [version] = useState(() => editorVersion(window.location.search));
 
   // ── Layout ──────────────────────────────────────────────────────────────────────────────────────
@@ -629,7 +616,6 @@ export function Workspace({
         // The half second in which the code window gives way and the bar slides up: the page makes room for it slowly.
         data-settling={leaving ? 'true' : undefined}
         data-stacked={stacked ? 'true' : undefined}
-        data-review-layout={phase === 'review' ? reviewLayout(window.location.search) : undefined}
       >
         <header className="ws-head" data-phase={phase}>
           {phase === 'scan' ? (
@@ -745,7 +731,6 @@ export function Workspace({
           {phase === 'review' && (
             <ReviewPane
               busy={busy}
-              citations={citations}
               isEdited={isEdited}
               isLocked={isLocked}
               isTyping={draft.isPending}
@@ -753,7 +738,6 @@ export function Workspace({
               onRegion={onRegion}
               onSetting={onSetting}
               onSelect={select}
-              onShowInFile={showInFile}
               progress={nodeProgress}
               resources={resources}
               selected={selected}
@@ -780,7 +764,6 @@ export function Workspace({
             onEditorReady={setEditorHandle}
             onFormatChange={onFormatChange}
             phase={phase}
-            revealCount={revealCount}
             selected={selected}
             session={session}
             stories={stories}

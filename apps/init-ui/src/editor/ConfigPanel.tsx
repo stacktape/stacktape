@@ -62,7 +62,6 @@ export function ConfigPanel({
   isTouch,
   stories,
   selected,
-  revealCount,
   writingHead,
   bodyOverlay,
   onEditorReady
@@ -81,8 +80,6 @@ export function ConfigPanel({
   stories: Readonly<Record<string, ResourceStory>>;
   /** The resource picked on the diagram. */
   selected: string | undefined;
-  /** Bumped to bring the picked block into view again. */
-  revealCount: number;
   /** The head's right side while the file is written (the estimate so far). */
   writingHead?: ReactNode;
   /** Drawn over the editor while the analysis runs (the rows waiting for findings). */
@@ -124,10 +121,7 @@ export function ConfigPanel({
       ];
     });
   }, [isReview, version, blocks, stories]);
-  const highlight =
-    selected === undefined || blocks[selected] === undefined
-      ? undefined
-      : { ...blocks[selected]!, reveal: revealCount };
+  const highlight = selected === undefined ? undefined : blocks[selected];
   const cursorResource = cursorLine === undefined ? undefined : blockAt(blocks, cursorLine);
 
   const ready = useCallback(
@@ -137,10 +131,6 @@ export function ConfigPanel({
     },
     [onEditorReady]
   );
-  // "Show in stacktape.yml" shows the file, whichever tab is open.
-  useEffect(() => {
-    if (revealCount > 0) setView('file');
-  }, [revealCount]);
   // A format switch brings a new editor and its own problems.
   useEffect(() => {
     setProblems({ count: 0, errors: 0 });

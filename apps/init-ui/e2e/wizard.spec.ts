@@ -69,14 +69,23 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   // Each resource's key line in stacktape.yml ends in a faint note: what it is and what it costs.
   await expect(labels(page).filter({ hasText: 'Postgres database' })).toContainText(/\$\d+\/mo/);
 
-  // Nothing picked, the panel beside the picture is the monthly estimate, split by resource, with its line items.
+  // Nothing picked, the panel beside the picture is the monthly estimate and a row per resource with its size and price.
   const overview = page.getByRole('complementary', { name: 'Overview' });
   await expect(overview.getByRole('region', { name: 'Monthly cost' })).toContainText(/\$\d+/);
-  await expect(overview).toContainText('Instance db.t4g.small');
+  const databaseRow = overview
+    .getByRole('list', { name: 'Resources' })
+    .getByRole('button', { name: /Postgres database/ });
+  await expect(databaseRow).toContainText('db.t4g.small · 20 GB');
+  await expect(databaseRow).toContainText(/\$\d+\/mo/);
   // A row opens that resource's settings: real AWS sizes, each with its own monthly price, AWS's names beside ours.
-  await overview.getByRole('button', { name: /Postgres database/ }).click();
+  await databaseRow.click();
   const database = page.getByRole('complementary', { name: 'Postgres database settings' });
   await expect(database).toContainText('Multi-AZ');
+  // What the price is made of is one help mark away, not a list in the panel.
+  await expect(database).not.toContainText('Instance db.t4g.small');
+  await database.getByRole('button', { name: 'About the price' }).hover();
+  await expect(page.locator('.rv-breakdown')).toContainText('Instance db.t4g.small');
+  await page.mouse.move(0, 0);
   await expect(database.locator('label.stp-ui-radio', { hasText: 'db.t4g.micro' })).toContainText(/\$\d+\/mo/);
   const before = await page.locator('.w-bar-amount').textContent();
   // A bigger instance is written to stacktape.yml, and the total follows.
@@ -363,18 +372,16 @@ test('the analysis draws the project as a file tree, then ties each resource to 
     )
     .toBeLessThan(3);
 
-  // Then Review, without a skip: the diagram, an editable file, and the evidence one click away.
+  // Then Review, without a skip: the diagram and an editable file.
   await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: /^Skip/ })).toHaveCount(0);
 
-  // Clicking a resource in the picture opens its settings beside it, with why it is there in one quiet line; its key in
-  // the file carries the same accent, and the panel keeps the way to it.
+  // Clicking a resource in the picture opens its settings beside it; its key in the file carries the same accent and
+  // comes into view.
   await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
-  const database = page.getByRole('complementary', { name: 'Postgres database settings' });
-  await expect(database).toContainText('Postgres driver in package.json:29');
+  await expect(page.getByRole('complementary', { name: 'Postgres database settings' })).toBeVisible();
   await expect(page.locator('.stp-diagram__tooltip')).toHaveCount(0);
   await expect(page.locator('.monaco-editor .ws-editor-key')).toHaveCount(1);
-  await database.getByRole('button', { name: 'Show in stacktape.yml' }).click();
   await expect(page.locator('.monaco-editor .view-line', { hasText: 'mainDatabase:' })).toBeInViewport();
 
   // The reveal plays once: a reload lands on Review.
@@ -408,6 +415,17 @@ test('on a phone the scan is the tree, and each finding shows its file, its line
 
   await page.getByRole('button', { name: /^Skip/ }).click();
   await expect(page.getByRole('heading', { name: 'full-stack-fastapi on AWS' })).toBeVisible({ timeout: 15_000 });
+
+  // Review's settings sit under the picture: a row opens a resource's settings at their top, and the way back is there.
+  await page
+    .getByRole('list', { name: 'Resources' })
+    .getByRole('button', { name: /Postgres database/ })
+    .click();
+  const back = page.getByRole('button', { name: 'All resources' });
+  await expect(back).toBeInViewport();
+  await back.click();
+  await expect(page.getByRole('complementary', { name: 'Overview' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 });
 
 test('skipping the reveal at once leaves the generated file exactly as it is, not an edit', async ({
