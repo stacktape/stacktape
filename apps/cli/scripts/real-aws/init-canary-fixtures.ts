@@ -11,7 +11,6 @@ export type InitCanaryFixture = {
     deployable: boolean;
     maxGaps: number;
   };
-  preflight: 'required' | 'unsupported-resource-type';
   health:
     | {
         kind: 'http';
@@ -40,8 +39,6 @@ export const INIT_CANARY_FIXTURES = {
       deployable: true,
       maxGaps: 0
     },
-    // Local preflight must build and boot the js-bundle image; the canary never counts "skipped" as a pass.
-    preflight: 'required',
     health: {
       kind: 'http',
       resourceType: 'web-service',
@@ -62,7 +59,6 @@ export const INIT_CANARY_FIXTURES = {
       deployable: true,
       maxGaps: 0
     },
-    preflight: 'required',
     health: {
       kind: 'http',
       resourceType: 'web-service',
@@ -81,9 +77,6 @@ export const INIT_CANARY_FIXTURES = {
       deployable: true,
       maxGaps: 0
     },
-    // The current preflight engine deliberately excludes hosting-bucket resources. Deployment can
-    // still prove this fixture, but its local result must be reported as unsupported, never passed.
-    preflight: 'unsupported-resource-type',
     health: {
       kind: 'http',
       resourceType: 'hosting-bucket',
@@ -102,7 +95,6 @@ export const INIT_CANARY_FIXTURES = {
       deployable: true,
       maxGaps: 0
     },
-    preflight: 'required',
     health: {
       kind: 'http',
       resourceType: 'web-service',

@@ -1,7 +1,8 @@
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
+import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BiLayer } from 'react-icons/bi';
+import { BiFile, BiLayer } from 'react-icons/bi';
 import type { Session, TemplatePreview } from '../session';
 import type { ResourceStory } from '../workspace/resource-story';
 import { templateExcerpt, templateLayout, type TemplateResource } from './config-blocks';
@@ -9,12 +10,13 @@ import type { EditorSection } from './ConfigFileEditor';
 
 const ConfigFileEditor = lazy(() => import('./ConfigFileEditor'));
 
-/** Which resources the view shows: all of them, the ones one resource of the configuration creates, or the stack's own. */
-export type TemplateGroup = { kind: 'all' } | { kind: 'resource'; name: string } | { kind: 'stack' };
-
+/**
+ * Which AWS resources the view shows: all of them, the ones one resource of the configuration creates
+ * (`resource:<name>`), or the stack's own.
+ */
+const ALL = 'all';
 const STACK = 'stack';
-
-const keyOf = (group: TemplateGroup) => (group.kind === 'resource' ? `resource:${group.name}` : group.kind);
+const keyOf = (owner: string | undefined) => (owner === undefined ? STACK : `resource:${owner}`);
 
 /** "5 AWS resources". */
 const resourceCount = (count: number) => `${count} AWS ${count === 1 ? 'resource' : 'resources'}`;
@@ -45,95 +47,181 @@ const useTemplate = (session: Session, source: string | undefined) => {
   return { template, isLoading };
 };
 
+/** How far the template has got: being compiled, out of date with the file, not compiled, or compiled for a stage. */
+export type TemplateStatus = 'compiling' | 'stale' | 'failed' | { stage: string; region: string };
+
 /**
- * The CloudFormation template the configuration compiles to, read-only: what `stacktape deploy` would create, compiled
- * by the CLI on this machine without AWS, and compiled again after every change.
+ * The CloudFormation template the configuration compiles to: what `stacktape deploy` would create, compiled by the CLI
+ * on this machine without AWS, and compiled again after every change while it is shown.
  *
  * Its resources are grouped by the resource of the configuration they are for, in the configuration's order, then the
- * stack's own (its network, the Lambda that runs Stacktape's custom resources). A row of chips shows one group at a
- * time, and picking a resource on the diagram (or, docked under the file, putting the cursor in its block) picks its
- * group.
+ * stack's own (its network, the Lambda that runs Stacktape's custom resources). One group is shown at a time, picked
+ * in the panel's head (`TemplateGroupSelect`) or by picking a resource on the diagram.
  */
-export function CloudFormationView({
+export const useCloudFormation = ({
   session,
   source,
-  sourceError,
-  stories,
-  focus,
-  compact = false,
-  onTemplate
+  focus
 }: {
   session: Session;
-  /** The configuration the CLI holds, as YAML: a new one compiles the template again. */
+  /** The configuration the CLI holds, as YAML, while the template is shown and the file is valid: each compiles. */
   source: string | undefined;
-  /** The file does not parse or run: the last template stays, said to be out of date. */
-  sourceError: boolean;
-  stories: Readonly<Record<string, ResourceStory>>;
-  /** The resource to show, when one is picked; undefined leaves the chip the user picked. */
+  /** The resource picked on the diagram; undefined leaves the group the user picked. */
   focus: string | undefined;
-  /** Docked under the file: a shorter head, no stage line. */
-  compact?: boolean;
-  /** Hands the compiled template up, for the panel's copy button and status line. */
-  onTemplate?: (template: { text: string; stage: string; region: string } | undefined) => void;
-}) {
-  const { template, isLoading } = useTemplate(session, sourceError ? undefined : source);
-  const [group, setGroup] = useState<TemplateGroup>({ kind: 'all' });
-  // A newly picked resource picks its group; the user's own chip stays until something else is picked.
+}) => {
+  const { template, isLoading } = useTemplate(session, source);
+  const [picked, setPicked] = useState<string>(ALL);
+  // A newly picked resource picks its group; the user's own choice stays until something else is picked.
   const lastFocus = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (focus === lastFocus.current) return;
     lastFocus.current = focus;
-    if (focus !== undefined) setGroup({ kind: 'resource', name: focus });
-    else if (compact) setGroup({ kind: 'all' });
-  }, [focus, compact]);
+    if (focus !== undefined) setPicked(keyOf(focus));
+  }, [focus]);
 
   const ready = template?.status === 'ready' ? template : undefined;
   const layout = useMemo(() => (ready === undefined ? undefined : templateLayout(ready.text, ready.owners)), [ready]);
   const groups = useMemo(() => {
     if (layout === undefined) return [];
-    const byOwner = new Map<string, TemplateResource[]>();
+    const byKey = new Map<string, { key: string; owner: string | undefined; resources: TemplateResource[] }>();
     for (const resource of layout.resources) {
-      const owner = resource.owner ?? STACK;
-      byOwner.set(owner, [...(byOwner.get(owner) ?? []), resource]);
+      const key = keyOf(resource.owner);
+      const group = byKey.get(key) ?? { key, owner: resource.owner, resources: [] };
+      group.resources.push(resource);
+      byKey.set(key, group);
     }
-    return [...byOwner].map(([owner, resources]) => ({ owner, resources }));
+    return [...byKey.values()];
   }, [layout]);
-  const shownGroup =
-    group.kind === 'resource' && !groups.some((entry) => entry.owner === group.name) ? { kind: 'all' as const } : group;
-  const shownKind = shownGroup.kind;
-  const shownName = shownGroup.kind === 'resource' ? shownGroup.name : undefined;
+  const group = groups.some((entry) => entry.key === picked) ? picked : ALL;
   const view = useMemo(() => {
     if (ready === undefined || layout === undefined) return undefined;
-    if (shownKind === 'all') return { text: ready.text, lineMap: undefined };
-    // Docked under the file, a resource's own AWS resources are all there is room for.
-    return templateExcerpt(ready.text, layout, (resource) => resource.owner === shownName, { head: !compact });
-  }, [ready, layout, shownKind, shownName, compact]);
+    if (group === ALL) return { text: ready.text, lineMap: undefined };
+    return templateExcerpt(ready.text, layout, (resource) => keyOf(resource.owner) === group);
+  }, [ready, layout, group]);
 
-  useEffect(
-    () =>
-      onTemplate?.(ready === undefined ? undefined : { text: ready.text, stage: ready.stage, region: ready.region }),
-    [ready, onTemplate]
+  const status: TemplateStatus =
+    isLoading || (template === undefined && source !== undefined)
+      ? 'compiling'
+      : ready === undefined
+        ? 'failed'
+        : source === undefined || ready.config !== source
+          ? 'stale'
+          : { stage: ready.stage, region: ready.region };
+  return {
+    template,
+    isLoading,
+    ready,
+    layout,
+    groups,
+    group,
+    setGroup: setPicked,
+    view,
+    status,
+    total: layout?.resources.length ?? 0
+  };
+};
+
+export type CloudFormation = ReturnType<typeof useCloudFormation>;
+
+/** The group's icon: the resource's own, the stack's layers, or the whole template. */
+const groupIcon = (
+  key: string,
+  owner: string | undefined,
+  stories: Readonly<Record<string, ResourceStory>>,
+  size: number
+): ReactNode =>
+  key === ALL ? (
+    <BiFile aria-hidden size={size} />
+  ) : owner === undefined ? (
+    <BiLayer aria-hidden size={size} />
+  ) : (
+    <ResourceIcon resourceType={stories[owner]?.type ?? ''} size={size} />
   );
 
+/**
+ * Which AWS resources the template shows: the whole template, one resource of the configuration with what it is and
+ * how many AWS resources it makes, or what the stack itself has. In the panel's head; a panel too narrow for it there
+ * (a phone) shows it across the top of the template instead (`CloudFormationView`).
+ */
+export function TemplateGroupSelect({
+  cf,
+  stories,
+  placement = 'head'
+}: {
+  cf: CloudFormation;
+  stories: Readonly<Record<string, ResourceStory>>;
+  placement?: 'head' | 'bar';
+}) {
+  if (cf.layout === undefined) return null;
+  const option = (
+    key: string,
+    owner: string | undefined,
+    label: string,
+    description: string,
+    count: number
+  ): SelectOption<string> => ({
+    value: key,
+    label,
+    searchText: label,
+    description: `${description}${description === '' ? '' : ' · '}${resourceCount(count)}`,
+    icon: groupIcon(key, owner, stories, 18),
+    valueLabel: (
+      <span className="ws-cf-value">
+        <span className="ws-cf-value-name">{key === ALL ? 'All' : key === STACK ? 'Stack' : label}</span>
+        <span className="ws-cf-value-count">{count}</span>
+      </span>
+    )
+  });
+  const options = [
+    option(ALL, undefined, 'Whole template', '', cf.total),
+    ...cf.groups.map(({ key, owner, resources }) =>
+      owner === undefined
+        ? option(key, owner, 'Shared by the stack', 'Network and helpers', resources.length)
+        : option(key, owner, owner, stories[owner]?.plainName ?? '', resources.length)
+    )
+  ];
+  return (
+    <Select
+      className={`ws-cf-select is-${placement}`}
+      hideLabel
+      label="Show the AWS resources of"
+      menuAlignment={placement === 'head' ? 'end' : 'start'}
+      name={`template-group-${placement}`}
+      onChange={(selected) => {
+        if (selected !== null && !Array.isArray(selected)) cf.setGroup((selected as SelectOption<string>).value);
+      }}
+      options={options}
+      reserveMessageSpace={false}
+      searchable={false}
+      value={options.find((entry) => entry.value === cf.group) ?? null}
+    />
+  );
+}
+
+/** The template itself, read-only, a heading above each group saying what its resources are for. */
+export function CloudFormationView({
+  cf,
+  stories
+}: {
+  cf: CloudFormation;
+  stories: Readonly<Record<string, ResourceStory>>;
+}) {
+  const { template, view, groups, layout } = cf;
   // A heading above each group, in the template itself: what the next resources are for.
   const sections = useMemo((): EditorSection[] => {
     if (view === undefined) return [];
     const lineOf = (line: number) => (view.lineMap === undefined ? line : view.lineMap.indexOf(line) + 1);
-    return groups.flatMap(({ owner, resources }) => {
+    return groups.flatMap(({ key, owner, resources }) => {
       const at = lineOf(resources[0]!.from);
       if (at < 1) return [];
-      const story = owner === STACK ? undefined : stories[owner];
+      const story = owner === undefined ? undefined : stories[owner];
       return [
         {
           line: at,
           content: (
             <span className="ws-cf-section">
-              {story === undefined ? (
-                <BiLayer aria-hidden size={14} />
-              ) : (
-                <ResourceIcon resourceType={story.type} size={14} />
-              )}
-              <strong>{owner === STACK ? 'Shared by the stack' : owner}</strong>
+              {groupIcon(key, owner, stories, 14)}
+              <strong>{owner ?? 'Shared by the stack'}</strong>
               {story !== undefined && <span className="ws-cf-section-name">{story.plainName}</span>}
               <span className="ws-cf-section-count">{resourceCount(resources.length)}</span>
             </span>
@@ -143,14 +231,14 @@ export function CloudFormationView({
     });
   }, [view, groups, stories]);
 
-  if (template === undefined || (template.status !== 'ready' && ready === undefined && isLoading)) {
+  if (template === undefined || (cf.ready === undefined && cf.isLoading)) {
     return (
       <div className="ws-editor-loading">
         <Spinner /> Compiling the CloudFormation template…
       </div>
     );
   }
-  if (ready === undefined || view === undefined || layout === undefined) {
+  if (cf.ready === undefined || view === undefined || layout === undefined) {
     return (
       <div className="ws-cf-empty">
         <strong>No template to show</strong>
@@ -160,56 +248,19 @@ export function CloudFormationView({
       </div>
     );
   }
-
-  const stale = sourceError || template.status !== 'ready' || (source !== undefined && ready.config !== source);
   return (
-    <div className="ws-cf" data-compact={compact ? 'true' : undefined}>
-      <div aria-label="Show the AWS resources of" className="ws-cf-groups" role="toolbar">
-        <GroupChip
-          isActive={shownGroup.kind === 'all'}
-          label="All"
-          count={layout.resources.length}
-          onClick={() => setGroup({ kind: 'all' })}
-        />
-        {groups.map(({ owner, resources }) => (
-          <GroupChip
-            count={resources.length}
-            icon={
-              owner === STACK ? (
-                <BiLayer aria-hidden size={13} />
-              ) : (
-                <ResourceIcon resourceType={stories[owner]?.type ?? ''} size={13} />
-              )
-            }
-            isActive={owner === STACK ? shownGroup.kind === 'stack' : keyOf(shownGroup) === `resource:${owner}`}
-            key={owner}
-            label={owner === STACK ? 'Stack' : owner}
-            onClick={() => setGroup(owner === STACK ? { kind: 'stack' } : { kind: 'resource', name: owner })}
-            title={
-              owner === STACK
-                ? 'What every Stacktape stack has: its network and the Lambda function that runs its custom resources'
-                : stories[owner]?.plainName
-            }
-          />
-        ))}
-        {(isLoading || stale) && (
-          <span
-            className="ws-cf-updating"
-            title={stale ? 'The template is compiled again once the file is fixed' : undefined}
-          >
-            {isLoading ? <Spinner /> : null}
-            {isLoading ? 'Compiling' : 'Out of date'}
-          </span>
-        )}
+    <div className="ws-cf">
+      <div className="ws-cf-bar">
+        <TemplateGroupSelect cf={cf} placement="bar" stories={stories} />
       </div>
       <div className="ws-cf-body">
         <Suspense fallback={null}>
           <ConfigFileEditor
             folding
-            key={keyOf(shownGroup)}
+            key={cf.group}
             language="yaml"
             {...(view.lineMap === undefined ? {} : { lineNumberMap: view.lineMap })}
-            modelPath={`file:///cloudformation-${keyOf(shownGroup).replace(/\W/g, '-')}.yaml`}
+            modelPath={`file:///cloudformation-${cf.group.replace(/\W/g, '-')}.yaml`}
             readOnly
             readOnlyMessage="This is what the configuration compiles to. Change the configuration instead."
             sections={sections}
@@ -219,29 +270,5 @@ export function CloudFormationView({
         </Suspense>
       </div>
     </div>
-  );
-}
-
-function GroupChip({
-  label,
-  count,
-  icon,
-  isActive,
-  onClick,
-  title
-}: {
-  label: string;
-  count: number;
-  icon?: ReactNode;
-  isActive: boolean;
-  onClick: () => void;
-  title?: string | undefined;
-}) {
-  return (
-    <button aria-pressed={isActive} className="ws-cf-chip" onClick={onClick} title={title} type="button">
-      {icon}
-      <span className="ws-cf-chip-label">{label}</span>
-      <span className="ws-cf-chip-count">{count}</span>
-    </button>
   );
 }

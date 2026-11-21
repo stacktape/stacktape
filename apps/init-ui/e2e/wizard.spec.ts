@@ -19,9 +19,9 @@ const continueToDeploy = async (page: Page) => {
   await expect(page.getByRole('heading', { level: 1, name: /deploy/i })).toBeVisible();
 };
 
-/** The read-only target check runs by itself; the account row turns green once it has answered. */
+/** The read-only target check runs by itself; where it deploys turns ready once it has answered. */
 const waitForTarget = async (page: Page) => {
-  await expect(page.getByText(/Creates the stack .*\. Nothing is there yet\./)).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#deploy-aws')).toHaveClass(/\bis-ready\b/, { timeout: 10_000 });
 };
 
 /** The ui-react radio hides its input; the label is what gets clicked. */
@@ -84,14 +84,23 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   // Each resource's key line in stacktape.yml ends in a faint note: what it is and what it costs.
   await expect(labels(page).filter({ hasText: 'Postgres database' })).toContainText(/\$\d+\/mo/);
 
-  // Nothing picked, the panel beside the picture is the monthly estimate, split by resource, with its line items.
+  // Nothing picked, the panel beside the picture is the monthly estimate and a row per resource with its size and price.
   const overview = page.getByRole('complementary', { name: 'Overview' });
   await expect(overview.getByRole('region', { name: 'Monthly cost' })).toContainText(/\$\d+/);
-  await expect(overview).toContainText('Instance db.t4g.small');
+  const databaseRow = overview
+    .getByRole('list', { name: 'Resources' })
+    .getByRole('button', { name: /Postgres database/ });
+  await expect(databaseRow).toContainText('db.t4g.small · 20 GB');
+  await expect(databaseRow).toContainText(/\$\d+\/mo/);
   // A row opens that resource's settings: real AWS sizes, each with its own monthly price, AWS's names beside ours.
-  await overview.getByRole('button', { name: /Postgres database/ }).click();
+  await databaseRow.click();
   const database = page.getByRole('complementary', { name: 'Postgres database settings' });
   await expect(database).toContainText('Multi-AZ');
+  // What the price is made of is one help mark away, not a list in the panel.
+  await expect(database).not.toContainText('Instance db.t4g.small');
+  await database.getByRole('button', { name: 'About the price' }).hover();
+  await expect(page.locator('.rv-breakdown')).toContainText('Instance db.t4g.small');
+  await page.mouse.move(0, 0);
   await expect(database.locator('label.stp-ui-radio', { hasText: 'db.t4g.micro' })).toContainText(/\$\d+\/mo/);
   const before = await page.locator('.w-bar-amount').textContent();
   // A bigger instance is written to stacktape.yml, and the total follows.
@@ -118,6 +127,8 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await continueToDeploy(page);
   await expect(page.getByRole('heading', { level: 1, name: 'Deploy to dev' })).toBeVisible();
   await waitForTarget(page);
+  // A new stack needs no words under the three controls; only a stack that is already there does.
+  await expect(page.locator('#deploy-aws .w-target-line')).toHaveCount(0);
   // Where it deploys is three controls, never a line of facts: the account by its profile and alias, then its ID.
   await expect(accountControl(page)).toContainText('default');
   await expect(accountControl(page)).toContainText('acme-dev');
@@ -154,6 +165,15 @@ test('a first deploy goes from analysis to a live URL, with settings, secrets an
   await page.getByRole('button', { name: 'Save 2 secrets', exact: true }).click();
   // Done, the section folds to one line and the next one opens.
   await expect(page.locator('#deploy-secrets')).toContainText('All 2 saved in acme-dev, in us-east-1.');
+  // Its title row opens it again, and closes it.
+  const secretsToggle = page.locator('#deploy-secrets').getByRole('button', { name: /^Secrets/ });
+  await expect(secretsToggle).toHaveAttribute('aria-expanded', 'false');
+  // Anywhere on the row, here on the title's words.
+  await page.locator('#deploy-secrets .w-check-head').click({ position: { x: 80, y: 28 } });
+  await expect(secretsToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#deploy-secrets-content')).toContainText('Saved in AWS Secrets Manager');
+  await secretsToggle.click();
+  await expect(page.locator('#deploy-secrets-content')).toBeHidden();
   // The choice rewrites the file, and the stack is checked again for it. The page keeps the last answer meanwhile:
   // the account section never drops back to checking, and Deploy stays on.
   await watchForChecking(page);
@@ -287,18 +307,23 @@ test('stacktape.ts is edited with the stacktape types, saved as typed, and the t
   await page.goto(wizard.url);
   await analyzeAndReview(page);
 
-  // The CloudFormation template, compiled by the CLI on this machine, grouped by the resource each part is for.
-  await page.getByRole('tab', { name: 'CloudFormation' }).click();
-  const groups = page.getByRole('toolbar', { name: 'Show the AWS resources of' });
-  await expect(groups.getByRole('button', { name: /mainDatabase/ })).toBeVisible({ timeout: 20_000 });
-  await groups.getByRole('button', { name: /mainDatabase/ }).click();
+  // The CloudFormation template, compiled by the CLI on this machine, one resource's part at a time if picked in the
+  // panel's head (its tab is "Template" where the panel is narrow).
+  await page.getByRole('tab', { name: /^(CloudFormation|Template)$/ }).click();
+  const group = page.locator('#config-file .ws-cf-select').filter({ visible: true });
+  await expect(group).toContainText('All', { timeout: 20_000 });
+  await group.click();
+  await page.getByRole('option', { name: /mainDatabase.*Postgres database/ }).click();
+  await expect(group).toContainText('mainDatabase');
   await expect(page.locator('#config-file .ws-cf-section')).toContainText('Postgres database');
   await expect(page.locator('#config-file .ws-cf-body .view-lines')).toContainText('AWS::RDS::DBParameterGroup');
   await expect(editorStatus(page)).toContainText('compiled on this machine without AWS');
   // A resource picked on the diagram is the one the template shows.
-  await groups.getByRole('button', { name: /^All/ }).click();
+  await group.click();
+  await page.getByRole('option', { name: /Whole template/ }).click();
+  await expect(group).toContainText('All');
   await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
-  await expect(groups.getByRole('button', { name: /mainDatabase/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(group).toContainText('mainDatabase');
 
   // TypeScript, checked against the stacktape package's own types.
   await page.getByRole('tab', { name: 'stacktape.yml' }).click();
@@ -326,6 +351,41 @@ test('stacktape.ts is edited with the stacktape types, saved as typed, and the t
   await expect(page.getByRole('button', { name: 'Continue to deploy' })).toBeEnabled({ timeout: 10_000 });
   await continueToDeploy(page);
   await expect(page.getByText('stacktape.ts', { exact: true }).first()).toBeVisible();
+});
+
+test('the first screen offers every analyzer, and the one picked runs the analysis', async ({ page, startWizard }) => {
+  const analyzer = page.locator('.w-analyzer-select');
+  const pickAnalyzer = async (name: RegExp) => {
+    await analyzer.click();
+    await page.getByRole('option', { name }).click();
+  };
+
+  // No coding agent on this machine: Stacktape analyzes without AI, and the agents it could use say they are missing.
+  const plain = await startWizard({ project: 'go-clean-template', agents: [] });
+  await page.goto(plain.url);
+  await expect(analyzer).toContainText('Stacktape, without AI');
+  await analyzer.click();
+  await expect(page.getByRole('option', { name: /Claude Code.*Not installed/ })).toHaveAttribute(
+    'aria-disabled',
+    'true'
+  );
+  await page.keyboard.press('Escape');
+
+  // Two agents: the recommended one with its own model first; another agent, or none, is one pick away.
+  const wizard = await startWizard({ project: 'saas-starter', agents: ['claude-code', 'codex'] });
+  await page.goto(wizard.url);
+  await expect(analyzer).toContainText('Claude Code');
+  await expect(page.locator('.w-model-select')).toContainText('Your default');
+  await pickAnalyzer(/^Codex/);
+  // Codex reads its model from its own settings, so there is no model to pick.
+  await expect(page.locator('.w-model-select')).toHaveCount(0);
+  await expect(page.getByText('Codex analyzes your code')).toBeVisible();
+  await page.getByRole('button', { name: 'Analyze my project' }).click();
+  await expect(page.getByRole('heading', { name: / on AWS$|^Writing/ })).toBeVisible({ timeout: 15_000 });
+  const choice = await page.evaluate(
+    async () => ((await (await fetch('/api/state')).json()) as { choice?: { agentId: string } }).choice
+  );
+  expect(choice?.agentId).toBe('codex');
 });
 
 test('the analysis draws the project as a file tree, then ties each resource to the line that called for it, once', async ({
@@ -382,18 +442,16 @@ test('the analysis draws the project as a file tree, then ties each resource to 
     )
     .toBeLessThan(3);
 
-  // Then Review, without a skip: the diagram, an editable file, and the evidence one click away.
+  // Then Review, without a skip: the diagram and an editable file.
   await expect(page.getByRole('heading', { name: 'saas-starter on AWS' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: /^Skip/ })).toHaveCount(0);
 
-  // Clicking a resource in the picture opens its settings beside it, with why it is there in one quiet line; its key in
-  // the file carries the same accent, and the panel keeps the way to it.
+  // Clicking a resource in the picture opens its settings beside it; its key in the file carries the same accent and
+  // comes into view.
   await page.locator('[data-iso-kind="node"][data-iso-id="mainDatabase"]').click();
-  const database = page.getByRole('complementary', { name: 'Postgres database settings' });
-  await expect(database).toContainText('Postgres driver in package.json:29');
+  await expect(page.getByRole('complementary', { name: 'Postgres database settings' })).toBeVisible();
   await expect(page.locator('.stp-diagram__tooltip')).toHaveCount(0);
   await expect(page.locator('.monaco-editor .ws-editor-key')).toHaveCount(1);
-  await database.getByRole('button', { name: 'Show in stacktape.yml' }).click();
   await expect(page.locator('.monaco-editor .view-line', { hasText: 'mainDatabase:' })).toBeInViewport();
 
   // The reveal plays once: a reload lands on Review.
@@ -427,6 +485,17 @@ test('on a phone the scan is the tree, and each finding shows its file, its line
 
   await page.getByRole('button', { name: /^Skip/ }).click();
   await expect(page.getByRole('heading', { name: 'full-stack-fastapi on AWS' })).toBeVisible({ timeout: 15_000 });
+
+  // Review's settings sit under the picture: a row opens a resource's settings at their top, and the way back is there.
+  await page
+    .getByRole('list', { name: 'Resources' })
+    .getByRole('button', { name: /Postgres database/ })
+    .click();
+  const back = page.getByRole('button', { name: 'All resources' });
+  await expect(back).toBeInViewport();
+  await back.click();
+  await expect(page.getByRole('complementary', { name: 'Overview' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 });
 
 test('skipping the reveal at once leaves the generated file exactly as it is, not an edit', async ({
@@ -489,7 +558,7 @@ test('a failed deploy names the fix in this project, keeps the retry, and a stop
   await expect(page.getByText(/AWS rolled back the deploy to dev/)).toBeVisible();
   await expect(page.getByRole('heading', { name: /Update your code to read POSTGRES_URL/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Deploy again' })).toBeEnabled();
-  await page.getByRole('button', { name: 'Show the full error' }).click();
+  await page.getByRole('button', { name: 'Full error' }).click();
   await expect(page.locator('pre', { hasText: 'Stack action create failed.' })).toBeVisible();
 
   await wizard.stop();
@@ -600,6 +669,18 @@ test('a stack left behind by a failed first deploy says how to clear it, and can
   await expect(page.getByText(/stacktape delete --config stacktape\.yml/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Check again' })).toBeEnabled();
   await expect(deployButton(page)).toBeDisabled();
+});
+
+test('a stack that is already there is named, with what updating it does', async ({ page, startWizard }) => {
+  const wizard = await startWizard({ project: 'saas-starter', target: 'updateable' });
+  await page.goto(wizard.url);
+  await analyzeAndReview(page);
+  await continueToDeploy(page);
+  await expect(page.locator('#deploy-aws')).toContainText(
+    'saas-starter-dev already exists. This deploy updates it and removes anything the file no longer has.',
+    { timeout: 10_000 }
+  );
+  await expect(page.getByRole('region', { name: 'Deploy summary' })).toContainText('a few minutes');
 });
 
 test('an empty folder offers app folders below it and starter projects; a failed analysis offers a way on', async ({

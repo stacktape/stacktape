@@ -5,10 +5,9 @@ import { BiCheck, BiCheckCircle, BiCopy, BiErrorCircle, BiLayer } from 'react-ic
 import type { Session } from '../session';
 import { FileIcon } from '../workspace/FileIcon';
 import type { ResourceStory } from '../workspace/resource-story';
-import { blockAt, resourceBlocks } from './config-blocks';
-import { CloudFormationView } from './CloudFormationView';
+import { resourceBlocks } from './config-blocks';
+import { CloudFormationView, TemplateGroupSelect, type TemplateStatus, useCloudFormation } from './CloudFormationView';
 import type { ConfigEditorHandle, EditorLabel, EditorProblems } from './ConfigFileEditor';
-import type { EditorVersion } from './editor-version';
 import type { ConfigFormat, useConfigDraft } from './use-config-draft';
 
 const ConfigFileEditor = lazy(() => import('./ConfigFileEditor'));
@@ -44,14 +43,12 @@ type View = 'file' | 'template';
  * The configuration panel of Analyze and Review: the file, its CloudFormation template, and a status line.
  *
  * While the analysis runs the file is written into it and nothing can be changed. On Review it is the file in the
- * format picked here (YAML or TypeScript), editable with that language's own help, and the template it compiles to.
- * The status line under it says whether the file is valid, how to reach suggestions and docs, and whether the text is
- * the user's own; the panel has no instructions above the code.
- *
- * `version` (`?editor=`) picks how the template is shown: a second tab (e1, e3) or docked under the file (e2).
+ * format picked here (YAML or TypeScript), editable with that language's own help, each resource's key line ending in
+ * a faint name and price; and, in a second tab, the template it compiles to, one resource's part at a time if picked
+ * in the head. The status line under it says whether the file is valid, how to reach suggestions and docs, and whether
+ * the text is the user's own; the panel has no instructions above the code.
  */
 export function ConfigPanel({
-  version,
   phase,
   session,
   filename,
@@ -62,12 +59,10 @@ export function ConfigPanel({
   isTouch,
   stories,
   selected,
-  revealCount,
   writingHead,
   bodyOverlay,
   onEditorReady
 }: {
-  version: EditorVersion;
   phase: Phase;
   session: Session;
   filename: string;
@@ -81,8 +76,6 @@ export function ConfigPanel({
   stories: Readonly<Record<string, ResourceStory>>;
   /** The resource picked on the diagram. */
   selected: string | undefined;
-  /** Bumped to bring the picked block into view again. */
-  revealCount: number;
   /** The head's right side while the file is written (the estimate so far). */
   writingHead?: ReactNode;
   /** Drawn over the editor while the analysis runs (the rows waiting for findings). */
@@ -91,8 +84,6 @@ export function ConfigPanel({
 }) {
   const isReview = phase === 'review';
   const [view, setView] = useState<View>('file');
-  // Docked (e2) the template shows under the file until it is closed; a phone has room for one of them at a time.
-  const [isDocked, setDocked] = useState(() => !window.matchMedia('(max-width: 760px)').matches);
   /** The edit next to the generated file, instead of the editor. */
   const [isComparing, setComparing] = useState(false);
   useEffect(() => {
@@ -100,8 +91,6 @@ export function ConfigPanel({
   }, [draft.isEdited]);
   const [problems, setProblems] = useState<EditorProblems>({ count: 0, errors: 0 });
   const [handle, setHandle] = useState<ConfigEditorHandle | undefined>(undefined);
-  const [cursorLine, setCursorLine] = useState<number | undefined>(undefined);
-  const [template, setTemplate] = useState<{ text: string; stage: string; region: string } | undefined>(undefined);
 
   const language = draft.shown;
   const text = draft.text;
@@ -110,9 +99,9 @@ export function ConfigPanel({
     () => Object.fromEntries(Object.entries(blocks).map(([name, range]) => [name, range.from])),
     [blocks]
   );
-  // A faint name and price after each resource's key line (e1, e2); e3 shows the file as it is.
+  // A faint name and price after each resource's key line.
   const labels = useMemo((): EditorLabel[] => {
-    if (!isReview || version === 'e3') return [];
+    if (!isReview) return [];
     return Object.entries(blocks).flatMap(([name, range]) => {
       const story = stories[name];
       if (story === undefined) return [];
@@ -123,12 +112,8 @@ export function ConfigPanel({
         }
       ];
     });
-  }, [isReview, version, blocks, stories]);
-  const highlight =
-    selected === undefined || blocks[selected] === undefined
-      ? undefined
-      : { ...blocks[selected]!, reveal: revealCount };
-  const cursorResource = cursorLine === undefined ? undefined : blockAt(blocks, cursorLine);
+  }, [isReview, blocks, stories]);
+  const highlight = selected === undefined ? undefined : blocks[selected];
 
   const ready = useCallback(
     (next: ConfigEditorHandle) => {
@@ -137,19 +122,19 @@ export function ConfigPanel({
     },
     [onEditorReady]
   );
-  // "Show in stacktape.yml" shows the file, whichever tab is open.
-  useEffect(() => {
-    if (revealCount > 0) setView('file');
-  }, [revealCount]);
   // A format switch brings a new editor and its own problems.
   useEffect(() => {
     setProblems({ count: 0, errors: 0 });
-    setCursorLine(undefined);
   }, [language]);
 
-  const showsTemplate = isReview && version !== 'e2' && view === 'template';
+  const showsTemplate = isReview && view === 'template';
   const comparing = isReview && isComparing && draft.isEdited && !showsTemplate;
-  const docked = isReview && version === 'e2' && isDocked;
+  // Compiled while it is shown, from a file that is valid; a broken file leaves the last template, out of date.
+  const cf = useCloudFormation({
+    session,
+    source: showsTemplate && draft.error === undefined ? draft.sourceYaml : undefined,
+    focus: selected
+  });
   const formatLocked = draft.isEdited && draft.editedFormat !== undefined;
 
   const fileEditor =
@@ -163,7 +148,6 @@ export function ConfigPanel({
         labels={labels}
         language={language}
         onChange={draft.change}
-        onCursorLine={setCursorLine}
         onProblems={setProblems}
         onReady={ready}
         readOnly={!isReview || isLocked}
@@ -179,22 +163,10 @@ export function ConfigPanel({
       />
     );
 
-  const templateView = (compact: boolean) => (
-    <CloudFormationView
-      compact={compact}
-      focus={compact ? (cursorResource ?? selected) : selected}
-      onTemplate={setTemplate}
-      session={session}
-      source={draft.error === undefined ? draft.sourceYaml : undefined}
-      sourceError={draft.error !== undefined}
-      stories={stories}
-    />
-  );
-
   return (
     <>
-      <header className="ws-editor-head" data-version={version}>
-        {isReview && version !== 'e2' ? (
+      <header className="ws-editor-head">
+        {isReview ? (
           <Tabs
             appearance="underline"
             ariaLabel="Show"
@@ -230,7 +202,9 @@ export function ConfigPanel({
             writingHead
           ) : (
             <>
-              {!showsTemplate && (
+              {showsTemplate ? (
+                <TemplateGroupSelect cf={cf} stories={stories} />
+              ) : (
                 <Tabs
                   appearance="segmented"
                   ariaLabel="File format"
@@ -242,24 +216,12 @@ export function ConfigPanel({
                   width="fit"
                 />
               )}
-              {version === 'e2' && (
-                <button
-                  aria-pressed={isDocked}
-                  className="ws-editor-toggle"
-                  onClick={() => setDocked((current) => !current)}
-                  title="The CloudFormation template under the file, for the resource the cursor is in"
-                  type="button"
-                >
-                  <BiLayer aria-hidden size={15} />
-                  <span className="ws-editor-toggle-label">CloudFormation</span>
-                </button>
-              )}
-              <CopyButton text={showsTemplate ? template?.text : text} what={showsTemplate ? 'template' : 'file'} />
+              <CopyButton text={showsTemplate ? cf.ready?.text : text} what={showsTemplate ? 'template' : 'file'} />
             </>
           )}
         </span>
       </header>
-      <div className="ws-editor-body" data-docked={docked ? 'true' : undefined}>
+      <div className="ws-editor-body">
         {bodyOverlay}
         <div className="ws-editor-pane" hidden={showsTemplate || comparing}>
           <Suspense fallback={<EditorLoading />}>{fileEditor}</Suspense>
@@ -271,8 +233,11 @@ export function ConfigPanel({
             </Suspense>
           </div>
         )}
-        {showsTemplate && <div className="ws-editor-pane">{templateView(false)}</div>}
-        {docked && <div className="ws-editor-dock">{templateView(true)}</div>}
+        {showsTemplate && (
+          <div className="ws-editor-pane">
+            <CloudFormationView cf={cf} stories={stories} />
+          </div>
+        )}
       </div>
       <StatusBar
         comparing={comparing}
@@ -284,7 +249,7 @@ export function ConfigPanel({
         onDiscard={onDiscard}
         phase={phase}
         problems={problems}
-        template={showsTemplate ? (template ?? 'compiling') : undefined}
+        template={showsTemplate ? cf.status : undefined}
       />
     </>
   );
@@ -311,7 +276,7 @@ function StatusBar({
   handle: ConfigEditorHandle | undefined;
   language: ConfigFormat;
   isTouch: boolean;
-  template: { stage: string; region: string } | 'compiling' | undefined;
+  template: TemplateStatus | undefined;
   onDiscard: () => void;
 }) {
   if (phase !== 'review') {
@@ -327,9 +292,17 @@ function StatusBar({
     return (
       <footer className="ws-editor-status">
         <span className="ws-statusbar-note" title="Compiled by stacktape init on this machine. Nothing is sent to AWS.">
-          {template === 'compiling'
-            ? 'Compiled on this machine, without AWS'
-            : `Stage ${template.stage} in ${template.region}, compiled on this machine without AWS`}
+          {template === 'compiling' ? (
+            <>
+              <Spinner /> Compiling on this machine, without AWS
+            </>
+          ) : template === 'stale' ? (
+            'Out of date until the file is valid again'
+          ) : template === 'failed' ? (
+            'Not compiled'
+          ) : (
+            `Stage ${template.stage} in ${template.region}, compiled on this machine without AWS`
+          )}
         </span>
         <span className="ws-statusbar-hints ws-statusbar-readonly">Read-only</span>
       </footer>

@@ -406,9 +406,12 @@ export type RevealStep = {
 
 export type RevealPlan = { text: string; header: string; trailer: string; blocks: string[]; steps: RevealStep[] };
 
-/** How long a resource takes to appear: 1.4 s each, quicker past five so the whole reveal stays near 8 s. */
+/**
+ * How long a resource takes to appear, its scroll into line and the pause after it included: a second each, quicker
+ * past four so the whole reveal stays near 4 s. Long enough to read the finding, short enough not to wait for it.
+ */
 export const stepDuration = (count: number): number =>
-  Math.round(Math.max(700, Math.min(1400, 8000 / Math.max(1, count))));
+  Math.round(Math.max(600, Math.min(1000, 4000 / Math.max(1, count))));
 
 /** The whole reveal, from the state the analysis finished with. Undefined when there is nothing to reveal. */
 export const revealPlan = (state: WizardState): RevealPlan | undefined => {

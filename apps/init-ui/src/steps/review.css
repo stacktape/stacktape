@@ -1,14 +1,14 @@
 /*
  * Review: the diagram, the monthly estimate, each resource's settings.
  *
- * Three layouts of the same parts (`?review=columns|stack|canvas`, see review-version.ts), all inside the workspace's
- * left pane, beside stacktape.yml. A phone always gets the stacked one. Colours are the frame's --w-* variables; a
- * resource's own colour is its diagram category's, set inline as --rv-tone or as a background.
+ * Inside the workspace's left pane, beside stacktape.yml: the picture, and beside it (or under it on a narrower screen)
+ * the overview or the settings of the resource picked. Colours are the frame's --w-* variables; a resource's own colour
+ * is its diagram category's, set inline as --rv-tone.
  */
 
 @layer components {
   .rv {
-    --rv-inspector-w: clamp(360px, 25vw, 600px);
+    --rv-inspector-w: clamp(380px, 27vw, 720px);
     --rv-row-x: 18px;
 
     display: flex;
@@ -45,16 +45,15 @@
     position: relative;
     flex: 1;
     min-height: 0;
-    transition: padding 280ms var(--w-ease);
   }
 
   .rv-diagram-canvas .stp-diagram {
     height: 100%;
   }
 
-  /* ── Columns: the picture, the inspector, then the file ─────────────────────────────────────── */
+  /* ── Wide: the picture, the inspector, then the file ─────────────────────────────────────────── */
 
-  .rv[data-layout='columns'][data-columns='3'] .rv-main {
+  .rv[data-columns='3'] .rv-main {
     grid-template-columns: minmax(0, 1fr) var(--rv-inspector-w);
     grid-template-rows: minmax(0, 1fr);
   }
@@ -69,8 +68,8 @@
     scrollbar-width: thin;
   }
 
-  /* Two columns: the inspector goes under the picture and the pane scrolls as a page. */
-  .rv[data-layout='columns'][data-columns='2'] {
+  /* Narrower: the inspector goes under the picture and the pane scrolls as a page. */
+  .rv[data-columns='2'] {
     flex: none;
   }
 
@@ -81,52 +80,15 @@
     scrollbar-width: thin;
   }
 
-  .rv[data-layout='columns'][data-columns='2'] .rv-main {
+  .rv[data-columns='2'] .rv-main {
     grid-template-rows: clamp(240px, 40vh, 420px) auto;
     gap: 16px;
   }
 
-  .rv[data-layout='columns'][data-columns='2'] .rv-inspector {
+  .rv[data-columns='2'] .rv-inspector {
     overflow: visible;
-  }
-
-  /* ── Stack: the picture over a list of resources ─────────────────────────────────────────────── */
-
-  /* The picture stays; the list under it scrolls. */
-  .rv[data-layout='stack'] .rv-main {
-    grid-template-rows: clamp(220px, 36%, 440px) minmax(0, 1fr);
-    gap: 12px;
-  }
-
-  .rv[data-layout='stack'] .rv-list {
-    min-height: 0;
-    margin: -4px;
-    padding: 4px;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-  }
-
-  /* An opened card on a wide pane lays its groups out side by side instead of in one long, wide column. */
-  @container rv-card (min-width: 900px) {
-    .rv-card-body .rv-resource {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-      align-items: start;
-    }
-
-    .rv-card-body .rv-lines,
-    .rv-card-body .rv-more,
-    .rv-card-body .rv-resource-foot,
-    .rv-card-body .rv-empty {
-      grid-column: 1 / -1;
-    }
-
-    .rv-card-body .rv-group {
-      height: 100%;
-      box-sizing: border-box;
-      border-right: 1px solid var(--w-line);
-    }
+    /* Brought into view when a row further down opens a resource. */
+    scroll-margin-top: 12px;
   }
 
   .rv-diagram-hint {
@@ -139,186 +101,10 @@
     pointer-events: none;
   }
 
-  .rv-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .rv-card {
-    min-width: 0;
-  }
-
-  .rv-card--resource {
-    container: rv-card / inline-size;
-  }
-
-  .rv-card--costs {
-    padding-bottom: 6px;
-  }
-
-  .rv-card--project {
-    padding-bottom: 8px;
-  }
-
-  .rv-card--resource {
-    transition: box-shadow 160ms var(--w-ease);
-  }
-
-  .rv-card--resource[data-hovered],
-  .rv-card--resource:has(.rv-card-head:hover) {
-    box-shadow:
-      var(--w-shadow-rest),
-      inset 0 0 0 1px var(--w-line-strong);
-  }
-
-  .rv-card--resource[data-open] {
-    box-shadow:
-      var(--w-shadow-rest),
-      inset 0 0 0 1px var(--w-brand-line);
-  }
-
-  .rv-card-head {
-    display: grid;
-    grid-template-columns: 8px 20px minmax(0, 1fr) auto 20px;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    min-height: 60px;
-    padding: 10px var(--rv-row-x);
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .rv-card-head:focus-visible {
-    outline: 2px solid var(--w-brand-line);
-    outline-offset: -2px;
-    border-radius: var(--w-radius);
-  }
-
-  .rv-card-name {
-    display: grid;
-    min-width: 0;
-  }
-
-  .rv-card-name strong {
-    color: var(--w-text-strong);
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 20px;
-  }
-
-  .rv-card-name small {
-    overflow: hidden;
-    color: var(--w-subtle);
-    font-size: 12.5px;
-    line-height: 18px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .rv-card-name code,
-  .rv-resource-sub code {
-    font-family: var(--w-mono);
-    font-size: 0.92em;
-  }
-
-  .rv-card-chevron {
-    color: var(--w-faint);
-    transition: transform 200ms var(--w-ease);
-  }
-
-  .rv-card--resource[data-open] .rv-card-chevron {
-    transform: rotate(180deg);
-  }
-
-  .rv-card-body {
-    border-top: 1px solid var(--w-line);
-    animation: rv-open 220ms var(--w-ease) both;
-  }
-
-  /* ── Canvas: the picture fills the space, panels float over it ───────────────────────────────── */
-
-  .rv[data-layout='canvas'] .rv-main {
-    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
-  }
-
-  .rv-canvas .rv-diagram-canvas {
-    padding: 0 0 0 calc(var(--rv-float-w) + 24px);
-  }
-
-  .rv-canvas {
-    --rv-float-w: clamp(300px, 22vw, 400px);
-
-    background: var(--stp-surface-page);
-  }
-
-  /* The picture's own background would stop where the canvas makes room for a panel. */
-  .rv-canvas .stp-diagram {
-    background: transparent;
-  }
-
-  /* With a resource open, the picture makes room on the right instead, and the overview steps aside. */
-  .rv[data-picked] .rv-canvas .rv-diagram-canvas {
-    padding: 0 calc(var(--rv-inspector-w) + 24px) 0 0;
-  }
-
-  .rv-float {
-    position: absolute;
-    top: 12px;
-    bottom: 12px;
-    display: flex;
-    flex-direction: column;
-    width: var(--rv-float-w);
-    max-height: calc(100% - 24px);
-    overflow-y: auto;
-    border-radius: var(--w-radius);
-    background: color-mix(in srgb, var(--w-panel) 92%, transparent);
-    box-shadow:
-      var(--w-shadow-float),
-      inset 0 0 0 1px var(--w-line);
-    backdrop-filter: blur(10px);
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-  }
-
-  .rv-float--overview {
-    left: 12px;
-    bottom: auto;
-    animation: rv-from-left 280ms var(--w-ease) both;
-  }
-
-  .rv[data-picked] .rv-float--overview {
-    display: none;
-  }
-
-  .rv-float--inspector {
-    right: 12px;
-    width: var(--rv-inspector-w);
-    animation: rv-from-right 280ms var(--w-ease) both;
-  }
-
-  .rv-canvas-hint {
-    position: absolute;
-    right: 16px;
-    bottom: 12px;
-    margin: 0;
-    padding: 6px 10px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--w-chrome) 70%, transparent);
-    color: var(--w-muted);
-    font-size: 12px;
-    pointer-events: none;
-  }
-
   /* ── The estimate ────────────────────────────────────────────────────────────────────────────── */
 
   .rv-costs {
-    padding: 18px var(--rv-row-x) 8px;
+    padding: 18px var(--rv-row-x) 16px;
   }
 
   .rv-eyebrow,
@@ -385,131 +171,6 @@
     line-height: 18px;
   }
 
-  /* One bar, split by what each resource takes of the fixed monthly amount, in the diagram's colours. */
-  .rv-bar {
-    display: flex;
-    gap: 3px;
-    height: 10px;
-    margin: 14px 0 8px;
-  }
-
-  .rv-bar-part {
-    min-width: 6px;
-    border-radius: 3px;
-    opacity: 0.82;
-    transition:
-      flex-grow 420ms var(--w-ease),
-      opacity 160ms var(--w-ease);
-  }
-
-  .rv-bar-part[data-active] {
-    opacity: 1;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35);
-  }
-
-  .rv-cost-rows {
-    display: flex;
-    flex-direction: column;
-    margin: 0 calc(-1 * var(--rv-row-x) + 6px);
-    padding: 0;
-    list-style: none;
-  }
-
-  .rv-cost-row {
-    display: grid;
-    grid-template-columns: 8px 18px minmax(0, 1fr) auto 18px;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    min-height: 52px;
-    padding: 6px calc(var(--rv-row-x) - 6px);
-    border: 0;
-    border-radius: var(--w-radius-small);
-    background: none;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-    transition: background-color 140ms var(--w-ease);
-  }
-
-  .rv-card--costs .rv-cost-row,
-  .rv-float--overview .rv-cost-row {
-    grid-template-columns: 8px 18px minmax(0, 1fr) auto;
-  }
-
-  .rv-cost-row:hover,
-  .rv-cost-row[data-hovered] {
-    background: var(--w-hover);
-  }
-
-  .rv-cost-row[data-active] {
-    background: var(--w-brand-soft);
-  }
-
-  .rv-cost-row:focus-visible {
-    outline: 2px solid var(--w-brand-line);
-    outline-offset: -2px;
-  }
-
-  .rv-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
-  }
-
-  .rv-cost-name {
-    display: grid;
-    min-width: 0;
-  }
-
-  .rv-cost-name strong {
-    overflow: hidden;
-    color: var(--w-text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 20px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .rv-cost-name small {
-    overflow: hidden;
-    color: var(--w-subtle);
-    font-family: var(--w-mono);
-    font-size: 11.5px;
-    line-height: 16px;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .rv-receipt {
-    display: grid;
-    gap: 1px;
-    margin: -4px 0 8px;
-    padding: 0 calc(var(--rv-row-x) - 6px) 0 calc(var(--rv-row-x) - 6px + 46px);
-    list-style: none;
-  }
-
-  .rv-receipt li {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    color: var(--w-subtle);
-    font-size: 12px;
-    line-height: 18px;
-  }
-
-  .rv-receipt li span:last-child {
-    color: var(--w-muted);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .rv-receipt li[data-usage] span:last-child {
-    color: var(--w-faint);
-  }
-
   .rv-select-option {
     display: flex;
     justify-content: space-between;
@@ -522,7 +183,7 @@
   }
 
   .rv-traffic {
-    margin: 4px 0 10px;
+    margin: 14px 0 0;
     padding: 10px 12px;
     border-radius: var(--w-radius-small);
     background: var(--w-well);
@@ -563,24 +224,139 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .rv-cost-amount {
+  /* ── The resources: one raised row each, opening its settings ───────────────────────────────── */
+
+  .rv-rows {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0 14px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rv-row {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto 20px;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 60px;
+    padding: 10px 10px 10px 12px;
+    border: 1px solid var(--w-line-strong);
+    border-radius: var(--w-radius-small);
+    background: var(--w-panel-raised);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background-color 140ms var(--w-ease),
+      border-color 140ms var(--w-ease);
+  }
+
+  .rv-row:hover,
+  .rv-row[data-hovered] {
+    border-color: rgba(255, 255, 255, 0.22);
+    background: color-mix(in srgb, var(--w-panel-raised), white 4%);
+  }
+
+  .rv-row:focus-visible {
+    outline: 2px solid var(--w-brand-line);
+    outline-offset: 2px;
+  }
+
+  .rv-row-name {
+    display: grid;
+    min-width: 0;
+  }
+
+  .rv-row-name strong {
+    overflow: hidden;
+    color: var(--w-text-strong);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .rv-row-name small {
+    overflow: hidden;
+    color: var(--w-subtle);
+    font-size: 12.5px;
+    line-height: 18px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .rv-row-name code {
+    font-family: var(--w-mono);
+    font-size: 0.92em;
+  }
+
+  /* A row's price keeps one narrow column: "+ usage" goes under the amount. */
+  .rv-row .rv-price {
     display: grid;
     justify-items: end;
-    font-variant-numeric: tabular-nums;
+    gap: 0;
   }
 
-  .rv-cost-amount small {
-    color: var(--w-faint);
+  .rv-row .rv-price-usage {
     font-size: 11.5px;
-    line-height: 16px;
+    line-height: 14px;
   }
 
-  .rv-cost-chevron {
-    color: var(--w-faint);
-  }
-
-  .rv-cost-row:hover .rv-cost-chevron {
+  .rv-row-chevron {
     color: var(--w-muted);
+    transition:
+      color 140ms var(--w-ease),
+      transform 160ms var(--w-ease);
+  }
+
+  .rv-row:hover .rv-row-chevron,
+  .rv-row[data-hovered] .rv-row-chevron {
+    color: var(--w-text-strong);
+    transform: translateX(2px);
+  }
+
+  /* A resource's icon on a tile of its diagram colour: in its row, and at the top of its settings. */
+  .rv-tile {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--rv-tone) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rv-tone) 34%, transparent);
+  }
+
+  /* The AWS icons carry their file name as a title ("Icon-Architecture/48/…"); the pointer never shows it. */
+  .rv-tile svg {
+    pointer-events: none;
+  }
+
+  .rv-tile[data-size='small'] {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+  }
+
+  /* A narrow panel gives the names the room. */
+  @container (max-width: 420px) {
+    .rv-row {
+      grid-template-columns: 32px minmax(0, 1fr) auto 16px;
+      gap: 10px;
+    }
+
+    .rv-tile[data-size='small'] {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+    }
   }
 
   .rv-price {
@@ -695,12 +471,6 @@
     text-overflow: ellipsis;
   }
 
-  /* AWS's name first: the plain one under it reads as prose, not code. */
-  .rv-setting-term[data-terms='aws'] {
-    font-family: inherit;
-    font-size: 12px;
-  }
-
   .rv-setting-control {
     display: flex;
     flex: none;
@@ -775,10 +545,8 @@
     min-width: 0;
   }
 
-  /* The panels that hold settings size their rows to themselves, not to the window. */
-  .rv-inspector,
-  .rv-card-body,
-  .rv-float {
+  /* The panel that holds settings sizes its rows to itself, not to the window. */
+  .rv-inspector {
     container-type: inline-size;
   }
 
@@ -856,30 +624,18 @@
   .rv-resource {
     display: flex;
     flex-direction: column;
-    min-height: 100%;
-  }
-
-  .rv-resource[data-appearance='inspector'] {
     animation: rv-open 200ms var(--w-ease) both;
   }
 
   .rv-resource-head {
-    padding: 12px var(--rv-row-x) 4px;
+    padding: 12px var(--rv-row-x) 12px;
   }
 
-  .rv-resource-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 28px;
-    margin: 0 -6px 10px;
-  }
-
-  .rv-back,
-  .rv-close {
+  .rv-back {
     display: inline-flex;
     align-items: center;
     gap: 2px;
+    margin: 0 -6px 10px;
     padding: 4px 8px 4px 2px;
     border: 0;
     border-radius: 6px;
@@ -891,32 +647,7 @@
     cursor: pointer;
   }
 
-  .rv-close {
-    margin-left: auto;
-    padding: 4px;
-  }
-
-  /* A floating panel closes from its corner; no row of its own above the name. */
-  .rv-float .rv-resource-head {
-    position: relative;
-    padding-top: 16px;
-    padding-right: 48px;
-  }
-
-  .rv-float .rv-resource-nav {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    min-height: 0;
-    margin: 0;
-  }
-
-  .rv-card--costs .rv-traffic {
-    margin-top: 10px;
-  }
-
-  .rv-back:hover,
-  .rv-close:hover {
+  .rv-back:hover {
     background: var(--w-hover);
     color: var(--w-text);
   }
@@ -931,22 +662,8 @@
     column-gap: 12px;
   }
 
-  .rv-resource-title > .rv-resource-icon {
+  .rv-resource-title > .rv-tile {
     grid-area: icon;
-  }
-
-  .rv-resource-title > .rv-price {
-    grid-area: price;
-  }
-
-  .rv-resource-icon {
-    display: grid;
-    place-items: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--rv-tone) 16%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rv-tone) 34%, transparent);
   }
 
   .rv-resource-name {
@@ -962,6 +679,18 @@
     text-overflow: ellipsis;
   }
 
+  /* The price, and beside it the help mark that says what it is made of. */
+  .rv-resource-price {
+    display: inline-flex;
+    grid-area: price;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .rv-resource-price .rv-price {
+    font-size: 16px;
+  }
+
   .rv-resource-sub {
     grid-area: sub;
     margin: 1px 0 0;
@@ -970,60 +699,45 @@
     line-height: 17px;
   }
 
-  .rv-resource-title .rv-price {
-    font-size: 16px;
+  .rv-resource-sub code {
+    font-family: var(--w-mono);
+    font-size: 0.92em;
   }
 
-  /* What the price is made of: a quiet receipt under the name. */
-  .rv-lines {
+  /* What a price is made of, in the help mark's tooltip: a short bill, amounts to the right. */
+  .rv-breakdown {
     display: grid;
     gap: 2px;
-    margin: 12px var(--rv-row-x) 14px;
-    padding: 10px 12px;
-    border-radius: var(--w-radius-small);
-    background: var(--w-well);
-    box-shadow: var(--w-shadow-field);
+    min-width: 240px;
+    margin: 0;
   }
 
-  .rv-resource[data-appearance='card'] .rv-lines {
-    margin-top: 14px;
-  }
-
-  .rv-line {
+  .rv-breakdown div {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    font-size: 12.5px;
+    gap: 20px;
     line-height: 20px;
   }
 
-  .rv-line dt {
-    min-width: 0;
-    overflow: hidden;
+  .rv-breakdown dt {
     color: var(--w-muted);
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
 
-  .rv-line dd {
+  .rv-breakdown dd {
     margin: 0;
-    color: var(--w-text);
+    color: var(--w-text-strong);
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
 
-  .rv-line[data-usage] dd {
-    color: var(--w-subtle);
+  .rv-breakdown [data-usage] dd {
+    color: var(--w-muted);
   }
 
-  .rv-line--example {
+  .rv-breakdown [data-example] {
     margin-top: 4px;
     padding-top: 6px;
-    border-top: 1px solid var(--w-line);
-  }
-
-  .rv-line--example dt {
-    color: var(--w-subtle);
+    border-top: 1px solid var(--w-line-strong);
   }
 
   .rv-empty {
@@ -1070,67 +784,6 @@
     color: var(--w-faint);
   }
 
-  .rv-resource-foot {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px 16px;
-    margin-top: auto;
-    padding: 14px var(--rv-row-x) 16px;
-    border-top: 1px solid var(--w-line);
-  }
-
-  .rv-why {
-    display: flex;
-    flex: 1 1 200px;
-    align-items: baseline;
-    gap: 8px;
-    min-width: 0;
-    margin: 0;
-    color: var(--w-muted);
-    font-size: 12.5px;
-    line-height: 18px;
-  }
-
-  .rv-why-label {
-    flex: none;
-    color: var(--w-faint);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .rv-why .ws-evidence {
-    min-width: 0;
-  }
-
-  .rv-why code {
-    font-family: var(--w-mono);
-    font-size: 0.95em;
-  }
-
-  .rv-show {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    border: 0;
-    border-radius: 6px;
-    background: var(--w-code-fill);
-    color: var(--w-text);
-    font: inherit;
-    font-size: 12.5px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-
-  .rv-show:hover {
-    background: var(--w-line-strong);
-  }
-
   .rv-overview {
     display: flex;
     flex-direction: column;
@@ -1146,9 +799,7 @@
     animation: ws-fade-in 520ms 40ms var(--w-ease) both;
   }
 
-  .ws[data-arrived] .rv-inspector,
-  .ws[data-arrived] .rv-list,
-  .ws[data-arrived] .rv-float--overview {
+  .ws[data-arrived] .rv-inspector {
     animation: ws-rise 460ms 240ms var(--w-ease) both;
   }
 
@@ -1156,20 +807,6 @@
     from {
       opacity: 0;
       transform: translateY(4px);
-    }
-  }
-
-  @keyframes rv-from-right {
-    from {
-      opacity: 0;
-      transform: translateX(16px);
-    }
-  }
-
-  @keyframes rv-from-left {
-    from {
-      opacity: 0;
-      transform: translateX(-12px);
     }
   }
 
@@ -1185,10 +822,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .rv-resource,
-    .rv-card-body,
-    .rv-float,
-    .rv-bar-part,
-    .rv-diagram-canvas {
+    .rv-row,
+    .rv-row-chevron {
       transition: none;
       animation: none;
     }
@@ -1196,42 +831,26 @@
 
   /* ── Narrow screens ──────────────────────────────────────────────────────────────────────────── */
 
-  /* On a laptop the floating overview is narrower; the picture keeps the rest. */
-  @media (max-width: 1360px) {
-    .rv-canvas {
-      --rv-float-w: 300px;
-    }
-
-    .rv {
-      --rv-inspector-w: 360px;
-    }
-  }
-
-  /* The page scrolls as one column; every layout is the stacked one (ReviewPane picks it). */
+  /* The page scrolls as one column: the picture, then the panel under it. */
   @media (max-width: 1020px) {
     .rv,
     .rv-main {
       flex: none;
     }
 
-    .ws[data-phase='review'] .ws-left:has(> .rv) {
-      overflow: visible;
-    }
-
-    .rv[data-layout='stack'] .rv-main {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .rv[data-layout='stack'] .rv-list {
+    .ws[data-phase='review'] .ws-left:has(> .rv[data-columns='2']) {
       margin: 0;
       padding: 0;
       overflow: visible;
     }
 
-    .rv[data-layout='stack'] .rv-diagram {
-      flex: none;
-      height: 300px;
+    .rv[data-columns='2'] .rv-main {
+      grid-template-rows: 300px auto;
+    }
+
+    /* The page scrolls under the sticky header. */
+    .rv[data-columns='2'] .rv-inspector {
+      scroll-margin-top: calc(var(--w-header-h) + 12px);
     }
   }
 
@@ -1240,13 +859,14 @@
       --rv-row-x: 14px;
     }
 
-    .rv[data-layout='stack'] .rv-diagram {
-      height: 232px;
+    .rv[data-columns='2'] .rv-main {
+      grid-template-rows: 248px auto;
+      gap: 12px;
     }
 
-    .rv-card-head {
-      grid-template-columns: 8px 20px minmax(0, 1fr) auto 18px;
+    .rv-row {
       gap: 10px;
+      padding-left: 10px;
     }
 
     .rv-size {

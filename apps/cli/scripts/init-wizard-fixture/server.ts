@@ -6,7 +6,7 @@
  * would spend money is scripted: the scan replays facts recorded from a real repository (`projects/*.json`), with the
  * files it read recorded beside them (`projects/*.files.json`, written into the fixture's repository so the page can
  * show them, with the rest of the recorded tree as empty files), and the
- * coding agent, AWS identity, Stacktape sign-in, price estimate, target check, local try-out, deploy child and
+ * coding agent, AWS identity, Stacktape sign-in, price estimate, target check, deploy child and
  * `stacktape connect` answer
  * from the scenario below. Every network request that is not loopback is refused (run with the network guard).
  *
@@ -44,7 +44,6 @@ export type WizardFixtureScenario = {
   /** Whether the price API answers. */
   price?: boolean;
   target?: 'absent' | 'updateable' | 'blocked';
-  verify?: 'passed' | 'failed' | 'unavailable';
   /**
    * `held` stops before the slowest AWS resource (a database, usually) is created, until `deploy` arrives on stdin,
    * then succeeds.
@@ -512,10 +511,11 @@ const main = async () => {
   ];
   /**
    * How long each kind of tool call takes in a paced scan, relative to the others: opening a file and reading it is the
-   * slow part. Scaled so the whole scan takes `PACED_SCAN_MS`. Reading without an agent is the probe alone: a few seconds.
+   * slow part. Scaled so the whole scan takes `PACED_SCAN_MS`. Reading without an agent is the probe alone, under a
+   * second on a real project.
    */
   const PACED_SCAN_MS = 12_000;
-  const PACED_PROBE_MS = 2_500;
+  const PACED_PROBE_MS = 700;
   const TOOL_WEIGHTS: Readonly<Record<string, number>> = {
     read_file: 3,
     list_dir: 1.5,
@@ -585,36 +585,6 @@ const main = async () => {
         ...(contents === undefined ? {} : { contents }),
         ...(replaces === undefined ? {} : { replaces })
       }),
-    verify: async ({ composition }) => {
-      await sleep(300);
-      if (scenario.verify === 'unavailable') return { status: 'unavailable', services: [] };
-      const services = Object.entries(composition.config.resources)
-        .filter(([, resource]) => resource.type === 'web-service' || resource.type === 'worker-service')
-        .map(([resourceName], index) => ({
-          serviceName: resourceName,
-          resourceName,
-          status: scenario.verify === 'failed' && index === 0 ? ('failed' as const) : ('passed' as const),
-          reason:
-            scenario.verify === 'failed' && index === 0
-              ? 'It exited during startup, before it listened on port 3000.'
-              : 'It started and listened on port 3000.',
-          observations: {
-            listeningPorts: scenario.verify === 'failed' && index === 0 ? [] : [3000],
-            dialedDependency: false,
-            missingEnvironmentVariables: scenario.verify === 'failed' && index === 0 ? ['SESSION_SECRET'] : [],
-            logTail:
-              scenario.verify === 'failed' && index === 0
-                ? [
-                    '> start',
-                    '> node ./server/index.js',
-                    'Error: SESSION_SECRET is not set',
-                    'Process exited with code 1'
-                  ]
-                : []
-          }
-        }));
-      return { status: 'completed', services };
-    },
     configSchemaPath: CONFIG_SCHEMA_PATH,
     // The real offline compile, in a child under Bun with the same network guard: a template needs nothing scripted.
     templatePreview: (request) =>

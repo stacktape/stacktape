@@ -9,52 +9,45 @@ import { Select, type SelectOption } from '@stacktape/ui-react/select';
 import { Spinner } from '@stacktape/ui-react/spinner';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
-import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { BiChevronDown, BiInfoCircle, BiLinkExternal } from 'react-icons/bi';
-import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { BiInfoCircle, BiLinkExternal } from 'react-icons/bi';
 import { InfoTip } from '../components/InfoTip';
 import { Diagram } from '../components/lazy-diagram';
 import { RegionPicker } from '../components/RegionPicker';
 import { DECISION_COPY } from '../decisions';
 import type { WizardState } from '../session';
-import type { Citation, ResourceStory } from '../workspace/resource-story';
+import type { ResourceStory } from '../workspace/resource-story';
 import { useMediaQuery } from '../workspace/use-media-query';
-import { NOT_CREATED_KINDS, plainList, sizeSummary } from './review-model';
-import { reviewLayout, settingTerms } from './review-version';
-import {
-  CostOverview,
-  OverviewSection,
-  PlainSettingRow,
-  ResourcePanel,
-  ResourcePrice,
-  categoryColor,
-  type ResourceEntry
-} from './ReviewSettings';
+import { NOT_CREATED_KINDS, plainList } from './review-model';
+import { CostOverview, OverviewSection, PlainSettingRow, ResourcePanel, type ResourceEntry } from './ReviewSettings';
 import './review.css';
 
 type Resources = Record<string, { type: string; properties: Record<string, unknown> }>;
-type Price = NonNullable<NonNullable<WizardState['composition']>['price']>;
 
 /** Three columns need this much room; below it the settings go under the picture. */
 const THREE_COLUMNS = '(min-width: 1360px)';
 
 /**
+ * How far the picture may grow past its own size to fill its frame. A wizard's picture has a handful of resources,
+ * and on a large screen it would otherwise sit small in the middle of an empty canvas.
+ */
+const MAX_FIT_SCALE = 1.7;
+
+/**
  * Review, the left side of the workspace: the picture of what gets created, and what each part of it is set to and
  * costs.
  *
- * Nothing is picked: the monthly estimate, split by resource, and the project's own settings. A resource picked on the
- * picture or in the list: its settings, grouped, each with AWS's name beside the plain one and the price of every
- * option, and why it is there. Every setting writes stacktape.yml, and the editor shows the lines it changed. Three
- * layouts of the same parts can be compared with `?review=` (see `review-version.ts`).
+ * Nothing is picked: the monthly estimate, a row per resource that opens its settings, and the project's own settings.
+ * A resource picked on the picture or in the list: its settings, grouped, each with AWS's name under the plain one and
+ * the price of every option. Every setting writes stacktape.yml, and the editor shows the lines it changed. A wide
+ * screen has the settings beside the picture; a narrower one has them under it.
  */
 export function ReviewPane({
   state,
   resources,
   stories,
-  citations,
   selected,
   onSelect,
-  onShowInFile,
   progress,
   busy,
   isLocked,
@@ -68,13 +61,9 @@ export function ReviewPane({
   /** What the file declares now: the edited text when it parses, the composition otherwise. */
   resources: Resources;
   stories: Readonly<Record<string, ResourceStory>>;
-  /** Each story's citation checked against its file, once the file is read. */
-  citations: Readonly<Record<string, Citation>>;
   selected: string | undefined;
   /** Picks a resource, or puts it down when it is already picked. */
   onSelect: (resourceName: string) => void;
-  /** Picks a resource and brings its block in stacktape.yml into view. */
-  onShowInFile: (resourceName: string) => void;
   /** Nodes still appearing after the reveal. */
   progress: Readonly<Record<string, 'pending' | 'ready'>> | undefined;
   busy: string | undefined;
@@ -86,13 +75,9 @@ export function ReviewPane({
   onDecision: (id: string, value: string) => void;
   onRegion: (region: string) => void;
 }) {
-  const layout = reviewLayout(window.location.search);
-  const terms = settingTerms(window.location.search);
-  const isPhone = useMediaQuery('(max-width: 1020px)');
   const threeColumns = useMediaQuery(THREE_COLUMNS);
   // A phone-width screen is read with a finger even where the browser reports a mouse.
   const isTouch = useMediaQuery('(hover: none), (max-width: 760px)');
-  const shownLayout = isPhone ? 'stack' : layout;
   const [hovered, setHovered] = useState<string | undefined>(undefined);
   const existing = state.facts?.existingDeployments ?? [];
   const price = state.composition?.price;
@@ -116,7 +101,7 @@ export function ReviewPane({
       })),
     [resources, stories, context]
   );
-  const entryOf = (name: string | undefined) => entries.find((entry) => entry.name === name);
+  const picked = selected === undefined ? undefined : entries.find((entry) => entry.name === selected);
   const lockedReason = isLocked
     ? 'Not while stacktape init is disconnected or deploying'
     : isTyping || busy === 'write'
@@ -125,6 +110,36 @@ export function ReviewPane({
         ? 'Not while stacktape.ts has your edits. Discard them to use the settings'
         : undefined;
 
+  // A resource opened, or put down, starts at its top: beside the picture the panel scrolls itself; under it, the page
+  // brings the panel's top into view when the row that opened it was further down.
+  const inspectorRef = useRef<HTMLElement>(null);
+  // Read when what is shown changes; a window made narrower moves nothing.
+  const besidePicture = useRef(threeColumns);
+  besidePicture.current = threeColumns;
+  const shownName = picked?.name;
+  const firstShown = useRef(true);
+  useEffect(() => {
+    if (firstShown.current) {
+      firstShown.current = false;
+      return;
+    }
+    const inspector = inspectorRef.current;
+    if (inspector === null) return;
+    if (besidePicture.current) {
+      inspector.scrollTop = 0;
+      return;
+    }
+    // The panel's top is hidden under the sticky header, or above the top of the pane that scrolls it.
+    const visibleTop = Math.max(
+      document.querySelector('.w-top')?.getBoundingClientRect().bottom ?? 0,
+      inspector.closest('.ws-left')?.getBoundingClientRect().top ?? 0
+    );
+    const top = inspector.getBoundingClientRect().top;
+    if (top < visibleTop || top > window.innerHeight - 120) {
+      inspector.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }, [shownName]);
+
   // One object per file: a new one is a new picture, and the diagram forgets what the pointer was on.
   const config = useMemo(() => ({ resources }) as unknown as StacktapeConfig, [resources]);
   // The picture names each resource the way this page does ("Postgres database"), its key in the file under it.
@@ -132,90 +147,6 @@ export function ReviewPane({
   const titles = useMemo(
     () => Object.fromEntries(JSON.parse(titleKey) as Array<[string, string]>) as Record<string, string>,
     [titleKey]
-  );
-
-  const panelFor = (
-    name: string,
-    appearance: 'inspector' | 'card',
-    extra: { onBack?: () => void; onClose?: () => void } = {}
-  ) => {
-    const entry = entryOf(name);
-    if (entry === undefined) return null;
-    return (
-      <ResourcePanel
-        appearance={appearance}
-        citation={citations[name]}
-        isEdited={isEdited}
-        key={name}
-        lockedReason={lockedReason}
-        name={name}
-        onSetting={(setting, value) => changeSetting(name, setting, value)}
-        onShowInFile={() => onShowInFile(name)}
-        pending={pending[name] ?? {}}
-        price={price}
-        resource={entry.resource}
-        settings={entry.settings}
-        story={stories[name]}
-        terms={terms}
-        {...extra}
-      />
-    );
-  };
-
-  const overview = (compactCosts: boolean) => (
-    <>
-      <CostOverview
-        compact={compactCosts}
-        entries={entries}
-        hovered={hovered}
-        onSelect={onSelect}
-        price={price}
-        priceUnavailable={state.composition?.priceUnavailable === true}
-        region={state.region}
-        selected={selected}
-      />
-      <ProjectSettings
-        busy={busy}
-        isEdited={isEdited}
-        lockedReason={lockedReason}
-        onDecision={onDecision}
-        onRegion={onRegion}
-        state={state}
-      />
-      <NotCreated state={state} />
-    </>
-  );
-
-  const diagram = (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <Spinner />
-        </div>
-      }
-    >
-      <Diagram
-        ariaLabel="Diagram of what stacktape.yml creates on AWS"
-        config={config}
-        // The settings beside the picture say what each resource is; the picture only points.
-        focusDimming="soft"
-        framePadding={shownLayout === 'canvas' ? 40 : 16}
-        hint=""
-        // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can be.
-        layerChoices={[]}
-        layout="shown-layers"
-        minLabelSize={isTouch ? 12 : 11}
-        onHoverResource={(name) => setHovered(name ?? undefined)}
-        onSelectResource={onSelect}
-        resourceProgress={progress}
-        resourceTitles={titles}
-        // The database access server is drawn reaching the private database it is there for.
-        bastionTunnels
-        selectedResource={selected ?? null}
-        style={{ width: '100%', height: '100%' }}
-        volumeMounts
-      />
-    </Suspense>
   );
 
   const note =
@@ -232,44 +163,79 @@ export function ReviewPane({
       </p>
     ) : null;
 
-  if (shownLayout === 'stack') {
-    return (
-      <div className="rv ws-review" data-layout="stack">
-        {note}
-        <div className="rv-main">
-          <section aria-label="Diagram" className="ws-panel rv-diagram">
-            <div className="rv-diagram-canvas">{diagram}</div>
+  return (
+    <div className="rv ws-review" data-columns={threeColumns ? '3' : '2'}>
+      {note}
+      <div className="rv-main">
+        <section aria-label="Diagram" className="ws-panel rv-diagram">
+          <div className="rv-diagram-canvas">
+            <Suspense
+              fallback={
+                <div className="flex h-full items-center justify-center">
+                  <Spinner />
+                </div>
+              }
+            >
+              <Diagram
+                ariaLabel="Diagram of what stacktape.yml creates on AWS"
+                config={config}
+                // The settings beside the picture say what each resource is; the picture only points.
+                focusDimming="soft"
+                framePadding={16}
+                hint=""
+                // A wizard's picture has a handful of resources: no layer switches, and laid out as compactly as it can
+                // be, then grown to fill its frame.
+                layerChoices={[]}
+                layout="shown-layers"
+                maxFitScale={MAX_FIT_SCALE}
+                minLabelSize={isTouch ? 12 : 11}
+                onHoverResource={(name) => setHovered(name ?? undefined)}
+                onSelectResource={onSelect}
+                resourceProgress={progress}
+                resourceTitles={titles}
+                // The database access server is drawn reaching the private database it is there for.
+                bastionTunnels
+                selectedResource={selected ?? null}
+                style={{ width: '100%', height: '100%' }}
+                volumeMounts
+              />
+            </Suspense>
+          </div>
+          {selected === undefined && (
             <p className="rv-diagram-hint">
               {isTouch ? 'Tap a resource to change it' : 'Click a resource to change it'}
             </p>
-          </section>
-          <div className="rv-list">
-            <section className="ws-panel rv-card rv-card--costs">
+          )}
+        </section>
+        <aside
+          aria-label={picked === undefined ? 'Overview' : `${picked.title} settings`}
+          className="ws-panel rv-inspector"
+          ref={inspectorRef}
+        >
+          {picked !== undefined ? (
+            <ResourcePanel
+              isEdited={isEdited}
+              key={picked.name}
+              lockedReason={lockedReason}
+              name={picked.name}
+              onBack={() => onSelect(picked.name)}
+              onSetting={(setting, value) => changeSetting(picked.name, setting, value)}
+              pending={pending[picked.name] ?? {}}
+              price={price}
+              resource={picked.resource}
+              settings={picked.settings}
+              story={stories[picked.name]}
+            />
+          ) : (
+            <div className="rv-overview">
               <CostOverview
-                compact
                 entries={entries}
                 hovered={hovered}
-                onSelect={(name) => onSelect(name)}
-                rows={false}
+                onSelect={onSelect}
                 price={price}
                 priceUnavailable={state.composition?.priceUnavailable === true}
                 region={state.region}
-                selected={selected}
               />
-            </section>
-            {entries.map((entry) => (
-              <ResourceCard
-                entry={entry}
-                isHovered={hovered === entry.name}
-                isOpen={selected === entry.name}
-                key={entry.name}
-                onToggle={() => onSelect(entry.name)}
-                price={price}
-              >
-                {panelFor(entry.name, 'card')}
-              </ResourceCard>
-            ))}
-            <section className="ws-panel rv-card rv-card--project">
               <ProjectSettings
                 busy={busy}
                 isEdited={isEdited}
@@ -279,113 +245,11 @@ export function ReviewPane({
                 state={state}
               />
               <NotCreated state={state} />
-            </section>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (shownLayout === 'canvas') {
-    const picked = selected === undefined ? undefined : entryOf(selected);
-    return (
-      <div className="rv ws-review" data-layout="canvas" data-picked={picked === undefined ? undefined : 'true'}>
-        {note}
-        <div className="rv-main">
-          <section aria-label="Diagram" className="ws-panel rv-diagram rv-canvas">
-            <div className="rv-diagram-canvas">{diagram}</div>
-            <aside aria-label="Overview" className="rv-float rv-float--overview">
-              {overview(true)}
-            </aside>
-            {picked !== undefined && (
-              <aside aria-label={`${picked.title} settings`} className="rv-float rv-float--inspector" key={picked.name}>
-                {panelFor(picked.name, 'inspector', { onClose: () => onSelect(picked.name) })}
-              </aside>
-            )}
-            {picked === undefined && (
-              <p className="rv-canvas-hint">
-                {isTouch ? 'Tap a resource to change it' : 'Click a resource to change it'}
-              </p>
-            )}
-          </section>
-        </div>
-      </div>
-    );
-  }
-
-  // Columns: the picture, then what is picked (or everything), then stacktape.yml.
-  return (
-    <div className="rv ws-review" data-columns={threeColumns ? '3' : '2'} data-layout="columns">
-      {note}
-      <div className="rv-main">
-        <section aria-label="Diagram" className="ws-panel rv-diagram">
-          <div className="rv-diagram-canvas">{diagram}</div>
-          {selected === undefined && (
-            <p className="rv-diagram-hint">
-              {isTouch ? 'Tap a resource to change it' : 'Click a resource to change it'}
-            </p>
-          )}
-        </section>
-        <aside
-          aria-label={selected === undefined ? 'Overview' : `${entryOf(selected)?.title ?? selected} settings`}
-          className="ws-panel rv-inspector"
-        >
-          {selected !== undefined && entryOf(selected) !== undefined ? (
-            panelFor(selected, 'inspector', { onBack: () => onSelect(selected) })
-          ) : (
-            <div className="rv-overview">{overview(false)}</div>
+            </div>
           )}
         </aside>
       </div>
     </div>
-  );
-}
-
-/** A resource in the stacked list: what it is, its size and price on one line; opened, its settings. */
-function ResourceCard({
-  entry,
-  price,
-  isOpen,
-  isHovered,
-  onToggle,
-  children
-}: {
-  entry: ResourceEntry;
-  price: Price | undefined;
-  isOpen: boolean;
-  isHovered: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLElement>(null);
-  // Opened from the picture, it comes into view.
-  useEffect(() => {
-    if (isOpen) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [isOpen]);
-  const summary = sizeSummary(entry.settings);
-  return (
-    <section
-      aria-label={entry.title}
-      className="ws-panel rv-card rv-card--resource"
-      data-hovered={isHovered ? 'true' : undefined}
-      data-open={isOpen ? 'true' : undefined}
-      ref={ref}
-    >
-      <button aria-expanded={isOpen} className="rv-card-head" onClick={onToggle} type="button">
-        <span aria-hidden className="rv-dot" style={{ background: categoryColor(entry.resource.type) }} />
-        <ResourceIcon resourceType={entry.resource.type} size={20} />
-        <span className="rv-card-name">
-          <strong>{entry.title}</strong>
-          <small>
-            <code>{entry.name}</code>
-            {summary !== undefined && <> · {summary}</>}
-          </small>
-        </span>
-        <ResourcePrice name={entry.name} price={price} />
-        <BiChevronDown aria-hidden className="rv-card-chevron" size={20} />
-      </button>
-      {isOpen && <div className="rv-card-body">{children}</div>}
-    </section>
   );
 }
 

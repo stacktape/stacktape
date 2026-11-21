@@ -128,8 +128,8 @@ export function TreeWindow({
         style={{
           // Down the rows the window shows, not past its bottom edge.
           ['--ws-sweep-h' as string]: `${Math.max(TREE_ROW, Math.min(contentHeight, bodyHeight - TREE_ROW) - TREE_ROW / 2)}px`,
-          // About a tenth of a second a row: a calm pass over a short tree, never a crawl over a long one.
-          ['--ws-sweep-ms' as string]: `${Math.min(4800, Math.max(2200, rows.length * 110))}ms`
+          // About 50 ms a row: a quick pass over a short tree, never a crawl over a long one.
+          ['--ws-sweep-ms' as string]: `${Math.min(2400, Math.max(1100, rows.length * 50))}ms`
         }}
       >
         {isEmpty ? (

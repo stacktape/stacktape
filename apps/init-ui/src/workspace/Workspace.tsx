@@ -10,12 +10,10 @@ import { AnimatedPrice } from '../components/AnimatedPrice';
 import { loadDiagram } from '../components/lazy-diagram';
 import type { ConfigEditorHandle } from '../editor/ConfigFileEditor';
 import { ConfigPanel } from '../editor/ConfigPanel';
-import { editorVersion } from '../editor/editor-version';
 import { useConfigDraft, type ConfigTextEdit } from '../editor/use-config-draft';
 import type { FileView, RepositoryTree, Session, WizardState } from '../session';
 import { ReviewPane } from '../steps/ReviewStep';
 import { filenameFor, monthlySuffix, summarise } from '../steps/review-model';
-import { reviewLayout } from '../steps/review-version';
 import { buildTree, fileCountLabel } from './file-tree';
 import {
   allChips,
@@ -49,6 +47,10 @@ const LINE_HEIGHT = 20;
 const CHIPS_HEIGHT = 28 + 14;
 /** The phone's reveal fits the tree in this many rows, under the finding and over its YAML. */
 const PHONE_REVEAL_ROWS = 12;
+
+/** The reveal's pace: lining a block up with its code, and the pause after it is written (`stepDuration` holds both). */
+const ALIGN_MS = 260;
+const SETTLE_MS = 180;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 const nextFrame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
@@ -228,11 +230,6 @@ export function Workspace({
   };
   const resources: Resources = draft.resources;
   const stories = useMemo(() => storiesOf(state, resources), [state, resources]);
-  // Every resource's "why" reads its file, so the lines it shows are the file's own, checked.
-  useEffect(() => {
-    if (phase !== 'review') return;
-    for (const story of Object.values(stories)) if (story.evidence !== undefined) load(story.evidence.file);
-  }, [phase, stories, load]);
   const citations = useMemo(() => {
     const all: Record<string, Citation> = {};
     for (const [name, story] of Object.entries(stories)) {
@@ -284,10 +281,10 @@ export function Workspace({
       order.forEach((name, index) =>
         setTimeout(
           () => setNodeProgress((current) => (current === undefined ? current : { ...current, [name]: 'ready' })),
-          260 + index * 140
+          160 + index * 90
         )
       );
-      setTimeout(() => setNodeProgress(undefined), 400 + order.length * 140);
+      setTimeout(() => setNodeProgress(undefined), 300 + order.length * 90);
       setTimeout(() => setLeaving(false), 520);
     },
     [state.composition?.resources]
@@ -363,7 +360,7 @@ export function Workspace({
       const fromCode = body?.scrollTop ?? 0;
       const toCode = lineAt === undefined ? fromCode : Math.max(0, lineAt - (y - bodyTop));
       const started = performance.now();
-      const duration = 380;
+      const duration = ALIGN_MS;
       for (;;) {
         const now = await nextFrame();
         if (run.cancelled) return;
@@ -412,7 +409,7 @@ export function Workspace({
     };
     void (async () => {
       // The first finding is lined up with its code, so its file is read first (it is local: a moment at most).
-      const deadline = performance.now() + 900;
+      const deadline = performance.now() + 600;
       while (
         performance.now() < deadline &&
         current.steps.some((entry) => entry.story.evidence && !filesRef.current.has(entry.story.evidence.file))
@@ -423,8 +420,8 @@ export function Workspace({
       // The scan already wrote the file's first lines; the reveal starts from them when they match.
       if (model.getValue() !== current.header) {
         if (model.getValueLength() > 0) model.applyEdits([{ range: model.getFullModelRange(), text: '' }]);
-        await sleep(350);
-        await type(current.header, 0, 420);
+        await sleep(120);
+        await type(current.header, 0, 300);
       }
       const typed: number[] = [];
       for (const [index, entry] of current.steps.entries()) {
@@ -446,7 +443,7 @@ export function Workspace({
         await type(
           block,
           offset,
-          Math.max(420, entry.durationMs - 560),
+          Math.max(240, entry.durationMs - ALIGN_MS - SETTLE_MS),
           (line) => editorHandle.markWriting(firstLine, Math.max(firstLine, line)),
           async (line) => {
             editorHandle.markWriting(line, line);
@@ -459,12 +456,12 @@ export function Workspace({
         editorHandle.markWritten();
         typed.push(entry.blockIndex);
         setWritten(index + 1);
-        await sleep(420);
+        await sleep(SETTLE_MS);
       }
       if (run.cancelled) return;
-      await type(current.trailer, model.getValueLength(), 300);
+      await type(current.trailer, model.getValueLength(), 200);
       if (run.cancelled) return;
-      await sleep(500);
+      await sleep(260);
       if (!run.cancelled) finishRevealRef.current(editorHandle, current.text);
     })();
     /* oxlint-enable no-await-in-loop */
@@ -507,14 +504,6 @@ export function Workspace({
     (name: string) => setSelected((current) => (current === name || resources[name] === undefined ? undefined : name)),
     [resources]
   );
-  /** Bumped to bring the picked block into view again, after the user scrolled away from it. */
-  const [revealCount, setRevealCount] = useState(0);
-  const showInFile = useCallback((name: string) => {
-    setSelected(name);
-    setRevealCount((count) => count + 1);
-    if (stackedRef.current) setStackedView('file');
-  }, []);
-  const [version] = useState(() => editorVersion(window.location.search));
 
   // ── Layout ──────────────────────────────────────────────────────────────────────────────────────
   // The tree keeps the last finding's light while it fades out, so it never jumps to another file on the way.
@@ -627,7 +616,6 @@ export function Workspace({
         // The half second in which the code window gives way and the bar slides up: the page makes room for it slowly.
         data-settling={leaving ? 'true' : undefined}
         data-stacked={stacked ? 'true' : undefined}
-        data-review-layout={phase === 'review' ? reviewLayout(window.location.search) : undefined}
       >
         <header className="ws-head" data-phase={phase}>
           {phase === 'scan' ? (
@@ -743,7 +731,6 @@ export function Workspace({
           {phase === 'review' && (
             <ReviewPane
               busy={busy}
-              citations={citations}
               isEdited={isEdited}
               isLocked={isLocked}
               isTyping={draft.isPending}
@@ -751,7 +738,6 @@ export function Workspace({
               onRegion={onRegion}
               onSetting={onSetting}
               onSelect={select}
-              onShowInFile={showInFile}
               progress={nodeProgress}
               resources={resources}
               selected={selected}
@@ -778,11 +764,9 @@ export function Workspace({
             onEditorReady={setEditorHandle}
             onFormatChange={onFormatChange}
             phase={phase}
-            revealCount={revealCount}
             selected={selected}
             session={session}
             stories={stories}
-            version={version}
             writingHead={
               phase === 'scan' && stacked ? (
                 <span className="ws-editor-wait">

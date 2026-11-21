@@ -41,8 +41,6 @@ import type { AgentEvent } from './agent/transport';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from './missions/greenfield';
 import { projectNameFor } from './project-name';
 import { createRailpackPlanner } from './railpack-planner';
-import { runPreflight } from './preflight/preflight';
-import { createPreflightRunners } from './preflight/runners';
 import { runRepairMission } from './missions/repair';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import type { DeploymentPreferences } from '@stacktape/config-inference/compose/preferences';
@@ -148,16 +146,17 @@ export const chooseAgent = (
 const AGENT_COPY: Readonly<Record<string, { label: string; description: string }>> = {
   'claude-code': {
     label: 'Claude Code',
-    description: 'Reads your project on this machine using your own Claude subscription.'
+    description: 'Reads your code locally, on your Claude plan'
   },
   codex: {
     label: 'Codex',
-    description: 'Reads your project on this machine using your own Codex subscription.'
+    description: 'Reads your code locally, on your Codex plan'
   }
 };
 
 /**
- * The ways this project can be read, as the first screen offers them.
+ * The ways this project can be read, as the first screen offers them: the agents on this machine, then working
+ * without one, then the agents Stacktape can drive that are not installed (so the page can say what else there is).
  *
  * Working without an agent is a real option rather than a fallback: it reads nothing but the files
  * the probes already look at, costs nothing, and produces a configuration that leans on defaults
@@ -179,12 +178,20 @@ export const agentOptions = (
     })),
   {
     id: 'none',
-    label: 'Files only, no agent',
-    description:
-      'Reads manifests, compose files, Dockerfiles and environment files. Fast, free, and guesses a bit more.',
+    label: 'Stacktape, without AI',
+    description: 'Reads only manifests and config files',
     models: [{ id: 'default', label: 'No model', description: 'Nothing is sent to a model.' }],
     ...(recommended === undefined ? { recommended: true } : {})
-  }
+  },
+  ...Object.entries(AGENT_COPY)
+    .filter(([id]) => !available.some((entry) => entry.id === id))
+    .map(([id, copy]) => ({
+      id,
+      label: copy.label,
+      description: 'Not installed on this machine',
+      models: [],
+      installed: false as const
+    }))
 ];
 
 /** Said in both presentations, so "Using claude-code" is never left implying that the agent read the code. */
@@ -502,11 +509,6 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       for (const line of describeDevDependency(written)) say(line);
       return written;
     },
-    // The local try-out: build the composed services the way the deploy will, start them in an
-    // isolated container with stub values, and watch. Only ever invoked after the user's click —
-    // the session owns that consent — and every machinery failure reads as "unavailable" there.
-    verify: ({ facts, composition }) =>
-      runPreflight({ repositoryRoot, facts, composition, runners: createPreflightRunners() }),
     // Only with an agent. The probes read files, and a deploy failure is not in a file: without a
     // model there is nothing new to learn between one attempt and the next. The session enforces
     // the user's own choice on top of this — someone who picked "Files only" is never repaired by

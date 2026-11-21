@@ -7,39 +7,12 @@
   /* ── Layouts ─────────────────────────────────────────────────────────────────────────────── */
 
   /* Steps beside the diagram: the side gets the room the resources need. */
-  .r-run.is-steps {
+  .r-run {
     --w-pane-right: clamp(540px, 45vw, 880px);
-  }
-
-  /* The log leads; the diagram, the time and the phases sit in a column beside it. */
-  .r-run.is-log {
-    --w-pane-right: clamp(420px, 30vw, 560px);
   }
 
   .r-side {
     display: flex;
-    flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .r-run.is-log .r-side .w-run-diagram {
-    flex: 1 1 0;
-    min-height: 220px;
-    margin: 12px 16px 0;
-    border: 1px solid var(--w-line);
-    border-radius: var(--w-radius-small);
-    background: var(--w-well);
-    box-shadow: none;
-  }
-
-  .r-side-steps {
-    padding: 4px 0 6px;
-  }
-
-  .r-log-card {
-    display: flex;
-    flex: 1;
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
@@ -296,13 +269,6 @@
   .r-phase.is-running .r-phase-meta,
   .r-phase.is-running > .r-phase-head .r-time {
     color: var(--w-text);
-  }
-
-  /* The summary beside a log: no chevrons, so the time keeps to the edge. */
-  .r-phases.is-summary .r-phase-head {
-    grid-template-columns: 22px minmax(0, 1fr) auto auto;
-    min-height: 36px;
-    padding-block: 6px;
   }
 
   .r-phase-body {
@@ -832,15 +798,20 @@
   }
 
   .w-fail-more {
+    --w-expand-gap: 2px;
+
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
+    gap: var(--w-expand-gap);
   }
 
-  .w-fail-more > .w-log,
-  .w-fail-more > .r-activity {
+  .w-fail-more > .w-expand {
     align-self: stretch;
+  }
+
+  .w-fail-more .w-expand-inner > .w-log,
+  .w-fail-more .w-expand-inner > .r-activity {
     margin-bottom: 8px;
   }
 
@@ -910,30 +881,6 @@
   /* ── Narrow screens: the page scrolls, and the panels take their content's height ───────── */
 
   @media (max-width: 1020px) {
-    .r-run.is-log .w-pane {
-      display: contents;
-    }
-
-    .r-run.is-log .w-run-head {
-      order: 0;
-    }
-
-    .r-run.is-log .r-side {
-      order: 1;
-      overflow: visible;
-    }
-
-    .r-run.is-log .r-log-card {
-      flex: none;
-      order: 2;
-      height: 72vh;
-    }
-
-    .r-run.is-log .r-side .w-run-diagram {
-      flex: none;
-      height: 260px;
-    }
-
     .r-side .r-activity {
       flex: none;
     }
@@ -969,10 +916,6 @@
 
     .r-phase-head {
       grid-template-columns: 22px minmax(0, 1fr) auto 18px;
-    }
-
-    .r-phases.is-summary .r-phase-head {
-      grid-template-columns: 22px minmax(0, 1fr) auto;
     }
 
     .r-phase-body {

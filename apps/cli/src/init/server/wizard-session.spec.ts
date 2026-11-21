@@ -225,6 +225,24 @@ describe('startWizardSession', () => {
       expect((await post(opened, { agentId: 'claude-code', modelId: 'gpt-9' })).status).toBe(400);
     });
 
+    it('refuses an agent it lists as not installed', async () => {
+      session = await startWizardSession({
+        projectName: 'demo',
+        agents: [...agents, { ...agents[0]!, id: 'codex', label: 'Codex', installed: false }],
+        start: async () => resultFor(factsWith({}))
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+
+      expect((await post({ origin, cookie, csrfToken }, { agentId: 'codex', modelId: 'default' })).status).toBe(400);
+    });
+
     it('lets a failed analysis be started again from the page', async () => {
       let attempts = 0;
       const opened = await openSession(async () => {
@@ -1183,191 +1201,6 @@ describe('toTimelineEntry', () => {
     // Model output produced while reading untrusted files never becomes something the page shows.
     expect(toTimelineEntry({ type: 'text', text: 'Checking the manifest.' })).toBeUndefined();
     expect(toTimelineEntry({ type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } })).toBeUndefined();
-  });
-});
-
-describe('the local try-out', () => {
-  const result = () => {
-    const facts = projectFactsSchema.parse({ schemaVersion: PROJECT_FACTS_SCHEMA_VERSION, services: [service] });
-    return { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] };
-  };
-
-  const failedService = {
-    serviceName: 'api',
-    resourceName: 'api',
-    status: 'failed' as const,
-    reason: 'Exited on startup asking for: X_API_KEY.',
-    observations: {
-      listeningPorts: [],
-      dialedDependency: false,
-      missingEnvironmentVariables: ['X_API_KEY'],
-      logTail: []
-    }
-  };
-
-  const open = async (verify: NonNullable<Parameters<typeof startWizardSession>[0]['verify']>, deploys: unknown[]) => {
-    session = await startWizardSession({
-      projectName: 'demo',
-      result: result(),
-      write: async () => ({ path: 'C:/repo/stacktape.yml', filename: 'stacktape.yml' }),
-      deploy: async (input) => {
-        deploys.push(input);
-        return { ok: true, code: 'OK', message: 'done' };
-      },
-      verify
-    });
-    const origin = `http://127.0.0.1:${session.server.port}`;
-    const token = new URL(session.server.url).hash.replace('#token=', '');
-    const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
-      method: 'POST',
-      headers: { Origin: origin }
-    });
-    const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
-    const { csrfToken } = (await handshake.json()) as { csrfToken: string };
-    const post = (path: string, body: Record<string, unknown> = {}) =>
-      fetch(`${origin}${path}`, {
-        method: 'POST',
-        headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        body: JSON.stringify(body)
-      });
-    const stateNow = async () =>
-      (await (await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } })).json()) as {
-        verification?: { status: string; services?: Array<{ status: string }> };
-        deployment?: { status: string };
-      };
-    const until = async (predicate: (state: Awaited<ReturnType<typeof stateNow>>) => boolean) => {
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        const state = await stateNow();
-        if (predicate(state)) return state;
-        await new Promise((settle) => setTimeout(settle, 10));
-      }
-      throw new Error('The state never reached the expected shape.');
-    };
-    return { post, stateNow, until };
-  };
-
-  it('holds the deploy on a proven failure until the user sets it aside', async () => {
-    let finishVerify: (value: { status: 'completed'; services: Array<typeof failedService> }) => void = () => {};
-    const deploys: unknown[] = [];
-    const { post, until, stateNow } = await open(
-      () =>
-        new Promise((resolve) => {
-          finishVerify = resolve as typeof finishVerify;
-        }),
-      deploys
-    );
-
-    await post('/api/write', { format: 'yaml' });
-    await post('/api/verify');
-    expect((await stateNow()).verification?.status).toBe('running');
-
-    // While it runs, the button does nothing — a deploy racing the evidence would defeat the gate.
-    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
-    expect(deploys).toEqual([]);
-
-    finishVerify({ status: 'completed', services: [failedService] });
-    await until((state) => state.verification?.status === 'completed');
-
-    // A proven failure holds the deploy: the click is answered by the state, not by AWS spend.
-    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
-    expect(deploys).toEqual([]);
-
-    // Setting it aside is the user's call, and it is honoured immediately.
-    await post('/api/verify/dismiss');
-    expect((await stateNow()).verification?.status).toBe('dismissed');
-    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
-    await until((state) => state.deployment !== undefined);
-    expect(deploys.length).toBe(1);
-  });
-
-  it('repairs a proven local failure once, then proves the fix the same way', async () => {
-    const verifyCalls: number[] = [];
-    let repairCalls = 0;
-    let repairFailure:
-      | Parameters<NonNullable<Parameters<typeof startWizardSession>[0]['repair']>>[0]['failure']
-      | undefined;
-    const facts = projectFactsSchema.parse({ schemaVersion: PROJECT_FACTS_SCHEMA_VERSION, services: [service] });
-    const failureWithPrivateLog = {
-      ...failedService,
-      observations: {
-        ...failedService.observations,
-        logTail: ['DATABASE_URL=postgresql://user:do-not-send@database.example/app']
-      }
-    };
-
-    session = await startWizardSession({
-      projectName: 'demo',
-      result: { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] },
-      verify: async () => {
-        verifyCalls.push(Date.now());
-        // First look fails; the look after the repair passes.
-        return verifyCalls.length === 1
-          ? { status: 'completed', services: [failureWithPrivateLog] }
-          : {
-              status: 'completed',
-              services: [{ ...failedService, status: 'passed' as const, reason: 'Listening on port 8080.' }]
-            };
-      },
-      repair: async ({ failure }) => {
-        repairCalls += 1;
-        repairFailure = failure;
-        return { facts, composition: composeConfig({ facts, projectName: 'demo' }), changed: true };
-      }
-    });
-    const origin = `http://127.0.0.1:${session.server.port}`;
-    const token = new URL(session.server.url).hash.replace('#token=', '');
-    const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
-      method: 'POST',
-      headers: { Origin: origin }
-    });
-    const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
-    const { csrfToken } = (await handshake.json()) as { csrfToken: string };
-
-    await fetch(`${origin}/api/verify`, {
-      method: 'POST',
-      headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-      body: '{}'
-    });
-
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-      const state = (await (
-        await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } })
-      ).json()) as { verification?: { status: string; services?: Array<{ status: string }> } };
-      if (state.verification?.status === 'completed') {
-        // The failure was repaired locally and re-proven locally — one repair, two looks, no AWS.
-        expect(state.verification.services?.[0]?.status).toBe('passed');
-        expect(repairCalls).toBe(1);
-        expect(verifyCalls.length).toBe(2);
-        expect(repairFailure?.output).toEqual([]);
-        expect(JSON.stringify(repairFailure)).not.toContain('do-not-send');
-        return;
-      }
-      await new Promise((settle) => setTimeout(settle, 10));
-    }
-    throw new Error('Verification never completed.');
-  });
-
-  it('drops a result earned against a configuration the user has since changed', async () => {
-    let finishVerify: (value: { status: 'completed'; services: Array<typeof failedService> }) => void = () => {};
-    const { post, stateNow } = await open(
-      () =>
-        new Promise((resolve) => {
-          finishVerify = resolve as typeof finishVerify;
-        }),
-      []
-    );
-
-    await post('/api/verify');
-    expect((await stateNow()).verification?.status).toBe('running');
-
-    // Changing anything recomposes, and a different configuration is a different thing to prove.
-    await post('/api/preferences', { key: 'capacity', value: 'performance' });
-    expect((await stateNow()).verification).toBeUndefined();
-
-    // The old run finishing late must not resurrect its verdict against the new configuration.
-    finishVerify({ status: 'completed', services: [failedService] });
-    await new Promise((settle) => setTimeout(settle, 30));
-    expect((await stateNow()).verification).toBeUndefined();
   });
 });
 

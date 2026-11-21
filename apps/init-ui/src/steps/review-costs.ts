@@ -1,5 +1,5 @@
 /**
- * What the Review step says about money: each resource's share of the monthly estimate, what its price is made of, and
+ * What the Review step says about money: the order resources are listed in, what each one's price is made of, and
  * what each option of a setting would cost. Plain functions over the estimate the CLI sends, so the words and the
  * arithmetic are tested without a browser.
  */
@@ -110,23 +110,12 @@ export const costLinesOf = (price: Price | undefined, resourceName: string): Cos
 export const billedByUse = (price: Price | undefined, resourceName: string): boolean =>
   (price?.lines?.[resourceName] ?? []).some((line) => line.priceModel === 'pay-per-use');
 
-export type CostShare = { name: string; amount: number | undefined; share: number; usage: boolean };
-
 /**
- * Each resource's part of the fixed monthly estimate, largest first, with its share of the total (0–1) for the bar. A
- * resource with no fixed amount is listed after them with its usage noted, so nothing on the bill is left out.
+ * The resources in the order a bill lists them: the largest fixed amount first, then those with none (billed only by
+ * use, or not priced), in the order given.
  */
-export const costShares = (price: Price | undefined, names: readonly string[]): CostShare[] => {
-  const amounts: CostShare[] = names.map((name) => ({
-    name,
-    amount: price?.resourceFlat?.[name],
-    share: 0,
-    usage: billedByUse(price, name)
-  }));
-  const total = amounts.reduce((sum, entry) => sum + (entry.amount ?? 0), 0);
-  for (const entry of amounts) entry.share = total > 0 && entry.amount !== undefined ? entry.amount / total : 0;
-  return amounts.toSorted((a, b) => (b.amount ?? -1) - (a.amount ?? -1));
-};
+export const byMonthlyCost = (price: Price | undefined, names: readonly string[]): string[] =>
+  names.toSorted((a, b) => (price?.resourceFlat?.[b] ?? -1) - (price?.resourceFlat?.[a] ?? -1));
 
 /** What an option of a priced setting costs, as the setting shows it beside the option. */
 export type OptionPrice =

@@ -579,9 +579,9 @@ const MIN_ZOOM = 0.3;
 const MAX_ZOOM = 3;
 
 /**
- * The most a fitted picture is enlarged, in screen pixels per SVG unit. A picture of two or three resources fitted to
- * a large frame would otherwise be drawn far bigger than the shapes and text were made for; it is centred at this
- * scale instead. `initialZoom` still applies on top.
+ * The most a fitted picture is enlarged by default, in screen pixels per SVG unit. A picture of two or three resources
+ * fitted to a large frame would otherwise be drawn far bigger than the shapes and text were made for; it is centred at
+ * this scale instead. `initialZoom` still applies on top, and `maxFitScale` changes it.
  */
 const MAX_FIT_SCALE = 1.15;
 
@@ -707,6 +707,12 @@ export type DiagramViewProps = {
    * short for what it shows lowers it, so the picture fills the frame rather than its margin.
    */
   framePadding?: number | undefined;
+  /**
+   * The most the picture is enlarged to fill its frame, in screen pixels per unit of the picture (default 1.15). A host
+   * that gives a picture of a few resources a large frame raises it, so the picture fills the frame instead of sitting
+   * small in its middle.
+   */
+  maxFitScale?: number | undefined;
 };
 
 export type DiagramNotice = { id: string; tone: 'critical' | 'warning' | 'info'; content: ReactNode };
@@ -778,6 +784,7 @@ export function IsoRenderer({
   onHoverResource,
   focusDimming = 'strong',
   framePadding = 80,
+  maxFitScale = MAX_FIT_SCALE,
   onToggleGroup,
   toolbar,
   viewNote,
@@ -937,13 +944,13 @@ export function IsoRenderer({
     if (!container || !onFitScale || typeof ResizeObserver === 'undefined') return;
     const report = () => {
       if (container.clientWidth === 0 || container.clientHeight === 0) return;
-      onFitScale(Math.min(container.clientWidth / svgW, container.clientHeight / svgH, MAX_FIT_SCALE));
+      onFitScale(Math.min(container.clientWidth / svgW, container.clientHeight / svgH, maxFitScale));
     };
     report();
     const observer = new ResizeObserver(report);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [onFitScale, svgW, svgH]);
+  }, [onFitScale, svgW, svgH, maxFitScale]);
 
   const nodeMap = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene.nodes]);
 
@@ -1314,8 +1321,8 @@ export function IsoRenderer({
           className="stp-diagram__canvas"
           style={{
             transform: `translate(${view.panX}px, ${view.panY}px) scale(${view.zoom})`,
-            maxWidth: svgW * MAX_FIT_SCALE,
-            maxHeight: svgH * MAX_FIT_SCALE
+            maxWidth: svgW * maxFitScale,
+            maxHeight: svgH * maxFitScale
           }}
         >
           <defs>

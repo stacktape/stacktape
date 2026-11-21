@@ -69,6 +69,8 @@ export type WizardAgentOption = {
   description: string;
   models: WizardModelOption[];
   recommended?: boolean;
+  /** One Stacktape can drive that is not on this machine: shown so people know it exists, never started. */
+  installed?: false;
 };
 
 /** What went wrong at the current sign-in step. `code` selects the way out the panel offers. */
@@ -238,27 +240,6 @@ export type WizardState = {
       }
     | { status: 'unverified'; stackName: string; stage: string; region: string; detail: string };
   /**
-   * The local try-out of the composed services, once one has been asked for.
-   *
-   * `dismissed` keeps the last results visible while removing their hold on the deploy button.
-   * Absent until the user clicks — running their code is a permission the page never assumes.
-   */
-  verification?: {
-    status: 'running' | 'repairing' | 'completed' | 'unavailable' | 'dismissed';
-    services?: Array<{
-      serviceName: string;
-      resourceName: string;
-      status: 'passed' | 'failed' | 'inconclusive' | 'skipped';
-      reason: string;
-      observations: {
-        listeningPorts: number[];
-        dialedDependency: boolean;
-        missingEnvironmentVariables: string[];
-        logTail: string[];
-      };
-    }>;
-  };
-  /**
    * The configuration as edited by hand. While present it is what gets written and deployed. A TypeScript edit carries
    * its text, with `yaml` the configuration it evaluated to last. `error` says why the text does not parse or run.
    */
@@ -381,8 +362,7 @@ export class SessionError extends Error {}
 const takeTokenFromFragment = (): string | undefined => {
   const match = /(?:^|[#&])token=([^&]+)/.exec(window.location.hash);
   if (match === null) return undefined;
-  // The query stays: `?start=g2` picks a version of the first screen and survives a reload.
-  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  window.history.replaceState(null, '', window.location.pathname);
   return decodeURIComponent(match[1]!);
 };
 
@@ -402,10 +382,6 @@ export type Session = {
     region: string,
     expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string }
   ) => Promise<WizardState>;
-  /** Try the composed services on this machine. The click is the consent to run the project's code. */
-  verify: () => Promise<WizardState>;
-  /** Set a verification result aside: it stays visible, but stops holding the deploy button. */
-  dismissVerification: () => Promise<WizardState>;
   /** Write a deployment pipeline for the project's git host. */
   pipeline: (stage: string, region: string) => Promise<WizardState>;
   /** Connect the coding agent picked on the Start step to Stacktape, at user level. */
@@ -543,30 +519,6 @@ export const connect = async (): Promise<Session> => {
         throw new SessionError(problem.error ?? 'The deploy could not be started.');
       }
       publish((await deploying.json()) as WizardState);
-      return current;
-    },
-    verify: async () => {
-      const verifying = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        body: '{}'
-      });
-      if (!verifying.ok) {
-        throw new SessionError('The local try-out could not be started.');
-      }
-      publish((await verifying.json()) as WizardState);
-      return current;
-    },
-    dismissVerification: async () => {
-      const dismissed = await fetch('/api/verify/dismiss', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        body: '{}'
-      });
-      if (!dismissed.ok) {
-        throw new SessionError('Could not set the result aside.');
-      }
-      publish((await dismissed.json()) as WizardState);
       return current;
     },
     pipeline: async (stage, region) => {

@@ -224,6 +224,7 @@ export function IsometricDiagram({
   onHoverResource,
   focusDimming,
   framePadding,
+  maxFitScale,
   resourceTypeLabels,
   resourceTitles,
   bastionTunnels = false,
@@ -402,6 +403,7 @@ export function IsometricDiagram({
       onHoverResource={onHoverResource}
       focusDimming={focusDimming}
       framePadding={framePadding}
+      maxFitScale={maxFitScale}
       onToggleGroup={toggleGroup}
       toolbar={
         choices.length > 0 ? (

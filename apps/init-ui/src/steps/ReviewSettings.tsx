@@ -15,17 +15,16 @@ import { Tabs } from '@stacktape/ui-react/tabs';
 import { TextField } from '@stacktape/ui-react/text-field';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { BiChevronDown, BiChevronLeft, BiChevronRight, BiCodeAlt, BiX } from 'react-icons/bi';
+import { BiChevronDown, BiChevronLeft, BiChevronRight } from 'react-icons/bi';
 import { AnimatedPrice } from '../components/AnimatedPrice';
 import { InfoTip } from '../components/InfoTip';
-import type { WizardState } from '../session';
-import type { Citation, ResourceStory } from '../workspace/resource-story';
-import { EvidenceLine } from '../workspace/EvidenceLine';
+import type { CostLine, WizardState } from '../session';
+import type { ResourceStory } from '../workspace/resource-story';
 import {
   billedByUse,
+  byMonthlyCost,
   costLineLabel,
   costLinesOf,
-  costShares,
   keyedLines,
   money,
   optionPrice,
@@ -35,7 +34,6 @@ import {
   usageRate
 } from './review-costs';
 import { awsServiceOf, sizeSummary } from './review-model';
-import type { SettingTerms } from './review-version';
 
 type Price = NonNullable<NonNullable<WizardState['composition']>['price']>;
 type Resource = { type: string; properties: Record<string, unknown> };
@@ -46,24 +44,17 @@ export const categoryColor = (type: string): string =>
 
 // ── One setting ─────────────────────────────────────────────────────────────────────────────────
 
-/**
- * A setting's name the way `terms` asks for: the plain one with AWS's under it, one of them alone, or AWS's first.
- * The help mark beside it says what it does and what it costs.
- */
-function SettingName({ setting, terms }: { setting: ResourceSetting; terms: SettingTerms }) {
-  const primary = terms === 'aws' ? setting.awsTerm : setting.label;
-  const secondary = terms === 'both' ? setting.awsTerm : terms === 'aws' ? setting.label : undefined;
+/** A setting's plain name with AWS's under it. The help mark beside it says what it does and what it costs. */
+function SettingName({ setting }: { setting: ResourceSetting }) {
   return (
     <div className="rv-setting-label">
       <span className="rv-setting-name">
-        {primary}
+        {setting.label}
         <InfoTip about={setting.label.toLowerCase()}>{setting.about}</InfoTip>
       </span>
-      {secondary !== undefined && (
-        <span className="rv-setting-term" data-terms={terms} title={`properties.${setting.path}`}>
-          {secondary}
-        </span>
-      )}
+      <span className="rv-setting-term" title={`properties.${setting.path}`}>
+        {setting.awsTerm}
+      </span>
     </div>
   );
 }
@@ -283,7 +274,6 @@ const isShortChoice = (setting: ResourceSetting) =>
 function SettingRow({
   resourceName,
   setting,
-  terms,
   value,
   price,
   lockedReason,
@@ -291,7 +281,6 @@ function SettingRow({
 }: {
   resourceName: string;
   setting: ResourceSetting;
-  terms: SettingTerms;
   value: SettingValue;
   price: Price | undefined;
   lockedReason: string | undefined;
@@ -302,7 +291,7 @@ function SettingRow({
   const wide = setting.control === 'size' || setting.control === 'domain';
   return (
     <div className="rv-setting" data-control={setting.control} data-wide={wide ? 'true' : undefined}>
-      <SettingName setting={setting} terms={terms} />
+      <SettingName setting={setting} />
       <div className="rv-setting-control">
         {setting.control === 'size' ? (
           <SizeList {...props} lines={price?.lines} />
@@ -338,21 +327,22 @@ export function ResourcePrice({ price, name }: { price: Price | undefined; name:
   );
 }
 
-/** What the price is made of: the instance, its storage, the public address; the rates of what is billed by use. */
-function CostLines({ price, name, memory }: { price: Price | undefined; name: string; memory: number | undefined }) {
-  const lines = costLinesOf(price, name);
-  if (lines.length === 0) return null;
+/**
+ * What a resource's price is made of, for the help mark beside it: the instance, its storage, the public address, then
+ * the rates of what is billed by use.
+ */
+function PriceBreakdown({ lines, memory }: { lines: readonly CostLine[]; memory: number | undefined }) {
   const perMillion = memory === undefined ? undefined : perMillionRequests(lines, memory);
   return (
-    <dl className="rv-lines">
+    <dl className="rv-breakdown">
       {keyedLines(lines).map(({ line, key }) => (
-        <div className="rv-line" data-usage={line.monthly === undefined ? 'true' : undefined} key={key}>
+        <div data-usage={line.monthly === undefined ? 'true' : undefined} key={key}>
           <dt>{costLineLabel(line)}</dt>
           <dd>{line.monthly === undefined ? (usageRate(line) ?? 'By use') : `${money(line.monthly)}/mo`}</dd>
         </div>
       ))}
       {perMillion !== undefined && (
-        <div className="rv-line rv-line--example">
+        <div data-example="true">
           <dt>A million requests at 100 ms</dt>
           <dd>≈ {money(perMillion)}</dd>
         </div>
@@ -365,10 +355,8 @@ export type ResourcePanelProps = {
   name: string;
   resource: Resource;
   story: ResourceStory | undefined;
-  citation: Citation | undefined;
   settings: ResourceSetting[];
   price: Price | undefined;
-  terms: SettingTerms;
   /** Why nothing can be changed right now (disconnected, deploying), if so. */
   lockedReason: string | undefined;
   /** stacktape.yml has the user's edits: settings write into them, but a change that recomposes the file waits. */
@@ -376,39 +364,32 @@ export type ResourcePanelProps = {
   /** Values just picked, shown until the file says them. */
   pending: Readonly<Record<string, SettingValue>>;
   onSetting: (setting: string, value: SettingValue) => void;
-  onShowInFile: () => void;
-  /** `inspector`: a panel of its own with a way back to all resources. `card`: the body of an opened card. */
-  appearance: 'inspector' | 'card';
-  onBack?: () => void;
-  onClose?: () => void;
+  /** Back to all resources. */
+  onBack: () => void;
 };
 
 /**
- * Everything about one resource: what it is and what it runs on, what its price is made of, and every setting it has,
- * grouped, with the rare ones folded under "More settings". Why it is there closes it, in one quiet line.
+ * Everything about one resource: what it is, what it runs on and costs (the help mark beside the price says what the
+ * price is made of), and every setting it has, grouped, with the rare ones folded under "More settings".
  */
 export function ResourcePanel({
   name,
   resource,
   story,
-  citation,
   settings,
   price,
-  terms,
   lockedReason,
   isEdited,
   pending,
   onSetting,
-  onShowInFile,
-  appearance,
-  onBack,
-  onClose
+  onBack
 }: ResourcePanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const shown = settings.filter((setting) => !setting.advanced || showAdvanced);
   const folded = settings.filter((setting) => setting.advanced);
   const memory = settings.find((setting) => setting.id === 'memory')?.value;
   const service = awsServiceOf(resource);
+  const lines = costLinesOf(price, name);
   const reasonFor = (setting: ResourceSetting) =>
     lockedReason ??
     (isEdited && setting.preference !== undefined
@@ -416,36 +397,29 @@ export function ResourcePanel({
       : undefined);
 
   return (
-    <div className="rv-resource" data-appearance={appearance}>
-      {appearance === 'inspector' && (
-        <header className="rv-resource-head">
-          <div className="rv-resource-nav">
-            {onBack !== undefined && (
-              <button className="rv-back" onClick={onBack} type="button">
-                <BiChevronLeft aria-hidden size={18} />
-                All resources
-              </button>
-            )}
-            {onClose !== undefined && (
-              <button aria-label="Close" className="rv-close" onClick={onClose} type="button">
-                <BiX aria-hidden size={18} />
-              </button>
-            )}
-          </div>
-          <div className="rv-resource-title">
-            <span className="rv-resource-icon" style={{ '--rv-tone': categoryColor(resource.type) } as CSSProperties}>
-              <ResourceIcon resourceType={resource.type} size={22} />
-            </span>
-            <h2 className="rv-resource-name">{story?.plainName ?? name}</h2>
+    <div className="rv-resource">
+      <header className="rv-resource-head">
+        <button className="rv-back" onClick={onBack} type="button">
+          <BiChevronLeft aria-hidden size={18} />
+          All resources
+        </button>
+        <div className="rv-resource-title">
+          <ResourceTile type={resource.type} />
+          <h2 className="rv-resource-name">{story?.plainName ?? name}</h2>
+          <span className="rv-resource-price">
             <ResourcePrice name={name} price={price} />
-            <p className="rv-resource-sub">
-              <code>{name}</code>
-              {service !== undefined && <span> · {service}</span>}
-            </p>
-          </div>
-        </header>
-      )}
-      <CostLines memory={typeof memory === 'number' ? memory : undefined} name={name} price={price} />
+            {lines.length > 0 && (
+              <InfoTip about="the price" placement="bottom-end">
+                <PriceBreakdown lines={lines} memory={typeof memory === 'number' ? memory : undefined} />
+              </InfoTip>
+            )}
+          </span>
+          <p className="rv-resource-sub">
+            <code>{name}</code>
+            {service !== undefined && <span> · {service}</span>}
+          </p>
+        </div>
+      </header>
 
       {SETTING_GROUPS.map((group) => {
         const inGroup = shown.filter((setting) => setting.group === group);
@@ -461,7 +435,6 @@ export function ResourcePanel({
                 price={price}
                 resourceName={name}
                 setting={setting}
-                terms={terms}
                 value={pending[setting.id] ?? setting.value}
               />
             ))}
@@ -474,26 +447,25 @@ export function ResourcePanel({
       {folded.length > 0 && !showAdvanced && (
         <button aria-expanded={false} className="rv-more" onClick={() => setShowAdvanced(true)} type="button">
           <span>More settings</span>
-          <span className="rv-more-names">
-            {folded.map((setting) => (terms === 'aws' ? setting.awsTerm : setting.label)).join(' · ')}
-          </span>
+          <span className="rv-more-names">{folded.map((setting) => setting.label).join(' · ')}</span>
           <BiChevronDown aria-hidden size={18} />
         </button>
       )}
-
-      <footer className="rv-resource-foot">
-        {story !== undefined && (
-          <p className="rv-why">
-            <span className="rv-why-label">Why</span>
-            <EvidenceLine citation={citation} story={story} />
-          </p>
-        )}
-        <button className="rv-show" onClick={onShowInFile} type="button">
-          <BiCodeAlt aria-hidden size={15} />
-          Show in stacktape.yml
-        </button>
-      </footer>
     </div>
+  );
+}
+
+/** A resource's icon on a tile of its diagram colour, the same in its row and at the top of its settings. */
+function ResourceTile({ type, size = 'large' }: { type: string; size?: 'large' | 'small' }) {
+  return (
+    <span
+      aria-hidden
+      className="rv-tile"
+      data-size={size}
+      style={{ '--rv-tone': categoryColor(type) } as CSSProperties}
+    >
+      <ResourceIcon resourceType={type} size={size === 'large' ? 22 : 20} />
+    </span>
   );
 }
 
@@ -507,42 +479,35 @@ export type ResourceEntry = {
 };
 
 /**
- * The monthly estimate as a picture: the total, one bar split by what each resource takes of it in the diagram's
- * colours, and a row per resource saying what the money buys. A row opens that resource's settings.
+ * The monthly estimate, then a row per resource, most expensive first: what it is, its size and its price. A row opens
+ * that resource's settings.
  */
 export function CostOverview({
   entries,
   price,
   priceUnavailable,
   region,
-  selected,
   hovered,
-  onSelect,
-  compact = false,
-  rows = true
+  onSelect
 }: {
   entries: readonly ResourceEntry[];
   price: Price | undefined;
   priceUnavailable: boolean;
   region: string | undefined;
-  selected: string | undefined;
+  /** The resource the pointer is on in the picture: its row lights up with it. */
   hovered: string | undefined;
   onSelect: (name: string) => void;
-  /** Rows without the chevron or the itemized lines, for a card or a floating panel with less room. */
-  compact?: boolean;
-  /** No row per resource, where each resource has a card of its own with the same colour beside it. */
-  rows?: boolean;
 }) {
-  const shares = costShares(
+  const byName = new Map(entries.map((entry) => [entry.name, entry]));
+  const order = byMonthlyCost(
     price,
     entries.map((entry) => entry.name)
   );
-  const byName = new Map(entries.map((entry) => [entry.name, entry]));
   const total = price?.flatMonthly;
   const usage = entries.some((entry) => billedByUse(price, entry.name));
   return (
-    <section aria-label="Monthly cost" className="rv-costs">
-      <div className="rv-costs-head">
+    <>
+      <section aria-label="Monthly cost" className="rv-costs">
         <p className="rv-eyebrow">Estimated monthly cost</p>
         <p className="rv-total">
           {total !== undefined ? (
@@ -550,7 +515,7 @@ export function CostOverview({
               <AnimatedPrice className="rv-total-figure" text={`${money(total)} /month`} />
               {usage && (
                 <Tooltip
-                  content="Requests, traffic and storage that grows are billed on top, by use. Each row below says at what rate."
+                  content="Requests, traffic and storage that grows are billed on top, by use."
                   maxWidth={280}
                   placement="top"
                 >
@@ -565,60 +530,36 @@ export function CostOverview({
           )}
         </p>
         {price !== undefined && <p className="rv-costs-note">AWS list prices in {region ?? price.region}</p>}
-      </div>
-      {total !== undefined && total > 0 && (
-        <div aria-hidden className="rv-bar">
-          {shares
-            .filter((share) => share.share > 0)
-            .map((share) => (
-              <span
-                className="rv-bar-part"
-                data-active={share.name === (hovered ?? selected) ? 'true' : undefined}
-                key={share.name}
-                style={{
-                  flexGrow: share.share,
-                  background: categoryColor(byName.get(share.name)?.resource.type ?? '')
-                }}
-                title={byName.get(share.name)?.title}
-              />
-            ))}
-        </div>
-      )}
-      {rows && (
-        <ul className="rv-cost-rows">
-          {shares.map((share) => {
-            const entry = byName.get(share.name);
+        <TrafficExamples entries={entries} price={price} />
+      </section>
+      <OverviewSection title="Resources">
+        <ul aria-label="Resources" className="rv-rows">
+          {order.map((name) => {
+            const entry = byName.get(name);
             if (entry === undefined) return null;
             const summary = sizeSummary(entry.settings);
             return (
-              <li key={share.name}>
+              <li key={name}>
                 <button
-                  className="rv-cost-row"
-                  data-active={share.name === selected ? 'true' : undefined}
-                  data-hovered={share.name === hovered ? 'true' : undefined}
-                  onClick={() => onSelect(share.name)}
+                  className="rv-row"
+                  data-hovered={name === hovered ? 'true' : undefined}
+                  onClick={() => onSelect(name)}
                   type="button"
                 >
-                  <span aria-hidden className="rv-dot" style={{ background: categoryColor(entry.resource.type) }} />
-                  <ResourceIcon resourceType={entry.resource.type} size={18} />
-                  <span className="rv-cost-name">
+                  <ResourceTile size="small" type={entry.resource.type} />
+                  <span className="rv-row-name">
                     <strong>{entry.title}</strong>
-                    {summary !== undefined && <small>{summary}</small>}
+                    <small>{summary ?? <code>{name}</code>}</small>
                   </span>
-                  <span className="rv-cost-amount">
-                    <ResourcePrice name={share.name} price={price} />
-                    {share.share > 0 && <small>{Math.round(share.share * 100)}%</small>}
-                  </span>
-                  {!compact && <BiChevronRight aria-hidden className="rv-cost-chevron" size={18} />}
+                  <ResourcePrice name={name} price={price} />
+                  <BiChevronRight aria-hidden className="rv-row-chevron" size={20} />
                 </button>
-                {!compact && <ReceiptLines name={share.name} price={price} />}
               </li>
             );
           })}
         </ul>
-      )}
-      {(!compact || !rows) && <TrafficExamples entries={entries} price={price} />}
-    </section>
+      </OverviewSection>
+    </>
   );
 }
 
@@ -640,8 +581,8 @@ function TrafficExamples({ entries, price }: { entries: readonly ResourceEntry[]
       <p className="rv-traffic-title">
         With traffic
         <InfoTip about="the traffic estimate">
-          The fixed amount plus requests at 100 ms each, at the rates above. Data sent out to visitors is billed on top
-          (the first 100 GB a month are free).
+          The fixed amount plus requests at 100 ms each. Data sent out to visitors is billed on top (the first 100 GB a
+          month are free).
         </InfoTip>
       </p>
       <dl className="rv-traffic-rows">
@@ -653,22 +594,6 @@ function TrafficExamples({ entries, price }: { entries: readonly ResourceEntry[]
         ))}
       </dl>
     </div>
-  );
-}
-
-/** The items under a resource's row in the overview: what its fixed amount is made of, and how usage is billed. */
-function ReceiptLines({ price, name }: { price: Price | undefined; name: string }) {
-  const lines = costLinesOf(price, name);
-  if (lines.length === 0) return null;
-  return (
-    <ul className="rv-receipt">
-      {keyedLines(lines).map(({ line, key }) => (
-        <li data-usage={line.monthly === undefined ? 'true' : undefined} key={key}>
-          <span>{costLineLabel(line)}</span>
-          <span>{line.monthly === undefined ? (usageRate(line) ?? 'By use') : `${money(line.monthly)}/mo`}</span>
-        </li>
-      ))}
-    </ul>
   );
 }
 

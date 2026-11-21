@@ -31,7 +31,7 @@ export function EmptyStep({
 }) {
   const nearby = state.nearbyApps ?? [];
   const usedAgent = state.choice !== undefined && state.choice.agentId !== 'none';
-  const agent = (state.agents ?? []).find((option) => option.id !== 'none');
+  const agent = (state.agents ?? []).find((option) => option.id !== 'none' && option.installed !== false);
   const [starterId, setStarterId] = useState<StarterId>(STARTERS[0].id);
   const starter = STARTERS.find((entry) => entry.id === starterId) ?? STARTERS[0];
 

@@ -343,9 +343,6 @@ export function App() {
           onConfirmSecrets={() => void run('secrets', () => session.confirmSecrets(), 'Could not record that.')}
           onDecision={(id, value) => void run(id, () => session.answer(id, value), 'That change could not be applied.')}
           onDeploy={deployTo}
-          onDismissVerification={() =>
-            void run('dismiss-verify', () => session.dismissVerification(), 'Could not set the result aside.')
-          }
           onLoadEnvironment={session.readEnvironmentValues}
           onRecheck={() => void run('recheck', () => session.recheck(), 'Could not check again.')}
           onRegion={(region) => void run('region', () => session.setRegion(region), 'That region could not be chosen.')}
@@ -359,7 +356,6 @@ export function App() {
             }
           }}
           onStageChange={setStage}
-          onVerify={() => void run('verify', () => session.verify(), 'The local try-out could not be started.')}
           stage={stage}
           state={state}
         />

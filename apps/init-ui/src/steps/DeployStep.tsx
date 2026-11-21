@@ -3,14 +3,14 @@ import { Badge } from '@stacktape/ui-react/badge';
 import { Button } from '@stacktape/ui-react/button';
 import { CommandLine } from '@stacktape/ui-react/command-line';
 import { RadioGroup } from '@stacktape/ui-react/radio-group';
-import { Spinner } from '@stacktape/ui-react/spinner';
 import { TextField } from '@stacktape/ui-react/text-field';
 import { Tooltip } from '@stacktape/ui-react/tooltip';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
-import { BiCheck, BiChevronRight, BiErrorCircle, BiLinkExternal } from 'react-icons/bi';
+import { BiChevronRight, BiErrorCircle, BiLinkExternal } from 'react-icons/bi';
 import { ActionBar, MonthlyPrice } from '../components/ActionBar';
 import { DeploySummary } from '../components/DeploySummary';
 import { DeployTarget } from '../components/DeployTarget';
+import { Expand } from '../components/Expand';
 import { FailureExplanationText } from '../components/FailureExplanation';
 import { InfoTip } from '../components/InfoTip';
 import { SecretsList, type RemovedSecret } from '../components/SecretsList';
@@ -27,8 +27,7 @@ import {
   type SecretEntry
 } from '../secrets-model';
 import type { WizardState } from '../session';
-import { blockedTargetCopy, stackStatusWords } from '../target-copy';
-import { deployLayout } from './deploy-layout';
+import { blockedTargetCopy } from '../target-copy';
 import { monthlySuffix, plainList, splitMonthly } from './review-model';
 
 type Expectation = { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
@@ -40,9 +39,6 @@ const expectationOf = (target: WizardState['deployTarget']): Expectation =>
     : target?.status === 'updateable'
       ? { kind: 'update', stackId: target.stackId }
       : { kind: 'check' };
-
-/** Container services, the only ones the local try-out can start. */
-const CONTAINER_TYPES = new Set(['web-service', 'worker-service', 'private-service', 'multi-container-workload']);
 
 /** "app depends on Drizzle Kit, but nothing we found runs "npx drizzle-kit migrate". …" → the service and command. */
 export const runnableMigration = (gap: {
@@ -73,6 +69,12 @@ export const migrationRunnerOf = (resources: ConfigResources, service: string | 
   if (type !== undefined && RELEASE_COMMAND_TYPES.has(type)) return 'container';
   if (type?.endsWith('-web') === true) return 'site';
   return 'after-deploy';
+};
+
+/** The variables of some secrets, as code, the first three by name: "`NATS_URL`, `RMQ_URL` and 2 more". */
+const variableList = (entries: readonly SecretEntry[]): string => {
+  const names = entries.map((entry) => `\`${entry.variable}\``);
+  return names.length <= 3 ? plainList(names) : `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
 };
 
 /** Text from the analysis with its backticked names set as code. */
@@ -140,8 +142,6 @@ export function DeployStep({
   onRecheck,
   onDecision,
   onRegion,
-  onVerify,
-  onDismissVerification,
   onLoadEnvironment
 }: {
   state: WizardState;
@@ -159,14 +159,11 @@ export function DeployStep({
   onRecheck: () => void;
   onDecision: (id: string, value: string) => void;
   onRegion: (region: string) => void;
-  onVerify: () => void;
-  onDismissVerification: () => void;
   /** The project's `.env` values for the secrets, read once the secrets can be saved from here. */
   onLoadEnvironment: () => Promise<
     { file: string; values: Array<{ name: string; value: string }> } | { file: undefined }
   >;
 }) {
-  const layout = deployLayout(window.location.search);
   const file = state.configFile;
   const identity = state.awsIdentity;
   const region = file?.region ?? state.region ?? 'eu-west-1';
@@ -314,15 +311,6 @@ export function DeployStep({
         ])
   ];
 
-  const verification = state.verification;
-  const canTryOut =
-    Object.values(resources).some((resource) => CONTAINER_TYPES.has(resource.type)) &&
-    verification?.status !== 'unavailable';
-  const verificationBlocks =
-    verification?.status === 'running' ||
-    verification?.status === 'repairing' ||
-    (verification?.status === 'completed' && (verification.services ?? []).some((entry) => entry.status === 'failed'));
-
   const migrationOn = migrationDecision?.chosen === 'deploy-hook' || migrationDecision?.chosen === 'release-command';
   const migrationNeeded = migration !== undefined && !migrationOn && !skipMigration;
 
@@ -407,7 +395,6 @@ export function DeployStep({
     awsState === 'ready' &&
     secretsDone &&
     !migrationNeeded &&
-    !verificationBlocks &&
     !notDeployable &&
     stage !== '';
   /** The file is on disk and its stack checked: a deploy can start now. */
@@ -475,11 +462,7 @@ export function DeployStep({
         : ((activeSection === undefined ? undefined : bySection[activeSection]) ??
           firstAction ??
           awsNext ??
-          (verificationBlocks
-            ? { text: 'the local try-out' }
-            : notDeployable
-              ? { text: 'a gap in the configuration' }
-              : undefined));
+          (notDeployable ? { text: 'a gap in the configuration' } : undefined));
   const remaining = sections.filter((section) => section.state === 'needs-input' || section.state === 'blocked').length;
 
   const price = state.composition?.price;
@@ -560,7 +543,7 @@ export function DeployStep({
   );
 
   return (
-    <div className={`w-enter w-deploy is-${layout}`}>
+    <div className="w-enter w-deploy">
       <header className="w-hero">
         <h1 className="w-title">{noCredentials ? 'Connect AWS to deploy' : `Deploy to ${stage || 'dev'}`}</h1>
         <p className="w-lede">
@@ -621,11 +604,9 @@ export function DeployStep({
                         stackLine={
                           identity?.available === true && !switching ? (
                             <TargetLine
-                              checking={shownTarget === undefined}
                               commandTarget={commandTarget}
                               isRechecking={busy === 'recheck'}
                               onRecheck={onRecheck}
-                              stage={stage}
                               target={shownTarget}
                             />
                           ) : undefined
@@ -663,9 +644,9 @@ export function DeployStep({
                             : `All ${plan.entries.length} saved in ${identity?.available === true && identity.accountAlias !== undefined ? identity.accountAlias : 'your AWS account'}, in ${region}.`
                         : secretsState === 'waiting'
                           ? `${plan.entries.length} ${secretsNoun(plan.entries.length)} your app reads. They are saved in your AWS account.`
-                          : unsaved.length === plan.entries.length
-                            ? `${plan.entries.length} ${secretsNoun(plan.entries.length)} your app reads. None saved yet.`
-                            : `${plan.entries.length - unsaved.length} of ${plan.entries.length} saved.`}
+                          : withCode(
+                              `${unsaved.length === plan.entries.length ? 'Your app reads' : 'Still to save:'} ${variableList(unsaved)}.`
+                            )}
                     </p>
                   }
                   title={hasSettings ? 'Secrets and settings' : 'Secrets'}
@@ -756,40 +737,32 @@ export function DeployStep({
                   <MigrationNote message={migrationNote.message} />
                 </Section>
               )}
-
-              {canTryOut && (
-                <TryOut
-                  busy={busy}
-                  onDismiss={onDismissVerification}
-                  onVerify={onVerify}
-                  verification={verification}
-                  verificationBlocks={verificationBlocks}
-                />
-              )}
             </ul>
           </section>
 
-          {/* In the split layout this one shows only on a narrow screen, where the side summary has no room. */}
+          {/* Only on a narrow screen, where the side summary has no room. */}
           {summary(false)}
 
           {notes.length > 0 && <Notes notes={notes} />}
 
           <div className="w-terminal">
             <button
+              aria-controls="deploy-terminal"
               aria-expanded={showTerminal}
-              className="w-link w-small text-[var(--w-subtle)]"
+              className="w-disclosure"
               onClick={() => setShowTerminal(!showTerminal)}
               type="button"
             >
-              {showTerminal ? 'Hide the terminal command' : 'Deploy from a terminal instead'}
+              <BiChevronRight aria-hidden className="w-chevron" size={16} />
+              Deploy from a terminal instead
             </button>
-            {showTerminal && (
+            <Expand id="deploy-terminal" isOpen={showTerminal}>
               <CommandLine command={stackCommand('deploy', commandTarget)} fill label="Copy the deploy command" />
-            )}
+            </Expand>
           </div>
         </div>
 
-        {layout === 'split' && <aside className="w-deploy-side">{summary(true)}</aside>}
+        <aside className="w-deploy-side">{summary(true)}</aside>
       </div>
 
       <ActionBar
@@ -811,7 +784,10 @@ export function DeployStep({
   );
 }
 
-/** One section of the readiness list: its mark, its title with where it stands, then a summary or its controls. */
+/**
+ * One section of the readiness list: its mark, its title with where it stands, then a summary or its controls. One that
+ * opens and closes does it from its whole title row, with the chevron at the end, and grows to its content.
+ */
 function Section({
   id,
   title,
@@ -825,86 +801,82 @@ function Section({
 }: {
   id: SectionId;
   title: ReactNode;
-  /** Beside the state, on the title line: "1 of 3 saved". */
+  /** Beside the chevron, on the title line: "1 of 3 saved". */
   titleAside?: ReactNode;
   state: SectionState;
-  /** One line for a folded section: how many secrets are saved, what the migration does. */
+  /** One line for a closed section: how many secrets are saved, what the migration does. */
   summary?: ReactNode;
   isOpen: boolean;
-  /** Absent: the section cannot be folded or opened from here. */
+  /** Absent: the section cannot be closed or opened from here. */
   onToggle?: (() => void) | undefined;
   /** No "Ready" beside the title: the controls under it already show what was chosen. */
   quietWhenReady?: boolean;
   children?: ReactNode;
 }) {
+  const titleId = `deploy-${id}-title`;
   return (
     <li className={`w-check is-${state}${isOpen ? ' is-open' : ''}`} id={`deploy-${id}`}>
-      <StatusIcon status={STATE_ICON[state]} />
-      <div className="min-w-0">
-        <div className="w-check-head">
-          <h2 className="w-check-title">
-            {title}
-            {!(quietWhenReady && state === 'ready') && (
-              <span className={`w-state is-${state}`}>{STATE_WORDS[state]}</span>
-            )}
-          </h2>
+      <div className="w-check-head">
+        <StatusIcon status={STATE_ICON[state]} />
+        <h2 className="w-check-title" id={titleId}>
+          {title}
+          {!(quietWhenReady && state === 'ready') && (
+            <span className={`w-state is-${state}`}>{STATE_WORDS[state]}</span>
+          )}
+        </h2>
+        {(titleAside !== undefined || onToggle !== undefined) && (
           <span className="w-check-aside">
-            {isOpen && titleAside}
+            {titleAside}
             {onToggle !== undefined && (
-              <button aria-expanded={isOpen} className="w-link w-small" onClick={onToggle} type="button">
-                {isOpen ? (state === 'ready' ? 'Done' : 'Hide') : state === 'ready' ? 'Edit' : 'Show'}
+              <button
+                aria-controls={`deploy-${id}-content`}
+                aria-expanded={isOpen}
+                aria-labelledby={titleId}
+                className="w-check-toggle"
+                onClick={onToggle}
+                type="button"
+              >
+                <BiChevronRight aria-hidden className="w-chevron" size={18} />
               </button>
             )}
           </span>
-        </div>
-        {isOpen ? <div className="w-check-content">{children}</div> : summary}
+        )}
+      </div>
+      <div className="w-check-body">
+        {summary !== undefined && <Expand isOpen={!isOpen}>{summary}</Expand>}
+        {children !== undefined && (
+          <Expand id={`deploy-${id}-content`} isOpen={isOpen}>
+            <div className="w-check-content">{children}</div>
+          </Expand>
+        )}
       </div>
     </li>
   );
 }
 
+/**
+ * What deploying there does to the stack, only when it changes the decision: a stack that is already there and gets
+ * updated, or one that stops the deploy. A new stack, and the read-only check itself, say nothing here.
+ */
 function TargetLine({
   target,
-  stage,
-  checking,
   commandTarget,
   isRechecking,
   onRecheck
 }: {
   target: WizardState['deployTarget'];
-  stage: string;
-  checking: boolean;
   commandTarget: Parameters<typeof stackCommand>[1];
   isRechecking: boolean;
   onRecheck: () => void;
 }) {
-  if (stage === '') {
-    return <p className="w-target-line is-quiet">Name the stage, and the stack is checked, read-only.</p>;
-  }
-  if (checking || target === undefined) {
-    return (
-      <p className="w-target-line">
-        <Spinner /> Checking the stack, read-only…
-      </p>
-    );
-  }
-  if (target.status === 'absent') {
-    return (
-      <p className="w-target-line is-ok">
-        <BiCheck aria-hidden size={15} />
-        <span>
-          Creates the stack <span className="w-code">{target.stackName}</span>. Nothing is there yet.
-        </span>
-      </p>
-    );
-  }
+  if (target === undefined || target.status === 'absent') return null;
   if (target.status === 'updateable') {
     return (
-      <p className="w-target-line is-ok">
-        <BiCheck aria-hidden size={15} />
+      <p className="w-target-line is-warn">
+        <BiErrorCircle aria-hidden size={15} />
         <span>
-          Updates <span className="w-code">{target.stackName}</span>: {stackStatusWords(target.stackStatus)}.
-          <InfoTip about="updating a stack">Anything in the stack that the file no longer has is removed.</InfoTip>
+          <span className="w-code">{target.stackName}</span> already exists. This deploy updates it and removes anything
+          the file no longer has.
         </span>
       </p>
     );
@@ -1241,127 +1213,132 @@ function AwsConnect({
             <span className="w-quiet">After you sign in.</span>
           </div>
           <button
+            aria-controls="aws-path"
             aria-expanded={otherLogin}
-            className="w-link w-small w-relogin-other"
+            className="w-disclosure w-relogin-other"
             onClick={() => setOtherLogin(!otherLogin)}
             type="button"
           >
-            {otherLogin ? 'Hide other AWS logins' : 'Use a different AWS login'}
+            <BiChevronRight aria-hidden className="w-chevron" size={16} />
+            Use a different AWS login
           </button>
         </div>
       )}
 
-      {showPaths && (
-        <div className="w-choices w-aws-paths" id="aws-path">
-          <RadioGroup<AwsPath>
-            label={expired ? <span className="sr-only">How you sign in to AWS</span> : 'How do you sign in to AWS?'}
-            name="aws-path"
-            onValueChange={setPath}
-            options={[
-              {
-                value: 'sso',
-                label: 'Sign in through my company',
-                description: 'Your company signs you in to AWS through a portal (SSO).'
-              },
-              {
-                value: 'keys',
-                label: KEYS_LABEL,
-                description: 'An access key ID and secret from IAM.'
-              }
-            ]}
-            value={(path ?? '') as AwsPath}
-          />
-        </div>
-      )}
-
-      {showPaths && path === 'keys' && (
-        <form
-          className="w-path-body"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onAwsKeys(keyId.trim(), secret.trim());
-          }}
-        >
-          <div className="w-keys">
-            <TextField
-              autoComplete="off"
-              label="Access key ID"
-              onChange={(event) => setKeyId(event.target.value)}
-              placeholder="AKIA…"
-              reserveMessageSpace={false}
-              spellCheck={false}
-              value={keyId}
-            />
-            <TextField
-              autoComplete="off"
-              label="Secret access key"
-              onChange={(event) => setSecret(event.target.value)}
-              reserveMessageSpace={false}
-              spellCheck={false}
-              type="password"
-              value={secret}
+      <Expand id="aws-path" isOpen={showPaths}>
+        <div className="w-aws-paths-body">
+          <div className="w-choices w-aws-paths">
+            <RadioGroup<AwsPath>
+              label={expired ? <span className="sr-only">How you sign in to AWS</span> : 'How do you sign in to AWS?'}
+              name="aws-path"
+              onValueChange={setPath}
+              options={[
+                {
+                  value: 'sso',
+                  label: 'Sign in through my company',
+                  description: 'Your company signs you in to AWS through a portal (SSO).'
+                },
+                {
+                  value: 'keys',
+                  label: KEYS_LABEL,
+                  description: 'An access key ID and secret from IAM.'
+                }
+              ]}
+              value={(path ?? '') as AwsPath}
             />
           </div>
-          <p className="w-check-meta">
-            Saved on this machine in <span className="w-code">~/.aws/credentials</span> as {profileWords}. Never sent to
-            Stacktape.
-            <InfoTip about="access keys">
-              Keys of an IAM user that may create resources; for a personal account, one with AdministratorAccess. In
-              the AWS console: IAM → Users → your user → Security credentials → Create access key. This is what{' '}
-              <span className="w-code">stacktape aws-profile:create</span> does.
-            </InfoTip>
-          </p>
-          <div>
-            <Button
-              disabled={keyId === '' || secret === ''}
-              isLoading={busy === 'aws-keys' || state.awsKeys?.status === 'saving'}
-              type="submit"
-              variant="primary"
+
+          <Expand isOpen={path === 'keys'}>
+            <form
+              className="w-path-body"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onAwsKeys(keyId.trim(), secret.trim());
+              }}
             >
-              Save on this machine
-            </Button>
-          </div>
-          {state.awsKeys?.status === 'failed' && <p className="w-error-text">{state.awsKeys.detail}</p>}
-          {state.awsKeys?.status === 'saved' && identity.reason === 'rejected' && (
-            <p className="w-error-text">Saved, but AWS did not accept these keys. Check they are active in IAM.</p>
-          )}
-        </form>
-      )}
+              <div className="w-keys">
+                <TextField
+                  autoComplete="off"
+                  label="Access key ID"
+                  onChange={(event) => setKeyId(event.target.value)}
+                  placeholder="AKIA…"
+                  reserveMessageSpace={false}
+                  spellCheck={false}
+                  value={keyId}
+                />
+                <TextField
+                  autoComplete="off"
+                  label="Secret access key"
+                  onChange={(event) => setSecret(event.target.value)}
+                  reserveMessageSpace={false}
+                  spellCheck={false}
+                  type="password"
+                  value={secret}
+                />
+              </div>
+              <p className="w-check-meta">
+                Saved on this machine in <span className="w-code">~/.aws/credentials</span> as {profileWords}. Never
+                sent to Stacktape.
+                <InfoTip about="access keys">
+                  Keys of an IAM user that may create resources; for a personal account, one with AdministratorAccess.
+                  In the AWS console: IAM → Users → your user → Security credentials → Create access key. This is what{' '}
+                  <span className="w-code">stacktape aws-profile:create</span> does.
+                </InfoTip>
+              </p>
+              <div>
+                <Button
+                  disabled={keyId === '' || secret === ''}
+                  isLoading={busy === 'aws-keys' || state.awsKeys?.status === 'saving'}
+                  type="submit"
+                  variant="primary"
+                >
+                  Save on this machine
+                </Button>
+              </div>
+              {state.awsKeys?.status === 'failed' && <p className="w-error-text">{state.awsKeys.detail}</p>}
+              {state.awsKeys?.status === 'saved' && identity.reason === 'rejected' && (
+                <p className="w-error-text">Saved, but AWS did not accept these keys. Check they are active in IAM.</p>
+              )}
+            </form>
+          </Expand>
 
-      {showPaths && path === 'sso' && (
-        <ol className="w-steps-list w-path-body">
-          <Step text="Set up the profile once. It asks for your SSO start URL.">
-            <CommandLine command="aws configure sso" fill label="Copy the SSO setup command" />
-          </Step>
-          <Step text="Sign in. Do this again when the session expires.">
-            <CommandLine command={`aws sso login${profileFlag}`} fill label="Copy the sign-in command" />
-          </Step>
-          <Step
-            text={
-              <span className="inline-flex items-center gap-1.5">
-                Then check again.
-                {profileTip}
-              </span>
-            }
-          >
-            <div>{checkAgain('primary')}</div>
-          </Step>
-        </ol>
-      )}
+          <Expand isOpen={path === 'sso'}>
+            <ol className="w-steps-list w-path-body">
+              <Step text="Set up the profile once. It asks for your SSO start URL.">
+                <CommandLine command="aws configure sso" fill label="Copy the SSO setup command" />
+              </Step>
+              <Step text="Sign in. Do this again when the session expires.">
+                <CommandLine command={`aws sso login${profileFlag}`} fill label="Copy the sign-in command" />
+              </Step>
+              <Step
+                text={
+                  <span className="inline-flex items-center gap-1.5">
+                    Then check again.
+                    {profileTip}
+                  </span>
+                }
+              >
+                <div>{checkAgain('primary')}</div>
+              </Step>
+            </ol>
+          </Expand>
+        </div>
+      </Expand>
 
       {identity.reason === 'no-credentials' && (
         // Someone without an account leaves this page for a while: the way there, and the way back to here.
         <div className="w-aws-new">
           <button
+            aria-controls="aws-new"
             aria-expanded={creating}
             className="w-disclosure"
             onClick={() => setCreating(!creating)}
             type="button"
           >
-            <BiChevronRight aria-hidden className="w-disclosure-chevron" size={16} />
+            <BiChevronRight aria-hidden className="w-chevron" size={16} />
             No AWS account yet?
           </button>
-          {creating && (
+          <Expand id="aws-new" isOpen={creating}>
             <ol className="w-steps-list w-path-body">
               <Step
                 text={
@@ -1407,7 +1384,7 @@ function AwsConnect({
                 <div>{checkAgain('secondary')}</div>
               </Step>
             </ol>
-          )}
+          </Expand>
         </div>
       )}
     </>
@@ -1425,88 +1402,6 @@ function Step({ text, children }: { text: ReactNode; children?: ReactNode }) {
   );
 }
 
-function TryOut({
-  verification,
-  verificationBlocks,
-  busy,
-  onVerify,
-  onDismiss
-}: {
-  verification: WizardState['verification'];
-  verificationBlocks: boolean;
-  busy: string | undefined;
-  onVerify: () => void;
-  onDismiss: () => void;
-}) {
-  const services = verification?.services ?? [];
-  const failed = services.filter((entry) => entry.status === 'failed');
-  const status: CheckStatus =
-    verification === undefined || verification.status === 'dismissed'
-      ? 'idle'
-      : verification.status === 'running' || verification.status === 'repairing'
-        ? 'busy'
-        : failed.length > 0
-          ? 'error'
-          : 'ok';
-  const canStart =
-    (verification === undefined || verificationBlocks || verification.status === 'dismissed') &&
-    verification?.status !== 'running' &&
-    verification?.status !== 'repairing';
-  return (
-    <li className="w-check" id="deploy-tryout">
-      <StatusIcon status={status} />
-      <div className="min-w-0">
-        <div className="w-check-head">
-          <h2 className="w-check-title">
-            Try it on this machine first
-            <InfoTip about="the local try-out">
-              Builds your app in Docker and starts it offline with placeholder settings, to catch an app that will not
-              start before AWS bills for it. It runs your project’s code.
-            </InfoTip>
-            {verification === undefined && <span className="w-state is-optional">Optional</span>}
-          </h2>
-          {canStart && (
-            <span className="w-check-aside">
-              <Button isLoading={busy === 'verify'} onClick={onVerify} variant="secondary">
-                {verification === undefined ? 'Build and start it' : 'Try again'}
-              </Button>
-            </span>
-          )}
-        </div>
-        <p className="w-check-meta">
-          {verification === undefined
-            ? 'Catches an app that will not start, before AWS bills for it.'
-            : verification.status === 'running'
-              ? 'Building and starting your app. A first build can take a few minutes.'
-              : verification.status === 'repairing'
-                ? 'It did not start. Working out what we got wrong, then trying again.'
-                : verification.status === 'dismissed'
-                  ? 'Set aside. You can deploy.'
-                  : failed.length > 0
-                    ? `${failed.map((entry) => entry.serviceName).join(', ')} did not start: ${failed[0]!.reason}`
-                    : 'It started and listened as expected.'}
-        </p>
-        {failed[0] !== undefined && failed[0].observations.missingEnvironmentVariables.length > 0 && (
-          <p className="w-check-meta">
-            It read <span className="w-code">{failed[0].observations.missingEnvironmentVariables.join(', ')}</span> and
-            nothing sets it. Add it under <span className="w-code">environment</span> in the file, or as a secret.
-          </p>
-        )}
-        {failed[0] !== undefined && failed[0].observations.logTail.length > 0 && (
-          <pre className="w-log">{failed[0].observations.logTail.slice(-8).join('\n')}</pre>
-        )}
-        {verificationBlocks && verification?.status === 'completed' && (
-          <div className="mt-3">
-            <Button onClick={onDismiss} variant="secondary">
-              Deploy anyway
-            </Button>
-          </div>
-        )}
-      </div>
-    </li>
-  );
-}
-
 /**
  * What the analysis noticed that the checklist does not ask about: one folded row ("3 notes about compose.yml"), and
  * each note, opened, as what it means for the deploy, then what to do about it.
@@ -1515,17 +1410,20 @@ function Notes({ notes }: { notes: readonly PlainNote[] }) {
   const [isOpen, setOpen] = useState(false);
   return (
     <section aria-label="Worth a look" className={`w-notes${isOpen ? ' is-open' : ''}`}>
-      <button aria-expanded={isOpen} className="w-notes-head" onClick={() => setOpen(!isOpen)} type="button">
+      <button
+        aria-controls="deploy-notes"
+        aria-expanded={isOpen}
+        className="w-notes-head"
+        onClick={() => setOpen(!isOpen)}
+        type="button"
+      >
         <BiErrorCircle aria-hidden className="w-notes-icon" size={17} />
         <span className="w-notes-title">
           Worth a look <span>{notesHeading(notes)}</span>
         </span>
-        <span className="w-notes-toggle">
-          {isOpen ? 'Hide' : 'Show'}
-          <BiChevronRight aria-hidden className="w-task-chevron" size={16} />
-        </span>
+        <BiChevronRight aria-hidden className="w-chevron" size={18} />
       </button>
-      {isOpen && (
+      <Expand id="deploy-notes" isOpen={isOpen}>
         <ul className="w-notes-list">
           {notes.map((note) => (
             <li key={note.key}>
@@ -1534,7 +1432,7 @@ function Notes({ notes }: { notes: readonly PlainNote[] }) {
             </li>
           ))}
         </ul>
-      )}
+      </Expand>
     </section>
   );
 }
