@@ -2,6 +2,7 @@ import type { ComponentProps, CSSProperties, KeyboardEvent, ReactNode, Ref } fro
 import type {
   ActionMeta,
   ControlProps,
+  MultiValueGenericProps,
   SingleValueProps,
   InputActionMeta,
   MenuPlacement,
@@ -70,6 +71,11 @@ export type SelectProps<Value> = {
    * label above would not fit. A preselected value alone does not say what the control chooses.
    */
   inlineLabel?: ReactNode;
+  /**
+   * How the closed control looks. By default a select you can type into is a field and one you can only open is a
+   * button. A row of filters passes `field`, so every select in it looks like the search field beside it.
+   */
+  appearance?: 'field' | 'button';
   menuPlacement?: MenuPlacement;
   minMenuHeight?: number;
   maxMenuHeight?: number;
@@ -139,6 +145,12 @@ function SelectControl<Value>(controlProps: ControlProps<SelectOption<Value>, bo
 function SelectSingleValue<Value>(singleValueProps: SingleValueProps<SelectOption<Value>, boolean>) {
   const option = singleValueProps.data;
   return <components.SingleValue {...singleValueProps}>{option.valueLabel ?? option.label}</components.SingleValue>;
+}
+
+/** A chosen option's chip in a multiple choice takes the same shorter form as a single choice's value. */
+function SelectMultiValueLabel<Value>(labelProps: MultiValueGenericProps<SelectOption<Value>, boolean>) {
+  const option = labelProps.data;
+  return <components.MultiValueLabel {...labelProps}>{option.valueLabel ?? option.label}</components.MultiValueLabel>;
 }
 
 function SelectOptionComponent<Value>(optionProps: OptionProps<SelectOption<Value>, boolean>) {
@@ -231,6 +243,7 @@ export function Select<Value>({
   reserveMessageSpace = true,
   required = false,
   searchable = true,
+  appearance,
   style,
   tabSelectsValue,
   value,
@@ -239,6 +252,7 @@ export function Select<Value>({
   const selectComponents = useMemo(
     () => ({
       Control: SelectControl<Value>,
+      MultiValueLabel: SelectMultiValueLabel<Value>,
       Option: SelectOptionComponent<Value>,
       SingleValue: SelectSingleValue<Value>
     }),
@@ -252,6 +266,7 @@ export function Select<Value>({
   const styles = useMemo(
     () =>
       createStyles<Value>({
+        appearance,
         controlHeight,
         cursor,
         hasLeading: !!leading || !!inlineLabel,
@@ -261,6 +276,7 @@ export function Select<Value>({
         searchable
       }),
     [
+      appearance,
       controlHeight,
       cursor,
       leading,
@@ -298,6 +314,14 @@ export function Select<Value>({
           {...(closeMenuOnSelect === undefined ? {} : { closeMenuOnSelect })}
           components={selectComponents}
           filterOption={filterSelectOption}
+          // React Select uses this text for announcements and chip removal. The custom components render the visuals.
+          getOptionLabel={({ label: optionLabel, valueLabel, searchText, value: optionValue }) =>
+            typeof optionLabel === 'string'
+              ? optionLabel
+              : typeof valueLabel === 'string'
+                ? valueLabel
+                : (searchText ?? String(optionValue))
+          }
           {...(defaultValue === undefined ? {} : { defaultValue })}
           {...(form === undefined ? {} : { form })}
           {...(hideSelectedOptions === undefined ? {} : { hideSelectedOptions })}
@@ -377,6 +401,7 @@ const neutralTheme = (theme: Theme): Theme => ({
 });
 
 function createStyles<Value>({
+  appearance,
   controlHeight,
   cursor,
   hasLeading,
@@ -385,6 +410,7 @@ function createStyles<Value>({
   multiple,
   searchable
 }: {
+  appearance: 'field' | 'button' | undefined;
   controlHeight: number | string;
   cursor: CSSProperties['cursor'];
   hasLeading: boolean;
@@ -396,7 +422,7 @@ function createStyles<Value>({
   // A select you can type into is a field: recessed, like a text input. One you can only open is a button that opens
   // a menu, so it wears the secondary button's surface and its rest, hover and focus shadows (the time range picker
   // does the same).
-  const isButton = !searchable && !multiple;
+  const isButton = appearance ? appearance === 'button' && !multiple : !searchable && !multiple;
   return {
     clearIndicator: (base) => ({
       ...base,
