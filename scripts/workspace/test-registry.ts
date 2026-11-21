@@ -2386,6 +2386,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
       'apps/console/ui/e2e/isolated-incident-page.test.ts',
+      'apps/console/ui/e2e/isolated-incident-links.test.ts',
       'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
       'apps/console/ui/e2e/isolated-traces.test.ts',
       'apps/console/ui/e2e/isolated-setup-states.test.ts',
@@ -2977,6 +2978,7 @@ export const lanes: readonly Lane[] = [
       'apps/console/ui/e2e/isolated-secrets.test.ts',
       'apps/console/ui/e2e/isolated-observability-volume.test.ts',
       'apps/console/ui/e2e/isolated-incident-page.test.ts',
+      'apps/console/ui/e2e/isolated-incident-links.test.ts',
       'apps/console/ui/e2e/isolated-monitoring-pages.test.ts',
       'apps/console/ui/e2e/isolated-traces.test.ts',
       'apps/console/ui/e2e/isolated-setup-states.test.ts',
@@ -6199,7 +6201,8 @@ export const slices: readonly Slice[] = [
       'apps/console/api/scripts/incidents-database.test.ts',
       'apps/console/api/src/services/incident-stored-details.test.ts',
       'apps/console/ui/e2e/isolated-incident-triage.test.ts',
-      'apps/console/ui/e2e/isolated-incident-page.test.ts'
+      'apps/console/ui/e2e/isolated-incident-page.test.ts',
+      'apps/console/ui/e2e/isolated-incident-links.test.ts'
     ],
     lanes: [
       'cli-issue-incident-rules',
