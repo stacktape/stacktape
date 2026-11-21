@@ -15,6 +15,7 @@ import {
   type ResourceGroup,
   type StepStatus
 } from '../../deploy-model';
+import { Expand } from '../../components/Expand';
 import { partName } from '../../part-names';
 import { awsTypeDescription, awsTypeName } from './aws-types';
 import { useNow } from './use-now';
@@ -72,8 +73,7 @@ export function DeploySteps({
   context,
   live,
   failed = false,
-  initiallyOpen = NONE,
-  summary = false
+  initiallyOpen = NONE
 }: {
   model: DeployModel;
   context: RunContext;
@@ -82,14 +82,12 @@ export function DeploySteps({
   failed?: boolean;
   /** Phases open from the start on a finished deploy. */
   initiallyOpen?: readonly string[];
-  /** One line per phase and nothing to open, beside a log that has the rest. */
-  summary?: boolean;
 }) {
   const now = useNow(live);
   const [opened, setOpened] = useState<Record<string, boolean>>({});
 
   return (
-    <ol aria-label="Deploy steps" className={`r-phases${summary ? ' is-summary' : ''}`}>
+    <ol aria-label="Deploy steps" className="r-phases">
       {model.phases.length === 0 && (
         <li className="r-phase is-running">
           <div className="r-phase-head is-static">
@@ -100,7 +98,6 @@ export function DeploySteps({
       )}
       {model.phases.map((phase) => {
         const isOpen =
-          !summary &&
           phase.status !== 'pending' &&
           (opened[phase.id] ??
             (live
@@ -110,23 +107,17 @@ export function DeploySteps({
         const cloudformation = isDeploy ? model.cloudformation : undefined;
         return (
           <li className={`r-phase is-${phase.status}${isOpen ? ' is-open' : ''}`} data-phase={phase.id} key={phase.id}>
-            {summary ? (
-              <div className="r-phase-head is-static">
-                <PhaseHeadContent cloudformation={cloudformation} live={live} now={now} phase={phase} />
-              </div>
-            ) : (
-              <button
-                aria-expanded={phase.status === 'pending' ? undefined : isOpen}
-                className="r-phase-head"
-                disabled={phase.status === 'pending'}
-                onClick={() => setOpened({ ...opened, [phase.id]: !isOpen })}
-                type="button"
-              >
-                <PhaseHeadContent cloudformation={cloudformation} live={live} now={now} phase={phase} />
-                {phase.status !== 'pending' && <BiChevronRight aria-hidden className="r-chevron" size={18} />}
-              </button>
-            )}
-            {isOpen && (
+            <button
+              aria-expanded={phase.status === 'pending' ? undefined : isOpen}
+              className="r-phase-head"
+              disabled={phase.status === 'pending'}
+              onClick={() => setOpened({ ...opened, [phase.id]: !isOpen })}
+              type="button"
+            >
+              <PhaseHeadContent cloudformation={cloudformation} live={live} now={now} phase={phase} />
+              {phase.status !== 'pending' && <BiChevronRight aria-hidden className="r-chevron" size={18} />}
+            </button>
+            <Expand isOpen={isOpen}>
               <div className="r-phase-body">
                 {isDeploy ? (
                   <DeployPhaseBody
@@ -141,7 +132,7 @@ export function DeploySteps({
                   <StepList live={live} model={model} now={now} steps={phase.steps} />
                 )}
               </div>
-            )}
+            </Expand>
           </li>
         );
       })}
@@ -376,7 +367,7 @@ function GroupBlock({
         </span>
         <BiChevronRight aria-hidden className="r-chevron" size={18} />
       </button>
-      {isOpen && (
+      <Expand isOpen={isOpen}>
         <ul aria-label={`AWS resources of ${title}`} className="r-resources">
           {shown.map((resource) => {
             const status = statusOf(resource, failed);
@@ -404,7 +395,7 @@ function GroupBlock({
             </li>
           )}
         </ul>
-      )}
+      </Expand>
     </section>
   );
 }

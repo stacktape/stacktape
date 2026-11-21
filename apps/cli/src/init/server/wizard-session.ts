@@ -43,7 +43,6 @@ import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
 import type { DeployTargetExpectation, DeployTargetObservation } from '../deploy/stack-expectation';
 import { DEFAULT_PRICING_REGION, estimateMonthlyCost, type PriceEstimate } from '../pricing';
 import { renderTypeScript, renderYaml } from '../write-config';
-import type { PreflightResult } from '../preflight/preflight';
 import { createWizardSignIn, type WizardSignInDependencies, type WizardSignInFlow } from './wizard-sign-in';
 import { readSeenFile, seenFilePaths } from './file-view';
 import { readRepositoryTree, type RepositoryTree } from './repository-tree';
@@ -59,8 +58,7 @@ import {
   type WizardDeployment,
   type WizardServer,
   type WizardState,
-  type WizardTemplatePreview,
-  type WizardVerification
+  type WizardTemplatePreview
 } from './wizard-server';
 import { deployResourceList, foldDeployResource, recordDeployEvent, type DeployResource } from './deploy-resources';
 
@@ -173,7 +171,6 @@ export const startWizardSession = async ({
   write,
   deploy,
   inspectDeployTarget,
-  verify,
   repair,
   awsIdentity,
   awsProfiles,
@@ -279,14 +276,6 @@ export const startWizardSession = async ({
     /** The AWS profile the user picked on the page; absent for the one the CLI picks by itself. */
     profile?: string;
   }) => Promise<DeployTargetObservation | undefined>;
-  /**
-   * Tries the composed services on this machine — build them, start them, watch what happens.
-   *
-   * Only ever called after the user clicked for it: running repository code is a permission, and
-   * the session never grants it on their behalf. Absent when the caller has no way to verify,
-   * which removes the offer rather than degrading it.
-   */
-  verify?: (input: { facts: ProjectFacts; composition: CompositionResult }) => Promise<PreflightResult>;
   /**
    * Asks the agent what we got wrong about the repository, given a failure.
    *
@@ -674,11 +663,9 @@ export const startWizardSession = async ({
     // Whatever produced it (an answer, a repair), the secrets the user removed stay removed.
     untweaked = withoutDismissedSecrets(adopted, dismissedSecrets);
     composition = withTweaks(untweaked);
-    // A different configuration is a different thing to prove. Results earned against the old one
-    // must neither gate nor vouch for the new one. The file on disk is another derivative: keeping
-    // its handle would let a direct mode/answer request show one configuration while deploy reads
-    // the previously written one.
-    verification = undefined;
+    // A different configuration is a different thing to deploy. The file on disk is a derivative: keeping its
+    // handle would let a direct mode/answer request show one configuration while deploy reads the previously
+    // written one.
     deployTarget = undefined;
     configFile = undefined;
     configEdit = undefined;
@@ -750,7 +737,6 @@ export const startWizardSession = async ({
     detail?: string;
   } = { status: 'offered' };
   let mode: InfrastructureMode | undefined = initialMode;
-  let verification: WizardVerification | undefined;
   const answers: Record<string, string> = {};
   /** The AWS profile the user picked on the page. Absent: the one the CLI picks by itself. */
   let selectedProfile: string | undefined;
@@ -759,129 +745,6 @@ export const startWizardSession = async ({
   let docker: boolean | undefined;
   /** The profile flag every AWS call from here passes, so the page, the target check and the deploy agree. */
   const profileInput = (): { profile?: string } => (selectedProfile === undefined ? {} : { profile: selectedProfile });
-
-  /**
-   * Whether the local try-out holds the deploy button.
-   *
-   * Only two states do: a run still in progress, and a *proven* failure the user has not set
-   * aside. `unavailable` and `inconclusive` never block — the machinery failing to answer is not
-   * the user's failure, and the agreed gate blocks on evidence, never on absence of it.
-   */
-  const verificationBlocksDeploy = (): boolean =>
-    verification?.status === 'running' ||
-    verification?.status === 'repairing' ||
-    (verification?.status === 'completed' &&
-      (verification.services ?? []).some((service) => service.status === 'failed'));
-
-  /**
-   * Try the composed services on this machine, and — once, with permission already standing — let
-   * the agent fix what provably failed.
-   *
-   * The local half of the same loop a failed deploy runs, and materially cheaper: a counterexample
-   * from a container on this machine costs seconds and no AWS spend. `allowRepair` is consumed by
-   * the first repair — a fix that did not fix it stops here rather than looping, exactly like the
-   * deploy loop's attempt cap.
-   */
-  const startVerification = (allowRepair: boolean): void => {
-    // Nothing to try before a composition exists, no way to try without a verifier, and a second
-    // click while one runs must not start a second build. All answered by doing nothing; the state
-    // the page gets back says what is actually happening.
-    if (verify === undefined || facts === undefined || composition === undefined) return;
-    if (verification?.status === 'running' || verification?.status === 'repairing') return;
-
-    verification = { status: 'running' };
-    publish(buildState());
-
-    // Captured so a result earned against this composition can be recognised as stale if a
-    // decision changes while the build runs. `adoptComposition` clears `verification`; a late
-    // result for the old configuration must not resurrect it against the new one.
-    const current = composition;
-    void verify({ facts, composition: current }).then(
-      async (result) => {
-        if (composition !== current) return;
-        if (result.status === 'unavailable') {
-          verification = { status: 'unavailable' };
-          publish(buildState());
-          return;
-        }
-
-        const failed = result.services.filter((service) => service.status === 'failed');
-        const canRepair =
-          allowRepair &&
-          failed.length > 0 &&
-          repair !== undefined &&
-          facts !== undefined &&
-          // The same rule as the deploy loop: "Files only" was an explicit decision that no agent
-          // reads this code, and a failed try-out does not revoke it.
-          choice?.agentId !== 'none';
-
-        if (!canRepair) {
-          verification = { status: 'completed', services: result.services };
-          publish(buildState());
-          return;
-        }
-
-        verification = { status: 'repairing', services: result.services };
-        publish(buildState());
-
-        // The failure in the shape the repair mission already speaks. Container output stays local:
-        // application logs can contain runtime secrets that were never present in the repository,
-        // and consent to let an agent read source is not consent to send those values as a prompt.
-        // The structured missing-variable names and service reasons carry the actionable evidence.
-        const failure: DeployFailure = {
-          code: 'PREFLIGHT_FAILED',
-          message: `${failed.map((service) => service.serviceName).join(', ')} did not start in the local try-out.`,
-          errors: failed.flatMap((service) => [
-            service.reason,
-            ...service.observations.missingEnvironmentVariables.map((name) => `${name} is not set`)
-          ]),
-          output: [],
-          failedResources: failed.map((service) => service.resourceName),
-          worthRetrying: true
-        };
-
-        const repaired = await repair!({
-          facts: facts!,
-          decisions: answers,
-          preferences: current.preferences,
-          failure,
-          onProgress: (entry) => {
-            timeline.push(entry);
-            publish(buildState());
-          }
-        }).catch(() => undefined);
-
-        if (composition !== current) return;
-        if (repaired === undefined || !repaired.changed) {
-          // Nothing learned. The failure stands, visibly, rather than being retried into.
-          verification = { status: 'completed', services: result.services };
-          publish(buildState());
-          return;
-        }
-
-        const previousConfigFile = configFile;
-        facts = repaired.facts;
-        adoptComposition(repaired.composition);
-        if (write !== undefined && previousConfigFile !== undefined) {
-          const written = await write({
-            composition: composition!,
-            format: previousConfigFile.format,
-            region: previousConfigFile.region
-          }).catch(() => undefined);
-          if (written !== undefined) configFile = { ...previousConfigFile, ...written };
-        }
-        publish(buildState());
-        // One more look, and only one: the repair either proved itself here or the user sees why not.
-        startVerification(false);
-      },
-      () => {
-        // The machinery failing is never reported as the user's failure.
-        if (composition !== current) return;
-        verification = { status: 'unavailable' };
-        publish(buildState());
-      }
-    );
-  };
 
   const codingAgentSetupState = (): Pick<WizardState, 'codingAgentSetup'> => {
     // Offered once there is something deployed for the agent to work with.
@@ -939,7 +802,6 @@ export const startWizardSession = async ({
     ...(signInFlow === undefined || account?.signedIn === true ? {} : { signIn: signInFlow.state() }),
     ...(deployment === undefined ? {} : { deployment }),
     ...(deployTarget === undefined ? {} : { deployTarget }),
-    ...(verification === undefined ? {} : { verification }),
     ...(gitHost === undefined ? {} : { gitHost }),
     ...(mode === undefined ? {} : { mode }),
     ...(composition === undefined
@@ -1201,10 +1063,7 @@ export const startWizardSession = async ({
           composition?.deployable !== true ||
           // The real wizard's target probe resolves the same connected account/profile as deploy.
           // Embedders without it retain the older ambient identity gate.
-          (inspectDeployTarget === undefined && awsIdentity !== undefined && identity?.available !== true) ||
-          // The agreed gate: a configuration the local try-out has proven broken never deploys
-          // until something changes or the user explicitly sets the result aside.
-          verificationBlocksDeploy()
+          (inspectDeployTarget === undefined && awsIdentity !== undefined && identity?.available !== true)
         ) {
           return;
         }
@@ -1635,7 +1494,6 @@ export const startWizardSession = async ({
           configEdit = { yaml, ...yamlError(yaml) };
           configFile = undefined;
           deployTarget = undefined;
-          verification = undefined;
           repriceInBackground();
           return publishNow();
         }
@@ -1681,15 +1539,6 @@ export const startWizardSession = async ({
         if (signInFlow === undefined || account?.signedIn === true) return;
         await signInFlow.handle(action);
         publish(buildState());
-      },
-      onVerify: () => startVerification(true),
-      onVerifyDismiss: () => {
-        // Keeps the results on screen while removing their hold on the deploy button: the user has
-        // seen them, and setting them aside is their call to make.
-        if (verification !== undefined) {
-          verification = { ...verification, status: 'dismissed' };
-        }
-        return buildState();
       },
       ...(repositoryRoot === undefined
         ? {}
@@ -1763,7 +1612,6 @@ export const startWizardSession = async ({
         }
         configFile = undefined;
         deployTarget = undefined;
-        verification = undefined;
         repriceInBackground();
         return publishNow();
       },

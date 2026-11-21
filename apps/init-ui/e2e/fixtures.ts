@@ -18,7 +18,6 @@ export type WizardScenario = {
   account?: 'signed-in' | 'signed-out' | 'no-page-sign-in';
   price?: boolean;
   target?: 'absent' | 'updateable' | 'blocked';
-  verify?: 'passed' | 'failed' | 'unavailable';
   deploy?: 'succeed' | 'fail' | 'held';
   /** Tests deploy instantly unless they ask for `paced`, the half-minute deploy a person sees. */
   deployPace?: 'paced' | 'instant';

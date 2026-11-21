@@ -1,10 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import type { WizardVerification } from '../../src/init/server/wizard-server';
-import { INIT_CANARY_FIXTURES } from './init-canary-fixtures';
 import {
   assertCanaryHealthUrl,
   buildWizardEnvironment,
-  evaluateFixturePreflight,
   parseInitCanaryState,
   resolveInitCanaryOptions,
   waitForWizardDeployment,
@@ -42,13 +39,6 @@ const state = (): InitCanaryState => ({
   generatedSecrets: [],
   logGroupsAbsentBefore: true
 });
-
-const observations = {
-  listeningPorts: [],
-  dialedDependency: false,
-  missingEnvironmentVariables: [],
-  logTail: []
-};
 
 describe('real-AWS init canary guardrails', () => {
   test('requires a versioned fixture and an external recovery state file', () => {
@@ -113,32 +103,6 @@ describe('real-AWS init canary guardrails', () => {
       'another AWS account'
     );
     expect(() => parseInitCanaryState({ ...state(), fixtureId: 'vite-static' }, options())).toThrow('another fixture');
-  });
-
-  test('never counts skipped or inconclusive required preflight as a pass', () => {
-    const required = INIT_CANARY_FIXTURES['express-basic'];
-    const skipped: WizardVerification = {
-      status: 'completed',
-      services: [
-        {
-          serviceName: 'api',
-          resourceName: 'api',
-          status: 'skipped',
-          reason: 'Unsupported packaging.',
-          observations
-        }
-      ]
-    };
-    expect(evaluateFixturePreflight({ fixture: required, verification: skipped })[0]).toContain('was skipped');
-    expect(
-      evaluateFixturePreflight({
-        fixture: required,
-        verification: { ...skipped, services: [{ ...skipped.services![0]!, status: 'passed' }] }
-      })
-    ).toEqual([]);
-    expect(
-      evaluateFixturePreflight({ fixture: INIT_CANARY_FIXTURES['vite-static'], verification: { status: 'completed' } })
-    ).toEqual([]);
   });
 
   test('treats the deploy POST as an acknowledgement and polls to a terminal result', async () => {

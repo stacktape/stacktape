@@ -13,7 +13,6 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import type { ServicePreflightResult } from '../preflight/preflight';
 import { AddressInfo, type Socket } from 'node:net';
 import { extname, join, normalize } from 'node:path';
 import type { DeployTargetObservation } from '../deploy/stack-expectation';
@@ -136,14 +135,6 @@ export type WizardDeployment = {
   keptPartialProgress?: boolean;
   /** Typed deployed-resource URLs resolved after success, by resource; never scraped from repository output. */
   urls?: Array<{ resourceName: string; url: string }>;
-};
-
-/** What the page renders. Serialised as-is, so nothing here may contain a secret. */
-export type WizardVerification = {
-  /** `repairing` means it failed here and the agent is working out what we got wrong — locally. */
-  status: 'running' | 'repairing' | 'completed' | 'unavailable' | 'dismissed';
-  /** Per-service outcomes, once there are any. Shape owned by the preflight engine. */
-  services?: ServicePreflightResult[];
 };
 
 /**
@@ -279,14 +270,6 @@ export type WizardState = {
     | DeployTargetObservation
     | { status: 'unverified'; stackName: string; stage: string; region: string; detail: string };
   /**
-   * The local try-out of the composed services, once the user has asked for one.
-   *
-   * Never present before they ask: running repository code is a permission, and the request that
-   * grants it is the click itself. `dismissed` keeps the last results visible while removing their
-   * hold on the deploy button — the user has seen them and decided to proceed anyway.
-   */
-  verification?: WizardVerification;
-  /**
    * The configuration as the user edited it by hand on the Review step. While present it is what gets written and
    * deployed, and the infrastructure settings that would regenerate the file are off.
    *
@@ -349,15 +332,6 @@ export type WizardServerHooks = {
     region: string;
     expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
   }) => Promise<void> | void;
-  /**
-   * Called when the user consents to trying the composed services on this machine.
-   *
-   * The click is the consent: nothing runs repository code before it. Publishes for itself, like
-   * `onDeploy` — a build takes long enough that the answer arrives over the event stream.
-   */
-  onVerify: () => Promise<void> | void;
-  /** Called when the user sets a verification result aside. Returns the state to broadcast. */
-  onVerifyDismiss: () => Promise<WizardState> | WizardState;
   /** Called when the user asks for a deployment pipeline for their git host. */
   onPipeline: (input: { stage: string; region: string }) => Promise<void> | void;
   /**
@@ -543,9 +517,7 @@ export const startWizardServer = async ({
     streams.size > 0 ||
     state.phase === 'analysing' ||
     state.deployment?.status === 'running' ||
-    state.deployment?.status === 'repairing' ||
-    state.verification?.status === 'running' ||
-    state.verification?.status === 'repairing';
+    state.deployment?.status === 'repairing';
 
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer);
@@ -1058,36 +1030,6 @@ export const startWizardServer = async ({
         }
         try {
           await hooks.onConsoleConnection(action);
-          json(response, 200, state);
-        } catch (error) {
-          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
-        }
-        return;
-      }
-
-      // Consent to run the repository's own code locally. No body: the click is the whole request,
-      // and everything it may touch — the composed services — is already in the session.
-      if (url.pathname === '/api/verify' && request.method === 'POST') {
-        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
-          json(response, 403, { error: 'Missing or invalid CSRF token.' });
-          return;
-        }
-        try {
-          await hooks.onVerify();
-          json(response, 200, state);
-        } catch (error) {
-          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
-        }
-        return;
-      }
-
-      if (url.pathname === '/api/verify/dismiss' && request.method === 'POST') {
-        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
-          json(response, 403, { error: 'Missing or invalid CSRF token.' });
-          return;
-        }
-        try {
-          publish(await hooks.onVerifyDismiss());
           json(response, 200, state);
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });

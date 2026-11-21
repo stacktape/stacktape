@@ -73,14 +73,11 @@ const plainLine = (entry: LogEntry) =>
 export function DeployLog({
   model,
   live,
-  collapseDone = false,
   failed = false,
   className
 }: {
   model: DeployModel;
   live: boolean;
-  /** Finished phases start folded, the way a CI log shows its steps. */
-  collapseDone?: boolean;
   failed?: boolean;
   className?: string;
 }) {
@@ -179,8 +176,7 @@ export function DeployLog({
         {visible.map((section, index) => {
           const phase = section.phase;
           const key = section.entry?.key ?? `pre${index}`;
-          const defaultOpen = !collapseDone || phase === undefined || phase.status !== 'done' || narrowed;
-          const isOpen = opened[key] ?? defaultOpen;
+          const isOpen = opened[key] ?? true;
           return (
             <Fragment key={key}>
               {section.entry !== undefined && (

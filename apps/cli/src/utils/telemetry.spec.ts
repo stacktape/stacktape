@@ -153,9 +153,6 @@ test('init sends categories and measured outcomes without repository content, an
       reached: 'deploy_failed',
       deploy_error_code: 'DEPLOY_FAILED',
       repairs: [true, false],
-      verification: 'inconclusive',
-      verification_passed_services: 1,
-      verification_skipped_services: 1,
       analysis_duration_ms: 1200,
       deploy_duration_ms: 3400,
       mode: 'custom',
@@ -169,10 +166,7 @@ test('init sends categories and measured outcomes without repository content, an
       'customer-project-name',
       'customer-service-name',
       '/private/repository',
-      'private result text',
       'customerResourceName',
-      'private-worker-name',
-      'privateWorkerResource',
       'private failure message',
       'private log line'
     ]) {

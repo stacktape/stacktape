@@ -41,8 +41,6 @@ import type { AgentEvent } from './agent/transport';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from './missions/greenfield';
 import { projectNameFor } from './project-name';
 import { createRailpackPlanner } from './railpack-planner';
-import { runPreflight } from './preflight/preflight';
-import { createPreflightRunners } from './preflight/runners';
 import { runRepairMission } from './missions/repair';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import type { DeploymentPreferences } from '@stacktape/config-inference/compose/preferences';
@@ -511,11 +509,6 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       for (const line of describeDevDependency(written)) say(line);
       return written;
     },
-    // The local try-out: build the composed services the way the deploy will, start them in an
-    // isolated container with stub values, and watch. Only ever invoked after the user's click —
-    // the session owns that consent — and every machinery failure reads as "unavailable" there.
-    verify: ({ facts, composition }) =>
-      runPreflight({ repositoryRoot, facts, composition, runners: createPreflightRunners() }),
     // Only with an agent. The probes read files, and a deploy failure is not in a file: without a
     // model there is nothing new to learn between one attempt and the next. The session enforces
     // the user's own choice on top of this — someone who picked "Files only" is never repaired by

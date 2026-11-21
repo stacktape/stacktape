@@ -39,7 +39,7 @@ import {
   STACKTAPE_DEVELOPMENT_TRPC_API_ENDPOINT,
   STACKTAPE_PRODUCTION_TRPC_API_ENDPOINT
 } from '../../src/config/params';
-import type { WizardState, WizardVerification } from '../../src/init/server/wizard-server';
+import type { WizardState } from '../../src/init/server/wizard-server';
 import { generatedSecretNames, isGeneratedSecretNameForProject } from '../../src/init/deploy/generated-secrets';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 import { connectToInitWizard, extractWizardUrl, type InitWizardClient } from './init-canary-client';
@@ -65,7 +65,6 @@ const stage = 'dev';
 const cliDirectory = join(import.meta.dir, '..', '..');
 const wizardStartTimeoutMs = 2 * 60_000;
 const analysisTimeoutMs = 8 * 60_000;
-const verificationTimeoutMs = 12 * 60_000;
 const commandTimeoutMs = 45 * 60_000;
 const deploymentTimeoutMs = 50 * 60_000;
 const deletionTimeoutSeconds = 45 * 60;
@@ -660,27 +659,6 @@ const compositionResources = (state: WizardState): Record<string, { properties: 
     resources[name] = { properties: resource.properties };
   }
   return resources;
-};
-
-export const evaluateFixturePreflight = ({
-  fixture,
-  verification
-}: {
-  fixture: InitCanaryFixture;
-  verification: WizardVerification | undefined;
-}): string[] => {
-  if (verification === undefined) return ['Wizard produced no preflight result.'];
-  if (verification.status !== 'completed') return [`Preflight status is ${verification.status}, expected completed.`];
-  const services = verification.services ?? [];
-  if (fixture.preflight === 'unsupported-resource-type') {
-    return services.every((service) => service.status === 'skipped')
-      ? []
-      : ['Unsupported-resource fixture unexpectedly reported a runnable service.'];
-  }
-  if (services.length === 0) return ['Required preflight exercised no services.'];
-  return services
-    .filter((service) => service.status !== 'passed')
-    .map((service) => `${service.resourceName} preflight was ${service.status}: ${service.reason}`);
 };
 
 const deploymentIsTerminal = (state: WizardState): boolean =>
@@ -1289,18 +1267,6 @@ export const runInitCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boo
     await persist({ configPath, configText: await readFile(configPath, 'utf8') });
     await runJsonlCli(options, ['validate', ...stackArgs(options, configPath), '--thorough', '--agent'], env);
 
-    await wizard.client.post('/api/verify');
-    const verified = await wizard.client.waitForState({
-      accept: (candidate) =>
-        candidate.verification !== undefined &&
-        candidate.verification.status !== 'running' &&
-        candidate.verification.status !== 'repairing',
-      label: 'finish local preflight',
-      timeoutMs: verificationTimeoutMs
-    });
-    const preflightProblems = evaluateFixturePreflight({ fixture, verification: verified.verification });
-    assert(preflightProblems.length === 0, `Preflight contract failed:\n- ${preflightProblems.join('\n- ')}`);
-
     const identityState = await wizard.client.post('/api/recheck');
     assertWizardIdentity(identityState, options);
 
@@ -1406,7 +1372,7 @@ export const runInitCanary = async ({ cleanupOnly = false }: { cleanupOnly?: boo
 
     if (interruptedSignal) throw new Error(`Init canary interrupted by ${interruptedSignal}.`);
     console.info(
-      `Verified ${options.fixtureId}: composition, packaged validation, preflight, deployment, ${repairs === 0 ? 'first attempt' : 'one repair'}, and live health.`
+      `Verified ${options.fixtureId}: composition, packaged validation, deployment, ${repairs === 0 ? 'first attempt' : 'one repair'}, and live health.`
     );
   } catch (error) {
     bodyError = error;

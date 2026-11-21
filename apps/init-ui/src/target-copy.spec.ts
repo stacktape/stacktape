@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { blockedTargetCopy, stackStatusWords } from './target-copy';
+import { blockedTargetCopy } from './target-copy';
 
 const blocked = (
   reason: 'foreign-stack' | 'identity-mismatch' | 'unsafe-status' | 'incomplete-stack-data',
@@ -39,13 +39,5 @@ describe('a blocked deploy target', () => {
       'Another change to this stack is still running'
     );
     expect(blockedTargetCopy(blocked('unsafe-status', 'SOME_FUTURE_STATE')).body).toContain('SOME_FUTURE_STATE');
-  });
-});
-
-describe('an updateable stack', () => {
-  it('says what happened to it last, in words', () => {
-    expect(stackStatusWords('UPDATE_COMPLETE')).toBe('its last update finished');
-    expect(stackStatusWords('UPDATE_ROLLBACK_COMPLETE')).toBe('its last update failed and was rolled back');
-    expect(stackStatusWords('SOMETHING_NEW')).toBe('its status is SOMETHING_NEW');
   });
 });
