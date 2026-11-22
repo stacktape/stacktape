@@ -214,9 +214,11 @@ const parseFrontmatter = (raw: string): { frontmatter: Record<string, string>; b
 };
 
 const routeFromDocPath = (filePath: string): string => {
-  const rel = relative(DOCS_SOURCE_DIR, filePath).replace(/\.mdx$/, '');
+  const rel = relative(DOCS_SOURCE_DIR, filePath)
+    .replaceAll('\\', '/')
+    .replace(/\.mdx$/, '');
   if (rel === 'index') return '/';
-  return `/${rel.replace(/\/index$/, '').replaceAll('\\', '/')}`;
+  return `/${rel.replace(/\/index$/, '')}`;
 };
 
 const outputPathFromRoute = (route: string): string => {

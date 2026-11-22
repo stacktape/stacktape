@@ -4,10 +4,11 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { createTwoslasher } from 'twoslash';
 import { CLI_STACKTAPE_DECLARATIONS_DIR } from '../src/build/cli-generated-inputs.ts';
-import { typescriptLibDir } from '../src/build/generated-runtime-assets.ts';
+import { servedTypescriptLibFileNames, typescriptLibDir } from '../src/build/generated-runtime-assets.ts';
 import {
   loadTwoslashFsMap,
   STACKTAPE_TYPES_ROUTE,
+  TS_LIB_MANIFEST_ROUTE,
   TS_LIB_ROUTE,
   TWOSLASH_COMPILER_OPTIONS
 } from '../src/components/Mdx/twoslash-types.ts';
@@ -27,6 +28,7 @@ import {
 
 const realFetch = globalThis.fetch;
 const rejectedUrls: string[] = [];
+const missingLibUrls: string[] = [];
 
 const respond = (path: string) => {
   try {
@@ -44,8 +46,13 @@ before(() => {
     if (url.startsWith(`${STACKTAPE_TYPES_ROUTE}/`)) {
       return respond(join(CLI_STACKTAPE_DECLARATIONS_DIR, url.slice(STACKTAPE_TYPES_ROUTE.length + 1)));
     }
+    if (url === TS_LIB_MANIFEST_ROUTE) {
+      return new Response(JSON.stringify(servedTypescriptLibFileNames()), { status: 200 });
+    }
     if (url.startsWith(`${TS_LIB_ROUTE}/`)) {
-      return respond(join(libDir, url.slice(TS_LIB_ROUTE.length + 1)));
+      const name = url.slice(TS_LIB_ROUTE.length + 1);
+      if (!servedTypescriptLibFileNames().includes(name)) missingLibUrls.push(url);
+      return respond(join(libDir, name));
     }
 
     rejectedUrls.push(url);
@@ -71,6 +78,7 @@ test('the virtual filesystem places the stacktape package where TypeScript resol
   );
   assert.ok(fsMap.has('/lib.es5.d.ts'), 'the standard library must be at the virtual filesystem root');
   assert.deepEqual(rejectedUrls, [], 'the loader must only request its own two same-origin routes');
+  assert.deepEqual(missingLibUrls, [], 'the loader must only request standard-library files the site serves');
 });
 
 test('a documentation sample really type-checks against the local stacktape declarations', async () => {

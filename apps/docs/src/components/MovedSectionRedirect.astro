@@ -1,0 +1,11 @@
+---
+import { MOVED_SECTIONS } from '@/utils/moved-sections';
+const pathname = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
+const sections = MOVED_SECTIONS[pathname];
+---
+{sections && (
+    <script is:inline define:vars={{ sections }}>
+    const id = decodeURIComponent(location.hash.slice(1));
+      if (id && !document.getElementById(id) && Object.hasOwn(sections, id)) location.replace(sections[id]);
+    </script>
+  )}

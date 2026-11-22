@@ -38,7 +38,7 @@ export function Header() {
             rel="noopener noreferrer"
             onClick={() =>
               trackMarketingAnalyticsEvent(ANALYTICS_EVENTS.marketingCtaClicked, {
-                cta: 'sign_up',
+                cta: 'console',
                 placement: 'docs_header'
               })
             }

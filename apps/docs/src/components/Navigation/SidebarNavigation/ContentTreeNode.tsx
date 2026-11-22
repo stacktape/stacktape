@@ -1,8 +1,11 @@
-import { createElement, memo, type CSSProperties } from 'react';
+import { createContext, createElement, memo, useContext, type CSSProperties } from 'react';
 import { ChevronRight } from 'react-feather';
 import { ensureTrailingSlash } from '@/utils/seo';
 import { useExpansionToggle, useIsActiveUrl, useIsExpanded } from './expansion-store';
 import type { NavItem } from './navigation-data';
+
+/** Prefix of the disclosure IDs, so the desktop sidebar and the phone drawer render distinct `aria-controls` targets. */
+export const NavIdPrefixContext = createContext('docs-nav');
 
 const INDENT_BASE = 12;
 const INDENT_STEP = 20;
@@ -20,7 +23,7 @@ function ContentTreeNodeInner({ item, depth }: { item: NavItem; depth: number })
   // Per-key store selectors: only this row re-renders when its own slice changes.
   const isExpanded = useIsExpanded(item.key);
   const isActive = useIsActiveUrl(item.url);
-  const childrenId = `docs-nav-${item.key.replace(/[^a-z0-9]+/gi, '-')}`;
+  const childrenId = `${useContext(NavIdPrefixContext)}-${item.key.replace(/[^a-z0-9]+/gi, '-')}`;
   const icon = item.icon ? <span className="docs-nav-icon">{createElement(item.icon, { size: 15 })}</span> : null;
   const chevron = <ChevronRight size={14} className="docs-nav-chevron" aria-hidden />;
 

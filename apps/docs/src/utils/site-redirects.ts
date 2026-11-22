@@ -35,3 +35,7 @@ export const SITE_REDIRECTS: Record<string, string> = {
   ...V3_REDIRECTS_TO_V4,
   ...V3_ARCHIVE_REDIRECTS
 };
+
+/** What the production CDN answers with a 301: the site redirects, plus the Stacktape 3 sitemap URL that search consoles
+ * and crawlers still request. */
+export const CDN_REDIRECTS: Record<string, string> = { ...SITE_REDIRECTS, '/sitemap.xml': '/sitemap-index.xml' };

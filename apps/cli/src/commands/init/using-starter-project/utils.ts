@@ -5,8 +5,33 @@ import { DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY } from '@config';
 import { requiredSecrets } from '@stacktape/config-inference/compose/required-secrets';
 import { shellQuote } from '../../../config/cli/public-names';
 import { sortObjectKeys } from '@utils/misc';
-import { pathExists, readJson, readJSON, writeJson } from 'fs-extra';
+import { stacktapePackageRange } from '@utils/versioning';
+import { pathExists, readFile, readJson, readJSON, remove, writeFile, writeJson } from 'fs-extra';
+import { yamlConfigToTypeScript } from '../../../init/write-config';
 import sortBy from 'lodash/sortBy';
+
+/**
+ * Leaves the starter with one config, in the chosen format.
+ *
+ * Most starters ship both `stacktape.yml` and `stacktape.ts`. A starter that ships only the YAML gets a TypeScript
+ * config converted from it, so choosing TypeScript never deletes the only config the starter has.
+ */
+export const keepConfigInFormat = async ({
+  absoluteProjectPath,
+  chosenFormat
+}: {
+  absoluteProjectPath: string;
+  chosenFormat: 'typescript' | 'yaml';
+}) => {
+  const yamlPath = join(absoluteProjectPath, 'stacktape.yml');
+  const typescriptPath = join(absoluteProjectPath, 'stacktape.ts');
+  const [chosenPath, otherPath] =
+    chosenFormat === 'typescript' ? [typescriptPath, yamlPath] : [yamlPath, typescriptPath];
+  if (chosenFormat === 'typescript' && !(await pathExists(typescriptPath)) && (await pathExists(yamlPath))) {
+    await writeFile(typescriptPath, await yamlConfigToTypeScript(await readFile(yamlPath, 'utf8')));
+  }
+  if (await pathExists(chosenPath)) await remove(otherPath);
+};
 
 export const getAvailableStartersMetadata = async ({
   startersMetadataFilePath
@@ -26,10 +51,13 @@ export const getAvailableStartersMetadata = async ({
 
 export const adjustPackageJson = async ({
   absoluteProjectPath,
-  metadata
+  metadata,
+  stacktapeRange = stacktapePackageRange()
 }: {
   absoluteProjectPath: string;
   metadata: StarterProjectMetadata;
+  /** The `stacktape` dev dependency; the running CLI's own release by default. */
+  stacktapeRange?: string;
 }) => {
   const { hasPrisma } = metadata;
   const packageJsonPath = join(absoluteProjectPath, 'package.json');
@@ -54,9 +82,10 @@ export const adjustPackageJson = async ({
       ...(dependencies || {}),
       ...(hasPrisma && { '@prisma/client': '^6.7.0' })
     }),
+    // Last, so it replaces the range a published starter's manifest already names.
     devDependencies: sortObjectKeys({
-      stacktape: '^3.4.0',
-      ...(devDependencies || {})
+      ...(devDependencies || {}),
+      stacktape: stacktapeRange
     })
   };
 

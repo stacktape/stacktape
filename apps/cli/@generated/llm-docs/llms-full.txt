@@ -1638,7 +1638,7 @@ This command needs a valid API key for your own user. Removing a sign-in that is
 Source: `apps/docs/content/cli/alarm-export.mdx`
 Route: `/cli/alarm-export`
 
-`stacktape alarm export` prints the alarm rules created in the Stacktape Console as entries for the `alarms` list of a resource in your configuration. The Console no longer creates or edits alarm rules. The old ones are listed under **Legacy alarm rules** on the Console's Alarms page and keep applying to matching deployments until the stack defines its alarms in configuration.
+`stacktape alarm export` prints the alarm rules created in the Stacktape Console as entries for the `alarms` list of a resource in your configuration. The Console no longer creates or edits alarm rules. The old ones are listed under **Legacy alarm rules** on the Console's Alarms page and keep applying to every matching resource until you exclude or delete them.
 
 The command needs a Console sign-in ([`stacktape login`](/cli/login)) and changes nothing. It only prints.
 
@@ -1650,7 +1650,7 @@ stacktape alarm export
 
 The output starts with how many rules it found. Each rule follows as a YAML list entry, with a comment that names the rule and the projects and stages it applies to:
 
-```yaml
+```yaml configExample="fragment"
 # alarm "api-error-rate"
 # applies to projects: all · stages: production
 - trigger:
@@ -1669,10 +1669,32 @@ The Console channels a rule sent to become `console-channel` entries. When the o
 
 1. Run `stacktape alarm export`.
 2. Add each entry to the `alarms` list of every resource it should watch. Where a rule applies only to some stages, use [stage-based configuration](/configuration/stages-and-environments).
-3. Deploy each affected stage. Once a stack deploys with the alarm in its configuration, the Console rule stops applying to that stack.
-4. Check the alarms on the Console's Alarms page or with [`stacktape alarm list`](/cli/alarms), then delete the legacy rule in the Console.
+3. On the same resources, add the rule's name to `disabledGlobalAlarms`. Without it the Console rule keeps applying next to your new alarm, and the resource gets two alarms that notify twice.
+4. Deploy each affected stage.
+5. Check the alarms on the Console's Alarms page or with [`stacktape alarm list`](/cli/alarms). Once every stack the rule applies to has deployed, delete the legacy rule in the Console.
 
-[Alarms](/observability/alarms#migrating-legacy-console-alarm-rules) explains the alarm settings and how `disabledGlobalAlarms` excludes a legacy rule from a resource while you migrate.
+For the `api-error-rate` rule above, the function's configuration looks like this:
+
+```yaml configExample="fragment"
+resources:
+  api:
+    type: function
+    properties:
+      # ...
+      alarms:
+        - trigger:
+            type: lambda-error-rate
+            properties:
+              thresholdPercent: 5
+          notificationChannels:
+            - type: console-channel
+              properties:
+                channelName: production-alerts
+      disabledGlobalAlarms:
+        - api-error-rate
+```
+
+[Alarms](/observability/alarms#migrating-legacy-console-alarm-rules) explains the alarm settings.
 
 ## Options
 
@@ -20368,14 +20390,14 @@ Do not use spot instances for jobs with non-idempotent side effects (sending ema
 
 For [web services](/resources/compute/web-service), the load balancing type directly affects monthly cost. The `loadBalancing` property accepts three types:
 
-**`http-api-gateway` (default)** charges ~$1 per million requests with no base cost. At low traffic, this is the cheapest option. At high sustained traffic (above ~500k requests/day), the per-request charges add up and a flat-rate load balancer becomes more cost-effective.
+**`http-api-gateway` (default)** charges ~$1 per million requests with no base cost. At low traffic, this is the cheapest option. At high sustained traffic (above ~500k requests/day), the per-request charges add up and a load balancer, billed per hour plus usage (LCUs), becomes more cost-effective.
 
 **`application-load-balancer`** has a flat base cost of ~$18/month plus usage-based charges. It becomes more cost-effective than API Gateway at higher traffic volumes. It's required for [gradual deployments](/deployment-and-lifecycle/gradual-deployments), top-level [firewalls](/resources/security/web-application-firewall), and WebSocket support.
 
 **`network-load-balancer`** is for non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols — use it only when you need raw TCP. It does not support CDN, top-level firewall, or gradual deployments.
 
 
-> **Tip:** Most teams should start with the default `http-api-gateway`. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your request volume makes the flat monthly cost cheaper than per-request pricing.
+> **Tip:** Most teams should start with the default `http-api-gateway`. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your request volume makes its hourly base and LCU charges cheaper than per-request pricing.
 
 
 ## Right-size Lambda memory
@@ -20965,11 +20987,11 @@ When an alarm with history changes state, the stack's service Lambda sends the C
 
 ## Migrating legacy Console alarm rules
 
-The Console no longer creates or edits alarm rules. Existing rules appear under **Legacy alarm rules** on the Alarms page. They keep applying to matching deployments until the stack defines its alarms in configuration.
+The Console no longer creates or edits alarm rules. Existing rules appear under **Legacy alarm rules** on the Alarms page. They keep applying to every matching resource until you exclude them on that resource or delete them.
 
-Run `stacktape alarm export` to print those rules as config entries, including their project and stage scope. Add each entry to the `alarms` list of every resource it should monitor, preserve stage-specific behavior with [stage-based configuration](/configuration/stages-and-environments), and deploy each affected stage. Verify the resulting alarms before deleting the legacy rule in the Console.
+Run `stacktape alarm export` to print those rules as config entries, including their project and stage scope. Add each entry to the `alarms` list of every resource it should monitor, and preserve stage-specific behavior with [stage-based configuration](/configuration/stages-and-environments).
 
-`disabledGlobalAlarms` excludes named legacy rules from a resource while you migrate. For new alarms, edit the resource's `alarms` list directly.
+On the same resources, list the rule's name in `disabledGlobalAlarms`. Without it the legacy rule still applies next to the alarm you added, and the resource gets two alarms that notify twice. Deploy each affected stage, check the alarms, and then delete the legacy rule in the Console. The [`alarm export` guide](/cli/alarm-export#moving-the-rules-into-your-configuration) shows a complete example.
 
 ## Viewing alarm states
 
@@ -25974,7 +25996,7 @@ Containers are packaged with [container packaging](/packaging/overview#container
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | API Gateway (HTTP API) | Pay-per-request HTTP routing to functions and containers |
 | [WebSocket API Gateway](/resources/networking/websocket-api-gateway) | API Gateway (WebSocket API) | Persistent client connections handled by functions |
 | [AppSync API](/resources/networking/appsync-api) | AppSync | A GraphQL API with Lambda resolvers |
-| [Application Load Balancer](/resources/networking/application-load-balancer) | Elastic Load Balancing (ALB) | HTTP routing by path, host or header, with an hourly charge |
+| [Application Load Balancer](/resources/networking/application-load-balancer) | Elastic Load Balancing (ALB) | HTTP routing by path, host or header. Billed per hour plus usage (LCUs) |
 | [Network Load Balancer](/resources/networking/network-load-balancer) | Elastic Load Balancing (NLB) | TCP and TLS traffic, such as gRPC or MQTT |
 | [CDN](/resources/networking/cdn) | CloudFront | Caching in front of a bucket, API, load balancer or function |
 | [Custom domains](/resources/networking/custom-domains) | Route 53 and ACM | Serving a resource at your own domain |
@@ -26047,7 +26069,7 @@ Triggers are not resources of their own. You add them to a Lambda function, and 
 
 ## What resources cost
 
-Always-on resources bill by the hour even with no traffic. These include web, private and worker services, multi-container workloads, relational databases, Redis, OpenSearch, load balancers, Kinesis streams, Kafka clusters, bastion hosts and Convex. Most other resources bill per request, per message or per GB stored. Each resource page has a pricing note, and [Managing costs](/managing-costs/overview) explains how to track the bill.
+Always-on resources bill by the hour even with no traffic. These include web, private and worker services, multi-container workloads, relational databases, Redis, OpenSearch, load balancers, Kafka clusters, bastion hosts and Convex. Most other resources bill per request, per message or per GB stored. Each resource page has a pricing note, and [Managing costs](/managing-costs/overview) explains how to track the bill.
 
 ---
 
@@ -37420,11 +37442,11 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 Source: `apps/docs/content/resources/networking/application-load-balancer.mdx`
 Route: `/resources/networking/application-load-balancer`
 
-A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container workloads and [Lambda functions](/resources/compute/lambda-function) based on path, host, headers, query parameters, and source IPs. It uses AWS ALB underneath — flat ~$18/month pricing (AWS Free Tier eligible), WebSocket support, [firewall](/resources/security/web-application-firewall) attachment, and [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
+A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container workloads and [Lambda functions](/resources/compute/lambda-function) based on path, host, headers, query parameters, and source IPs. It uses AWS ALB underneath: an hourly base of about $18/month plus usage-based LCU charges (AWS Free Tier eligible), WebSocket support, [firewall](/resources/security/web-application-firewall) attachment, and [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
 
 ## When to use
 
-Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
+Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a fixed-base alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
 
 Common patterns that fit well:
 
@@ -37433,7 +37455,7 @@ Common patterns that fit well:
 - **Container WebSocket applications** — keep framework-managed connections and server state in long-running services behind the ALB; for Lambda routes that scale to zero, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway)
 - **Firewall-protected APIs** — attach a [web application firewall](/resources/security/web-application-firewall) directly to the ALB to protect against common web exploits
 - **Gradual deployments** — canary and linear deployment strategies require an ALB
-- **Sustained high traffic** — flat pricing is cheaper than pay-per-request above moderate volume
+- **Sustained high traffic** — an hourly base plus LCUs is cheaper than pay-per-request above moderate volume
 
 ## When NOT to use
 
@@ -37447,7 +37469,7 @@ Common patterns that fit well:
 
 | Feature | Application Load Balancer | HTTP API Gateway |
 | --- | --- | --- |
-| Pricing model | Flat ~$18/month + LCU-based | Pay-per-request |
+| Pricing model | ~$18/month hourly base + LCU usage | Pay-per-request |
 | Best for | Container workloads | Lambda functions |
 | Scales to zero cost | No | Yes |
 | Routing options | Path, method, host, headers, query params, source IPs | Method + path |
@@ -37813,7 +37835,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ### How much does an Application Load Balancer cost?
 
-AWS ALB has a flat base charge of roughly $18/month plus a variable component based on Load Balancer Capacity Units (LCUs). LCUs measure active connections, new connections, bandwidth, and rule evaluations — most moderate-traffic apps stay near the base cost. ALB is AWS Free Tier eligible. Note the base cost runs even at zero traffic, so a pay-per-request [HTTP API Gateway](/resources/networking/http-api-gateway) is cheaper for low or spiky volume.
+AWS ALB has an hourly base charge of roughly $18/month plus a variable component based on Load Balancer Capacity Units (LCUs). LCUs measure active connections, new connections, bandwidth, and rule evaluations — most moderate-traffic apps stay near the base cost. ALB is AWS Free Tier eligible. Note the base cost runs even at zero traffic, so a pay-per-request [HTTP API Gateway](/resources/networking/http-api-gateway) is cheaper for low or spiky volume.
 
 ### How do I route traffic to multiple services through one ALB?
 
@@ -37825,7 +37847,7 @@ An [Application Load Balancer](/resources/networking/application-load-balancer) 
 
 ### When should I use an ALB vs HTTP API Gateway?
 
-Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-based request-response APIs with variable or low traffic. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes that should scale to zero. Use an Application Load Balancer for container-based services, persistent WebSocket servers, or advanced HTTP routing (headers, query params, source IPs). ALB's flat pricing is cheaper above roughly 500k requests per day. ALB also supports [gradual deployments](/deployment-and-lifecycle/gradual-deployments) and direct [WAF attachment](/resources/security/web-application-firewall).
+Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-based request-response APIs with variable or low traffic. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes that should scale to zero. Use an Application Load Balancer for container-based services, persistent WebSocket servers, or advanced HTTP routing (headers, query params, source IPs). ALB's hourly base plus LCU usage is cheaper above roughly 500k requests per day. ALB also supports [gradual deployments](/deployment-and-lifecycle/gradual-deployments) and direct [WAF attachment](/resources/security/web-application-firewall).
 
 ### Does the Application Load Balancer support WebSockets?
 
@@ -38771,8 +38793,8 @@ Common patterns that fit well:
 
 ## When NOT to use
 
-- **Container-based services that stay running** — an [Application Load Balancer](/resources/networking/application-load-balancer) is a better fit for [web services](/resources/compute/web-service). ALBs offer richer routing (headers, query params, source IPs) and a flat hourly cost that's cheaper at sustained high throughput.
-- **Sustained high-volume APIs** (roughly above 50–100 million requests/month) — ALB's flat pricing becomes more economical than pay-per-request at that scale.
+- **Container-based services that stay running** — an [Application Load Balancer](/resources/networking/application-load-balancer) is a better fit for [web services](/resources/compute/web-service). ALBs offer richer routing (headers, query params, source IPs) and an hourly base plus LCU usage that's cheaper at sustained high throughput.
+- **Sustained high-volume APIs** (roughly above 50–100 million requests/month) — ALB's hourly base plus LCU usage becomes more economical than pay-per-request at that scale.
 - **WebSocket or persistent connections** — this HTTP API resource routes request-response traffic only. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes, or an [Application Load Balancer](/resources/networking/application-load-balancer) for a persistent container server.
 - **TCP/TLS (non-HTTP) protocols** — use a [Network Load Balancer](/resources/networking/network-load-balancer) instead.
 

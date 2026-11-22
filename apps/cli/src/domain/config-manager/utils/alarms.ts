@@ -50,11 +50,14 @@ export const isGlobalAlarmEligibleForStack = ({
   );
 };
 
-const isAlarmEligibleForResource = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
-  return (
-    !((resource as StpAlarmEnabledResource).disabledGlobalAlarms || []).includes(alarm.name) &&
-    resourceTypesForAlarmType[alarm.trigger.type].includes(resource.type as StpAlarmEnabledResource['type'])
-  );
+const isAlarmTypeEligibleForResource = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
+  return resourceTypesForAlarmType[alarm.trigger.type].includes(resource.type as StpAlarmEnabledResource['type']);
+};
+
+// `disabledGlobalAlarms` lists organization-wide (legacy Console) rules by the name they have in the Console,
+// so the check runs before the rule is renamed for the resource.
+const isGlobalAlarmEnabledForResource = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
+  return !((resource as StpAlarmEnabledResource).disabledGlobalAlarms || []).includes(alarm.name);
 };
 
 const resourceTypesForAlarmType: {
@@ -99,18 +102,20 @@ export const getAlarmsToBeAppliedToResource = ({
   globalAlarms: AlarmDefinition[];
 }) => {
   return [
-    ...globalAlarms.map(
-      (alarm) =>
-        ({
-          ...alarm,
-          nameChain: [...resource.nameChain, 'alarms', alarm.name],
-          name: getStpNameForAlarm({
-            nameChain: resource.nameChain,
-            alarmTriggerType: alarm.trigger.type,
-            alarmIndexOrGlobalAlarmName: alarm.name
-          })
-        }) as StpAlarm
-    ),
+    ...globalAlarms
+      .filter((alarm) => isGlobalAlarmEnabledForResource({ alarm, resource }))
+      .map(
+        (alarm) =>
+          ({
+            ...alarm,
+            nameChain: [...resource.nameChain, 'alarms', alarm.name],
+            name: getStpNameForAlarm({
+              nameChain: resource.nameChain,
+              alarmTriggerType: alarm.trigger.type,
+              alarmIndexOrGlobalAlarmName: alarm.name
+            })
+          }) as StpAlarm
+      ),
     ...((resource as StpAlarmEnabledResource).alarms || []).map(
       (alarm, idx) =>
         ({
@@ -124,6 +129,6 @@ export const getAlarmsToBeAppliedToResource = ({
         }) as StpAlarm
     )
   ]
-    .filter((alarm) => isAlarmEligibleForResource({ alarm, resource }))
+    .filter((alarm) => isAlarmTypeEligibleForResource({ alarm, resource }))
     .map(validateAlarmNotificationChannels);
 };

@@ -10,6 +10,7 @@ import { SidebarNavigation } from '@/components/Navigation/SidebarNavigation/Sid
 import { MobileHamburgerNavigation } from '@/components/Navigation/MobileHamburgerNavigation/MobileHamburgerNavigation';
 import { TableOfContents } from '@/components/TableOfContents/TableOfContents';
 import PostHogAnalytics from '@/components/PostHogAnalytics.astro';
+import MovedSectionRedirect from '@/components/MovedSectionRedirect.astro';
 import { getSectionTrail } from '@/components/Navigation/SidebarNavigation/navigation-data';
 
 type Props = {
@@ -183,5 +184,6 @@ const siteJsonLd = isHome ? [
         {hasToc && <TableOfContents client:idle variant="rail" tableOfContents={outline} />}
       </main>
     </div>
+    <MovedSectionRedirect />
   </body>
 </html>

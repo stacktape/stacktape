@@ -48,7 +48,7 @@ export function MobileHamburgerNavigation({
       inert={!isOpen}
     >
       <nav aria-label="Documentation" className="docs-sidebar-scroller">
-        <ContentTree allDocPages={allDocPages} pathname={pathname} version={version} />
+        <ContentTree allDocPages={allDocPages} pathname={pathname} version={version} idPrefix="docs-drawer-nav" />
       </nav>
     </div>
   );
