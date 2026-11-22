@@ -25,10 +25,6 @@ The command opens one or more local ports, prints the local-to-remote mapping, a
 
 **`--local-tunneling-port`** — sets the local port passed to the tunneling helper. If not specified, Stacktape automatically selects an available port. If the target resolves to multiple tunnel targets, Stacktape opens one port-forwarding session per target and prints the actual local ports.
 
-## Flags reference
-
-<CliCommandsApiReference command="bastion:tunnel" />
-
 ## Supported resource types
 
 Bastion tunneling works with four resource types. Stacktape resolves the tunnel targets for the resource and opens one or more port-forwarding sessions accordingly.
@@ -126,6 +122,10 @@ Yes. Each `bastion tunnel` invocation keeps running while its port-forwarding se
 ### Can I tunnel to a publicly accessible database?
 
 You can, but there is no reason to. If a database has a public endpoint, connect to it directly. Bastion tunneling is designed for resources deployed in a private VPC with no public endpoint.
+
+## Options
+
+<CliCommandsApiReference command="bastion:tunnel" />
 
 ## Related commands
 

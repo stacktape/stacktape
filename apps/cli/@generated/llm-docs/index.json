@@ -15888,7 +15888,8 @@
         "page:/cli/ai-connect#providers",
         "page:/cli/ai-connect#what-it-connects",
         "page:/cli/ai-connect#sign-ins-that-refresh",
-        "page:/cli/ai-connect#flags-reference"
+        "page:/cli/ai-connect#options",
+        "page:/cli/ai-connect#cli-options-stacktape-ai-connect"
       ]
     },
     {
@@ -15906,7 +15907,8 @@
       "chunks": [
         "page:/cli/ai-disconnect#ai-disconnect",
         "page:/cli/ai-disconnect#usage",
-        "page:/cli/ai-disconnect#flags-reference"
+        "page:/cli/ai-disconnect#options",
+        "page:/cli/ai-disconnect#cli-options-stacktape-ai-disconnect"
       ]
     },
     {
@@ -15947,18 +15949,11 @@
       "chunks": [
         "page:/cli/alarms#alarm-list",
         "page:/cli/alarms#usage",
-        "page:/cli/alarms#filtering",
-        "page:/cli/alarms#filter-by-resource",
-        "page:/cli/alarms#filter-by-state",
-        "page:/cli/alarms#agent-mode",
-        "page:/cli/alarms#flags-reference",
+        "page:/cli/alarms#filter-by-resource-or-state",
+        "page:/cli/alarms#check-from-a-script",
+        "page:/cli/alarms#options",
         "page:/cli/alarms#cli-options-stacktape-alarm-list",
-        "page:/cli/alarms#related-commands",
-        "page:/cli/alarms#faq",
-        "page:/cli/alarms#what-alarms-does-this-command-show",
-        "page:/cli/alarms#what-do-the-alarm-states-mean",
-        "page:/cli/alarms#how-do-i-check-from-a-script-whether-any-alarms-are-firing",
-        "page:/cli/alarms#how-is-this-different-from-stacktape-metrics"
+        "page:/cli/alarms#related-commands"
       ]
     },
     {
@@ -15979,14 +15974,14 @@
         "page:/cli/aws-call#target-stack-and-credentials",
         "page:/cli/aws-call#basic-usage",
         "page:/cli/aws-call#choosing-the-right-command",
-        "page:/cli/aws-call#cli-options",
-        "page:/cli/aws-call#cli-options-stacktape-aws-call",
         "page:/cli/aws-call#troubleshooting",
         "page:/cli/aws-call#the-service-is-not-supported",
         "page:/cli/aws-call#the-operation-is-rejected",
         "page:/cli/aws-call#the-target-stack-cannot-be-found",
         "page:/cli/aws-call#the-call-returns-accessdenied",
-        "page:/cli/aws-call#can-i-use-aws-call-without-a-stacktape-project"
+        "page:/cli/aws-call#can-i-use-aws-call-without-a-stacktape-project",
+        "page:/cli/aws-call#options",
+        "page:/cli/aws-call#cli-options-stacktape-aws-call"
       ]
     },
     {
@@ -16004,10 +15999,10 @@
       "chunks": [
         "page:/cli/aws-profile-create#aws-profile-create",
         "page:/cli/aws-profile-create#usage",
-        "page:/cli/aws-profile-create#flags",
-        "page:/cli/aws-profile-create#cli-options-stacktape-aws-profile-create",
         "page:/cli/aws-profile-create#examples",
         "page:/cli/aws-profile-create#where-credentials-are-stored",
+        "page:/cli/aws-profile-create#options",
+        "page:/cli/aws-profile-create#cli-options-stacktape-aws-profile-create",
         "page:/cli/aws-profile-create#related-commands"
       ]
     },
@@ -16026,9 +16021,9 @@
       "chunks": [
         "page:/cli/aws-profile-delete#aws-profile-delete",
         "page:/cli/aws-profile-delete#usage",
-        "page:/cli/aws-profile-delete#arguments-reference",
-        "page:/cli/aws-profile-delete#cli-options-stacktape-aws-profile-delete",
         "page:/cli/aws-profile-delete#examples",
+        "page:/cli/aws-profile-delete#options",
+        "page:/cli/aws-profile-delete#cli-options-stacktape-aws-profile-delete",
         "page:/cli/aws-profile-delete#related-commands"
       ]
     },
@@ -16047,9 +16042,8 @@
       "chunks": [
         "page:/cli/aws-profile-list#aws-profile-list",
         "page:/cli/aws-profile-list#usage",
-        "page:/cli/aws-profile-list#options-reference",
+        "page:/cli/aws-profile-list#options",
         "page:/cli/aws-profile-list#cli-options-stacktape-aws-profile-list",
-        "page:/cli/aws-profile-list#examples",
         "page:/cli/aws-profile-list#related-commands"
       ]
     },
@@ -16069,7 +16063,7 @@
         "page:/cli/aws-profile-update#aws-profile-update",
         "page:/cli/aws-profile-update#usage",
         "page:/cli/aws-profile-update#examples",
-        "page:/cli/aws-profile-update#flags-reference",
+        "page:/cli/aws-profile-update#options",
         "page:/cli/aws-profile-update#cli-options-stacktape-aws-profile-update",
         "page:/cli/aws-profile-update#related-commands"
       ]
@@ -16090,13 +16084,13 @@
         "page:/cli/bastion-session#bastion-shell",
         "page:/cli/bastion-session#usage",
         "page:/cli/bastion-session#how-it-works",
-        "page:/cli/bastion-session#cli-reference",
-        "page:/cli/bastion-session#cli-options-stacktape-bastion-shell",
         "page:/cli/bastion-session#examples",
         "page:/cli/bastion-session#connect-to-the-only-bastion-in-a-stack",
         "page:/cli/bastion-session#connect-to-a-specific-bastion-by-name",
         "page:/cli/bastion-session#use-a-specific-aws-profile",
         "page:/cli/bastion-session#troubleshooting",
+        "page:/cli/bastion-session#options",
+        "page:/cli/bastion-session#cli-options-stacktape-bastion-shell",
         "page:/cli/bastion-session#related-commands"
       ]
     },
@@ -16116,8 +16110,6 @@
         "page:/cli/bastion-tunnel#bastion-tunnel",
         "page:/cli/bastion-tunnel#usage",
         "page:/cli/bastion-tunnel#important-flags",
-        "page:/cli/bastion-tunnel#flags-reference",
-        "page:/cli/bastion-tunnel#cli-options-stacktape-bastion-tunnel",
         "page:/cli/bastion-tunnel#supported-resource-types",
         "page:/cli/bastion-tunnel#examples",
         "page:/cli/bastion-tunnel#tunnel-to-a-relational-database",
@@ -16132,6 +16124,8 @@
         "page:/cli/bastion-tunnel#why-does-my-private-service-tunnel-fail",
         "page:/cli/bastion-tunnel#can-i-run-multiple-tunnels-at-the-same-time",
         "page:/cli/bastion-tunnel#can-i-tunnel-to-a-publicly-accessible-database",
+        "page:/cli/bastion-tunnel#options",
+        "page:/cli/bastion-tunnel#cli-options-stacktape-bastion-tunnel",
         "page:/cli/bastion-tunnel#related-commands"
       ]
     },
@@ -16150,14 +16144,14 @@
       "chunks": [
         "page:/cli/bucket-sync#bucket-sync",
         "page:/cli/bucket-sync#usage",
-        "page:/cli/bucket-sync#argument-reference",
-        "page:/cli/bucket-sync#cli-options-stacktape-bucket-sync",
         "page:/cli/bucket-sync#important-flags",
         "page:/cli/bucket-sync#invalidate-cdn-cache",
         "page:/cli/bucket-sync#headers-preset",
         "page:/cli/bucket-sync#source-path",
         "page:/cli/bucket-sync#resource-name",
         "page:/cli/bucket-sync#examples",
+        "page:/cli/bucket-sync#options",
+        "page:/cli/bucket-sync#cli-options-stacktape-bucket-sync",
         "page:/cli/bucket-sync#related-commands"
       ]
     },
@@ -16176,9 +16170,9 @@
       "chunks": [
         "page:/cli/cf-module-update#stack-update-modules",
         "page:/cli/cf-module-update#usage",
-        "page:/cli/cf-module-update#arguments-reference",
-        "page:/cli/cf-module-update#cli-options-stacktape-stack-update-modules",
         "page:/cli/cf-module-update#examples",
+        "page:/cli/cf-module-update#options",
+        "page:/cli/cf-module-update#cli-options-stacktape-stack-update-modules",
         "page:/cli/cf-module-update#related-commands"
       ]
     },
@@ -16197,8 +16191,6 @@
       "chunks": [
         "page:/cli/cf-rollback#stack-recover",
         "page:/cli/cf-rollback#usage",
-        "page:/cli/cf-rollback#arguments-reference",
-        "page:/cli/cf-rollback#cli-options-stacktape-stack-recover",
         "page:/cli/cf-rollback#what-it-does",
         "page:/cli/cf-rollback#stack-recover-vs-rollback",
         "page:/cli/cf-rollback#important-flags",
@@ -16206,11 +16198,12 @@
         "page:/cli/cf-rollback#stage",
         "page:/cli/cf-rollback#profile",
         "page:/cli/cf-rollback#examples",
-        "page:/cli/cf-rollback#related-commands",
         "page:/cli/cf-rollback#faq",
-        "page:/cli/cf-rollback#when-should-i-use-stack-recover-instead-of-rollback",
         "page:/cli/cf-rollback#what-s-the-difference-between-update-failed-and-update-rollback-failed",
-        "page:/cli/cf-rollback#my-rollback-keeps-failing-on-a-specific-resource-what-do-i-do"
+        "page:/cli/cf-rollback#my-rollback-keeps-failing-on-a-specific-resource-what-do-i-do",
+        "page:/cli/cf-rollback#options",
+        "page:/cli/cf-rollback#cli-options-stacktape-stack-recover",
+        "page:/cli/cf-rollback#related-commands"
       ]
     },
     {
@@ -16252,28 +16245,18 @@
       ],
       "chunks": [
         "page:/cli/container-exec#container-exec",
-        "page:/cli/container-exec#when-to-use",
         "page:/cli/container-exec#usage",
-        "page:/cli/container-exec#important-flags",
-        "page:/cli/container-exec#command-reference",
-        "page:/cli/container-exec#cli-options-stacktape-container-exec",
-        "page:/cli/container-exec#examples",
-        "page:/cli/container-exec#inspect-a-configuration-file",
-        "page:/cli/container-exec#check-environment-variables",
-        "page:/cli/container-exec#target-a-specific-task-in-a-scaled-out-service",
-        "page:/cli/container-exec#target-a-specific-container-in-a-multi-container-workload",
-        "page:/cli/container-exec#use-in-scripts-or-ci-pipelines",
+        "page:/cli/container-exec#pick-the-task-and-the-container",
+        "page:/cli/container-exec#use-it-in-a-script",
         "page:/cli/container-exec#common-errors",
-        "page:/cli/container-exec#resource-is-not-a-container-workload",
-        "page:/cli/container-exec#multiple-containers-require-the-container-flag",
-        "page:/cli/container-exec#no-running-tasks-found",
-        "page:/cli/container-exec#task-not-found",
-        "page:/cli/container-exec#related-commands",
-        "page:/cli/container-exec#faq",
-        "page:/cli/container-exec#what-is-the-difference-between-container-exec-and-container-shell",
-        "page:/cli/container-exec#which-resource-types-work-with-container-exec",
-        "page:/cli/container-exec#does-container-exec-modify-the-running-container",
-        "page:/cli/container-exec#how-does-container-exec-connect-to-the-container"
+        "page:/cli/container-exec#resource-is-not-a-deployed-container-workload",
+        "page:/cli/container-exec#resource-contains-multiple-containers",
+        "page:/cli/container-exec#no-running-task-was-found",
+        "page:/cli/container-exec#resource-does-not-have-a-deployed-ecs-service",
+        "page:/cli/container-exec#task-was-not-found",
+        "page:/cli/container-exec#options",
+        "page:/cli/container-exec#cli-options-stacktape-container-exec",
+        "page:/cli/container-exec#related-commands"
       ]
     },
     {
@@ -16293,10 +16276,10 @@
         "page:/cli/container-session#usage",
         "page:/cli/container-session#important-flags",
         "page:/cli/container-session#multiple-running-instances",
-        "page:/cli/container-session#arguments-reference",
-        "page:/cli/container-session#cli-options-stacktape-container-shell",
         "page:/cli/container-session#common-errors",
         "page:/cli/container-session#examples",
+        "page:/cli/container-session#options",
+        "page:/cli/container-session#cli-options-stacktape-container-shell",
         "page:/cli/container-session#related-commands"
       ]
     },
@@ -16315,20 +16298,10 @@
       "chunks": [
         "page:/cli/defaults-configure#defaults-set",
         "page:/cli/defaults-configure#usage",
-        "page:/cli/defaults-configure#configurable-defaults",
-        "page:/cli/defaults-configure#cli-argument-defaults",
-        "page:/cli/defaults-configure#other-defaults",
-        "page:/cli/defaults-configure#how-defaults-interact-with-cli-flags",
-        "page:/cli/defaults-configure#where-defaults-are-stored",
-        "page:/cli/defaults-configure#examples",
-        "page:/cli/defaults-configure#flags-reference",
+        "page:/cli/defaults-configure#what-you-can-set",
+        "page:/cli/defaults-configure#options",
         "page:/cli/defaults-configure#cli-options-stacktape-defaults-set",
-        "page:/cli/defaults-configure#related-commands",
-        "page:/cli/defaults-configure#faq",
-        "page:/cli/defaults-configure#do-explicit-cli-flags-override-configured-defaults",
-        "page:/cli/defaults-configure#how-do-i-clear-a-single-configured-default",
-        "page:/cli/defaults-configure#do-i-need-to-be-logged-in-to-run-defaults-set",
-        "page:/cli/defaults-configure#can-i-set-defaults-per-project-or-only-globally"
+        "page:/cli/defaults-configure#related-commands"
       ]
     },
     {
@@ -16346,9 +16319,9 @@
       "chunks": [
         "page:/cli/defaults-list#defaults-list",
         "page:/cli/defaults-list#usage",
-        "page:/cli/defaults-list#command-reference",
-        "page:/cli/defaults-list#cli-options-stacktape-defaults-list",
         "page:/cli/defaults-list#what-gets-displayed",
+        "page:/cli/defaults-list#options",
+        "page:/cli/defaults-list#cli-options-stacktape-defaults-list",
         "page:/cli/defaults-list#related-commands"
       ]
     },
@@ -16367,19 +16340,12 @@
       "chunks": [
         "page:/cli/delete#delete",
         "page:/cli/delete#usage",
-        "page:/cli/delete#important-flags",
-        "page:/cli/delete#cli-options-stacktape-delete",
-        "page:/cli/delete#lifecycle-hooks",
-        "page:/cli/delete#termination-protection",
-        "page:/cli/delete#deletion-protection",
+        "page:/cli/delete#beforedelete-hooks",
+        "page:/cli/delete#protected-stacks-and-resources",
         "page:/cli/delete#examples",
-        "page:/cli/delete#related-commands",
-        "page:/cli/delete#faq",
-        "page:/cli/delete#what-happens-to-my-data-when-i-delete-a-stack",
-        "page:/cli/delete#can-i-delete-a-stack-without-a-configuration-file",
-        "page:/cli/delete#how-do-i-delete-a-stack-in-a-ci-cd-pipeline",
-        "page:/cli/delete#how-do-i-delete-a-stack-with-termination-protection",
-        "page:/cli/delete#what-is-the-difference-between-delete-and-rollback"
+        "page:/cli/delete#options",
+        "page:/cli/delete#cli-options-stacktape-delete",
+        "page:/cli/delete#related-commands"
       ]
     },
     {
@@ -16404,20 +16370,17 @@
         "page:/cli/deploy#yes",
         "page:/cli/deploy#auto-rollback",
         "page:/cli/deploy#no-cache",
-        "page:/cli/deploy#config",
         "page:/cli/deploy#no-layer-optimization",
         "page:/cli/deploy#show-secrets",
-        "page:/cli/deploy#all-flags",
-        "page:/cli/deploy#cli-options-stacktape-deploy",
         "page:/cli/deploy#examples",
         "page:/cli/deploy#deploy-a-new-production-stage",
         "page:/cli/deploy#deploy-to-the-account-of-an-aws-profile",
         "page:/cli/deploy#deploy-to-a-named-connected-account",
-        "page:/cli/deploy#deploy-everything-through-cloudformation",
-        "page:/cli/deploy#non-interactive-deploy-in-ci-cd",
         "page:/cli/deploy#preview-changes-before-deploying",
         "page:/cli/deploy#free-plan-cost-limit",
         "page:/cli/deploy#dev-stacks-cannot-be-deployed",
+        "page:/cli/deploy#options",
+        "page:/cli/deploy#cli-options-stacktape-deploy",
         "page:/cli/deploy#related-commands"
       ]
     },
@@ -16436,10 +16399,10 @@
       "chunks": [
         "page:/cli/deployment-script-run#deployment-script-run",
         "page:/cli/deployment-script-run#usage",
-        "page:/cli/deployment-script-run#arguments-reference",
-        "page:/cli/deployment-script-run#cli-options-stacktape-deployment-script-run",
         "page:/cli/deployment-script-run#examples",
         "page:/cli/deployment-script-run#when-to-use-this-vs-deploy",
+        "page:/cli/deployment-script-run#options",
+        "page:/cli/deployment-script-run#cli-options-stacktape-deployment-script-run",
         "page:/cli/deployment-script-run#related-commands"
       ]
     },
@@ -16505,7 +16468,7 @@
         "page:/cli/dev-stop#stage-and-cwd",
         "page:/cli/dev-stop#agent-port",
         "page:/cli/dev-stop#cleanup-containers",
-        "page:/cli/dev-stop#flags-reference",
+        "page:/cli/dev-stop#options",
         "page:/cli/dev-stop#cli-options-stacktape-dev-stop",
         "page:/cli/dev-stop#related-commands"
       ]
@@ -16525,9 +16488,7 @@
       "chunks": [
         "page:/cli/dev#dev",
         "page:/cli/dev#usage",
-        "page:/cli/dev#cli-options-stacktape-dev",
-        "page:/cli/dev#what-it-does",
-        "page:/cli/dev#supported-resource-types",
+        "page:/cli/dev#what-runs-where",
         "page:/cli/dev#important-flags",
         "page:/cli/dev#resources-skip-resources",
         "page:/cli/dev#watch",
@@ -16539,12 +16500,9 @@
         "page:/cli/dev#agent-agent-port",
         "page:/cli/dev#interactive-commands",
         "page:/cli/dev#examples",
-        "page:/cli/dev#faq",
-        "page:/cli/dev#does-stacktape-dev-require-docker",
-        "page:/cli/dev#when-should-i-use-stacktape-dev-vs-stacktape-deploy",
-        "page:/cli/dev#how-can-i-connect-to-a-real-deployed-database-instead-of-the-local-one",
-        "page:/cli/dev#what-is-agent-mode-and-when-should-i-use-it",
-        "page:/cli/dev#why-does-stacktape-dev-stop-with-free-plan-limit-reached",
+        "page:/cli/dev#free-plan-limit-reached",
+        "page:/cli/dev#options",
+        "page:/cli/dev#cli-options-stacktape-dev",
         "page:/cli/dev#related-commands"
       ]
     },
@@ -16563,20 +16521,13 @@
       "chunks": [
         "page:/cli/diff#diff",
         "page:/cli/diff#usage",
-        "page:/cli/diff#how-it-works",
-        "page:/cli/diff#important-flags",
+        "page:/cli/diff#replaced-resources",
+        "page:/cli/diff#what-diff-changes-in-aws",
         "page:/cli/diff#examples",
-        "page:/cli/diff#reading-the-output",
-        "page:/cli/diff#command-reference",
+        "page:/cli/diff#a-first-deployment-has-nothing-to-compare",
+        "page:/cli/diff#options",
         "page:/cli/diff#cli-options-stacktape-diff",
-        "page:/cli/diff#related-commands",
-        "page:/cli/diff#faq",
-        "page:/cli/diff#does-diff-make-any-changes-to-my-stack",
-        "page:/cli/diff#what-does-no-meaningful-stacktape-resource-changes-mean",
-        "page:/cli/diff#how-do-i-get-machine-readable-diff-output-for-scripts-or-pr-comments",
-        "page:/cli/diff#what-is-the-difference-between-will-replace-and-may-replace",
-        "page:/cli/diff#how-is-diff-different-from-synth",
-        "page:/cli/diff#does-diff-require-an-already-deployed-stack"
+        "page:/cli/diff#related-commands"
       ]
     },
     {
@@ -16599,16 +16550,16 @@
         "page:/cli/domain-add#dns-already-verified",
         "page:/cli/domain-add#dns-managed-outside-aws",
         "page:/cli/domain-add#tls-certificates",
-        "page:/cli/domain-add#arguments-reference",
-        "page:/cli/domain-add#cli-options-stacktape-domain-add",
         "page:/cli/domain-add#examples",
-        "page:/cli/domain-add#related-commands",
         "page:/cli/domain-add#faq",
         "page:/cli/domain-add#can-i-add-a-subdomain-instead-of-a-root-domain",
         "page:/cli/domain-add#what-happens-if-my-domain-is-not-yet-registered",
         "page:/cli/domain-add#do-i-need-to-run-this-command-in-every-region",
         "page:/cli/domain-add#is-there-a-cost-for-adding-a-domain",
-        "page:/cli/domain-add#can-i-use-a-domain-registered-outside-aws"
+        "page:/cli/domain-add#can-i-use-a-domain-registered-outside-aws",
+        "page:/cli/domain-add#options",
+        "page:/cli/domain-add#cli-options-stacktape-domain-add",
+        "page:/cli/domain-add#related-commands"
       ]
     },
     {
@@ -16626,10 +16577,10 @@
       "chunks": [
         "page:/cli/errors-ignore#error-ignore",
         "page:/cli/errors-ignore#usage",
-        "page:/cli/errors-ignore#flags-reference",
-        "page:/cli/errors-ignore#cli-options-stacktape-error-ignore",
         "page:/cli/errors-ignore#examples",
         "page:/cli/errors-ignore#when-to-ignore-vs-resolve",
+        "page:/cli/errors-ignore#options",
+        "page:/cli/errors-ignore#cli-options-stacktape-error-ignore",
         "page:/cli/errors-ignore#related-commands"
       ]
     },
@@ -16648,10 +16599,10 @@
       "chunks": [
         "page:/cli/errors-list#error-list",
         "page:/cli/errors-list#usage",
-        "page:/cli/errors-list#flags-reference",
-        "page:/cli/errors-list#cli-options-stacktape-error-list",
         "page:/cli/errors-list#examples",
         "page:/cli/errors-list#output",
+        "page:/cli/errors-list#options",
+        "page:/cli/errors-list#cli-options-stacktape-error-list",
         "page:/cli/errors-list#related-commands"
       ]
     },
@@ -16671,7 +16622,7 @@
         "page:/cli/errors-reopen#error-reopen",
         "page:/cli/errors-reopen#usage",
         "page:/cli/errors-reopen#examples",
-        "page:/cli/errors-reopen#arguments-reference",
+        "page:/cli/errors-reopen#options",
         "page:/cli/errors-reopen#cli-options-stacktape-error-reopen",
         "page:/cli/errors-reopen#related-commands"
       ]
@@ -16691,9 +16642,9 @@
       "chunks": [
         "page:/cli/errors-resolve#error-resolve",
         "page:/cli/errors-resolve#usage",
-        "page:/cli/errors-resolve#flags-reference",
-        "page:/cli/errors-resolve#cli-options-stacktape-error-resolve",
         "page:/cli/errors-resolve#examples",
+        "page:/cli/errors-resolve#options",
+        "page:/cli/errors-resolve#cli-options-stacktape-error-resolve",
         "page:/cli/errors-resolve#related-commands"
       ]
     },
@@ -16712,10 +16663,8 @@
       "chunks": [
         "page:/cli/help#help",
         "page:/cli/help#usage",
-        "page:/cli/help#help-for-one-command",
-        "page:/cli/help#options-reference",
+        "page:/cli/help#options",
         "page:/cli/help#cli-options-stacktape-help",
-        "page:/cli/help#examples",
         "page:/cli/help#related-commands"
       ]
     },
@@ -16734,9 +16683,9 @@
       "chunks": [
         "page:/cli/incidents-ack#incident-ack",
         "page:/cli/incidents-ack#usage",
-        "page:/cli/incidents-ack#flags-reference",
-        "page:/cli/incidents-ack#cli-options-stacktape-incident-ack",
         "page:/cli/incidents-ack#examples",
+        "page:/cli/incidents-ack#options",
+        "page:/cli/incidents-ack#cli-options-stacktape-incident-ack",
         "page:/cli/incidents-ack#related-commands"
       ]
     },
@@ -16755,9 +16704,9 @@
       "chunks": [
         "page:/cli/incidents-resolve#incident-resolve",
         "page:/cli/incidents-resolve#usage",
-        "page:/cli/incidents-resolve#flags-reference",
-        "page:/cli/incidents-resolve#cli-options-stacktape-incident-resolve",
         "page:/cli/incidents-resolve#examples",
+        "page:/cli/incidents-resolve#options",
+        "page:/cli/incidents-resolve#cli-options-stacktape-incident-resolve",
         "page:/cli/incidents-resolve#related-commands"
       ]
     },
@@ -16776,10 +16725,10 @@
       "chunks": [
         "page:/cli/incidents-show#incident-show",
         "page:/cli/incidents-show#usage",
-        "page:/cli/incidents-show#flags-reference",
-        "page:/cli/incidents-show#cli-options-stacktape-incident-show",
         "page:/cli/incidents-show#examples",
         "page:/cli/incidents-show#untrusted-evidence",
+        "page:/cli/incidents-show#options",
+        "page:/cli/incidents-show#cli-options-stacktape-incident-show",
         "page:/cli/incidents-show#related-commands"
       ]
     },
@@ -16798,10 +16747,10 @@
       "chunks": [
         "page:/cli/incidents-watch#incident-watch",
         "page:/cli/incidents-watch#usage",
-        "page:/cli/incidents-watch#flags-reference",
-        "page:/cli/incidents-watch#cli-options-stacktape-incident-watch",
         "page:/cli/incidents-watch#examples",
         "page:/cli/incidents-watch#exit-behavior",
+        "page:/cli/incidents-watch#options",
+        "page:/cli/incidents-watch#cli-options-stacktape-incident-watch",
         "page:/cli/incidents-watch#related-commands"
       ]
     },
@@ -16820,10 +16769,10 @@
       "chunks": [
         "page:/cli/incidents#incident-list",
         "page:/cli/incidents#usage",
-        "page:/cli/incidents#flags-reference",
-        "page:/cli/incidents#cli-options-stacktape-incident-list",
         "page:/cli/incidents#examples",
         "page:/cli/incidents#output",
+        "page:/cli/incidents#options",
+        "page:/cli/incidents#cli-options-stacktape-incident-list",
         "page:/cli/incidents#related-commands"
       ]
     },
@@ -16845,7 +16794,7 @@
         "page:/cli/info-operations#filtering-results",
         "page:/cli/info-operations#controlling-output-size",
         "page:/cli/info-operations#machine-readable-output",
-        "page:/cli/info-operations#flags-reference",
+        "page:/cli/info-operations#options",
         "page:/cli/info-operations#cli-options-stacktape-stack-history",
         "page:/cli/info-operations#related-commands"
       ]
@@ -16865,9 +16814,9 @@
       "chunks": [
         "page:/cli/info-stack#status",
         "page:/cli/info-stack#usage",
-        "page:/cli/info-stack#command-reference",
-        "page:/cli/info-stack#cli-options-stacktape-status",
         "page:/cli/info-stack#examples",
+        "page:/cli/info-stack#options",
+        "page:/cli/info-stack#cli-options-stacktape-status",
         "page:/cli/info-stack#related-commands"
       ]
     },
@@ -16886,11 +16835,11 @@
       "chunks": [
         "page:/cli/info-stacks#stack-list",
         "page:/cli/info-stacks#usage",
-        "page:/cli/info-stacks#api-reference",
-        "page:/cli/info-stacks#cli-options-stacktape-stack-list",
         "page:/cli/info-stacks#what-it-does",
         "page:/cli/info-stacks#important-flags",
         "page:/cli/info-stacks#examples",
+        "page:/cli/info-stacks#options",
+        "page:/cli/info-stacks#cli-options-stacktape-stack-list",
         "page:/cli/info-stacks#related-commands"
       ]
     },
@@ -16910,7 +16859,7 @@
         "page:/cli/info-whoami#whoami",
         "page:/cli/info-whoami#usage",
         "page:/cli/info-whoami#examples",
-        "page:/cli/info-whoami#flags",
+        "page:/cli/info-whoami#options",
         "page:/cli/info-whoami#cli-options-stacktape-whoami",
         "page:/cli/info-whoami#related-commands"
       ]
@@ -16942,10 +16891,7 @@
         "page:/cli/init#aws-account",
         "page:/cli/init#starter-id-starter-project-initialize-project-to",
         "page:/cli/init#existing-and-generated-configuration-files",
-        "page:/cli/init#all-flags",
-        "page:/cli/init#cli-options-stacktape-init",
         "page:/cli/init#examples",
-        "page:/cli/init#related-commands",
         "page:/cli/init#faq",
         "page:/cli/init#what-about-my-env-files",
         "page:/cli/init#do-i-need-an-aws-account-before-running-init",
@@ -16953,7 +16899,10 @@
         "page:/cli/init#which-agent-should-i-choose",
         "page:/cli/init#can-i-run-init-from-ci-or-a-coding-agent",
         "page:/cli/init#does-init-deploy-anything",
-        "page:/cli/init#will-init-overwrite-files-in-my-project"
+        "page:/cli/init#will-init-overwrite-files-in-my-project",
+        "page:/cli/init#options",
+        "page:/cli/init#cli-options-stacktape-init",
+        "page:/cli/init#related-commands"
       ]
     },
     {
@@ -16973,14 +16922,11 @@
         "page:/cli/login#usage",
         "page:/cli/login#what-happens-during-login",
         "page:/cli/login#non-interactive-login",
-        "page:/cli/login#flags-reference",
-        "page:/cli/login#cli-options-stacktape-login",
         "page:/cli/login#examples",
         "page:/cli/login#interactive-login",
         "page:/cli/login#login-with-an-api-key-in-ci",
         "page:/cli/login#verify-your-identity-after-login",
         "page:/cli/login#switch-to-a-different-user-or-organization",
-        "page:/cli/login#related-commands",
         "page:/cli/login#faq",
         "page:/cli/login#where-do-i-find-my-stacktape-api-key",
         "page:/cli/login#do-i-need-an-explicit-login-step-in-ci-cd",
@@ -16989,7 +16935,10 @@
         "page:/cli/login#does-login-expire",
         "page:/cli/login#do-i-need-to-log-in-to-deploy",
         "page:/cli/login#does-login-connect-my-aws-account",
-        "page:/cli/login#should-team-members-share-one-api-key"
+        "page:/cli/login#should-team-members-share-one-api-key",
+        "page:/cli/login#options",
+        "page:/cli/login#cli-options-stacktape-login",
+        "page:/cli/login#related-commands"
       ]
     },
     {
@@ -17008,7 +16957,7 @@
         "page:/cli/logout#logout",
         "page:/cli/logout#usage",
         "page:/cli/logout#when-to-use",
-        "page:/cli/logout#command-reference",
+        "page:/cli/logout#options",
         "page:/cli/logout#cli-options-stacktape-logout",
         "page:/cli/logout#related-commands"
       ]
@@ -17042,16 +16991,16 @@
         "page:/cli/logs#output-format",
         "page:/cli/logs#how-log-group-resolution-works",
         "page:/cli/logs#examples",
-        "page:/cli/logs#flags-reference",
-        "page:/cli/logs#cli-options-stacktape-logs",
-        "page:/cli/logs#related-commands",
         "page:/cli/logs#faq",
         "page:/cli/logs#how-do-i-filter-logs-for-errors-only",
         "page:/cli/logs#what-is-the-difference-between-filter-and-query",
         "page:/cli/logs#how-far-back-can-i-fetch-logs",
         "page:/cli/logs#does-stacktape-logs-live-tail",
         "page:/cli/logs#how-much-does-cloudwatch-logs-cost",
-        "page:/cli/logs#what-is-the-difference-between-raw-and-agent"
+        "page:/cli/logs#what-is-the-difference-between-raw-and-agent",
+        "page:/cli/logs#options",
+        "page:/cli/logs#cli-options-stacktape-logs",
+        "page:/cli/logs#related-commands"
       ]
     },
     {
@@ -17072,7 +17021,7 @@
         "page:/cli/mcp-add#supported-agents",
         "page:/cli/mcp-add#behavior-details",
         "page:/cli/mcp-add#examples",
-        "page:/cli/mcp-add#flags-reference",
+        "page:/cli/mcp-add#options",
         "page:/cli/mcp-add#cli-options-stacktape-mcp-add",
         "page:/cli/mcp-add#related-commands"
       ]
@@ -17094,7 +17043,7 @@
         "page:/cli/mcp-remove#usage",
         "page:/cli/mcp-remove#behavior-details",
         "page:/cli/mcp-remove#examples",
-        "page:/cli/mcp-remove#flags-reference",
+        "page:/cli/mcp-remove#options",
         "page:/cli/mcp-remove#cli-options-stacktape-mcp-remove",
         "page:/cli/mcp-remove#related-commands"
       ]
@@ -17114,7 +17063,6 @@
       "chunks": [
         "page:/cli/mcp#mcp",
         "page:/cli/mcp#usage",
-        "page:/cli/mcp#cli-options-stacktape-mcp",
         "page:/cli/mcp#what-the-server-provides",
         "page:/cli/mcp#how-it-works",
         "page:/cli/mcp#client-configuration",
@@ -17124,6 +17072,8 @@
         "page:/cli/mcp#do-i-need-an-api-key-to-use-the-mcp-server",
         "page:/cli/mcp#can-the-mcp-server-modify-my-infrastructure",
         "page:/cli/mcp#do-i-need-to-start-stacktape-mcp-myself",
+        "page:/cli/mcp#options",
+        "page:/cli/mcp#cli-options-stacktape-mcp",
         "page:/cli/mcp#related-commands"
       ]
     },
@@ -17142,19 +17092,12 @@
       "chunks": [
         "page:/cli/metrics#metrics",
         "page:/cli/metrics#usage",
-        "page:/cli/metrics#supported-resource-types-and-metrics",
-        "page:/cli/metrics#important-flags",
+        "page:/cli/metrics#supported-resources-and-metrics",
         "page:/cli/metrics#examples",
-        "page:/cli/metrics#flags-reference",
+        "page:/cli/metrics#reading-the-data-in-a-script",
+        "page:/cli/metrics#options",
         "page:/cli/metrics#cli-options-stacktape-metrics",
-        "page:/cli/metrics#related-commands",
-        "page:/cli/metrics#faq",
-        "page:/cli/metrics#what-resource-types-support-metrics",
-        "page:/cli/metrics#what-is-the-default-time-range-and-aggregation-period",
-        "page:/cli/metrics#which-stat-should-i-use-for-a-given-metric",
-        "page:/cli/metrics#can-i-fetch-metrics-for-resources-in-a-private-vpc",
-        "page:/cli/metrics#how-do-i-see-all-available-metrics-for-my-resource",
-        "page:/cli/metrics#when-should-i-use-metrics-vs-logs"
+        "page:/cli/metrics#related-commands"
       ]
     },
     {
@@ -17173,9 +17116,9 @@
         "page:/cli/org-create#org-create",
         "page:/cli/org-create#usage",
         "page:/cli/org-create#what-the-command-returns",
-        "page:/cli/org-create#flags-reference",
-        "page:/cli/org-create#cli-options-stacktape-org-create",
         "page:/cli/org-create#examples",
+        "page:/cli/org-create#options",
+        "page:/cli/org-create#cli-options-stacktape-org-create",
         "page:/cli/org-create#related-commands"
       ]
     },
@@ -17195,9 +17138,9 @@
         "page:/cli/org-delete#org-delete",
         "page:/cli/org-delete#usage",
         "page:/cli/org-delete#prerequisites",
-        "page:/cli/org-delete#flags-reference",
-        "page:/cli/org-delete#cli-options-stacktape-org-delete",
         "page:/cli/org-delete#examples",
+        "page:/cli/org-delete#options",
+        "page:/cli/org-delete#cli-options-stacktape-org-delete",
         "page:/cli/org-delete#related-commands"
       ]
     },
@@ -17217,9 +17160,9 @@
         "page:/cli/org-list#org-list",
         "page:/cli/org-list#usage",
         "page:/cli/org-list#output-formats",
-        "page:/cli/org-list#flags-reference",
-        "page:/cli/org-list#cli-options-stacktape-org-list",
         "page:/cli/org-list#examples",
+        "page:/cli/org-list#options",
+        "page:/cli/org-list#cli-options-stacktape-org-list",
         "page:/cli/org-list#related-commands"
       ]
     },
@@ -17239,16 +17182,16 @@
         "page:/cli/package#package",
         "page:/cli/package#usage",
         "page:/cli/package#examples",
-        "page:/cli/package#command-reference",
-        "page:/cli/package#cli-options-stacktape-package",
-        "page:/cli/package#related-commands",
         "page:/cli/package#faq",
         "page:/cli/package#when-should-i-use-package-instead-of-just-running-deploy",
         "page:/cli/package#how-is-package-different-from-validate-with-package",
         "page:/cli/package#does-package-use-caching",
         "page:/cli/package#does-package-require-aws-credentials",
         "page:/cli/package#can-i-package-only-specific-workloads",
-        "page:/cli/package#what-is-the-difference-between-package-and-synth"
+        "page:/cli/package#what-is-the-difference-between-package-and-synth",
+        "page:/cli/package#options",
+        "page:/cli/package#cli-options-stacktape-package",
+        "page:/cli/package#related-commands"
       ]
     },
     {
@@ -17266,8 +17209,6 @@
       "chunks": [
         "page:/cli/param-get#param-get",
         "page:/cli/param-get#usage",
-        "page:/cli/param-get#arguments-reference",
-        "page:/cli/param-get#cli-options-stacktape-param-get",
         "page:/cli/param-get#examples",
         "page:/cli/param-get#error-handling",
         "page:/cli/param-get#faq",
@@ -17275,6 +17216,8 @@
         "page:/cli/param-get#does-param-get-require-a-deployed-stack",
         "page:/cli/param-get#how-do-i-capture-the-value-in-a-shell-script-or-ci-step",
         "page:/cli/param-get#what-is-the-difference-between-param-get-and-status",
+        "page:/cli/param-get#options",
+        "page:/cli/param-get#cli-options-stacktape-param-get",
         "page:/cli/param-get#related-commands"
       ]
     },
@@ -17293,9 +17236,8 @@
       "chunks": [
         "page:/cli/project-create#project-create",
         "page:/cli/project-create#usage",
-        "page:/cli/project-create#cli-reference",
+        "page:/cli/project-create#options",
         "page:/cli/project-create#cli-options-stacktape-project-create",
-        "page:/cli/project-create#examples",
         "page:/cli/project-create#related-commands"
       ]
     },
@@ -17314,9 +17256,9 @@
       "chunks": [
         "page:/cli/project-delete#project-delete",
         "page:/cli/project-delete#usage",
-        "page:/cli/project-delete#cli-reference",
-        "page:/cli/project-delete#cli-options-stacktape-project-delete",
         "page:/cli/project-delete#examples",
+        "page:/cli/project-delete#options",
+        "page:/cli/project-delete#cli-options-stacktape-project-delete",
         "page:/cli/project-delete#related-commands"
       ]
     },
@@ -17337,9 +17279,9 @@
         "page:/cli/project-list#usage",
         "page:/cli/project-list#output",
         "page:/cli/project-list#ci-and-agent-usage",
-        "page:/cli/project-list#flags-reference",
-        "page:/cli/project-list#cli-options-stacktape-project-list",
         "page:/cli/project-list#examples",
+        "page:/cli/project-list#options",
+        "page:/cli/project-list#cli-options-stacktape-project-list",
         "page:/cli/project-list#related-commands"
       ]
     },
@@ -17358,8 +17300,6 @@
       "chunks": [
         "page:/cli/query-dynamodb#query-dynamodb",
         "page:/cli/query-dynamodb#usage",
-        "page:/cli/query-dynamodb#cli-reference",
-        "page:/cli/query-dynamodb#cli-options-stacktape-query-dynamodb",
         "page:/cli/query-dynamodb#operations",
         "page:/cli/query-dynamodb#sample",
         "page:/cli/query-dynamodb#schema",
@@ -17368,14 +17308,16 @@
         "page:/cli/query-dynamodb#get",
         "page:/cli/query-dynamodb#programmatic-output",
         "page:/cli/query-dynamodb#examples",
-        "page:/cli/query-dynamodb#related-commands",
         "page:/cli/query-dynamodb#faq",
         "page:/cli/query-dynamodb#can-i-query-a-global-secondary-index",
         "page:/cli/query-dynamodb#what-format-does-pk-expect",
         "page:/cli/query-dynamodb#what-is-the-default-limit-for-sample-and-scan",
         "page:/cli/query-dynamodb#is-this-command-safe-to-run-against-production-tables",
         "page:/cli/query-dynamodb#how-is-this-different-from-aws-call-and-can-i-use-it-on-tables-not-managed-by-stacktape",
-        "page:/cli/query-dynamodb#does-this-command-need-a-bastion-tunnel-or-vpc-access"
+        "page:/cli/query-dynamodb#does-this-command-need-a-bastion-tunnel-or-vpc-access",
+        "page:/cli/query-dynamodb#options",
+        "page:/cli/query-dynamodb#cli-options-stacktape-query-dynamodb",
+        "page:/cli/query-dynamodb#related-commands"
       ]
     },
     {
@@ -17400,8 +17342,6 @@
         "page:/cli/query-opensearch#get",
         "page:/cli/query-opensearch#search",
         "page:/cli/query-opensearch#agent-mode",
-        "page:/cli/query-opensearch#flags-reference",
-        "page:/cli/query-opensearch#cli-options-stacktape-query-opensearch",
         "page:/cli/query-opensearch#examples",
         "page:/cli/query-opensearch#check-what-indices-exist",
         "page:/cli/query-opensearch#inspect-field-mappings-for-an-index",
@@ -17411,13 +17351,15 @@
         "page:/cli/query-opensearch#run-a-full-text-search",
         "page:/cli/query-opensearch#match-all-documents-in-an-index",
         "page:/cli/query-opensearch#use-agent-mode-for-automation",
-        "page:/cli/query-opensearch#related-commands",
         "page:/cli/query-opensearch#faq",
         "page:/cli/query-opensearch#which-flags-does-each-operation-require",
         "page:/cli/query-opensearch#do-i-need-a-bastion-host-to-query-opensearch",
         "page:/cli/query-opensearch#what-format-does-the-query-flag-expect",
         "page:/cli/query-opensearch#how-is-query-opensearch-different-from-opensearch-dashboards",
-        "page:/cli/query-opensearch#what-happens-if-the-opensearch-domain-is-not-deployed"
+        "page:/cli/query-opensearch#what-happens-if-the-opensearch-domain-is-not-deployed",
+        "page:/cli/query-opensearch#options",
+        "page:/cli/query-opensearch#cli-options-stacktape-query-opensearch",
+        "page:/cli/query-opensearch#related-commands"
       ]
     },
     {
@@ -17445,7 +17387,7 @@
         "page:/cli/query-redis#check-a-key-s-type",
         "page:/cli/query-redis#query-through-a-bastion-tunnel",
         "page:/cli/query-redis#agent-mode",
-        "page:/cli/query-redis#flags-reference",
+        "page:/cli/query-redis#options",
         "page:/cli/query-redis#cli-options-stacktape-query-redis",
         "page:/cli/query-redis#related-commands"
       ]
@@ -17480,9 +17422,6 @@
         "page:/cli/query-sql#explain-a-slow-query",
         "page:/cli/query-sql#query-through-a-bastion-host",
         "page:/cli/query-sql#output",
-        "page:/cli/query-sql#flags-reference",
-        "page:/cli/query-sql#cli-options-stacktape-query-sql",
-        "page:/cli/query-sql#related-commands",
         "page:/cli/query-sql#faq",
         "page:/cli/query-sql#what-sql-statements-does-query-sql-accept",
         "page:/cli/query-sql#what-database-types-does-it-work-with",
@@ -17491,7 +17430,10 @@
         "page:/cli/query-sql#can-i-query-a-database-that-is-only-reachable-inside-a-vpc",
         "page:/cli/query-sql#what-happens-if-my-query-returns-too-many-rows",
         "page:/cli/query-sql#does-query-sql-use-the-reader-or-writer-endpoint",
-        "page:/cli/query-sql#how-do-i-get-machine-readable-output-for-scripts-or-ai-agents"
+        "page:/cli/query-sql#how-do-i-get-machine-readable-output-for-scripts-or-ai-agents",
+        "page:/cli/query-sql#options",
+        "page:/cli/query-sql#cli-options-stacktape-query-sql",
+        "page:/cli/query-sql#related-commands"
       ]
     },
     {
@@ -17520,8 +17462,6 @@
         "page:/cli/rollback#safety-warnings",
         "page:/cli/rollback#version-availability",
         "page:/cli/rollback#bucket-synced-content",
-        "page:/cli/rollback#arguments-reference",
-        "page:/cli/rollback#cli-options-stacktape-rollback",
         "page:/cli/rollback#examples",
         "page:/cli/rollback#quick-rollback-after-a-bad-deploy",
         "page:/cli/rollback#inspect-available-versions-first",
@@ -17533,6 +17473,8 @@
         "page:/cli/rollback#how-far-back-can-i-roll-back",
         "page:/cli/rollback#can-i-roll-forward-after-a-rollback",
         "page:/cli/rollback#will-my-after-deploy-hooks-run-during-rollback",
+        "page:/cli/rollback#options",
+        "page:/cli/rollback#cli-options-stacktape-rollback",
         "page:/cli/rollback#related-commands"
       ]
     },
@@ -17551,9 +17493,10 @@
       "chunks": [
         "page:/cli/script-run#script-run",
         "page:/cli/script-run#usage",
-        "page:/cli/script-run#cli-options-stacktape-script-run",
         "page:/cli/script-run#examples",
         "page:/cli/script-run#errors",
+        "page:/cli/script-run#options",
+        "page:/cli/script-run#cli-options-stacktape-script-run",
         "page:/cli/script-run#related-commands"
       ]
     },
@@ -17572,9 +17515,8 @@
       "chunks": [
         "page:/cli/secret-delete#secret-delete",
         "page:/cli/secret-delete#usage",
-        "page:/cli/secret-delete#arguments-reference",
+        "page:/cli/secret-delete#options",
         "page:/cli/secret-delete#cli-options-stacktape-secret-delete",
-        "page:/cli/secret-delete#examples",
         "page:/cli/secret-delete#related-commands"
       ]
     },
@@ -17593,10 +17535,10 @@
       "chunks": [
         "page:/cli/secret-get#secret-get",
         "page:/cli/secret-get#usage",
-        "page:/cli/secret-get#api-reference",
-        "page:/cli/secret-get#cli-options-stacktape-secret-get",
         "page:/cli/secret-get#output",
         "page:/cli/secret-get#examples",
+        "page:/cli/secret-get#options",
+        "page:/cli/secret-get#cli-options-stacktape-secret-get",
         "page:/cli/secret-get#related-commands"
       ]
     },
@@ -17622,7 +17564,7 @@
         "page:/cli/secret-set#store-a-database-password",
         "page:/cli/secret-set#store-credentials-from-a-json-file",
         "page:/cli/secret-set#rotate-a-secret-in-ci-cd",
-        "page:/cli/secret-set#flags-reference",
+        "page:/cli/secret-set#options",
         "page:/cli/secret-set#cli-options-stacktape-secret-set",
         "page:/cli/secret-set#related-commands"
       ]
@@ -17642,8 +17584,6 @@
       "chunks": [
         "page:/cli/synth#synth",
         "page:/cli/synth#usage",
-        "page:/cli/synth#flags-reference",
-        "page:/cli/synth#cli-options-stacktape-synth",
         "page:/cli/synth#important-flags",
         "page:/cli/synth#out",
         "page:/cli/synth#config",
@@ -17651,12 +17591,13 @@
         "page:/cli/synth#project",
         "page:/cli/synth#examples",
         "page:/cli/synth#synth-vs-validate-vs-diff",
-        "page:/cli/synth#related-commands",
         "page:/cli/synth#faq",
         "page:/cli/synth#why-are-stage-and-region-required-if-nothing-is-deployed",
         "page:/cli/synth#can-i-feed-the-synthesized-template-into-cloudformation-linting-or-policy-tools",
-        "page:/cli/synth#when-should-i-use-synth-vs-validate-vs-diff",
-        "page:/cli/synth#the-synthesized-template-doesn-t-match-what-i-expected-how-do-i-debug-it"
+        "page:/cli/synth#the-synthesized-template-doesn-t-match-what-i-expected-how-do-i-debug-it",
+        "page:/cli/synth#options",
+        "page:/cli/synth#cli-options-stacktape-synth",
+        "page:/cli/synth#related-commands"
       ]
     },
     {
@@ -17674,16 +17615,10 @@
       "chunks": [
         "page:/cli/upgrade#upgrade",
         "page:/cli/upgrade#usage",
-        "page:/cli/upgrade#how-it-works",
-        "page:/cli/upgrade#flags",
+        "page:/cli/upgrade#what-it-runs",
+        "page:/cli/upgrade#options",
         "page:/cli/upgrade#cli-options-stacktape-upgrade",
-        "page:/cli/upgrade#examples",
-        "page:/cli/upgrade#related-commands",
-        "page:/cli/upgrade#faq",
-        "page:/cli/upgrade#does-stacktape-upgrade-require-an-api-key-or-aws-credentials",
-        "page:/cli/upgrade#what-happens-if-i-m-already-on-the-latest-version",
-        "page:/cli/upgrade#why-does-the-command-print-a-command-for-local-installs-instead-of-running-it",
-        "page:/cli/upgrade#can-i-downgrade-or-pin-a-specific-stacktape-version"
+        "page:/cli/upgrade#related-commands"
       ]
     },
     {
@@ -17711,15 +17646,14 @@
         "page:/cli/validate#inspecting-the-validated-template",
         "page:/cli/validate#important-flags",
         "page:/cli/validate#examples",
-        "page:/cli/validate#flags-reference",
-        "page:/cli/validate#cli-options-stacktape-validate",
-        "page:/cli/validate#related-commands",
         "page:/cli/validate#faq",
-        "page:/cli/validate#does-validate-create-or-modify-any-aws-resources",
         "page:/cli/validate#how-is-validate-different-from-synth",
         "page:/cli/validate#do-i-need-aws-credentials-to-run-validate-in-ci",
         "page:/cli/validate#what-errors-does-thorough-catch-that-the-default-level-misses",
-        "page:/cli/validate#can-i-use-validate-with-ai-agents-or-in-scripts"
+        "page:/cli/validate#can-i-use-validate-with-ai-agents-or-in-scripts",
+        "page:/cli/validate#options",
+        "page:/cli/validate#cli-options-stacktape-validate",
+        "page:/cli/validate#related-commands"
       ]
     },
     {
@@ -17737,12 +17671,12 @@
       "chunks": [
         "page:/cli/version#version",
         "page:/cli/version#usage",
-        "page:/cli/version#flags-reference",
-        "page:/cli/version#cli-options-stacktape-version",
-        "page:/cli/version#related-commands",
         "page:/cli/version#faq",
         "page:/cli/version#does-stacktape-version-require-an-api-key-or-login",
-        "page:/cli/version#how-do-i-check-if-my-stacktape-version-is-out-of-date"
+        "page:/cli/version#how-do-i-check-if-my-stacktape-version-is-out-of-date",
+        "page:/cli/version#options",
+        "page:/cli/version#cli-options-stacktape-version",
+        "page:/cli/version#related-commands"
       ]
     },
     {
@@ -19222,11 +19156,9 @@
         "page:/managing-costs/budgets#budgets-created-before-v4",
         "page:/managing-costs/budgets#recommended-setup",
         "page:/managing-costs/budgets#faq",
-        "page:/managing-costs/budgets#do-budget-alerts-stop-aws-from-charging-me",
         "page:/managing-costs/budgets#can-i-set-a-budget-for-one-stage-project-or-database",
         "page:/managing-costs/budgets#how-much-do-aws-budgets-cost",
-        "page:/managing-costs/budgets#why-isn-t-my-forecast-alert-arriving",
-        "page:/managing-costs/budgets#should-i-use-budgets-guardrails-or-both"
+        "page:/managing-costs/budgets#why-isn-t-my-forecast-alert-arriving"
       ]
     },
     {
@@ -19243,16 +19175,12 @@
       ],
       "chunks": [
         "page:/managing-costs/dashboards#cost-dashboards",
-        "page:/managing-costs/dashboards#organization-the-overview-page",
-        "page:/managing-costs/dashboards#aws-account-the-costs-page",
-        "page:/managing-costs/dashboards#stage-costs-per-resource",
-        "page:/managing-costs/dashboards#faq",
-        "page:/managing-costs/dashboards#why-is-no-cost-data-showing-for-my-stack",
-        "page:/managing-costs/dashboards#does-stacktape-add-any-markup-to-aws-costs",
+        "page:/managing-costs/dashboards#the-costs-page",
+        "page:/managing-costs/dashboards#a-stage-s-costs",
+        "page:/managing-costs/dashboards#when-numbers-are-missing",
+        "page:/managing-costs/dashboards#cost-dashboards-faq",
         "page:/managing-costs/dashboards#how-is-this-different-from-aws-cost-explorer",
-        "page:/managing-costs/dashboards#why-is-my-database-the-most-expensive-resource",
-        "page:/managing-costs/dashboards#can-i-compare-costs-across-multiple-aws-accounts",
-        "page:/managing-costs/dashboards#can-i-get-an-alert-when-costs-exceed-a-threshold"
+        "page:/managing-costs/dashboards#why-is-my-database-the-most-expensive-resource"
       ]
     },
     {
@@ -19315,17 +19243,11 @@
       ],
       "chunks": [
         "page:/managing-costs/overview#costs-overview",
-        "page:/managing-costs/overview#stacktape-charges-vs-aws-charges",
-        "page:/managing-costs/overview#viewing-costs",
-        "page:/managing-costs/overview#cost-attribution",
-        "page:/managing-costs/overview#controlling-costs-with-budgets",
-        "page:/managing-costs/overview#reducing-costs",
-        "page:/managing-costs/overview#faq",
-        "page:/managing-costs/overview#how-long-does-it-take-for-cost-data-to-appear-and-how-often-does-it-refresh",
-        "page:/managing-costs/overview#are-aws-costs-billed-through-stacktape",
-        "page:/managing-costs/overview#can-a-budget-watch-a-single-project-or-stage",
-        "page:/managing-costs/overview#what-aws-services-typically-cost-the-most-in-stacktape-deployments",
-        "page:/managing-costs/overview#what-s-the-difference-between-the-overview-dashboard-and-the-costs-per-stack-page"
+        "page:/managing-costs/overview#estimate-before-you-deploy",
+        "page:/managing-costs/overview#after-you-deploy",
+        "page:/managing-costs/overview#costs-faq",
+        "page:/managing-costs/overview#how-fresh-is-the-cost-data",
+        "page:/managing-costs/overview#can-a-budget-watch-a-single-project-or-stage"
       ]
     },
     {
@@ -22990,22 +22912,10 @@
       ],
       "chunks": [
         "page:/stacktape-console/api-keys#api-keys",
-        "page:/stacktape-console/api-keys#what-api-keys-are-for",
-        "page:/stacktape-console/api-keys#creating-an-api-key",
-        "page:/stacktape-console/api-keys#key-status-and-lifecycle",
-        "page:/stacktape-console/api-keys#revoking-an-api-key",
-        "page:/stacktape-console/api-keys#copying-a-key-value",
-        "page:/stacktape-console/api-keys#using-an-api-key",
-        "page:/stacktape-console/api-keys#permissions",
-        "page:/stacktape-console/api-keys#best-practices",
-        "page:/stacktape-console/api-keys#faq",
-        "page:/stacktape-console/api-keys#what-expiration-period-should-i-choose",
-        "page:/stacktape-console/api-keys#can-i-reactivate-an-expired-or-revoked-key",
-        "page:/stacktape-console/api-keys#how-do-i-rotate-an-api-key-without-downtime",
-        "page:/stacktape-console/api-keys#what-happens-when-i-revoke-a-key",
-        "page:/stacktape-console/api-keys#when-should-i-use-api-keys-vs-interactive-login",
-        "page:/stacktape-console/api-keys#are-api-keys-scoped-to-a-specific-organization",
-        "page:/stacktape-console/api-keys#related-features"
+        "page:/stacktape-console/api-keys#create-an-organization-key",
+        "page:/stacktape-console/api-keys#create-a-personal-key",
+        "page:/stacktape-console/api-keys#what-a-key-can-reach",
+        "page:/stacktape-console/api-keys#rotate-and-revoke-keys"
       ]
     },
     {
@@ -23053,27 +22963,13 @@
       ],
       "chunks": [
         "page:/stacktape-console/aws-permissions#aws-permissions",
-        "page:/stacktape-console/aws-permissions#overview",
-        "page:/stacktape-console/aws-permissions#what-stacktape-does-in-your-account",
-        "page:/stacktape-console/aws-permissions#connection-mode",
-        "page:/stacktape-console/aws-permissions#security-model",
-        "page:/stacktape-console/aws-permissions#cross-account-role-assumption",
-        "page:/stacktape-console/aws-permissions#cloudformation-managed-lifecycle",
-        "page:/stacktape-console/aws-permissions#restricting-permissions",
-        "page:/stacktape-console/aws-permissions#aws-service-control-policies-scps",
-        "page:/stacktape-console/aws-permissions#separate-accounts-per-stage",
-        "page:/stacktape-console/aws-permissions#revoking-access",
-        "page:/stacktape-console/aws-permissions#connection-states",
-        "page:/stacktape-console/aws-permissions#auditing-stacktape-activity",
-        "page:/stacktape-console/aws-permissions#related-features",
-        "page:/stacktape-console/aws-permissions#faq",
-        "page:/stacktape-console/aws-permissions#why-does-stacktape-need-broad-aws-permissions",
-        "page:/stacktape-console/aws-permissions#is-connecting-my-aws-account-free",
-        "page:/stacktape-console/aws-permissions#can-i-restrict-what-stacktape-can-do-in-my-account",
-        "page:/stacktape-console/aws-permissions#do-my-deployed-resources-get-deleted-if-i-revoke-access",
-        "page:/stacktape-console/aws-permissions#can-stacktape-access-other-aws-accounts-i-own",
-        "page:/stacktape-console/aws-permissions#why-is-the-connection-stack-created-in-eu-west-1",
-        "page:/stacktape-console/aws-permissions#what-permission-do-i-need-to-connect-an-aws-account"
+        "page:/stacktape-console/aws-permissions#what-the-connection-stack-creates",
+        "page:/stacktape-console/aws-permissions#deploy-access-or-read-only",
+        "page:/stacktape-console/aws-permissions#who-can-use-the-role",
+        "page:/stacktape-console/aws-permissions#supported-regions",
+        "page:/stacktape-console/aws-permissions#restrict-what-stacktape-can-do",
+        "page:/stacktape-console/aws-permissions#revoke-access",
+        "page:/stacktape-console/aws-permissions#audit-stacktape-s-activity"
       ]
     },
     {
@@ -23090,33 +22986,17 @@
       ],
       "chunks": [
         "page:/stacktape-console/billing-and-subscription#billing-and-subscription",
-        "page:/stacktape-console/billing-and-subscription#what-this-part-of-the-console-does",
-        "page:/stacktape-console/billing-and-subscription#subscription-plans",
+        "page:/stacktape-console/billing-and-subscription#plans",
         "page:/stacktape-console/billing-and-subscription#feature-comparison",
         "page:/stacktape-console/billing-and-subscription#free-plan",
         "page:/stacktape-console/billing-and-subscription#flexible-plan",
         "page:/stacktape-console/billing-and-subscription#enterprise-plan",
         "page:/stacktape-console/billing-and-subscription#free-plan-cost-limit",
-        "page:/stacktape-console/billing-and-subscription#walkthrough-upgrading-to-the-flexible-plan",
-        "page:/stacktape-console/billing-and-subscription#common-tasks",
-        "page:/stacktape-console/billing-and-subscription#viewing-invoices",
-        "page:/stacktape-console/billing-and-subscription#reviewing-billing-details",
-        "page:/stacktape-console/billing-and-subscription#downgrading-to-the-free-plan",
-        "page:/stacktape-console/billing-and-subscription#viewing-current-plan-status",
-        "page:/stacktape-console/billing-and-subscription#permissions",
-        "page:/stacktape-console/billing-and-subscription#troubleshooting",
-        "page:/stacktape-console/billing-and-subscription#cannot-see-the-upgrade-or-downgrade-button",
-        "page:/stacktape-console/billing-and-subscription#plan-not-updating-after-payment",
-        "page:/stacktape-console/billing-and-subscription#free-plan-shows-as-current-but-no-subscription-exists",
-        "page:/stacktape-console/billing-and-subscription#related-features",
-        "page:/stacktape-console/billing-and-subscription#faq",
-        "page:/stacktape-console/billing-and-subscription#how-does-stacktape-pricing-work",
-        "page:/stacktape-console/billing-and-subscription#what-counts-as-managed-aws-costs",
-        "page:/stacktape-console/billing-and-subscription#who-can-manage-billing-in-my-organization",
-        "page:/stacktape-console/billing-and-subscription#what-happens-if-i-exceed-the-free-plan-s-200-month-limit",
-        "page:/stacktape-console/billing-and-subscription#can-i-downgrade-from-flexible-to-free",
-        "page:/stacktape-console/billing-and-subscription#how-do-i-get-enterprise-pricing",
-        "page:/stacktape-console/billing-and-subscription#where-can-i-find-my-invoices"
+        "page:/stacktape-console/billing-and-subscription#change-your-plan",
+        "page:/stacktape-console/billing-and-subscription#billing-page",
+        "page:/stacktape-console/billing-and-subscription#billing-faq",
+        "page:/stacktape-console/billing-and-subscription#why-is-my-plan-still-free-after-paying",
+        "page:/stacktape-console/billing-and-subscription#can-i-calculate-the-fee-before-connecting-anything"
       ]
     },
     {
@@ -23139,6 +23019,7 @@
         "page:/stacktape-console/connecting-your-aws-account#connecting-multiple-aws-accounts",
         "page:/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command",
         "page:/stacktape-console/connecting-your-aws-account#revoking-access",
+        "page:/stacktape-console/connecting-your-aws-account#updating-an-older-connection",
         "page:/stacktape-console/connecting-your-aws-account#checking-which-regions-an-account-uses",
         "page:/stacktape-console/connecting-your-aws-account#troubleshooting",
         "page:/stacktape-console/connecting-your-aws-account#account-stuck-in-connecting-or-setup-not-finished",
@@ -23149,10 +23030,7 @@
         "page:/stacktape-console/connecting-your-aws-account#faq",
         "page:/stacktape-console/connecting-your-aws-account#do-i-need-to-create-aws-access-keys-for-stacktape",
         "page:/stacktape-console/connecting-your-aws-account#can-i-deploy-to-any-aws-region-after-connecting",
-        "page:/stacktape-console/connecting-your-aws-account#is-connecting-my-aws-account-free",
-        "page:/stacktape-console/connecting-your-aws-account#how-do-i-revoke-stacktape-s-access-to-my-aws-account",
-        "page:/stacktape-console/connecting-your-aws-account#why-can-t-i-connect-an-account",
-        "page:/stacktape-console/connecting-your-aws-account#why-can-t-i-delete-a-connected-aws-account"
+        "page:/stacktape-console/connecting-your-aws-account#is-connecting-my-aws-account-free"
       ]
     },
     {
@@ -23171,7 +23049,7 @@
         "page:/stacktape-console/console-overview#console-overview",
         "page:/stacktape-console/console-overview#get-your-stacks-into-the-console",
         "page:/stacktape-console/console-overview#find-your-stack-and-its-logs",
-        "page:/stacktape-console/console-overview#the-overview-page",
+        "page:/stacktape-console/console-overview#the-projects-home",
         "page:/stacktape-console/console-overview#what-you-can-do-in-the-console",
         "page:/stacktape-console/console-overview#console-navigation",
         "page:/stacktape-console/console-overview#common-tasks",
@@ -23192,8 +23070,7 @@
         "page:/stacktape-console/console-overview#related-pages",
         "page:/stacktape-console/console-overview#faq",
         "page:/stacktape-console/console-overview#do-i-need-the-console-to-use-stacktape",
-        "page:/stacktape-console/console-overview#does-stacktape-deploy-into-my-own-aws-account",
-        "page:/stacktape-console/console-overview#how-does-stacktape-track-aws-costs-and-why-is-the-costs-page-empty"
+        "page:/stacktape-console/console-overview#does-stacktape-deploy-into-my-own-aws-account"
       ]
     },
     {
@@ -23210,34 +23087,16 @@
       ],
       "chunks": [
         "page:/stacktape-console/organizations-projects-and-stages#organizations-projects-and-stages",
-        "page:/stacktape-console/organizations-projects-and-stages#how-the-hierarchy-works",
         "page:/stacktape-console/organizations-projects-and-stages#organizations",
         "page:/stacktape-console/organizations-projects-and-stages#projects",
         "page:/stacktape-console/organizations-projects-and-stages#stages",
-        "page:/stacktape-console/organizations-projects-and-stages#getting-started",
-        "page:/stacktape-console/organizations-projects-and-stages#step-1-create-a-project",
-        "page:/stacktape-console/organizations-projects-and-stages#step-2-create-a-stage",
-        "page:/stacktape-console/organizations-projects-and-stages#step-3-deploy",
-        "page:/stacktape-console/organizations-projects-and-stages#common-tasks",
-        "page:/stacktape-console/organizations-projects-and-stages#filtering-and-finding-projects",
-        "page:/stacktape-console/organizations-projects-and-stages#viewing-stage-details",
-        "page:/stacktape-console/organizations-projects-and-stages#configuring-build-runners",
-        "page:/stacktape-console/organizations-projects-and-stages#configuring-project-settings",
-        "page:/stacktape-console/organizations-projects-and-stages#redeploying-a-stage",
-        "page:/stacktape-console/organizations-projects-and-stages#deleting-a-stage-or-project",
-        "page:/stacktape-console/organizations-projects-and-stages#access-control",
-        "page:/stacktape-console/organizations-projects-and-stages#troubleshooting",
-        "page:/stacktape-console/organizations-projects-and-stages#failed-stage-in-the-sidebar",
-        "page:/stacktape-console/organizations-projects-and-stages#non-deployed-stages-in-the-sidebar",
-        "page:/stacktape-console/organizations-projects-and-stages#cost-shows-0-for-active-stage",
-        "page:/stacktape-console/organizations-projects-and-stages#git-repository-not-connected",
-        "page:/stacktape-console/organizations-projects-and-stages#faq",
-        "page:/stacktape-console/organizations-projects-and-stages#what-is-the-difference-between-a-project-and-a-stage-in-stacktape",
-        "page:/stacktape-console/organizations-projects-and-stages#should-i-use-one-configuration-per-project-or-one-per-stage",
-        "page:/stacktape-console/organizations-projects-and-stages#why-does-my-active-stage-show-0-cost",
-        "page:/stacktape-console/organizations-projects-and-stages#what-is-the-difference-between-a-stacktape-organization-and-an-aws-account",
-        "page:/stacktape-console/organizations-projects-and-stages#when-should-i-create-multiple-organizations",
-        "page:/stacktape-console/organizations-projects-and-stages#related-features"
+        "page:/stacktape-console/organizations-projects-and-stages#find-a-stage",
+        "page:/stacktape-console/organizations-projects-and-stages#create-a-stage",
+        "page:/stacktape-console/organizations-projects-and-stages#redeploy-roll-back-or-delete-a-stage",
+        "page:/stacktape-console/organizations-projects-and-stages#project-settings",
+        "page:/stacktape-console/organizations-projects-and-stages#who-can-do-what",
+        "page:/stacktape-console/organizations-projects-and-stages#organizations-projects-and-stages-faq",
+        "page:/stacktape-console/organizations-projects-and-stages#why-does-a-new-stage-show-0"
       ]
     },
     {
@@ -23472,27 +23331,14 @@
       ],
       "chunks": [
         "page:/using-with-ai/overview#coding-agents-overview",
-        "page:/using-with-ai/overview#start-here",
-        "page:/using-with-ai/overview#the-ai-assisted-development-workflow",
-        "page:/using-with-ai/overview#flow",
-        "page:/using-with-ai/overview#mcp-server",
-        "page:/using-with-ai/overview#how-assistants-use-the-mcp-server",
-        "page:/using-with-ai/overview#safety-model",
-        "page:/using-with-ai/overview#credential-handling",
-        "page:/using-with-ai/overview#agent-mode",
-        "page:/using-with-ai/overview#when-to-use-agent-mode",
-        "page:/using-with-ai/overview#when-not-to-use-agent-mode",
-        "page:/using-with-ai/overview#ai-config-generation",
-        "page:/using-with-ai/overview#coding-assistant-setup",
-        "page:/using-with-ai/overview#choosing-the-right-approach",
-        "page:/using-with-ai/overview#feature-comparison",
-        "page:/using-with-ai/overview#faq",
-        "page:/using-with-ai/overview#which-ai-coding-assistants-work-with-stacktape",
-        "page:/using-with-ai/overview#can-an-ai-assistant-deploy-to-production-through-the-mcp-server",
-        "page:/using-with-ai/overview#how-does-agent-mode-differ-from-standard-dev-mode",
-        "page:/using-with-ai/overview#does-the-mcp-server-require-separate-authentication",
-        "page:/using-with-ai/overview#what-databases-can-ai-assistants-query-through-agent-mode",
-        "page:/using-with-ai/overview#mcp-server-vs-running-stacktape-cli-in-a-terminal-what-s-the-difference"
+        "page:/using-with-ai/overview#set-up-your-agent",
+        "page:/using-with-ai/overview#what-you-can-ask-it-to-do",
+        "page:/using-with-ai/overview#write-or-change-the-config",
+        "page:/using-with-ai/overview#build-and-test-in-dev-mode",
+        "page:/using-with-ai/overview#deploy-and-preview-changes",
+        "page:/using-with-ai/overview#investigate-a-deployed-stack",
+        "page:/using-with-ai/overview#what-runs-without-asking",
+        "page:/using-with-ai/overview#next-steps"
       ]
     }
   ]

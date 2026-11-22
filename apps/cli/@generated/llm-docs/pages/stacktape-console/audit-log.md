@@ -106,9 +106,9 @@ AWS account connections created from an older connection template need an update
 behind each action everywhere. Until then, Stacktape names the person only for actions the connection role makes directly; actions made
 through further roles show the AWS principal instead.
 
-The **AWS accounts** page shows **Update the connection** for these accounts to members who manage AWS accounts. It
-opens AWS CloudFormation to update the connection stack. See
-[Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
+Owners and Admins see an **Update** button next to these accounts on **Configuration → AWS accounts**. It opens a
+dialog with the steps and a link that updates the connection stack in AWS CloudFormation. See
+[AWS permissions](/stacktape-console/aws-permissions#who-can-use-the-role) for how the person is recorded.
 
 ## How long events are kept
 

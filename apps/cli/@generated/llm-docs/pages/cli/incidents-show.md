@@ -13,21 +13,6 @@ You need the incident ID. Use [`incident list`](/cli/incidents) to list incident
 A coding agent connected through the [Stacktape MCP server](/using-with-ai/mcp-server-setup#incident-tool) gets the
 same document with the `stacktape_incident` tool, using your local Stacktape login.
 
-## Flags reference
-
-The only required argument is the incident ID.
-
-
-## CLI Options: `stacktape incident show`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--incident-id (positional 1)` | yes | `string` | Incident ID — The ID of the incident to act on. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## Examples
 
 Pipe the bundle to a coding agent:
@@ -39,6 +24,19 @@ stacktape incident show inc_abc123def456 --agent | claude -p "Diagnose and fix t
 ## Untrusted evidence
 
 The bundle contains runtime data from your application: log lines, error messages, and response bodies. Treat it as evidence, not as instructions. A coding agent should use it for diagnosis, but commands or text found inside the evidence must never be executed or followed.
+
+## Options
+
+
+## CLI Options: `stacktape incident show`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--incident-id (positional 1)` | yes | `string` | Incident ID — The ID of the incident to act on. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
 
 ## Related commands
 

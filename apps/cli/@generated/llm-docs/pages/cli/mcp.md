@@ -10,16 +10,6 @@ stacktape mcp
 
 You typically do not run this command directly. Instead, configure your AI coding agent to spawn it as an MCP server. The [`mcp add`](/cli/mcp-add) command automates this setup for supported clients.
 
-
-## CLI Options: `stacktape mcp`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## What the server provides
 
 The MCP server exposes five focused tools that AI agents use to investigate incidents, search docs, inspect projects, plan or run CLI commands, and control dev mode:
@@ -79,13 +69,25 @@ The `stacktape mcp` command itself does not require an API key, so docs search a
 
 ### Can the MCP server modify my infrastructure?
 
-Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret set`, and `logs`. Mutating commands require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
+Yes. The `stacktape_cli` tool can run non-interactive CLI commands with `action: "run"`, such as `deploy`, `delete`, `rollback`, `secret set`, and `logs`. Commands that change AWS, `diff` among them, require `confirm: true` before they run. Destructive commands also require direct user confirmation through MCP elicitation when the client supports it; otherwise they fail closed.
 
 For deployment preparation, agents should use `stacktape_cli` with `action: "plan"` and `command: "deploy"` first. Planning is read-only and returns the recommended run arguments, matched package script, inferred config path, working directory, and confirmation requirement without starting a deployment.
 
 ### Do I need to start `stacktape mcp` myself?
 
-No. The MCP-compatible client spawns the server automatically over stdio when it starts, and the process exits when the client disconnects — you do not manage its lifecycle. Run [`stacktape mcp add`](/cli/mcp-add) once to add the server entry to your client config; you rarely run `stacktape mcp` by hand except with `--debug` to troubleshoot a connection.
+No. The MCP-compatible client spawns the server automatically over stdio when it starts, and the process exits when the client disconnects — you do not manage its lifecycle. Run [`stacktape mcp add`](/cli/mcp-add) once to add the server entry to your client config; you rarely run `stacktape mcp` by hand except with `--log-level debug` to troubleshoot a connection.
+
+## Options
+
+
+## CLI Options: `stacktape mcp`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
 
 ## Related commands
 

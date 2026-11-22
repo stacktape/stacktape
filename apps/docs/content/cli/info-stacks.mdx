@@ -15,10 +15,6 @@ The `stack list` command lists CloudFormation stacks deployed in a specified AWS
 stacktape stack list --region eu-west-1
 ```
 
-## API reference
-
-<CliCommandsApiReference command="info:stacks" />
-
 ## What it does
 
 When you run `stack list`, Stacktape queries CloudFormation for all stacks in the specified region (excluding stacks in `DELETE_COMPLETE` state) and enriches the results with spend data when available. Each stack entry includes:
@@ -70,6 +66,10 @@ Use a specific AWS account connected in the Stacktape Console:
 ```bash
 stacktape stack list --region eu-west-1 --aws-account my-production-account
 ```
+
+## Options
+
+<CliCommandsApiReference command="info:stacks" />
 
 ## Related commands
 

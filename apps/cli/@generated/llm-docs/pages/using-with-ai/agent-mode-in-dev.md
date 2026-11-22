@@ -1,10 +1,6 @@
 # Agent mode in dev
 
-
-> **Warning - Preview — in active development:** Agent mode is usable today but still evolving. Verify available endpoints by calling `GET /` on the running agent server. Some details on this page may change between Stacktape releases.
-
-
-Stacktape [dev mode](/local-development/dev-mode-overview) can start an HTTP API server alongside your local workloads and databases. This **agent mode** gives AI coding assistants — and any HTTP client — programmatic access to check workload status, trigger rebuilds, read log file paths, query local databases, and call AWS SDK commands, enabling automated edit-test-fix loops without manual intervention.
+Stacktape [dev mode](/local-development/dev-mode-overview) can start an HTTP API next to your local workloads and databases. This **agent mode** lets a coding agent, or any HTTP client, check workload status, trigger rebuilds, read logs, query local databases and call read-only AWS operations, so it can edit, test and fix code in a loop. Agent mode is in preview: `GET /` on the running agent lists the endpoints it has.
 
 ## When to use
 
@@ -22,7 +18,7 @@ Agent mode is designed for workflows where an AI coding assistant drives the edi
 
 ## Starting agent mode
 
-Add the `--agent` flag to the [`stacktape dev`](/cli/dev) command to start the HTTP API server alongside your workloads.
+Add the `--agent` flag to the [`stacktape dev`](/cli/dev) command to start the HTTP API server alongside your workloads. Agent mode is dev mode, so it changes your AWS account the same way: the first start deploys the stage's dev stack, and the account's dev network when deployed functions need it. Lambda functions run in AWS; containers and databases run on your machine. [Dev mode](/local-development/dev-mode-overview) explains what runs where and what it costs.
 
 ```bash
 stacktape dev --agent --agent-port 9900 --stage dev --region eu-west-1
@@ -541,7 +537,7 @@ The core value of agent mode is the **automated feedback loop**: an AI agent wri
 3. **Write application code**: AI implements handlers, services, and frontend code
 4. **Rebuild and test**: AI calls POST /rebuild/{name}, checks status, reads logs, queries databases
 5. **Fix and iterate**: AI reads error logs, fixes code, rebuilds — repeating until everything works
-6. **Deploy**: Once working locally, AI deploys to AWS with stacktape deploy
+6. **Deploy**: When you ask for it, the agent deploys a real stage; through MCP the deploy waits for your go-ahead
 
 
 ### Example session
@@ -558,7 +554,7 @@ An AI coding assistant building a notes API would follow this sequence:
 8. Check `GET /env/api` to verify that `STP_NOTES_TABLE_TABLE_NAME` is injected
 9. Query the database directly via `POST /dynamodb/notesTable/scan` to verify stored data
 10. Fix code, rebuild, and test again until everything works
-11. Deploy to AWS with `stacktape deploy`
+11. When you ask for a deploy, run `stacktape deploy` to a stage other than the dev stage (through MCP, the deploy waits for your approval)
 
 Here is a minimal Stacktape configuration that an AI agent might produce for this workflow:
 
@@ -651,4 +647,4 @@ If a function fails to build or deploy while `stacktape dev --agent` starts, the
 
 ### Why does an `/aws/sdk` call fail or return access-denied?
 
-The `/aws/sdk` endpoint uses the dev agent IAM role. Most resource permissions are limited to the stack, but CloudWatch metrics/alarm and API Gateway reads are account-wide within the session region; CloudWatch Logs reads use stack-name log-group ARN patterns. Only Batch gets additional resource filtering at the HTTP endpoint. A missing role or failed AssumeRole makes the call fail; it never falls back to your credentials. IAM can also deny a resource the role cannot read. Restart dev mode to update a missing or outdated role. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.
+The `/aws/sdk` endpoint uses the dev agent IAM role, which reads only this dev stack's resources in the session region. CloudWatch metric and alarm reads are the one exception: they cover the whole session region. See [AWS SDK access](#aws-sdk-access). A missing role or failed AssumeRole makes the call fail; it never falls back to your credentials. IAM can also deny a resource the role cannot read. Restart dev mode to update a missing or outdated role. A call is also rejected, without reaching AWS, when the operation is not a reviewed read-only one; the error lists the operations accepted for that service. The endpoint supports a broad set of services (`lambda`, `dynamodb`, `s3`, `logs`, `cloudformation`, `sqs`, `sns`, `sfn`, and more); call `GET /aws/sdk/services` for the authoritative, up-to-date list of valid `service` and `command` values before constructing a call.

@@ -26,10 +26,6 @@ Common scenarios for `param get`:
 
 If you need a broader overview of all stack outputs and resources at once, use [`status`](/cli/info-stack) instead.
 
-## Arguments reference
-
-<CliCommandsApiReference command="param:get" />
-
 ## Examples
 
 Retrieve a parameter from a deployed resource.
@@ -85,6 +81,10 @@ Pass `--agent` or `--json` to get machine-readable JSONL output (one JSON object
 ### What is the difference between param get and status?
 
 [`param get`](/cli/param-get) retrieves a single parameter value from a single resource — ideal for scripting and automation. [`status`](/cli/info-stack) returns a broader overview of all outputs and AWS resources in the stack — better for exploration and discovery after a deployment.
+
+## Options
+
+<CliCommandsApiReference command="param:get" />
 
 ## Related commands
 

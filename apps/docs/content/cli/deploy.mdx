@@ -7,7 +7,7 @@ seoDescription: 'Deploy your stack to AWS with stacktape deploy. Creates new sta
 
 # deploy
 
-The `stacktape deploy` command deploys your stack to AWS. If the stack does not exist yet, it creates a new one. If it already exists, it updates it with the current configuration. This is the primary command for shipping changes to any stage — development, staging, or production.
+`stacktape deploy` deploys your stack to AWS. It creates the stack when the stage doesn't exist yet and updates it when it does. It needs AWS credentials; a Stacktape account is optional.
 
 ## Usage
 
@@ -28,6 +28,8 @@ stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktap
 ```
 
 ## What happens during deploy
+
+Before it changes anything, the CLI prints the AWS account it loaded credentials for. Check it, especially with several profiles.
 
 1. **Validate** — Reads your config, validates guardrails, and ensures referenced secrets exist.
 2. **Build & package** — Packages workloads for deployment. Cached artifacts are reused when possible.
@@ -55,6 +57,8 @@ A deployment uses CloudFormation when:
 - the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
 - you pass `--full`.
 
+For eligible Node.js Fargate web services, `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.
+
 A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--full`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
 ## Common flags
@@ -77,7 +81,7 @@ stacktape deploy --stage production --region eu-west-1 --yes
 
 ### `--auto-rollback`
 
-By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment.
+By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment. When the config sets `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes`, rollback is on by default, and turning it off is an error.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --auto-rollback
@@ -93,14 +97,6 @@ Forces a fresh build of all compute resources, ignoring cached artifacts from pr
 stacktape deploy --stage dev --region eu-west-1 --no-cache
 ```
 
-### `--config`
-
-Points to a Stacktape configuration file when it is not in the default location (current directory).
-
-```bash
-stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
-```
-
 ### `--no-layer-optimization`
 
 By default, Stacktape extracts shared code into Lambda layers to reduce per-function deployment size. Disable this to bundle all code directly into each Lambda function — useful if you need to inspect the full function package or if layer extraction causes issues.
@@ -108,10 +104,6 @@ By default, Stacktape extracts shared code into Lambda layers to reduce per-func
 ### `--show-secrets`
 
 Includes secret values, such as database passwords and connection strings with credentials, in the `--agent` result (`data.result.stackInfo`) and in the stack-info file. Without it, each of them is `<<OMITTED>>`. Use it only where the output stays private, never in shared CI logs. The terminal summary never prints secret values.
-
-## All flags
-
-<CliCommandsApiReference command="deploy" />
 
 ## Examples
 
@@ -135,18 +127,6 @@ With the Console, choose one of the organization's connected AWS accounts by nam
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --aws-account production
-```
-
-### Deploy everything through CloudFormation
-
-```bash
-stacktape deploy --stage production --region eu-west-1 --full
-```
-
-### Non-interactive deploy in CI/CD
-
-```bash
-stacktape deploy --stage production --region us-east-1 --yes
 ```
 
 ### Preview changes before deploying
@@ -192,12 +172,12 @@ Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated wit
 
 Stacktape does not currently check CloudFormation resource drift before deploying. Manual changes to stack resources can affect an update; review the proposed changes with [`diff`](/cli/diff).
 
+## Options
+
+<CliCommandsApiReference command="deploy" />
+
 ## Related commands
 
-| Command | Description |
-|---|---|
-| [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
-| [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
-| [`stack recover`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
-
-For eligible Node.js Fargate web services, `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.
+- [`diff`](/cli/diff) shows what a deploy would change.
+- [`rollback`](/cli/rollback) returns a stage to an earlier release.
+- [`stack recover`](/cli/cf-rollback) recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`.

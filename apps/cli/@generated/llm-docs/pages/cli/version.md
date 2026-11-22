@@ -12,7 +12,17 @@ The command outputs the installed version number and exits. No AWS credentials, 
 
 `stacktape --version` and `stacktape -v` print the same output.
 
-## Flags reference
+## FAQ
+
+### Does `stacktape version` require an API key or login?
+
+No. The `version` command runs entirely locally and does not contact the Stacktape API. You can run it before logging in or configuring any credentials.
+
+### How do I check if my Stacktape version is out of date?
+
+Run `stacktape version` to see what you have installed, then run [`stacktape upgrade`](/cli/upgrade) to move to the latest release (or `stacktape upgrade 4.0.1` for a specific version). Re-run `stacktape version` afterward to confirm the new version is active.
+
+## Options
 
 
 ## CLI Options: `stacktape version`
@@ -29,13 +39,3 @@ The command outputs the installed version number and exits. No AWS credentials, 
 - [`upgrade`](/cli/upgrade) — upgrade Stacktape to the latest version or a specific version.
 - [`help`](/cli/help) — display help information for any Stacktape command.
 - [`whoami`](/cli/info-whoami) — verify your API key, organization, and connected AWS accounts.
-
-## FAQ
-
-### Does `stacktape version` require an API key or login?
-
-No. The `version` command runs entirely locally and does not contact the Stacktape API. You can run it before logging in or configuring any credentials.
-
-### How do I check if my Stacktape version is out of date?
-
-Run `stacktape version` to see what you have installed, then run [`stacktape upgrade`](/cli/upgrade) to move to the latest release (or `stacktape upgrade 4.0.1` for a specific version). Re-run `stacktape version` afterward to confirm the new version is active.

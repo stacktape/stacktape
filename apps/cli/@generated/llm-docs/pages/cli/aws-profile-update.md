@@ -28,7 +28,7 @@ Update credentials for an existing profile with debug-level logging:
 stacktape aws-profile update --debug
 ```
 
-## Flags reference
+## Options
 
 
 ## CLI Options: `stacktape aws-profile update`

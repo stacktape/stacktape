@@ -84,7 +84,7 @@ stacktape secret set my-api-key --region eu-west-1 --value "$NEW_API_KEY" --forc
 
 The `--force-update` flag ensures the pipeline does not fail when the secret already exists.
 
-## Flags reference
+## Options
 
 
 ## CLI Options: `stacktape secret set`

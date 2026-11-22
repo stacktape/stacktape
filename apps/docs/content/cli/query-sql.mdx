@@ -148,18 +148,6 @@ In agent mode (`--agent`), the output is a structured JSON object containing:
 - `rowCount` — number of rows returned
 - `truncated` — `true` if `rowCount` hit the `--limit` cap
 
-## Flags reference
-
-<CliCommandsApiReference command="query:sql" />
-
-## Related commands
-
-- [`bastion tunnel`](/cli/bastion-tunnel) — open a persistent tunnel to a VPC resource for use with a local database client like `psql`, `mysql`, or DataGrip.
-- [`logs`](/cli/logs) — fetch and analyze logs from deployed resources.
-- [`query dynamodb`](/cli/query-dynamodb) — run read-only queries against a deployed DynamoDB table.
-- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cache.
-- [`query opensearch`](/cli/query-opensearch) — search and inspect a deployed OpenSearch domain.
-
 ## FAQ
 
 ### What SQL statements does `query sql` accept?
@@ -193,3 +181,15 @@ When the deployed database exposes a `readerConnectionString` SSM parameter, `qu
 ### How do I get machine-readable output for scripts or AI agents?
 
 Pass `--agent` to switch from the formatted ASCII table to a structured JSON object containing `ok`, `resource`, `engine`, `sql`, `rows`, `fields`, `rowCount`, and `truncated`. This is the format to parse when calling `query sql` from scripts or AI coding assistants.
+
+## Options
+
+<CliCommandsApiReference command="query:sql" />
+
+## Related commands
+
+- [`bastion tunnel`](/cli/bastion-tunnel) — open a persistent tunnel to a VPC resource for use with a local database client like `psql`, `mysql`, or DataGrip.
+- [`logs`](/cli/logs) — fetch and analyze logs from deployed resources.
+- [`query dynamodb`](/cli/query-dynamodb) — run read-only queries against a deployed DynamoDB table.
+- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cache.
+- [`query opensearch`](/cli/query-opensearch) — search and inspect a deployed OpenSearch domain.

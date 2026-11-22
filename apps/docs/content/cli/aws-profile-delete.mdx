@@ -21,10 +21,6 @@ The command is fully interactive — it reads all profiles configured in your AW
 This command modifies your local AWS profile configuration by deleting the selected profile. The deleted profile will no longer be available to Stacktape or any other AWS tooling on your system.
 </Warning>
 
-## Arguments reference
-
-<CliCommandsApiReference command="aws-profile:delete" />
-
 ## Examples
 
 Delete a profile with debug logging enabled:
@@ -32,6 +28,10 @@ Delete a profile with debug logging enabled:
 ```bash
 stacktape aws-profile delete --debug
 ```
+
+## Options
+
+<CliCommandsApiReference command="aws-profile:delete" />
 
 ## Related commands
 

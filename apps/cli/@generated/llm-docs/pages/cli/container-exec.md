@@ -1,51 +1,80 @@
 # container exec
 
-The `container exec` command runs a one-off command inside a deployed container workload and returns the output as structured JSON. Use it to inspect files, check environment variables, run health checks, or execute diagnostic commands against [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), or [multi-container workloads](/resources/compute/multi-container-workload) without opening an interactive shell.
+`stacktape container exec` runs one command inside a running container of a deployed [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service) or [multi-container workload](/resources/compute/multi-container-workload), and prints its output as JSON. Use it to check a file, an environment variable or a process without opening a shell. It needs AWS credentials, connects through AWS ECS Exec and Session Manager (no SSH keys or open ports), and doesn't need a config file.
 
-## When to use
-
-Use `container exec` when you need a quick, non-interactive answer from a running container — checking a config file, listing directory contents, printing environment variables, or verifying a process is running. The structured JSON output makes it suitable for scripting and automation.
-
-For an interactive shell session (debugging, exploring, running multiple commands), use [`container shell`](/cli/container-session) instead. For viewing application logs, use [`stacktape logs`](/cli/logs).
+For an interactive shell, use [`container shell`](/cli/container-session).
 
 ## Usage
 
-The command takes the resource name and the command to run as positional arguments (`container exec <resource-name> <command>`) and requires `--stage` and `--region`.
+The resource name comes first, then the command in quotes:
 
 ```bash
 stacktape container exec myService "ls -la /app" --stage prod --region eu-west-1
 ```
 
-The `container exec` command does not require a Stacktape configuration file. It resolves the target stack from the `--stage`, `--region`, and `--project` (or `--aws-account`) flags. You can run it from any directory, even outside a configured project. If you have not configured a default project with [`defaults set`](/cli/defaults-configure), include `--project` to identify the stack.
-
-The command prints a JSON object with the execution result:
-
 ```json
 {
   "resourceName": "myService",
   "containerName": "myService",
-  "taskArn": "arn:aws:ecs:eu-west-1:123456789:task/cluster/abc123",
+  "taskArn": "arn:aws:ecs:eu-west-1:123456789012:task/cluster/abc123",
   "command": "ls -la /app",
   "output": "total 24\ndrwxr-xr-x 1 root root 4096 ...",
   "exitCode": 0
 }
 ```
 
-The `output` field contains the command output returned by Stacktape's ECS Exec helper. The `exitCode` field reflects the command's exit code — `0` for success, non-zero for failure.
+`output` is what the command printed: its standard output, or its error output when it printed nothing else. `exitCode` is the exit code of the Session Manager session, not of your command. `0` means the session ran, so read `output` to see whether the command worked. A non-zero `exitCode` fails the CLI with `CONTAINER_EXEC_FAILED`. A command that runs longer than 60 seconds is stopped.
 
-## Important flags
+Outside a project directory, add `--project` or set a default project with [`defaults set`](/cli/defaults-configure).
 
-**`<command>`** (required, second positional argument) — The shell command to execute inside the container. Wrap multi-word commands in quotes.
+Changes the command makes in the container, such as written files, are lost when the task is replaced, for example on the next deploy.
 
-**`<resource-name>`** (required, first positional argument) — The name of the container workload resource as defined in your Stacktape configuration.
+## Pick the task and the container
 
-**`--container`** — Specifies which container to run the command in. When the task definition has one container, Stacktape uses that container when `--container` is omitted. For resources with multiple containers (e.g., a [multi-container workload](/resources/compute/multi-container-workload) with sidecars), omitting this flag or specifying a name not in the task definition causes the command to fail with an error listing the available container names.
+A service scaled to several tasks runs the command in the first running task. Pick another with `--task-arn`, the full ARN or only the task ID:
 
-**`--task-arn`** — Target a specific ECS task when multiple instances are running (e.g., a scaled-out service). Accepts either a full ARN or just the task ID suffix. Defaults to the first running task if omitted.
+```bash
+stacktape container exec apiService "ps aux" --stage prod --region eu-west-1 --task-arn abc123def
+```
 
-**`--agent`** — A global CLI flag that optimizes output for programmatic and AI-agent consumption. Switches output to strict JSONL format and disables the interactive terminal UI.
+A workload with more than one container, such as a [multi-container workload](/resources/compute/multi-container-workload) with a sidecar, needs `--container`:
 
-## Command reference
+```bash
+stacktape container exec myWorkload "cat /var/log/sidecar.log" --stage prod --region eu-west-1 --container sidecar
+```
+
+## Use it in a script
+
+With `--agent`, the command prints NDJSON: one JSON object per line. The JSON above arrives as text in the `message` of a `log` line, and the last line is the command's `result`. To read `output`, select the log line and parse its message:
+
+```bash
+stacktape container exec apiService "cat /app/version.txt" --stage prod --region eu-west-1 --agent \
+  | jq -r 'select(.type == "log") | .message | fromjson? | .output'
+```
+
+## Common errors
+
+### Resource is not a deployed container workload
+
+The name doesn't match a deployed web service, private service, worker service or multi-container workload in the stage. Check the name in your config and that the stage is deployed.
+
+### Resource contains multiple containers
+
+The task has more than one container, or none with the name you passed. The error lists their names; run again with `--container <name>`.
+
+### No running task was found
+
+The service has no running task, for example while a deployment is still starting it. Wait for a task to start, or check the service in the Console or the AWS ECS console.
+
+### Resource does not have a deployed ECS service
+
+The stage is a dev stack. Dev mode runs containers on your machine, so there is nothing to connect to in AWS. Run the command against a deployed stage.
+
+### Task was not found
+
+The `--task-arn` value doesn't match a running task. The error lists the task IDs you can use.
+
+## Options
 
 
 ## CLI Options: `stacktape container exec`
@@ -68,85 +97,8 @@ The `output` field contains the command output returned by Stacktape's ECS Exec 
 | `--task-arn` | no | `string` | Task ARN — Specific ECS task ARN to connect to. | - |
 
 
-## Examples
-
-### Inspect a configuration file
-
-```bash
-stacktape container exec apiService "cat /app/config.json" --stage prod --region eu-west-1
-```
-
-### Check environment variables
-
-```bash
-stacktape container exec apiService "env" --stage prod --region eu-west-1
-```
-
-### Target a specific task in a scaled-out service
-
-When a service has multiple running tasks (scaled beyond one instance), use `--task-arn` to target a specific one. You can use the short task ID instead of the full ARN.
-
-```bash
-stacktape container exec apiService "ps aux" --stage prod --region eu-west-1 --task-arn abc123def
-```
-
-### Target a specific container in a multi-container workload
-
-For [multi-container workloads](/resources/compute/multi-container-workload) with multiple containers, specify which container to execute in.
-
-```bash
-stacktape container exec myWorkload "cat /var/log/sidecar.log" --stage prod --region eu-west-1 --container sidecar
-```
-
-### Use in scripts or CI pipelines
-
-The JSON output can be parsed with `jq` or similar tools. Use `--agent` for machine-readable output in scripts.
-
-```bash
-stacktape container exec apiService "cat /app/version.txt" --stage prod --region eu-west-1 --agent | jq -r '.output'
-```
-
-## Common errors
-
-### Resource is not a container workload
-
-The resource name you specified doesn't match any deployed ECS-based container workload. Verify the resource name matches your Stacktape configuration and that the stage has been deployed. Only [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload) are supported.
-
-### Multiple containers require the `--container` flag
-
-The target resource has multiple containers in its task definition. The error lists the available container names. Re-run the command with `--container <name>` to select one.
-
-### No running tasks found
-
-The ECS service has no running tasks. Wait for tasks to start or check the ECS service status. This can happen if the service has not finished deploying, or if the resource is a dev stack without running containers.
-
-### Task not found
-
-The `--task-arn` you specified doesn't match any running task. The error lists the available task IDs you can use instead.
-
 ## Related commands
 
-| Command | Purpose |
-|---------|---------|
-| [`container shell`](/cli/container-session) | Start an interactive shell session inside a running container |
-| [`logs`](/cli/logs) | Fetch and filter logs from a deployed resource |
-| [`metrics`](/cli/metrics) | View CloudWatch metrics for a deployed resource |
-| [`bastion tunnel`](/cli/bastion-tunnel) | Create a secure tunnel to a VPC resource through a bastion host |
-
-## FAQ
-
-### What is the difference between `container exec` and `container shell`?
-
-`container exec` runs a single command non-interactively and returns the output as structured JSON — ideal for scripting, CI pipelines, and AI agent workflows. [`container shell`](/cli/container-session) opens an interactive shell session where you can type multiple commands in real time. Use `container exec` when you know exactly what you need; use `container shell` when you need to explore or debug interactively.
-
-### Which resource types work with `container exec`?
-
-Any ECS-based container workload works: [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload). Lambda functions and other non-container resources are not supported — the command validates the target is an ECS-based resource before proceeding.
-
-### Does `container exec` modify the running container?
-
-The command can execute any shell command, including ones that write files or change state inside the container. However, ECS tasks run on ephemeral compute (AWS Fargate or EC2 instances managed by ECS). Any filesystem changes are lost when the task restarts or is replaced during a deployment. Do not rely on `container exec` for persistent configuration changes.
-
-### How does `container exec` connect to the container?
-
-Stacktape runs the command using AWS ECS Exec through the SSM session-manager-plugin. In AWS, ECS Exec uses Systems Manager Session Manager rather than SSH — no SSH keys or open ports are required.
+- [`container shell`](/cli/container-session) opens an interactive shell in a running container.
+- [`logs`](/cli/logs) shows what the container printed.
+- [`metrics`](/cli/metrics) shows CloudWatch metrics of a deployed resource.

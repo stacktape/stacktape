@@ -7,7 +7,7 @@ seoDescription: 'List detected runtime issues across deployed functions and cont
 
 # error list
 
-The `error list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal.
+The `error list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. [Error tracking](/observability/error-tracking) runs in the Console.
 
 ## Usage
 
@@ -22,10 +22,6 @@ List open issues for a specific project and stage:
 ```bash
 stacktape error list --project my-app --stage production --status OPEN
 ```
-
-## Flags reference
-
-<CliCommandsApiReference command="errors:list" />
 
 ## Examples
 
@@ -64,6 +60,10 @@ In interactive mode, the command prints a table with the following columns:
 | Last seen | Timestamp of the most recent occurrence                            |
 
 When no limit is provided, the command requests 25 issues. Omit `--project`, `--stage`, or `--status` when you do not want to narrow by those fields.
+
+## Options
+
+<CliCommandsApiReference command="errors:list" />
 
 ## Related commands
 

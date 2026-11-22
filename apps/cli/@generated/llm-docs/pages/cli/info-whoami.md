@@ -38,7 +38,7 @@ Enable debug-level logging to troubleshoot API key issues.
 stacktape whoami --debug
 ```
 
-## Flags
+## Options
 
 
 ## CLI Options: `stacktape whoami`

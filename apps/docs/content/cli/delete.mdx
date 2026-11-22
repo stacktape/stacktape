@@ -2,103 +2,59 @@
 title: 'delete'
 order: 140
 seoTitle: 'Delete a Stack from AWS | Stacktape CLI Reference'
-seoDescription: 'Remove a deployed Stacktape stack and all its AWS resources with the delete command. Supports beforeDelete lifecycle hooks, termination protection, and confirmation with --yes in CI/CD.'
+seoDescription: 'Remove a deployed Stacktape stack and all its AWS resources with the delete command. Covers beforeDelete hooks, termination and deletion protection, and --yes in CI.'
 ---
 
 # delete
 
-The `stacktape delete` command permanently removes a deployed stack and all its AWS resources. It deletes deployment artifacts recorded for the stack, then deletes the CloudFormation stack, and then the stack's deployment bucket and ECR repository. Stacktape creates these outside the stack for new stacks; in older stacks CloudFormation deletes them with the stack. Back up any data you need before running this command — the operation is irreversible.
+`stacktape delete` removes a deployed stage: the CloudFormation stack with all its resources, then the stage's deployment bucket and container image repository. Data in the stack's databases, buckets and tables is deleted with it, and there is no undo. Back up what you need first. The command asks for confirmation before it deletes anything.
 
 ## Usage
-
-```bash
-stacktape delete --stage production --region eu-west-1
-```
-
-`--region` is the only required flag. To avoid deleting the wrong stack, pass the identifying flags you normally use, such as `--stage`, `--project`, and `--config` when applicable.
-
-<Warning>
-The delete command removes all resources managed by the stack according to CloudFormation's deletion behavior. Back up or export anything you need before deletion — this operation cannot be undone.
-</Warning>
-
-## Important flags
-
-**`--yes`** — Skips the interactive confirmation prompt. Required for CI/CD and non-interactive scripts.
-
-**`--config`** — When provided, Stacktape loads the configuration file and runs any `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) before deletion. Without it, hooks are skipped.
-
-<CliCommandsApiReference command="delete" />
-
-## Lifecycle hooks
-
-When a configuration file is loaded, Stacktape registers configured hooks before artifact and stack deletion. The command description documents these as `beforeDelete` hooks. This is useful for exporting data, cleaning up external resources, or notifying other systems before the stack is torn down.
-
-Without a configuration file, `beforeDelete` hooks are not executed.
-
-## Termination protection
-
-Deletion fails when the CloudFormation stack has `EnableTerminationProtection` set. To proceed, first [deploy](/cli/deploy) an update with the `terminationProtection` property set to `false`, then run the delete command again.
-
-## Deletion protection
-
-Deletion also stops, before anything is deleted, when a resource of the stack has deletion protection on, such as a [relational database](/resources/databases/relational-database) or [Aurora DSQL database](/resources/databases/dsql) with `deletionProtection: true`. The error lists the protected resources. Deploy with `deletionProtection: false`, then run the delete command again. When an earlier delete already failed with `DELETE_FAILED`, the stack cannot be deployed, so turn the protection off in AWS instead.
-
-## Examples
-
-Delete a staging stack.
 
 ```bash
 stacktape delete --stage staging --region eu-west-1
 ```
 
-Delete with automatic confirmation, suitable for CI/CD pipelines.
+The CLI shows the stack it found and asks you to confirm. Pass the flags you deploy with, such as `--stage`, `--project` and `--aws-account`, so it finds the right stack.
+
+In CI or another run that can't ask, add `--yes`. Without it, the command fails with `CONFIRMATION_REQUIRED` and deletes nothing. `--agent` changes only the output; it doesn't confirm.
 
 ```bash
 stacktape delete --stage staging --region eu-west-1 --yes
 ```
 
-Delete with hooks enabled by providing the config file.
+## beforeDelete hooks
 
-```bash
-stacktape delete --stage production --region eu-west-1 --config ./stacktape.ts
-```
+When the CLI loads a config, it runs the config's `beforeDelete` [hooks](/configuration/hooks-and-scripts) before it deletes anything, for example to export data or clean up something outside the stack. It loads a config when you pass `--config`, and also when it finds one in the working directory. To delete without running the hooks, run the command from a directory without a config.
 
-Delete from the AWS account that an AWS profile belongs to. When the CLI is signed in to the Console, that account must be connected to your organization.
+## Protected stacks and resources
+
+**Termination protection.** A stack with `terminationProtection: true` can't be deleted. [Deploy](/cli/deploy) with `terminationProtection: false`, then delete.
+
+**Deletion protection.** When a resource has deletion protection on, such as a [relational database](/resources/databases/relational-database) or an [Aurora DSQL database](/resources/databases/dsql) with `deletionProtection: true`, the command stops before it deletes anything and lists the protected resources. Deploy with `deletionProtection: false`, then delete. `stacktape init` turns deletion protection on for every database it adds.
+
+When an earlier delete ended in `DELETE_FAILED`, the stack can't be deployed anymore. Turn the protection off in the AWS console for that resource, then delete again.
+
+## Examples
+
+Delete from the AWS account of a specific profile. When the CLI is signed in to the Console, that account must be connected to your organization.
 
 ```bash
 stacktape delete --stage dev-john --region us-east-1 --profile my-aws-profile
 ```
 
-Enable debug-level logging for troubleshooting.
+Print debug logs while you troubleshoot a failed delete:
 
 ```bash
-stacktape delete --stage staging --region eu-west-1 --debug
+stacktape delete --stage staging --region eu-west-1 --log-level debug
 ```
+
+## Options
+
+<CliCommandsApiReference command="delete" />
 
 ## Related commands
 
-- [`deploy`](/cli/deploy) — Create or update a stack.
-- [`rollback`](/cli/rollback) — Roll back to a previous deployment version instead of deleting.
-- [`stack list`](/cli/info-stacks) — List all deployed stacks in a region to find what to delete.
-
-## FAQ
-
-### What happens to my data when I delete a stack?
-
-The delete command deletes deployment artifacts and then deletes the CloudFormation stack, so resources and data managed by that stack are removed according to CloudFormation's deletion behavior. There is no undo. Export or back up anything you need before running the delete command.
-
-### Can I delete a stack without a configuration file?
-
-Yes. The config file is optional — you can identify the stack with `--project`, `--stage`, and `--region` directly. The trade-off is that `beforeDelete` [lifecycle hooks](/configuration/hooks-and-scripts) only run when you pass `--config`, so without it any data export or cleanup hooks are skipped.
-
-### How do I delete a stack in a CI/CD pipeline?
-
-Add `--yes` to confirm the deletion in CI/CD or other non-interactive scripts. Example: `stacktape delete --stage staging --region eu-west-1 --yes`. Without `--yes`, a run that cannot ask (no terminal, `--agent` or machine-readable output) fails with `CONFIRMATION_REQUIRED` and deletes nothing. `--agent` only switches the output to JSONL; it does not confirm the deletion.
-
-### How do I delete a stack with termination protection?
-
-Deletion fails when the CloudFormation stack has `EnableTerminationProtection` set. First [deploy](/cli/deploy) an update with the `terminationProtection` property set to `false`, then run the delete command again.
-
-### What is the difference between delete and rollback?
-
-The [`rollback`](/cli/rollback) command reverts your stack to a previous deployment version while keeping the stack alive. The `delete` command permanently removes the entire stack and all its resources. Use rollback when you want to undo a bad deploy; use delete when you want to completely remove the stack from AWS.
+- [`rollback`](/cli/rollback) returns a stage to an earlier release and keeps it running.
+- [`stack list`](/cli/info-stacks) lists the stacks in a region.
+- [`deploy`](/cli/deploy) creates or updates a stage.

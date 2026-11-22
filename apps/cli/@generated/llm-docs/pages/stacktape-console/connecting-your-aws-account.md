@@ -54,7 +54,7 @@ The **Status** column on the AWS accounts page says what Stacktape can do with e
 | **Could not connect** | The CloudFormation stack in AWS failed. | Click **Finish setup** to see what to do. |
 | **No access** | The role was deleted in AWS, or Stacktape can't reach the account. | Disconnect the account, then connect it again. |
 
-## Common Tasks
+## Common tasks
 
 ### Connecting multiple AWS accounts
 
@@ -77,10 +77,16 @@ Each of these commands prints the account it uses, for example `AWS credentials 
 
 ### Revoking access
 
-You can revoke Stacktape's access to your AWS account in two ways:
+Revoking stops Console deploys to the account. Your deployed stacks keep running. You can revoke access in two ways:
 
 - **Disconnect the account in the Stacktape Console**: open the account's menu on the AWS accounts page and choose **Disconnect account**. This removes the connection from Stacktape's side.
 - **Delete the CloudFormation connection stack in the AWS Console**: this removes the IAM role from your AWS account. The Console then shows the account as **No access**.
+
+### Updating an older connection
+
+A connection made from an older template shows an **Update** button next to it. It opens a dialog with the steps and a
+link that updates the connection stack in AWS CloudFormation, so the [audit log](/stacktape-console/audit-log) can name the
+person behind each AWS action.
 
 ### Checking which regions an account uses
 
@@ -106,7 +112,7 @@ The connection is no longer usable: someone deleted Stacktape's role in AWS, or 
 
 Connecting and disconnecting accounts is for Owners and Admins. Ask one of them, or ask for that role. See [Team and access control](/stacktape-console/team-and-access-control) for details.
 
-## Related Features
+## Related features
 
 - [AWS permissions](/stacktape-console/aws-permissions) — details on what the cross-account role can do
 - [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — how connected accounts relate to your project structure
@@ -126,15 +132,3 @@ Yes, to any region Stacktape supports. The connection stack is always created in
 ### Is connecting my AWS account free?
 
 Connecting has no fee. The Console itself is free while the AWS spend it manages stays at or under $200 a month, and the Flexible plan charges a percentage above that; see [Billing and subscription](/stacktape-console/billing-and-subscription). AWS bills your account for the resources.
-
-### How do I revoke Stacktape's access to my AWS account?
-
-You have two options: disconnect the account in the Stacktape Console (removes it from Stacktape's side), or delete the CloudFormation connection stack in the AWS Console (removes the IAM role from your account). Either one stops Console deployments to that account. After you delete the stack in AWS, the Console shows the account as **No access**: disconnect it and connect it again to restore access.
-
-### Why can't I connect an account?
-
-Connecting and disconnecting accounts is for Owners and Admins of the organization. Developers and Viewers don't see these actions. Ask an Owner or Admin, or see [Team and access control](/stacktape-console/team-and-access-control).
-
-### Why can't I delete a connected AWS account?
-
-Stacktape blocks deletion when projects reference the account in their GitOps deployment configurations; the error message lists the affected projects. Remove the GitOps deployment configurations from those projects, then retry the deletion.

@@ -162,10 +162,6 @@ because the directory has two config files. Move or delete the old file, or pass
 For a TypeScript config in a project with a `package.json`, init adds or updates the `stacktape` dev dependency to
 match the CLI and prints the install command. It doesn't run the package manager.
 
-## All flags
-
-<CliCommandsApiReference command="init" />
-
 ## Examples
 
 Read the project with Claude Code:
@@ -185,12 +181,6 @@ Pick a starter from the list:
 ```bash
 stacktape init --starter-project
 ```
-
-## Related commands
-
-- [`deploy`](/cli/deploy) deploys the configuration init wrote.
-- [`dev`](/cli/dev) runs the project locally against a small dev stack.
-- [`delete`](/cli/delete) removes everything a deploy created.
 
 ## FAQ
 
@@ -236,3 +226,13 @@ It never overwrites a `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`. It ca
 `stacktape.generated.*` from an earlier run and update the `stacktape` dependency in `package.json`. See
 [existing and generated configuration files](#existing-and-generated-configuration-files). For starters,
 `--initialize-project-to` empties a non-empty target directory after you confirm.
+
+## Options
+
+<CliCommandsApiReference command="init" />
+
+## Related commands
+
+- [`deploy`](/cli/deploy) deploys the configuration init wrote.
+- [`dev`](/cli/dev) runs the project locally against a small dev stack.
+- [`delete`](/cli/delete) removes everything a deploy created.

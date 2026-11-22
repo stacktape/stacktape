@@ -1,6 +1,8 @@
 # aws-profile list
 
-The `aws-profile list` command prints every AWS profile configured on your machine. It displays each profile's name, access key ID, and a masked secret access key in a table. Use it to verify which profiles are available before deploying or to audit stored credentials.
+`stacktape aws-profile list` prints the AWS profiles in your AWS credentials file (`~/.aws/credentials`) that hold a static access key pair. For each one it shows the name, the access key ID and a masked secret access key. Use it to check which static keys are on this machine, for example before you [update](/cli/aws-profile-update) or [delete](/cli/aws-profile-delete) one.
+
+SSO and role profiles live in `~/.aws/config` without static keys, so they are not listed even when they work. To check that a profile works, run `aws sts get-caller-identity --profile <name>`, or pass `--profile <name>` to any Stacktape command.
 
 ## Usage
 
@@ -8,11 +10,15 @@ The `aws-profile list` command prints every AWS profile configured on your machi
 stacktape aws-profile list
 ```
 
-The command has no required flags. The CLI prints a table with three columns: **Profile**, **AWS_ACCESS_KEY_ID**, and **AWS_SECRET_ACCESS_KEY**. The secret access key is masked: the first 36 characters are replaced with asterisks, showing only the last 4. The `--agent` result masks it the same way. Pass `--show-secrets` to print and return the whole key.
+```text
+Profile      AWS_ACCESS_KEY_ID        AWS_SECRET_ACCESS_KEY
+default      <access key ID>          ************************************abcd
+production   <access key ID>          ************************************wxyz
+```
 
-If no profiles are configured, the command prints a warning and suggests creating one with [`aws-profile create`](/cli/aws-profile-create).
+Only the last 4 characters of each secret access key are shown, in the terminal and in the `--agent` result. Add `--show-secrets` to print the whole keys. When the file has no static key pair, the command says so and suggests [`aws-profile create`](/cli/aws-profile-create).
 
-## Options reference
+## Options
 
 
 ## CLI Options: `stacktape aws-profile list`
@@ -25,22 +31,8 @@ If no profiles are configured, the command prints a warning and suggests creatin
 | `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
 
 
-## Examples
-
-List all configured profiles.
-
-```bash
-stacktape aws-profile list
-```
-
-List profiles with minimal log output.
-
-```bash
-stacktape aws-profile list --log-level error
-```
-
 ## Related commands
 
-- [`aws-profile create`](/cli/aws-profile-create) — create a new AWS profile on your system.
-- [`aws-profile update`](/cli/aws-profile-update) — update credentials for an existing profile.
-- [`aws-profile delete`](/cli/aws-profile-delete) — remove a profile from your system.
+- [`aws-profile create`](/cli/aws-profile-create) adds a profile with static keys.
+- [`aws-profile update`](/cli/aws-profile-update) replaces the keys of a profile.
+- [`aws-profile delete`](/cli/aws-profile-delete) removes a profile.

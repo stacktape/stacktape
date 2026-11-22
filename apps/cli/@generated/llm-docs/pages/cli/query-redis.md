@@ -94,7 +94,7 @@ When running inside an AI coding agent or CI pipeline, pass `--agent` to switch 
 stacktape query redis myRedis --stage prod --region eu-west-1 --operation get --key "session:abc123" --agent
 ```
 
-## Flags reference
+## Options
 
 
 ## CLI Options: `stacktape query redis`
