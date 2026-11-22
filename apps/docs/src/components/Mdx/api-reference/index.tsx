@@ -6,7 +6,7 @@
  * so do nested properties and the options of a union, indented under their parent. Each row has a stable link
  * (`#api-ref_<definition>--<path>`); opening such a link expands the rows above it.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronRight, Search } from 'react-feather';
 import type { ApiProperty, ApiTypeInfo, ApiUnionBranch } from '@/utils/api-reference-dto';
 import { sanitizeHtml, stripHtml } from '@/utils/api-reference-text';
@@ -331,6 +331,7 @@ export function ApiReference({ definitionName }: SharedRenderProps) {
   const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState('');
   const anchor = sectionAnchorId(definitionName);
+  const scrollTarget = useRef<string | null>(null);
 
   const open = useMemo<OpenState>(
     () => ({
@@ -355,13 +356,21 @@ export function ApiReference({ definitionName }: SharedRenderProps) {
       if (!hash.startsWith(prefix)) return;
       const keys = keysForPath(definition.properties, anchor, hash.slice(prefix.length).split('.'));
       if (keys.length === 0) return;
+      scrollTarget.current = hash.slice(1);
       setOpenKeys((previous) => new Set([...previous, ...keys]));
-      requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' }));
     };
     reveal();
     window.addEventListener('hashchange', reveal);
     return () => window.removeEventListener('hashchange', reveal);
   }, [anchor, definition]);
+
+  // Scroll once the opened rows have rendered the target.
+  useEffect(() => {
+    const target = scrollTarget.current && document.getElementById(scrollTarget.current);
+    if (!target) return;
+    scrollTarget.current = null;
+    target.scrollIntoView({ block: 'start' });
+  }, [openKeys]);
 
   if (!definition) {
     return (
