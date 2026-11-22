@@ -66,7 +66,7 @@ logged, such as names.
 | Logs, metrics and traces in the Console | Nothing is stored: your browser reads them from AWS with short-lived credentials | [Logs](/observability/logs#read-logs-in-the-console) |
 | Costs | A monthly cost breakdown of each connected AWS account, from its AWS cost report | [Cost dashboards](/managing-costs/dashboards) |
 | Security scanning | Configuration findings and where the dependency list is. Package names and versions go to OSV.dev; found vulnerabilities are stored. | [Security scanning](/stacktape-console/security-scanning#what-leaves-your-aws-account) |
-| Incident briefings | A masked snapshot of what Stacktape already stores about the incident, sent to a model through OpenRouter. No logs or source code. | [Incident AI](/observability/incident-ai#what-leaves-your-aws-account) |
+| Incident briefings, with an AI API key connected | A masked snapshot of what Stacktape already stores about the incident, sent to the provider of your organization's key. No logs or source code. | [Incident AI](/observability/incident-ai#what-leaves-your-aws-account) |
 | AI investigations and fixes, when you start one | What the agent reads, including your source code and command output, sent to the agent's provider under your credential | [Incident AI](/observability/incident-ai#what-leaves-your-aws-account) |
 | Slack app | What the cards show. Logs are never posted. | [Alert channels](/observability/alert-channels#what-stacktape-sends-to-slack) |
 | `stacktape init` | The generated config and region, for the price estimate. A coding agent sends the files it reads to its own provider. | [init](/cli/init#who-reads-your-code-and-what-leaves-your-machine) |

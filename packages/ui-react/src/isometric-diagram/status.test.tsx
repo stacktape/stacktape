@@ -114,6 +114,15 @@ describe('statuses on drawn nodes', () => {
     });
     expect(countResourcesNeedingAttention(statuses)).toBe(3);
   });
+
+  test('leaves a status the host marks with attention: false out of the count, but keeps it on the node', () => {
+    const statuses = statusesOf({
+      createOrder: [incident],
+      ordersTable: [{ ...risk, attention: false }]
+    });
+    expect(countResourcesNeedingAttention(statuses)).toBe(1);
+    expect(statuses.get('ordersTable')?.entries[0]).toMatchObject({ tone: 'warning', attention: false });
+  });
 });
 
 describe('drawing statuses', () => {

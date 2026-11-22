@@ -10,7 +10,7 @@ import { TRPCClientError } from '@trpc/client';
 import { stacktapeTrpcApiManager, translateStacktapeApiError } from './index';
 import { recordStackOperationEnd } from './operation-recording';
 
-const trpcError = (code: 'FORBIDDEN' | 'UNAUTHORIZED', message: string) =>
+const trpcError = (code: 'FORBIDDEN' | 'UNAUTHORIZED', message: string, reason?: string) =>
   TRPCClientError.from({
     error: {
       code: code === 'FORBIDDEN' ? -32_003 : -32_001,
@@ -18,7 +18,8 @@ const trpcError = (code: 'FORBIDDEN' | 'UNAUTHORIZED', message: string) =>
       data: {
         code,
         httpStatus: code === 'FORBIDDEN' ? 403 : 401,
-        path: 'canDeploy'
+        path: 'canDeploy',
+        ...(reason && { reason })
       }
     }
   });
@@ -59,6 +60,18 @@ describe('Stacktape API error translation', () => {
       category: 'API_SERVER',
       code: 'STACKTAPE_API_PERMISSION_DENIED',
       message: 'Permission denied: Organization role cannot deploy'
+    },
+    {
+      source: trpcError(
+        'FORBIDDEN',
+        'This API key has read access to deploys and stages, and this request needs write access.',
+        'API_KEY_SCOPE'
+      ),
+      hasApiKey: true,
+      category: 'API_SERVER',
+      code: 'STACKTAPE_API_KEY_SCOPE_DENIED',
+      message:
+        'Permission denied: This API key has read access to deploys and stages, and this request needs write access.'
     }
   ])('maps $code and preserves its tRPC cause', ({ source, hasApiKey, category, code, message }) => {
     const translated = translateStacktapeApiError({ error: source, hasApiKey });

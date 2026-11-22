@@ -42,9 +42,9 @@ import { NodeStatusPill, NodeStatusRing, ToneIconInline } from './status-marks.j
 import {
   buildNodeStatuses,
   countResourcesNeedingAttention,
+  countsForAttention,
   getGroupStatus,
   getResourceStatus,
-  needsAttention,
   readStatuses,
   worseTone
 } from './status.js';
@@ -1041,8 +1041,9 @@ export function IsoRenderer({
     [scene, statusMap]
   );
   const attention = useMemo(() => {
-    const nodeIds = new Set([...nodeStatuses].filter(([, status]) => needsAttention(status.tone)).map(([id]) => id));
-    const tones: DiagramStatusTone[] = [...nodeStatuses.values()].map((status) => status.tone).filter(needsAttention);
+    const counted = [...nodeStatuses].map(([id, status]) => [id, status.entries.filter(countsForAttention)] as const);
+    const nodeIds = new Set(counted.filter(([, entries]) => entries.length > 0).map(([id]) => id));
+    const tones: DiagramStatusTone[] = counted.flatMap(([, entries]) => entries.map((entry) => entry.tone));
     return {
       nodeIds,
       resources: countResourcesNeedingAttention(nodeStatuses),

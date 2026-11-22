@@ -1,5 +1,6 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { ApiKeyProtectedClient, type ApiKeyRequestExecutor } from '@stacktape-api/api-key-protected';
+import { API_KEY_SCOPE_REFUSAL_REASON } from '@stacktape/console-api/api-key-scopes';
 import { TRPCClientError } from '@trpc/client';
 import { CliError } from '@utils/errors';
 import { timeAsync } from '@utils/timings';
@@ -13,6 +14,7 @@ export const translateStacktapeApiError = ({ error, hasApiKey }: { error: unknow
   }
 
   const errorCode = error instanceof TRPCClientError ? error.data?.code : undefined;
+  const errorReason: unknown = error instanceof TRPCClientError ? error.data?.reason : undefined;
   const errorMessage = error instanceof Error && error.message ? error.message : 'Unknown error';
   const normalizedMessage = errorMessage.toLowerCase();
 
@@ -40,6 +42,16 @@ export const translateStacktapeApiError = ({ error, hasApiKey }: { error: unknow
       code: hasApiKey ? 'STACKTAPE_API_KEY_INVALID' : 'STACKTAPE_API_KEY_MISSING',
       message: hasApiKey ? 'Invalid API key.' : 'No Stacktape API key was specified.',
       hints: LOGIN_HINT,
+      cause: error
+    });
+  }
+  // A key with scopes was refused outside them; the message names the area, and the role is not what to check.
+  if (errorCode === 'FORBIDDEN' && errorReason === API_KEY_SCOPE_REFUSAL_REASON) {
+    return new CliError({
+      category: 'API_SERVER',
+      code: 'STACKTAPE_API_KEY_SCOPE_DENIED',
+      message: `Permission denied: ${errorMessage}`,
+      hints: "A key's scopes are set when it is created. Use a key with the access this command needs.",
       cause: error
     });
   }

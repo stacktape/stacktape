@@ -7,6 +7,7 @@
   "exports": {
     "./anonymous": "./src/anonymous.ts",
     "./api-key": "./src/api-key.ts",
+    "./api-key-scopes": "./src/api-key-scopes.ts",
     "./aws-identity": "./src/aws-identity.ts",
     "./billing": "./src/billing.ts",
     "./failure-explanations": "./src/failure-explanations.ts",
