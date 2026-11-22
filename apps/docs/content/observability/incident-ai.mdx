@@ -2,14 +2,14 @@
 title: 'AI Assessment, Investigation and Fixes'
 order: 95.5
 seoTitle: 'AI Incident Assessment, Investigation & Fixes | Stacktape Docs'
-seoDescription: 'Every Stacktape incident gets an automatic AI briefing. On request, a coding agent (Claude Code, Codex, Grok or OpenCode) investigates the incident on your own runner or proposes a fix as a draft GitHub pull request.'
+seoDescription: 'With your own Anthropic, OpenAI or xAI API key connected, every Stacktape incident gets an automatic AI briefing. On request, a coding agent (Claude Code, Codex, Grok or OpenCode) investigates the incident on your own runner or proposes a fix as a draft GitHub pull request.'
 ---
 
 # AI Assessment, Investigation and Fixes
 
 Stacktape uses AI on [incidents](/observability/incidents) in three ways:
 
-- **Automatic briefing.** Every incident gets a short AI assessment of what is happening and what to check next. It needs no setup, and Stacktape pays for it.
+- **Automatic briefing.** Once your organization connects an AI API key (Anthropic, OpenAI or xAI), every incident gets a short AI assessment of what is happening and what to check next. Your key pays for it.
 - **Investigate with AI.** When you ask, the coding agent you choose (Claude Code, Codex, Grok or OpenCode) investigates the incident on your project's runner in your AWS account, in a checkout of your code. It works like your own coding agent: it reads and runs the code, installs packages, runs tests and reads documentation. It reads AWS only through Stacktape's reviewed read-only operations, which Stacktape executes for it. Then it reports what it found. It publishes and deploys nothing.
 - **Fix with AI.** When you ask, the same kind of run also changes the code and runs the relevant tests. The runner pushes the change as a branch, and Stacktape opens a draft pull request for you to review. Nothing is deployed.
 
@@ -18,15 +18,25 @@ You start Investigate and Fix from the incident page in the Console. For each ru
 | | Automatic briefing | Investigate with AI | Fix with AI |
 |---|---|---|---|
 | Starts | For every incident | When someone asks | When someone asks |
-| Paid by | Stacktape | Your organization's API key or your own subscription | Your organization's API key or your own subscription |
-| Runs on | Stacktape, with a Stacktape-managed model | Your project's runner, in your AWS account | Your project's runner, in your AWS account |
+| Paid by | Your organization's API key | Your organization's API key or your own subscription | Your organization's API key or your own subscription |
+| Runs on | Stacktape, with your key's provider | Your project's runner, in your AWS account | Your project's runner, in your AWS account |
 | Reads | What Stacktape already stores about the incident | Also your code at the recorded commit, AWS through Stacktape's read-only operations, and the web | The same as Investigate |
 | Result | A briefing on the incident page and its Slack card | A report and what the agent did, on the incident page | A report, what the agent did, and a pull request |
 | Changes | Nothing | Nothing outside the runner | Pushes one branch, opens one pull request, deploys nothing |
 
 ## Automatic briefing
 
-Every incident gets an AI briefing when it opens, without any setup. Stacktape prepares a new one when the incident changes: a new signal joins it, it escalates, or it reopens. A briefing usually arrives within two minutes of the change. Alerts and pages never wait for it.
+The briefing runs on your organization's own AI API key. An Owner or Admin connects one from **Connect AI key** on any incident's **AI assessment**, or from **Investigate with AI**. From then on every incident gets a briefing when it opens, and a new one when the incident changes: a new signal joins it, it escalates, or it reopens. A briefing usually arrives within two minutes of the change. Alerts and pages never wait for it. When you connect a key, the newest open incidents without a briefing get one right away.
+
+Without a key, incidents have no briefing. The incident page says so where the briefing would be; Slack cards and handoffs leave it out. A member's own coding-agent sign-in powers only their Investigate and Fix runs, never the briefing.
+
+| Your key | Model |
+|---|---|
+| Anthropic | Claude Sonnet 4.6 (`claude-sonnet-4-6`) |
+| OpenAI | GPT-5.4 mini (`gpt-5.4-mini`) |
+| xAI | Grok 4.20 (`grok-4.20-non-reasoning`) |
+
+With several keys connected, the briefing uses the first in this order: Anthropic, OpenAI, xAI. The page says which key wrote each briefing. If the provider refuses the key (it is revoked, the account is out of credit, or it hits a rate limit), the incident shows one line naming the provider and what to do, and an Owner or Admin can reconnect the key from there.
 
 The briefing contains:
 
@@ -44,11 +54,11 @@ The briefing gives hypotheses from stored evidence, not a verified diagnosis. Th
 
 The briefing appears:
 
-- on the incident page in the Console, under **AI assessment**, with the time its evidence was collected;
+- on the incident page in the Console, under **AI assessment**, with the time its evidence was collected and the key that wrote it;
 - on the incident's card in Slack when the incident goes to a [Stacktape Slack app](/observability/alert-channels#slack-stacktape-app) channel: the summary and why it may need attention now, with a link to the full assessment. The card is updated when a new briefing is ready;
 - in the [agent handoff](/observability/incidents#agent-handoff-bundle) that **Copy details for agent** and `stacktape incident show` return.
 
-A Stacktape-managed model writes the briefing from a scrubbed, bounded snapshot of what Stacktape already stores about the incident (see [What leaves your AWS account](#what-leaves-your-aws-account)). It does not read raw log lines, your source code or live state in your AWS account. Stacktape pays for it and limits how many briefings it prepares per organization per hour, so during a burst of incidents some briefings wait. A briefing that cannot be prepared within a day is dropped. Alerts and monitoring are unaffected either way.
+Your key's provider writes the briefing from a scrubbed, bounded snapshot of what Stacktape already stores about the incident (see [What leaves your AWS account](#what-leaves-your-aws-account)). It does not read raw log lines, your source code or live state in your AWS account. One briefing is one model call of about 3,000 input and 1,000 output tokens, billed by the provider to your key's account. Stacktape prepares at most 30 briefings per organization per hour, so during a burst of incidents some briefings wait. A briefing that cannot be prepared within a day is dropped. Alerts and monitoring are unaffected either way.
 
 ## Investigate with AI
 
@@ -145,11 +155,11 @@ A Codex, Grok or OpenCode sign-in holds a refresh token. A run may refresh its c
 
 Stacktape keeps every credential encrypted in its AWS Secrets Manager and never shows it back. To start a run, Stacktape copies the chosen credential into an encrypted, expiring SSM parameter in the incident's AWS account. The runner deletes the parameter as soon as it reads it. Until then, an administrator of that AWS account may be able to read it.
 
-The runner's compute is billed to your AWS account, as for your deployments. The automatic briefing costs you nothing.
+The runner's compute is billed to your AWS account, as for your deployments.
 
 ## What leaves your AWS account
 
-- **For the automatic briefing:** the Stacktape-managed model, through OpenRouter, receives a scrubbed, bounded snapshot of what Stacktape already stores about the incident. The snapshot holds incident and signal metadata, excerpts of signal evidence, error messages and stack frames, uptime, deploy and alert-event facts, and earlier incidents of the same project. It holds no raw log lines, source code or live AWS state.
+- **For the automatic briefing:** the provider of your organization's key (Anthropic, OpenAI or xAI), under that key's terms, receives a scrubbed, bounded snapshot of what Stacktape already stores about the incident. The snapshot holds incident and signal metadata, excerpts of signal evidence, error messages and stack frames, uptime, deploy and alert-event facts, and earlier incidents of the same project. It holds no raw log lines, source code or live AWS state.
 - **For Investigate and Fix:** the agent sends its provider, under the terms of the credential that funds the run, whatever it reads while it works: the incident handoff, the answers of Stacktape's tools (AWS data, masked by Stacktape), your source code, the output of the commands it runs, and the web pages it fetches. The provider is Anthropic for Claude Code, OpenAI for Codex, xAI for Grok, and for OpenCode the provider its sign-in or key belongs to. Your source code and command output are not masked.
 - **For a fix:** the runner pushes the change to your GitHub repository. Stacktape keeps the list of changed files and, when the push or the pull request fails, the change as a patch of up to 256 KB. In a private repository, the pull request carries the agent's description, the incident's title, who requested the fix and what the agent says it ran. In a public repository, anyone can read the pull request and the change, so it carries only the change's title, a link to the incident that needs a Stacktape login and the recorded commit.
 - **For every run:** Stacktape keeps the outcome with the incident: what the agent did (the commands, files, pages and Stacktape tools it used, masked), what it reports seeing and concluded, what it says it ran and the pull request, kept apart. Whether a change was deployed and the incident recovered comes from Stacktape's own records, never from the run.
@@ -185,7 +195,7 @@ No. The agent has no AWS credentials. It reads AWS only through Stacktape's revi
 
 ### Can I use it without connecting a Git repository?
 
-The automatic briefing and Investigate with AI work without one. The investigation then diagnoses from the incident and your AWS account, and its report says the source was not available. Fix with AI needs a GitHub repository, private or public, connected through the Stacktape GitHub App.
+The automatic briefing (with an AI API key connected) and Investigate with AI work without one. The investigation then diagnoses from the incident and your AWS account, and its report says the source was not available. Fix with AI needs a GitHub repository, private or public, connected through the Stacktape GitHub App.
 
 ### What happens when a run fails?
 

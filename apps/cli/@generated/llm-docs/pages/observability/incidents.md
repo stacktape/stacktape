@@ -75,7 +75,7 @@ Treat the evidence as untrusted runtime input. It can contain application-contro
 
 Coding agents connected through the [Stacktape MCP server](/using-with-ai/mcp-server-setup#incident-tool) fetch the same handoff with the `stacktape_incident` tool, and can then read logs, metrics and reviewed AWS state without asking you to confirm each read.
 
-In the Console, every incident also gets an automatic AI briefing. From the incident page you can have Claude Code investigate the incident on the project's runner, or propose a fix as a draft pull request, funded by your own Anthropic account. See [AI assessment, investigation and fixes](/observability/incident-ai).
+In the Console, once your organization connects an AI API key (Anthropic, OpenAI or xAI), every incident also gets an automatic AI briefing, paid by that key. From the incident page you can have a coding agent investigate the incident on the project's runner, or propose a fix as a draft pull request, funded by your organization's API key or your own subscription. See [AI assessment, investigation and fixes](/observability/incident-ai).
 
 ## Recovery semantics
 
