@@ -1,68 +1,30 @@
-import { ChevronLeft, ChevronRight } from 'react-feather';
-import clsx from 'clsx';
-import { Link } from './Link';
+import { ArrowLeft, ArrowRight } from 'react-feather';
+import { ensureTrailingSlash } from '@/utils/seo';
 
-function LeftButton({ url, title, label }: ButtonProps) {
+type Target = { url?: string; title?: string };
+
+/** Links to the previous and next guide. A single link takes the whole row; on a phone the two stack. */
+export function PreviousNext({ left, right }: { left?: Target; right?: Target }) {
   return (
-    <div
-      className={clsx(
-        'stp-clickable-box relative m-0 flex flex-row items-center place-self-stretch px-2 py-0 text-fc-primary no-underline',
-        '[&_a]:flex [&_a]:w-full [&_a]:items-center',
-        url ? 'visible opacity-100' : 'invisible opacity-0'
+    <nav className="docs-pager" aria-label="Previous and next guide">
+      {left?.url && (
+        <a href={ensureTrailingSlash(left.url)} className="docs-pager-link docs-unstyled-link" rel="prev">
+          <span className="docs-pager-direction">
+            <ArrowLeft size={14} aria-hidden />
+            Previous
+          </span>
+          <span className="docs-pager-title">{left.title}</span>
+        </a>
       )}
-    >
-      <Link href={url || '#'}>
-        <div className="m-0 mt-[3px] mr-[-5px] flex flex-[0_0_auto] p-4 text-[16pt] max-[500px]:p-[6px] [&_svg]:stroke-fc-primary">
-          <ChevronLeft color="" />
-        </div>
-        <div className="m-0 block flex-[1_1_0%] p-4 text-right max-[500px]:p-[10px]">
-          <div className="m-0 block p-0 text-fc-primary [&_p]:text-[13px] [&_p]:font-medium [&_p]:leading-[1.625]">
-            <p>{label}</p>
-          </div>
-          <div className="m-0 block p-0 [&_p]:text-[16px] [&_p]:font-medium [&_p]:leading-[1.5]">
-            <p className="font-semibold">{title}</p>
-          </div>
-        </div>
-      </Link>
-    </div>
-  );
-}
-
-function RightButton({ url, title, label }: ButtonProps) {
-  return (
-    <div
-      className={clsx(
-        'stp-clickable-box relative m-0 flex flex-row items-center place-self-stretch px-2 py-0 text-fc-primary no-underline',
-        '[&_a]:flex [&_a]:w-full [&_a]:items-center',
-        url ? 'visible opacity-100' : 'invisible opacity-0'
+      {right?.url && (
+        <a href={ensureTrailingSlash(right.url)} className="docs-pager-link is-next docs-unstyled-link" rel="next">
+          <span className="docs-pager-direction">
+            Next
+            <ArrowRight size={14} aria-hidden />
+          </span>
+          <span className="docs-pager-title">{right.title}</span>
+        </a>
       )}
-    >
-      <Link href={url || '#'}>
-        <div className="m-0 block flex-[1_1_0%] p-4 max-[500px]:p-[10px]">
-          <div className="m-0 block p-0 text-fc-primary [&_p]:text-[13px] [&_p]:font-medium [&_p]:leading-[1.625]">
-            <p>{label}</p>
-          </div>
-          <div className="m-0 block p-0 [&_p]:text-[16px] [&_p]:font-medium [&_p]:leading-[1.5]">
-            <p className="font-semibold">{title}</p>
-          </div>
-        </div>
-        <div className="m-0 mt-[3px] mr-[-5px] block flex-[0_0_auto] p-4 text-[16pt] max-[500px]:p-[6px] [&_svg]:stroke-fc-primary">
-          <ChevronRight color="" />
-        </div>
-      </Link>
-    </div>
-  );
-}
-
-type ButtonProps = { url?: string; title?: string; label?: string };
-
-const NO_TARGET: ButtonProps = {};
-
-export function PreviousNext({ left = NO_TARGET, right = NO_TARGET }: { left?: ButtonProps; right?: ButtonProps }) {
-  return (
-    <div className="mt-[40px] mr-[15px] grid grid-cols-[50%_50%] grid-rows-[auto] gap-[15px]">
-      <LeftButton url={left.url} title={left.title} label="Previous" />
-      <RightButton url={right.url} title={right.title} label="Next" />
-    </div>
+    </nav>
   );
 }

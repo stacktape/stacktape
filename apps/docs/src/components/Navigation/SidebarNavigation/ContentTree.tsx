@@ -52,12 +52,10 @@ export function ContentTree({
 
   return (
     <ExpansionStoreContext.Provider value={store}>
-      <div className="w-full">
-        <VersionSwitcher version={version} pathname={pathname} />
-        {navigationTree.map((group) => (
-          <ContentTreeGroup key={group.id} group={group} />
-        ))}
-      </div>
+      <VersionSwitcher version={version} pathname={pathname} />
+      {navigationTree.map((group) => (
+        <ContentTreeGroup key={group.id} group={group} />
+      ))}
     </ExpansionStoreContext.Provider>
   );
 }

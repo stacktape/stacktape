@@ -26,6 +26,8 @@ export type DocSearchOwnProps = Omit<Partial<DocSearchProps>, 'appId' | 'apiKey'
 export function DocSearch(props: DocSearchOwnProps) {
   return (
     <DocSearchComponent
+      placeholder="Search the docs"
+      translations={{ button: { buttonText: 'Search docs', buttonAriaLabel: 'Search docs' } }}
       {...props}
       appId={config.algolia.appId}
       indexName={config.algolia.indexName}

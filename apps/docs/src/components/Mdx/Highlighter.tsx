@@ -1,45 +1,28 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { colors } from '@/styles/variables';
+import type { ReactNode } from 'react';
+import { AlertOctagon, AlertTriangle, Info as InfoIcon, Zap } from 'react-feather';
 
 type Callout = { children?: ReactNode };
+type Variant = 'info' | 'tip' | 'warning' | 'error';
 
-/** Callout box behind the `<Warning>`, `<Info>`, `<Tip>`, and `<Error>` MDX components. */
-function Highlighter({ type, children }: Callout & { type: 'warning' | 'info' | 'tip' | 'error' }) {
-  const highlightColor = {
-    warning: {
-      border: colors.orange,
-      background: 'rgba(237, 139, 0, 0.12)',
-      font: colors.fontColorPrimary
-    },
-    info: {
-      border: colors.blue,
-      background: 'rgba(0, 102, 204, 0.12)',
-      font: colors.fontColorPrimary
-    },
-    tip: {
-      border: colors.success,
-      background: 'rgba(24, 153, 144, 0.12)',
-      font: colors.fontColorPrimary
-    },
-    error: {
-      border: '#e74c3c',
-      background: 'rgba(231, 76, 60, 0.12)',
-      font: colors.fontColorPrimary
-    }
-  }[type];
+// The icon's shape names the kind, so the kind never depends on colour; the label is read by screen readers.
+const VARIANTS: Record<Variant, { label: string; icon: ReactNode }> = {
+  info: { label: 'Note', icon: <InfoIcon size={16} aria-hidden /> },
+  tip: { label: 'Tip', icon: <Zap size={16} aria-hidden /> },
+  warning: { label: 'Warning', icon: <AlertTriangle size={16} aria-hidden /> },
+  error: { label: 'Error', icon: <AlertOctagon size={16} aria-hidden /> }
+};
 
+/**
+ * The `<Info>`, `<Tip>`, `<Warning>` and `<Error>` callouts. Quiet by design: a left rule, a faint wash and an icon.
+ * The body is ordinary prose, so links and inline code keep their usual look.
+ */
+function Highlighter({ type, children }: Callout & { type: Variant }) {
+  const variant = VARIANTS[type];
   return (
-    <div
-      className="my-[30px] flex items-center rounded-[8px] border-l-[4px] border-solid px-[18px] py-[16px] leading-[1.6] shadow-[0_2px_8px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-[8px]"
-      style={{
-        borderLeftColor: highlightColor.border,
-        backgroundColor: highlightColor.background
-      }}
-    >
-      <div
-        className="stp-typography min-w-0 flex-[1_1_auto] self-center text-[color:var(--highlight-font)!important] [&_*]:font-sans [&_*]:not-italic [&_*]:font-medium [&_*]:text-[0.925rem] [&_*]:leading-[1.9] [&_*]:text-[color:var(--highlight-font)!important] max-[750px]:[&_*]:text-[0.85rem] [&_*>.paragraph]:text-[color:var(--highlight-font)!important] [&_.paragraph]:leading-[1.55!important] [&_.paragraph:first-child]:mt-0 [&_.paragraph:last-child]:mb-0 [&_code]:align-baseline [&_code]:text-[color:var(--highlight-font)!important]"
-        style={{ '--highlight-font': highlightColor.font } as CSSProperties}
-      >
+    <div className="docs-callout" data-variant={type} role="note">
+      <span className="docs-callout-icon">{variant.icon}</span>
+      <div className="docs-callout-body">
+        <span className="sr-only-docs">{variant.label}: </span>
         {children}
       </div>
     </div>

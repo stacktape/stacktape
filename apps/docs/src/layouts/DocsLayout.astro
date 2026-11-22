@@ -6,7 +6,6 @@ import { SITE_NAME, type DocsSeo } from '@/utils/seo';
 import type { DocPage, TableOfContentsItem } from '@/utils/docs-data';
 import { Header } from '@/components/Header/Header';
 import { Footer } from '@/components/Footer/Footer';
-import { Divider } from '@/components/Mdx/Divider';
 import { SidebarNavigation } from '@/components/Navigation/SidebarNavigation/Sidebar';
 import { MobileHamburgerNavigation } from '@/components/Navigation/MobileHamburgerNavigation/MobileHamburgerNavigation';
 import { TableOfContents } from '@/components/TableOfContents/TableOfContents';
@@ -20,12 +19,17 @@ type Props = {
   currentPath: string;
   /** `v3` renders the archive's own sidebar. Defaults to the current docs. */
   version?: DocsVersion;
+  /** The page renders its own H1 (frontmatter `hideTitle: true`), so the layout does not add one. */
+  hideTitle?: boolean;
 };
 
-const { title, seo, allDocPages, tableOfContents, currentPath, version = 'v4' } = Astro.props;
+const { title, seo, allDocPages, tableOfContents, currentPath, version = 'v4', hideTitle = false } = Astro.props;
 // Separate persistence names per version: a v4 sidebar must never survive onto a v3 page or back.
 const persistSuffix = version === 'v4' ? '' : `-${version}`;
 const isHome = currentPath === '/';
+// The outline lists H2 and H3. A page with fewer than two sections gets no outline at all.
+const outline = tableOfContents.filter((item) => item.level === 2 || item.level === 3);
+const hasToc = outline.filter((item) => item.level === 2).length >= 2;
 
 // The navigation islands below carry explicit `transition:persist` names. Without them Astro
 // auto-generates names from element order, which can mismatch across pages (different island
@@ -145,9 +149,10 @@ const siteJsonLd = isHome ? [
   </head>
 
   <body>
+    <a class="docs-skip-link" href="#main-content">Skip to content</a>
     <Header client:load transition:persist="docs-header" />
 
-    <div class="page-wrapper">
+    <div class="docs-shell">
       <MobileHamburgerNavigation
         client:load
         transition:persist={`docs-mobile-nav${persistSuffix}`}
@@ -161,16 +166,17 @@ const siteJsonLd = isHome ? [
         allDocPages={allDocPages}
         pathname={currentPath}
         version={version}
-        showOnSm={false}
       />
-      <main id="main-content">
-        <slot name="before-title" />
-        <h1 class="page-title">{title}</h1>
-        <article class="mdx-content"><slot /></article>
-        <Divider style={{ marginTop: '55px' }} />
-        <Footer />
+      <main id="main-content" class:list={['docs-main', hasToc && 'has-toc']}>
+        <div class="docs-article-column">
+          {hasToc && <TableOfContents client:idle variant="bar" tableOfContents={outline} />}
+          <slot name="before-title" />
+          {!hideTitle && <h1 class="docs-page-title">{title}</h1>}
+          <article class="mdx-content"><slot /></article>
+          <Footer />
+        </div>
+        {hasToc && <TableOfContents client:idle variant="rail" tableOfContents={outline} />}
       </main>
-      <TableOfContents client:idle tableOfContents={tableOfContents} />
     </div>
   </body>
 </html>
