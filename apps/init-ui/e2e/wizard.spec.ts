@@ -231,6 +231,14 @@ test('signed out, it deploys without an account, then offers the Console and con
   await page.getByRole('button', { name: /^Show the \d deploy steps$/ }).click();
   await expect(page.locator('.wizard-phase.is-done')).toHaveCount(5);
 
+  // The database is deletion-protected, so the removal steps turn that off before the delete that would refuse it.
+  await page.getByRole('button', { name: 'Done experimenting? Remove this deployment' }).click();
+  await expect(page.getByText(/^Deletion protection is on for \w+, so stacktape delete refuses/)).toBeVisible();
+  const removal = page.getByRole('listitem').filter({ hasText: 'deletionProtection: false' });
+  await expect(removal.getByText('stacktape deploy --config stacktape.yml')).toBeVisible();
+  await expect(page.getByText('stacktape delete --config stacktape.yml')).toBeVisible();
+  await page.getByRole('button', { name: 'Hide this deployment' }).click();
+
   // The Console comes right under the live addresses, as a card with one action, and only now.
   const offer = page.getByRole('region', { name: 'Stacktape Console' });
   await expect(offer).toContainText('Deploy history, costs, alerts and team access for this stage.');

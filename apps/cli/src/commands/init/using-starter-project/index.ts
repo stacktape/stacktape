@@ -36,6 +36,7 @@ import {
 import {
   addDefaultTsConfigIfNeeded,
   adjustPackageJson,
+  keepConfigInFormat,
   getAvailableStartersMetadata,
   promptTargetDirectory,
   starterCommands
@@ -117,7 +118,7 @@ export const initUsingStarterProject = async ({ region, regionChoice }: { region
   });
 
   const configFormat = configFormatArg ?? (await promptConfigFormat());
-  await removeUnusedConfigFile({ absoluteProjectPath, chosenFormat: configFormat });
+  await keepConfigInFormat({ absoluteProjectPath, chosenFormat: configFormat });
 
   if (projectToUse.projectType === 'es') {
     await adjustPackageJson({ absoluteProjectPath, metadata: projectToUse });
@@ -205,22 +206,6 @@ const resolveStarterRoot = async ({
     throw new Error('Downloaded starter archive did not contain a project directory.');
   }
   return join(targetDirectory, capsuleDirName);
-};
-
-const removeUnusedConfigFile = async ({
-  absoluteProjectPath,
-  chosenFormat
-}: {
-  absoluteProjectPath: string;
-  chosenFormat: 'typescript' | 'yaml';
-}) => {
-  const fileToRemove =
-    chosenFormat === 'typescript'
-      ? join(absoluteProjectPath, 'stacktape.yml')
-      : join(absoluteProjectPath, 'stacktape.ts');
-  if (await pathExists(fileToRemove)) {
-    await remove(fileToRemove);
-  }
 };
 
 const fetchCostEstimate = async ({

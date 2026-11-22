@@ -93,3 +93,11 @@ test('package script discovery preserves Windows path separators', () => {
     args: { configPath: String.raw`C:\infra\stacktape.ts` }
   });
 });
+
+// diff never executes its change set, but it creates or restores missing secrets and uploads a template first.
+test('diff needs the go-ahead that any command changing AWS needs', () => {
+  expect(describeCliCommand('diff')).toMatchObject({ safety: 'mutating', requiresConfirmation: true });
+  const unconfirmed = prepareCliRun({ command: 'diff', args: { stage: 'dev', region: 'eu-west-1' } });
+  expect(unconfirmed.ok).toBe(false);
+  expect(unconfirmed.ok === false && unconfirmed.code).toBe('CONFIRMATION_REQUIRED');
+});

@@ -25,6 +25,30 @@ export const getStacktapeVersion = (): string => {
   // @ts-expect-error - injected using define
   return STACKTAPE_VERSION;
 };
+/** The major version this source tree builds, for builds that carry no published version. */
+const CURRENT_MAJOR_VERSION = 4;
+
+/**
+ * The `stacktape` package range a new project depends on.
+ *
+ * A published release (`4.1.0`, `4.0.0-preview.12`) depends on its own version. A build that was never published
+ * (`dev`, `4.0.0-dev.0`) or a script without an injected version depends on any release of its major version, previews
+ * included (`^4.0.0-0`), so the project never names a version npm does not have.
+ */
+export const stacktapePackageRange = (version: string | undefined = injectedStacktapeVersion()): string => {
+  if (version !== undefined && /^\d+\.\d+\.\d+(-preview\.\d+)?$/.test(version)) return `^${version}`;
+  return `^${coerce(version ?? '')?.major ?? CURRENT_MAJOR_VERSION}.0.0-0`;
+};
+
+const injectedStacktapeVersion = (): string | undefined => {
+  try {
+    return getStacktapeVersion();
+  } catch {
+    // Only the dev and release bundlers inject STACKTAPE_VERSION; scripts and source tests run without it.
+    return undefined;
+  }
+};
+
 const STABLE_INSTALLS_URL = 'https://installs.stacktape.com';
 const PREVIEW_INSTALLS_URL = 'https://installs-preview.stacktape.com';
 
