@@ -7,21 +7,21 @@ in AWS. A Lambda function costs nothing while no trigger fires.
 
 ## Pick a trigger
 
-| The work starts with | Trigger | Type |
-|---|---|---|
-| An HTTP request | [HTTP API Gateway or load balancer](/resources/triggers/http-triggers) | `http-api-gateway`, `application-load-balancer` |
-| A WebSocket message | [WebSocket API Gateway](/resources/networking/websocket-api-gateway) | `websocket-api-gateway` |
-| A GraphQL query or mutation | [AppSync API](/resources/networking/appsync-api) | `appsync-api` |
-| A time or an interval | [Schedule](/resources/triggers/schedule-triggers) | `schedule` |
-| A file upload or delete | [S3 events](/resources/triggers/s3-events) | `s3` |
-| A job on a queue, one consumer | [SQS events](/resources/triggers/sqs-events) | `sqs` |
-| A message several consumers need | [SNS events](/resources/triggers/sns-events) | `sns` |
-| An event routed by its content | [Event bus events](/resources/triggers/event-bus-events) | `event-bus` |
-| A change to a DynamoDB item | [DynamoDB streams](/resources/triggers/dynamodb-streams) | `dynamo-db-stream` |
-| Ordered, high-volume records | [Kinesis events](/resources/triggers/kinesis-events) | `kinesis-stream` |
-| A Kafka topic | [Kafka topic events](/resources/triggers/kafka-topics) | `kafka-topic` |
-| A matching log line | [CloudWatch Logs](/resources/triggers/cloudwatch-logs) | `cloudwatch-log` |
-| An alarm going off | [Alarms as triggers](/resources/triggers/alarms-as-triggers) | `cloudwatch-alarm` |
+| The work starts with | Trigger |
+|---|---|
+| An HTTP request | [HTTP triggers](/resources/triggers/http-triggers): `http-api-gateway`, or a load balancer |
+| A WebSocket message | [WebSocket API Gateway](/resources/networking/websocket-api-gateway): `websocket-api-gateway` |
+| A GraphQL query or mutation | [AppSync API](/resources/networking/appsync-api): `appsync-api` |
+| A time or an interval | [Schedule](/resources/triggers/schedule-triggers): `schedule` |
+| A file upload or delete | [S3 events](/resources/triggers/s3-events): `s3` |
+| A job on a queue, one consumer | [SQS events](/resources/triggers/sqs-events): `sqs` |
+| A message several consumers need | [SNS events](/resources/triggers/sns-events): `sns` |
+| An event routed by its content | [Event bus events](/resources/triggers/event-bus-events): `event-bus` |
+| A change to a DynamoDB item | [DynamoDB streams](/resources/triggers/dynamodb-streams): `dynamo-db-stream` |
+| Ordered, high-volume records | [Kinesis events](/resources/triggers/kinesis-events): `kinesis-stream` |
+| A Kafka topic | [Kafka topic events](/resources/triggers/kafka-topics): `kafka-topic` |
+| A matching log line | [CloudWatch Logs](/resources/triggers/cloudwatch-logs): `cloudwatch-log` |
+| An alarm going off | [Alarms as triggers](/resources/triggers/alarms-as-triggers): `cloudwatch-alarm` |
 
 For messages between your own services, start with SQS: one queue per consumer, with retries and a dead-letter queue.
 Add SNS or an event bus in front when a second consumer needs the same message.
