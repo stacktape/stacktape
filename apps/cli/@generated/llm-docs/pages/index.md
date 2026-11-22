@@ -162,7 +162,7 @@ AWS resources are created in your account, one CloudFormation stack per stage. M
 
 ### What leaves your account
 
-With the Console: error events with log excerpts, metrics, check results and security findings. An incident AI run you start sends what the agent reads, code included, to its model provider. Logs, build artifacts and secrets stay in AWS. The CLI sends anonymous usage telemetry, which you can turn off. [What each feature sends](/observability/overview#what-leaves-your-aws-account)
+With the Console: errors with their log line, alarm state changes, uptime check results, monthly cost breakdowns and security findings. An incident AI run you start sends what the agent reads, code included, to its model provider. Logs, metrics, build artifacts and secrets stay in AWS. The CLI sends usage telemetry, which you can turn off. [What each feature sends](/observability/overview#what-leaves-your-aws-account)
 
 ### How you would leave
 

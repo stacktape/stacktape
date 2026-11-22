@@ -160,7 +160,7 @@ Start with a fresh database (deletes existing local data):
 stacktape dev --stage dev --region eu-west-1 --fresh-db
 ```
 
-## Free Plan Limit Reached
+## Free plan limit reached
 
 This applies only when the CLI is signed in to an organization on the Console's Free plan; without a Stacktape account there is no limit. Dev mode deploys a dev stack, so it follows the same [Free plan cost limit](/cli/deploy#free-plan-cost-limit) as `deploy`: $200 of managed AWS costs per UTC month, with a one-time 7-day grace period the first time an organization goes over. After that, dev mode stops before it deploys anything and prints the costs and the upgrade link. Running infrastructure keeps working, and so do [`dev stop`](/cli/dev-stop) and [`delete`](/cli/delete).
 
