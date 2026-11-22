@@ -60,8 +60,13 @@ export function CliCommandsApiReference({ command }: { command: string }) {
   if (!reference) throw new Error(`CLI reference command "${command}" was not found. Regenerate CLI artifacts.`);
 
   const { args, publicName, positionals } = reference;
+  // Required positionals in angle brackets, optional ones in square brackets, as in the CLI's own help.
   const usage = `stacktape ${publicName}${positionals
-    .map((arg) => ` <${args.find((item) => item.name === arg)?.flag ?? arg}>`)
+    .map((name) => {
+      const arg = args.find((item) => item.name === name);
+      const flag = arg?.flag ?? name;
+      return arg?.required === false ? ` [${flag}]` : ` <${flag}>`;
+    })
     .join('')}`;
 
   return (

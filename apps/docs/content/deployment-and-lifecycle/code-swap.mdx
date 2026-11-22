@@ -29,19 +29,48 @@ resources:
 
 Deploy as usual with `stacktape deploy --stage production --region eu-west-1`. The first deploy installs the supervisor and uses an image rollout. Later code-only changes can swap inside the same tasks. The CLI reports whether it swapped code or used an image deploy, and explains a fallback.
 
-## Supported services
+## Can your service use it
 
-Supports several opted-in web services per stack on x86 Fargate, behind the default HTTP API Gateway or an application load balancer (`loadBalancing.type: application-load-balancer`). Behind the default HTTP API Gateway, WebSocket connections are not possible and SSE responses are buffered; use an application load balancer for them. Node.js uses `js-bundle` packaging. Dependencies are bundled or kept in an independent generated install in the image; a change to that installed image uses an image deploy. Python uses the standard `buildpack` path with a complete transitive `requirements.txt` lock: every dependency must use `==` and SHA-256 hashes. Generate it with `uv pip compile requirements.in --generate-hashes --output-file requirements.txt`. The build enforces `--require-hashes`; an incomplete lock falls back to an image deploy with a CLI explanation. Python swap identity includes a hash of the installed virtualenv, interpreter and system libraries, so a changed installed environment requires an image deploy. Python source swaps run without local/URL dependencies, custom build/install commands or custom Railpack configuration. The startup command must directly run `uvicorn`, `gunicorn` or `python`, without shell command chains or an absolute `/app` source path. Other Python dependency managers and packaging paths use images. Python and Node.js with installed dependencies currently require local Docker caching; a registry-cache builder uses images. The app must listen on `PORT`, allow a writable working directory, and keep child processes under its process tree. State that must survive a deploy belongs outside the process and its local release directory.
+A code change swaps in place only when all of these hold. Otherwise the deploy uses a normal image rollout and the CLI says why.
 
-Configured `internalHealthCheck`, network load balancers, blue/green deployments, side containers, tracing sidecars, remote sessions, EC2, arm64, source-dependent dependency installs, custom Dockerfiles, prebuilt images, Bun and Deno use image deploys. Remove the opt-in if you only need image deploys. Unsupported combinations do not inherit the qualified runtime's guarantees.
+- The service is a web service on x86 Fargate, behind the default HTTP API Gateway or an application load balancer (`loadBalancing.type: application-load-balancer`). Several services per stack can opt in.
+- It has no `internalHealthCheck`, network load balancer, blue/green deployment, side containers, tracing sidecar or remote sessions, and does not run on EC2 or arm64.
+- Its scaling fits within **10 simultaneous tasks**, including the deployment surge (see [Task limit](#task-limit)).
+- The app listens on `PORT`, can write to its working directory and keeps its child processes under its own process tree. State that must survive a deploy lives outside the process and its release directory.
+- The change touches only your code. Dependency, environment, runtime and base image changes, and `--full`, use an image rollout.
+- Node.js and Python with installed dependencies need local Docker caching; a registry-cache builder uses images.
 
-Each service's autoscaling maximum, scheduled overrides and deployment surge must fit within **10 simultaneous tasks**. Unknown bounds use images. `minimumHealthyPercent` must be 100, and surge must allow at least one replacement. With the default 200% maximum, use `maxInstances: 5` or fewer. A ten-task desired count with no room for a replacement uses images, even before the first swap. No coordinator admits larger fleets. A custom CloudFormation transform that invalidates the protected role or capacity checks is refused before deployment; correct it or remove the opt-in.
+Custom Dockerfiles, prebuilt images, Bun and Deno always use image rollouts. Behind the default HTTP API Gateway, WebSocket connections are not possible and SSE responses are buffered; use an application load balancer for them.
 
-Python bundles the source and assets selected by the buildpack, using the same exclusions as its image. The image keeps the interpreter and virtualenv; each activation starts the buildpack's command from the new release directory. Read application files relative to that working directory. An absolute `/app/...` path still reads the image's files. Python projects that install their own source or compile it during a build use images.
+### Node.js
 
-A deploy prepares every changed service before switching any. If a changed service cannot swap, all changed services use image deploys. A failure during switching also converges all changed services through images. Unchanged services keep their tasks and serving code during ordinary code deploys. Repairing an interrupted operation can replace every opted-in service. Services switch independently after preparation; there is no atomic switch across their public endpoints. Keep ordinary API compatibility between service versions.
+Use `js-bundle` packaging. Dependencies are either bundled or kept in a separate generated install in the image. A change to that install uses an image rollout.
 
-## Memory and request failures
+### Python
+
+Use `buildpack` packaging with a complete, hash-locked `requirements.txt`: every dependency, including transitive ones, pinned with `==` and a SHA-256 hash. Generate it with:
+
+```bash
+uv pip compile requirements.in --generate-hashes --output-file requirements.txt
+```
+
+The build installs with `--require-hashes`; an incomplete lock falls back to an image rollout. Also required:
+
+- The start command runs `uvicorn`, `gunicorn` or `python` directly, without shell chains or an absolute `/app` source path.
+- No local or URL dependencies, custom build or install commands, or custom Railpack configuration. Other dependency managers use images.
+- The app reads its files relative to the working directory. Each swap starts the command from a new release directory, so an absolute `/app/...` path still reads the image's files.
+
+A swap ships the source and assets the buildpack selects, with the same exclusions as the image. The interpreter and virtualenv stay in the image; a change to the installed environment, interpreter or system libraries uses an image rollout. Projects that install their own source or compile it during the build use images.
+
+### Task limit
+
+Each service's autoscaling maximum, scheduled overrides and deployment surge must fit within 10 simultaneous tasks; unknown bounds use images. `minimumHealthyPercent` must be 100, and the surge must allow at least one replacement. With the default 200% maximum, use `maxInstances: 5` or fewer. A custom CloudFormation transform that breaks the role or capacity checks is refused before deployment.
+
+### Several services
+
+A deploy prepares every changed service before switching any. If one changed service cannot swap, all changed services use image rollouts, and a failure during switching does the same. Unchanged services keep their tasks. Services switch independently, so there is no single moment when all endpoints change; keep the API between your services compatible across versions.
+
+## Memory and failed requests
 
 During a switch, **the old and new processes share the task's memory**. A sudden increase in the new code's memory use can kill a candidate after it starts serving, failing some in-flight requests. Memory screening and OOM preferences reduce the risk; they do not isolate the processes or guarantee that the old process survives extreme pressure.
 

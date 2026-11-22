@@ -36,9 +36,15 @@ On success, `org create` outputs three pieces of information:
 
 In agent mode, Stacktape does not prompt for the organization name, so the organization name argument is required. Use `--json` if you need machine-readable NDJSON output.
 
-## Flags reference
+## Examples
 
-All flags accepted by `org create` are listed below. None are required in interactive mode.
+Increase log verbosity for troubleshooting:
+
+```bash
+stacktape org create production-team --debug
+```
+
+## Options
 
 
 ## CLI Options: `stacktape org create`
@@ -50,14 +56,6 @@ All flags accepted by `org create` are listed below. None are required in intera
 | `--organization-name (positional 1)` | no | `string` | Organization Name — The name of the Stacktape organization. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
-
-## Examples
-
-Increase log verbosity for troubleshooting:
-
-```bash
-stacktape org create production-team --debug
-```
 
 ## Related commands
 

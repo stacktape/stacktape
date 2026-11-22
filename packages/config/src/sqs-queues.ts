@@ -77,11 +77,11 @@ export interface SqsQueueProps {
    */
   delayMessagesSecond?: number;
   /**
-   * #### Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB).
+   * #### Maximum message size in bytes. Range: 1,024 (1 KiB) to 1,048,576 (1 MiB).
    *
    * ---
    *
-   * Messages larger than this limit are rejected. For payloads over 256 KB, store the data in S3 and send the reference.
+   * Messages larger than this limit are rejected. For larger payloads, store the data in S3 and send the reference.
    *
    *
    * **Example (YAML):**
@@ -133,7 +133,7 @@ export interface SqsQueueProps {
    * });
    * ```
    *
-   * @default 262144
+   * @default 1048576
    */
   maxMessageSizeBytes?: number;
   /**

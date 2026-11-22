@@ -1,6 +1,6 @@
 # dev
 
-The `stacktape dev` command runs containers, frontends and supported database emulators on your machine. Lambda functions and Batch jobs run in AWS. Dev mode injects connection settings and credentials into workloads and streams their logs while you iterate on code.
+`stacktape dev` runs your app on your machine while it stays connected to AWS. Containers, frontends and local copies of your databases run here; Lambda functions, Batch jobs and AgentCore runtimes run in AWS, in a dev stack that the first start deploys. Dev mode injects connection settings and credentials into each workload and streams their logs. It needs AWS credentials, and Docker for containers and local databases. It works without a Stacktape account. [Dev mode](/local-development/dev-mode-overview) is the full guide.
 
 ## Usage
 
@@ -8,55 +8,20 @@ The `stacktape dev` command runs containers, frontends and supported database em
 stacktape dev --stage dev-john --region eu-west-1
 ```
 
+Use a stage of your own that you never deploy: dev mode refuses a stage that `stacktape deploy` created, and `deploy` refuses a dev stage. The first start deploys the dev stack and, when deployed functions need local databases or a VPC, your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). That takes a few minutes; later starts reuse both. Stopping dev mode leaves the dev stack in AWS for the next start. Remove it with [`delete`](/cli/delete).
 
-## CLI Options: `stacktape dev`
+## What runs where
 
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `--agent` | no | `boolean` | Agent Mode — For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries. The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. Agent mode does not confirm anything: when the project does not exist yet, creating it fails with `CONFIRMATION_REQUIRED` unless you add `--yes`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/). | - |
-| `--agent-port` | no | `number` | Agent Port — The port of the agent mode HTTP API. Implies `--agent`. By default, the first free port from 7331. | - |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
-| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--no-emulation` | no | `boolean` | Disable Emulation — Affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses normal container role credentials and connection variables; this flag does not make it offline or suppress credential injection. | - |
-| `--docker-args` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
-| `--fresh-db` | no | `boolean` | Fresh Database — If `true`, deletes data, schema and local credential/identity files for databases prepared during startup, including unselected relay dependencies. Other persisted databases are untouched. DynamoDB Local shares storage: resetting it removes every persisted table there. The stage password can be reused. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--no-tunnel` | no | `boolean` | No Tunnel — Disables tunnels from deployed Lambda functions to your locally emulated databases. Without this flag, functions that use a local database reach it through the dev box of your account's dev network, over an encrypted AWS Systems Manager session from your machine. With it, they cannot reach local databases; use `--remote-resources` to connect them to the deployed databases instead. VPC functions still run in the dev network. | - |
-| `--keep-temp-files` | no | `boolean` | Preserve Temporary Files — If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
-| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, and status lists them with when that code was deployed. They are built when the dev stack has no code for them yet or their configuration changed, and then an unselected function that does not build fails the start. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
-| `--skip-resources` | no | `array` | Skip Resources — Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, and status lists them with when that code was deployed. They are built when the dev stack has no code for them yet or their configuration changed, and then an unselected function that does not build fails the start. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
-| `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself. | - |
-| `--watch` | no | `boolean` | Watch — If `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build. Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart. | - |
-
-
-## What it does
-
-The `dev` command deploys a dev stack to AWS. It includes Lambda functions, Batch jobs and configured cloud resources allowed by the dev deployment policy, such as gateways, queues, topics and buckets. Selecting workloads does not limit all cloud resources to their dependencies. The dev stack has no alarms: errors you cause on purpose while developing do not notify anyone.
-
-- Runs containers and frontend workloads locally; Lambda functions and Batch jobs execute in AWS
-- Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker
-- Keeps local databases on your machine, published on `127.0.0.1` only; deployed Lambda functions and Batch jobs reach them through the [dev network](/local-development/debugging-lambda-functions#the-dev-network). Use `--remote-resources` for deployed database connections
-- Creates the dev stack automatically on first run — no pre-deployment required
-- Injects environment variables, secrets, and AWS credentials into local workloads
-
-## Supported resource types
-
-The `dev` command can run the following resource types locally:
-
-| Category | Resource types |
+| Resource | Where it runs |
 |----------|---------------|
-| Containers | web-service, private-service, worker-service, multi-container-workload |
-| Frontends | nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web, hosting-bucket (with `dev` config) |
-| Databases (locally emulated by default) | PostgreSQL, MySQL, MariaDB, DynamoDB, Redis, OpenSearch |
+| Web, private and worker services, multi-container workloads | Your machine, in Docker |
+| Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix, hosting buckets with `dev` config | Your machine, on their dev servers |
+| Relational databases, DynamoDB, Redis, OpenSearch | Your machine, in Docker, published on `127.0.0.1` only. `--remote-resources` uses the deployed ones instead. |
+| Lambda functions | AWS, built on your machine. They reach local databases through the dev network. |
+| Batch jobs and AgentCore runtimes | AWS. Their images are rebuilt only when dev mode starts. |
+| Queues, topics, buckets, gateways and other cloud resources | AWS, in the dev stack |
+
+The dev stack has no alarms, so errors you cause on purpose while developing don't notify anyone.
 
 ## Important flags
 
@@ -195,32 +160,41 @@ Start with a fresh database (deletes existing local data):
 stacktape dev --stage dev --region eu-west-1 --fresh-db
 ```
 
-## FAQ
+## Free Plan Limit Reached
 
-### Does `stacktape dev` require Docker?
+This applies only when the CLI is signed in to an organization on the Console's Free plan; without a Stacktape account there is no limit. Dev mode deploys a dev stack, so it follows the same [Free plan cost limit](/cli/deploy#free-plan-cost-limit) as `deploy`: $200 of managed AWS costs per UTC month, with a one-time 7-day grace period the first time an organization goes over. After that, dev mode stops before it deploys anything and prints the costs and the upgrade link. Running infrastructure keeps working, and so do [`dev stop`](/cli/dev-stop) and [`delete`](/cli/delete).
 
-Dev mode uses Docker to emulate databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally. You need Docker installed and running for local database emulation. If you use `--remote-resources` for all databases, Docker is not required for database emulation, though container workloads may still use it for local builds.
+## Options
 
-### When should I use `stacktape dev` vs `stacktape deploy`?
 
-Use [`stacktape dev`](/cli/dev) for iterating on code locally with fast feedback loops — it runs workloads on your machine and emulates databases without a full deployment cycle. Use [`stacktape deploy`](/cli/deploy) when you need to ship to AWS, test in a real cloud environment, or validate production behavior. Dev mode is for development; deploy is for staging, production, or integration testing.
+## CLI Options: `stacktape dev`
 
-### How can I connect to a real deployed database instead of the local one?
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
+| `--agent` | no | `boolean` | Agent Mode — For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries. The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. Agent mode does not confirm anything: when the project does not exist yet, creating it fails with `CONFIRMATION_REQUIRED` unless you add `--yes`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/). | - |
+| `--agent-port` | no | `number` | Agent Port — The port of the agent mode HTTP API. Implies `--agent`. By default, the first free port from 7331. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `--no-emulation` | no | `boolean` | Disable Emulation — Affects selected local directive-resolution behavior. Dev mode still deploys its AWS dev stack and uses normal container role credentials and connection variables; this flag does not make it offline or suppress credential injection. | - |
+| `--docker-args` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
+| `--fresh-db` | no | `boolean` | Fresh Database — If `true`, deletes data, schema and local credential/identity files for databases prepared during startup, including unselected relay dependencies. Other persisted databases are untouched. DynamoDB Local shares storage: resetting it removes every persisted table there. The stage password can be reused. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--no-tunnel` | no | `boolean` | No Tunnel — Disables tunnels from deployed Lambda functions to your locally emulated databases. Without this flag, functions that use a local database reach it through the dev box of your account's dev network, over an encrypted AWS Systems Manager session from your machine. With it, they cannot reach local databases; use `--remote-resources` to connect them to the deployed databases instead. VPC functions still run in the dev network. | - |
+| `--keep-temp-files` | no | `boolean` | Preserve Temporary Files — If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--remote-resources` | no | `array` | Remote Resources — Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: `--remote-resources myDb`, `--remote-resources postgres,redis`. | - |
+| `--resources` | no | `array` | Resources — Specify which resources to run in dev mode. Select functions, local containers, frontends and emulated databases. Batch jobs run in AWS and cannot be selected or skipped. Unselected functions remain in the dev stack without configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, and status lists them with when that code was deployed. They are built when the dev stack has no code for them yet or their configuration changed, and then an unselected function that does not build fails the start. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
+| `--skip-resources` | no | `array` | Skip Resources — Exclude selectable functions, local containers, frontends and emulated databases from dev mode. Unselected functions remain deployed without their configured triggers. Selection limits session rebuild/watch. A dev-stack update does not build unselected functions: they keep the code they run, and status lists them with when that code was deployed. They are built when the dev stack has no code for them yet or their configuration changed, and then an unselected function that does not build fails the start. Batch jobs cannot be skipped with this flag. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skip-resources myHeavyDb`, `--skip-resources fn1,fn2`. | - |
+| `--take-over` | no | `boolean` | Take Over — Moves a stage that another `stacktape dev` session runs, on another machine or in another terminal, to this session. Without this flag, `stacktape dev` refuses to start a stage that runs elsewhere. With it, deployed functions reach the databases on this machine, their open database connections to the other session are closed, and the other session stops itself. | - |
+| `--watch` | no | `boolean` | Watch — If `true`, rebuilds a function or container when one of its source files changes: functions are redeployed to the dev stack and containers restart with the new build. Frontend dev servers reload on their own. A change to the configuration file that a rebuild cannot apply is reported as needing a restart. | - |
 
-Use `--remote-resources` with a comma-separated list of resource names (for example `--remote-resources myPostgres,myRedis`). Databases and Redis run locally by default; this flag points the selected ones at their deployed AWS counterparts when local emulation is insufficient or you need to test against real data.
-
-### What is agent mode and when should I use it?
-
-Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server for programmatic control. It uses JSONL output and disables the interactive terminal UI. Use agent mode when integrating with AI coding agents, automation tools, or any workflow that needs to control dev mode programmatically. Stop a running agent with [`dev stop`](/cli/dev-stop).
-
-### Why does `stacktape dev` stop with "Free Plan Limit Reached"?
-
-Dev mode deploys and updates a dev stack in your AWS account, so it follows the same
-[Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) as
-[`stacktape deploy`](/cli/deploy#free-plan-cost-limit). When a Free organization's managed AWS costs this month are
-above $100, dev mode stops before it creates or deploys anything and prints the costs and the upgrade link. Upgrading
-to the Flexible plan lifts the limit immediately. Running infrastructure is not affected, and
-[`dev stop`](/cli/dev-stop) and [`delete`](/cli/delete) keep working.
 
 ## Related commands
 

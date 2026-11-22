@@ -1,6 +1,6 @@
 # incident ack
 
-The `incident ack` command acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it.
+The `incident ack` command acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -10,9 +10,15 @@ stacktape incident ack <incident-id>
 
 You need the incident ID. Use [`incident list`](/cli/incidents) to find it. Acknowledging an incident that is not `OPEN` changes nothing and reports so.
 
-## Flags reference
+## Examples
 
-The only required argument is the incident ID.
+Acknowledge an incident in agent mode for use in scripts or AI coding assistants:
+
+```bash
+stacktape incident ack inc_abc123def456 --agent
+```
+
+## Options
 
 
 ## CLI Options: `stacktape incident ack`
@@ -24,14 +30,6 @@ The only required argument is the incident ID.
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
-
-## Examples
-
-Acknowledge an incident in agent mode for use in scripts or AI coding assistants:
-
-```bash
-stacktape incident ack inc_abc123def456 --agent
-```
 
 ## Related commands
 

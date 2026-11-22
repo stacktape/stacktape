@@ -1,23 +1,14 @@
 # Redis
 
-A Stacktape `redis` resource is a managed, Redis-compatible in-memory store on AWS ElastiCache. It delivers sub-millisecond reads and writes for caching, session storage, rate limiting, queues and pub/sub. Traffic is encrypted in transit, and the cache runs inside your stack's VPC with no public endpoint.
+A `redis` resource is a managed Redis-compatible cache on Amazon ElastiCache, for caching, sessions, rate limits,
+queues and pub/sub with sub-millisecond reads and writes. It runs Valkey, the open-source continuation of Redis that AWS
+maintains, so Redis clients such as ioredis, node-redis, redis-py and Jedis work unchanged. The cache lives in your
+stack's VPC, has no public endpoint and encrypts traffic.
 
-The cache runs **Valkey**, the open-source continuation of Redis that AWS maintains. Valkey speaks the Redis protocol, so Redis client libraries (ioredis, node-redis, redis-py, Jedis and others) work unchanged.
-
-## When to use
-
-Redis is the right choice when your workload needs **fast, ephemeral or semi-persistent data access** that would be too slow or too expensive to serve from a relational database or DynamoDB.
-
-- **Application caching** — cache database query results, API responses, or computed values to cut latency and reduce load on your primary database.
-- **Session storage** — store user sessions with automatic expiration, shared across multiple container instances or Lambda functions.
-- **Rate limiting and counters** — atomic increments with TTL make Redis ideal for request throttling and real-time counters.
-- **Queues and pub/sub** — use Redis lists, streams or pub/sub channels for lightweight inter-service messaging.
-- **Rich data structures** — lists, sets, sorted sets, hashes, and streams beyond simple key-value.
-
-## When NOT to use
-
-- **You need a persistent primary database.** Redis is an in-memory store. While backups are available, it is not designed to be your system of record. Use a [relational database](/resources/databases/relational-database) or [DynamoDB](/resources/databases/dynamodb) instead.
-- **You need access from outside AWS without a VPC.** The cache has no public endpoint. [Upstash Redis](/resources/databases/upstash-redis) is reachable over the internet and over HTTPS.
+The smallest cache costs about $6 a month idle (Valkey Serverless) or $9.40 a month (one `cache.t4g.micro` node). It's
+not a system of record: keep the data you can't lose in a [relational database](/resources/databases/relational-database)
+or [DynamoDB](/resources/databases/dynamodb). For Lambda functions outside a VPC, [Upstash Redis](/resources/databases/upstash-redis)
+works over HTTPS.
 
 ## Choose an engine
 
@@ -33,7 +24,7 @@ Redis is the right choice when your workload needs **fast, ephemeral or semi-per
 | Multi-key commands | Keys must share a hash slot | Unrestricted | Unrestricted |
 | Use for | New caches with small or spiky data | Large datasets, any client pattern | Existing caches only |
 
-Prices are approximate for us-east-1.
+Prices are for us-east-1, running all month ([ElastiCache pricing](https://aws.amazon.com/elasticache/pricing/)).
 
 ### Valkey Serverless
 
@@ -173,10 +164,10 @@ For `valkey` and `redis`, `engine.properties.instanceSize` determines the memory
 | `cache.m7g.large` | General purpose (Graviton) | 6.38 GB | ~$0.12/hr | Moderate production workloads |
 | `cache.r7g.large` | Memory-optimized (Graviton) | 13.07 GB | ~$0.16/hr | Large datasets, heavy caching |
 
-- **`t` (burstable)** — cheapest, variable CPU performance. Good for development and intermittent traffic.
-- **`m` (general purpose)** — consistent CPU performance for production workloads.
-- **`r` (memory-optimized)** — highest memory-to-CPU ratio for large datasets.
-- **Graviton suffix (`g`)** — ARM-based instances with better price-performance. Prefer `t4g`/`m7g`/`r7g`.
+- **`t` (burstable)**: cheapest, variable CPU performance. Good for development and intermittent traffic.
+- **`m` (general purpose)**: consistent CPU performance for production workloads.
+- **`r` (memory-optimized)**: highest memory-to-CPU ratio for large datasets.
+- **Graviton suffix (`g`)**: ARM-based instances with better price-performance. Prefer `t4g`/`m7g`/`r7g`.
 
 ## High availability (node-based)
 
@@ -253,8 +244,8 @@ Most teams don't need sharding: add replicas to scale reads, or use `valkey-serv
 
 Caches run inside your stack's VPC and have no public IP addresses.
 
-- **`vpc` (default)** — any resource in the same VPC can connect: container workloads, batch jobs, and Lambda functions with `joinDefaultVpc: true`.
-- **`scoping-workloads-in-vpc`** — only resources that list this cache in their `connectTo` can connect.
+- **`vpc` (default)**: any resource in the same VPC can connect: container workloads, batch jobs, and Lambda functions with `joinDefaultVpc: true`.
+- **`scoping-workloads-in-vpc`**: only resources that list this cache in their `connectTo` can connect.
 
 
 Example (TypeScript):
@@ -415,21 +406,7 @@ cache:
 
 The cache keeps its endpoint and data. Switch it to Valkey afterwards by changing `engine.type` to `valkey`.
 
-## Referenceable parameters
-
-
-## Referenceable Parameters: `redis`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `host` | In case of NON-sharded cluster(default), this is a hostname of the primary instance that can be used for both reads and writes. In case of sharded cluster, this is cluster's configuration endpoint that can be used for all operations. | `$ResourceParam("<<resource-name>>", "host")` |
-| `readerHost` | Hostname (address) that can be used for reads only. (only available for NON-sharded clusters). If you use multiple replicas, it is advised to use readerHost for read operations to offload the primary host. ReaderHost automatically balances requests between available read replicas. | `$ResourceParam("<<resource-name>>", "readerHost")` |
-| `port` | Port of the cluster. | `$ResourceParam("<<resource-name>>", "port")` |
-| `sharding` | Indicates whether cluster is sharded. Available values: `enabled` or `disabled`. | `$ResourceParam("<<resource-name>>", "sharding")` |
-
-
-## API Reference
+## Configuration reference
 
 
 ### Definition: `RedisProps`
@@ -445,24 +422,15 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `dev` | no | `DevModeConfig` | - |
 
 
-## FAQ
+## Referenceable parameters
 
-### Which engine should I choose?
 
-Use `valkey-serverless` for new caches with small or variable data when your code does not run multi-key commands across unrelated keys, or when you can add hash tags. Use `valkey` when you store more than a few hundred MB, need predictable hourly pricing, or use libraries that send multi-key commands you cannot change.
+## Referenceable Parameters: `redis`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
 
-### Is Valkey compatible with my Redis client?
-
-Yes. Valkey is a fork of Redis 7.2 and speaks the same protocol and commands. ioredis, node-redis, redis-py, Jedis, Lettuce and go-redis work without changes.
-
-### Can I connect to the cache from my local machine?
-
-The cache runs inside your VPC with no public endpoint. Deploy a [bastion host](/resources/security/bastion-host) and use [`stacktape bastion tunnel`](/cli/bastion-tunnel) or [`stacktape query redis`](/cli/query-redis). During [dev mode](/local-development/dev-mode-overview), the cache runs locally in Docker.
-
-### What's the difference between Stacktape Redis and Upstash Redis?
-
-A Stacktape `redis` resource is an AWS ElastiCache cache inside your VPC. [Upstash Redis](/resources/databases/upstash-redis) is a third-party serverless service reachable over the internet, with per-request pricing.
-
-### Why can't my Lambda function reach the cache?
-
-The cache lives inside the VPC, so a Lambda must set `joinDefaultVpc: true`; without it, connections time out. With `valkey-serverless`, the security group must allow both ports 6379 and 6380, which Stacktape configures for you.
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `host` | In case of NON-sharded cluster(default), this is a hostname of the primary instance that can be used for both reads and writes. In case of sharded cluster, this is cluster's configuration endpoint that can be used for all operations. | `$ResourceParam("<<resource-name>>", "host")` |
+| `readerHost` | Hostname (address) that can be used for reads only. (only available for NON-sharded clusters). If you use multiple replicas, it is advised to use readerHost for read operations to offload the primary host. ReaderHost automatically balances requests between available read replicas. | `$ResourceParam("<<resource-name>>", "readerHost")` |
+| `port` | Port of the cluster. | `$ResourceParam("<<resource-name>>", "port")` |
+| `sharding` | Indicates whether cluster is sharded. Available values: `enabled` or `disabled`. | `$ResourceParam("<<resource-name>>", "sharding")` |

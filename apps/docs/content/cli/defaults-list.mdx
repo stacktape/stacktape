@@ -17,10 +17,6 @@ stacktape defaults list
 
 This command takes no arguments. It reads stored defaults and prints each configured key-value pair. If no defaults are set, it suggests running [`defaults set`](/cli/defaults-configure).
 
-## Command reference
-
-<CliCommandsApiReference command="defaults:list" />
-
 ## What gets displayed
 
 The output shows all defaults you've previously set with [`defaults set`](/cli/defaults-configure). Configurable defaults include:
@@ -36,6 +32,10 @@ The output shows all defaults you've previously set with [`defaults set`](/cli/d
 Each default appears as a `key: value` pair. Stacktape uses these values as fallback arguments for commands that accept the corresponding options.
 
 <Info>This command does not require a Stacktape API key. You can run it without being logged in.</Info>
+
+## Options
+
+<CliCommandsApiReference command="defaults:list" />
 
 ## Related commands
 

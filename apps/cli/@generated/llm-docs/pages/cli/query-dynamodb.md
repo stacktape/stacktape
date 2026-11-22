@@ -12,31 +12,6 @@ stacktape query dynamodb <tableName> --stage <stage> --region <region> --operati
 
 The resource name argument must match the name of a `DynamoDbTable` resource in your Stacktape configuration. If you omit `--operation`, the command defaults to `sample`. When `--limit` is omitted, the command uses a default limit of 100.
 
-## CLI reference
-
-
-## CLI Options: `stacktape query dynamodb`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
-| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
-| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--index` | no | `string` | Database Index — Index name. For DynamoDB: secondary index to query. For OpenSearch: index to search. | - |
-| `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--operation` | no | `string` | Database Operation — The operation to perform (varies by database type). | - |
-| `--pk` | no | `string` | DynamoDB Partition Key — JSON object with partition key name and value (e.g., '{"id": "123"}'). | - |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--sk` | no | `string` | DynamoDB Sort Key — JSON object with sort key name and value (e.g., '{"timestamp": 12345}'). | - |
-
-
 ## Operations
 
 The `query dynamodb` command supports five operations. All are read-only.
@@ -131,12 +106,6 @@ Scan for recent items (up to 10):
 stacktape query dynamodb eventsTable --stage staging --region us-east-1 --operation scan --limit 10
 ```
 
-## Related commands
-
-- [`query sql`](/cli/query-sql) — run read-only SQL queries against deployed PostgreSQL or MySQL databases.
-- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cache.
-- [`query opensearch`](/cli/query-opensearch) — search and inspect deployed OpenSearch domains.
-
 ## FAQ
 
 ### Can I query a global secondary index?
@@ -162,3 +131,34 @@ The [`aws call`](/cli/aws-call) command gives raw AWS SDK access and requires yo
 ### Does this command need a bastion tunnel or VPC access?
 
 No. DynamoDB is a regional AWS service accessible over the public internet — it does not run inside a VPC. No bastion tunnel is needed, unlike VPC-only resources such as [relational databases](/resources/databases/relational-database) or [Redis caches](/resources/databases/redis).
+
+## Options
+
+
+## CLI Options: `stacktape query dynamodb`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
+| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--index` | no | `string` | Database Index — Index name. For DynamoDB: secondary index to query. For OpenSearch: index to search. | - |
+| `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--operation` | no | `string` | Database Operation — The operation to perform (varies by database type). | - |
+| `--pk` | no | `string` | DynamoDB Partition Key — JSON object with partition key name and value (e.g., '{"id": "123"}'). | - |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--sk` | no | `string` | DynamoDB Sort Key — JSON object with sort key name and value (e.g., '{"timestamp": 12345}'). | - |
+
+
+## Related commands
+
+- [`query sql`](/cli/query-sql) — run read-only SQL queries against deployed PostgreSQL or MySQL databases.
+- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cache.
+- [`query opensearch`](/cli/query-opensearch) — search and inspect deployed OpenSearch domains.

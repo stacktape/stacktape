@@ -1,6 +1,6 @@
 # deploy
 
-The `stacktape deploy` command deploys your stack to AWS. If the stack does not exist yet, it creates a new one. If it already exists, it updates it with the current configuration. This is the primary command for shipping changes to any stage — development, staging, or production.
+`stacktape deploy` deploys your stack to AWS. It creates the stack when the stage doesn't exist yet and updates it when it does. It needs AWS credentials; a Stacktape account is optional.
 
 ## Usage
 
@@ -21,6 +21,8 @@ stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktap
 ```
 
 ## What happens during deploy
+
+Before it changes anything, the CLI prints the AWS account it loaded credentials for. Check it, especially with several profiles.
 
 1. **Validate** — Reads your config, validates guardrails, and ensures referenced secrets exist.
 2. **Build & package** — Packages workloads for deployment. Cached artifacts are reused when possible.
@@ -48,6 +50,8 @@ A deployment uses CloudFormation when:
 - the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
 - you pass `--full`.
 
+For eligible Node.js Fargate web services, `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.
+
 A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--full`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
 ## Common flags
@@ -70,7 +74,7 @@ stacktape deploy --stage production --region eu-west-1 --yes
 
 ### `--auto-rollback`
 
-By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment.
+By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment. When the config sets `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes`, rollback is on by default, and turning it off is an error.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --auto-rollback
@@ -86,14 +90,6 @@ Forces a fresh build of all compute resources, ignoring cached artifacts from pr
 stacktape deploy --stage dev --region eu-west-1 --no-cache
 ```
 
-### `--config`
-
-Points to a Stacktape configuration file when it is not in the default location (current directory).
-
-```bash
-stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
-```
-
 ### `--no-layer-optimization`
 
 By default, Stacktape extracts shared code into Lambda layers to reduce per-function deployment size. Disable this to bundle all code directly into each Lambda function — useful if you need to inspect the full function package or if layer extraction causes issues.
@@ -101,36 +97,6 @@ By default, Stacktape extracts shared code into Lambda layers to reduce per-func
 ### `--show-secrets`
 
 Includes secret values, such as database passwords and connection strings with credentials, in the `--agent` result (`data.result.stackInfo`) and in the stack-info file. Without it, each of them is `<<OMITTED>>`. Use it only where the output stays private, never in shared CI logs. The terminal summary never prints secret values.
-
-## All flags
-
-
-## CLI Options: `stacktape deploy`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
-| `--auto-rollback` | no | `boolean` | Auto-Rollback — If `true`, a failed deploy rolls back instead of keeping what it created. Overrides `deploymentConfig.autoRollback` for this deploy. • **Without auto-rollback (default):** A failed deploy keeps what it created or updated. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next deploy continues from there. • **With auto-rollback (`--auto-rollback`):** A failed update rolls back to the last successful deploy, and a failed first deploy deletes the stack. This is the default when `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` is set. | - |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
-| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--no-remote-cache` | no | `boolean` | Disable Docker Remote Cache — In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to `true` to build without the ECR cache in CI as well. | - |
-| `--no-layer-optimization` | no | `boolean` | Disable Layer Optimization — If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function. | - |
-| `--docker-args` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
-| `--full` | no | `boolean` | Full Deploy — If `true`, deploys every change through CloudFormation. By default, when only the code of `functions` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--no-cache` | no | `boolean` | No Cache — If `true`, disables the use of cached artifacts and forces a fresh build of compute resources. | - |
-| `--keep-temp-files` | no | `boolean` | Preserve Temporary Files — If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `ec2` |
-| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
-| `--skip-release-command` | no | `boolean` | Skip Release Command — If `true`, this deploy does not run the `releaseCommand` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it. | - |
-
 
 ## Examples
 
@@ -154,18 +120,6 @@ With the Console, choose one of the organization's connected AWS accounts by nam
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --aws-account production
-```
-
-### Deploy everything through CloudFormation
-
-```bash
-stacktape deploy --stage production --region eu-west-1 --full
-```
-
-### Non-interactive deploy in CI/CD
-
-```bash
-stacktape deploy --stage production --region us-east-1 --yes
 ```
 
 ### Preview changes before deploying
@@ -211,12 +165,38 @@ Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated wit
 
 Stacktape does not currently check CloudFormation resource drift before deploying. Manual changes to stack resources can affect an update; review the proposed changes with [`diff`](/cli/diff).
 
+## Options
+
+
+## CLI Options: `stacktape deploy`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
+| `--auto-rollback` | no | `boolean` | Auto-Rollback — If `true`, a failed deploy rolls back instead of keeping what it created. Overrides `deploymentConfig.autoRollback` for this deploy. • **Without auto-rollback (default):** A failed deploy keeps what it created or updated. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next deploy continues from there. • **With auto-rollback (`--auto-rollback`):** A failed update rolls back to the last successful deploy, and a failed first deploy deletes the stack. This is the default when `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` is set. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `--no-remote-cache` | no | `boolean` | Disable Docker Remote Cache — In CI, image builds for an existing stack import and export Docker's layer cache in the stack's ECR repository, so a runner without a local build cache still reuses unchanged layers. Outside CI, Docker's local build cache is used and nothing is cached in ECR. Set to `true` to build without the ECR cache in CI as well. | - |
+| `--no-layer-optimization` | no | `boolean` | Disable Layer Optimization — If `true`, disables the shared Lambda layer optimization. By default, Stacktape extracts shared code into Lambda layers to reduce deployment size. Use this flag to bundle all code directly into each Lambda function. | - |
+| `--docker-args` | no | `array` | Docker Arguments — Additional arguments to pass to the `docker run` or `docker build` commands. | - |
+| `--full` | no | `boolean` | Full Deploy — If `true`, deploys every change through CloudFormation. By default, when only the code of `functions` and container workloads changed, Stacktape updates them directly, which takes seconds instead of minutes. Changes to infrastructure always use CloudFormation. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--no-cache` | no | `boolean` | No Cache — If `true`, disables the use of cached artifacts and forces a fresh build of compute resources. | - |
+| `--keep-temp-files` | no | `boolean` | Preserve Temporary Files — If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `ec2` |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
+| `--skip-release-command` | no | `boolean` | Skip Release Command — If `true`, this deploy does not run the `releaseCommand` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it. | - |
+
+
 ## Related commands
 
-| Command | Description |
-|---|---|
-| [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
-| [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
-| [`stack recover`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
-
-For eligible Node.js Fargate web services, `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.
+- [`diff`](/cli/diff) shows what a deploy would change.
+- [`rollback`](/cli/rollback) returns a stage to an earlier release.
+- [`stack recover`](/cli/cf-rollback) recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`.

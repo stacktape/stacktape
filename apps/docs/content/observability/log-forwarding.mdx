@@ -7,42 +7,34 @@ seoDescription: 'Forward logs to Datadog, Highlight.io, or any HTTPS endpoint us
 
 # Log forwarding
 
-Stacktape can forward logs from your resources to external observability services — Datadog, Highlight.io, or any HTTPS endpoint. Underneath, Stacktape provisions an AWS Kinesis Data Firehose delivery stream that delivers log records over HTTPS to your configured destination. Failed deliveries go to a backup S3 bucket. Three destination types are available: `datadog`, `highlight`, and `http-endpoint`.
+Log forwarding sends the logs of a function or container to Datadog, Highlight.io or any HTTPS endpoint, in addition to
+CloudWatch. Stacktape creates an AWS Kinesis Data Firehose delivery stream for the resource, subscribes the resource's
+log group to it, and keeps logs that can't be delivered in an S3 bucket. All of it runs in your AWS account.
 
-## When to use log forwarding
+Use it when your team already reads logs in another tool. To view and search logs, the Console and
+[`stacktape logs`](/cli/logs) need no forwarding. Firehose costs about $0.03 per GB forwarded, depending on the region.
 
-Use log forwarding when your team already relies on an external observability platform (Datadog, Highlight.io, Grafana Cloud, Splunk, New Relic, or similar) and you want all logs centralized there. Forwarding lets you correlate Stacktape resource logs with logs from other systems and use the external platform's query language, alerting, and retention controls.
-
-Common scenarios where log forwarding pays off:
-
-- Your organization has standardized on Datadog or a similar platform and needs a single pane of glass across all services.
-- You need log-based alerting rules that go beyond what CloudWatch Alarms support.
-- Compliance requires logs to be stored in a specific external system for audit or retention purposes.
-- You want to join application logs with infrastructure metrics, traces, or error tracking in one UI.
-
-## When NOT to use log forwarding
-
-If you only need to view and search logs, Stacktape's built-in [log viewing](/observability/logs) — via [`stacktape logs`](/cli/logs) or the Stacktape Console — is sufficient. Log forwarding adds Firehose ingestion cost and a backup S3 bucket for failed deliveries. Skip it unless you have a specific external destination in mind. For cost details, see [Managing Costs](/managing-costs/overview).
+A forwarded log group has no room for the [error tracking](/observability/error-tracking) subscription, so error
+tracking skips resources with log forwarding.
 
 ## Supported destinations
 
-Stacktape supports three log forwarding destination types. Each is configured via the `logForwarding` property within a resource's logging configuration.
+Set `logForwarding` in the resource's `logging` block. Use the `datadog` or `highlight` type for those services, and
+`http-endpoint` for anything else that accepts Firehose deliveries over HTTPS, such as Grafana Cloud, Splunk, New Relic
+or your own collector.
 
-| Destination | Type value | Required property | Auth mechanism |
+| Destination | `type` | Required | Optional |
 |---|---|---|---|
-| Any HTTPS endpoint | `http-endpoint` | `endpointUrl` | Optional `accessKey` in `X-Amz-Firehose-Access-Key` header |
-| Datadog | `datadog` | `apiKey` | Required `apiKey` |
-| Highlight.io | `highlight` | `projectId` | Required project identifier |
+| Datadog | `datadog` | `apiKey` | `endpointUrl` (EU accounts) |
+| Highlight.io | `highlight` | `projectId` | `endpointUrl` |
+| Any HTTPS endpoint | `http-endpoint` | `endpointUrl` | `accessKey`, `gzipEncodingEnabled`, `retryDuration`, `parameters` |
 
-The `logForwarding` property takes one of three destination shapes: `http-endpoint`, `highlight`, or `datadog`. Datadog and Highlight.io provide first-class integrations with those platforms, while the HTTP endpoint type works with any service that accepts HTTPS log delivery from AWS Kinesis Data Firehose.
-
-<Warning>
-CloudWatch Logs Infrequent Access does not support the subscription filters used for forwarding. Stacktape therefore rejects a logging block that combines `logClass: infrequent-access` with `logForwarding`; keep the default Standard class for forwarded logs.
-</Warning>
+Forwarded log groups need the default Standard log class: Stacktape refuses `logForwarding` together with
+`logClass: infrequent-access`, because AWS can't subscribe such a log group.
 
 ## Forwarding to Datadog
 
-Datadog is the most common external log destination for AWS workloads. The `datadog` log forwarding type requires only `apiKey` and uses the default Datadog endpoint unless you override `endpointUrl`. Use Datadog forwarding when Datadog is already your team's log search or alerting system and you want Stacktape resource logs alongside the rest of your Datadog data. Skip it if Stacktape's built-in [log viewing](/observability/logs) is sufficient — forwarding adds Firehose ingestion cost plus Datadog's own ingestion and retention charges. Use the dedicated `datadog` type for Datadog — it requires only `apiKey` and provides a default Datadog endpoint URL that you can override with `endpointUrl`.
+The `datadog` type needs only `apiKey`. Datadog bills its own ingestion and retention on top of Firehose.
 
 <CodeBlock
   intellisense
@@ -118,7 +110,7 @@ The optional `endpointUrl` overrides the default Datadog endpoint. Use the EU UR
 
 ## Forwarding to Highlight.io
 
-Highlight.io is an open-source observability platform. Highlight forwarding requires a `projectId`; the `endpointUrl` defaults to `https://pub.highlight.io/v1/logs/firehose` and can be overridden for self-hosted or regional endpoints. Use Highlight forwarding when Highlight is already where your team investigates logs alongside session replays and error tracking. Skip it if Stacktape's built-in [log viewing](/observability/logs) covers your needs or if the team uses a different central log backend. Like other forwarding destinations, this adds Firehose delivery cost and Highlight-side ingestion considerations.
+Highlight.io is an open-source observability platform. Highlight forwarding requires a `projectId`; the `endpointUrl` defaults to `https://pub.highlight.io/v1/logs/firehose` and can be overridden for self-hosted or regional endpoints. 
 
 <CodeBlock
   intellisense
@@ -243,60 +235,32 @@ export default defineConfig(() => {
 
 Most setups need only `endpointUrl` and `accessKey`. Add `gzipEncodingEnabled: true` when you forward high-volume logs (tens of GB/month) to reduce transfer costs. Add `parameters` only when your ingestion endpoint documents support for Firehose common attributes and uses header metadata for routing. Reduce `retryDuration` below 300 when you prefer faster failover to S3 backup over longer retry windows.
 
-## How it works
+## When delivery fails
 
-Stacktape uses AWS Kinesis Data Firehose to forward resource logs to your configured destination. The delivery flow works as follows:
+Firehose retries a batch that the destination refuses or doesn't answer, then writes it to the resource's failed-events
+bucket, named `<stack name>-<resource name>-logs-<hash>` (shortened to fit 63 characters). Nothing is lost, but nothing
+re-sends it to the destination either.
 
-1. **Kinesis Data Firehose delivers logs to your destination** — Stacktape configures a Firehose delivery stream that delivers log records over HTTPS to your configured endpoint.
-2. **Failed deliveries go to a backup S3 bucket** — if the destination endpoint is unreachable or returns errors after retries are exhausted, Firehose writes the failed log batches to a backup S3 bucket.
+| Destination | Retries for |
+|---|---|
+| `datadog` | 60 seconds |
+| `highlight` | 300 seconds |
+| `http-endpoint` | `retryDuration`, 300 seconds by default |
 
-### Failure handling
-
-When Firehose cannot deliver logs to your endpoint (network errors, 4xx/5xx responses), it retries for the configured `retryDuration`. For the custom HTTP endpoint type, this defaults to 300 seconds. After retries are exhausted, failed log batches are written to the backup S3 bucket.
-
-<Tip>Failed deliveries are routed to a backup S3 bucket after retries are exhausted. Check your destination's ingestion logs and the backup S3 bucket when delivery fails.</Tip>
-
-### Built-in log viewing
-
-Log forwarding sends logs to the configured external destination through Kinesis Data Firehose. Use [`stacktape logs`](/cli/logs) or the Stacktape Console for Stacktape's built-in log viewing.
-
-## Choosing a destination
-
-| Criteria | Datadog | Highlight.io | Custom HTTP endpoint |
-|---|---|---|---|
-| Setup complexity | Minimal — just an API key | Minimal — just a project ID | Moderate — endpoint URL, optional auth, optional GZIP |
-| Best for | Teams already using Datadog APM/infrastructure monitoring | Teams using Highlight for session replay + error tracking | Grafana Cloud, Splunk, New Relic, self-hosted solutions |
-| Configurable retry | No (Firehose-managed) | No (Firehose-managed) | Yes — `retryDuration` property |
-| GZIP compression | Not configurable | Not configurable | Opt-in via `gzipEncodingEnabled` |
-| Custom metadata | Not supported | Not supported | Yes — `parameters` property |
-
-Use the dedicated `datadog` or `highlight` type when you target those services — each exposes only the service-specific required property and a default endpoint URL, reducing configuration. For everything else, use `http-endpoint`.
+When logs stop arriving, check the destination's own ingestion errors (a wrong API key or project ID shows up there),
+then look for new objects in the failed-events bucket in the S3 console. The resource's logs are still in CloudWatch the
+whole time.
 
 ## FAQ
 
-### What happens if my endpoint is down?
+### Can I forward only some logs?
 
-Firehose retries delivery for the configured retry duration (defaults to 300 seconds for the HTTP endpoint type). After retries are exhausted, failed log batches are written to a backup S3 bucket. Check your destination's ingestion logs and that backup bucket to diagnose delivery failures.
+No. Every log line of the resource is forwarded. Filter in the destination, for example with Datadog log pipelines.
 
-### Can I use a custom HTTP endpoint for Grafana Cloud Logs?
+### Which resources support log forwarding?
 
-Use `http-endpoint` only if Grafana Cloud Logs provides an HTTPS Firehose-compatible intake endpoint. Set `endpointUrl` to that intake URL. Use `accessKey` only if the endpoint expects the `X-Amz-Firehose-Access-Key` header — verify the authentication method in Grafana's documentation. Enable `gzipEncodingEnabled: true` only if the endpoint documents GZIP support.
-
-### How much does Kinesis Data Firehose cost?
-
-AWS Kinesis Data Firehose charges ~$0.03/GB of data ingested (varies by region). Firehose cost primarily scales with forwarded GB; failed deliveries are also written to a backup S3 bucket. See [Managing Costs](/managing-costs/overview) for optimization guidance.
-
-### Should I use the Datadog type or HTTP endpoint type for Datadog?
-
-Use the `datadog` type. It requires only `apiKey` and uses the default Datadog endpoint unless you override `endpointUrl`. Using the `http-endpoint` type for Datadog would require you to manually set `endpointUrl` — the dedicated `datadog` type reduces configuration to a single required property.
-
-### Does log forwarding support filtering which logs are sent?
-
-The `logForwarding` configuration does not include a filter option — every log record from the resource is forwarded. If you need filtering, handle it in the destination or ingestion pipeline — for example, Datadog Log Pipelines or Grafana Cloud log processing rules.
-
-### Can I forward logs from any resource type?
-
-The `logForwarding` property accepts `http-endpoint`, `highlight`, or `datadog` destinations, but not every resource type exposes `logForwarding` in its logging configuration. Check the API reference for your specific resource type to confirm it is supported.
+Functions and containers that have a `logging` block with `logForwarding`. The API reference of each resource type
+shows whether it has the property.
 
 ## API reference
 

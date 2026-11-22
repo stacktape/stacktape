@@ -55,10 +55,6 @@ The command requests a free AWS ACM certificate in the specified `--region`. Whe
 
 <Tip>The command prints https://console.stacktape.com/domains as the place to continue or check domain setup.</Tip>
 
-## Arguments reference
-
-<CliCommandsApiReference command="domain:add" />
-
 ## Examples
 
 Add a domain in the eu-west-1 region:
@@ -78,11 +74,6 @@ Add a domain using a named AWS account connected in the Stacktape Console:
 ```bash
 stacktape domain add --region eu-west-1 --aws-account my-prod-account
 ```
-
-## Related commands
-
-- [`deploy`](/cli/deploy) — deploy your stack, which can reference the added domain via [custom domain configuration](/resources/networking/custom-domains)
-- [`defaults set`](/cli/defaults-configure) — set a default region so you don't need `--region` every time
 
 ## FAQ
 
@@ -105,3 +96,12 @@ Adding the domain is free: ACM TLS certificates are free. The only cost is the u
 ### Can I use a domain registered outside AWS?
 
 Yes. For domains registered with another registrar (GoDaddy, Namecheap, Hostinger, etc.), the command asks whether to move DNS management to Route 53. If you confirm, it creates a hosted zone (if needed) and prints the name servers to set at your registrar. If the domain is already serving traffic, copy your existing DNS records into the new hosted zone before switching name servers to avoid downtime. After DNS propagation, re-run the command to continue with certificate provisioning.
+
+## Options
+
+<CliCommandsApiReference command="domain:add" />
+
+## Related commands
+
+- [`deploy`](/cli/deploy) — deploy your stack, which can reference the added domain via [custom domain configuration](/resources/networking/custom-domains)
+- [`defaults set`](/cli/defaults-configure) — set a default region so you don't need `--region` every time

@@ -95,7 +95,7 @@ CloudFormation stack in AWS. See [AWS permissions](/stacktape-console/aws-permis
 ## CI with the Console
 
 A pipeline uses an API key instead of a browser sign-in. Owners and Admins create an
-[organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) on the Members page and store
+[organization key](/stacktape-console/api-keys#create-an-organization-key) on the API keys page and store
 it as the `STACKTAPE_API_KEY` secret of the pipeline. Unlike a personal key, it keeps working when people leave. If
 the organization has more than one connected AWS account, pass `--aws-account <name>` to the deploy. See
 [Deploy from your CI](/ci-cd-and-gitops/custom-ci-cd).

@@ -10,7 +10,7 @@ The `validate` command requires a stage and region. It checks your configuration
 stacktape validate --stage dev --region eu-west-1
 ```
 
-The command does not create, update, or delete any AWS resources and does not require a deployed stack.
+The command does not require a deployed stack and doesn't change your stack. Its only write to AWS is the temporary template object that [`--thorough`](#validation-levels) can upload, deleted after the check.
 
 ## Validation levels
 
@@ -142,7 +142,25 @@ Use JSONL output for CI or AI-agent consumption.
 stacktape validate --stage dev --region eu-west-1 --agent
 ```
 
-## Flags reference
+## FAQ
+
+### How is validate different from synth?
+
+Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--out` is supplied; with `--with-package` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
+
+### Do I need AWS credentials to run validate in CI?
+
+Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API, and for a template over 51,200 bytes writes and deletes a temporary object in the stack's deployment bucket. Use a CI profile scoped to the intended account that can read the stack and write to that bucket.
+
+### What errors does --thorough catch that the default level misses?
+
+Default validation catches configuration errors and synthesis failures. `--thorough` also catches packaging errors, then asks CloudFormation to check the template. Only a template over 51,200 bytes of a stack that was never deployed skips that check; the result then has `checked.cloudformation: false` and a warning. Even an AWS-checked template can fail during provisioning; verify deployment behavior in a deployed stage.
+
+### Can I use validate with AI agents or in scripts?
+
+Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. This flag uses JSONL/NDJSON output (one JSON object per line) and disables the interactive terminal UI. You can also use `--json` for machine-readable output without the other `--agent` behaviors.
+
+## Options
 
 
 ## CLI Options: `stacktape validate`
@@ -170,25 +188,3 @@ stacktape validate --stage dev --region eu-west-1 --agent
 - [`diff`](/cli/diff) — shows a preview of changes that would be applied to a deployed stack. Requires a deployed stack, unlike `validate`.
 - [`deploy`](/cli/deploy) — deploys or updates a stack. Running `validate` before `deploy` catches errors before they reach CloudFormation.
 - [`package`](/cli/package) — packages workloads and writes artifacts to disk. The `--with-package` flag on `validate` runs workload packaging as part of validation, while `package` is the dedicated command for preparing packaged outputs for inspection or deployment.
-
-## FAQ
-
-### Does validate create or modify any AWS resources?
-
-No. The `validate` command does not create, update, or delete any AWS resources and does not require a deployed stack. Initialization can read AWS identity or metadata used during synthesis. With `--thorough`, CloudFormation's read-only `ValidateTemplate` API checks the template without creating a stack. A template over 51,200 bytes is first uploaded as a temporary object to the stack's existing deployment bucket and deleted after the check; for a stack that was never deployed, there is no bucket and the check is skipped with a warning.
-
-### How is validate different from synth?
-
-Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--out` is supplied; with `--with-package` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
-
-### Do I need AWS credentials to run validate in CI?
-
-Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API, and for a template over 51,200 bytes writes and deletes a temporary object in the stack's deployment bucket. Use a CI profile scoped to the intended account that can read the stack and write to that bucket.
-
-### What errors does --thorough catch that the default level misses?
-
-Default validation catches configuration errors and synthesis failures. `--thorough` also catches packaging errors, then asks CloudFormation to check the template. Only a template over 51,200 bytes of a stack that was never deployed skips that check; the result then has `checked.cloudformation: false` and a warning. Even an AWS-checked template can fail during provisioning; verify deployment behavior in a deployed stage.
-
-### Can I use validate with AI agents or in scripts?
-
-Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. This flag uses JSONL/NDJSON output (one JSON object per line) and disables the interactive terminal UI. You can also use `--json` for machine-readable output without the other `--agent` behaviors.

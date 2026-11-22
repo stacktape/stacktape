@@ -1,28 +1,30 @@
 # secret delete
 
-The `secret delete` command deletes a specified AWS Secrets Manager secret by name in the selected AWS region. Use it to clean up secrets that are no longer referenced in your Stacktape configuration — for example, retired API keys, rotated credentials, or secrets from deleted stages.
+`stacktape secret delete` deletes a secret from AWS Secrets Manager in one region. Use it for secrets your config no longer references, such as retired API keys or secrets of a deleted stage. It needs AWS credentials and works without a Stacktape account.
 
+AWS doesn't remove the secret right away. It schedules the deletion with a 30-day recovery window, and the name stays taken until then. During that window:
 
-> **Warning:** Before deleting a secret, verify that no active Stacktape configuration references it via `$Secret('secret-name')`. If a configuration still references a deleted secret, future operations that need to resolve that secret may fail.
-
+- you can [restore the secret](https://docs.aws.amazon.com/secretsmanager/latest/userguide/manage_restore-secret.html) with its value;
+- [`secret set`](/cli/secret-set) with the same name fails, because AWS still holds it;
+- a `deploy` or `diff` whose config still references the secret with [`$Secret`](/configuration/secrets) restores it, with its old value.
 
 ## Usage
 
-In non-agent mode, Stacktape prompts for the secret name regardless of other flags.
+In a terminal, the command asks for the secret name:
 
 ```bash
 stacktape secret delete --region eu-west-1
 ```
 
-In agent mode (CI pipelines or AI coding agents), pass the secret name as an argument — it becomes required.
+In a script or a coding agent, pass the name as an argument:
 
 ```bash
-stacktape secret delete my-api-key --region eu-west-1 --agent
+stacktape secret delete stripe-webhook-secret --region eu-west-1 --agent
 ```
 
-On success, the CLI reports `Secret "my-api-key" deleted.`
+On success the CLI prints `Secret "stripe-webhook-secret" deleted.`, which means the deletion is scheduled.
 
-## Arguments reference
+## Options
 
 
 ## CLI Options: `stacktape secret delete`
@@ -38,28 +40,8 @@ On success, the CLI reports `Secret "my-api-key" deleted.`
 | `--secret-name (positional 1)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
 
 
-## Examples
-
-Delete a secret interactively — you will be prompted for the name.
-
-```bash
-stacktape secret delete --region us-east-1
-```
-
-Delete a secret by name in agent mode (no prompt, JSONL output).
-
-```bash
-stacktape secret delete stripe-webhook-secret --region us-east-1 --agent
-```
-
-Use a specific AWS profile in agent mode.
-
-```bash
-stacktape secret delete old-db-password --region eu-west-1 --profile production --agent
-```
-
 ## Related commands
 
-- [`secret set`](/cli/secret-set) — create a new secret or update an existing one in AWS Secrets Manager.
-- [`secret get`](/cli/secret-get) — retrieve and display details about a stored secret.
-- [`deploy`](/cli/deploy) — deploy a stack that references secrets via the `$Secret()` [directive](/configuration/directives).
+- [`secret set`](/cli/secret-set) creates a secret or changes its value.
+- [`secret get`](/cli/secret-get) shows a secret's details.
+- [`deploy`](/cli/deploy) deploys a stack that reads secrets with `$Secret`.

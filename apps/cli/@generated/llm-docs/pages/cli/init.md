@@ -155,28 +155,6 @@ because the directory has two config files. Move or delete the old file, or pass
 For a TypeScript config in a project with a `package.json`, init adds or updates the `stacktape` dev dependency to
 match the CLI and prints the install command. It doesn't run the package manager.
 
-## All flags
-
-
-## CLI Options: `stacktape init`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--coding-agent` | no | `string` | Coding Agent — Which installed coding agent analyses the project. The agent reads your code using your own subscription; your code is never sent to Stacktape. • **auto** (default): use the best agent found on this machine. • **claude-code** / **codex**: use that agent specifically, and fail if it is not installed. • **none**: skip the agent entirely and rely on static analysis alone. Faster and free, but finds less. | `auto`, `claude-code`, `codex`, `none` |
-| `--config-format` | no | `string` | Config Format — Format (language) used for the generated config. Options are typescript or yaml. | `yaml`, `typescript` |
-| `--headless` | no | `boolean` | Headless — If `true`, runs `init` entirely in the terminal instead of opening the browser wizard. Use this over SSH, in a container, or in CI. Questions that cannot be answered from the command line are reported rather than asked, and the configuration is still written. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--infrastructure-type` | no | `string` | Infrastructure Type — How much infrastructure `init` creates for you. It sets every size and safety setting in the generated configuration, and it is the one thing reading your code cannot tell us. • **low-cost**: one small copy of everything. For trying this out, a side project, or staging. • **standard** (default): room for real traffic, a week of backups, and deletion protection on your database. • **production**: two copies of your app so one failure changes nothing, and a standby database in a second datacentre. | `low-cost`, `standard`, `production` |
-| `--initialize-project-to` | no | `string` | Initialize Project To — The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--no-browser` | no | `boolean` | No Browser — If `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port. | - |
-| `--project-directory` | no | `string` | Project Directory — The root directory where the project configuration should be generated. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--starter-id` | no | `string` | Starter ID — The identifier of the starter project to initialize. | - |
-| `--starter-project` | no | `boolean` | Starter Project — If `true`, initializes from a starter project template instead of running the default wizard flow. | - |
-
-
 ## Examples
 
 Read the project with Claude Code:
@@ -196,12 +174,6 @@ Pick a starter from the list:
 ```bash
 stacktape init --starter-project
 ```
-
-## Related commands
-
-- [`deploy`](/cli/deploy) deploys the configuration init wrote.
-- [`dev`](/cli/dev) runs the project locally against a small dev stack.
-- [`delete`](/cli/delete) removes everything a deploy created.
 
 ## FAQ
 
@@ -247,3 +219,31 @@ It never overwrites a `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`. It ca
 `stacktape.generated.*` from an earlier run and update the `stacktape` dependency in `package.json`. See
 [existing and generated configuration files](#existing-and-generated-configuration-files). For starters,
 `--initialize-project-to` empties a non-empty target directory after you confirm.
+
+## Options
+
+
+## CLI Options: `stacktape init`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `--coding-agent` | no | `string` | Coding Agent — Which installed coding agent analyses the project. The agent reads your code using your own subscription; your code is never sent to Stacktape. • **auto** (default): use the best agent found on this machine. • **claude-code** / **codex**: use that agent specifically, and fail if it is not installed. • **none**: skip the agent entirely and rely on static analysis alone. Faster and free, but finds less. | `auto`, `claude-code`, `codex`, `none` |
+| `--config-format` | no | `string` | Config Format — Format (language) used for the generated config. Options are typescript or yaml. | `yaml`, `typescript` |
+| `--headless` | no | `boolean` | Headless — If `true`, runs `init` entirely in the terminal instead of opening the browser wizard. Use this over SSH, in a container, or in CI. Questions that cannot be answered from the command line are reported rather than asked, and the configuration is still written. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--infrastructure-type` | no | `string` | Infrastructure Type — How much infrastructure `init` creates for you. It sets every size and safety setting in the generated configuration, and it is the one thing reading your code cannot tell us. • **low-cost**: one small copy of everything. For trying this out, a side project, or staging. • **standard** (default): room for real traffic, a week of backups, and deletion protection on your database. • **production**: two copies of your app so one failure changes nothing, and a standby database in a second datacentre. | `low-cost`, `standard`, `production` |
+| `--initialize-project-to` | no | `string` | Initialize Project To — The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--no-browser` | no | `boolean` | No Browser — If `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port. | - |
+| `--project-directory` | no | `string` | Project Directory — The root directory where the project configuration should be generated. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--starter-id` | no | `string` | Starter ID — The identifier of the starter project to initialize. | - |
+| `--starter-project` | no | `boolean` | Starter Project — If `true`, initializes from a starter project template instead of running the default wizard flow. | - |
+
+
+## Related commands
+
+- [`deploy`](/cli/deploy) deploys the configuration init wrote.
+- [`dev`](/cli/dev) runs the project locally against a small dev stack.
+- [`delete`](/cli/delete) removes everything a deploy created.

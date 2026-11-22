@@ -86,16 +86,16 @@ export const MOVED_SECTIONS: Record<string, Record<string, string>> = {
     'next-step': '/stacktape-console/console-overview/#related-pages'
   },
   '/ci-cd-and-gitops/overview/': {
-    'gitops-via-the-stacktape-console': '/ci-cd-and-gitops/overview/#git-deployments-in-the-console',
+    'gitops-via-the-stacktape-console': '/ci-cd-and-gitops/overview/#git-deployments',
     'cli-prompt-after-first-deploy': '/ci-cd-and-gitops/gitops-with-console/',
     'what-you-can-configure': '/ci-cd-and-gitops/gitops-with-console/#create-a-git-deployment',
     'pr-preview-environments': '/ci-cd-and-gitops/overview/#pull-request-previews',
     'connecting-your-repository': '/ci-cd-and-gitops/gitops-with-console/#connect-your-git-provider',
-    'custom-cicd-integration': '/ci-cd-and-gitops/overview/#your-own-ci-pipeline',
-    credentials: '/ci-cd-and-gitops/custom-ci-cd/#authentication',
+    'custom-cicd-integration': '/ci-cd-and-gitops/overview/#your-own-pipeline',
+    credentials: '/ci-cd-and-gitops/custom-ci-cd/#authenticate-the-pipeline',
     'github-actions-example': '/ci-cd-and-gitops/custom-ci-cd/#github-actions',
     'gitlab-ci-example': '/ci-cd-and-gitops/custom-ci-cd/#gitlab-ci',
-    'pr-previews-in-custom-ci': '/ci-cd-and-gitops/custom-ci-cd/#pr-preview-environments',
+    'pr-previews-in-custom-ci': '/ci-cd-and-gitops/custom-ci-cd/#pull-request-previews',
     'which-path-to-choose': '/ci-cd-and-gitops/overview/#compare-the-options',
     'next-step': '/ci-cd-and-gitops/overview/#compare-the-options'
   }

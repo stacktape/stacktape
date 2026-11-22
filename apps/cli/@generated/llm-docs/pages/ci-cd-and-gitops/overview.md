@@ -1,29 +1,32 @@
 # CI/CD overview
 
-There are two ways to deploy automatically:
+Stacktape can deploy automatically in two ways. You choose per stage, and both can run in the same project.
 
-- **Git deployments in the Stacktape Console.** Connect GitHub, GitLab or Bitbucket and map a push or a pull request to a stage. Stacktape runs the deploy on a runner in your AWS account. There is no pipeline file to write.
-- **The CLI in your own pipeline.** Run [`stacktape deploy`](/cli/deploy) as a step in GitHub Actions, GitLab CI or any CI system that runs shell commands. You control every step around it, such as tests and approvals.
+- **Git deployments.** In the Stacktape Console, connect GitHub, GitLab or Bitbucket and choose which branch deploys
+  which stage. Every pull request can get its own preview stage. Stacktape builds and deploys on a runner in your AWS
+  account, and you write no pipeline file.
+- **Your own pipeline.** Run `stacktape deploy` as a step in GitHub Actions, GitLab CI or any CI that runs shell
+  commands. Tests, approvals and other steps run around it. This works with or without a Stacktape account.
 
-Start with Git deployments unless you need steps before or after the deploy. The two work side by side in one project, so you can add a pipeline later for the stages that need one.
+Use Git deployments when a push should simply deploy. Use your own pipeline when something must pass first, such as
+tests or a manual approval.
 
 ## Compare the options
 
 
 ## Feature Comparison
 
-| Feature | GitOps (Console) | Custom CI/CD | Self-hosted GitHub Actions runners |
-| --- | --- | --- | --- |
-| Setup effort | Configure in Console — no pipeline files | Write a workflow or pipeline file | Enable in Console + write a GitHub Actions workflow |
-| Where the build runs | Dedicated EC2 runner in your AWS account | Your CI provider's runners | EC2 runner in your AWS account |
-| Pipeline customization | Maps git events directly to deployments | Full control — tests, lint, approval gates, multi-step builds | Full GitHub Actions flexibility |
-| Maintenance | Managed by Stacktape | You own the pipeline definition | You own the workflow |
-| PR previews | Built in: one stage per pull request (pr-42), redeployed on new commits, optional delete on close | Manual setup with dynamic stage names | Manual setup with dynamic stage names |
+| Feature | Git deployments | Your own pipeline |
+| --- | --- | --- |
+| Stacktape account | Needed (Free plan works) | Optional |
+| Setup | A form in the Console | A workflow file you maintain |
+| Where the build runs | A runner in your AWS account | Your CI's worker |
+| Tests and approvals | In your Git provider, before merge | Steps before the deploy |
+| Pull request previews | Built in, deleted on close | Deploy and delete jobs you write |
+| Cost | Runner time and disks in AWS | Your CI minutes |
 
 
-[Self-hosted GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) run your GitHub Actions jobs on EC2 in your AWS account instead of GitHub's runners. Use them when hosted runners are slow for your builds or when jobs need to reach private resources in your VPC.
-
-A common setup combines both:
+A common setup uses both:
 
 | Stage | Deployed by | Why |
 |---|---|---|
@@ -31,93 +34,59 @@ A common setup combines both:
 | `pr-<number>` | A Git deployment | Every pull request gets its own stage |
 | `production` | Your own pipeline | Tests and an approval run before `main` deploys |
 
-## Git deployments in the Console
+Deploys of one stage never overlap, whichever way they start. A second deploy waits until the first finishes.
 
-You connect your Git provider once, link the project to its repository and create one or more Git deployments. Each Git deployment sets:
+## Git deployments
 
-- **Deployment trigger**: **Push to branch**, or **Pull request opened** into a branch.
-- **Branch**: the branch that is pushed to, or that pull requests merge into.
-- **Stage**: the stage to deploy, such as `production` or `staging`. Pull request previews always use `pr-<number>`.
-- **AWS account and region**: where the stage deploys.
-- **Config path**: the Stacktape config file in the repository.
-- **Delete stack after pull request is merged or closed?**: for previews, deletes the preview stage when the pull request closes.
+You connect your Git provider once, link the project to its repository and create a Git deployment for each branch
+that should deploy. A Git deployment either deploys a fixed stage on every push to a branch, or deploys a preview stage
+`pr-<number>` for every pull request into a branch.
 
-When the CLI is signed in to the Console, a successful first deploy of a stage in an interactive terminal asks whether to deploy automatically on pushes to your current branch. If you accept, it opens the browser to connect your Git provider when needed and creates a Git deployment for that stage.
+The first Git deployment in an AWS account and region creates a [build runner](/ci-cd-and-gitops/build-runners) there.
+AWS bills its compute while it builds and its disks while it is stopped, about $8.80 a month in Ireland for the default
+disks. The runner and its disks are removed with the last Git deployment that uses them.
 
-Deploys of the same stage run one after another, never at the same time. Git deployments work with GitHub (through the Stacktape GitHub App), GitLab (gitlab.com groups) and Bitbucket Cloud. An organization Owner or Admin connects the provider under **Git connections** in the Console's profile menu.
+After the first successful deploy of a new stage, a CLI signed in to the Console offers to set this up: it asks whether
+pushes to your current branch should deploy that stage.
 
-[GitOps with Console](/ci-cd-and-gitops/gitops-with-console) has the setup steps for each provider and what each Git event does.
+[Git deployments](/ci-cd-and-gitops/gitops-with-console) walks through connecting each provider and creating the
+rules.
 
-## Your own CI pipeline
+## Your own pipeline
 
-The pipeline needs one of these credentials:
+The pipeline authenticates in one of two ways:
 
-| Credentials | When to use |
+| Credentials | When |
 |---|---|
-| AWS credentials only | Without a Stacktape account. Give the job AWS credentials, for example an IAM role your CI provider assumes through OIDC. The CLI deploys to the AWS account they belong to. See [CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account). |
-| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci), which keeps working when people leave. The CLI deploys into the AWS account connected to your organization. With more than one connected account, pass `--aws-account <name>`. |
+| AWS credentials only | Without a Stacktape account. The CLI deploys to the AWS account the credentials belong to. On GitHub Actions, use an IAM role that GitHub assumes through OIDC, so no AWS key is stored. |
+| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci), which keeps working when people leave. |
 
-If you deployed with `stacktape init`, its **Deploy on every push** card writes this pipeline for you: a GitHub Actions, GitLab CI/CD or Bitbucket Pipelines file, and the list of secrets to add to the repository. The GitHub workflow assumes an IAM role through OIDC, so no AWS key is stored in the repository.
+If you deployed with `stacktape init`, the wizard's **Deploy on every push** card writes the pipeline for you: a
+GitHub Actions, GitLab CI/CD or Bitbucket Pipelines file, and the list of secrets to add. The GitHub workflow assumes
+an IAM role through OIDC.
 
-Keep the credentials in your CI provider's secret store. A minimal GitHub Actions workflow with an API key:
+[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) has complete workflows for GitHub Actions, GitLab CI, Bitbucket
+Pipelines and CircleCI, with tests, approvals, previews and concurrency.
 
-```yaml
-name: Deploy
-on:
-  push:
-    branches: [main]
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Deploy to production
-        env:
-          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape deploy --stage production --region us-east-1 --yes
-```
-
-`--yes` skips the confirmation prompt, which would block a CI job. [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) has examples for GitLab CI, Bitbucket Pipelines and CircleCI, tests before the deploy, approvals and concurrency control.
+If your jobs run on GitHub Actions and hosted runners are too slow or can't reach your VPC,
+[self-hosted GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) run them on a Stacktape
+runner in your AWS account.
 
 ## Pull request previews
 
-A preview is a separate stage for one pull request, with its own databases, functions, containers and URLs.
+A preview is a separate stage for one pull request, with its own functions, containers, databases and URLs. Previews
+are non-production stages, so they share the AWS account's non-production VPC instead of creating one each.
 
-- **With a Git deployment**, add a **Pull request opened** trigger. Pull request #42 deploys to the stage `pr-42` when it opens and again on every new commit. Stacktape comments on the pull request with each result. When the pull request is merged or closed, the stage is deleted if you turned deletion on. Pull requests from forks are not deployed.
-- **In your own pipeline**, derive the stage name from the pull request number. Deploy when the pull request opens or changes, and delete the stage when it closes:
+Each preview costs what its resources cost, for as long as it exists. A database or container keeps billing when no
+one opens the preview. Delete previews when their pull request closes: Git deployments do it with one checkbox, and
+your own pipeline does it with a `stacktape delete` job.
 
-```bash
-npx stacktape deploy --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
-npx stacktape delete --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
-```
+[Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) covers stage naming, cost and cleanup.
 
-Stage names use lowercase letters, numbers and dashes, at least 2 characters (`[a-z0-9-]+`). Sanitize branch names with uppercase letters, underscores or slashes before you use them as stage names. Keep them short: stage names go into the names of the stack and its AWS resources. [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) covers the naming patterns.
+## When an automated deploy fails
 
-
-> **Warning:** Each preview is a complete stack and costs as much as any other stage. Turn on deletion, or delete the stage in your pipeline, so previews don't keep running.
-
-
-## Runners
-
-Git deployments build and deploy on an EC2 runner in your AWS account. It keeps build caches between deploys and stops when idle, but its disk keeps costing money while it is stopped. [Build runners](/ci-cd-and-gitops/build-runners) covers sizing, caching and cost.
-
-## FAQ
-
-### Do I need AWS credentials in my CI pipeline?
-
-Only without a Stacktape account: then the CLI deploys with the AWS credentials the job has. With the Console, no. The CLI authenticates with a `STACKTAPE_API_KEY` environment variable — create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. See the [custom CI/CD guide](/ci-cd-and-gitops/custom-ci-cd) for full authentication details.
-
-### What stage does a GitOps PR preview deploy to?
-
-A **Pull request opened** Git deployment deploys pull request #42 to the stage `pr-42`. Each pull request gets its own isolated stack with independent infrastructure. See [Stacks per Git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for the full pattern.
-
-### How much do automated deployments cost?
-
-Console-managed deployments use an EC2 runner in your AWS account. You pay for compute while it runs, persistent EBS storage, and ordinary data transfer and logging. The instance stops after idle time while its volume and caches remain. See [Build runners](/ci-cd-and-gitops/build-runners) for lifecycle and sizing details.
-
-### How do I roll back a failed automated deployment?
-
-For GitOps deployments, pushing a revert commit to the branch triggers a new deployment with the reverted code. For a direct rollback without a code change, use the [`rollback`](/cli/rollback) CLI command. Both approaches work regardless of how the original deployment was triggered.
+By default, a failed deploy keeps what it changed, and the next run continues from there. Fix the problem and push
+again. If the deploy finished but the new code is broken, push a revert commit, or return to the previous version with
+[`stacktape rollback`](/cli/rollback). If CloudFormation left the stack in a failed state, recover it with
+[`stacktape stack recover`](/cli/cf-rollback). [Rollbacks](/deployment-and-lifecycle/rollbacks) explains which to use
+when.

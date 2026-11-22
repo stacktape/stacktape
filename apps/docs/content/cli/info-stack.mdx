@@ -7,7 +7,7 @@ seoDescription: 'Use stacktape status to view deployed stack details — outputs
 
 # status
 
-The `status` command displays detailed information about a deployed stack, including its outputs (URLs, endpoints, resource identifiers) and the list of AWS resources in the stack. Use it after [deploying](/cli/deploy) to discover endpoints, verify resource creation, or feed stack data into scripts and CI pipelines.
+The `status` command displays detailed information about a deployed stack, including its outputs (URLs, endpoints, resource identifiers) and the list of AWS resources in the stack. Use it after [deploying](/cli/deploy) to discover endpoints, verify resource creation, or feed stack data into scripts and CI pipelines. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. It reads the stage's record in the Console. Without an account, open the stack `<project>-<stage>` in the AWS CloudFormation console, in the stage's region, to see its outputs and resources.
 
 ## Usage
 
@@ -26,10 +26,6 @@ The `--region` flag is the only required argument. You identify the target stack
 With `--agent`, `status` skips the interactive stack-details view and uses the CLI's JSONL protocol. The final `result` event contains a versioned `stacktape.info-stack.v1` document at `data.result`, including the resolved stack name, region, outputs, Stacktape resource map, and CloudFormation resources. Read the final result event rather than parsing informational log messages.
 
 The `--aws-account` flag selects which connected AWS account to query. The account must first be connected in the [Stacktape Console](/stacktape-console/connecting-your-aws-account). Omit it when the default account selection is sufficient.
-
-## Command reference
-
-<CliCommandsApiReference command="info:stack" />
 
 ## Examples
 
@@ -76,6 +72,10 @@ Query a stack in a specific connected AWS account.
 ```bash
 stacktape status --region us-west-2 --project payments --stage prod --aws-account production-account
 ```
+
+## Options
+
+<CliCommandsApiReference command="info:stack" />
 
 ## Related commands
 

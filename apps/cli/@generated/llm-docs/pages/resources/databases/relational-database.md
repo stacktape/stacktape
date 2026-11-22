@@ -1,30 +1,15 @@
 # Relational database
 
-A Stacktape relational database provisions a fully managed SQL database on AWS. Stacktape provisions the database, configures credentials, network access, backup retention, and maintenance windows. AWS RDS or Aurora runs the database operations — patching, automated backups, and recovery. You pick an engine (PostgreSQL, MySQL, MariaDB, or others) and deploy.
+A relational database is a managed SQL database on Amazon RDS or Aurora. You pick the engine, and Stacktape creates the
+database, its network access, its credentials and its backups in your AWS account.
 
-**Pricing context:** RDS instances start at ~$12/month (`db.t4g.micro`). Aurora instances start at ~$35/month (`db.t3.small`). Aurora Serverless v2 bills per ACU-hour with no minimum instance commitment.
-
-## When to use
-
-Use a Stacktape relational database when your application needs a traditional SQL database with ACID transactions, relational data modeling, or compatibility with PostgreSQL, MySQL, or MariaDB client libraries. This covers most web applications, APIs, and backend services that store structured data.
-
-**Aurora Serverless v2** is the recommended engine for most new projects. It auto-scales compute, handles traffic spikes without manual intervention, and costs less than fixed instances during low-usage periods. If your workload is steady and predictable, standard RDS with a fixed instance size gives simpler cost forecasting.
-
-## When NOT to use
-
-A relational database adds operational weight — schema migrations, connection pooling, and capacity planning. Consider alternatives when the data model doesn't need relational semantics:
-
-- **Key-value or document access patterns** — use a [DynamoDB table](/resources/databases/dynamodb) for single-digit-millisecond reads at any scale with zero capacity planning.
-- **Caching or ephemeral data** — use [Redis](/resources/databases/redis) for session storage, rate limiting, or caching layers.
-- **Full-text search** — use [OpenSearch](/resources/databases/opensearch) for search-heavy workloads with facets and relevance scoring.
-- **MongoDB compatibility** — use [MongoDB Atlas](/resources/databases/mongodb-atlas) if your team already uses MongoDB or needs a document database.
-
-If your data model is genuinely relational but you need to minimize fixed cost, Aurora Serverless v2 with `minCapacity: 0.5` scales down to ~1 GB RAM and charges only for what you use.
+Standard RDS and provisioned Aurora bill for every hour an instance runs, used or not. The smallest PostgreSQL
+instance, `db.t4g.micro`, is about $12 a month in us-east-1 plus storage. Aurora Serverless v2 bills for the capacity it
+uses and, by default, pauses when nobody connects. For key-value data with no idle cost, use
+[DynamoDB](/resources/databases/dynamodb).
 
 ## Basic example
 
-The simplest relational database configuration uses standard RDS with a fixed instance size. Store the password in a [Stacktape secret](/configuration/secrets) using the `$Secret()` directive to keep it out of your config file.
-
 
 Example (TypeScript):
 
@@ -50,83 +35,66 @@ export default defineConfig(() => {
 ```
 
 
-This creates a PostgreSQL 16 database on a `db.t4g.micro` instance (~$12/month, 2 vCPU, 1 GB RAM). The default `masterUserName` is `db_master_user`. The default accessibility mode is `internet`, which lets anyone with credentials connect — fine for development.
+The deploy creates a PostgreSQL 16 database on a `db.t4g.micro` instance with 20 GB of storage. It contains a database
+named `defdb`, and you sign in as `db_master_user`. If the `database` secret doesn't exist yet, the deploy generates a
+random password and stores it there. Creating a new database takes 10 to 15 minutes.
 
+Check that it answers:
 
-> **Tip:** For most new projects, **Aurora Serverless v2** is the recommended engine — it auto-scales compute and costs less than a fixed instance during quiet periods. See [Engine types](#engine-types) below.
+```bash
+stacktape query sql mainDatabase "SELECT version()" --stage dev
+```
 
+Anyone who has the credentials can reach this database from the internet, because `internet` is the default
+[access mode](#accessibility). Restrict it before you store real data.
 
 ## Engine types
 
-Stacktape supports three database engine families, each backed by a different AWS service tier. Pick the one that matches your workload's performance, cost, and operational requirements.
+| | Standard RDS | Aurora | Aurora Serverless v2 |
+|---|---|---|---|
+| Engines | PostgreSQL, MySQL, MariaDB, Oracle, SQL Server | PostgreSQL, MySQL | PostgreSQL, MySQL |
+| Compute | One instance of a size you pick | Instances of a size you pick | Scales between `minCapacity` and `maxCapacity` |
+| Idle cost | Full instance price | Full instance price | Storage only while paused |
+| High availability | `multiAz` standby (doubles the instance cost) | Add a second instance | Add a reader |
 
-
-## Feature Comparison
-
-| Feature | RDS | Aurora | Aurora Serverless v2 |
-| --- | --- | --- | --- |
-| Scaling | Fixed instance | Fixed instances | Auto (0.5–128 ACUs) |
-| High availability | Multi-AZ (doubles cost) | Built-in (3-AZ replication) | Built-in (3-AZ replication) |
-| Read replicas | yes | yes | yes |
-| Starting cost | ~$12/month | ~$35/month | Pay per ACU-hour |
-| PostgreSQL | yes | yes | yes |
-| MySQL | yes | yes | yes |
-| MariaDB, Oracle, SQL Server | yes | no | no |
-| Best for | Predictable workloads, non-Aurora engines | High-performance production | Most new projects |
-
+Start with standard RDS when you want one fixed monthly price, or with Aurora Serverless v2 when traffic is uneven or
+the database sits idle for long periods (dev and preview stages). Provisioned Aurora suits large production databases
+that need fast failover and several readers.
 
 ### Standard RDS
 
-Standard RDS runs a single database instance with a fixed size. You pick an instance class (CPU/memory) and pay hourly. AWS handles patching, automated backups, and recovery. Available engine types: `postgres`, `mysql`, `mariadb`, `oracle-ee`, `oracle-se2`, `sqlserver-ee`, `sqlserver-ex`, `sqlserver-se`, and `sqlserver-web`. The corresponding TypeScript classes are `RdsEnginePostgres`, `RdsEngineMysql`, `RdsEngineMariadb`, `RdsEngineOracleEE`, `RdsEngineOracleSE2`, `RdsEngineSqlServerEE`, `RdsEngineSqlServerEX`, `RdsEngineSqlServerSE`, and `RdsEngineSqlServerWeb`.
+Engine types: `postgres`, `mysql`, `mariadb`, `oracle-se2`, `sqlserver-ee`, `sqlserver-ex`, `sqlserver-se` and
+`sqlserver-web` (classes `RdsEnginePostgres`, `RdsEngineMysql`, `RdsEngineMariadb`, `RdsEngineOracleSE2` and the
+`RdsEngineSqlServer*` classes). Oracle and SQL Server run with a license included in the instance price. The
+`oracle-ee` type currently fails validation, so use `oracle-se2` for Oracle.
 
-Use RDS when you need MariaDB, Oracle, or SQL Server (which Aurora doesn't support), or when you want predictable hourly pricing on a fixed instance. RDS is also simpler to reason about — one instance, one price, no ACU math.
+`instanceSize` sets CPU and memory. PostgreSQL prices in us-east-1, single-AZ, on-demand
+([RDS pricing](https://aws.amazon.com/rds/postgresql/pricing/)):
 
+| Instance | vCPU | RAM | Per month (730 hours) |
+|---|---|---|---|
+| `db.t4g.micro` | 2 | 1 GB | about $12 |
+| `db.t4g.medium` | 2 | 4 GB | about $47 |
+| `db.r6g.large` | 2 | 16 GB | about $164 |
 
-Example (TypeScript):
+The `t` family is burstable: it earns CPU credits while idle and slows down when it runs out under sustained load. It
+suits development and small production apps. The `r` family gives steady performance and more memory. Move to it when
+CPU stays above about 60% for long periods.
 
-```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
-export default defineConfig(() => {
-  const mainDatabase = new RelationalDatabase({
-    credentials: {
-      masterUserPassword: "$Secret('database', 'password')"
-    },
-    engine: new RdsEnginePostgres({
-      version: '16',
-      primaryInstance: {
-        instanceSize: 'db.t4g.micro'
-      }
-    })
-  });
-
-  return {
-    resources: { mainDatabase }
-  };
-});
-```
-
-
-The `instanceSize` determines CPU, memory, and network capacity. Common choices:
-
-| Instance | vCPU | RAM | Approximate cost |
-|----------|------|-----|-----------------|
-| `db.t4g.micro` | 2 | 1 GB | ~$12/month |
-| `db.t4g.medium` | 2 | 4 GB | ~$50/month |
-| `db.r6g.large` | 2 | 16 GB | ~$180/month |
-
-The `t` family is burstable — good for development and variable workloads where CPU usage spikes occasionally but averages low. Burstable instances accumulate CPU credits during idle time and spend them during spikes; if your workload sustains high CPU for extended periods, the instance throttles. The `r` family is memory-optimized — better for steady production workloads where you need consistent performance. For production databases handling real traffic, start with `db.t4g.medium` and monitor CPU metrics; move to `r` family if you see sustained utilization above 60%.
+Storage is billed separately; see [Storage](#storage).
 
 ### Aurora
 
-Aurora is a high-performance clustered database compatible with PostgreSQL or MySQL. Underneath, AWS Aurora replicates data across three availability zones automatically. If the primary instance fails, a read replica is promoted, usually within 30 seconds. Available engine types: `aurora-postgresql` and `aurora-mysql`, with corresponding classes `AuroraEnginePostgresql` and `AuroraEngineMysql`.
-
-Use Aurora when you need high availability with fast failover, read replicas for distributing query load, or when your workload is large enough that Aurora's performance advantage over standard RDS justifies the higher per-instance cost. Aurora is not worth the premium for small development databases — use RDS or Aurora Serverless v2 instead.
+Aurora is a clustered PostgreSQL- or MySQL-compatible database. It keeps six copies of your data across three
+availability zones. Engine types: `aurora-postgresql` and `aurora-mysql` (classes `AuroraEnginePostgresql` and
+`AuroraEngineMysql`).
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, RelationalDatabase, AuroraEnginePostgresql } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
@@ -145,19 +113,23 @@ export default defineConfig(() => {
 ```
 
 
-The `instances` array defines the cluster topology. The first entry is the primary (writer) instance; subsequent entries are read replicas. Reads are load-balanced across all instances. Aurora instances start at ~$35/month for `db.t3.small`. A two-instance cluster (writer + reader) provides automatic failover — if the primary fails, the reader is promoted in seconds. Adding more readers distributes read traffic but does not improve write performance.
+The first entry in `instances` is the writer, the others are readers. With two or more instances, AWS promotes a reader
+if the writer fails, usually within a minute. Readers share read traffic through the reader endpoint; they don't add
+write capacity. Each instance bills at its own hourly rate, plus storage at $0.10 per GB-month and $0.20 per million
+I/O requests ([Aurora pricing](https://aws.amazon.com/rds/aurora/pricing/)).
 
 ### Aurora Serverless v2
 
-Aurora Serverless v2 scales compute automatically from 0.5 to 128 ACUs in 0.5-ACU increments (~1 ACU ≈ 2 GB RAM). You pay only for the capacity consumed. Available engine types: `aurora-postgresql-serverless-v2` and `aurora-mysql-serverless-v2`, with corresponding classes `AuroraServerlessV2EnginePostgresql` and `AuroraServerlessV2EngineMysql`.
-
-This is the **recommended engine for most new projects**. It handles traffic spikes without manual intervention and costs less than fixed instances during quiet periods. The tradeoff is less predictable monthly costs — billing depends on actual usage, which varies. For development and staging stages, set `minCapacity` to `0.5` to minimize cost. For production, size `maxCapacity` to handle your expected peak traffic with headroom.
+Aurora Serverless v2 scales compute in Aurora capacity units (ACUs, about 2 GB of memory each) between `minCapacity`
+and `maxCapacity`. Engine types: `aurora-postgresql-serverless-v2` and `aurora-mysql-serverless-v2` (classes
+`AuroraServerlessV2EnginePostgresql` and `AuroraServerlessV2EngineMysql`). An ACU-hour costs $0.12 in us-east-1.
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, RelationalDatabase, AuroraServerlessV2EnginePostgresql } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
@@ -180,65 +152,52 @@ export default defineConfig(() => {
 ```
 
 
-The `minCapacity` (default `0.5`) controls how far down the database scales during idle periods. The `maxCapacity` (default `10`) caps both compute scaling and cost. A `maxCapacity` of `16` provides up to ~32 GB RAM — enough for most production workloads. You can add read replicas with `serverlessReadersCount` (default `0`, meaning writer only); each reader scales independently between the same min/max bounds.
+- **`minCapacity`**: when you leave it out, Stacktape sets 0. The database then pauses after about five minutes without
+  connections and you pay only for storage while it's paused. The first connection after a pause waits about 15 seconds
+  while it resumes. Set `0.5` or more to keep it running, which costs at least $44 a month at 0.5 ACU.
+- **`maxCapacity`** (default 10) caps scaling and cost. 16 ACUs give about 32 GB of memory.
+- **`serverlessReadersCount`** (default 0) adds readers. Each reader scales between the same bounds.
 
+Pausing at 0 ACUs needs a recent engine version (for example PostgreSQL 16.3 or later). A major version such as `'16'`
+always gets a current minor version.
 
-> **Info:** Aurora Serverless v2 engines only support `vpc` or `scoping-workloads-in-vpc` accessibility modes. The global default is `internet`, which is not valid for Aurora Serverless v2 — you must set one of the VPC modes explicitly. Standard RDS and provisioned Aurora support all four modes including `internet`.
+AWS retired Aurora Serverless v1 on 31 March 2025, and Stacktape v4 rejects its engine types
+(`aurora-postgresql-serverless`, `aurora-mysql-serverless`). To move a deployed v1 database, see
+[Upgrading from v3](/getting-started/upgrading-from-v3/#aurora-serverless-v1).
 
+## Database name, port and version
 
-### Aurora Serverless v1 is retired
+| Property | Default | Notes |
+|---|---|---|
+| `dbName` | `defdb` | The database created with the instance. For Oracle it's the SID (8 characters at most). SQL Server doesn't accept it. |
+| `port` | 5432 PostgreSQL, 3306 MySQL and MariaDB, 1521 Oracle, 1433 SQL Server | Not configurable on Aurora Serverless v2. |
+| `version` | Required | A release line (`'16'` for PostgreSQL, `'8.4'` for MySQL) or an exact version (`'16.9'`). |
 
-AWS retired Aurora Serverless v1 on 31 March 2025, and Stacktape v4 no longer deploys it. The `aurora-postgresql-serverless` and `aurora-mysql-serverless` engine types fail validation with a migration error. Use the Serverless v2 engines above. Serverless v2 does not pause when idle; it scales down to `minCapacity` (0.5 ACU at the lowest). To move a deployed v1 database, follow [Upgrading from v3](/getting-started/upgrading-from-v3/#aurora-serverless-v1).
-
-## Database name and port
-
-The `dbName` property sets the name of the database created when the instance first launches. For Aurora and Aurora Serverless engines, the default is `defdb`. For standard RDS, no default database is created unless you specify `dbName` explicitly. For Oracle engines, `dbName` sets the SID. The `dbName` property is not applicable to SQL Server engines.
-
-The `port` property overrides the default listening port. Most users should leave `port` unchanged unless integrating with tooling that requires a non-default port. Default ports by engine:
-
-| Engine | Default port |
-|--------|-------------|
-| PostgreSQL, Aurora PostgreSQL | 5432 |
-| MySQL, MariaDB, Aurora MySQL | 3306 |
-| Oracle | 1521 |
-| SQL Server | 1433 |
-
-Aurora Serverless v2 engines do not expose a configurable `port` property — they use the default port for the underlying engine.
-
-## Supported versions
-
-The `version` property on each engine specifies the database compatibility version. Supported versions are engine-specific and updated by AWS over time. Here are some current examples:
-
-| Engine | Example versions |
-|--------|-----------------|
-| PostgreSQL (RDS) | `18.1`, `17.7`, `16.11` |
-| MySQL (RDS) | `8.4.8`, `8.0.45` |
-| MariaDB (RDS) | `11.8.5`, `11.4.9`, `10.11.15` |
-| Aurora PostgreSQL | `17.7`, `16.11`, `15.15` |
-| Aurora MySQL | `8.0.mysql_aurora.3.11.1` |
-| Aurora PostgreSQL Serverless v2 | `16.11`, `15.15`, `14.20` |
-| Aurora MySQL Serverless v2 | `8.0.mysql_aurora.3.11.1` |
-
-By default, minor version upgrades are applied automatically (e.g., PostgreSQL 16.10 to 16.11). Set `disableAutoMinorVersionUpgrade: true` on the engine to control upgrade timing manually.
+With a release line, AWS runs a current minor version and applies new minor versions in the maintenance window.
+Switching a deployed database from `'16.6'` to `'16'` doesn't change the running version. Oracle and SQL Server need an
+exact version. Set `disableAutoMinorVersionUpgrade: true` on the engine to stop automatic minor upgrades.
 
 ## Accessibility
 
-Stacktape relational databases support four network access modes that control who can connect. The default is `internet`, which is the simplest for development but should be tightened for production.
+The access mode decides who can open a network connection to the database. The username and password are checked in
+every mode.
 
-| Mode | Who can connect | Best for |
-|------|----------------|----------|
-| `internet` (default) | Anyone with credentials | Development, quick prototyping |
-| `vpc` | Resources in the same VPC + whitelisted IPs | Shared dev environments |
-| `scoping-workloads-in-vpc` | Only resources with this DB in their `connectTo` | Production |
-| `whitelisted-ips-only` | Only listed IP addresses/CIDRs | External-only access |
+| Mode | Who can connect |
+|---|---|
+| `internet` (default) | Anyone on the internet who has the credentials |
+| `vpc` | Resources in the stack's VPC, plus `whitelistedIps` |
+| `scoping-workloads-in-vpc` | Only workloads that list the database in `connectTo`, plus `whitelistedIps` |
+| `whitelisted-ips-only` | Only the addresses in `whitelistedIps` |
 
-For production, use `scoping-workloads-in-vpc`. This restricts network access to only the compute resources that explicitly declare a dependency on the database via [`connectTo`](/configuration/connecting-resources). The database is still protected by username/password in all modes — accessibility controls the network layer on top of credentials. If you skip this for production, any client on the internet that guesses the credentials can connect.
+Use `scoping-workloads-in-vpc` for production. It admits only the workloads that declare the database in
+[`connectTo`](/configuration/connecting-resources).
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
@@ -263,41 +222,40 @@ export default defineConfig(() => {
 ```
 
 
-In `vpc` and `scoping-workloads-in-vpc` modes, `whitelistedIps` adds external IP addresses on top of VPC access — useful for allowing connections from your office or CI environment. In `whitelisted-ips-only` mode, only listed IPs can connect. The `whitelistedIps` option has no effect in `internet` mode.
+`whitelistedIps` adds addresses, for example your office or a CI runner, and has no effect in `internet` mode. In the
+VPC modes the database keeps a public IP address that only whitelisted addresses can reach. `forceDisablePublicIp: true`
+removes it. On Aurora you can set it only when you create the database.
 
-
-> **Info:** Aurora Serverless engines only support `vpc` or `scoping-workloads-in-vpc` modes. Standard RDS and provisioned Aurora support all four modes.
-
-
-The `forceDisablePublicIp` option removes the database's public IP entirely (VPC-only access). For Aurora, this can only be set at creation time and cannot be changed later.
+To connect from your machine to a database that isn't open to the internet, use a
+[bastion host](/resources/security/bastion-host) and [`stacktape bastion tunnel`](/cli/bastion-tunnel), or pass
+`--bastion-resource` to `stacktape query sql`.
 
 ## Credentials
 
-Every relational database requires a `masterUserPassword`. The `masterUserName` defaults to `db_master_user`. Store the password in a [Stacktape secret](/configuration/secrets) using `$Secret()` to keep it out of your config file and version control.
+`masterUserPassword` is required; `masterUserName` defaults to `db_master_user`. Keep the password in a
+[secret](/configuration/secrets) with `$Secret()`, as in the examples.
 
 
-> **Warning:** Changing `masterUserName` after the database is created **replaces the database and deletes all data**. Choose a username before your first deploy and do not change it afterward.
+> **Warning:** Changing `masterUserName` after the first deploy replaces the database and deletes all its data.
 
 
-Avoid special characters in both username and password: `[]{}(),;?*=!@`. These characters can cause issues with connection string parsing in many database drivers and ORMs.
+Avoid these characters in the username and password: `[]{}(),;?*=!@`. Many drivers and ORMs fail to parse connection
+strings that contain them.
 
 ## High availability and read replicas
 
-How you achieve high availability depends on your engine type. Each approach has different cost and operational tradeoffs.
-
-**Standard RDS** supports `multiAz` on the primary instance. This creates a standby replica in a second availability zone. If the primary fails, traffic fails over to the standby automatically. Multi-AZ also reduces downtime during maintenance windows. It doubles the instance cost but is worth it for any production database where downtime costs more than the mirror instance price.
-
-**Aurora** replicates data across three availability zones by default. Add read replicas by including more entries in the `instances` array. If the primary fails, a replica is promoted automatically. Unlike RDS multi-AZ, Aurora replicas serve read traffic — you pay for additional instances but get both failover and read scaling.
-
-**Aurora Serverless v2** also replicates across three AZs. Add read replicas with `serverlessReadersCount`. Each reader scales independently, which means idle readers cost very little (0.5 ACU minimum). This makes Aurora Serverless v2 replicas significantly cheaper than provisioned Aurora replicas at low utilization.
-
-For **standard RDS**, you can also add `readReplicas` to offload read traffic. Each replica gets its own endpoint, and data is replicated asynchronously from the primary. Read replicas are separate instances that add cost proportional to their size.
+- **Standard RDS**: `multiAz: true` on the primary instance keeps a standby copy in a second availability zone. AWS fails
+  over to it automatically and patches with less downtime. The standby serves no traffic and doubles the instance cost.
+  `readReplicas` adds instances that serve reads, each with its own endpoint and asynchronous replication.
+- **Aurora**: add instances to `instances`. Every extra instance is both a failover target and a reader.
+- **Aurora Serverless v2**: set `serverlessReadersCount`.
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
@@ -322,9 +280,11 @@ export default defineConfig(() => {
 
 ## Connecting from workloads
 
-Use [`connectTo`](/configuration/connecting-resources) to give your compute resources access to a database. Stacktape opens network access (security group rules) and injects environment variables with connection details.
-
-For workload `connectTo`, Stacktape injects `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`; Aurora also injects `STP_MAIN_DATABASE_READER_CONNECTION_STRING` and `STP_MAIN_DATABASE_READER_HOST`. For scripts in the `scripts` section, script `connectTo` also injects JDBC variants: `STP_MAIN_DATABASE_JDBC_CONNECTION_STRING` and, for Aurora, `STP_MAIN_DATABASE_READER_JDBC_CONNECTION_STRING`. The [`$ResourceParam()`](/configuration/directives) directive exposes all [referenceable parameters](#referenceable-parameters) including `jdbcConnectionString`, `dbName`, and replica-specific endpoints.
+List the database in a workload's [`connectTo`](/configuration/connecting-resources). Stacktape opens the network path
+(in the VPC modes) and injects one environment variable per [referenceable parameter](#referenceable-parameters). For a
+database named `mainDatabase` these include `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`,
+`STP_MAIN_DATABASE_PORT`, `STP_MAIN_DATABASE_DB_NAME` and `STP_MAIN_DATABASE_JDBC_CONNECTION_STRING`. Aurora adds the
+`READER_*` variants, and RDS read replicas add `READ_REPLICA_*` lists.
 
 
 Example (TypeScript):
@@ -337,6 +297,7 @@ import {
   LambdaFunction,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
@@ -349,7 +310,6 @@ export default defineConfig(() => {
       }
     })
   });
-
   const api = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
@@ -366,7 +326,8 @@ export default defineConfig(() => {
 ```
 
 
-Inside your handler, read the connection string from the environment:
+The connection string includes the username, password, host, port and database name. Prisma, Drizzle, TypeORM and most
+drivers accept it as is:
 
 ```typescript
 import { Client } from 'pg';
@@ -377,21 +338,24 @@ const client = new Client({
 await client.connect();
 ```
 
-The auto-generated connection string includes the database credentials and connection details. Most ORMs (Prisma, Drizzle, TypeORM) accept it directly. For cases that need individual parts (host, port, database name), use the [`$ResourceParam()`](/configuration/directives) directive or the dedicated environment variables listed above. All available parameters are listed in the [Referenceable parameters](#referenceable-parameters) section.
+A Lambda function opens a connection per concurrent execution. If a busy function exhausts the database's connection
+limit, reuse the client across invocations (create it outside the handler) or move to a larger instance.
 
 ## Storage
 
-Storage configuration applies to standard RDS engines only — Aurora manages storage automatically and scales transparently up to 128 TB.
+Standard RDS starts with 20 GB of gp3 storage (`storage.initialSize`) and grows automatically up to 200 GB
+(`storage.maxSize`) when free space runs low. You pay for the allocated size, not the maximum. Aurora manages storage
+itself and grows up to 128 TB.
 
-RDS storage defaults to 20 GB initial size (`storage.initialSize`) with auto-scaling up to 200 GB (`storage.maxSize`). When free space is low, AWS automatically expands the volume. You only pay for allocated storage, not the maximum. AWS RDS storage costs a few cents per GB/month (varies by region and storage type).
-
-For write-heavy workloads or larger datasets, increase `initialSize` to avoid frequent auto-scaling events, which can briefly reduce I/O performance. Set `maxSize` to cap storage costs and prevent runaway growth from application bugs or data retention issues.
+Raise `initialSize` for write-heavy workloads, because each automatic expansion can briefly slow I/O. Set `maxSize` to cap
+storage cost if a bug starts writing data in a loop.
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
@@ -416,28 +380,53 @@ export default defineConfig(() => {
 ```
 
 
+## Backups and maintenance
+
+AWS backs up the database every day. `automatedBackupRetentionDays` sets how long backups are kept (default 1 day):
+
+- Standard RDS accepts 0 to 35. 0 turns automated backups off.
+- Aurora accepts 1 to 35. Aurora backups can't be turned off.
+
+Raise it to 7 or more for production. With one day of backups, you can't go back past yesterday when someone finds bad
+data on Monday. A restore creates a new database from a backup; you do it in the AWS console and then point your config
+or workloads at the restored database.
+
+`preferredMaintenanceWindow` sets when AWS applies patches, in UTC (for example `Sun:02:00-Sun:04:00`). By default it's
+Sunday 02:00–04:00 in the region's local standard time, and the daily backup runs an hour before it. The database can be
+unavailable for a short time during maintenance; `multiAz` and Aurora readers shorten it.
+
+Deleting the stack, or removing the database from the config, deletes the database without a final snapshot.
+`deletionProtection: true` prevents that for production data. While it's on, `stacktape delete` lists the protected
+databases and stops before deleting anything, and a deploy can't remove or replace the database. To remove it, deploy
+with `deletionProtection: false` first.
+
 ## Logging
 
-Database logs are sent to CloudWatch and retained for 90 days by default. Available log types depend on the engine:
+Database logs go to CloudWatch and are kept for 90 days (`logging.retentionDays`). The log types depend on the engine:
 
-| Engine | Available log types |
-|--------|-------------------|
+| Engine | Log types |
+|---|---|
 | PostgreSQL | `postgresql` |
-| MySQL / MariaDB | `audit`, `error`, `general`, `slowquery` |
+| MySQL, MariaDB | `audit`, `error`, `general`, `slowquery` |
 | Oracle | `alert`, `audit`, `listener`, `trace` |
 | SQL Server | `agent`, `error` |
 
-PostgreSQL supports fine-grained logging via `engineSpecificOptions`. The `log_min_duration_statement` option (default 10000 ms) logs queries slower than the threshold — set to `1000` (1 second) for production to surface the slowest queries without flooding logs. The `log_statement` option (default `ddl`) controls which SQL statements are logged. For PostgreSQL, `log_statement` can be `none`, `ddl` (CREATE/ALTER/DROP), `mod` (ddl + INSERT/UPDATE/DELETE), or `all`; use `mod` or `all` only when the audit value is worth the extra log volume. Additional options include `log_connections`, `log_disconnections`, and `log_lock_waits` for connection tracking and lock contention debugging.
+`logging.engineSpecificOptions` tunes what gets logged:
 
-MySQL supports `server_audit_events` (default `['QUERY_DDL']`) to control what the audit log records. Supported values are `CONNECT`, `QUERY`, `QUERY_DDL`, `QUERY_DML`, `QUERY_DML_NO_SELECT`, and `QUERY_DCL`. Enabling `QUERY` or `QUERY_DML` logs every data operation and can generate significant log volume — use them for short-term audits rather than permanent monitoring. The `long_query_time` option (default 10 seconds) controls slow query detection.
-
-View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
+- **PostgreSQL**: `log_min_duration_statement` logs queries slower than this many milliseconds (default 10000).
+  `log_statement` picks the statements to log: `none`, `ddl` (default: `CREATE`, `ALTER`, `DROP`), `mod` (also `INSERT`,
+  `UPDATE`, `DELETE`) or `all`. `log_connections`, `log_disconnections` and `log_lock_waits` help with connection and
+  locking problems.
+- **MySQL**: `server_audit_events` (default `['QUERY_DDL']`) picks what the audit log records. `QUERY` and `QUERY_DML`
+  log every data operation and produce a lot of output. `long_query_time` (default 10 seconds) sets the slow query
+  threshold.
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
@@ -465,30 +454,32 @@ export default defineConfig(() => {
 ```
 
 
-Set `logging.disabled` to `true` to disable CloudWatch logging entirely — useful for cost-sensitive dev stages where you don't need persistent logs. You can also forward logs to external services using [log forwarding](/observability/log-forwarding).
+Read the logs with [`stacktape logs`](/cli/logs). `logging.disabled: true` turns CloudWatch logging off, and
+[log forwarding](/observability/log-forwarding) sends the logs to another service.
 
 ## Alarms
 
-Stacktape supports built-in alarm triggers for relational databases. You can monitor CPU utilization, free memory, free storage, connection count, and read/write I/O latency. Alarms can notify via Slack, MS Teams, email, Discord, or webhook. See [alarms](/observability/alarms) for details on setting up [alert channels](/observability/alert-channels).
+Database alarms notify your [alert channels](/observability/alert-channels) when a metric crosses a threshold. See
+[Alarms](/observability/alarms) for evaluation settings and channels.
 
-Available database alarm triggers:
-
-| Trigger type | Threshold unit | What it monitors |
-|-------------|---------------|-----------------|
+| Trigger type | Threshold unit | Watches |
+|---|---|---|
 | `database-cpu-utilization` | Percent | CPU usage |
-| `database-free-memory` | MB | Available RAM |
-| `database-free-storage` | MB | Available disk space |
-| `database-connection-count` | Count | Active connections |
+| `database-free-memory` | MB | Available memory |
+| `database-free-storage` | MB | Free disk space |
+| `database-connection-count` | Count | Open connections |
 | `database-read-latency` | Seconds | Read I/O latency |
 | `database-write-latency` | Seconds | Write I/O latency |
 
-At minimum, set up a `database-free-storage` alarm on every production database. Running out of storage causes the database to become read-only and can be difficult to recover from quickly.
+Set at least a `database-free-storage` alarm on every production database. A database that runs out of storage stops
+accepting writes.
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, RelationalDatabase, RdsEnginePostgres } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     credentials: {
@@ -523,19 +514,35 @@ export default defineConfig(() => {
 ```
 
 
-Each alarm trigger supports optional `evaluation` settings to control the evaluation window and avoid alerting on brief spikes. Define alarms in the database config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config; `disabledGlobalAlarms` excludes named legacy rules during migration.
-
-## Backups and maintenance
-
-AWS automatically takes daily backups of your database. The `automatedBackupRetentionDays` property controls how many days to keep backups (default `1`, range 0–35). Set to `0` to disable automated backups for RDS engines. For Aurora engines, keep the retention value at `1` or higher. For production databases, increase this to at least `7` — a 1-day retention means you can only recover to yesterday, which is rarely enough when a data corruption issue is discovered days later.
-
-The `preferredMaintenanceWindow` property sets when AWS applies patches and minor version upgrades (format: `Sun:02:00-Sun:04:00` in UTC). The database may be briefly unavailable during this window. Multi-AZ and Aurora reduce downtime during maintenance. Pick a window during your lowest-traffic period.
-
-Set `deletionProtection` to `true` on production databases to prevent accidental deletion. You must deploy with `deletionProtection: false` before Stacktape can delete the database. Until then, `stacktape delete` stops before deleting anything and lists the protected databases, and a deploy cannot remove or replace them.
+`disabledGlobalAlarms` excludes named legacy Console alarm rules while you
+[export them into the config](/observability/alarms#migrating-legacy-console-alarm-rules).
 
 ## Dev mode
 
-The `dev` property controls how this database behaves during [`stacktape dev`](/local-development/dev-mode-overview). By default, databases run locally in Docker during dev mode. Set `dev.remote` to `true` to connect to the real deployed resource instead (must be deployed first). Using `remote: true` is useful when local emulation doesn't match production behavior closely enough, or when you need to work with real data. See [local databases](/local-development/local-databases) for details on how local database emulation works.
+In [`stacktape dev`](/local-development/dev-mode-overview), PostgreSQL, MySQL, MariaDB and Aurora databases run
+locally in Docker with their own generated password. Oracle and SQL Server can't run locally. Set `dev.remote: true` to
+use the deployed database instead. See [Local databases](/local-development/local-databases).
+
+## Configuration reference
+
+
+### Definition: `RelationalDatabaseProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/relational-database` with definition name `RelationalDatabaseProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `credentials` | yes | `RelationalDatabaseCredentials` | - |
+| `engine` | yes | `AuroraEngine \| AuroraServerlessV2Engine \| RdsEngine` | - |
+| `accessibility` | no | `DatabaseAccessibility` | - |
+| `alarms` | no | `Array<RelationalDatabaseAlarm>` | - |
+| `automatedBackupRetentionDays` | no | `number` | `1` |
+| `deletionProtection` | no | `boolean` | `false` |
+| `dev` | no | `DevModeConfig` | - |
+| `disabledGlobalAlarms` | no | `Array<string>` | - |
+| `logging` | no | `RelationalDatabaseLogging` | - |
+| `preferredMaintenanceWindow` | no | `string` | - |
+
 
 ## Referenceable parameters
 
@@ -558,49 +565,18 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `readReplicaJdbcConnectionStrings` | Same as **readReplicaConnectionStrings** but in JDBC format (only available when read replicas are configured). | `$ResourceParam("<<resource-name>>", "readReplicaJdbcConnectionStrings")` |
 
 
-## API Reference
-
-
-### Definition: `RelationalDatabaseProps`
-
-The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/relational-database` with definition name `RelationalDatabaseProps`.
-
-| Property | Required | Type | Default |
-| --- | --- | --- | --- |
-| `credentials` | yes | `RelationalDatabaseCredentials` | - |
-| `engine` | yes | `AuroraEngine \| AuroraServerlessV2Engine \| RdsEngine` | - |
-| `accessibility` | no | `DatabaseAccessibility` | - |
-| `alarms` | no | `Array<RelationalDatabaseAlarm>` | - |
-| `automatedBackupRetentionDays` | no | `number` | `1` |
-| `deletionProtection` | no | `boolean` | `false` |
-| `dev` | no | `DevModeConfig` | - |
-| `disabledGlobalAlarms` | no | `Array<string>` | - |
-| `logging` | no | `RelationalDatabaseLogging` | - |
-| `preferredMaintenanceWindow` | no | `string` | - |
-
-
 ## FAQ
 
-### When should I use Aurora Serverless v2 vs standard RDS?
+### How do I run database migrations?
 
-Aurora Serverless v2 is the best default for most new projects. It auto-scales compute so you don't need to predict traffic, and it costs less than a fixed instance during low-usage periods. Use standard RDS when you need MariaDB, Oracle, or SQL Server (which Aurora doesn't support), or when your workload is steady enough that a fixed instance gives simpler cost forecasting. Standard RDS also starts cheaper at ~$12/month for `db.t4g.micro` vs Aurora Serverless v2's per-ACU-hour pricing.
+Run them from a [hook](/configuration/hooks-and-scripts) after each deploy. Define a `local-script` with
+`connectTo: ['mainDatabase']`, which injects the same `STP_MAIN_DATABASE_*` variables, and call it from
+`hooks.afterDeploy`. For a database that isn't open to the internet, use a `local-script-with-bastion-tunneling` script
+and a [bastion host](/resources/security/bastion-host).
 
-### How do I run database migrations with Stacktape?
+### Can I change the engine or instance size later?
 
-Define a script of type `local-script` in the `scripts` section of your config with `connectTo` set to include the database resource name, then reference the script from `hooks.afterDeploy` using `scriptName`. Stacktape injects the connection string environment variable into your script automatically. For databases behind a VPC, use a script of type `local-script-with-bastion-tunneling` to tunnel through a [bastion host](/resources/security/bastion-host). See [hooks and scripts](/configuration/hooks-and-scripts) for the full setup.
-
-### How much does a Stacktape relational database cost?
-
-Standard RDS starts at ~$12/month for `db.t4g.micro` and scales up with instance size — `db.t4g.medium` (~$50/month) or `db.r6g.large` (~$180/month). Storage is billed separately (a few cents per GB/month for the allocated, not maximum, size) and `multiAz` roughly doubles the instance cost. Aurora instances start at ~$35/month. Aurora Serverless v2 bills per ACU-hour between your `minCapacity` and `maxCapacity` with no fixed instance commitment, so it costs less during quiet periods but has less predictable monthly totals.
-
-### Can I connect to my Stacktape database from my local machine?
-
-Yes. By default, databases use `internet` accessibility mode (except Aurora Serverless, which requires VPC modes), so you can connect from anywhere with the credentials. For VPC-restricted databases, use a [bastion host](/resources/security/bastion-host) and the [`stacktape bastion tunnel`](/cli/bastion-tunnel) command to create a secure tunnel. You can also whitelist your IP address using `accessibility.whitelistedIps` in `vpc` or `scoping-workloads-in-vpc` modes.
-
-### How do I back up and restore my database?
-
-AWS automatically takes daily backups and retains them based on `automatedBackupRetentionDays` (default 1 day, range 0–35); for production, raise this to at least 7 so you can recover from corruption discovered days later. Restoring from a snapshot creates a new database instance and is done through the AWS console, not through Stacktape config. Note that `deletionProtection: true` blocks deletion entirely — you must redeploy with it set to `false` before Stacktape can delete the database.
-
-### How do I choose the right RDS instance size?
-
-Start with `db.t4g.micro` (2 vCPU, 1 GB RAM, ~$12/month) for development and testing. For small production workloads, `db.t4g.medium` (2 vCPU, 4 GB RAM, ~$50/month) handles most low-traffic applications. The `t` family is burstable — cost-effective for variable workloads but throttled under sustained high CPU. For production with consistent traffic, use the `r` family (memory-optimized), starting with `db.r6g.large` (2 vCPU, 16 GB RAM, ~$180/month). Monitor CPU and memory metrics through [alarms](#alarms) and resize when you see sustained high utilization.
+Changing `instanceSize` or `multiAz` updates the instance in place, with a short interruption for a size change.
+Changing the engine type, for example from RDS to Aurora, replaces the database: the deploy creates an empty new one and
+deletes the old one with its data. Dump the data first and restore it into the new database, and keep
+`deletionProtection` on so a deploy can't delete the old database by accident.

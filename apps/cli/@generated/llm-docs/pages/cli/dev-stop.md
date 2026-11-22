@@ -49,9 +49,7 @@ You can combine `--cleanup-containers` with `--agent-port` to both clean up cont
 stacktape dev stop --cleanup-containers --agent-port 7332
 ```
 
-## Flags reference
-
-All flags accepted by `stacktape dev stop`. None are required — the command discovers and stops agents automatically when possible.
+## Options
 
 
 ## CLI Options: `stacktape dev stop`

@@ -47,10 +47,6 @@ stacktape container shell myWorkload --stage production --region eu-west-1 --con
 
 When the target resource has multiple running tasks (for example, a scaled-out web service), the CLI prompts you to choose which instance to connect to. Each option shows the task ID and its start time so you can identify the right one.
 
-## Arguments reference
-
-<CliCommandsApiReference command="container:session" />
-
 ## Common errors
 
 - **Resource cannot be resolved** — Stacktape throws an error when the resource name does not match a deployed workload with an ECS task definition. Check that the resource name matches a deployed workload in the target stage and AWS region.
@@ -77,6 +73,10 @@ Open a bash session:
 ```bash
 stacktape container shell backend --stage staging --region us-west-2 --command /bin/bash
 ```
+
+## Options
+
+<CliCommandsApiReference command="container:session" />
 
 ## Related commands
 

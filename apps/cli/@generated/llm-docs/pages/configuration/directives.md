@@ -11,7 +11,7 @@ A Stacktape configuration file describes your entire infrastructure declarativel
 - The stage name determines which domain prefix to use.
 - A shared infrastructure stack exports values that dependent stacks consume.
 
-Directives solve these problems by deferring value resolution to the right moment — either when Stacktape parses your config (local directives) or when CloudFormation deploys your resources (runtime directives).
+Directives solve these problems by deferring value resolution to the right moment: either when Stacktape parses your config (local directives) or when CloudFormation deploys your resources (runtime directives).
 
 ## Local vs runtime directives
 
@@ -30,7 +30,7 @@ Runtime directives are supported in `resources`, `scripts` and `cloudformationRe
 
 ## Using directives in TypeScript
 
-In TypeScript configuration, Stacktape exposes runtime directive helpers as functions you import from the `stacktape` package. For local operations like variable access, string interpolation, and file loading, you can use native JavaScript instead — template literals, `import`, and `fs.readFileSync` cover most of what `$Var`, `$Format`, and `$File` do in YAML configs.
+In TypeScript configuration, Stacktape exposes runtime directive helpers as functions you import from the `stacktape` package. For local operations like variable access, string interpolation, and file loading, you can use native JavaScript instead: template literals, `import`, and `fs.readFileSync` cover most of what `$Var`, `$Format`, and `$File` do in YAML configs.
 
 
 Example (TypeScript):
@@ -126,7 +126,7 @@ export default defineConfig(() => {
 ```
 
 
-In TypeScript, the `stage` value is also available directly from the `defineConfig` callback parameter — `defineConfig(({ stage }) => { ... })`. Use the callback parameter when you need native JavaScript operations like template literals for domain names (e.g., `` `${stage}-api.example.com` ``).
+In TypeScript, the `stage` value is also available directly from the `defineConfig` callback parameter: `defineConfig(({ stage }) => { ... })`. Use the callback parameter when you need native JavaScript operations like template literals for domain names (e.g., `` `${stage}-api.example.com` ``).
 
 ### $Region()
 
@@ -163,7 +163,7 @@ In TypeScript configs, prefer template literals for ordinary local string compos
 
 `$Var()` references the `variables` section in directive-based (YAML) config. In YAML, access nested properties with dot notation: `$Var().myProperty.nested`.
 
-In TypeScript config, use regular JavaScript variables instead — that is clearer and keeps values type-checkable. For example, `const instanceSize = 'db.t4g.micro';` and use `instanceSize` wherever needed.
+In TypeScript config, use regular JavaScript variables instead: that is clearer and keeps values type-checkable. For example, `const instanceSize = 'db.t4g.micro';` and use `instanceSize` wherever needed.
 
 ### $File()
 
@@ -209,7 +209,7 @@ export default defineConfig(() => {
 
 ### $FileRaw()
 
-Reads a file as a raw UTF-8 string without parsing. Use it when you need the literal file content — for example, embedding a JSON config as a string environment variable or reading a template file.
+Reads a file as a raw UTF-8 string without parsing. Use it when you need the literal file content: for example, embedding a JSON config as a string environment variable or reading a template file.
 
 ### $GitInfo()
 
@@ -262,7 +262,7 @@ In your config, reference them with `$CliArgs('featureFlag')`. The optional seco
 
 ### $StackOutput()
 
-References an exported output from another deployed CloudFormation stack. The referenced stack must already be deployed. This is a **local** directive — it fetches the value at config-parse time by querying CloudFormation.
+References an exported output from another deployed CloudFormation stack. The referenced stack must already be deployed. This is a **local** directive: it fetches the value at config-parse time by querying CloudFormation.
 
 Arguments: `$StackOutput('stackName', 'outputName')` with an optional third argument for `region` when importing from a stack in another AWS region.
 
@@ -282,7 +282,7 @@ Returns the AWS account ID of the target account. Use it when you need the accou
 
 ### $This()
 
-`$This()` is a YAML-only directive that returns the raw configuration object. In YAML, access nested properties with dot notation: `$This().resources.myApi`. In TypeScript, this directive has no import — reference variables and resource objects directly since they are already in scope.
+`$This()` is a YAML-only directive that returns the raw configuration object. In YAML, access nested properties with dot notation: `$This().resources.myApi`. In TypeScript, this directive has no import: reference variables and resource objects directly since they are already in scope.
 
 ## Runtime directives reference
 
@@ -319,7 +319,7 @@ Deployment fails with an error if Stacktape cannot fetch the named secret, with 
 > **Warning:** The secret's `VersionId` is baked into the CloudFormation template at deploy time. If you update a secret in AWS Secrets Manager after deployment, the running stack continues using the old version until you redeploy. This means secret rotation requires a redeployment to take effect.
 
 
-When the CLI resolves `$Secret()` locally, including in `stacktape dev` and scripts, it reads the current secret value (`AWSCURRENT`), just as `$SsmParam()` reads the current parameter value. A prior deployment does not pin local directive resolution. See [Secrets](/configuration/secrets#how-secret-resolution-works) for the distinction between local directives and deployed database credentials.
+When the CLI resolves `$Secret()` locally, including in `stacktape dev` and scripts, it reads the current secret value (`AWSCURRENT`), just as `$SsmParam()` reads the current parameter value. A prior deployment does not pin local directive resolution. See [Secrets](/configuration/secrets#update-and-rotate) for the distinction between local directives and deployed database credentials.
 
 For a secret that stores a JSON object, pass the top-level key as the second argument: `$Secret('secret-name', 'key')`. The first argument is always the exact secret name, so it can contain dots. Omit the key, or pass `''`, to use the whole secret.
 
@@ -359,7 +359,7 @@ When prompted, provide a name (e.g., `api-keys`) and a JSON value (e.g., `{"stri
 
 ### $SsmParam()
 
-References a parameter from AWS Systems Manager Parameter Store. `$SsmParam()` reads the parameter and uses the secure dynamic reference form (`ssm-secure`) when AWS reports the parameter type as `SecureString`; otherwise it uses the standard SSM dynamic reference form (`ssm`). During deployment, `$SsmParam()` reads the current parameter version and injects a CloudFormation dynamic reference pinned to that version — updating the SSM parameter requires a redeployment to pick up the new value. Use SSM parameters when integrating with other AWS tools that write to Parameter Store or when managing configuration values outside your Stacktape config.
+References a parameter from AWS Systems Manager Parameter Store. `$SsmParam()` reads the parameter and uses the secure dynamic reference form (`ssm-secure`) when AWS reports the parameter type as `SecureString`; otherwise it uses the standard SSM dynamic reference form (`ssm`). During deployment, `$SsmParam()` reads the current parameter version and injects a CloudFormation dynamic reference pinned to that version: updating the SSM parameter requires a redeployment to pick up the new value. Use SSM parameters when integrating with other AWS tools that write to Parameter Store or when managing configuration values outside your Stacktape config.
 
 
 Example (TypeScript):
@@ -385,7 +385,7 @@ export default defineConfig(() => {
 ```
 
 
-SSM parameters support hierarchical paths (e.g., `/myapp/prod/database/host`). The referenced parameter must exist before deployment — if missing, deployment fails with a directive error.
+SSM parameters support hierarchical paths (e.g., `/myapp/prod/database/host`). The referenced parameter must exist before deployment: if missing, deployment fails with a directive error.
 
 
 > **Info:** `$Secret` resolves values from AWS Secrets Manager. `$SsmParam` resolves values from SSM Parameter Store. Use `$Secret` for credentials and sensitive values. Use `$SsmParam` for configuration parameters, feature flags, and values managed outside Stacktape.
@@ -458,7 +458,7 @@ export default defineConfig(() => {
 ```
 
 
-The first argument is the logical ID of the CloudFormation resource. The second argument is the attribute name — either a `GetAtt` attribute (like `TopicArn`, `Arn`, `DomainName`) or a `Ref` attribute (which returns the resource's primary identifier). For `AWS::CloudFormation::CustomResource` types, any attribute name is accepted. Available attributes for standard types depend on the CloudFormation resource type — see the [AWS CloudFormation documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each type's return values.
+The first argument is the logical ID of the CloudFormation resource. The second argument is the attribute name: a `GetAtt` attribute such as `TopicArn`, `Arn` or `DomainName`, or a `Ref` attribute, which returns the resource's primary identifier. For `AWS::CloudFormation::CustomResource` types, any attribute name is accepted. Available attributes for standard types depend on the CloudFormation resource type; see the [AWS CloudFormation documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each type's return values.
 
 ### $CfFormat()
 
@@ -510,7 +510,7 @@ The key difference from `$Format()`: `$CfFormat()` accepts other runtime directi
 
 ### $CfStackOutput()
 
-References an exported output from another deployed stack, resolved at CloudFormation deployment time. Unlike `$StackOutput()` (which fetches the value locally), `$CfStackOutput()` creates a CloudFormation `ImportValue` dependency — this means **the referenced stack cannot be deleted** while this stack exists, protecting shared infrastructure from accidental removal.
+References an exported output from another deployed stack, resolved at CloudFormation deployment time. Unlike `$StackOutput()` (which fetches the value locally), `$CfStackOutput()` creates a CloudFormation `ImportValue` dependency: this means **the referenced stack cannot be deleted** while this stack exists, protecting shared infrastructure from accidental removal.
 
 
 Example (TypeScript):
@@ -535,7 +535,7 @@ export default defineConfig(() => {
 ```
 
 
-Arguments: `$CfStackOutput('stackName', 'outputName', region?)`. The `stackName` is the full CloudFormation stack name. The `outputName` must match the CloudFormation output key of the referenced stack. Both `$StackOutput` and `$CfStackOutput` accept an optional `region` argument — Stacktape uses it to look up the referenced stack and validate the export exists. The key difference: `$StackOutput` returns the resolved value at config-parse time, so cross-region lookups work directly. `$CfStackOutput` returns a CloudFormation `ImportValue` intrinsic, which only resolves within the deployment region. Use `$StackOutput` when you need a value from a stack in another region.
+Arguments: `$CfStackOutput('stackName', 'outputName', region?)`. The `stackName` is the full CloudFormation stack name. The `outputName` must match the CloudFormation output key of the referenced stack. Both `$StackOutput` and `$CfStackOutput` accept an optional `region` argument: Stacktape uses it to look up the referenced stack and validate the export exists. The key difference: `$StackOutput` returns the resolved value at config-parse time, so cross-region lookups work directly. `$CfStackOutput` returns a CloudFormation `ImportValue` intrinsic, which only resolves within the deployment region. Use `$StackOutput` when you need a value from a stack in another region.
 
 
 > **Warning:** The referenced output must be exported from its stack. Unexported outputs cannot be referenced and will cause a deployment error.
@@ -548,11 +548,11 @@ Arguments: `$CfStackOutput('stackName', 'outputName', region?)`. The `stackName`
 
 ## Directive nesting
 
-Directives can be nested up to two levels deep. A valid 2-level nesting is a directive inside another directive — for example, `$CfFormat('{}/api', $ResourceParam('api', 'url'))`. Three levels of nesting (a directive inside a directive inside a directive) causes an error. In YAML configs, nesting a runtime directive inside a local directive is also not possible because local directives resolve before deployment begins.
+Directives can be nested up to two levels deep. A valid 2-level nesting is a directive inside another directive: for example, `$CfFormat('{}/api', $ResourceParam('api', 'url'))`. Three levels of nesting (a directive inside a directive inside a directive) causes an error. In YAML configs, nesting a runtime directive inside a local directive is also not possible because local directives resolve before deployment begins.
 
-If you need what would be three levels, break the innermost level into a `variables` entry so it resolves first. In YAML, define a variable like `stagePrefix: $Format('{}-', $Stage())` and then reference it as `$Var().stagePrefix` inside the outer directive — this reduces the effective nesting depth to two. In TypeScript, this limit rarely matters because you use plain JavaScript variables for local operations, avoiding the YAML directive nesting chain entirely.
+If you need what would be three levels, break the innermost level into a `variables` entry so it resolves first. In YAML, define a variable like `stagePrefix: $Format('{}-', $Stage())` and then reference it as `$Var().stagePrefix` inside the outer directive: this reduces the effective nesting depth to two. In TypeScript, this limit rarely matters because you use plain JavaScript variables for local operations, avoiding the YAML directive nesting chain entirely.
 
-Example — valid 2-level nesting of `$ResourceParam` inside `$CfFormat`:
+Example: valid 2-level nesting of `$ResourceParam` inside `$CfFormat`:
 
 
 Example (TypeScript):
@@ -625,7 +625,7 @@ Not every dynamic value needs a directive. Consider the alternatives:
 
 ### Can I use $ResourceParam to reference a resource in a different stack?
 
-No. `$ResourceParam` only references resources within the same stack. For cross-stack references, use `$StackOutput` (local resolution, no deletion protection) or `$CfStackOutput` (runtime resolution with deletion protection). Both require the referenced output to be exported from its source stack — unexported outputs cannot be referenced and cause a deployment error. See [Referenceable parameters](/configuration/referenceable-parameters) for per-resource parameter details.
+No. `$ResourceParam` only references resources within the same stack. For cross-stack references, use `$StackOutput` (local resolution, no deletion protection) or `$CfStackOutput` (runtime resolution with deletion protection). Both require the referenced output to be exported from its source stack: unexported outputs cannot be referenced and cause a deployment error. See [Referenceable parameters](/configuration/referenceable-parameters) for per-resource parameter details.
 
 ### Why can't I use $Secret in the variables section?
 
@@ -637,7 +637,7 @@ Use `$CliArgs()` to read arguments passed after `--` in the deploy command. For 
 
 ### What happens if a referenced secret doesn't exist?
 
-Deployment fails with an error identifying the missing secret and suggesting you create it with [`stacktape secret set`](/cli/secret-set). Similarly, a missing `$SsmParam` parameter fails deployment with a directive error. Always create secrets and parameters before deploying stacks that reference them.
+In a terminal, `stacktape deploy` lists the missing secrets and SSM parameters and asks for their values before it changes anything. In a pipeline or for a coding agent, it fails and names them; create them with [`stacktape secret set`](/cli/secret-set) first. Database passwords are generated for you. See [Secrets](/configuration/secrets#when-a-secret-does-not-exist).
 
 ### How does $CfStackOutput prevent accidental deletion?
 
@@ -645,11 +645,11 @@ Deployment fails with an error identifying the missing secret and suggesting you
 
 ### Can I import an output from a stack in another region?
 
-Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at config-parse time, so its optional `region` argument lets it read an export from a stack in a different region. `$CfStackOutput` produces a CloudFormation `ImportValue`, which only resolves within the deployment region — cross-region imports don't work with it. Use [`stacktape status`](/cli/info-stack) to find the exact `outputName` (it must match the stack's CloudFormation `OutputKey`).
+Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at config-parse time, so its optional `region` argument lets it read an export from a stack in a different region. `$CfStackOutput` produces a CloudFormation `ImportValue`, which only resolves within the deployment region: cross-region imports don't work with it. Use [`stacktape status`](/cli/info-stack) to find the exact `outputName` (it must match the stack's CloudFormation `OutputKey`).
 
 ### How do I access JSON properties from $Secret?
 
-Pass a top-level key as the second argument to read one value from a JSON secret: `$Secret('my-secret', 'apiKey')`, where `my-secret` is the secret name and `apiKey` is a top-level key in the JSON object. Nested key traversal is not supported. The secret value must be valid JSON — if it isn't, Stacktape reports a parsing error.
+Pass a top-level key as the second argument to read one value from a JSON secret: `$Secret('my-secret', 'apiKey')`, where `my-secret` is the secret name and `apiKey` is a top-level key in the JSON object. Nested key traversal is not supported. The secret value must be valid JSON: if it isn't, Stacktape reports a parsing error.
 
 ### How do runtime directives resolve in dev mode?
 

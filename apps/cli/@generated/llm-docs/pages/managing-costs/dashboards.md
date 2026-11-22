@@ -1,62 +1,54 @@
 # Cost dashboards
 
-The Stacktape Console shows your AWS spend per project, stage and resource. You can follow one bill from the whole organization down to the resource that drives it: the Overview page, then the **Costs** page, then the costs of one stage.
+The Console shows your AWS spend by project, stage and resource, so you can follow the bill down to the resource that drives it. Open **Organization → Costs**, pick a month, then click a stage to see its resources. The numbers come from the cost reports of your connected AWS accounts. AWS bills them to you; the Stacktape fee is not part of them.
 
-All numbers come from the cost reports of your AWS accounts and are billed by AWS. The Stacktape subscription is billed separately and does not appear here. See [Billing and subscription](/stacktape-console/billing-and-subscription).
+## The Costs page
 
+**Organization → Costs** opens on this month, for all your AWS accounts. The sidebar shows it to Owners and Admins; Developers and Viewers open it with **View costs** on the Projects home and see only the projects they can access. The filters at the top pick the **Month**, one AWS account or all of them, and one project or all of them. **Report updated** at the right says when AWS last refreshed the numbers.
 
-> **Info:** Cost reports are generated daily. A new stack can take up to a day to appear.
+The summary shows:
 
+- **The month's total**, with where it ends at this pace and last month's total for comparison.
+- **Month by month**: a chart of the months before. Click a bar to open that month.
+- **Where it goes**: each project's share of the month, plus **Outside projects** for spend that belongs to no stack, such as AWS Support or resources you created by hand. AWS credits are subtracted at the bottom.
+- **The Stacktape fee**: on Flexible, the fee so far this month; on Free, how close the organization is to the $200 limit. It appears for members who can see billing, and only for all accounts and all projects, because the fee is charged on the whole organization. See [Billing and subscription](/stacktape-console/billing-and-subscription).
 
-## Organization: the Overview page
+Below the summary, two tabs list the details:
 
-The Overview page shows **Project costs this month** with last month's total for comparison. The **Cost drivers** panel shows where this month's attributed spend comes from, by project or by resource. Click **View costs** to open the Costs page.
+- **Stages**: every stage with costs, with its project, its largest AWS charge, the month's cost and the month before. A stage without a report for the month shows **Not reported**.
+- **Outside projects**: the services and resources outside your stacks, with their cost.
 
-## AWS account: the Costs page
+The month picker always offers this month and the 23 before it. Stacktape has reports only from when an account was connected, so earlier months are empty, not zero. When an account has no report for a month yet, the page names it under the total as **Not counted**.
 
-Open **Costs** in the Organization group. Pick an AWS account and a month at the top. The page shows:
+## A stage's costs
 
-- **Projects this month**: the spend of all project stages in the account, and how many stages had costs.
-- **Not from a project**: spend in the account that belongs to no stack, such as AWS Support. It appears only when there is some.
-- A table of stages with the project and stage, the region and the month-to-date cost, the most expensive first. **Report updated** at the top says when AWS last refreshed the report.
-
-The month picker covers the months so far this year and all 12 months of last year. Stacktape has reports only for the months the account was connected.
-
-## Stage: costs per resource
-
-Click a row on the Costs page to open the **Costs** tab of that stage. It lists each resource with its Stacktape name, AWS resource type and cost for the month, and the total above. Pick another month to compare.
+Click a stage on the Costs page, or open the stage in **Projects** and its **Costs** tab. You see the stage's total for the month, how it compares with the month before, and one row per resource with its type and cost. When you compare with a past month, the rows are sorted by the largest change first.
 
 Use it to answer questions like these:
 
-- Which resource in this stage is the most expensive?
-- Is the database or the compute driving the cost?
-- Did a recent deploy make a resource more expensive? Compare the month before and after.
-- Is `staging` sized like `production`? Open both stages and compare the rows.
+- **What made this stage more expensive?** Pick the month and read the change column from the top.
+- **Is the database or the compute driving the cost?** Compare the rows for the month.
+- **Is `staging` sized like `production`?** Open both stages for the same month.
 
-When you know what drives the bill, set a [budget](/managing-costs/budgets) based on the real spend, or follow the [cost optimization tips](/managing-costs/optimization-tips) for that resource type.
+A resource you removed from the config still shows its costs for the months it existed. Click its row to see its AWS type, CloudFormation logical ID and physical ID, which you can copy to find it in the AWS console. Costs that AWS reports for the stage but can't tie to one resource show as **Other AWS costs**.
 
-## FAQ
+When you know what drives the bill, set a [budget](/managing-costs/budgets) on the account, or follow the [cost optimization tips](/managing-costs/optimization-tips) for that resource type.
 
-### Why is no cost data showing for my stack?
+## When numbers are missing
 
-Cost reports are generated daily, so a stack deployed today may not appear yet. Check that you picked the right AWS account and month. A month before the account was connected has no report.
+| What you see | What it means |
+|---|---|
+| No costs for a stage deployed today | AWS reports costs about a day after they occur. |
+| **Report updated** in yellow with "recent costs may be missing" | The current month's report hasn't been refreshed for a while, so the last days can be missing. |
+| **Not reported**, or a month without data | The account has no cost report for that month, for example before it was connected. That is not the same as $0. |
+| A $0 row | AWS reported the stage, and it cost nothing that month. |
 
-### Does Stacktape add any markup to AWS costs?
-
-No. AWS bills infrastructure directly to your AWS account, and the dashboards show those charges as they are. The Stacktape subscription is separate.
+## Cost dashboards FAQ
 
 ### How is this different from AWS Cost Explorer?
 
-AWS Cost Explorer shows every charge in the account, grouped by service or tag. The Console groups the costs it can attribute by stack (project, stage and region) and then by resource, which is how you think about your app. Use the Console for stack-level costs and Cost Explorer for account-wide trends.
+Cost Explorer shows every charge in the account, grouped by service or tag. The Console groups the costs it can attribute by project and stage, then by resource, which is how you think about your app. It shows everything else as **Outside projects**. Use the Console for stack costs and Cost Explorer for account-wide analysis.
 
 ### Why is my database the most expensive resource?
 
-Relational databases run all the time and charge by the hour for the instance, plus storage and I/O. Unlike Lambda functions, which cost nothing while idle, a database keeps its baseline cost with no traffic. See [relational databases](/resources/databases/relational-database) for smaller and serverless options.
-
-### Can I compare costs across multiple AWS accounts?
-
-Yes. Each account's costs are shown on their own. Switch the AWS account at the top of the Costs page to compare them.
-
-### Can I get an alert when costs exceed a threshold?
-
-Yes. A budget sets a monthly limit for one connected AWS account and alerts your channels when actual or forecasted spend crosses a percentage of it. See [Budgets](/managing-costs/budgets).
+Relational databases run all the time and charge by the hour for the instance, plus storage and I/O. Unlike a Lambda function, which costs nothing while idle, a database keeps its baseline cost with no traffic. See [relational databases](/resources/databases/relational-database) for smaller and serverless options.
