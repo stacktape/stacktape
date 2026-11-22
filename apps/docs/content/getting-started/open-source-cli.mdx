@@ -36,10 +36,11 @@ The stack goes to the AWS account those credentials belong to. Resources get AWS
 | Deploy, update, roll back and delete stacks | Works | Runs against AWS with your credentials |
 | Dev mode, scripts, bastion tunnels and container sessions | Works | Runs on your machine and in your AWS account |
 | Logs, metrics, secrets and parameters | Works | Read from your AWS account |
+| Synthetic tests | Works | CloudWatch Synthetics runs them in your AWS account; the Console adds a page with each run |
 | Alarms in your configuration, with `slack`, `ms-teams`, `discord`, `email` or `webhook` channels | Works | CloudWatch alarms live in your AWS account, and the stack delivers these notifications itself |
 | Deploy history, costs and team access | Needs the Console | Stored by Stacktape and shared by your team |
 | Alarm channels of type `console-channel` and `slack-app`, and deploy notifications | Needs the Console | The Console delivers these alerts |
-| Uptime checks and synthetic tests | Needs the Console | Stacktape runs the probes from outside your account |
+| Uptime checks | Needs the Console | Stacktape runs the probes from outside your account |
 | Error tracking, incidents and incident AI | Needs the Console | Stacktape stores and groups the events |
 | Default `*.stacktape-app.com` domains, including the one a load balancer without its own domain needs for HTTPS | Needs the Console | Stacktape owns that domain |
 | Git deployments, PR previews and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |

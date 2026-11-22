@@ -106,7 +106,7 @@ For [web services](/resources/compute/web-service), the load balancing type dire
 **`network-load-balancer`** is for non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols — use it only when you need raw TCP. It does not support CDN, top-level firewall, or gradual deployments.
 
 <Tip>
-Most teams should start with the default `http-api-gateway`. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your request volume makes the flat monthly cost cheaper than per-request pricing.
+Most teams should start with the default `http-api-gateway`. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your request volume makes its hourly cost cheaper than per-request pricing.
 </Tip>
 
 ## Right-size Lambda memory
@@ -119,7 +119,7 @@ Set `timeout` to the lowest value your function needs. Timeouts don't affect cos
 
 ## Right-size container resources
 
-For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape metrics`](/cli/metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
+For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or in CloudWatch. If utilization is consistently below 30%, you're paying for capacity you don't use.
 
 Start at the smallest CPU/memory combination that keeps your application responsive and scale up only when metrics justify it. See the [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), and [worker service](/resources/compute/worker-service) pages for the supported CPU and memory values on each resource.
 
@@ -167,7 +167,7 @@ In this example, `cpu: 0.5` requests half a vCPU and `memory: 1024` requests 1,0
 
 ### Aurora Serverless v2 for variable workloads
 
-Aurora Serverless v2 scales capacity with demand, between `minCapacity` and `maxCapacity` in ACUs (about 2 GB of memory each). It never goes below `minCapacity`, which is at least 0.5 ACU, so it still costs money while idle, plus storage. Set a low `minCapacity` for dev and staging, and `maxCapacity` to cap what a spike can cost.
+Aurora Serverless v2 scales capacity with demand, between `minCapacity` and `maxCapacity` in ACUs (about 2 GB of memory each). With `minCapacity` left out, Stacktape sets 0: the database pauses after about five minutes without connections, you pay only for storage, and the first connection after a pause waits about 15 seconds. At 0.5 ACU or more it keeps running and costs money while idle. Keep the default for dev and staging, and set `maxCapacity` to cap what a spike can cost. See [Aurora Serverless v2](/resources/databases/relational-database#aurora-serverless-v2).
 
 It suits variable or unpredictable traffic: it handles spikes without resizing an instance, and at night it shrinks to the floor instead of running at full size.
 
@@ -180,7 +180,7 @@ Standard RDS uses fixed instance sizes with hourly billing. If your traffic is s
 Enabling `multiAz` on a standard RDS instance creates a synchronous standby replica, which roughly doubles the instance cost. Skip it for development and staging stages. For production, enable it only when your uptime requirements justify the extra cost. Aurora clusters replicate across 3 AZs automatically, so multi-AZ resilience is built in without the explicit flag.
 
 <Tip>
-For dev/staging stages, use Aurora Serverless v2 with a low `minCapacity`. This gives you a real database that costs very little when idle. For production, evaluate whether your traffic is stable enough for standard RDS (cheaper per-hour when fully utilized) or variable enough to benefit from Aurora Serverless v2 (cheaper at low or fluctuating utilization).
+For dev/staging stages, use Aurora Serverless v2 and leave `minCapacity` out, so the database pauses when idle. For production, evaluate whether your traffic is stable enough for standard RDS (cheaper per-hour when fully utilized) or variable enough to benefit from Aurora Serverless v2 (cheaper at low or fluctuating utilization).
 </Tip>
 
 ## Use serverless databases where possible

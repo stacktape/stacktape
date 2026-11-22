@@ -164,7 +164,7 @@ export default defineConfig(() => {
 ```
 
 
-Container gradual deployments require `loadBalancing` set to `application-load-balancer` — the default `http-api-gateway` does not support traffic shifting. The ALB adds a flat base cost (~$18/month), but enables gradual rollouts, WebSocket support, and top-level firewalls. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for strategy comparisons.
+Container gradual deployments require `loadBalancing` set to `application-load-balancer` — the default `http-api-gateway` does not support traffic shifting. The ALB costs about $16 a month in us-east-1 plus usage, but enables gradual rollouts, WebSocket support, and top-level firewalls. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for strategy comparisons.
 
 ## Multi-region deployments
 

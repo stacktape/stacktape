@@ -80,6 +80,8 @@ manage your stacks. It's the standard AWS way to give a service access to an acc
 and no access keys stored by Stacktape. To remove it, delete the connection in the Console or delete its
 CloudFormation stack in AWS. See [AWS permissions](/stacktape-console/aws-permissions) and
 [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
+[What leaves your AWS account](/observability/overview#what-leaves-your-aws-account) lists the data each Console
+feature sends to Stacktape.
 
 ## What changes after connecting
 

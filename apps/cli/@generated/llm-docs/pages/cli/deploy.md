@@ -14,7 +14,7 @@ The command reads the Stacktape configuration file in the current directory: `st
 stacktape deploy --stage dev
 ```
 
-Flags override the config. The region can also come from `AWS_REGION`, [`defaults set`](/cli/defaults-configure) or your AWS profile.
+Flags override the config. The region can also come from `AWS_DEFAULT_REGION` (not `AWS_REGION`), [`defaults set`](/cli/defaults-configure) or your AWS profile.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts

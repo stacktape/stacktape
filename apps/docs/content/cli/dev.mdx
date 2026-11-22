@@ -124,16 +124,16 @@ stacktape dev --stage dev --region eu-west-1 --agent-port 8080
 
 Stop a running agent with [`dev stop`](/cli/dev-stop).
 
-## Interactive commands
+## Keyboard shortcuts
 
-While running in interactive mode, you can control dev mode with the following text commands:
+In the terminal view, dev mode takes these keys:
 
-| Command | Action |
-|---------|--------|
-| `rs` | Rebuild all workloads |
-| `rs <name>` | Rebuild a specific workload by name |
-| `q` or `quit` | Stop dev mode and exit |
-| `c` or `clear` | Clear the log output |
+| Key | Action |
+|---|---|
+| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
+| **Ctrl+A** | Rebuild all workloads |
+| **Tab** | Switch between the overview and the logs |
+| **Ctrl+C** | Stop dev mode |
 
 ## Examples
 

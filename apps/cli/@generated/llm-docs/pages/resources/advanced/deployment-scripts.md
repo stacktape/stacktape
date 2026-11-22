@@ -118,8 +118,8 @@ schema the script left behind. So:
 ### before:delete
 
 A `before:delete` script runs at the start of [`stacktape delete`](/cli/delete), before any resource is removed. Use it
-to export data or unregister webhooks. If it fails, the delete continues anyway, so a broken cleanup script can't leave
-you with a stack you can't delete. Log failures and don't rely on it succeeding.
+to export data or unregister webhooks. If it fails, the stack ends in `DELETE_FAILED` with the script's error. Fix the
+script, or catch the errors you can live with inside it, and run the delete again.
 
 ```typescript
 new DeploymentScript({

@@ -40,7 +40,7 @@ An interactive login creates a CLI session for the organization you choose. It e
 
 ## Non-interactive login
 
-For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI reads this environment variable directly, so an explicit `login` step is usually unnecessary. For a pipeline, use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci): it belongs to the organization and keeps working when the person who created it leaves. API keys are bearer secrets and are shown only once. Never paste one into an AI chat, issue tracker, shell transcript or log, and don't hardcode it in workflow YAML.
+For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI reads this environment variable directly, so an explicit `login` step is usually unnecessary. For a pipeline, use an [organization key](/stacktape-console/api-keys#create-an-organization-key): it belongs to the organization and keeps working when the person who created it leaves. API keys are bearer secrets and are shown only once. Never paste one into an AI chat, issue tracker, shell transcript or log, and don't hardcode it in workflow YAML.
 
 If your workflow does use `login`, pass the key from the secret variable and add `--agent` for programmatic output:
 

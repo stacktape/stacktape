@@ -42,7 +42,7 @@ Deploy to AWS:
   stacktape deploy --project hono-api --stage dev --region eu-west-1
 ```
 
-The region is the one your AWS setup uses, from `AWS_REGION`, your Stacktape defaults or your AWS profile, or
+The region is the one your AWS setup uses, from `AWS_DEFAULT_REGION` or `AWS_REGION`, your Stacktape defaults or your AWS profile, or
 `eu-west-1` when none is set. Change `--region` in the commands if you want another one.
 
 ## 2. Look at what you got

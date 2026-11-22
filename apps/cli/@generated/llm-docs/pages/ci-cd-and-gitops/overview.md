@@ -59,7 +59,7 @@ The pipeline authenticates in one of two ways:
 | Credentials | When |
 |---|---|
 | AWS credentials only | Without a Stacktape account. The CLI deploys to the AWS account the credentials belong to. On GitHub Actions, use an IAM role that GitHub assumes through OIDC, so no AWS key is stored. |
-| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci), which keeps working when people leave. |
+| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Use an [organization key](/stacktape-console/api-keys#create-an-organization-key), which keeps working when people leave. |
 
 If you deployed with `stacktape init`, the wizard's **Deploy on every push** card writes the pipeline for you: a
 GitHub Actions, GitLab CI/CD or Bitbucket Pipelines file, and the list of secrets to add. The GitHub workflow assumes
