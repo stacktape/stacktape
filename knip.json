@@ -68,6 +68,7 @@
         "e2e/ui-capture/*.capture.ts",
         "e2e/ui-capture/broken-check.ts",
         "e2e/ui-capture/behaviour-probe.ts",
+        "e2e/ui-capture/phone-floor-check.ts",
         "src/dev/auth-review/main.tsx"
       ],
       "project": ["**/*.{ts,tsx}"]

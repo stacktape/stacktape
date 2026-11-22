@@ -22,6 +22,11 @@ export type DiagramResourceStatus = {
   detail?: string | undefined;
   /** Where the host shows more: an incident, a finding, a resource page. A relative path or an http(s) URL. */
   href?: string | undefined;
+  /**
+   * `false` draws and lists the status but leaves it out of "needs attention" (its count and filter), for a host whose
+   * own count of what needs attention leaves it out, such as a security risk beside what is failing now.
+   */
+  attention?: false | undefined;
 };
 
 /** Statuses by the name of the resource the configuration declares. */
@@ -50,6 +55,9 @@ const toneRank = (tone: DiagramStatusTone) => TONES.indexOf(tone);
 export const worseTone = (a: DiagramStatusTone, b: DiagramStatusTone) => (toneRank(a) <= toneRank(b) ? a : b);
 /** Tones that ring the node and count towards "needs attention". */
 export const needsAttention = (tone: DiagramStatusTone) => tone === 'critical' || tone === 'warning';
+/** A status that counts towards "needs attention": an attention tone the host did not leave out. */
+export const countsForAttention = (status: Pick<DiagramResourceStatus, 'tone' | 'attention'>) =>
+  needsAttention(status.tone) && status.attention !== false;
 
 const TEXT_MAX = 60;
 const DETAIL_MAX = 300;
@@ -97,7 +105,13 @@ export const readStatuses = (input: DiagramStatuses | undefined): Map<string, Di
       const tone = TONES.includes(candidate.tone as DiagramStatusTone)
         ? (candidate.tone as DiagramStatusTone)
         : 'unknown';
-      statuses.push({ tone, text, detail: clean(candidate.detail, DETAIL_MAX), href: safeHref(candidate.href) });
+      statuses.push({
+        tone,
+        text,
+        detail: clean(candidate.detail, DETAIL_MAX),
+        href: safeHref(candidate.href),
+        ...(candidate.attention === false && { attention: false as const })
+      });
     }
     if (statuses.length === 0) continue;
     result.set(
@@ -124,6 +138,7 @@ const toEntry = (status: DiagramResourceStatus, resourceName: string): DiagramSt
   text: status.text,
   detail: status.detail,
   href: status.href,
+  ...(status.attention === false && { attention: false as const }),
   resourceName
 });
 
@@ -200,6 +215,6 @@ export const buildNodeStatuses = ({
 export const countResourcesNeedingAttention = (nodeStatuses: Map<string, NodeStatus>) =>
   new Set(
     [...nodeStatuses.values()].flatMap((status) =>
-      status.entries.filter((entry) => needsAttention(entry.tone)).map((entry) => entry.resourceName)
+      status.entries.filter(countsForAttention).map((entry) => entry.resourceName)
     )
   ).size;

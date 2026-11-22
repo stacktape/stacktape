@@ -13,6 +13,11 @@ export type DialogProps = {
   actions?: ReactNode;
   onClose?: () => void;
   closeOnOverlayClick?: boolean;
+  /**
+   * `false` for a dialog that only its own button may close, such as a secret shown once: no close "x", and neither
+   * Escape nor a click outside closes it.
+   */
+  dismissible?: boolean;
   ariaLabel?: string;
   className?: string;
   overlayClassName?: string;
@@ -44,6 +49,7 @@ export function Dialog({
   children,
   className,
   closeOnOverlayClick = true,
+  dismissible = true,
   onClose,
   onOpenChange,
   open,
@@ -115,6 +121,7 @@ export function Dialog({
   const callbacksRef = useRef({ onClose, onOpenChange });
   callbacksRef.current = { onClose, onOpenChange };
   const isInnermost = useLayer(open, 'modal', () => {
+    if (!dismissible) return;
     callbacksRef.current.onClose?.();
     callbacksRef.current.onOpenChange(false);
   });
@@ -144,6 +151,19 @@ export function Dialog({
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
 
+    // A dialog opened as another closes (a form that shows its result in a second dialog) was opened from a control that
+    // is gone by now. It returns the focus to where the first one returned it, the button that opened the first, which
+    // may get the focus just after this dialog opened.
+    const adoptOutsideFocus = (target: EventTarget | null) => {
+      const previous = previouslyFocusedRef.current;
+      if (previous?.isConnected && previous !== document.body) return;
+      if (target instanceof HTMLElement && target !== document.body && !dialogRef.current?.contains(target)) {
+        previouslyFocusedRef.current = target;
+      }
+    };
+    adoptOutsideFocus(document.activeElement);
+    const handleFocusIn = (event: FocusEvent) => adoptOutsideFocus(event.target);
+    document.addEventListener('focusin', handleFocusIn);
     const focusFrame = requestAnimationFrame(() => {
       const dialog = dialogRef.current;
       // The first field of a form, so typing can start at once. A dialog without one focuses itself: focusing its
@@ -189,6 +209,7 @@ export function Dialog({
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('focusin', handleFocusIn);
       if (previouslyFocusedRef.current?.isConnected) previouslyFocusedRef.current.focus();
     };
   }, [open]);
@@ -202,7 +223,7 @@ export function Dialog({
 
   return createPortal(
     <div className={['stp-ui-dialog__overlay', overlayClassName].filter(Boolean).join(' ')} style={overlayStyle}>
-      {closeOnOverlayClick ? (
+      {closeOnOverlayClick && dismissible ? (
         <button aria-label="Close dialog" className="stp-ui-dialog__backdrop" onClick={close} type="button" />
       ) : null}
       <dialog
@@ -216,9 +237,11 @@ export function Dialog({
         style={style}
         tabIndex={-1}
       >
-        <button aria-label="Close dialog" className="stp-ui-dialog__close" onClick={close} type="button">
-          <BiX aria-hidden="true" size={22} />
-        </button>
+        {dismissible ? (
+          <button aria-label="Close dialog" className="stp-ui-dialog__close" onClick={close} type="button">
+            <BiX aria-hidden="true" size={22} />
+          </button>
+        ) : null}
         <div
           className={['stp-ui-dialog__body', bodyClassName].filter(Boolean).join(' ')}
           ref={bodyRef}
