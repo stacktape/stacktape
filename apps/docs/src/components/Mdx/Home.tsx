@@ -51,6 +51,16 @@ const COPY_SCRIPT = `(() => {
       failed();
     }
   });
+  // Open the command tab for the visitor's system, as the Quickstart's install tabs do. Phones keep the first tab.
+  const preselect = () => {
+    const agent = navigator.userAgent;
+    if (/Android|iPhone|iPad|Mobile/.test(agent)) return;
+    const os = /Windows/.test(agent) ? 'Windows' : /Macintosh|Mac OS X/.test(agent) ? 'macOS' : /Linux/.test(agent) ? 'Linux' : '';
+    const input = os && document.querySelector('input[name="home-command"][value="' + os + '"]');
+    if (input) input.checked = true;
+  };
+  document.addEventListener('DOMContentLoaded', preselect);
+  document.addEventListener('astro:page-load', preselect);
 })();`;
 
 function CopyButton({ text, labelClassName }: { text: string; labelClassName?: string }) {

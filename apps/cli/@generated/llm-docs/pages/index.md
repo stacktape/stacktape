@@ -4,10 +4,10 @@ Stacktape is an open-source CLI. It reads your project, writes the infrastructur
 
 Run it in your project directory:
 
-- npm: `npx stacktape@latest init`
 - macOS: `curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init`
 - Linux: `curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init`
 - Windows: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"`
+- npm: `npx stacktape@latest init`
 
 It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed.
 
@@ -20,8 +20,8 @@ Run init in your app directory. The wizard proposes the AWS setup, shows its mon
 
 Steps: Start, Analyze, Review, Deploy.
 
-- [How init works](/cli/init)
-- [First deploy](/getting-started/deploy-your-first-stage)
+- [Quickstart](/getting-started)
+- [The wizard, step by step](/getting-started/deploy-an-existing-app)
 
 ### Start a new project
 
@@ -31,6 +31,7 @@ Start from a working starter, such as Express with Postgres, Next.js or FastAPI.
 npx stacktape@latest init --starter-project
 ```
 
+- [Walkthrough](/getting-started/start-a-new-project)
 - [Browse starters](/getting-started/starter-projects)
 
 ### Evaluate Stacktape for your team
@@ -193,7 +194,7 @@ The Console has roles per organization and project, two-factor sign-in and an au
 ### Configure
 
 - [Configuration files](/configuration/configuration-files)
-- [Choosing resources](/configuration/resources)
+- [Resource catalog](/resources)
 - [Connecting resources](/configuration/connecting-resources)
 - [Secrets](/configuration/secrets)
 - [Stages and environments](/configuration/stages-and-environments)
@@ -219,7 +220,7 @@ The Console has roles per organization and project, two-factor sign-in and an au
 
 ### Reference
 
-- [CLI commands](/cli/deploy)
+- [CLI commands](/cli)
 - [Web service](/resources/compute/web-service)
 - [Lambda function](/resources/compute/lambda-function)
 - [Relational database](/resources/databases/relational-database)

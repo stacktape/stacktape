@@ -11,10 +11,10 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
   lead="Stacktape is an open-source CLI. It reads your project, writes the infrastructure config with you and deploys it with your own AWS credentials. A Console for teams is optional."
   commandLabel="Run it in your project directory"
   commands={[
-    { label: 'npm', code: 'npx stacktape@latest init' },
     { label: 'macOS', code: 'curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init' },
     { label: 'Linux', code: 'curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init' },
-    { label: 'Windows', code: 'iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"' }
+    { label: 'Windows', code: 'iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"' },
+    { label: 'npm', code: 'npx stacktape@latest init' }
   ]}
   commandNote="It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed."
 />
@@ -27,15 +27,18 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
       text: 'Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.',
       steps: ['Start', 'Analyze', 'Review', 'Deploy'],
       links: [
-        { label: 'How init works', href: '/cli/init' },
-        { label: 'First deploy', href: '/getting-started/deploy-your-first-stage' }
+        { label: 'Quickstart', href: '/getting-started' },
+        { label: 'The wizard, step by step', href: '/getting-started/deploy-an-existing-app' }
       ]
     },
     {
       title: 'Start a new project',
       text: 'Start from a working starter, such as Express with Postgres, Next.js or FastAPI.',
       command: 'npx stacktape@latest init --starter-project',
-      links: [{ label: 'Browse starters', href: '/getting-started/starter-projects' }]
+      links: [
+        { label: 'Walkthrough', href: '/getting-started/start-a-new-project' },
+        { label: 'Browse starters', href: '/getting-started/starter-projects' }
+      ]
     },
     {
       title: 'Evaluate Stacktape for your team',
@@ -225,7 +228,7 @@ export default defineConfig(() => {
       title: 'Configure',
       links: [
         { label: 'Configuration files', href: '/configuration/configuration-files' },
-        { label: 'Choosing resources', href: '/configuration/resources' },
+        { label: 'Resource catalog', href: '/resources' },
         { label: 'Connecting resources', href: '/configuration/connecting-resources' },
         { label: 'Secrets', href: '/configuration/secrets' },
         { label: 'Stages and environments', href: '/configuration/stages-and-environments' },
@@ -257,7 +260,7 @@ export default defineConfig(() => {
     {
       title: 'Reference',
       links: [
-        { label: 'CLI commands', href: '/cli/deploy' },
+        { label: 'CLI commands', href: '/cli' },
         { label: 'Web service', href: '/resources/compute/web-service' },
         { label: 'Lambda function', href: '/resources/compute/lambda-function' },
         { label: 'Relational database', href: '/resources/databases/relational-database' },

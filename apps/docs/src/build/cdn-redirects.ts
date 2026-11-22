@@ -19,7 +19,8 @@ function handler(event) {
   var request = event.request;
   var uri = request.uri.length > 1 ? request.uri.replace(/\\/+$/, '') : request.uri;
   var target = REDIRECTS[uri];
-  if (!target) return request;
+  if (target === undefined) return request;
+  target += '/';
   var query = [];
   for (var name in request.querystring) {
     var entry = request.querystring[name];
@@ -39,7 +40,13 @@ function handler(event) {
 
 /** CloudFront Functions JavaScript (runtime `cloudfront-js-2.0`) for a viewer-request association. */
 export const buildRedirectFunctionCode = (redirects: Record<string, string>): string => {
-  const table = Object.fromEntries(Object.entries(redirects).map(([from, to]) => [withoutTrailingSlash(from), to]));
+  // Every target ends with a slash; the handler adds it back, which keeps about one byte per redirect.
+  const table = Object.fromEntries(
+    Object.entries(redirects).map(([from, to]) => {
+      if (!to.endsWith('/')) throw new Error(`Redirect target ${to} (from ${from}) must end with a slash.`);
+      return [withoutTrailingSlash(from), to.slice(0, -1)];
+    })
+  );
   const code = `var REDIRECTS = ${JSON.stringify(table)};${HANDLER}\n`;
   const size = Buffer.byteLength(code);
   if (size > CLOUDFRONT_FUNCTION_MAX_BYTES) {

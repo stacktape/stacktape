@@ -1276,8 +1276,8 @@ const writeLlmsFiles = async (pages: LlmDocPage[], outputDirectory: string) => {
   const docsPages = pages.filter((page) => page.docKind === 'docs-page');
   const configReferencePages = pages.filter((page) => page.docKind === 'config-reference');
   const curatedPages = [
-    ['/getting-started/configure-your-stack', 'Define your first Stacktape project and resources.'],
-    ['/getting-started/deploy-your-first-stage', 'Deploy a stage to your own AWS account.'],
+    ['/getting-started', 'Install the CLI and run stacktape init in your app: the shortest path to a first deploy.'],
+    ['/getting-started/deploy-an-existing-app', 'Deploy an existing app to your own AWS account with the init wizard.'],
     ['/resources', 'Pick a resource: every resource with the AWS service it creates and what it is for.'],
     ['/configuration/resources', 'Understand how resources are declared, named and connected.'],
     ['/configuration/connecting-resources', 'Wire resources together with IAM permissions and environment variables.'],

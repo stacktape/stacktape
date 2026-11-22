@@ -33,7 +33,7 @@ stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
 The first run deploys the dev stack: IAM roles, secrets and the routing local development needs. When deployed functions use local databases or join the VPC, it also creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). A first start that creates both takes about 5 minutes. Later starts reuse them.
 
 <Tip>
-Give every developer their own stage, such as `--stage dev-alice` and `--stage dev-bob`. Each stage gets its own dev stack and its own local data.
+Give every developer their own stage, such as `--stage dev-alice` and `--stage dev-bob`. Each stage gets its own dev stack and its own local data. Don't use a stage you deploy: dev mode refuses a stage that `stacktape deploy` created, and `deploy` refuses a dev stage.
 </Tip>
 
 ## Change code and see it
@@ -262,4 +262,4 @@ Dev mode creates a minimal dev stack in AWS, so AWS charges can come from the AW
 
 - [Local databases](/local-development/local-databases): seed data, reset it, or use a deployed database.
 - [Debugging Lambda functions](/local-development/debugging-lambda-functions): how deployed functions reach your machine, and what it costs.
-- [Deploy your first stage](/getting-started/deploy-your-first-stage): ship it when it works.
+- [Deploying stacks](/deployment-and-lifecycle/deploying-stacks): deploy it to a stage when it works.
