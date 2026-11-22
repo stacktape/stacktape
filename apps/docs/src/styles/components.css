@@ -670,6 +670,12 @@
     margin-bottom: var(--docs-space-16);
   }
 
+  .stp-doc-tabs-placeholder {
+    height: 33px;
+    margin-bottom: var(--docs-space-16);
+    border-bottom: 1px solid var(--docs-border);
+  }
+
   /* ── Legacy class names still used by the home page and the v3 archive ────────────────── */
   .stp-typography {
     color: var(--docs-text);
@@ -1019,9 +1025,7 @@
     margin-top: var(--docs-space-24);
   }
   .docs-404-links {
-    margin-top: var(--docs-space-40);
-    padding-top: var(--docs-space-24);
-    border-top: 1px solid var(--docs-border);
+    margin-top: var(--docs-space-48);
   }
   .docs-button {
     display: inline-flex;

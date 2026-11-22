@@ -5,7 +5,7 @@
  */
 @layer base {
   .docs-page-title {
-    margin: 0 0 var(--docs-space-24);
+    margin: 0 0 var(--docs-space-16);
     color: var(--docs-text-strong);
     font-size: var(--docs-text-h1);
     font-weight: var(--docs-weight-heading);
@@ -60,6 +60,10 @@
   .mdx-content h4 {
     margin: var(--docs-space-24) 0 var(--docs-space-4);
     font-size: var(--docs-text-h4);
+  }
+  /* A heading's first paragraph belongs to it: a smaller gap than between paragraphs. */
+  .mdx-content :is(h2, h3, h4) + :is(p, ul, ol) {
+    margin-top: var(--docs-space-8);
   }
   /* A heading directly after another heading sits closer to it. */
   .mdx-content :is(h2, h3) + :is(h3, h4) {

@@ -229,6 +229,11 @@
   box-shadow: inset 0 0 0 1px var(--docs-border-strong);
   color: var(--docs-text-muted);
 }
+.DocSearch-Logo svg,
+.DocSearch-Logo svg * {
+  color: var(--docs-text-muted);
+  fill: var(--docs-text-muted);
+}
 .DocSearch-Label {
   color: var(--docs-text-faint);
   font-size: var(--docs-text-xs);

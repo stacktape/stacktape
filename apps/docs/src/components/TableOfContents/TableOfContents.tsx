@@ -18,9 +18,12 @@ const toSections = (items: TableOfContentsItem[]): Section[] => {
   return sections;
 };
 
-/** The id of the heading being read: the last one whose top has passed the header. */
+/**
+ * The id of the heading being read: the last one whose top has passed the header. Empty while the reader is still
+ * above the first section (the title and introduction).
+ */
 const useActiveHeading = (ids: string[]) => {
-  const [activeId, setActiveId] = useState(ids[0] ?? '');
+  const [activeId, setActiveId] = useState('');
   useEffect(() => {
     const elements = ids.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => el !== null);
     if (elements.length === 0) return;
@@ -28,7 +31,7 @@ const useActiveHeading = (ids: string[]) => {
     const update = () => {
       frame = 0;
       const offset = (parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 80) + 8;
-      let current = elements[0].id;
+      let current = '';
       for (const element of elements) {
         if (element.getBoundingClientRect().top - offset > 0) break;
         current = element.id;
@@ -151,9 +154,7 @@ export function TableOfContents({
     );
   }
 
-  const activeText =
-    sections.flatMap((s) => [s, ...s.children]).find((entry) => entry.id === activeId)?.item.text ??
-    sections[0].item.text;
+  const activeText = sections.flatMap((s) => [s, ...s.children]).find((entry) => entry.id === activeId)?.item.text;
 
   return (
     <div className="docs-toc-bar" ref={barRef}>
@@ -166,7 +167,7 @@ export function TableOfContents({
       >
         <span className="docs-toc-bar-label">On this page</span>
         <span className="docs-toc-bar-current" aria-hidden>
-          {activeText}
+          {activeText ?? `${sections.length} sections`}
         </span>
         <ChevronDown size={16} aria-hidden />
       </button>

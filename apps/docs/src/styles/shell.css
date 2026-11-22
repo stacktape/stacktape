@@ -259,39 +259,56 @@
   }
   .docs-nav-row {
     position: relative;
+    isolation: isolate;
     display: flex;
     align-items: center;
     gap: 10px;
     width: 100%;
     min-height: 32px;
     padding: 6px var(--docs-space-8) 6px var(--docs-nav-indent, 12px);
-    border-radius: 6px;
     color: var(--docs-text-muted);
     font-size: var(--docs-text-ui);
     font-weight: var(--docs-weight-body);
     line-height: 1.35;
     text-align: left;
-    transition:
-      color var(--docs-duration-fast) var(--docs-ease),
-      background var(--docs-duration-fast) var(--docs-ease);
+    transition: color var(--docs-duration-fast) var(--docs-ease);
+  }
+  /* The hover and selected wash starts at the row's own tree guide, so it never crosses an ancestor's guide. */
+  .docs-nav-row::after {
+    content: '';
+    position: absolute;
+    inset: 0 0 0 max(0px, calc(var(--docs-nav-indent, 12px) - 13px));
+    z-index: -1;
+    border-radius: 6px;
+    background: transparent;
+    transition: background var(--docs-duration-fast) var(--docs-ease);
+  }
+  .docs-nav-row.is-group::after,
+  .docs-nav-row:not(.docs-nav-children *)::after {
+    left: 0;
   }
   .docs-nav-row:hover {
-    background: var(--docs-bg-hover);
     color: var(--docs-text-strong);
   }
+  .docs-nav-row:hover::after {
+    background: var(--docs-bg-hover);
+  }
   .docs-nav-row[aria-current='page'] {
-    background: var(--docs-accent-soft);
     color: var(--docs-text-strong);
     font-weight: var(--docs-weight-medium);
+  }
+  .docs-nav-row[aria-current='page']::after {
+    background: var(--docs-accent-soft);
+    border-radius: 0 6px 6px 0;
   }
   .docs-nav-row[aria-current='page']::before {
     content: '';
     position: absolute;
-    top: 7px;
-    bottom: 7px;
+    top: 0;
+    bottom: 0;
     left: max(0px, calc(var(--docs-nav-indent, 12px) - 13px));
     width: 2px;
-    border-radius: 2px;
+    border-radius: 0;
     background: var(--docs-accent);
   }
   .docs-nav-row:focus-visible {
