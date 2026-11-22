@@ -7,7 +7,7 @@ seoDescription: 'Mark a runtime issue as ignored with stacktape error ignore. Ig
 
 # error ignore
 
-The `error ignore` command marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`error reopen`](/cli/errors-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`error resolve`](/cli/errors-resolve) which will automatically reopen if the same error recurs.
+The `error ignore` command marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`error reopen`](/cli/errors-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`error resolve`](/cli/errors-resolve) which will automatically reopen if the same error recurs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -16,10 +16,6 @@ stacktape error ignore <issue-id>
 ```
 
 You can find issue IDs by running [`error list`](/cli/errors-list). This command requires a Stacktape API key — run [`login`](/cli/login) first if this machine is not yet authenticated.
-
-## Flags Reference
-
-<CliCommandsApiReference command="errors:ignore" />
 
 ## Examples
 
@@ -41,7 +37,11 @@ Use `error ignore` for errors you've reviewed and determined are not actionable 
 
 Use [`error resolve`](/cli/errors-resolve) when you've fixed the root cause. A resolved issue will automatically reopen if the same error recurs, keeping you informed of regressions.
 
-## Related Commands
+## Options
+
+<CliCommandsApiReference command="errors:ignore" />
+
+## Related commands
 
 - [`error list`](/cli/errors-list) — list detected runtime issues with filtering by status, project, or stage
 - [`error resolve`](/cli/errors-resolve) — mark an issue as resolved (will reopen on recurrence)

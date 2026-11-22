@@ -213,17 +213,6 @@ Use agent mode for structured output in a CI script.
 stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --filter "ERROR"
 ```
 
-## Flags reference
-
-<CliCommandsApiReference command="logs" />
-
-## Related commands
-
-- [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics (invocations, CPU, memory, errors) for a deployed resource.
-- [`stacktape alarm list`](/cli/alarms) — view CloudWatch alarm states for resources in your stack.
-- [`stacktape container exec`](/cli/container-exec) — run a command inside a deployed container for live debugging.
-- [`stacktape query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database from the command line.
-
 ## FAQ
 
 ### How do I filter logs for errors only?
@@ -249,3 +238,14 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 ### What is the difference between --raw and --agent?
 
 `--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` without `--follow` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. With `--agent --follow`, each batch of new events arrives as its own log record with the same payload. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.
+
+## Options
+
+<CliCommandsApiReference command="logs" />
+
+## Related commands
+
+- [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics of a deployed function, database or HTTP API.
+- [`stacktape alarm list`](/cli/alarms) — view CloudWatch alarm states for resources in your stack.
+- [`stacktape container exec`](/cli/container-exec) — run a command inside a deployed container for live debugging.
+- [`stacktape query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database from the command line.

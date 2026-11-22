@@ -1,6 +1,6 @@
 # domain add
 
-The `domain add` command adds an already-registered root domain to your AWS account so Stacktape can manage DNS and TLS certificates for it. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), [HTTP API Gateways](/resources/networking/http-api-gateway), and [WebSocket API Gateways](/resources/networking/websocket-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
+The `domain add` command sets up an already-registered domain in your AWS account so Stacktape can manage its DNS and TLS certificates. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), [HTTP API Gateways](/resources/networking/http-api-gateway), and [WebSocket API Gateways](/resources/networking/websocket-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
 
 ## Usage
 
@@ -14,16 +14,14 @@ The command runs an interactive wizard. You supply only the `--region` flag — 
 
 The `domain add` wizard walks through the following steps, stopping at the first incomplete one.
 
-1. **Enter domain name** — Must be a root domain (e.g. `mydomain.com`, not `sub.mydomain.com`). If you enter a subdomain, the command exits with an error.
+1. **Enter domain name** — A root domain (`mydomain.com`) or a subdomain (`api.internal.mydomain.com`). DNS is always set up for the root domain; the certificates are requested for the name you enter.
 2. **Check registration** — If the domain is not registered (not purchased), the command exits immediately and prints a hint to register via Route 53 or another registrar. Prices start at $3/year for `.click` domains.
 3. **Verify DNS ownership** — If DNS is managed outside AWS, the command asks whether to move DNS management to Route 53. If confirmed and no hosted zone exists, it creates one and prints the name servers to configure at your registrar.
-4. **Provision TLS certificates** — Requests a regional ACM certificate. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate, which Stacktape stores as `usEast1Cert` in domain status. When the regional certificate is not yet issued, it adds a DNS validation record from the regional certificate's domain validation options to the Route 53 hosted zone.
+4. **Provision TLS certificates** — Requests a regional ACM certificate. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate. For each certificate that is not issued yet, it adds the DNS validation record to the Route 53 hosted zone.
 
 The command stores domain status in Parameter Store after key checkpoints (hosted-zone setup, certificate-validation-record setup), so later runs can read saved domain status. Re-run `domain add` after DNS or certificate validation has had time to complete.
 
-
-> **Warning:** Only root domains are accepted. If you enter a subdomain like `api.mydomain.com`, the command exits with an error. Add the root domain (`mydomain.com`) first, then configure subdomains on the resource that should serve them. See [custom domains](/resources/networking/custom-domains) for the resource-level setup.
-
+A certificate for a two-part root domain also covers its first-level subdomains (`*.mydomain.com`); for `mydomain.co.uk` it doesn't, so enter each hostname. For a deeper name such as `api.dev.mydomain.com`, enter that full name to get a certificate for it. See [custom domains](/resources/networking/custom-domains#set-up-the-domain).
 
 ## DNS ownership scenarios
 
@@ -48,25 +46,10 @@ When DNS for the domain is managed outside AWS, the command asks whether you wan
 
 ## TLS certificates
 
-The command requests a free AWS ACM certificate in the specified `--region`. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate, which Stacktape stores as `usEast1Cert` in domain status. When the regional certificate is not yet issued, the command adds a DNS validation record from the regional certificate's domain validation options to the Route 53 hosted zone. Certificate issuance typically takes a few minutes after DNS records are in place.
+The command requests a free AWS ACM certificate in the specified `--region`. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate, which CDNs need. For each certificate that is not issued yet, the command adds the DNS validation record to the Route 53 hosted zone. Certificate issuance typically takes a few minutes after DNS records are in place.
 
 
 > **Tip:** The command prints https://console.stacktape.com/domains as the place to continue or check domain setup.
-
-
-## Arguments reference
-
-
-## CLI Options: `stacktape domain add`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Examples
@@ -89,16 +72,11 @@ Add a domain using a named AWS account connected in the Stacktape Console:
 stacktape domain add --region eu-west-1 --aws-account my-prod-account
 ```
 
-## Related commands
-
-- [`deploy`](/cli/deploy) — deploy your stack, which can reference the added domain via [custom domain configuration](/resources/networking/custom-domains)
-- [`defaults set`](/cli/defaults-configure) — set a default region so you don't need `--region` every time
-
 ## FAQ
 
 ### Can I add a subdomain instead of a root domain?
 
-No. The `domain add` command only accepts root domains (e.g. `mydomain.com`). Entering a subdomain like `api.mydomain.com` causes the command to exit with an error. Add the root domain first, then configure subdomains on the resource that should serve them. See [custom domains](/resources/networking/custom-domains) for the resource-level setup.
+Yes. Enter the full name, such as `api.dev.mydomain.com`. The command sets up DNS for the root domain (`mydomain.com`) and requests certificates for the name you entered. For a two-part root domain such as `mydomain.com`, its certificate also covers `*.mydomain.com`, so you need this only for names more than one level below it. For a longer root domain, such as `mydomain.co.uk`, the command requests no wildcard, so add each hostname you use, such as `api.mydomain.co.uk`.
 
 ### What happens if my domain is not yet registered?
 
@@ -106,7 +84,7 @@ If the domain is not registered (not purchased from any registrar), the command 
 
 ### Do I need to run this command in every region?
 
-The command creates a regional certificate for the selected `--region` and, when that region is not `us-east-1`, also requests a `us-east-1` ACM certificate stored as `usEast1Cert` in domain status. Run the command in each region where you intend regional certificates for the domain.
+The command creates a regional certificate for the selected `--region` and, when that region is not `us-east-1`, also requests a `us-east-1` ACM certificate. Run the command in each region where you intend regional certificates for the domain.
 
 ### Is there a cost for adding a domain?
 
@@ -115,3 +93,23 @@ Adding the domain is free: ACM TLS certificates are free. The only cost is the u
 ### Can I use a domain registered outside AWS?
 
 Yes. For domains registered with another registrar (GoDaddy, Namecheap, Hostinger, etc.), the command asks whether to move DNS management to Route 53. If you confirm, it creates a hosted zone (if needed) and prints the name servers to set at your registrar. If the domain is already serving traffic, copy your existing DNS records into the new hosted zone before switching name servers to avoid downtime. After DNS propagation, re-run the command to continue with certificate provisioning.
+
+## Options
+
+
+## CLI Options: `stacktape domain add`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
+
+## Related commands
+
+- [`deploy`](/cli/deploy) — deploy your stack, which can reference the added domain via [custom domain configuration](/resources/networking/custom-domains)
+- [`defaults set`](/cli/defaults-configure) — set a default region so you don't need `--region` every time

@@ -1,29 +1,18 @@
-# Lambda Function
+# Lambda function
 
-A Stacktape Lambda function is a serverless compute resource that runs code in response to events — HTTP requests, queues, schedules, file uploads, and more. Lambda functions scale automatically from zero, bill only for consumed compute time, and require no server management. Underneath, Stacktape deploys to AWS Lambda.
+A Lambda function runs your code on AWS Lambda each time an event arrives: an HTTP request, a queue message, a
+schedule, a file upload. It scales from zero to thousands of parallel invocations, and you pay per request and per
+millisecond of run time, so an idle function costs nothing. One invocation can run for at most 15 minutes.
 
-**Pricing:** Lambda bills per GB-second of compute time. The `arm64` architecture is ~20% cheaper per GB-second than the default `x86_64`. Provisioned concurrency adds cost even when instances are idle.
-
-## When to use
-
-A Lambda function is the right default for event-driven code that finishes within minutes, does not need a continuously running process, and can tolerate statelessness between invocations.
-
-- **HTTP APIs with variable traffic** — pair with an [HTTP API Gateway](/resources/networking/http-api-gateway) or enable a function URL for a single-function HTTPS endpoint. Cost approaches zero during quiet periods.
-- **Background event handlers** — react to [SQS](/resources/triggers/sqs-events), [SNS](/resources/triggers/sns-events), [S3](/resources/triggers/s3-events), [DynamoDB stream](/resources/triggers/dynamodb-streams), [Kinesis](/resources/triggers/kinesis-events), [EventBridge](/resources/triggers/event-bus-events), [CloudWatch log](/resources/triggers/cloudwatch-logs), [Kafka topic](/resources/triggers/kafka-topics), or [alarm](/resources/triggers/alarms-as-triggers) events.
-- **Scheduled tasks** — run cron-like cleanup, reporting, or polling with a [schedule trigger](/resources/triggers/schedule-triggers).
-- **Pay-per-use workloads** — functions that sit idle most of the time cost nothing until invoked.
-
-## When NOT to use
-
-- **Tasks longer than 15 minutes** — the maximum `timeout` is `900` seconds. For processing that can exceed 15 minutes, use a [batch job](/resources/compute/batch-job) or [worker service](/resources/compute/worker-service).
-- **Always-on HTTP servers** — use a [web service](/resources/compute/web-service) when you need a continuously running container or a container-native web framework.
-- **VPC access with heavy internet egress** — `joinDefaultVpc` removes direct internet access (S3 and DynamoDB stay reachable via VPC endpoints). Setting `stackConfig.nat` gives VPC functions internet access through NAT; for a workload that pushes a lot of traffic out, a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) in the public subnets avoids the NAT entirely.
-- **Persistent local state** — `/tmp` is ephemeral per invocation. Use [EFS](/resources/storage/efs-filesystem), an [S3 bucket](/resources/storage/s3-bucket), or a database for persistent data.
-- **Custom OS or daemon requirements** — Stacktape Lambda packaging builds a zip from source (`js-bundle`, `buildpack`) or uses your own zip (`custom-artifact`). If you need image-level control over system packages or daemons, use a [container workload](/resources/compute/multi-container-workload) or [web service](/resources/compute/web-service).
+For an always-on server or a long-running process, use a [web service](/resources/compute/web-service) or a
+[worker service](/resources/compute/worker-service). For jobs longer than 15 minutes, use a
+[batch job](/resources/compute/batch-job).
 
 ## Basic example
 
-A Lambda function with an [HTTP API Gateway](/resources/networking/http-api-gateway) trigger. Stacktape builds the function from `entryfilePath`, detects the runtime from the file extension, and auto-configures the trigger permissions.
+This function answers `GET /users/{id}` through an [HTTP API Gateway](/resources/networking/http-api-gateway).
+Stacktape bundles `./src/get-user.ts`, picks the Node.js runtime from the file extension and adds the permissions the
+gateway needs to call the function.
 
 
 Example (TypeScript):
@@ -61,9 +50,10 @@ export default defineConfig(() => {
 ```
 
 
-`entryfilePath` points to the handler source file relative to the config file. `memory: 1024` allocates 1,024 MB and proportional CPU (1,769 MB = 1 vCPU). `timeout: 30` stops the invocation after 30 seconds; the default is `10` and the maximum is `900`.
+`memory: 1024` gives the function 1,024 MB and a matching share of CPU. `timeout: 30` stops an invocation after 30
+seconds (default 10, maximum 900).
 
-A minimal TypeScript handler for this route:
+The handler:
 
 ```ts
 export async function handler(event: { pathParameters?: { id?: string } }) {
@@ -74,153 +64,8 @@ export async function handler(event: { pathParameters?: { id?: string } }) {
 }
 ```
 
-## Examples
-
-### HTTP API with DynamoDB
-
-A complete Stacktape config for a Hono API connected to a [DynamoDB table](/resources/databases/dynamodb) through an [HTTP API Gateway](/resources/networking/http-api-gateway). The `connectTo` property grants IAM permissions and injects the `STP_USERS_TABLE_NAME` and `STP_USERS_TABLE_ARN` environment variables automatically.
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  HttpApiGateway,
-  DynamoDbTable,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-export default defineConfig(() => {
-  const apiGateway = new HttpApiGateway({});
-
-  const usersTable = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'userId', type: 'string' } }
-  });
-
-  const api = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/api.ts'
-    }),
-    events: [
-      {
-        type: 'http-api-gateway',
-        properties: {
-          httpApiGatewayName: 'apiGateway',
-          method: '*',
-          path: '/{proxy+}'
-        }
-      }
-    ],
-    connectTo: [usersTable],
-    memory: 512,
-    timeout: 30
-  });
-
-  return { resources: { apiGateway, usersTable, api } };
-});
-```
-
-
-A Hono handler using the injected environment variables for read and write operations:
-
-```ts
-import { Hono } from 'hono';
-import { handle } from 'hono/aws-lambda';
-import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
-
-const app = new Hono();
-const client = new DynamoDBClient({});
-const tableName = process.env.STP_USERS_TABLE_NAME!;
-
-app.get('/users/:id', async (c) => {
-  const result = await client.send(new GetItemCommand({
-    TableName: tableName,
-    Key: { userId: { S: c.req.param('id') } }
-  }));
-  return c.json(result.Item ?? {});
-});
-
-app.post('/users', async (c) => {
-  const body = await c.req.json();
-  await client.send(new PutItemCommand({
-    TableName: tableName,
-    Item: {
-      userId: { S: body.id },
-      name: { S: body.name },
-      email: { S: body.email }
-    }
-  }));
-  return c.json({ success: true }, 201);
-});
-
-export const handler = handle(app);
-```
-
-### Scheduled cleanup task
-
-A Lambda function that runs every hour to delete expired records. The [schedule trigger](/resources/triggers/schedule-triggers) accepts rate expressions and AWS cron expressions (6-field, UTC).
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  DynamoDbTable,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-export default defineConfig(() => {
-  const sessionsTable = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'sessionId', type: 'string' } }
-  });
-
-  const cleanup = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/cleanup.ts'
-    }),
-    events: [
-      {
-        type: 'schedule',
-        properties: { scheduleRate: 'rate(1 hour)' }
-      }
-    ],
-    connectTo: [sessionsTable],
-    timeout: 120
-  });
-
-  return { resources: { sessionsTable, cleanup } };
-});
-```
-
-
-The cleanup handler scans for expired sessions and deletes them:
-
-```ts
-import { DynamoDBClient, ScanCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
-
-const client = new DynamoDBClient({});
-const tableName = process.env.STP_SESSIONS_TABLE_NAME!;
-
-export async function handler() {
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const { Items } = await client.send(new ScanCommand({
-    TableName: tableName,
-    FilterExpression: 'expiresAt < :cutoff',
-    ExpressionAttributeValues: { ':cutoff': { N: String(cutoff) } }
-  }));
-
-  for (const item of Items ?? []) {
-    await client.send(new DeleteItemCommand({
-      TableName: tableName,
-      Key: { sessionId: item.sessionId }
-    }));
-  }
-
-  return { deleted: Items?.length ?? 0 };
-}
-```
+The deploy prints the gateway URL. Call `https://<api-id>.execute-api.<region>.amazonaws.com/users/42` and you get
+`{"id":"42"}` back. Read the function's logs with `stacktape logs getUser --stage dev`.
 
 ## Packaging
 
@@ -309,13 +154,15 @@ export default defineConfig(() => {
 
 ## Triggers
 
-A Lambda function receives work through its `events` array. Stacktape supports 13 trigger types and auto-configures the permissions for each.
+A function receives work through its `events` list. Stacktape creates the event source and the permissions for each
+entry.
 
-| Trigger type | Event discriminator | Docs |
+| Trigger | `type` | Guide |
 |---|---|---|
 | HTTP API Gateway | `http-api-gateway` | [HTTP triggers](/resources/triggers/http-triggers) |
-| WebSocket API Gateway | `websocket-api-gateway` | [WebSocket API Gateway](/resources/networking/websocket-api-gateway) |
 | Application Load Balancer | `application-load-balancer` | [HTTP triggers](/resources/triggers/http-triggers) |
+| WebSocket API Gateway | `websocket-api-gateway` | [WebSocket API Gateway](/resources/networking/websocket-api-gateway) |
+| AppSync GraphQL resolver | `appsync-api` | [AppSync API](/resources/networking/appsync-api) |
 | Schedule | `schedule` | [Schedule triggers](/resources/triggers/schedule-triggers) |
 | S3 | `s3` | [S3 events](/resources/triggers/s3-events) |
 | SQS | `sqs` | [SQS events](/resources/triggers/sqs-events) |
@@ -323,11 +170,15 @@ A Lambda function receives work through its `events` array. Stacktape supports 1
 | DynamoDB stream | `dynamo-db-stream` | [DynamoDB streams](/resources/triggers/dynamodb-streams) |
 | Kinesis stream | `kinesis-stream` | [Kinesis events](/resources/triggers/kinesis-events) |
 | EventBridge | `event-bus` | [EventBridge events](/resources/triggers/event-bus-events) |
-| CloudWatch log | `cloudwatch-log` | [CloudWatch logs](/resources/triggers/cloudwatch-logs) |
+| CloudWatch Logs | `cloudwatch-log` | [CloudWatch logs](/resources/triggers/cloudwatch-logs) |
 | CloudWatch alarm | `cloudwatch-alarm` | [Alarms as triggers](/resources/triggers/alarms-as-triggers) |
 | Kafka topic | `kafka-topic` | [Kafka topics](/resources/triggers/kafka-topics) |
 
-For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), `batchSize` and `maxBatchWindowSeconds` control how many records the function receives per invocation. Keep handlers idempotent. By default, failed batches retry records that already succeeded. Enable `reportBatchItemFailures` and return `batchItemFailures` for partial failure handling; see [SQS](/resources/triggers/sqs-events), [Kinesis](/resources/triggers/kinesis-events) and [DynamoDB streams](/resources/triggers/dynamodb-streams).
+Queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`, `kafka-topic`) deliver records in batches.
+`batchSize` caps the records per invocation and `maxBatchWindowSeconds` (up to 300) waits to fill a batch. Defaults and
+limits differ per source; each trigger guide lists them. When a handler throws, the whole batch is retried, including
+the records that succeeded. Make handlers idempotent, or turn on `reportBatchItemFailures` and return the failed record
+IDs in `batchItemFailures` so only those are retried.
 
 
 Example (TypeScript):
@@ -361,17 +212,15 @@ export default defineConfig(() => {
 ```
 
 
-`batchSize` controls the maximum number of records delivered to one invocation and defaults to `10`. The maximum `batchSize` varies by trigger type (for example, DynamoDB streams cap at `1,000` while SQS and Kinesis accept up to `10,000`). `maxBatchWindowSeconds` waits up to the configured seconds before invoking with a partial batch (maximum `300`). The function is also invoked when the batch reaches the 6 MB payload limit.
-
-A schedule trigger runs the function on a cron expression or fixed rate. `scheduleRate` accepts rate expressions like `rate(5 minutes)` and cron expressions like `cron(0 18 ? * MON-FRI *)` (6-field AWS cron, UTC). See [schedule triggers](/resources/triggers/schedule-triggers) for full syntax.
+A `schedule` trigger takes a rate (`rate(5 minutes)`) or a six-field AWS cron expression in UTC
+(`cron(0 18 ? * MON-FRI *)`). See [Schedule triggers](/resources/triggers/schedule-triggers).
 
 ## Function URLs
 
-A Lambda function URL gives one function its own HTTPS endpoint (`https://{id}.lambda-url.{region}.on.aws`) without requiring an API Gateway resource. Use function URLs for single-function endpoints, webhooks, or internal tools where the routing configuration of a full gateway is unnecessary.
-
-**When to use a function URL:** the function handles all paths itself (e.g., a Hono or Express app behind `handle()`), or you have exactly one function serving a narrow purpose like a webhook receiver.
-
-**When to use an [HTTP API Gateway](/resources/networking/http-api-gateway) instead:** you need route-level `method`/`path` matching or a shared API surface across multiple functions.
+A function URL gives one function its own HTTPS endpoint (`https://<id>.lambda-url.<region>.on.aws`) with no API
+gateway. It suits a webhook receiver or an app that does its own routing, such as Hono or Express behind `handle()`.
+Use an [HTTP API Gateway](/resources/networking/http-api-gateway) when several functions share one API or you want
+routing by method and path.
 
 
 Example (TypeScript):
@@ -397,19 +246,24 @@ export default defineConfig(() => {
 ```
 
 
-`authMode` defaults to `'NONE'` (public — anyone can call the URL). Set `authMode: 'AWS_IAM'` to restrict access to authenticated AWS users and roles with invoke permission. `cors.enabled: true` without additional settings uses permissive defaults (`*` for origins and methods). `allowedOrigins` and `allowedMethods` narrow CORS to specific browser origins and HTTP methods. Function URL CORS settings override any CORS headers returned by your function code.
+`authMode` is `'NONE'` by default, so anyone can call the URL. `'AWS_IAM'` accepts only signed requests from AWS
+identities with invoke permission. `cors.enabled: true` alone allows every origin and method; `allowedOrigins` and
+`allowedMethods` narrow it. These CORS settings override CORS headers your code returns.
 
-
-> **Tip:** `responseStreamEnabled` streams the response progressively instead of buffering, improving Time to First Byte and increasing the maximum response size from 6 MB to 20 MB. Your handler must use the AWS streaming handler pattern.
-
+`responseStreamEnabled: true` sends the response as your handler writes it, instead of buffering it, and lifts the 6 MB
+limit of buffered responses. The handler must use Lambda's streaming handler pattern.
 
 ## Runtime resources
 
-Lambda function runtime resources are controlled by `runtime`, `architecture`, `memory`, `timeout`, and `storage`. These properties determine the language version, CPU allocation, execution limits, and ephemeral disk available to each invocation.
+`runtime`, `architecture`, `memory`, `timeout` and `storage` set the language version, CPU, time limit and scratch
+disk of each invocation.
 
-`runtime` is auto-detected from the source file extension when using `js-bundle` or `buildpack` packaging. Supported runtime identifiers are `nodejs18.x`, `nodejs20.x`, `nodejs22.x`, `nodejs24.x`, `python3.8`, `python3.9`, `python3.10`, `python3.11`, `python3.12`, `python3.13`, `python3.14`, `ruby3.3`, `ruby3.4`, `ruby4.0`, `java8`, `java8.al2`, `java11`, `java17`, `java21`, `java25`, `dotnet6`, `dotnet7`, `dotnet8`, `dotnet10`, `provided.al2`, and `provided.al2023`. With `buildpack`, `runtime` also selects the language version used for the build. Set it when you need a specific version, for Rust functions (`provided.al2023`), and with `custom-artifact` packaging, where there is no source file for auto-detection.
+`runtime` comes from the file extension with `js-bundle` and `buildpack` packaging. Set it to pin a version, for Rust
+(`provided.al2023`) and for `custom-artifact` packaging. The accepted values are listed in the
+[configuration reference](#configuration-reference).
 
-`memory` accepts `128` to `10,240` MB and determines CPU power proportionally: `1,769` MB equals 1 vCPU, `3,538` MB equals 2 vCPUs. For CPU-bound functions, increasing memory often reduces total cost because shorter execution time offsets the higher per-millisecond rate.
+`memory` is 128 MB unless you set it, and accepts 128 to 10,240 MB. CPU grows with memory: 1,769 MB is one vCPU. For
+CPU-bound code, more memory often costs less in total, because the function finishes sooner.
 
 
 Example (TypeScript):
@@ -431,22 +285,19 @@ export default defineConfig(() => {
 ```
 
 
-`architecture` is `'x86_64'` by default. `'arm64'` (AWS Graviton) is ~20% cheaper per GB-second and often works without code changes. When using `js-bundle` or `buildpack`, Stacktape builds for the selected architecture automatically; with a custom artifact, you must pre-compile for the target.
+`architecture: 'arm64'` (AWS Graviton) costs about 20% less per GB-second than the default `x86_64` and usually needs no
+code changes. `js-bundle` and `buildpack` build for the architecture you pick; with a custom artifact, compile native
+dependencies for it yourself.
 
-`storage` controls the ephemeral `/tmp` directory size from `512` (default) to `10,240` MB. This space is only available during one invocation and is not shared. Use it for temporary downloads or intermediate files, not persistent data.
-
-
-> **Warning:** A Lambda function is stopped when it exceeds `timeout`. The default is `10` seconds and the maximum is `900` seconds (15 minutes). For processing that can exceed 15 minutes, use a [batch job](/resources/compute/batch-job) or [worker service](/resources/compute/worker-service).
-
+`storage` sets the size of `/tmp`, from 512 MB (default) to 10,240 MB. It's scratch space: it isn't shared between
+instances and can disappear between invocations.
 
 ## Concurrency
 
-Lambda concurrency controls protect downstream systems and manage cold-start behavior. Two independent knobs control scaling limits and warm instances.
-
-- **`reservedConcurrency`** — caps and reserves execution slots for this function. Other functions in the account cannot use these slots, and this function cannot exceed the cap. No additional cost.
-- **`provisionedConcurrency`** — keeps a configured number of instances pre-warmed. Eliminates cold starts but bills for those instances even when idle and adds ~2–5 minutes to deploy time.
-
-Use `reservedConcurrency` when a database, third-party API, or queue consumer must not receive unlimited parallel traffic. Use `provisionedConcurrency` for latency-sensitive user-facing paths where cold starts are unacceptable. Skip provisioned concurrency for background jobs, cron tasks, and data pipelines where occasional cold starts are tolerable.
+- **`reservedConcurrency`** caps how many instances of this function run at once and reserves that many from your
+  account's limit. Use it when a database or a third-party API can't take unlimited parallel calls. It costs nothing.
+- **`provisionedConcurrency`** keeps instances initialized so requests skip the cold start. You pay for them while they
+  wait. Use it only on latency-sensitive paths.
 
 
 Example (TypeScript):
@@ -465,21 +316,25 @@ export default defineConfig(() => {
 ```
 
 
-`reservedConcurrency: 25` means this function cannot scale beyond 25 concurrent instances, and those 25 slots are reserved exclusively for it. `provisionedConcurrency: 3` keeps three instances warm and ready to handle requests instantly.
-
 ## Networking
 
-A Lambda function does not need VPC attachment by default. Set `joinDefaultVpc: true` only when the function must reach VPC-only resources such as a [relational database](/resources/databases/relational-database) with `accessibilityMode: 'vpc'`, a [Redis cache](/resources/databases/redis), or an [EFS filesystem](/resources/storage/efs-filesystem).
+A function runs outside your VPC by default and can reach the internet. Set `joinDefaultVpc: true` only when it must
+reach something that accepts VPC connections only: a [relational database](/resources/databases/relational-database)
+in a VPC access mode, a [Redis cache](/resources/databases/redis) or an [EFS file system](/resources/storage/efs-filesystem).
 
-The main tradeoff: when `joinDefaultVpc` is enabled, the function loses direct outbound internet access. Stacktape creates VPC endpoints for S3 and DynamoDB, but calls to external APIs (payment providers, AI services, SaaS webhooks) will fail.
-
-To give VPC functions internet access, set `stackConfig.nat`. Once it is set, every function with `joinDefaultVpc` is placed in the private subnets and reaches the internet through the NAT. Three kinds are available: `ec2` (one small Stacktape-managed instance, about $7 per month, no failover), `ha-ec2` (one instance per availability zone with automatic failover, about $7 per month per zone) and `gateway` (managed NAT Gateways, about $32 per month per zone plus $0.045 per GB). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking) for how to choose. Without it, `stacktape deploy` prints a warning for every VPC function that has no internet access. If you need VPC access and push a lot of traffic to the internet, a [web service](/resources/compute/web-service) or [worker service](/resources/compute/worker-service) in the public subnets avoids NAT costs.
+A function in the VPC loses internet access. S3 and DynamoDB stay reachable through VPC endpoints, but calls to payment
+providers, AI APIs or webhooks fail. To keep them working, set `stackConfig.nat`: VPC functions then run in private
+subnets and go out through NAT. The `ec2` NAT is one small instance managed by Stacktape (about $7 a month, no
+failover), `ha-ec2` runs one per availability zone with failover, and `gateway` uses AWS NAT Gateways (about $32 a
+month per zone plus $0.045 per GB). See [VPC and networking](/configuration/connecting-resources#vpc-and-networking).
+Without NAT, `stacktape deploy` warns about every VPC function that has no internet access.
 
 ### Connecting to resources
 
-The `connectTo` property grants IAM permissions, opens network access (security group rules for databases and Redis), and injects environment variables with connection details using the `STP_[RESOURCE_NAME]_[PARAM]` pattern. See [connecting resources](/configuration/connecting-resources) for the full list of injected variables per resource type.
-
-Use the `environment` property for explicit runtime variables such as `LOG_LEVEL` or feature flags. Values can be strings, numbers, or booleans. For secrets, use [`$Secret()`](/configuration/directives) directives rather than hard-coded values. Variables from `connectTo` are added automatically alongside any `environment` entries.
+`connectTo` grants IAM permissions, opens the network path to databases and Redis, and injects
+`STP_<RESOURCE>_<PARAM>` environment variables. [Connecting resources](/configuration/connecting-resources) lists the
+variables per resource type. Put your own settings in `environment` and secrets in
+[`$Secret()`](/configuration/secrets).
 
 
 Example (TypeScript):
@@ -516,9 +371,10 @@ export default defineConfig(() => {
 ```
 
 
-For a resource named `database`, Stacktape follows the `STP_[RESOURCE_NAME]_[PARAM]` pattern — for example, the connection string variable is `STP_DATABASE_CONNECTION_STRING`, the host is `STP_DATABASE_HOST`, and the port is `STP_DATABASE_PORT`. The `LOG_LEVEL` environment variable is available alongside the auto-injected `connectTo` variables.
+Here the function gets `STP_DATABASE_CONNECTION_STRING`, `STP_DATABASE_HOST`, `STP_DATABASE_PORT` and the other
+database variables next to `LOG_LEVEL`.
 
-Use `iamRoleStatements` for AWS services not covered by `connectTo` (e.g., Rekognition, Bedrock, Textract):
+For AWS services that `connectTo` doesn't cover, such as Rekognition, Bedrock or Textract, add `iamRoleStatements`:
 
 
 Example (TypeScript):
@@ -544,13 +400,10 @@ export default defineConfig(() => {
 
 ## Storage
 
-A Lambda function has two storage paths: ephemeral `/tmp` and persistent volume mounts via the `volumeMounts` property.
-
-**Ephemeral `/tmp`** is controlled by the `storage` property (`512`–`10,240` MB, default `512`). The contents exist only for the current invocation and are not shared across instances. Use `/tmp` for temporary downloads, intermediate processing files, or cached assets within a single invocation.
-
-**Volume mounts** attach persistent file systems through the `volumeMounts` property. Stacktape supports two volume mount types: `efs` (EFS filesystem) and `s3files` (S3 Files access point). EFS mounts are the common path for persistent, shared file storage across Lambda invocations. The `s3files` mount type accepts an existing S3 Files access point ARN; this is an advanced path for teams that already manage S3 Files access points outside Stacktape. Both volume mount types require `joinDefaultVpc: true`, and the `mountPath` must start with `/mnt/`.
-
-Use [EFS](/resources/storage/efs-filesystem) when files must persist across invocations, be shared across multiple functions, or exceed the `/tmp` size limit. Skip EFS when an [S3 bucket](/resources/storage/s3-bucket) or database is a better fit for the data access pattern — EFS adds VPC attachment overhead and cost.
+For files that must outlive an invocation or be shared between functions, mount an
+[EFS file system](/resources/storage/efs-filesystem) with `volumeMounts`. Mounts need `joinDefaultVpc: true`, and
+`mountPath` must start with `/mnt/`. The `s3files` mount type attaches an S3 Files access point you already manage. For
+most data, an [S3 bucket](/resources/storage/s3-bucket) or a database is simpler than a file system.
 
 
 Example (TypeScript):
@@ -586,17 +439,13 @@ export default defineConfig(() => {
 ```
 
 
-`efsFilesystemName` references an EFS resource defined in the same config. `rootDirectory` restricts the mount to a subdirectory of the filesystem (defaults to `'/'`). `mountPath` is the path inside the function where the volume appears — it must start with `/mnt/`.
+`rootDirectory` limits the mount to a directory of the file system (default `/`).
 
 ## CDN
 
-A Lambda function can be placed behind a CDN by setting the `cdn` property. CloudFront caches responses at edge locations worldwide, reducing function invocations and bandwidth costs for cacheable content.
-
-**When to enable:** The function serves public, repeatable responses (product catalogs, generated pages, static API data) to a geographically distributed audience. CDN reduces both latency and cost.
-
-**When the default is fine:** Functions that return personalized data, handle write operations, or need every request to execute function code should skip CDN.
-
-**Tradeoff:** Adds CloudFront distribution propagation time on first deploy, and stale-cache risk if cache rules are too broad.
+`cdn.enabled: true` puts a CloudFront distribution in front of the function's URL. Cacheable public responses, such as
+a product catalog, are then served from CloudFront locations near your users without invoking the function. Leave it
+off for personalized responses. See [CDN](/resources/networking/cdn) for cache rules.
 
 
 Example (TypeScript):
@@ -617,23 +466,16 @@ export default defineConfig(() => {
 ```
 
 
-`cdn.enabled: true` places CloudFront in front of the Lambda function with default caching behavior. The `cdn` property uses the shared CDN configuration; see [CDN](/resources/networking/cdn) for cache and routing options.
-
 ## Deployments
 
-Lambda deployment strategies control how traffic shifts from the previous function version to the new one. Use `deployment.strategy` when you want Stacktape to manage Lambda traffic shifting with canary, linear, or all-at-once behavior. Gradual deployments are most valuable for production functions where an all-at-once failure would affect users.
+`deployment.strategy` shifts traffic from the old version to the new one gradually, and rolls back if something fails.
+Use it for production functions where a bad release would hurt users.
 
-**When to enable:** Production-facing APIs, payment handlers, or any function where rolling back quickly matters more than deployment speed.
-
-**When the default is fine:** Development stages, internal tools, and batch processors where a brief disruption is acceptable.
-
-Available strategies:
-
-| Strategy family | Variants | Behavior |
-|---|---|---|
-| **Canary** | `Canary10Percent5Minutes`, `Canary10Percent10Minutes`, `Canary10Percent15Minutes`, `Canary10Percent30Minutes` | Send 10% of traffic to the new version, then all traffic after the wait period. |
-| **Linear** | `Linear10PercentEvery1Minute`, `Linear10PercentEvery2Minutes`, `Linear10PercentEvery3Minutes`, `Linear10PercentEvery10Minutes` | Shift 10% of traffic at regular intervals until 100%. |
-| **AllAtOnce** | `AllAtOnce` | Instant switch, no gradual rollout. |
+| Strategy | Behavior |
+|---|---|
+| `Canary10Percent5Minutes`, `…10Minutes`, `…15Minutes`, `…30Minutes` | 10% of traffic first, the rest after the wait |
+| `Linear10PercentEvery1Minute`, `…2Minutes`, `…3Minutes`, `…10Minutes` | 10% more at each interval |
+| `AllAtOnce` | Switch at once |
 
 
 Example (TypeScript):
@@ -653,19 +495,16 @@ export default defineConfig(() => {
 ```
 
 
-`Canary10Percent5Minutes` sends 10% of traffic to the new version and waits 5 minutes before shifting the remaining 90%. Optional `beforeAllowTrafficFunction` and `afterTrafficShiftFunction` run Lambda-based validation hooks before and after the traffic shift. `beforeAllowTrafficFunction` must signal success or failure to CodeDeploy; if it fails, the deployment rolls back.
-
-For the full deployment lifecycle, see [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
+`beforeAllowTrafficFunction` and `afterTrafficShiftFunction` name functions that check the release before and after the
+shift. If one reports a failure, the deployment rolls back. See
+[Gradual deployments](/deployment-and-lifecycle/gradual-deployments).
 
 ## Destinations
 
-Lambda destinations route the result of an asynchronous invocation to another service — an SQS queue, SNS topic, EventBridge event bus, or another Lambda function. Use `onSuccess` to chain successful results into a downstream workflow and `onFailure` to capture errors for dead-letter processing or alerting.
-
-**When to use destinations:** You invoke the function asynchronously (via `aws lambda invoke --invocation-type Event`, or from SNS/EventBridge/S3 triggers) and need to route results without polling. Destinations are the simplest way to wire a function into a multi-step event pipeline without adding a state machine.
-
-**When to skip destinations:** Synchronous triggers like API Gateway and Application Load Balancer return the function's response directly to the caller — destinations have no effect on synchronous invocations. Kinesis and DynamoDB stream integrations expose their own `onFailure` destination for failed batches, which handles retries and batch-level failure separately from Lambda destinations. The SQS integration does not expose an `onFailure` property in the Lambda event source configuration.
-
-**Destinations vs. in-function error handling:** With destinations, AWS routes the full invocation result (including error details) to the target automatically. This keeps the function code focused on its own logic. Without destinations, the function would need to catch errors internally and publish to SQS or SNS in application code.
+For asynchronous invocations (S3, SNS, EventBridge, or an `Event` invoke), `destinations` sends each result to an SQS
+queue, SNS topic, event bus or another function: `onSuccess` for results, `onFailure` for errors after the retries.
+They don't apply to synchronous callers like API gateways and load balancers. Stream triggers have their own
+`onFailure` setting.
 
 
 Example (TypeScript):
@@ -692,19 +531,16 @@ export default defineConfig(() => {
 ```
 
 
-`onSuccess` and `onFailure` each accept an ARN string. Use [`$ResourceParam()`](/configuration/directives) to reference a resource defined in the same config.
+Both take an ARN. Use [`$ResourceParam()`](/configuration/directives) for a resource in the same config.
 
-## Observability
+## Logs and alarms
 
-Lambda function logs from `stdout` and `stderr` are sent to CloudWatch Logs automatically. View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
+Everything the function writes to stdout and stderr goes to CloudWatch Logs, kept for 90 days by default
+(`logging.retentionDays`). Read it with [`stacktape logs`](/cli/logs). `logging.logForwarding` sends logs to an HTTP
+endpoint, Datadog or Highlight.io; see [Log forwarding](/observability/log-forwarding).
 
-`logging.retentionDays` defaults to `90`. Set a shorter retention for high-volume functions when old logs are not needed; keep longer retention for audit-heavy production paths. Setting `logging.disabled: true` disables CloudWatch logging entirely — use this only when another observability path captures the same data.
-
-Lambda functions also support log forwarding to external services (HTTP endpoints, Datadog, Highlight.io) through the `logging.logForwarding` property. See [log forwarding](/observability/log-forwarding) for configuration details.
-
-### Alarms
-
-Lambda function alarms support `lambda-error-rate` and `lambda-duration` triggers. Define alarms in the function config and deploy to apply changes. Existing legacy Console rules can be [exported into config](/observability/alarms#migrating-legacy-console-alarm-rules); `disabledGlobalAlarms` excludes named legacy rules during migration.
+Function alarms use the `lambda-error-rate` and `lambda-duration` triggers. See [Alarms](/observability/alarms) for
+evaluation settings and notification channels.
 
 
 Example (TypeScript):
@@ -738,41 +574,132 @@ export default defineConfig(() => {
 ```
 
 
-`thresholdPercent: 5` fires the error-rate alarm when more than 5% of invocations fail. `thresholdMilliseconds: 5000` fires the duration alarm when execution time exceeds 5 seconds. Alarm evaluation settings (period, evaluated periods, breached periods) and `notificationChannels` are configurable on each alarm. See [alarms](/observability/alarms) for notification target types and setup.
+This alarm fires when more than 5% of invocations fail, or when an invocation runs longer than 5 seconds.
 
 ## Layers
 
-Lambda layers are zip archives with additional code or data that get mounted into the function at runtime. Set `layers` to an array of Lambda layer ARNs to attach shared libraries, custom runtimes, or large datasets that multiple functions need without duplicating them in each deployment package. Stacktape supports up to 5 layer ARNs per function.
+`layers` attaches up to five Lambda layer ARNs: shared libraries, a custom runtime or data that several functions need.
+You rarely need them, because `js-bundle` and `buildpack` package dependencies for you.
 
-Most teams do not need layers. `js-bundle` and `buildpack` handle dependencies automatically. Use layers when you need a binary dependency too large for the zip package, a shared custom runtime, or a public layer maintained by a third party.
+## Examples
 
-## FAQ
+### HTTP API with DynamoDB
 
-### Does a Stacktape Lambda function scale to zero?
+A Hono API that reads and writes a [DynamoDB table](/resources/databases/dynamodb). `connectTo` grants the function
+read and write access to the table and injects `STP_USERS_TABLE_NAME`.
 
-Yes. A Lambda function only runs when invoked, so idle functions do not consume compute. The exception is `provisionedConcurrency`: those instances stay warm and bill even when idle. Most teams start without provisioned concurrency and add it only for latency-sensitive paths.
 
-### Should I use a function URL or an HTTP API Gateway?
+Example (TypeScript):
 
-Use `url.enabled: true` (a function URL) when the function handles all routing itself — a Hono/Express app behind `handle()`, a webhook receiver, or a single narrow-purpose endpoint. Use an [HTTP API Gateway](/resources/networking/http-api-gateway) when you need route-level `method`/`path` matching or a shared API surface across multiple functions. Note that a function URL defaults to `authMode: 'NONE'`, meaning anyone can call it — set `authMode: 'AWS_IAM'` to restrict access.
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  HttpApiGateway,
+  DynamoDbTable,
+  JsBundleLambdaPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const apiGateway = new HttpApiGateway({});
 
-### How do I connect a Lambda function to a database?
+  const usersTable = new DynamoDbTable({
+    primaryKey: { partitionKey: { name: 'userId', type: 'string' } }
+  });
 
-Use `connectTo` to reference the database resource — Stacktape grants IAM permissions, opens network access, and injects connection-string environment variables. If the database is VPC-only, set `joinDefaultVpc: true`. The tradeoff: the function loses direct outbound internet access. See [connecting resources](/configuration/connecting-resources).
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    events: [
+      {
+        type: 'http-api-gateway',
+        properties: {
+          httpApiGatewayName: 'apiGateway',
+          method: '*',
+          path: '/{proxy+}'
+        }
+      }
+    ],
+    connectTo: [usersTable],
+    memory: 512,
+    timeout: 30
+  });
 
-### When should I use a Lambda function instead of a web service?
+  return { resources: { apiGateway, usersTable, api } };
+});
+```
 
-Use a Lambda function for short-lived, event-driven work that finishes within 15 minutes and does not need a persistent process. Use a [web service](/resources/compute/web-service) for always-on containers, workloads needing both VPC and internet access, or tasks requiring more than 10,240 MB of memory. Lambda scales to zero and bills per invocation; a web service bills per running container-hour.
 
-### How much memory should I allocate, and how do I lower cost?
+The handler:
 
-Lambda CPU scales proportionally with `memory`: `1,769` MB equals 1 vCPU (range `128`–`10,240` MB). Start with the smallest memory that meets your latency target, then raise it for CPU-bound work — higher memory often *reduces* total cost because faster execution offsets the higher per-millisecond rate. For an additional ~20% saving per GB-second, set `architecture: 'arm64'` (AWS Graviton), which usually works without code changes.
+```ts
+import { Hono } from 'hono';
+import { handle } from 'hono/aws-lambda';
+import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
 
-### Why are records being processed more than once from my SQS or stream trigger?
+const app = new Hono();
+const client = new DynamoDBClient({});
+const tableName = process.env.STP_USERS_TABLE_NAME!;
 
-For queue and stream triggers (`sqs`, `kinesis-stream`, `dynamo-db-stream`), a failed batch is retried in full by default, including records that already succeeded. For partial failure handling, enable `reportBatchItemFailures` and return `batchItemFailures`; see [SQS](/resources/triggers/sqs-events), [Kinesis](/resources/triggers/kinesis-events) and [DynamoDB streams](/resources/triggers/dynamodb-streams). Keep handlers idempotent so reprocessing a record is safe. `batchSize` (default `10`) and `maxBatchWindowSeconds` (max `300`) control how many records each invocation receives.
+app.get('/users/:id', async (c) => {
+  const result = await client.send(new GetItemCommand({
+    TableName: tableName,
+    Key: { userId: { S: c.req.param('id') } }
+  }));
+  return c.json(result.Item ?? {});
+});
 
-## API Reference
+app.post('/users', async (c) => {
+  const body = await c.req.json();
+  await client.send(new PutItemCommand({
+    TableName: tableName,
+    Item: {
+      userId: { S: body.id },
+      name: { S: body.name },
+      email: { S: body.email }
+    }
+  }));
+  return c.json({ success: true }, 201);
+});
+
+export const handler = handle(app);
+```
+
+### Scheduled job
+
+A function that runs every night at 03:00 UTC:
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  JsBundleLambdaPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const cleanup = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/cleanup.ts'
+    }),
+    events: [
+      {
+        type: 'schedule',
+        properties: { scheduleRate: 'cron(0 3 * * ? *)' }
+      }
+    ],
+    timeout: 120
+  });
+
+  return { resources: { cleanup } };
+});
+```
+
+
+To delete expired DynamoDB items, a [TTL attribute](/resources/databases/dynamodb) is cheaper than a scheduled scan.
+
+## Configuration reference
 
 
 ### Definition: `LambdaFunctionProps`

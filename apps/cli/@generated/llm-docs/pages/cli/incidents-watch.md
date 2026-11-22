@@ -1,6 +1,6 @@
 # incident watch
 
-The `incident watch` command waits for an incident to recover and stay recovered. It exits successfully only after the incident has remained `RESOLVED` for the stability window; if a signal recurs and reopens the incident, the window resets. Use it after deploying a fix to prove the fix worked, in CI scripts, or at the end of a coding-agent workflow.
+The `incident watch` command waits for an incident to recover and stay recovered. It exits successfully only after the incident has remained `RESOLVED` for the stability window; if a signal recurs and reopens the incident, the window resets. Use it after deploying a fix to prove the fix worked, in CI scripts, or at the end of a coding-agent workflow. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -9,23 +9,6 @@ stacktape incident watch <incident-id>
 ```
 
 By default the command waits up to 900 seconds for the incident to stay resolved for 30 continuous seconds. Recovery time the Console already recorded before the command started counts toward the window.
-
-## Flags reference
-
-The only required argument is the incident ID. Raise the timeout and the stability window when the affected monitor evaluates slowly, for example an alarm with a five-minute period.
-
-
-## CLI Options: `stacktape incident watch`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--incident-id (positional 1)` | yes | `string` | Incident ID — The ID of the incident to act on. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--stable-for` | no | `number` | Incident Watch Stability Window — Number of continuous seconds the incident must remain resolved before the command succeeds. A recurring signal resets the window. Defaults to 30 seconds. | - |
-| `--timeout` | no | `number` | Incident Watch Timeout — Maximum number of seconds to wait for the incident to recover. Defaults to 900 seconds. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
 
 ## Examples
 
@@ -45,7 +28,22 @@ stacktape incident watch inc_abc123def456 --agent
 
 ## Exit behavior
 
-The command exits with the error code `INCIDENT_WATCH_TIMEOUT` if sustained recovery is not observed before the timeout. The message includes the last observed status and the number of signals that were still active, so a script can decide whether to retry after another fix.
+The command exits with the error code `INCIDENT_WATCH_TIMEOUT` if sustained recovery is not observed before the timeout. The message includes the last observed status and the number of signals that were still active, so a script can decide whether to retry after another fix. Raise the timeout and the stability window when the affected monitor evaluates slowly, for example an alarm with a five-minute period.
+
+## Options
+
+
+## CLI Options: `stacktape incident watch`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--incident-id (positional 1)` | yes | `string` | Incident ID — The ID of the incident to act on. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--stable-for` | no | `number` | Incident Watch Stability Window — Number of continuous seconds the incident must remain resolved before the command succeeds. A recurring signal resets the window. Defaults to 30 seconds. | - |
+| `--timeout` | no | `number` | Incident Watch Timeout — Maximum number of seconds to wait for the incident to recover. Defaults to 900 seconds. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
 
 ## Related commands
 

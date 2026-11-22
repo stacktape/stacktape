@@ -2,20 +2,20 @@
 title: 'Kafka cluster'
 order: 5
 seoTitle: 'Amazon MSK Serverless Kafka Cluster | Stacktape Docs'
-seoDescription: 'Create an IAM-secured Amazon MSK Serverless Kafka cluster with Stacktape defaults.'
+seoDescription: 'Create an IAM-secured Amazon MSK Serverless Kafka cluster with Stacktape: what it costs, connecting clients, creating topics, dev mode and supported regions.'
 ---
 
-# Kafka cluster
+A `kafka-cluster` is an Amazon MSK Serverless cluster with IAM authentication in the stack's VPC. There are no broker
+sizes, capacity units or network settings to choose; Stacktape sets secure defaults and a dedicated security group. Use
+it only when you need Kafka itself, for example for existing Kafka clients or tools.
 
-> **Cost warning:** an MSK Serverless cluster has a substantial always-on charge. AWS's US East (Ohio) pricing
-> example is about **$0.75 per cluster-hour**, or **$558 per 31-day month**, before partition, data-processing,
-> transfer, and storage charges. Every stage creates and pays for another cluster. Lambda Kafka triggers also create
-> Lambda and STS interface endpoints, which add hourly charges per availability zone and data-processing charges.
-> Prefer SQS or Kinesis unless Kafka compatibility is a real requirement.
+<Warning>
+An MSK Serverless cluster costs about $0.75 per cluster-hour in AWS's US East (Ohio) example, or about $558 for a
+31-day month, before partition, data and storage charges. Every stage gets its own cluster. For queues and streams
+without Kafka, use an [SQS queue](/resources/messaging/sqs-queue) or a [Kinesis stream](/resources/messaging/kinesis-stream).
+</Warning>
 
-A `kafka-cluster` creates Amazon MSK Serverless with IAM authentication in Stacktape's default VPC. There are no broker
-sizes, capacity units, authentication, or network knobs to choose. Stacktape supplies secure defaults and a dedicated
-security group.
+## Basic example
 
 ```yaml
 resources:
@@ -34,17 +34,19 @@ resources:
         - events
 ```
 
-`connectTo` injects `ARN`, `NAME`, and comma-separated `BOOTSTRAP_SERVERS`. It grants only IAM Kafka connection and
-topic/group actions for this cluster, including `CreateTopic`; it does not grant `AlterTopic` or `DeleteTopic`.
-Functions that connect directly as Kafka clients require `joinDefaultVpc: true`. Container workloads already use the
-Stacktape VPC. A `kafka-topic` Lambda event is different: its AWS-managed poller has separate networking and does not
-require the function itself to join the VPC.
+`connectTo` injects `ARN`, `NAME` and a comma-separated `BOOTSTRAP_SERVERS` (here `STP_EVENTS_BOOTSTRAP_SERVERS`). It
+grants IAM Kafka connect, topic and consumer group actions on this cluster, including `CreateTopic`, but not
+`AlterTopic` or `DeleteTopic`.
+
+A Lambda function that connects as a Kafka client needs `joinDefaultVpc: true`. Containers already run in the VPC. To
+consume a topic with a Lambda trigger instead, use a [Kafka topic event](/resources/triggers/kafka-topics); its poller
+has its own networking and the function doesn't join the VPC.
 
 ## Create topics
 
-Topics are not infrastructure resources. MSK Serverless disables broker auto-creation, and `AWS::MSK::Topic` does not
-support Serverless clusters. Create a topic from application setup code or an explicit deployment script using a Kafka
-AdminClient. For Node.js:
+Topics aren't infrastructure here: MSK Serverless doesn't create them automatically, and CloudFormation can't declare
+them for Serverless clusters. Create them with a Kafka admin client, from setup code or a
+[deployment script](/resources/advanced/deployment-scripts). For Node.js:
 
 ```bash
 pnpm add kafkajs aws-msk-iam-sasl-signer-js
@@ -71,13 +73,17 @@ await admin.createTopics({ topics: [{ topic: 'orders', numPartitions: 3 }] });
 await admin.disconnect();
 ```
 
-Make setup idempotent and decide partition count consciously: MSK Serverless pricing includes per-partition-hour charges,
-and increasing partitions affects both cost and consumer parallelism.
+`createTopics` skips topics that already exist, so the setup can run on every deploy. Choose the partition count on
+purpose: MSK Serverless charges per partition-hour, and partitions also set how many consumers can read in parallel.
 
-## Development mode
+## Lambda triggers and VPC endpoints
 
-Stacktape does not emulate Kafka locally and does not deploy this costly resource during `stacktape dev` by default.
-Opt in only when a dev session really needs AWS Kafka:
+A [Kafka topic event](/resources/triggers/kafka-topics) on a cluster in the stack makes Stacktape create Lambda and STS
+interface endpoints in the VPC for Lambda's poller. They add hourly and per-GB charges in every availability zone.
+
+## Dev mode
+
+Stacktape doesn't emulate Kafka locally, and `stacktape dev` doesn't deploy the cluster unless you ask for it:
 
 ```yaml
 events:
@@ -87,31 +93,37 @@ events:
       remote: true
 ```
 
-You can also select it for one session with `--remote-resources events`. This deploys the real cluster; it is not local
-emulation and normal AWS charges apply. Locally running container clients do not automatically gain network access to
-the private cluster. Use a deployed workload or deliberately provide private connectivity to the VPC.
+`--remote-resources events` does the same for one session. Either way the real cluster is deployed and billed.
+Containers running on your machine can't reach the private cluster by themselves; use a deployed workload or set up
+private access to the VPC.
 
-## Regions and lifecycle
+## Regions and deletion
 
-Stacktape validates MSK Serverless availability before deployment. Supported Stacktape regions currently include
-US East (N. Virginia and Ohio), US West (Oregon), Canada Central, Mumbai, Singapore, Sydney, Tokyo, Seoul, Frankfurt,
-Stockholm, Ireland, London, and Paris. Unsupported regions fail with a list of valid choices.
+Stacktape checks that MSK Serverless is available before deploying. Supported regions: US East (N. Virginia and Ohio),
+US West (Oregon), Canada (Central), Mumbai, Singapore, Sydney, Tokyo, Seoul, Frankfurt, Stockholm, Ireland, London and
+Paris. Other regions fail with the list of valid ones.
 
-Deleting the stage deletes the cluster and all topic data. Stacktape deliberately does not retain it: silently leaving
-an approximately $558/month orphan would be unsafe. Back up or replicate data before deletion.
+Deleting the stage deletes the cluster and all topic data; Stacktape doesn't keep it, because a forgotten cluster costs
+around $558 a month. Back up or replicate data before you delete.
 
-All CloudFormation properties of an MSK Serverless cluster require replacement. Because AWS requires a fixed cluster
-name, a replacement can require deleting the old cluster before CloudFormation can create the new one. Stacktape's
-trusted-change output flags replacement or deletion as destructive. Kafka v1 therefore exposes no raw capacity,
-network, authentication, tag, or CloudFormation override surface that could detach Stacktape's references and security
-wiring.
+Every property of an MSK Serverless cluster requires a replacement, and AWS needs a fixed cluster name, so a
+replacement may delete the old cluster before creating the new one. Stacktape's change preview marks this as
+destructive. To keep it from happening by accident, the resource has no capacity, network, authentication, tag or
+override settings.
 
-In a reused VPC, Stacktape chooses one public subnet per supported availability zone and requires at least two. Amazon
-MSK does not support the physical zone `use1-az3`. Because availability-zone names map to physical zones differently
-in every AWS account, native Kafka in `us-east-1` requires `stackConfig.vpc.reuseVpc` in v1; discovery excludes
-`use1-az3` before selecting subnets. Use another supported region when you want Stacktape to create the default VPC.
+In a reused VPC, Stacktape picks one public subnet per supported availability zone and needs at least two. MSK doesn't
+support the `use1-az3` zone, and zone names map to physical zones differently in each account. So in `us-east-1` the
+cluster requires `stackConfig.vpc.reuseVpc`, and Stacktape leaves out `use1-az3` when it picks subnets. In other regions
+Stacktape can create the VPC itself.
 
-Review current prices before deployment: [Amazon MSK pricing](https://aws.amazon.com/msk/pricing/) and
+Prices: [Amazon MSK pricing](https://aws.amazon.com/msk/pricing/) and
 [AWS PrivateLink pricing](https://aws.amazon.com/privatelink/pricing/).
 
+## Configuration reference
+
 <ApiReference definitionName="KafkaClusterProps" />
+
+## Next steps
+
+- [Kafka topic events](/resources/triggers/kafka-topics): run a Lambda function on records from a topic.
+- [Deployment scripts](/resources/advanced/deployment-scripts): create topics during the deploy.

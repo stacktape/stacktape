@@ -1,4 +1,4 @@
-# Packaging Overview
+# Packaging overview
 
 Stacktape packaging turns your source code into a deployable artifact: a Lambda zip for functions or a container image for always-on services. Your [resource type](/configuration/resources) determines which category applies. The packaging type you choose controls how the artifact is built.
 
@@ -31,7 +31,7 @@ Function packaging bundles your code and dependencies into a Lambda deployment z
 | [**`buildpack`**](/packaging/function/buildpack) | Python, Java, Go, Ruby, .NET or Rust. Point to the entry file. Stacktape installs dependencies and compiles the code in Docker on the Lambda build image of the function's `runtime`. |
 | [**`custom-artifact`**](/packaging/function/custom-artifact) | You build the deployment package yourself. Provide a zip, directory or other file. Stacktape zips directories and non-zip files automatically. |
 
-Use `custom-artifact` only when your build can't be expressed through `js-bundle` or `buildpack`, for example a custom compiler step, a monorepo build tool, or an artifact produced by a separate CI job. It accepts a `packagePath` and, optionally, a `handler` in `{{filepath}}:{{functionName}}` format.
+Use `custom-artifact` only when your build can't be expressed through `js-bundle` or `buildpack`, for example a custom compiler step, a monorepo build tool, or an artifact produced by a separate CI job. It needs a `packagePath` and a `handler`, and the function needs a `runtime`.
 
 
 Example (TypeScript):
@@ -58,14 +58,14 @@ Container packaging builds or references an OCI container image. Four types cove
 
 | Type | Use when |
 |------|----------|
-| [**`js-bundle`**](/packaging/containers/js-bundle) | A JavaScript or TypeScript service with one entry file. Stacktape bundles the code and builds a small Alpine-based image. |
+| [**`js-bundle`**](/packaging/containers/js-bundle) | A JavaScript or TypeScript service with one entry file, on Node.js, Bun or Deno. Stacktape bundles the code and builds a small image. |
 | [**`buildpack`**](/packaging/containers/buildpack) | Any other project: Python, Go, Rust, Java, PHP, Ruby, .NET, Elixir, or a Node.js framework such as Next.js. Stacktape detects the language, framework and start command from the project files. No Dockerfile needed. |
 | [**`dockerfile`**](/packaging/containers/dockerfile) | You need a specific base image, system setup, multi-stage builds or full control over the build. Stacktape builds the image from your Dockerfile. |
 | [**`prebuilt-image`**](/packaging/containers/prebuilt-image) | The image already exists in Docker Hub, ECR or a private registry. Stacktape does not build an image. |
 
 ### Choosing a container packaging type
 
-Use **`js-bundle`** (`JsBundleImagePackaging`) for Node.js services that start from one entry file, such as Express, Hono, Fastify or NestJS. Use **`buildpack`** (`BuildpackImagePackaging`) for every other language and for frameworks with their own build output. It works without configuration for projects that follow their ecosystem's conventions, and `startCommand`, `buildCommand` and the other overrides cover the rest. Use **`dockerfile`** (`DockerfilePackaging`) when you need a specific base image, GPU drivers or a custom entrypoint. Use **`prebuilt-image`** (`PrebuiltImagePackaging`) when your CI pipeline already produces images, or for third-party software such as Redis, Nginx or Prometheus.
+Use **`js-bundle`** (`JsBundleImagePackaging`) for JavaScript and TypeScript services that start from one entry file, such as Express, Hono, Fastify or NestJS, on Node.js (the default), Bun or Deno (`runtime: 'bun'` or `'deno'`). Use **`buildpack`** (`BuildpackImagePackaging`) for every other language and for frameworks with their own build output. It works without configuration for projects that follow their ecosystem's conventions, and `startCommand`, `buildCommand` and the other overrides cover the rest. Use **`dockerfile`** (`DockerfilePackaging`) when you need a specific base image, GPU drivers or a custom entrypoint. Use **`prebuilt-image`** (`PrebuiltImagePackaging`) when your CI pipeline already produces images, or for third-party software such as Redis, Nginx or Prometheus.
 
 
 Example (TypeScript):
@@ -97,10 +97,6 @@ The `resources` property belongs to the web service, not to packaging. It sets C
 
 ## FAQ
 
-### What's the difference between function packaging and container packaging?
-
-Function packaging produces a Lambda deployment zip for functions that scale per request and are billed per invocation. Container packaging produces or references an OCI container image for container resources such as web services and worker services. Your resource type determines which category applies: [Lambda functions](/resources/compute/lambda-function) use function packaging, while [web services](/resources/compute/web-service) and other container resources use container packaging.
-
 ### Which packaging type should I start with?
 
 For JavaScript and TypeScript, start with `js-bundle`, either [for Lambda](/packaging/function/js-bundle) or [for containers](/packaging/containers/js-bundle). For other languages, start with `buildpack`, either [for Lambda](/packaging/function/buildpack) or [for containers](/packaging/containers/buildpack). Switch to [`dockerfile`](/packaging/containers/dockerfile), [`custom-artifact`](/packaging/function/custom-artifact) or [`prebuilt-image`](/packaging/containers/prebuilt-image) when you need full control or already have a build pipeline.
@@ -109,7 +105,7 @@ For JavaScript and TypeScript, start with `js-bundle`, either [for Lambda](/pack
 
 - **Lambda `js-bundle`:** JavaScript and TypeScript.
 - **Lambda `buildpack`:** Python, Java, Go, Ruby, .NET and Rust.
-- **Container `js-bundle`:** JavaScript and TypeScript.
+- **Container `js-bundle`:** JavaScript and TypeScript, on Node.js, Bun or Deno.
 - **Container `buildpack`:** Node.js, Python, PHP, Ruby, Go, Rust, Java, .NET, Elixir, Deno, Gleam, C/C++, static sites and shell scripts.
 - **`dockerfile` and `prebuilt-image`:** anything that runs in a container.
 

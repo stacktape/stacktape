@@ -1,4 +1,4 @@
-# AI Assessment, Investigation and Fixes
+# AI investigation and fixes
 
 Stacktape uses AI on [incidents](/observability/incidents) in three ways:
 
@@ -10,7 +10,7 @@ You start Investigate and Fix from the incident page in the Console. For each ru
 
 | | Automatic briefing | Investigate with AI | Fix with AI |
 |---|---|---|---|
-| Starts | For every incident | When someone asks | When someone asks |
+| Starts | For every incident, once a key is connected | When someone asks | When someone asks |
 | Paid by | Your organization's API key | Your organization's API key or your own subscription | Your organization's API key or your own subscription |
 | Runs on | Stacktape, with your key's provider | Your project's runner, in your AWS account | Your project's runner, in your AWS account |
 | Reads | What Stacktape already stores about the incident | Also your code at the recorded commit, AWS through Stacktape's read-only operations, and the web | The same as Investigate |
@@ -48,7 +48,7 @@ The briefing gives hypotheses from stored evidence, not a verified diagnosis. Th
 The briefing appears:
 
 - on the incident page in the Console, under **AI assessment**, with the time its evidence was collected and the key that wrote it;
-- on the incident's card in Slack when the incident goes to a [Stacktape Slack app](/observability/alert-channels#slack-stacktape-app) channel: the summary and why it may need attention now, with a link to the full assessment. The card is updated when a new briefing is ready;
+- on the incident's card in Slack when the incident goes to a [Stacktape Slack app](/observability/alert-channels#slack) channel: the summary and why it may need attention now, with a link to the full assessment. The card is updated when a new briefing is ready;
 - in the [agent handoff](/observability/incidents#agent-handoff-bundle) that **Copy details for agent** and `stacktape incident show` return.
 
 Your key's provider writes the briefing from a scrubbed, bounded snapshot of what Stacktape already stores about the incident (see [What leaves your AWS account](#what-leaves-your-aws-account)). It does not read raw log lines, your source code or live state in your AWS account. One briefing is one model call of about 3,000 input and 1,000 output tokens, billed by the provider to your key's account. Stacktape prepares at most 30 briefings per organization per hour, so during a burst of incidents some briefings wait. A briefing that cannot be prepared within a day is dropped. Alerts and monitoring are unaffected either way.
@@ -152,6 +152,8 @@ The runner's compute is billed to your AWS account, as for your deployments.
 
 ## What leaves your AWS account
 
+[What leaves your AWS account](/observability/overview#what-leaves-your-aws-account) compares every feature in one table.
+
 - **For the automatic briefing:** the provider of your organization's key (Anthropic, OpenAI or xAI), under that key's terms, receives a scrubbed, bounded snapshot of what Stacktape already stores about the incident. The snapshot holds incident and signal metadata, excerpts of signal evidence, error messages and stack frames, uptime, deploy and alert-event facts, and earlier incidents of the same project. It holds no raw log lines, source code or live AWS state.
 - **For Investigate and Fix:** the agent sends its provider, under the terms of the credential that funds the run, whatever it reads while it works: the incident handoff, the answers of Stacktape's tools (AWS data, masked by Stacktape), your source code, the output of the commands it runs, and the web pages it fetches. The provider is Anthropic for Claude Code, OpenAI for Codex, xAI for Grok, and for OpenCode the provider its sign-in or key belongs to. Your source code and command output are not masked.
 - **For a fix:** the runner pushes the change to your GitHub repository. Stacktape keeps the list of changed files and, when the push or the pull request fails, the change as a patch of up to 256 KB. In a private repository, the pull request carries the agent's description, the incident's title, who requested the fix and what the agent says it ran. In a public repository, anyone can read the pull request and the change, so it carries only the change's title, a link to the incident that needs a Stacktape login and the recorded commit.
@@ -170,7 +172,7 @@ See [Team and access control](/stacktape-console/team-and-access-control#roles) 
 
 ## Using your own coding agent instead
 
-**Copy details for agent** on the incident page, [`stacktape incident show`](/cli/incidents-show) and the MCP server's [`stacktape_incident`](/using-with-ai/mcp-server-setup#incident-tool) tool return the same [handoff](/observability/incidents#agent-handoff-bundle). It holds the incident's signals, evidence, releases, timeline and related incidents, the automatic briefing, and the reports of hosted runs on the incident. Give it to a coding agent on your own machine when:
+**Copy details for agent** on the incident page, [`stacktape incident show`](/cli/incidents-show) and the MCP server's [`stacktape_incident`](/using-with-ai/mcp-server-setup#incident-tool) tool return the same [handoff](/observability/incidents#agent-handoff-bundle). It holds the incident's signals, evidence, releases, timeline and related incidents, the automatic briefing when there is one, and the reports of hosted runs on the incident. Give it to a coding agent on your own machine when:
 
 - the repository is on GitLab or Bitbucket, so Fix with AI is not available;
 - no credential is connected for the agent you want;
@@ -178,38 +180,14 @@ See [Team and access control](/stacktape-console/team-and-access-control#roles) 
 
 ## FAQ
 
-### Does Investigate or Fix deploy anything?
+### Which agent should I choose?
 
-No. An investigation publishes nothing: what it changes in the checkout on the runner is discarded. A fix ends in a pull request on a new branch. Stacktape deploys nothing, merges nothing and starts no preview deployment for it. You review, test, merge and deploy the change yourself.
-
-### Can the agent change my AWS resources?
-
-No. The agent has no AWS credentials. It reads AWS only through Stacktape's reviewed read-only operations, which Stacktape executes for it, and an operation outside that catalog is refused. A change to production goes through the pull request you merge and deploy.
-
-### Can I use it without connecting a Git repository?
-
-The automatic briefing (with an AI API key connected) and Investigate with AI work without one. The investigation then diagnoses from the incident and your AWS account, and its report says the source was not available. Fix with AI needs a GitHub repository, private or public, connected through the Stacktape GitHub App.
+The one your team already uses and pays for. When the agent's commands must not be able to read its credential or the
+run's files, choose Claude Code or Codex (see [Coding agents](#coding-agents)). On the organization's API key, Claude
+Code and OpenCode also stop at the run's spend limit.
 
 ### What happens when a run fails?
 
-The incident page shows why. For example, the provider rejected the credential, a usage or spend limit was reached, the runner had no free capacity, or the run took too long. Nothing is retried with another credential. A fix whose change could not be pushed or published keeps it with the run: the page lists the changed files and shows the change as a patch. You can start a new run once the cause is resolved.
-
-### Is my source code sent to the AI provider?
-
-Only in Investigate and Fix runs, and only when your repository is connected and Stacktape recorded the full commit of the live release. The agent reads and runs your code on your runner and sends what it reads to its provider under the terms of the credential you chose. Unlike the answers of Stacktape's tools, source code and command output are not masked. The automatic briefing never reads source code.
-
-### Which agent should I choose?
-
-The one your team already uses and pays for. When the agent's commands must not be able to read its credential or the run's files, choose Claude Code or Codex (see [Coding agents](#coding-agents)). On the organization's API key, Claude Code and OpenCode also stop at the run's spend limit.
-
-### Can a Viewer start a run?
-
-No. Viewers can read briefings and run results on the projects they can access. Starting a run needs the Owner, Admin or Developer role and access to the project.
-
-### Does the briefing change the incident's severity or alerts?
-
-No. Severity, status, signals and pages come from monitoring, and alerts never wait for the briefing. When the model thinks the severity may be understated or overstated, the briefing says so, and the severity stays as monitoring set it.
-
-### Can Stacktape change my main branch?
-
-No. For a fix, the runner pushes one new branch, `stacktape/fix-<run>`, and Stacktape opens a pull request from it. Neither pushes to any other branch or merges.
+The incident page shows why: the provider rejected the credential, a usage or spend limit was reached, the runner had
+no free capacity, or the run took too long. Nothing is retried with another credential. A fix whose change couldn't be
+pushed keeps it with the run as a patch. Start a new run once the cause is resolved.

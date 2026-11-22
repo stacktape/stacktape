@@ -105,10 +105,6 @@ Use `--list-versions` to see which versions are still available. If a target ver
 
 If the stack includes static hosting with bucket-synced content, Stacktape attempts to restore the bucket contents from a version manifest stored during the original deployment. If Stacktape cannot restore bucket-synced content, it warns that stacks with static websites may need to be redeployed from the original commit.
 
-## Arguments reference
-
-<CliCommandsApiReference command="rollback" />
-
 ## Examples
 
 ### Quick rollback after a bad deploy
@@ -170,6 +166,10 @@ Yes. Each rollback creates a new deployment version (e.g., rolling back from `v0
 ### Will my `after:deploy` hooks run during rollback?
 
 No. When rollback safety metadata reports `after:deploy` hooks, Stacktape warns that they will not be re-executed during rollback. If your deployment relies on post-deploy scripts (database seeding, cache warming), you need to run them manually after the rollback completes.
+
+## Options
+
+<CliCommandsApiReference command="rollback" />
 
 ## Related commands
 

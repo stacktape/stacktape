@@ -1,23 +1,23 @@
 ---
-title: 'Resources'
-order: 9
+title: 'Declaring resources'
+order: 2
 seoTitle: 'Stacktape Resources — Define AWS Infrastructure as Code'
 seoDescription: 'Define cloud infrastructure with Stacktape resources. Each resource maps to managed AWS services with automatic IAM permissions, networking, and environment variable injection via connectTo.'
 ---
 
-# Resources
+# Declaring resources
 
-A Stacktape resource is a named piece of infrastructure — an API, a database, a container service, a queue — that Stacktape provisions and manages in your AWS account. You define resources in the `resources` object of your configuration, and Stacktape handles the underlying AWS setup: CloudFormation resources, IAM permissions, networking, and environment variable injection.
+A Stacktape resource is a named piece of infrastructure (an API, a database, a container service, a queue) that Stacktape provisions and manages in your AWS account. You define resources in the `resources` object of your configuration, and Stacktape handles the underlying AWS setup: CloudFormation resources, IAM permissions, networking, and environment variable injection.
 
 ## Why resources exist
 
-AWS has hundreds of services, each with dozens of configuration knobs. Stacktape resources are opinionated abstractions that bundle the AWS primitives you need into a single declaration. A [web service](/resources/compute/web-service) runs a container workload using Fargate by default (with EC2 available through the container resources configuration) — you declare the container, scaling, and networking in one block without manually configuring task definitions, target groups, or IAM roles.
+AWS has hundreds of services, each with dozens of configuration knobs. Stacktape resources are opinionated abstractions that bundle the AWS primitives you need into a single declaration. A [web service](/resources/compute/web-service) runs a container workload using Fargate by default (with EC2 available through the container resources configuration): you declare the container, scaling, and networking in one block without manually configuring task definitions, target groups, or IAM roles.
 
 You stay in control of the underlying AWS resources through [overrides](/configuration/overrides-and-escape-hatches), but you don't need to think about them until you have an edge case that the abstraction doesn't expose directly.
 
 ## Defining resources
 
-Resources live in the `resources` object returned from `defineConfig`. Each key becomes the resource's name — used in `connectTo` environment variable prefixes (e.g., `STP_MY_API_ARN`) and in resource references like `$ResourceParam('myApi', 'url')`.
+Resources live in the `resources` object returned from `defineConfig`. Each key becomes the resource's name: used in `connectTo` environment variable prefixes (e.g., `STP_MY_API_ARN`) and in resource references like `$ResourceParam('myApi', 'url')`.
 
 <CodeBlock
   intellisense
@@ -60,29 +60,17 @@ The resource name you choose matters:
 
 - It determines the prefix for injected environment variables (e.g., a resource named `uploads` produces `STP_UPLOADS_NAME`, `STP_UPLOADS_ARN`).
 - It's used in `$ResourceParam('uploads', 'arn')` references across your config.
-- Changing a resource name affects every reference to it — `$ResourceParam` lookups, `connectTo` listings, and injected environment variable prefixes.
+- Changing a resource name affects every reference to it: `$ResourceParam` lookups, `connectTo` listings, and injected environment variable prefixes.
 
-Pick short, descriptive, camelCase names. Resource names must be alphanumeric — letters and numbers only (matching `/^[a-z0-9]+$/i`). Hyphens, underscores, and special characters are not allowed. Stacktape validates this at deploy time and rejects invalid names.
+Pick short, descriptive, camelCase names. Resource names must be alphanumeric: letters and numbers only (matching `/^[a-z0-9]+$/i`). Hyphens, underscores, and special characters are not allowed. Stacktape validates this at deploy time and rejects invalid names.
 
-## Resource categories
+## Which resources exist
 
-Stacktape groups resources by purpose. Each category maps to a set of AWS services underneath.
-
-| Category | Resources | AWS services |
-|----------|-----------|--------------|
-| **Compute** | [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), [multi-container workload](/resources/compute/multi-container-workload), [batch job](/resources/compute/batch-job), [edge function](/resources/compute/edge-function) | Lambda, ECS Fargate/EC2, AWS Batch, Lambda@Edge |
-| **Frontend** | [Static hosting](/resources/frontend/static-hosting), [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) | S3, CloudFront, Lambda |
-| **Databases** | [Relational database](/resources/databases/relational-database), [Aurora DSQL](/resources/databases/dsql), [DynamoDB](/resources/databases/dynamodb), [Redis](/resources/databases/redis), [MongoDB Atlas](/resources/databases/mongodb-atlas), [Upstash Redis](/resources/databases/upstash-redis), [OpenSearch](/resources/databases/opensearch) | RDS, Aurora, Aurora DSQL, DynamoDB, ElastiCache, OpenSearch Service |
-| **Storage** | [S3 bucket](/resources/storage/s3-bucket), [EFS filesystem](/resources/storage/efs-filesystem) | S3, EFS |
-| **Networking** | [HTTP API Gateway](/resources/networking/http-api-gateway), [WebSocket API Gateway](/resources/networking/websocket-api-gateway), [AppSync API](/resources/networking/appsync-api), [Application Load Balancer](/resources/networking/application-load-balancer), [Network Load Balancer](/resources/networking/network-load-balancer), [CDN](/resources/networking/cdn), [custom domains](/resources/networking/custom-domains) | API Gateway, AppSync, ALB, NLB, CloudFront, Route 53, ACM |
-| **Messaging** | [Event bus](/resources/messaging/event-bus), [SQS queue](/resources/messaging/sqs-queue), [SNS topic](/resources/messaging/sns-topic), [Kinesis stream](/resources/messaging/kinesis-stream), [Kafka cluster](/resources/messaging/kafka-cluster), [Email sender](/resources/messaging/email-sender) | EventBridge, SQS, SNS, Kinesis, MSK Serverless, SES |
-| **Orchestration** | [State machine](/resources/orchestration/state-machine) | Step Functions |
-| **Security** | [User auth pool](/resources/security/user-auth-pool), [Web application firewall](/resources/security/web-application-firewall), [Bastion host](/resources/security/bastion-host) | Cognito, WAF, EC2 (bastion) |
-| **Advanced** | [Custom resources](/resources/advanced/custom-resources), [deployment scripts](/resources/advanced/deployment-scripts), [CDK constructs](/resources/advanced/aws-cdk-constructs), [raw CloudFormation](/resources/advanced/raw-cloudformation-resources) | Any AWS resource |
+The [resource catalog](/resources) lists every resource with the AWS service it creates and what it is for, and helps you choose between similar ones, such as a web service and a Lambda function.
 
 ## Connecting resources
 
-Most applications need resources to talk to each other — a Lambda function querying a database, a container writing to a bucket. Stacktape handles this through the `connectTo` property, which automatically:
+Most applications need resources to talk to each other: a Lambda function querying a database, a container writing to a bucket. Stacktape handles this through the `connectTo` property, which automatically:
 
 - Grants the correct IAM permissions (read/write to S3, CRUD on DynamoDB, invoke on Lambda).
 - Opens security group rules for VPC-protected resources like relational databases and Redis.
@@ -145,7 +133,7 @@ Use the native [Email sender](/resources/messaging/email-sender) resource for SE
 
 ## Resource references with directives
 
-Beyond `connectTo`, you can reference any resource's parameters anywhere in your config using the `$ResourceParam` directive. This is useful for wiring values that `connectTo` doesn't cover — like passing a queue URL to a Step Functions state machine definition or embedding a bucket name in a custom environment variable.
+Beyond `connectTo`, you can reference any resource's parameters anywhere in your config using the `$ResourceParam` directive. This is useful for wiring values that `connectTo` doesn't cover: like passing a queue URL to a Step Functions state machine definition or embedding a bucket name in a custom environment variable.
 
 <CodeBlock
   intellisense
@@ -192,7 +180,7 @@ Each Stacktape resource produces one or more CloudFormation resources. When you 
 You can inspect the generated template with [`stacktape synth`](/cli/synth) before deploying. After deploying, use [`stacktape status`](/cli/info-stack) to see deployed resource details.
 
 <Info>
-Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top — useful for cost tracking and access control in AWS Cost Explorer. Tag names starting with `stp:` are reserved for Stacktape's own tags, and a config that uses one fails validation.
+Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top: useful for cost tracking and access control in AWS Cost Explorer. Tag names starting with `stp:` are reserved for Stacktape's own tags, and a config that uses one fails validation.
 </Info>
 
 ## Overrides
@@ -207,21 +195,21 @@ For full details, see [Overrides and escape hatches](/configuration/overrides-an
 
 All resources defined in one configuration file deploy together as a single CloudFormation stack. This means:
 
-- They share a lifecycle — deploy, update, and delete together.
+- They share a lifecycle: deploy, update, and delete together.
 - By default, Stacktape creates a VPC for stacks that need VPC networking. You can share or reuse a VPC across stacks with `stackConfig.vpc.reuseVpc`.
 - Cross-resource references resolve at deploy time.
 - A failed deployment keeps what it created or updated, and the next deployment continues from the failure. With `deploymentConfig.autoRollback`, it rolls back all changes instead.
 
-One stack per [stage](/configuration/stages-and-environments) is the standard pattern. A typical project has a `dev` stage for development and a `production` stage for live traffic — same config, different stages, separate AWS resources.
+One stack per [stage](/configuration/stages-and-environments) is the standard pattern. A typical project has a `dev` stage for development and a `production` stage for live traffic: same config, different stages, separate AWS resources.
 
 ## Resources vs cloudformationResources
 
-The `resources` section uses Stacktape's typed abstractions — you get IntelliSense, automatic IAM wiring, `connectTo` integration, and managed lifecycle. The `cloudformationResources` section accepts raw CloudFormation resource definitions for anything Stacktape doesn't abstract.
+The `resources` section uses Stacktape's typed abstractions: you get IntelliSense, automatic IAM wiring, `connectTo` integration, and managed lifecycle. The `cloudformationResources` section accepts raw CloudFormation resource definitions for anything Stacktape doesn't abstract.
 
 Raw CloudFormation resources don't participate in `connectTo`. If you need to expose values from raw resources to other stacks, define a `stackConfig.outputs` entry with `export: true` and reference it from another stack with the `$CfStackOutput()` directive.
 
 <Warning>
-Renaming a resource in your config is a destructive operation for stateful resources. If you rename a database resource from `ordersDb` to `mainDatabase`, CloudFormation interprets this as "delete ordersDb, create mainDatabase" — losing all data. Use `deploymentConfig.terminationProtection` to guard against accidental stack deletion, and CloudFormation stack policies via `overrides` to prevent replacement of specific resources.
+Renaming a resource deletes it and creates a new one: CloudFormation reads `ordersDb` → `mainDatabase` as "delete ordersDb, create mainDatabase", and the data is gone. `stacktape deploy` asks for confirmation before it deletes or replaces a database, table, bucket, user pool, OpenSearch domain or EFS file system, and [`stacktape diff`](/deployment-and-lifecycle/previewing-changes) shows it before you deploy. Turn on `deletionProtection` for production databases.
 </Warning>
 
 ## FAQ
@@ -244,4 +232,4 @@ Yes. Use [raw CloudFormation resources](/resources/advanced/raw-cloudformation-r
 
 ### How does Stacktape handle VPC networking?
 
-Stacktape creates a VPC automatically when your stack includes resources that need private networking, such as relational databases and Redis caches. Resources that don't need VPC access (Lambda functions, DynamoDB, S3 buckets) work without one. You can share or reuse a VPC across stacks with `stackConfig.vpc.reuseVpc`.
+Stacktape sets up the network when your stack includes resources that need one, such as relational databases and Redis. Production stages get a VPC of their own; non-production stages of an account and region share one, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages). Resources that don't need a VPC (Lambda functions by default, DynamoDB, S3 buckets) work without one. To use an existing VPC, set `stackConfig.vpc.reuseVpc`.

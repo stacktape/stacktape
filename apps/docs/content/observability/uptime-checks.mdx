@@ -1,23 +1,24 @@
 ---
-title: 'Uptime Checks'
-order: 101
+title: 'Uptime checks'
+order: 6
 seoTitle: 'Multi-Region Uptime Monitoring | Stacktape Docs'
 seoDescription: 'Monitor endpoint availability from multiple AWS regions of your own account. Configure uptime checks in your stacktape config with assertions, evaluation thresholds, and alert notifications.'
 ---
 
-# Uptime Checks
+# Uptime checks
 
-Uptime checks probe your HTTP endpoints from multiple AWS regions and alert you when an endpoint stops responding successfully. The probes run inside your own AWS account — Stacktape provisions a small prober Lambda in each monitoring region, so there is no external monitoring vendor and no per-check subscription fee. The Console shows live status, availability and latency history, and an incident timeline for every check.
+Uptime checks probe your HTTP endpoints from several AWS regions and alert you when an endpoint stops responding. The
+probes run in your own AWS account, in a small prober Lambda per region, so there is no monitoring vendor and no fee
+per check. The Console shows each check's live status, availability and latency history, and its incidents.
 
-## When to use
+Uptime checks need the [Stacktape Console](/getting-started/add-the-console) (the Free plan works), because the Console
+decides when a check is down and sends the alerts. Without a Console connection, a deploy with an uptime check stops at
+validation with `CONFIG_NEEDS_CONSOLE` and changes nothing. Connect with `stacktape connect`, or remove the check.
 
-Add an uptime check to every public endpoint whose downtime you want to hear about before your users do: production APIs, customer-facing web apps, and webhook receivers. Checks are cheap (a few Lambda invocations per minute), so the practical default is one check per public-facing service in every production stage.
-
-## When NOT to use
-
-- **Verifying business logic** — an uptime check asserts that an endpoint responds; it does not run flows like sign-in or checkout. Use a [synthetic test](/observability/synthetic-tests) for that.
-- **Monitoring internal-only services** — probers reach endpoints over the public internet. A VPC-internal service is not reachable.
-- **Catching application errors** — [error tracking](/observability/error-tracking) groups runtime errors from logs; an endpoint can serve 200s while a background job fails.
+Add a check to every public endpoint whose downtime you want to hear about first: production APIs, web apps and
+webhook receivers. An uptime check only tells you that an endpoint answers. To run a flow such as sign-in or checkout,
+use a [synthetic test](/observability/synthetic-tests). Probes come from the public internet, so they can't reach a
+service that is only inside your VPC.
 
 ## Configuration
 
@@ -100,6 +101,8 @@ Set `enabled: false` to pause a check without deleting its history.
 Deleting the stack (or the check) removes the check's probing; the shared prober infrastructure stays idle in the account and costs nothing meaningful.
 
 ## What leaves your AWS account
+
+[What leaves your AWS account](/observability/overview#what-leaves-your-aws-account) compares every feature in one table.
 
 The probes run in your account, but the Console decides when a check is down, so it receives:
 

@@ -1,116 +1,78 @@
 ---
-title: 'Notification Rules'
-order: 98
+title: 'Notification rules'
+order: 12
 seoTitle: 'Deployment Notifications & Alerts | Stacktape Docs'
 seoDescription: 'Choose which Stacktape events each alert channel receives: deployment results, incidents, secret changes and security findings.'
 ---
 
-# Notification Rules
+# Notification rules
 
-Notification rules decide which Stacktape events an [alert channel](/observability/alert-channels) receives, such as a failed deployment, an opened incident or a changed secret. Each rule belongs to one channel, lists one or more event types and can be limited to specific projects and stages. Rules are managed on the channel's page in the Console.
+A notification rule decides which Stacktape events an [alert channel](/observability/alert-channels) receives, such as
+an opened incident, a failed deploy or a changed secret. Each rule belongs to one channel, lists the events it sends and
+can be limited to some projects and stages. You manage rules on the channel's page in the Console.
 
-<Info>
-Notifications cover **events recorded by Stacktape**: deployments, deletions, rollbacks, Git deployments, script runs, secret and SSM parameter changes, incidents and new security findings. For **metric-based alerts** on running resources (CPU, error rates, latency), use [alarms](/observability/alarms). A firing alarm opens an [incident](/observability/incidents), and a notification rule that watches incident events sends it to your channel.
-</Info>
+Rules cover events Stacktape records: incidents, deploys, rollbacks, deletes, Git deployments, script runs, secret and
+SSM parameter changes, and new security findings. Metric thresholds such as CPU or error rates are
+[alarms](/observability/alarms), defined in your config. A firing alarm opens an [incident](/observability/incidents),
+so a rule that sends incident events also covers alarms.
 
-## When to use notifications
+## Add a rule
 
-Notification rules are most useful when your team needs to know about deployment activity or incidents without watching the CLI or Console. Common scenarios:
+1. Open **Alerting → Channels** and click the channel.
+2. Click **New rule**.
+3. Choose the events. A new rule starts with the failure events, the incident events and new security findings.
+4. Optionally, limit it to some projects and stages, for example only `production`.
+5. Click **Add rule**.
 
-- **Production deploy alerts.** Notify a Slack channel when a production deploy fails, so the on-call engineer sees it immediately.
-- **Automated deploy visibility.** When deployments happen automatically (for example through [GitOps](/ci-cd-and-gitops/gitops-with-console)), notification rules surface failures of preview and Git push deploys.
-- **Incident paging.** Send incident opened, escalated and resolved events to the channel your on-call team watches.
-- **Multi-team coordination.** Scope rules per project so each team receives only its own deployment events.
+To remove a rule, choose **Delete** in its row menu; the channel stays. Adding and deleting rules needs the
+`org:manage-notifications` permission (Owners and Admins). Every member can see them.
 
-## When NOT to use notifications
+A new channel already has rules, so it starts receiving alerts right away:
 
-If you only deploy occasionally and watch the CLI output yourself, you may not need notification rules. They become important once deployments happen automatically or across many projects and stages.
+- incidents opened, escalated and resolved, from every stage;
+- failed deploys, rollbacks and deletes, from every stage;
+- successful deploys and rollbacks, from production stages;
+- new security findings.
 
-Notifications are also not the tool for runtime health monitoring. To alert when error rates spike, CPU saturates or latency crosses a threshold, use [alarms](/observability/alarms), which watch CloudWatch metrics on running resources.
-
-## Event types
-
-Each rule lists the events it watches. The **New notification rule** dialog groups them as follows:
+## Events
 
 | Group | Events |
 |---|---|
+| **Incidents** | Incident opened, Incident escalated, Incident resolved |
+| **Security** | New critical or high security findings |
 | **Deployment** | Deploy started, Deploy succeeded, Deploy failed, Deploy rolled back |
-| **Deletion** | Delete started, Delete succeeded, Delete failed |
-| **Rollback** | Rollback succeeded, Rollback failed |
 | **Git deployments** | Preview deploy succeeded, Preview deploy failed, Git push deploy succeeded, Git push deploy failed |
+| **Rollback** | Rollback succeeded, Rollback failed |
+| **Deletion** | Delete started, Delete succeeded, Delete failed |
 | **Scripts** | Script run succeeded, Script run failed |
 | **Secrets** | Secret created, Secret updated, Secret deleted |
 | **SSM parameters** | Parameter created, Parameter updated, Parameter deleted |
-| **Incidents** | Incident opened, Incident escalated, Incident resolved |
-| **Security** | New critical or high security findings |
 
-A new rule starts with the failure events, the incident events and new security findings selected. A single rule can watch several event types, so related alerts can go to one channel through one rule.
+Secret and SSM parameter events belong to the whole organization, so a rule that watches only those has no project or
+stage scope.
 
-## Managing notification rules
+## Route events to different channels
 
-Open **Channels** in the Alerting group of the Stacktape Console and click a channel. Its page lists what the channel receives, one rule per row:
+Each channel has its own rules, so give each one the events and scope it should get. A common split:
 
-| Column | Description |
-|---|---|
-| **Events** | The events the rule sends, grouped by subject, for example "Incidents: opened, resolved" |
-| **From** | The projects and stages the rule covers, for example "All projects · production stages" |
-| **Added** | When the rule was created |
+- an on-call Slack channel: incident events and production deploy failures;
+- a team channel: every deploy of its own projects;
+- a webhook into your incident tool: incident events only.
 
-The Channels list summarises the same thing per channel in its **Receives** column.
+The channel's page lists its rules with their **Events**, the projects and stages they come **From**, and when each
+was **Added**. The Channels list sums this up in its **Receives** column.
 
-To add a rule, click **New rule** on the channel's page, choose the event types and, optionally, projects and stages, then click **Add rule**. To delete a rule, use **Delete** in its row menu; the channel stays. Adding and deleting rules needs the `org:manage-notifications` permission (organization owners and admins); every member can see them.
+## Check what was sent
 
-A new Slack (Stacktape app) channel starts with default rules: incidents and failed deployments from every stage, successful deployments from production stages, and new security findings.
+[Sent alerts](/observability/alert-history) lists every alert the Console sent, with the delivery result per channel.
+Set **Delivery** to **Failed** to find alerts that didn't arrive. Each channel's page also shows its recent alerts.
 
-## Scoping notifications
+## Rules, alarms and budgets
 
-Rules can be scoped to specific projects and stages. When a scope is left at its default, the page shows "All projects" or "All stages".
-
-- **Project scoping** restricts the rule to specific projects. Only events from those projects send an alert.
-- **Stage scoping** restricts the rule to specific stages, for example only `production`. This keeps dev and staging deploys from generating noise.
-
-Project and stage scoping can be combined. Secret and SSM parameter events belong to the whole organization, so a rule that watches only those events has no project or stage scope.
-
-<Tip>
-Create separate rules for different severity levels. For example, route failure events to a high-urgency Slack channel and success events to a low-noise webhook.
-</Tip>
-
-## Checking what was sent
-
-[Sent alerts](/observability/alert-history) in the Alerting group lists every alert Stacktape sent to your channels, with the delivery outcome per channel. Each channel's page also shows its recent alerts. If an alert was not delivered, the delivery details name the error and link to the channel, where **Send test** checks it after you fix its settings. The old `/notifications` address opens Channels.
-
-## Notifications vs. alarms vs. budgets
-
-Notifications, alarms and budgets serve different purposes. Notification rules and budgets send to Console [alert channels](/observability/alert-channels); an alarm sends to the `notificationChannels` listed on it in the configuration and opens an incident when it fires.
-
-| Feature | Watches for | Defined in |
+| | Watches | Set up in |
 |---|---|---|
-| **Notification rules** | Stacktape events (for example a failed deployment or an opened incident) | Console, on each channel's page |
-| **[Alarms](/observability/alarms)** | CloudWatch metric thresholds (error rates, CPU, latency, queue depth) | Stacktape configuration, `alarms` list on a resource; created on deploy |
-| **[Budgets](/managing-costs/budgets)** | AWS spending thresholds | Console, Budgets page |
+| **Notification rules** | Stacktape events, such as a failed deploy or an opened incident | The Console, on each channel's page |
+| **[Alarms](/observability/alarms)** | CloudWatch metrics, such as error rate, CPU or queue depth | Your config, in a resource's `alarms`; created on deploy |
+| **[Budgets](/managing-costs/budgets)** | AWS spend | The Console, **Alerting → Budgets** |
 
-Use notifications for operational awareness ("did the deploy finish?"), alarms for runtime health ("is the API throwing errors?") and budgets for cost control ("are we overspending?").
-
-Stacktape creates the AWS budget when a budget is saved. Alarms are created when the stack that defines them is deployed.
-
-## FAQ
-
-### Can I route different events to different channels?
-
-Yes. Each channel has its own rules, so give each channel the events and scope it should receive. For example, send all deployment events to a low-noise webhook with one rule, and route only `production` deploy failures to a high-urgency Slack channel with another.
-
-### Why didn't my notification get delivered?
-
-Open [Sent alerts](/observability/alert-history), which lists every alert that was sent with its delivery status per channel. If a delivery failed, the cause is usually the destination [alert channel](/observability/alert-channels): an expired webhook URL or a misconfigured Slack integration.
-
-### What is the difference between notifications and alarms?
-
-Notifications watch for events that Stacktape records, such as a deployment failing or an incident opening. [Alarms](/observability/alarms) watch CloudWatch metrics on running resources, such as CPU usage, error rates, latency or queue depth.
-
-### Do I need a separate alert channel for notifications and budgets?
-
-No. The same [alert channel](/observability/alert-channels) can be used by notification rules and budgets. To get alarm alerts in that channel, add a rule that watches incident events: a firing alarm opens an incident.
-
-### Can I get notified only for production deploys?
-
-Yes. Set the rule's stages to the stage names it applies to, such as `production`. Combine it with project scoping when only some projects should send alerts.
+All three can deliver to the same channel.

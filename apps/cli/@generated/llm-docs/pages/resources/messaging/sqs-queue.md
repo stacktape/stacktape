@@ -1,28 +1,14 @@
-# SQS Queue
+# SQS queue
 
-A Stacktape SQS queue is a fully managed, serverless message queue built on Amazon SQS. Producers send messages and consumers process them at their own pace — decoupling your services so a spike in one part of your system does not cascade into another. You pay per message with no upfront cost and no capacity to manage.
+An `sqs-queue` is an Amazon SQS message queue. One part of your app puts a job on the queue and returns; a consumer
+processes it at its own pace, and a burst of jobs waits in the queue instead of overloading the consumer. You pay per
+request: the first million each month are free, then $0.40 per million for standard queues in US East.
 
-SQS uses pay-per-request pricing with no minimum fee. The first 1 million requests per month are included in the AWS Free Tier. After that, standard queues are cheaper than FIFO queues. Each 64 KB chunk of a message counts as one request. Long polling reduces costs by making fewer API calls.
-
-## When to use
-
-Use an SQS queue when you need to decouple a producer from a consumer. Common scenarios:
-
-- **Background processing** — a web API accepts a request, drops a message on a queue, and returns immediately while a [Lambda function](/resources/compute/lambda-function) processes the work asynchronously.
-- **Task queues** — distribute work items (image resizing, email sending, report generation) across consumers that process at their own pace.
-- **Buffering between services** — absorb traffic bursts so a downstream service is not overwhelmed. The queue acts as a shock absorber between a fast producer and a slower consumer.
-- **Retry and dead-letter workflows** — messages that fail processing are automatically retried and, after a configurable number of attempts, moved to a dead-letter queue for inspection.
-
-## When NOT to use
-
-- **Fan-out to multiple consumers** — SQS is designed for one logical consumer workflow per message. Standard queues use at-least-once delivery, so a message can occasionally be delivered more than once; use an [SNS topic](/resources/messaging/sns-topic) or an [EventBridge event bus](/resources/messaging/event-bus) when every service needs its own copy.
-- **Real-time streaming** — for ordered, high-throughput data streams where consumers need to replay data, use a [Kinesis stream](/resources/messaging/kinesis-stream).
-- **Request-response** — SQS is one-way. If your caller needs a synchronous response, invoke the downstream service directly or use an [HTTP API Gateway](/resources/networking/http-api-gateway).
-- **Sub-second latency requirements** — SQS standard queues have at-least-once delivery with occasional re-ordering. For strict real-time guarantees, consider direct invocation or WebSockets.
+A queue delivers each message to one consumer. When several services need the same message, publish it to an
+[SNS topic](/resources/messaging/sns-topic) or an [event bus](/resources/messaging/event-bus) and give each consumer its
+own queue.
 
 ## Basic example
-
-The simplest SQS queue requires no properties at all. Stacktape creates a standard queue with sensible defaults: 256 KB max message size, 4-day retention, 30-second visibility timeout, and short polling.
 
 
 Example (TypeScript):
@@ -39,69 +25,106 @@ export default defineConfig(() => {
 ```
 
 
-## Standard vs FIFO queues
+This creates a standard queue with the AWS defaults: messages up to 1 MiB, kept for 4 days, hidden for 30 seconds after
+a consumer receives them. The queue alone does nothing; add a producer and a consumer.
 
-Stacktape SQS queues support two queue types: **standard** (default) and **FIFO**. The choice affects ordering, throughput, and delivery guarantees.
+## Send messages
 
-| | Standard | FIFO |
-|---|---|---|
-| **Ordering** | Best-effort | Strict within each message group |
-| **Delivery** | At-least-once (rare duplicates possible) | Exactly-once |
-| **Throughput** | Nearly unlimited | ~300 msg/s (3,000 with batching), or ~70,000 with high-throughput mode |
-| **Use cases** | Background jobs, notifications, buffering | Financial transactions, sequential workflows, event sourcing |
-
-Standard queues are the right choice for most workloads. Use FIFO only when message ordering or exactly-once processing is a hard requirement, and you can accept lower throughput.
-
-### FIFO queue
-
-Set `fifoEnabled: true` to create a FIFO queue. FIFO queues require deduplication — either enable `contentBasedDeduplication` (SQS uses a SHA-256 hash of the message body) or provide a `MessageDeduplicationId` on each message you send.
+`connectTo` gives a workload permission to send, receive and delete messages, and injects the queue's `ARN`, `NAME` and
+`URL` as environment variables:
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, SqsQueue } from 'stacktape';
+import { defineConfig, SqsQueue, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+
 export default defineConfig(() => {
-  const orderQueue = new SqsQueue({
-    fifoEnabled: true,
-    contentBasedDeduplication: true
+  const taskQueue = new SqsQueue({});
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    connectTo: [taskQueue]
   });
 
   return {
-    resources: { orderQueue }
+    resources: { taskQueue, api }
   };
 });
 ```
 
 
-### High-throughput FIFO
-
-For FIFO queues that need higher throughput, set `fifoHighThroughput: true`. This enables up to ~70,000 messages per second per queue by partitioning messages by `MessageGroupId`. Order is guaranteed within each message group but not across groups. This mode requires `fifoEnabled: true`.
-
-
-Example (TypeScript):
-
 ```typescript
-import { defineConfig, SqsQueue } from 'stacktape';
-export default defineConfig(() => {
-  const highThroughputQueue = new SqsQueue({
-    fifoEnabled: true,
-    fifoHighThroughput: true,
-    contentBasedDeduplication: true
-  });
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 
-  return {
-    resources: { highThroughputQueue }
-  };
-});
+const sqs = new SQSClient({});
+
+await sqs.send(
+  new SendMessageCommand({
+    QueueUrl: process.env.STP_TASK_QUEUE_URL,
+    MessageBody: JSON.stringify({ task: 'resize-image', imageId: '123' })
+  })
+);
 ```
 
+For a queue named `taskQueue`, the variables are `STP_TASK_QUEUE_ARN`, `STP_TASK_QUEUE_NAME` and `STP_TASK_QUEUE_URL`.
+See [Connecting resources](/configuration/connecting-resources).
 
-## Dead-letter queues
+## Consume messages
 
-A dead-letter queue (DLQ) catches messages that fail processing after a configurable number of attempts. Without a DLQ, a "poison" message — one that always causes a processing error — blocks the queue indefinitely because it keeps becoming visible and being retried. With a DLQ, the message moves aside after `maxReceiveCount` failures so you can inspect and reprocess it later.
+Pick the consumer by how the work runs:
 
-Configure `redrivePolicy` to route failed messages to a DLQ. Use `targetSqsQueueName` for another queue in the same Stacktape config, or `targetSqsQueueArn` for an external queue. A typical starting value for `maxReceiveCount` is 3–5: lower for fast-failing workloads, higher when transient errors are common.
+- **A Lambda function**, for jobs that finish within 15 minutes. Add an [SQS event](/resources/triggers/sqs-events) to
+  the function. Lambda polls the queue, passes batches and deletes the messages that succeed. Most queues should start
+  here.
+- **A container**, for long jobs, a steady stream of work or code that needs a long-lived process. Use a
+  [worker service](/resources/compute/worker-service) with `connectTo` and poll the queue in your code.
+
+A container consumer receives a message, processes it, then deletes it. If it crashes before the delete, the message
+becomes visible again after the visibility timeout and another receive picks it up:
+
+```typescript
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
+
+const sqs = new SQSClient({});
+const QueueUrl = process.env.STP_TASK_QUEUE_URL;
+
+while (true) {
+  const { Messages = [] } = await sqs.send(
+    new ReceiveMessageCommand({ QueueUrl, MaxNumberOfMessages: 10, WaitTimeSeconds: 20 })
+  );
+  for (const message of Messages) {
+    await processTask(JSON.parse(message.Body!));
+    await sqs.send(new DeleteMessageCommand({ QueueUrl, ReceiptHandle: message.ReceiptHandle }));
+  }
+}
+```
+
+Test either consumer by sending one message after `stacktape deploy`:
+
+```bash
+aws sqs send-message --queue-url "<queue-url>" --message-body '{"task":"resize-image","imageId":"123"}'
+```
+
+`stacktape param get taskQueue url --stage dev --region eu-west-1` prints the queue URL.
+
+## Visibility timeout and polling
+
+After a consumer receives a message, the queue hides it for `visibilityTimeoutSeconds` (30 by default). If the consumer
+doesn't delete it in time, the message comes back and runs again. Set it above your longest processing time; for a
+Lambda consumer, at least the function's `timeout`. Stacktape refuses to deploy a Lambda trigger whose function timeout
+is longer than the queue's visibility timeout.
+
+`longPollingSeconds` makes a receive call wait up to that many seconds for messages instead of returning empty at once.
+Set it to 20 for container consumers: fewer empty calls, lower cost. Lambda triggers poll on their own and ignore it.
+
+```typescript
+new SqsQueue({ visibilityTimeoutSeconds: 300, longPollingSeconds: 20 })
+```
+
+## Dead-letter queue
+
+A message that always fails comes back after every visibility timeout until the retention period ends, and each attempt
+costs a run of your consumer. A `redrivePolicy` moves it to a second queue after `maxReceiveCount` receives:
 
 
 Example (TypeScript):
@@ -109,8 +132,9 @@ Example (TypeScript):
 ```typescript
 import { defineConfig, SqsQueue } from 'stacktape';
 export default defineConfig(() => {
-  const deadLetterQueue = new SqsQueue({});
-
+  const deadLetterQueue = new SqsQueue({
+    alarms: [{ trigger: { type: 'sqs-queue-not-empty' } }]
+  });
   const taskQueue = new SqsQueue({
     redrivePolicy: {
       targetSqsQueueName: 'deadLetterQueue',
@@ -125,168 +149,36 @@ export default defineConfig(() => {
 ```
 
 
-> **Tip:** For AWS SQS compatibility, use the same queue type for the DLQ as the source queue — if the main queue is FIFO, the DLQ should also be FIFO.
+The `sqs-queue-not-empty` alarm tells you when a message lands in the dead-letter queue. `targetSqsQueueArn` points at
+a queue outside the stack. A FIFO queue needs a FIFO dead-letter queue.
 
+## Standard or FIFO
 
-## Polling and visibility
+|  | Standard | FIFO |
+|---|---|---|
+| Order | Best effort | Kept within each message group |
+| Duplicates | A message is sometimes delivered twice | Duplicate sends within 5 minutes are dropped |
+| Throughput | Practically unlimited | 300 calls per second, 3,000 messages with batching |
+| Price in US East | $0.40 per million requests | $0.50 per million requests |
 
-Two properties control how consumers interact with the queue:
+Use a standard queue unless the order of messages matters. FIFO stops duplicate *sends*, but a consumer can still get
+a message again when it fails or runs past the visibility timeout. Write consumers to be idempotent with either type.
 
-**Long polling** (`longPollingSeconds`) determines how long the queue waits for messages before returning an empty response. The default is `0` (short polling), which returns immediately and costs more because the consumer must poll repeatedly. Set to `20` for most workloads — it reduces API calls and cost with no downside for typical batch consumers.
-
-**Visibility timeout** (`visibilityTimeoutSeconds`) is how long a message is hidden from other consumers after one consumer picks it up. The consumer must delete the message before this timeout expires; otherwise the message becomes visible again and may be processed a second time. The default is `30` seconds. Set this higher than your expected processing time — if tasks take 2 minutes, use at least 150 seconds.
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, SqsQueue } from 'stacktape';
-export default defineConfig(() => {
-  const taskQueue = new SqsQueue({
-    longPollingSeconds: 20,
-    visibilityTimeoutSeconds: 300
-  });
-
-  return {
-    resources: { taskQueue }
-  };
-});
-```
-
-
-## Triggering a Lambda function
-
-An SQS queue is one of the most common event sources for [Lambda functions](/resources/compute/lambda-function). When messages arrive, AWS invokes the function with a batch of messages. Your handler should process messages idempotently, because failed batches can be retried. Configure this using an [SQS trigger](/resources/triggers/sqs-events) on the Lambda function — not on the queue itself.
-
-Key settings on the trigger:
-
-- `batchSize` — max messages per invocation (default: 10, max: 10,000).
-- `maxBatchWindowSeconds` — max wait time before invoking with a partial batch (max: 300 seconds).
-
-
-> **Warning:** Use one Lambda event-source consumer for a queue when each message should be handled once. For fan-out, publish to an [SNS topic](/resources/messaging/sns-topic) or [event bus](/resources/messaging/event-bus) and give each downstream consumer its own target.
-
-
-Example (TypeScript):
+`fifoEnabled: true` creates a FIFO queue. Each message then needs a deduplication ID, or set
+`contentBasedDeduplication: true` to use a hash of the body. Every message also needs a `MessageGroupId`; messages with
+the same group ID are processed in order.
 
 ```typescript
-import {
-  defineConfig,
-  SqsQueue,
-  LambdaFunction,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-export default defineConfig(() => {
-  const taskQueue = new SqsQueue({
-    longPollingSeconds: 20
-  });
-
-  const worker = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/worker.ts'
-    }),
-    memory: 512,
-    timeout: 60,
-    events: [
-      {
-        type: 'sqs',
-        properties: {
-          sqsQueueName: 'taskQueue',
-          batchSize: 10,
-          maxBatchWindowSeconds: 5
-        }
-      }
-    ]
-  });
-
-  return {
-    resources: { taskQueue, worker }
-  };
-});
+new SqsQueue({ fifoEnabled: true, contentBasedDeduplication: true })
 ```
 
+`fifoHighThroughput: true` raises the FIFO limit to thousands of calls per second (up to 70,000 in the largest regions).
+Order then holds only within each message group, which is already the rule for consumers.
 
-The Lambda handler receives messages in the `Records` array:
+## Deliver EventBridge events to the queue
 
-```typescript
-export const handler = async (event: { Records: Array<{ body: string; messageId: string }> }) => {
-  for (const record of event.Records) {
-    const message = JSON.parse(record.body);
-    // Process each message idempotently
-    console.info(`Processing message ${record.messageId}:`, message);
-  }
-};
-```
-
-## Connecting to other resources
-
-Use `connectTo` on any compute resource ([Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), etc.) to grant it access to the queue. Stacktape grants SQS send, receive, and delete permissions and injects ARN, NAME, and URL environment variables automatically.
-
-For a queue named `taskQueue`, the injected environment variables are:
-
-| Environment variable | Description |
-|---|---|
-| `STP_TASK_QUEUE_ARN` | The queue's Amazon Resource Name |
-| `STP_TASK_QUEUE_NAME` | The queue name |
-| `STP_TASK_QUEUE_URL` | The queue URL (use this with the AWS SDK to send/receive messages) |
-
-For more details on `connectTo`, see [Connecting resources](/configuration/connecting-resources).
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  SqsQueue,
-  LambdaFunction,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-export default defineConfig(() => {
-  const taskQueue = new SqsQueue({});
-
-  const api = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/api.ts'
-    }),
-    connectTo: [taskQueue],
-    memory: 512,
-    timeout: 30
-  });
-
-  return {
-    resources: { taskQueue, api }
-  };
-});
-```
-
-
-Sending a message from the connected Lambda function:
-
-```typescript
-import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
-
-const sqs = new SQSClient({});
-
-export const handler = async (event: any) => {
-  await sqs.send(new SendMessageCommand({
-    QueueUrl: process.env.STP_TASK_QUEUE_URL,
-    MessageBody: JSON.stringify({ task: 'resize-image', imageId: '123' })
-  }));
-
-  return { statusCode: 200, body: 'Task queued' };
-};
-```
-
-## Queue policies
-
-For Stacktape-managed compute resources (Lambda functions, web services, worker services, etc.), use `connectTo` to grant access — it handles IAM permissions and environment variables automatically. For cross-account access or granting specific AWS service principals (such as SNS) permission to send messages to the queue, use `policyStatements`. These custom access-control statements are merged with the policies Stacktape auto-generates. See the [API Reference](#api-reference) for the full policy statement shape.
-
-## EventBridge integration
-
-An SQS queue can receive EventBridge events using the queue's `events` property. This routes matching events directly into the queue without writing any producer code. Choose exactly one EventBridge source: `eventBusName` for a Stacktape-managed bus, `eventBusArn` for an existing external bus, or `useDefaultBus` for the default AWS event bus.
-
-The same EventBridge integration also supports delivery-failure routing and payload shaping through `onDeliveryFailure`, `input`, `inputPath`, and `inputTransformer`; use the [API Reference](#api-reference) for those less common options.
+The queue's `events` property sends matching events from an event bus into the queue, with no producer code. Set one
+of `eventBusName`, `eventBusArn` or `useDefaultBus`:
 
 
 Example (TypeScript):
@@ -295,7 +187,6 @@ Example (TypeScript):
 import { defineConfig, SqsQueue, EventBus } from 'stacktape';
 export default defineConfig(() => {
   const orderBus = new EventBus({});
-
   const orderQueue = new SqsQueue({
     events: [
       {
@@ -318,94 +209,31 @@ export default defineConfig(() => {
 ```
 
 
-### FIFO queues with EventBridge
+A FIFO queue also needs `messageGroupId` on the integration. `input`, `inputPath`, `inputTransformer` and
+`onDeliveryFailure` work as on [event bus triggers](/resources/triggers/event-bus-events).
 
-When routing EventBridge events into a FIFO queue, you must set `messageGroupId` on the integration — SQS requires a message group ID for every message delivered to a FIFO queue. Messages in the same group are processed in strict order; different groups can be processed in parallel.
+## Other settings
 
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, SqsQueue, EventBus } from 'stacktape';
-export default defineConfig(() => {
-  const orderBus = new EventBus({});
-
-  const orderQueue = new SqsQueue({
-    fifoEnabled: true,
-    contentBasedDeduplication: true,
-    events: [
-      {
-        type: 'event-bus',
-        properties: {
-          eventBusName: 'orderBus',
-          eventPattern: {
-            source: ['order-service'],
-            'detail-type': ['OrderPlaced']
-          },
-          messageGroupId: 'orders'
-        }
-      }
-    ]
-  });
-
-  return {
-    resources: { orderBus, orderQueue }
-  };
-});
-```
-
+- `delayMessagesSecond` (0 to 900) keeps new messages hidden for that long before consumers can receive them.
+- `messageRetentionPeriodSeconds` sets how long unprocessed messages stay, from 60 seconds to 14 days. The default is
+  4 days.
+- `maxMessageSizeBytes` lowers the size limit below 1 MiB. For larger payloads, upload the data to an
+  [S3 bucket](/resources/storage/s3-bucket) and send the object key.
+- `policyStatements` adds statements to the queue policy, for another account or an AWS service principal. Workloads in
+  the stack use `connectTo` instead.
 
 ## Alarms
 
-Stacktape supports two alarm triggers for SQS queues:
+Two alarm triggers watch a queue:
 
-- **`sqs-queue-not-empty`** — fires when the queue has activity (any of: visible messages, in-flight messages, messages received, or messages sent are non-zero). Use this to detect a consumer that has stopped processing.
-- **`sqs-queue-received-messages-count`** — fires when the number of received messages crosses a `thresholdCount`. Use this to detect unexpected traffic spikes. Defaults to comparing the **average** messages received per period against the threshold; customize with `statistic` and `comparisonOperator`.
+- `sqs-queue-not-empty` goes off when the queue has visible, in-flight, received or sent messages. Use it on a
+  dead-letter queue, or on a queue that should be drained.
+- `sqs-queue-received-messages-count` goes off when received messages cross `thresholdCount` (average per period by
+  default), for unexpected traffic.
 
-Define alarms in the queue config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config; `disabledGlobalAlarms` excludes named legacy rules during migration. For more on alarms, see [Alarms](/observability/alarms) and [Alert channels](/observability/alert-channels).
+See [Alarms](/observability/alarms) and [Alert channels](/observability/alert-channels).
 
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, SqsQueue } from 'stacktape';
-export default defineConfig(() => {
-  const taskQueue = new SqsQueue({
-    alarms: [
-      {
-        trigger: {
-          type: 'sqs-queue-not-empty'
-        }
-      },
-      {
-        trigger: {
-          type: 'sqs-queue-received-messages-count',
-          properties: {
-            thresholdCount: 1000
-          }
-        }
-      }
-    ]
-  });
-
-  return {
-    resources: { taskQueue }
-  };
-});
-```
-
-
-## Referenceable parameters
-
-
-## Referenceable Parameters: `sqs-queue`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-
-
-## API Reference
+## Configuration reference
 
 
 ### Definition: `SqsQueueProps`
@@ -422,39 +250,25 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `fifoEnabled` | no | `boolean` | `false` |
 | `fifoHighThroughput` | no | `boolean` | - |
 | `longPollingSeconds` | no | `number` | `0` |
-| `maxMessageSizeBytes` | no | `number` | `262144` |
+| `maxMessageSizeBytes` | no | `number` | `1048576` |
 | `messageRetentionPeriodSeconds` | no | `number` | `345600` |
 | `policyStatements` | no | `Array<SqsQueuePolicyStatement>` | - |
 | `redrivePolicy` | no | `SqsQueueRedrivePolicy` | - |
 | `visibilityTimeoutSeconds` | no | `number` | `30` |
 
 
-## FAQ
+## Referenceable parameters
 
-### When should I use an SQS queue vs an SNS topic?
 
-Use an SQS queue when you have one consumer processing messages at its own pace — the queue holds messages until the consumer is ready. Use an [SNS topic](/resources/messaging/sns-topic) when you need fan-out: multiple subscribers each receive a copy of every message. A common pattern combines both: SNS fans out to multiple SQS queues, giving each consumer its own buffer.
+## Referenceable Parameters: `sqs-queue`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
 
-### How does Amazon SQS pricing work?
+| Parameter | Description | Usage |
+| --- | --- | --- |
 
-SQS uses pay-per-request pricing with no minimum fee. The first 1 million requests per month are included in the AWS Free Tier. After that, standard queues are cheaper per request than FIFO queues. Each 64 KB chunk of a message counts as one request. Long polling reduces costs by making fewer API calls.
 
-### What is the maximum message size for SQS?
+## Next steps
 
-The maximum message size is 256 KB (262,144 bytes). For larger payloads, the standard pattern is to store the data in an [S3 bucket](/resources/storage/s3-bucket) and send a reference (the S3 key) as the message body. You can configure a smaller max using `maxMessageSizeBytes` (minimum 1 KB).
-
-### Why does one bad message block my whole queue, and how do I stop it?
-
-Without a dead-letter queue, a "poison" message that always fails processing keeps becoming visible and being retried forever, stalling the consumer. Configure a [dead-letter queue](#dead-letter-queues) with `redrivePolicy`: after `maxReceiveCount` failed attempts the message moves aside to the DLQ automatically, so the rest of the queue keeps flowing. Monitor the DLQ with an `sqs-queue-not-empty` alarm so you're notified when messages land there.
-
-### Can I use SQS with a container service instead of Lambda?
-
-Yes. Use `connectTo` on a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [multi-container workload](/resources/compute/multi-container-workload) to get SQS permissions and the queue URL injected as environment variables. Your container application polls the queue using the AWS SDK. Unlike Lambda-based consumers, you manage the polling loop yourself.
-
-### My consumer keeps processing the same message twice — why?
-
-A message is hidden from other consumers only for `visibilityTimeoutSeconds` (default 30s) after one consumer picks it up. If your handler takes longer than that to delete the message, the message becomes visible again and gets processed a second time. Set `visibilityTimeoutSeconds` comfortably above your expected processing time. Standard queues are also at-least-once by design, so handlers should always be idempotent; switch to a FIFO queue if you need exactly-once delivery.
-
-### Can I delay when messages become available to consumers?
-
-Yes. Set `delayMessagesSecond` to a value between 0 and 900 (15 minutes); new messages stay invisible until the delay expires. This is useful when related data needs to settle before processing — for example, waiting a few seconds after an order is placed before sending a confirmation.
+- [SQS events](/resources/triggers/sqs-events): consume the queue with a Lambda function.
+- [Worker service](/resources/compute/worker-service): consume the queue with a container.
+- [SNS topic](/resources/messaging/sns-topic): fan a message out to several queues.

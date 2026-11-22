@@ -29,10 +29,6 @@ stacktape bucket sync --bucket-id my-app-assets-bucket --source-path ./dist --re
 Files in the destination bucket that are not present in the source directory are deleted. This is a one-way mirror sync, not an additive upload.
 </Warning>
 
-## Argument reference
-
-<CliCommandsApiReference command="bucket:sync" />
-
 ## Important flags
 
 The `bucket sync` command accepts several optional flags that control caching headers, CDN invalidation, and source-path resolution. The flags below cover the most commonly used options beyond the resource name, `--stage`, `--bucket-id`, and `--region`.
@@ -93,6 +89,10 @@ Sync with a specific AWS profile:
 ```bash
 stacktape bucket sync assets --stage staging --region eu-central-1 --profile my-aws-profile
 ```
+
+## Options
+
+<CliCommandsApiReference command="bucket:sync" />
 
 ## Related commands
 

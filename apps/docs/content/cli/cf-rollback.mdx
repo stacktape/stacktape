@@ -25,12 +25,6 @@ A typical invocation targeting a specific stack:
 stacktape stack recover --region eu-west-1 --stage production --project my-api
 ```
 
-## Arguments reference
-
-The `stack recover` command accepts the following arguments. Only `--region` is required; all other flags are optional.
-
-<CliCommandsApiReference command="cf:rollback" />
-
 ## What it does
 
 When a Stacktape deployment fails, CloudFormation can leave the stack in one of these states:
@@ -56,7 +50,7 @@ The Stacktape CLI provides two distinct rollback commands for different scenario
 | Want to revert to a specific previous deployment version | [`rollback`](/cli/rollback) |
 | Stack is healthy but you want to undo the last deploy | [`rollback`](/cli/rollback) |
 
-Use `stack recover` as a recovery tool when your stack is in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`. Use [`rollback`](/cli/rollback) when you want to deploy a previous deployment version.
+Use `stack recover` as a recovery tool when your stack is in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`. Use [`rollback`](/cli/rollback) when you want to deploy a previous deployment version; it downloads that deployment's template and deploys it, which also works over `UPDATE_FAILED`.
 
 ## Important flags
 
@@ -100,17 +94,7 @@ Use debug logging to see detailed rollback progress:
 stacktape stack recover --region eu-west-1 --stage production --debug
 ```
 
-## Related commands
-
-- [`rollback`](/cli/rollback) — revert to a specific previous deployment version.
-- [`deploy`](/cli/deploy) — deploy your stack. After a successful `stack recover`, redeploy to bring resources to your desired configuration.
-- [`diff`](/cli/diff) — preview what a deployment would change before running it.
-
 ## FAQ
-
-### When should I use stack recover instead of rollback?
-
-Use `stack recover` when a failed update left the stack in `UPDATE_FAILED` and you want to undo it instead of fixing and deploying again, or when the stack is stuck in `UPDATE_ROLLBACK_FAILED` and cannot accept any new updates. The [`rollback`](/cli/rollback) command downloads a previous deployment's template and deploys it, which also works over `UPDATE_FAILED`.
 
 ### What's the difference between UPDATE_FAILED and UPDATE_ROLLBACK_FAILED?
 
@@ -119,3 +103,13 @@ Use `stack recover` when a failed update left the stack in `UPDATE_FAILED` and y
 ### My rollback keeps failing on a specific resource. What do I do?
 
 Pass that resource's logical ID to `--resources-to-skip` so CloudFormation skips it during the rollback retry. This is common when a resource was deleted outside of CloudFormation or depends on an external service whose state changed. After the rollback completes, inspect the skipped resources before deploying again, since they were left in their failed state.
+
+## Options
+
+<CliCommandsApiReference command="cf:rollback" />
+
+## Related commands
+
+- [`rollback`](/cli/rollback) — revert to a specific previous deployment version.
+- [`deploy`](/cli/deploy) — deploy your stack. After a successful `stack recover`, redeploy to bring resources to your desired configuration.
+- [`diff`](/cli/diff) — preview what a deployment would change before running it.

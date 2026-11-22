@@ -14,7 +14,15 @@ The command is fully interactive — it reads all profiles configured in your AW
 > **Warning:** This command modifies your local AWS profile configuration by deleting the selected profile. The deleted profile will no longer be available to Stacktape or any other AWS tooling on your system.
 
 
-## Arguments reference
+## Examples
+
+Delete a profile with debug logging enabled:
+
+```bash
+stacktape aws-profile delete --debug
+```
+
+## Options
 
 
 ## CLI Options: `stacktape aws-profile delete`
@@ -25,14 +33,6 @@ The command is fully interactive — it reads all profiles configured in your AW
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
-
-## Examples
-
-Delete a profile with debug logging enabled:
-
-```bash
-stacktape aws-profile delete --debug
-```
 
 ## Related commands
 

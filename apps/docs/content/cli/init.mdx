@@ -2,23 +2,17 @@
 title: 'init'
 order: 161
 seoTitle: 'stacktape init — Turn an existing project into infrastructure | Stacktape CLI'
-seoDescription: 'Read your project with your own coding agent and get a Stacktape configuration you can deploy, without sending source code to Stacktape.'
+seoDescription: 'Read your project with your own coding agent or the built-in scanner, review the proposed AWS setup and its price, save a Stacktape configuration and deploy it. Starter projects for new apps.'
 ---
 
 # init
 
-`stacktape init` reads the project you already have and writes a Stacktape configuration for it.
+`stacktape init` reads the project you already have, proposes the AWS setup it needs and writes it to one Stacktape
+configuration file. It can then deploy that file to your AWS account. With `--starter-id` or `--starter-project`, it
+creates a new project from a starter instead.
 
-It opens a wizard in your browser and reads your code **on your machine** using a coding agent you
-already have installed — Claude Code or Codex. It does not interview you: where your code does not say,
-it picks the sensible answer, then shows you what it picked and the line behind every resource it
-proposes, so you can change any of it. No source, filenames, or configuration contents are sent to
-Stacktape, and no account is needed.
-
-To be precise about where your code goes: an agent works the way it always does — it sends the file
-contents it chooses to read to its own model provider, under the account you already have with it, with
-read-only tools (it cannot run scripts or install anything). If you would rather no AI read the code at
-all, pick **Files only** — the built-in scanner reads manifests locally and sends nothing anywhere.
+No Stacktape account is needed. [Deploy an existing app](/getting-started/deploy-an-existing-app) walks through the
+wizard screen by screen, and [Start a new project](/getting-started/start-a-new-project) covers starters.
 
 ## Usage
 
@@ -26,85 +20,88 @@ all, pick **Files only** — the built-in scanner reads manifests locally and se
 stacktape init
 ```
 
-Run it in the directory of the project you want to deploy. The command prints a `http://127.0.0.1:…`
-address and opens it; the wizard runs there and the terminal keeps the session alive until you close it
-with Ctrl+C.
+Run it in the root directory of the app. The command prints a local `http://127.0.0.1:…` address and opens it in your
+browser. The wizard runs there, and the terminal keeps the session alive until you press Ctrl+C.
+
+On Linux without a display, for example over SSH, and in CI, init runs in the terminal instead. See
+[`--headless`](#--headless).
 
 ## What happens, in order
 
-1. **Start.** The wizard opens with nothing read yet. It shows which directory it will read and which
-   agents it found, and waits. Reading starts when you press the button — never before.
-2. **Read.** The agent opens files and you watch it happen: every file it reads appears as it reads it.
-   Only the *names* of your environment variables are ever kept or shown. Before the agent starts, a
-   deterministic pass has already read the manifests that state the deployment most clearly:
-   Docker Compose, Dockerfiles and Procfiles; Render, Fly.io and Heroku app manifests; and literal
-   declarations in Serverless Framework, SAM, SST, CDK and Terraform. It also notices when one of
-   those tools already deploys the project.
-3. **Review.** Every resource, with the reason it exists, the line of your code behind it, and what it
-   costs — a real monthly estimate per resource and in total, priced from AWS list prices. Anything
-   the code could not settle was decided for you, listed under "Decided for you", and can be changed
-   with one click — the configuration is rebuilt from your choice, and the price updates with it.
-   Nothing blocks. You choose YAML or TypeScript, and the file is written.
-4. **Try it locally (optional).** With your explicit click, the wizard can build and start supported
-   services in Docker. Building may download dependencies and run their install hooks. The started
-   app receives throwaway settings and has no network. Every result says whether the service passed,
-   failed, was inconclusive, or could not be checked. A proven startup failure holds the Deploy
-   button until you fix it or explicitly set the result aside; a skipped check is never shown as a
-   pass.
-5. **Deploy.** No Stacktape account is needed: without one, the wizard deploys with your local AWS
-   credentials. The first click is read-only:
-   a short-lived CLI process resolves the same AWS credentials or connected AWS account that deploy will use,
-   then shows the exact account, region and stack name. You separately confirm creating a new stack or
-   updating a specific existing Stacktape stack. Foreign, mismatched and unsafe stacks are blocked. The
-   deploy child checks that target again before it creates secrets or changes AWS, then reports progress,
-   warnings and typed HTTPS URLs. This step is optional and clearly marked as the one that costs money.
-   If you are signed in and your Stacktape organization has multiple connected AWS accounts and no saved default, start with
-   `stacktape init --aws-account <account-name>`. That account selection is carried through the target check,
-   deploy, and typed URL lookup.
-   If the deploy fails for a reason that could be our reading of your code — a wrong start
-   command, a missing build step — the agent re-reads the project against the actual error, the
-   configuration is rebuilt, and the deploy runs again. At most twice, and never for problems with the
-   AWS account itself.
+The wizard has four steps:
 
-## Who reads your code
+1. **Start.** Nothing is read yet. The screen shows the directory and the agents it found. Under **Options** you pick
+   Claude Code, Codex or **Files only, no agent**, and for Claude Code the model. Reading starts when you click
+   **Analyze my project**.
+2. **Analyze.** A built-in scan runs first. It reads Docker Compose files, Dockerfiles and Procfiles, Render, Fly.io
+   and Heroku manifests, literal declarations in Serverless Framework, SAM, SST, CDK and Terraform, and notices when
+   one of those tools already deploys the project. If the scan answers everything, the agent is not called. Otherwise
+   the agent reads the code and every file it opens appears as it reads it.
+3. **Review.** Every resource with the reason it exists, the line of code behind it and its monthly price, in the
+   **Diagram**, **What & why** and **File** tabs. **Decided for you** lists what the code didn't say, and
+   **Important choices** covers capacity, availability, backups and database access where they apply. **Before you
+   deploy** lists secrets and settings only you can provide. You choose YAML or TypeScript and the region, then save
+   the file with **Save stacktape.yml & continue**.
+4. **Deploy.** Optional, and the only step that changes AWS. **Check exact AWS target** is read-only: it resolves the
+   same AWS credentials or connected AWS account the deploy will use and shows the account, region and stack name.
+   You then confirm **Create new stack** or **Update existing stack**. Stacks owned by another tool or another
+   project, and stacks AWS is still changing, are blocked. The deploy checks the target again before it creates
+   secrets or changes anything.
 
-`init` drives a coding agent that is already installed and already paid for — your subscription, your
-machine. It never sends your code to Stacktape.
+Deploy also has an optional **Try it on this machine first** check. **Build and start it here** builds your services
+in Docker and starts them with placeholder settings and no network, to catch an app that won't start. The build may
+download dependencies and run their install hooks. A proven startup failure holds the deploy until you fix it or set
+the result aside. This check is unrelated to [`stacktape dev`](/cli/dev), which creates resources in AWS.
 
-The preview has no Stacktape-hosted AI fallback. If neither local agent is available, the **No agent**
-mode below performs deterministic file analysis instead of uploading source or snippets elsewhere.
+If a deploy fails for a reason that could come from how the code was read, such as a wrong start command, the agent
+reads the project again with the error, the configuration is rebuilt and the deploy runs again. This happens at most
+twice, and never for problems with the AWS account itself. With files only, there is no repair.
+
+After a successful deploy without a Stacktape account, the wizard offers the
+[Stacktape Console](/getting-started/add-the-console). When the project pushes to GitHub, GitLab or Bitbucket, it
+also offers to write a CI pipeline. When this machine is already signed in, it links to the stage in the Console.
+
+## Who reads your code and what leaves your machine
 
 | Agent | How it is used |
 |---|---|
-| **Claude Code** | Every built-in tool is switched off; the only tools it has are the ones Stacktape gives it, all read-only. You can pick the model. |
+| **Claude Code** | Every built-in tool is switched off. The only tools it has are the ones Stacktape gives it, all read-only. You can pick the model. |
 | **Codex** | Runs read-only in a scratch working directory, because its patch tool cannot be disabled. |
-| **No agent** | Reads package manifests, Compose, Dockerfiles, Procfiles, Render/Fly.io/Heroku manifests, supported IaC declarations, lockfiles, environment-variable names, and whatever already deploys the project. Free, instant, and leans on defaults more often. |
+| **Files only, no agent** | The built-in scanner reads manifests, Compose files, Dockerfiles, Procfiles, deployment manifests, supported IaC declarations, lockfiles and environment variable names. Free, instant, and falls back to defaults more often. |
 
-An imported deployment file describes what the project expects; it does not give `init` access to
-the provider account or prove that the deployment is currently running. The Review step says when it
-found such a file. A Stacktape deploy creates a separate stack: it does not take over, change or delete
-resources managed by the existing tool.
+- **Your code.** An agent sends the file contents it chooses to read to its own model provider, under the account
+  you already have with it, as it always does. Stacktape never receives source code or file contents. With files
+  only, no AI provider receives anything.
+- **The price estimate.** To price the Review step, init sends the generated configuration and the region to
+  Stacktape's public price estimator. The configuration holds resource names and settings, not code or secret
+  values.
+- **Usage statistics.** Init records anonymous outcome statistics: which frameworks were found, whether the deploy
+  worked and how long the analysis took. Set `STP_DISABLE_TELEMETRY=1` to turn them off.
 
-The agent cannot write to your repository, cannot reach the network through us, and cannot put words in
-front of you: it reports findings from a fixed list of kinds, and every word you read in the wizard is
-written by Stacktape.
+The agent cannot write to your repository and cannot put words in front of you. It reports findings from a fixed list
+of kinds, and every word in the wizard is written by Stacktape.
+
+An imported deployment file, such as a Render or Serverless Framework config, describes what the project expects. It
+doesn't give init access to that provider's account. A Stacktape deploy creates a separate stack and doesn't take
+over, change or delete resources managed by the other tool.
 
 ## Important flags
 
 ### `--coding-agent`
 
-Which agent reads the project. `auto` (the default) takes the best one installed. Naming one that is not
-installed fails rather than quietly using another.
+Which agent reads the project: `auto` (the default), `claude-code`, `codex` or `none`. In the browser, the agent you
+name is preselected and you can still pick another one; the model is chosen there too. Naming an agent that is not
+installed fails instead of using another one. `none` skips agent detection.
 
 ```bash
-stacktape init --coding-agent claude-code
-stacktape init --coding-agent none          # static analysis only
+stacktape init --coding-agent none
 ```
 
 ### `--headless`
 
-Runs the whole thing in the terminal instead of opening a browser. Use it over SSH, in a container, or in
-CI. Nothing prompts: the terminal prints what was decided for you, and the configuration is written.
+Runs init in the terminal instead of the browser. It reads the project, prints the resources and what it decided,
+prints the monthly estimate and writes the configuration. It asks nothing and doesn't deploy. Init also runs this way
+on its own in CI and on Linux without a display.
 
 ```bash
 stacktape init --headless
@@ -112,175 +109,130 @@ stacktape init --headless
 
 ### `--no-browser`
 
-Starts the wizard and prints its address without opening anything. Use it when the browser you want is not
-this machine's default, or when the port is forwarded from somewhere else.
-
-```bash
-stacktape init --no-browser
-```
-
-### `--infrastructure-type`
-
-How much infrastructure to create: `low-cost`, `standard` (the default), or `production`. It sets every
-size and safety setting in the generated configuration, and it is the only thing reading your code
-cannot tell us.
-
-- **low-cost** — one small copy of everything. Trying it out, a side project, staging.
-- **standard** — room for real traffic, a week of backups, deletion protection on your database.
-- **production** — two copies of your app so one failure changes nothing, and a standby database in a
-  second datacentre.
-
-```bash
-stacktape init --infrastructure-type production
-```
+Starts the wizard and prints its address without opening a browser. Use it when you want to open the address in
+another browser. It doesn't bring the wizard to a machine where init runs in the terminal.
 
 ### `--config-format`
 
-`yaml` (the default) or `typescript`. In the browser this is chosen on the Review step instead, once you
-have seen what is in the file.
+`yaml` (the default) or `typescript`. In the browser you choose it on the Review step instead.
 
-```bash
-stacktape init --headless --config-format typescript
-```
+### `--infrastructure-type`
+
+Starting sizes and safety settings: `low-cost`, `standard` (the default) or `production`. In the browser, the same
+choices are under **Important choices** on the Review step.
 
 ### `--project-directory`
 
-The project to read. Defaults to the current directory.
+The project to read, when it isn't the current directory.
 
 ```bash
-stacktape init --project-directory ./my-app
+stacktape init --project-directory ./apps/api
 ```
 
-### `--starter-id`, `--starter-project`
+### `--aws-account`
 
-Initialize from a ready-made project instead of reading yours. These skip the wizard entirely.
+When this machine is signed in to Stacktape and the organization has several connected AWS accounts, the name of the
+account to deploy to. It's carried through the target check, the deploy and the commands the wizard prints.
+
+### `--starter-id`, `--starter-project`, `--initialize-project-to`
+
+Create a new project from a starter instead of reading one. `--starter-project` shows the list; `--starter-id` takes
+the ID shown on each card in [Starter projects](/getting-started/starter-projects). `--initialize-project-to` sets the
+target directory. If that directory isn't empty, the CLI warns and asks `Continue?`, and answering yes deletes its
+contents.
 
 ```bash
-stacktape init --starter-id lambda-api-postgres
+stacktape init --starter-id hono-api \
+  --initialize-project-to ./hono-api --config-format yaml
 ```
-
-### `--initialize-project-to`
-
-Where a starter project's files are placed.
-
-<Warning>
-If the directory is not empty, its contents are deleted first. Point it at a new or empty directory.
-</Warning>
 
 ## Existing and generated configuration files
 
-Init preserves `stacktape.yml`, `stacktape.yaml` and `stacktape.ts`. When one exists, it writes `stacktape.generated.yml` or `.ts` beside it, replacing any previous file at that generated path. Review or save edits to an existing generated file before rerunning init. For a TypeScript config in a project with `package.json`, init also adds or updates the `stacktape` dependency to match the CLI and prints the install command; it does not run the package manager. Deploy the generated config with `--config`, or merge it yourself:
+Init never overwrites `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`. When one exists, it writes
+`stacktape.generated.yml` or `stacktape.generated.ts` beside it, replacing a generated file from an earlier run. Deploy
+the generated file with `--config`, or merge it into yours:
 
 ```bash
-stacktape deploy \
-  --config stacktape.generated.yml \
-  --project <project-name> \
-  --stage dev \
-  --region eu-west-1
+stacktape deploy --config stacktape.generated.yml --stage dev
 ```
+
+An existing `stacktape.js` is not detected. Init writes a new `stacktape.yml` next to it, and commands then stop
+because the directory has two config files. Move or delete the old file, or pass `--config` every time.
+
+For a TypeScript config in a project with a `package.json`, init adds or updates the `stacktape` dev dependency to
+match the CLI and prints the install command. It doesn't run the package manager.
 
 ## Examples
 
-Read the project with Claude Code's most careful model:
+Read the project with Claude Code:
 
 ```bash
 stacktape init --coding-agent claude-code
 ```
 
-No agent, no browser, cheapest infrastructure — a configuration in one step:
+A configuration in one step, with no agent, no browser and the smallest sizes:
 
 ```bash
 stacktape init --headless --coding-agent none --infrastructure-type low-cost
 ```
 
-## Related commands
+Pick a starter from the list:
 
-- [`deploy`](/cli/deploy) — deploy the configuration `init` wrote.
-- [`dev`](/cli/dev) — run the project locally against a minimal dev stack.
-- [`delete`](/cli/delete) — remove everything a deploy created.
+```bash
+stacktape init --starter-project
+```
 
 ## FAQ
 
-### Does my code leave my machine?
-
-If you choose Claude Code or Codex, that local agent sends the file contents it selects to its own
-model provider under your account, just as it normally does. Stacktape receives no source, file names,
-or configuration contents. If you choose **Files only**, no AI provider receives code either.
-
-Stacktape does receive anonymous outcome statistics — which frameworks were detected, whether the
-deploy succeeded, how long the analysis took — so we can see where generation fails and fix it. Set
-`STP_DISABLE_TELEMETRY=1` to turn that off. [What the CLI sends](/getting-started/deploy-your-first-stage#what-does-the-cli-send-to-stacktape)
-lists everything else.
-
 ### What about my .env files?
 
-Only the *names* are kept. `DATABASE_URL` tells the analysis that a database exists — and its value is
-looked at once, in memory on your machine, for two things and two things only: whether the scheme says
-`postgres://` or `mysql://`, and whether the host belongs to a provider like Supabase, so we do not
-propose replacing a database that is already live. Both reduce to a single word before anything is
-stored. The value itself is never written to the facts, never quoted in a citation, never logged and
-never shown — every citation from an environment file stops at the `=`.
+Only the variable names are kept. The value of a variable such as `DATABASE_URL` is read once, in memory on your
+machine, for two things: whether the scheme says `postgres://` or `mysql://`, and whether the host belongs to a
+provider like Supabase, so init doesn't propose replacing a database that is already live. Both reduce to a single
+word before anything is stored. The value is never written to the analysis, quoted, logged or shown.
 
 ### Do I need an AWS account before running init?
 
-Not to run it. You need one to deploy. The wizard can use local AWS credentials or an AWS account
-connected to your Stacktape organization. Before any AWS change it resolves the same credentials the
-deploy command will use and shows the exact account, region and stack target for confirmation.
+Not to read the project and save the file. You need one to deploy. The wizard can use local AWS credentials or an AWS
+account connected to your Stacktape organization, and shows the exact account, region and stack before any change.
+See [Set up AWS credentials](/getting-started/aws-credentials).
 
 ### Do I need a Stacktape account?
 
-No. Analyzing your project and writing the file happen on your machine, with nothing sent to us.
-The deploy uses your local AWS credentials. After a successful deploy, the wizard offers the
-Stacktape Console (free up to $200 a month of AWS spend) for deploy history, costs, alerts and team
-access. You can connect it there or later with `stacktape connect`, or skip it. If this machine is
-already signed in, the wizard deploys through your Stacktape organization and links to the stage in
-the Console.
-
-### What does “Try it here first” run?
-
-Only after you click it, `init` runs your project's build and start commands using disposable Docker
-images and containers. The image build may access the network to download dependencies and may run
-package-manager install hooks from the project. The started application receives throwaway values
-instead of your secrets and has no network access. This is not supported for every packaging and
-resource type yet: the wizard labels each service **Passed**, **Failed**, **Inconclusive**, or **Not
-checked** and never presents a skipped check as proof. Docker is optional; if it is missing, your
-generated file is unaffected and the wizard says that AWS would be the first full run.
-
-### How do I run init non-interactively, in CI or from an AI coding agent?
-
-`--headless`, optionally with `--agent` for JSONL output. Nothing prompts: everything the code cannot
-answer is decided, and the terminal prints what was decided.
-
-### Why does it barely ask me anything?
-
-Because almost nothing needs asking. Where your code does not say, there is nearly always an answer a
-careful person would pick — so it picks it, shows you on the Review step, and lets you change it. The
-one real question is how big the infrastructure should be, which is why it is shown alongside the
-resources and monthly estimate on the Review step.
+No. Without one, the deploy uses your local AWS credentials. After a successful deploy, the wizard offers the
+Stacktape Console, free up to $200 a month of managed AWS spend. You can connect it there, later with
+`stacktape connect`, or never.
 
 ### Which agent should I choose?
 
-Whichever you already have. Claude Code and Codex both produce a better result than static analysis,
-because they read the code rather than pattern-matching over it. If you have neither, "Files only" still
-produces a working configuration — it just falls back to defaults more often.
+Whichever you already have. Claude Code and Codex read the code, so they settle more than the scanner, which reads
+manifests and falls back to defaults more often. If the scanner finds no server, worker or website, the wizard offers
+to analyze again with an installed agent.
 
-### What happens when the deploy fails?
+### Can I run init from CI or a coding agent?
 
-The failure is read first. If it is about your AWS account — expired credentials, a missing
-permission, a quota — it is shown to you plainly, because no change to the configuration can fix it.
-If it could be about the code, the same agent that read your project reads it again with the actual
-error in hand, corrects what we believed, and the deploy runs again with the rebuilt configuration.
-The wizard names exactly which resources the repair rewrote, and the file in your project is always
-the version that deployed. It stops after two repairs and shows the real error rather than looping.
-If you chose "Files only", nothing is ever handed to an agent — the deploy just fails, plainly.
+Yes, with `--headless`. Add `--agent` for JSONL output. Nothing prompts: everything the code doesn't answer is decided,
+and the output says what was decided. Init doesn't deploy in this mode; run `stacktape deploy` afterwards.
 
 ### Does init deploy anything?
 
-Only after two explicit actions on the last step: a read-only target check, then confirmation to create
-the absent stack or update the exact existing StackId that was shown. The deploy child repeats that check
-and stops if the account, region, name, ownership, status or StackId changed. Everything before the final
-confirmation is a file on your disk or a read-only AWS check.
+Only after two actions on the Deploy step: the read-only target check, then confirming the new or existing stack it
+showed. The deploy repeats the check and stops if the account, region, name, ownership or status changed. Everything
+before that is a file on your disk or a read-only AWS call.
 
 ### Will init overwrite files in my project?
 
-Init preserves canonical config files but can replace a previous `stacktape.generated.yml` or `.ts` and update the `stacktape` dependency in `package.json`; see [existing and generated configuration files](#existing-and-generated-configuration-files). The `--initialize-project-to` flag empties the target directory before placing a starter project there.
+It never overwrites a `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`. It can replace its own
+`stacktape.generated.*` from an earlier run and update the `stacktape` dependency in `package.json`. See
+[existing and generated configuration files](#existing-and-generated-configuration-files). For starters,
+`--initialize-project-to` empties a non-empty target directory after you confirm.
+
+## Options
+
+<CliCommandsApiReference command="init" />
+
+## Related commands
+
+- [`deploy`](/cli/deploy) deploys the configuration init wrote.
+- [`dev`](/cli/dev) runs the project locally against a small dev stack.
+- [`delete`](/cli/delete) removes everything a deploy created.

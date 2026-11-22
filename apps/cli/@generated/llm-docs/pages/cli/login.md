@@ -1,6 +1,8 @@
 # login
 
-The `stacktape login` command authenticates the Stacktape CLI on the current system. For local development, run it interactively: you approve the sign-in in your browser, and the CLI keeps the local auth state. For CI/CD, use a dedicated Stacktape API key stored in your CI provider's secret store.
+The `stacktape login` command signs the Stacktape CLI in to the Stacktape Console on the current system. You approve the sign-in in your browser, and the CLI keeps the local auth state.
+
+You don't need to log in to deploy: without an account, the CLI deploys with your local AWS credentials. To add the Console to stacks you already deployed, run [`stacktape connect`](/getting-started/add-the-console#connect-from-the-terminal) instead. It signs you in and connects the AWS account of your credentials in one step. `login` only signs you in.
 
 ## Usage
 
@@ -15,13 +17,7 @@ In interactive mode (the default), the command asks how you want to sign in:
 
 Over SSH, in a container or on a machine without a browser, the browser sign-in still works: open the printed address on any device. Pass `--no-browser` to only print it. If your account belongs to several organizations, the CLI asks which one this machine works in. After successful authentication, Stacktape displays your user name and organization.
 
-For CI/CD, prefer setting `STACKTAPE_API_KEY` as a masked secret in the runner environment. If you need an explicit login step, pass the key from the CI secret variable. Never paste an API key into an AI chat, issue tracker, shell transcript, or log.
-
-```bash
-stacktape login --api-key "$STACKTAPE_API_KEY" --agent
-```
-
-You can create CI keys from the [Stacktape Console's API keys page](/stacktape-console/api-keys). Manual API keys are bearer secrets and should be treated as shown-once credentials.
+For CI/CD, see [Non-interactive login](#non-interactive-login).
 
 ## What happens during login
 
@@ -44,33 +40,13 @@ An interactive login creates a CLI session for the organization you choose. It e
 
 ## Non-interactive login
 
-For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI can read this environment variable directly, so an explicit `login` step is often unnecessary. If your workflow does use `login`, pass the key from the secret variable and combine with `--agent` for programmatic output.
+For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI reads this environment variable directly, so an explicit `login` step is usually unnecessary. For a pipeline, use an [organization key](/stacktape-console/api-keys#create-an-organization-key): it belongs to the organization and keeps working when the person who created it leaves. API keys are bearer secrets and are shown only once. Never paste one into an AI chat, issue tracker, shell transcript or log, and don't hardcode it in workflow YAML.
+
+If your workflow does use `login`, pass the key from the secret variable and add `--agent` for programmatic output:
 
 ```bash
 stacktape login --api-key "$STACKTAPE_API_KEY" --agent
 ```
-
-Do not hardcode the key in workflow YAML. Reference the CI secret.
-
-```bash
-stacktape login --api-key "$STACKTAPE_API_KEY" --agent
-```
-
-## Flags reference
-
-
-## CLI Options: `stacktape login`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--api-key` | no | `string` | API Key — Your Stacktape API key. Use this only in your own terminal or CI secret store. Do not paste API keys into chat transcripts, shell history, or logs. For local interactive use, prefer `stacktape login`. | - |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--no-browser` | no | `boolean` | No Browser — If `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port. | - |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
 
 ## Examples
 
@@ -106,18 +82,11 @@ For local development, run `stacktape login` again and choose the user or organi
 stacktape login
 ```
 
-## Related commands
-
-- [`logout`](/cli/logout) — removes Stacktape authentication state from the current system.
-- [`whoami`](/cli/info-whoami) — displays the current user, organization, and connected AWS accounts.
-- [`org create`](/cli/org-create) — creates a new organization and returns organization credentials.
-- [`org list`](/cli/org-list) — lists all organizations accessible with your current user.
-
 ## FAQ
 
 ### Where do I find my Stacktape API key?
 
-Create CI/API keys from the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). Manual keys are scoped to an organization, expire by default, and are shown only once. See [API keys](/stacktape-console/api-keys) for details on managing keys.
+Create a personal key on the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). For CI, Owners and Admins create an [organization key](/stacktape-console/api-keys#create-an-organization-key) on the same page instead, so the pipeline keeps working when people leave. Keys are scoped to an organization, expire by default, and are shown only once. See [API keys](/stacktape-console/api-keys) for details on managing keys.
 
 ### Do I need an explicit `login` step in CI/CD?
 
@@ -146,3 +115,26 @@ No. The `login` command only authenticates the Stacktape CLI with Stacktape. AWS
 ### Should team members share one API key?
 
 No. Use a separate key per integration point and prefer individual interactive login on developer machines. Sharing a key makes attribution, rotation, and revocation harder. Treat local auth state as credential material — don't read it into chat, copy it into scripts, or use it to hand-build `STACKTAPE_API_KEY` values — and remove it with [`logout`](/cli/logout) when no longer needed.
+
+## Options
+
+
+## CLI Options: `stacktape login`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--api-key` | no | `string` | API Key — Your Stacktape API key. Use this only in your own terminal or CI secret store. Do not paste API keys into chat transcripts, shell history, or logs. For local interactive use, prefer `stacktape login`. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--no-browser` | no | `boolean` | No Browser — If `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port. | - |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
+
+## Related commands
+
+- [`logout`](/cli/logout) — removes Stacktape authentication state from the current system.
+- [`whoami`](/cli/info-whoami) — displays the current user, organization, and connected AWS accounts.
+- [`org create`](/cli/org-create) — creates a new organization and returns organization credentials.
+- [`org list`](/cli/org-list) — lists all organizations accessible with your current user.

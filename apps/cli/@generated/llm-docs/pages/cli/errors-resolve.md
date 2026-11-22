@@ -1,6 +1,6 @@
 # error resolve
 
-The `error resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`error ignore`](/cli/errors-ignore) instead.
+The `error resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`error ignore`](/cli/errors-ignore) instead. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -10,9 +10,15 @@ stacktape error resolve iss_abc123def456
 
 You need the issue ID. Use [`error list`](/cli/errors-list) to list detected runtime issues before resolving one.
 
-## Flags reference
+## Examples
 
-The only required argument is the issue ID. Use [`error list`](/cli/errors-list) to find the ID of the issue you want to resolve.
+Resolve an issue in agent mode for use in scripts or AI coding assistants:
+
+```bash
+stacktape error resolve iss_abc123def456 --agent
+```
+
+## Options
 
 
 ## CLI Options: `stacktape error resolve`
@@ -24,14 +30,6 @@ The only required argument is the issue ID. Use [`error list`](/cli/errors-list)
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
-
-## Examples
-
-Resolve an issue in agent mode for use in scripts or AI coding assistants:
-
-```bash
-stacktape error resolve iss_abc123def456 --agent
-```
 
 ## Related commands
 

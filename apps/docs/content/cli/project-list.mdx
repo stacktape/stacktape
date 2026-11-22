@@ -7,7 +7,7 @@ seoDescription: 'List all Stacktape projects with deployed stages, deployment st
 
 # project list
 
-The `project list` command lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs.
+The `project list` command lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -48,10 +48,6 @@ Use plain text output (no colors or animations):
 stacktape project list --output-format plain
 ```
 
-## Flags reference
-
-<CliCommandsApiReference command="project:list" />
-
 ## Examples
 
 Check all projects and their cost at a glance:
@@ -71,6 +67,10 @@ Suppress info-level CLI log messages, showing only errors from the CLI framework
 ```bash
 stacktape project list --log-level error
 ```
+
+## Options
+
+<CliCommandsApiReference command="project:list" />
 
 ## Related commands
 

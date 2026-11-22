@@ -19,6 +19,8 @@ import ts from 'typescript';
 
 export const STACKTAPE_TYPES_ROUTE = '/stacktape';
 export const TS_LIB_ROUTE = '/ts-lib';
+/** JSON array of the `lib.*.d.ts` names the build serves under `TS_LIB_ROUTE`. */
+export const TS_LIB_MANIFEST_ROUTE = `${TS_LIB_ROUTE}/files.json`;
 
 /** Declaration files that make up the virtual `stacktape` package. */
 export const STACKTAPE_DECLARATION_FILES = ['index.d.ts', 'types.d.ts', 'plain.d.ts', 'cloudformation.d.ts'] as const;
@@ -31,10 +33,10 @@ export const TWOSLASH_COMPILER_OPTIONS: ts.CompilerOptions = {
 };
 
 /**
- * Standard-library declarations that `TWOSLASH_COMPILER_OPTIONS` may need. Both sides of the wire
- * derive their list from this one function, so the served files and the requested files cannot
- * drift. It is a candidate list: upstream includes names that no single TypeScript release ships,
- * so the build copies the ones that exist and the loader skips the ones that are not served.
+ * Standard-library declarations that `TWOSLASH_COMPILER_OPTIONS` may need. It is a candidate list:
+ * upstream includes names that no single TypeScript release ships (`lib.core.d.ts`, retired
+ * `lib.esnext.*` files), so the build copies the ones that exist and lists them in
+ * `TS_LIB_MANIFEST_ROUTE`. The loader requests only the listed files.
  */
 export const twoslashLibFileNames = (): string[] =>
   [...new Set(knownLibFilesForCompilerOptions(TWOSLASH_COMPILER_OPTIONS, ts))].toSorted();
@@ -48,11 +50,6 @@ const fetchText = async (url: string) => {
   return response.text();
 };
 
-const fetchOptionalText = async (url: string) => {
-  const response = await fetch(url);
-  return response.ok ? response.text() : null;
-};
-
 /** Fetch the declarations and standard library, and assemble Twoslash's virtual filesystem. */
 export const loadTwoslashFsMap = async (): Promise<Map<string, string>> => {
   const [declarations, libs] = await Promise.all([
@@ -61,16 +58,18 @@ export const loadTwoslashFsMap = async (): Promise<Map<string, string>> => {
         async (name) => [name, await fetchText(`${STACKTAPE_TYPES_ROUTE}/${name}`)] as const
       )
     ),
-    Promise.all(
-      twoslashLibFileNames().map(async (name) => [name, await fetchOptionalText(`${TS_LIB_ROUTE}/${name}`)] as const)
+    fetchText(TS_LIB_MANIFEST_ROUTE).then((manifest) =>
+      Promise.all(
+        (JSON.parse(manifest) as string[]).map(
+          async (name) => [name, await fetchText(`${TS_LIB_ROUTE}/${name}`)] as const
+        )
+      )
     )
   ]);
 
   const fsMap = new Map<string, string>();
   // `@typescript/vfs` expects the standard library at `/lib.*.d.ts`.
-  for (const [name, contents] of libs) {
-    if (contents !== null) fsMap.set(`/${name}`, contents);
-  }
+  for (const [name, contents] of libs) fsMap.set(`/${name}`, contents);
   for (const [name, contents] of declarations) fsMap.set(`${PACKAGE_ROOT}/${name}`, contents);
 
   fsMap.set(

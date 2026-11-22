@@ -1,4 +1,4 @@
-# Buildpack for Containers
+# Buildpack for containers
 
 The `buildpack` packaging type (`BuildpackImagePackaging`) builds a container image from a project directory without a Dockerfile. Stacktape detects the language, framework, package manager, tool versions and start command from the project's own files, builds the image and uploads it to a managed ECR repository.
 
@@ -273,7 +273,14 @@ A Python project that uses pip (`requirements.txt`) or uv (`uv.lock`) is built o
 
 ### Django migrations
 
-Railpack's default Django start command runs `manage.py migrate` before starting gunicorn. Stacktape removes the migrate step, because migrations belong in a [deployment hook](/deployment-and-lifecycle/deployment-scripts-and-hooks), not in every container start. To run migrations at start anyway, set `startCommand`, for example `python manage.py migrate && gunicorn --bind 0.0.0.0:$PORT config.wsgi`.
+Railpack's default Django start command runs `manage.py migrate` before starting gunicorn. Stacktape removes the migrate step, because every container start would run it. Run migrations once per deploy with a [release command](/deployment-and-lifecycle/release-commands) on the service instead. It uses the image you are about to deploy and runs before the service gets the new code:
+
+```yaml
+releaseCommand:
+  command: python manage.py migrate
+```
+
+To run migrations at every start anyway, set `startCommand`, for example `python manage.py migrate && gunicorn --bind 0.0.0.0:$PORT config.wsgi`.
 
 ### Dev mode
 

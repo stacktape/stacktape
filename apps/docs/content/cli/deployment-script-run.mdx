@@ -27,10 +27,6 @@ The three required flags identify which deployed script to target:
 
 The deployment script must already exist in your configuration **and** be deployed to the target stack. If the resource is not defined in your configuration file or not present in the deployed stack, the command fails. Add the resource and run [`deploy`](/cli/deploy) first.
 
-## Arguments reference
-
-<CliCommandsApiReference command="deployment-script:run" />
-
 ## Examples
 
 Re-run a database migration script against a staging stack:
@@ -54,6 +50,10 @@ stacktape deployment-script run postDeployHook --stage production --region us-we
 ## When to use this vs deploy
 
 Use `deployment-script run` when you are iterating on the script's handler code and want fast feedback. The command rebuilds and updates only the script's function code, then invokes the Lambda — skipping a full stack update. The script's `parameters` are resolved from your current local configuration and sent as the invocation payload, so parameter changes take effect immediately without redeploying. Switch to a full [`deploy`](/cli/deploy) when you change Lambda configuration such as environment variables, memory, timeout, packaging settings, or VPC settings.
+
+## Options
+
+<CliCommandsApiReference command="deployment-script:run" />
 
 ## Related commands
 

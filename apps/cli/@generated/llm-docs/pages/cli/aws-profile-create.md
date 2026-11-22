@@ -16,18 +16,6 @@ The command is fully interactive. It walks you through three prompts:
 
 If a profile with the chosen name already exists in your credentials or config file, the command fails with an error. Use [`aws-profile update`](/cli/aws-profile-update) to change credentials for an existing profile. All prompts are handled interactively — there are no required flags.
 
-## Flags
-
-
-## CLI Options: `stacktape aws-profile create`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## Examples
 
 Create a profile named `default` (used automatically when no profile is specified):
@@ -58,6 +46,18 @@ Credentials are stored in the default AWS credentials location in your home dire
 
 
 > **Info:** For Console-managed AWS access, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
+
+
+## Options
+
+
+## CLI Options: `stacktape aws-profile create`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
 
 ## Related commands

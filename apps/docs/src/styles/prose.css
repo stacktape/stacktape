@@ -1,0 +1,245 @@
+/*
+ * Article prose: the native HTML that MDX renders (paragraphs, headings, lists, links, inline code, quotes, rules).
+ * One body style for paragraphs and list items at every width; headings differ by size and weight, not colour.
+ * Blocks use symmetric margins so adjacent margins collapse into one gap.
+ */
+@layer base {
+  .docs-page-title {
+    margin: 0 0 var(--docs-space-16);
+    color: var(--docs-text-strong);
+    font-size: var(--docs-text-h1);
+    font-weight: var(--docs-weight-heading);
+    line-height: 1.2;
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+  }
+
+  .docs-page-section {
+    margin: 0 0 var(--docs-space-8);
+    word-spacing: 0.15em;
+    color: var(--docs-text-faint);
+    font-size: var(--docs-text-sm);
+    font-weight: var(--docs-weight-medium);
+    line-height: 1.4;
+  }
+
+  .mdx-content {
+    min-width: 0;
+    color: var(--docs-text);
+    font-size: var(--docs-text-body);
+    line-height: var(--docs-leading-body);
+    overflow-wrap: break-word;
+  }
+
+  .mdx-content > :first-child {
+    margin-top: 0;
+  }
+
+  .mdx-content p {
+    margin-block: var(--docs-flow);
+  }
+
+  .mdx-content h1,
+  .mdx-content h2,
+  .mdx-content h3,
+  .mdx-content h4 {
+    color: var(--docs-text-strong);
+    font-weight: var(--docs-weight-heading);
+    line-height: var(--docs-leading-heading);
+    text-wrap: balance;
+    scroll-margin-top: calc(var(--docs-header-h) + var(--docs-space-24));
+  }
+  /* A heading inside the article (the home page owns its own H1 when it hides the page title). */
+  .mdx-content h1 {
+    margin: 0 0 var(--docs-space-24);
+    font-size: var(--docs-text-h1);
+    line-height: 1.2;
+    letter-spacing: -0.022em;
+  }
+  .mdx-content h2 {
+    margin: var(--docs-flow-section) 0 var(--docs-space-12);
+    font-size: var(--docs-text-h2);
+    letter-spacing: -0.016em;
+  }
+  .mdx-content h3 {
+    margin: var(--docs-space-32) 0 var(--docs-space-8);
+    font-size: var(--docs-text-h3);
+    letter-spacing: -0.008em;
+  }
+  .mdx-content h4 {
+    margin: var(--docs-space-24) 0 var(--docs-space-4);
+    font-size: var(--docs-text-h4);
+  }
+  /* A heading's first paragraph belongs to it: a smaller gap than between paragraphs. */
+  .mdx-content :is(h2, h3, h4) + :is(p, ul, ol) {
+    margin-top: var(--docs-space-8);
+  }
+  /* A heading directly after another heading sits closer to it. */
+  .mdx-content :is(h2, h3) + :is(h3, h4) {
+    margin-top: var(--docs-space-16);
+  }
+
+  .mdx-content strong {
+    color: var(--docs-text-strong);
+    font-weight: var(--docs-weight-heading);
+  }
+
+  /* Lists: native markers, the same type as paragraphs. */
+  .mdx-content ul,
+  .mdx-content ol {
+    margin-block: var(--docs-flow);
+    padding-left: 1.4em;
+  }
+  .mdx-content ul {
+    list-style: disc;
+  }
+  .mdx-content ol {
+    list-style: decimal;
+  }
+  .mdx-content li {
+    margin-block: var(--docs-space-8);
+    padding-left: 0.2em;
+  }
+  .mdx-content li::marker {
+    color: var(--docs-text-faint);
+  }
+  .mdx-content ol > li::marker {
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--docs-weight-medium);
+  }
+  .mdx-content li > :is(ul, ol) {
+    margin-block: var(--docs-space-8);
+  }
+  .mdx-content ul ul {
+    list-style: circle;
+  }
+  .mdx-content li > p {
+    margin-block: var(--docs-space-8);
+  }
+  .mdx-content li > p:first-child {
+    margin-top: 0;
+  }
+  .mdx-content li > p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Links are teal and underlined, so they never depend on colour alone. */
+  .mdx-content a:not(.docs-unstyled-link) {
+    color: var(--docs-accent-text);
+    font-weight: var(--docs-weight-medium);
+    text-decoration: underline;
+    text-decoration-color: var(--docs-accent-line);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.22em;
+    transition:
+      color var(--docs-duration-fast) var(--docs-ease),
+      text-decoration-color var(--docs-duration-fast) var(--docs-ease);
+  }
+  .mdx-content a:not(.docs-unstyled-link):hover {
+    color: var(--docs-accent-text-hover);
+    text-decoration-color: currentColor;
+  }
+  .mdx-content :is(h1, h2, h3, h4) a {
+    color: inherit;
+    font-weight: inherit;
+    text-decoration: none;
+  }
+  /* A link that is inline code keeps the code look and gets the underline. */
+  .mdx-content a code {
+    color: inherit;
+  }
+
+  /* Inline code: neutral monospace, never teal, so it does not read as a link. Long tokens wrap only when they
+   * cannot fit on a line of their own. */
+  .mdx-content :not(pre) > code,
+  .docs-inline-code {
+    padding: 0.12em 0.36em;
+    border: 1px solid var(--docs-border);
+    border-radius: var(--docs-radius-sm);
+    background: var(--docs-bg-raised);
+    color: var(--docs-text-strong);
+    font-size: 0.875em;
+    font-weight: var(--docs-weight-body);
+    overflow-wrap: break-word;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  .mdx-content :is(h2, h3, h4) code {
+    font-size: 0.9em;
+  }
+
+  .mdx-content kbd {
+    display: inline-block;
+    min-width: 1.6em;
+    padding: 0 0.4em;
+    border: 1px solid var(--docs-border-strong);
+    border-bottom-width: 2px;
+    border-radius: var(--docs-radius-sm);
+    background: var(--docs-bg-raised);
+    font-size: 0.8em;
+    line-height: 1.6;
+    text-align: center;
+  }
+
+  /* Quotations only. Warnings use <Warning>. */
+  .mdx-content blockquote {
+    margin-block: var(--docs-flow-block);
+    padding: var(--docs-space-4) 0 var(--docs-space-4) var(--docs-space-16);
+    border-left: 2px solid var(--docs-border-strong);
+    color: var(--docs-text-muted);
+  }
+  .mdx-content blockquote > :first-child {
+    margin-top: 0;
+  }
+  .mdx-content blockquote > :last-child {
+    margin-bottom: 0;
+  }
+
+  .mdx-content hr {
+    margin-block: var(--docs-space-40);
+    border: 0;
+    border-top: 1px solid var(--docs-border);
+  }
+
+  .mdx-content img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--docs-radius);
+  }
+
+  /* Preformatted text that is not a CodeBlock (generated descriptions): a code surface that scrolls on its own. */
+  .mdx-content pre:not(.stacktape-shiki-pre, .docs-code-plain) {
+    max-width: 100%;
+    margin-block: var(--docs-space-12);
+    padding: var(--docs-space-12) var(--docs-space-16);
+    overflow-x: auto;
+    border: 1px solid var(--docs-border);
+    border-radius: var(--docs-radius);
+    background: var(--docs-bg-sunken);
+    color: var(--docs-syntax-text);
+    font-size: var(--docs-text-code);
+    line-height: 1.7;
+  }
+  .mdx-content pre:not(.stacktape-shiki-pre, .docs-code-plain) code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: inherit;
+  }
+
+  .mdx-content details {
+    margin-block: var(--docs-flow);
+  }
+  .mdx-content summary {
+    cursor: pointer;
+    color: var(--docs-text-strong);
+    font-weight: var(--docs-weight-medium);
+  }
+
+  /* Tabs island: before hydration show only the first panel. The hydrated Tabs sets inline `display` per panel. */
+  .mdx-content .stp-tab-panel ~ .stp-tab-panel {
+    display: none;
+  }
+}

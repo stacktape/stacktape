@@ -19,7 +19,8 @@ function handler(event) {
   var request = event.request;
   var uri = request.uri.length > 1 ? request.uri.replace(/\\/+$/, '') : request.uri;
   var target = REDIRECTS[uri];
-  if (!target) return request;
+  if (target === undefined) return request;
+  if (!/\\.\\w+$/.test(target)) target += '/';
   var query = [];
   for (var name in request.querystring) {
     var entry = request.querystring[name];
@@ -37,9 +38,21 @@ function handler(event) {
   };
 }`;
 
+const FILE_TARGET = /\.\w+$/;
+
 /** CloudFront Functions JavaScript (runtime `cloudfront-js-2.0`) for a viewer-request association. */
 export const buildRedirectFunctionCode = (redirects: Record<string, string>): string => {
-  const table = Object.fromEntries(Object.entries(redirects).map(([from, to]) => [withoutTrailingSlash(from), to]));
+  // Page targets end with a slash, which the handler adds back (about one byte per redirect). File targets such as
+  // `/sitemap-index.xml` keep their extension and get no slash.
+  const table = Object.fromEntries(
+    Object.entries(redirects).map(([from, to]) => {
+      if (FILE_TARGET.test(to)) return [withoutTrailingSlash(from), to];
+      if (!to.endsWith('/') || FILE_TARGET.test(to.slice(0, -1))) {
+        throw new Error(`Redirect target ${to} (from ${from}) must be a page ending with a slash or a file.`);
+      }
+      return [withoutTrailingSlash(from), to.slice(0, -1)];
+    })
+  );
   const code = `var REDIRECTS = ${JSON.stringify(table)};${HANDLER}\n`;
   const size = Buffer.byteLength(code);
   if (size > CLOUDFRONT_FUNCTION_MAX_BYTES) {

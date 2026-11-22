@@ -1,65 +1,64 @@
 ---
-title: 'Console Overview'
-order: 127
-seoTitle: 'Stacktape Console Overview — Dashboard & Teams | Docs'
-seoDescription: 'Track deployments, incidents, runtime errors and AWS costs, manage members, budgets and alert channels, and enforce guardrails with the Stacktape Console.'
+title: 'Console overview'
+order: 1
+seoTitle: 'Stacktape Console overview: find your stack, logs and costs | Stacktape Docs'
+seoDescription: 'Get your stacks into the Stacktape Console, find a deployed stage and its logs, and see what the Console does: deployments, incidents, errors, costs, team access and alerts.'
 ---
 
-# Console Overview
+# Console overview
 
-The Stacktape Console is a web application for the organizations, projects and stages you deploy with Stacktape. It shows deployment activity, incidents, logs, metrics, traces, error tracking, security findings and AWS costs, and it manages members, alert channels, budgets, secrets, SSM parameters, AWS account connections and domains.
+The Stacktape Console is the web app for the stacks you deploy with Stacktape. It shows your projects and stages with their deployments, logs, metrics, errors, incidents and AWS costs. It also manages team access, Git deployments, alert channels, budgets, secrets and AWS account connections.
 
-## What the Console does
+The Console is optional. The [CLI](/cli) is open source and deploys without it; see [Use the CLI without an account](/getting-started/open-source-cli) for what needs the Console and why. The Console is free while your organization's managed AWS spend is up to $200 a month. See [Billing and subscription](/stacktape-console/billing-and-subscription).
 
-Projects represent your applications, typically one per Git repository. Each project can have multiple stages (isolated deployments such as `production`, `staging` or `dev`), each with its own resources. A stage is deployed from a Stacktape configuration that describes which resources to create.
+## Get your stacks into the Console
 
-From the Console you can:
+- **You already deploy with the CLI.** Run [`stacktape connect`](/cli/connect). It signs you in and connects the AWS account of your current AWS credentials. The stacks already in that account appear as projects and stages, without a redeploy.
+- **You start in the Console.** Sign in, open **AWS accounts** in the Configuration group and click **Connect AWS account**. [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) walks through it. Then deploy with [`stacktape deploy`](/cli/deploy), or connect a repository for [Git deployments](/ci-cd-and-gitops/gitops-with-console).
 
-- Review deployment activity and AWS costs across projects and stages
+## Find your stack and its logs
+
+1. Open **Projects** at the top of the sidebar and select your project. A project is usually one repository, with stages such as `production` and `dev`. [Organizations, projects and stages](/stacktape-console/organizations-projects-and-stages) explains how they relate.
+2. Select the stage in the row of stages in the project header. Its page has the tabs **Overview**, **Activity**, **Costs**, **Configuration**, **Diagram** and **Danger zone**. Overview lists the stage's endpoints and resources.
+3. Click a resource. Its details show **Logs**, **Logs live tail**, **Metrics**, its **Configuration** and the **AWS resources** behind it. Containers also offer a **Remote session**.
+
+The **Logs** page in the Observability group searches the logs of the whole organization. From the terminal, [`stacktape logs`](/cli/logs) reads the same logs. See [Logs](/observability/logs).
+
+## The Projects home
+
+**Projects** opens after you sign in. Before your first deploy, it shows how to make one and a search for stacks that are already in your connected AWS accounts. After that, **Your app** shows the stage you deployed most recently with its URL, its state and its recent deploys. The home also lists recent deployments of other projects, **Costs this month** with any budget that is over its limit, and the deploys of the last 30 days.
+
+## What you can do in the Console
+
+- Review deployments and AWS costs across projects and stages
 - Respond to [incidents](/observability/incidents), which group signals such as a failing uptime check, a firing alarm or a new error in a production stage
 - Read [logs](/observability/logs), [metrics](/observability/metrics) and [traces](/observability/tracing), and see the state of [uptime checks](/observability/uptime-checks) and [synthetic tests](/observability/synthetic-tests)
 - Triage runtime errors on the [Error tracking](/observability/error-tracking) page
-- Review [security findings and vulnerable packages](/stacktape-console/security-scanning) from each deployment and set [guardrails](/guardrails/overview) that are enforced on every deployment
-- Create [alert channels](/observability/alert-channels), [notification rules](/observability/notifications) and [budgets](/managing-costs/budgets), and check delivery in [Alert history](/observability/alert-history)
-- Manage sensitive values in AWS Secrets Manager and configuration values in AWS Systems Manager Parameter Store
-- Connect [AWS accounts](/stacktape-console/connecting-your-aws-account) and [custom domains](/resources/networking/custom-domains)
-- Manage [members](/stacktape-console/team-and-access-control) with role-based access control, connect your identity provider for [single sign-on](/stacktape-console/single-sign-on), and review the [audit log](/stacktape-console/audit-log)
+- Review [security findings and vulnerable packages](/stacktape-console/security-scanning) from each deployment, and set [guardrails](/guardrails/overview) that every deployment must pass
+- Create [alert channels](/observability/alert-channels), [notification rules](/observability/notifications) and [budgets](/managing-costs/budgets), and check delivery in [Sent alerts](/observability/alert-history)
+- Manage secrets in AWS Secrets Manager and values in AWS Systems Manager Parameter Store
+- Connect [AWS accounts](/stacktape-console/connecting-your-aws-account), [Git repositories](/ci-cd-and-gitops/gitops-with-console) and [custom domains](/resources/networking/custom-domains)
+- Manage [members and roles](/stacktape-console/team-and-access-control), sign in through your identity provider with [single sign-on](/stacktape-console/single-sign-on), and review the [audit log](/stacktape-console/audit-log)
 
-The Console complements the [Stacktape CLI](/cli/deploy), which is open source and also works without the Console; see [Use the CLI without an account](/getting-started/open-source-cli) for what needs the Console and why. If you already deployed without an account, `stacktape connect` adds your existing stacks to the Console without a redeploy. The Console is free while your organization's managed AWS spend is up to $200 a month; see [Billing and subscription](/stacktape-console/billing-and-subscription). You deploy with [`stacktape deploy`](/cli/deploy), and [Git provider connections](/ci-cd-and-gitops/gitops-with-console) can deploy automatically from your repositories. Alarms, uptime checks and synthetic tests are defined in the Stacktape configuration and go live when the stack is deployed. The Activity page lists recorded CLI operations: deploys, deletes, scripts, bucket syncs and other commands.
+Alarms, uptime checks and synthetic tests are defined in the Stacktape configuration and go live when the stack is deployed. The Console shows their state.
 
 ## Console navigation
 
-The sidebar starts with Overview and Incidents, followed by five groups. Some items appear only when your role has the required permission; see [Permission-gated navigation](#permission-gated-navigation). Incidents, Error tracking, Posture, Vulnerabilities and Alarms show a count badge when there is something to look at.
+The sidebar starts with **Projects** and **Incidents**, followed by five groups. Some items appear only when your role has the required permission; see [Permission-gated navigation](#permission-gated-navigation). Incidents, Error tracking, Security Overview and Alarms show a count when there is something to look at.
 
-| Group | Pages | What it covers |
-|---|---|---|
-| **Top** | Overview, Incidents | Default dashboard and the [incident](/observability/incidents) queue |
-| **Organization** | Projects, Runners, Activity, Members, Audit log, Single sign-on, Costs | Projects and stages, the EC2 runners that run Git deploys and GitHub Actions jobs, CLI operation history, [members and roles](/stacktape-console/team-and-access-control), the [audit log](/stacktape-console/audit-log), [single sign-on and SCIM](/stacktape-console/single-sign-on), [cost tracking](/managing-costs/dashboards) |
-| **Observability** | Logs, Metrics, Traces, Uptime, Synthetics, Error tracking | [Logs](/observability/logs), [metrics](/observability/metrics), [traces](/observability/tracing), [uptime checks](/observability/uptime-checks), [synthetic tests](/observability/synthetic-tests), [runtime errors](/observability/error-tracking) |
-| **Security** | Overview, Posture, Vulnerabilities, Exposure, Guardrails | Security score per stack, configuration findings, vulnerable packages, what the internet can reach, [guardrails](/guardrails/overview) |
-| **Alerting** | Channels, Sent alerts, Alarms, Budgets | [Alert channels](/observability/alert-channels) and their [notification rules](/observability/notifications), [sent alerts](/observability/alert-history), [alarm state](/observability/alarms), [budgets](/managing-costs/budgets) and the alerts they sent |
-| **Configuration** | Secrets, SSM parameters, AWS accounts, Domains | [Secrets](/configuration/secrets), SSM parameters, [AWS account connections](/stacktape-console/connecting-your-aws-account), [custom domains](/resources/networking/custom-domains) |
+- **Organization**: Activity (the CLI operations of every project), [Costs](/managing-costs/dashboards), [Members](/stacktape-console/team-and-access-control), [API keys](/stacktape-console/api-keys), [Audit log](/stacktape-console/audit-log), [Single sign-on](/stacktape-console/single-sign-on) and [Billing](/stacktape-console/billing-and-subscription).
+- **Observability**: [Logs](/observability/logs), [Metrics](/observability/metrics), [Traces](/observability/tracing), [Uptime](/observability/uptime-checks), [Synthetics](/observability/synthetic-tests) and [Error tracking](/observability/error-tracking).
+- **Security**: [Overview](/stacktape-console/security-scanning) (findings and scores), Exposure (what the internet can reach), [Guardrails](/guardrails/overview) and Settings.
+- **Alerting**: [Channels](/observability/alert-channels) with their [notification rules](/observability/notifications), [Sent alerts](/observability/alert-history), [Alarms](/observability/alarms) and [Budgets](/managing-costs/budgets).
+- **Configuration**: [Secrets](/configuration/secrets), SSM parameters, [AWS accounts](/stacktape-console/connecting-your-aws-account), [Git connections](/ci-cd-and-gitops/gitops-with-console), [Runners](/ci-cd-and-gitops/build-runners), Third-party providers and [Domains](/resources/networking/custom-domains).
 
-The profile menu in the header opens Account (your account settings), API keys, Subscription plans, Billing, Third-party providers and Git connections.
-
-## The Overview route
-
-The Overview page (`/overview`) is the Console's default route for the selected organization. Use the sidebar to open the detailed pages, such as Projects, Incidents, Costs or Error tracking.
-
-## Getting started
-
-This walkthrough covers the path from first login to viewing a deployed stage.
-
-1. **Sign in.** The Console opens on the Overview page (`/overview`).
-2. **Connect an AWS account.** Open **AWS accounts** in the Configuration group and click **Connect AWS account**. Stacktape uses a cross-account IAM role, so you do not manage AWS credentials yourself. See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
-3. **Deploy a stage.** Run [`stacktape deploy`](/cli/deploy), or connect a Git provider from **Git connections** in the profile menu and set up [GitOps](/ci-cd-and-gitops/gitops-with-console) for push-to-deploy.
-4. **View your stage.** Open **Projects** in the Organization group and select your project to see its stages and deployment activity.
+The account menu in the header has **Account** (your [account settings](/stacktape-console/account-settings)) and **Sign out**. **Subscription plans** opens from Billing.
 
 ## Common tasks
 
 ### Viewing deployment activity
 
-Open **Activity** in the Organization group. The page lists Stacktape CLI operations across your organization, so you can see who ran deploys, deletes, scripts, bucket syncs and other recorded commands.
+Open **Activity** in the Organization group. The page lists Stacktape CLI operations across your organization, so you can see who ran deploys, deletes, scripts, bucket syncs and other recorded commands. The **Activity** tab of a stage lists the operations of that stage.
 
 For each recorded operation, the CLI sends the command, the project, stage, region and AWS account, the Git branch, commit and repository URL, the Stacktape version, timing and the result. It also sends the flags that name the target and change how the command runs, such as `--stage`, `--region`, `--config`, `--full`, `--auto-rollback`, `--no-cache`, `--target-version`, `--script-name`, `--resource-name` and `--bucket-id`. Flags whose value is free-form input are never sent: `--docker-args`, script `--env` values, commands, SDK inputs, secret values and API keys stay on your machine or CI runner.
 
@@ -83,7 +82,7 @@ The **Error tracking** page in the Observability group is an error inbox for you
 
 ### Inviting members
 
-Open **Members** in the Organization group and click **Invite member**. Each member has a role that determines what they can view and change. The page requires the `members:view` permission. See [Team and access control](/stacktape-console/team-and-access-control).
+Open **Members** in the Organization group and click **Invite members**. Each member has a role that determines what they can view and change. The page requires the `members:view` permission. See [Team and access control](/stacktape-console/team-and-access-control).
 
 ### Setting budgets
 
@@ -91,7 +90,7 @@ Open **Budgets** in the Alerting group and click **New budget**. Each budget mon
 
 ### Configuring alert channels and notification rules
 
-Channels are the destinations where alerts are delivered, such as a Slack channel, an email address or a webhook. Open **Channels** in the Alerting group and click **New alert channel**. The new channel's page opens; click **New rule** there to choose which events (for example a failed deployment, an opened incident or a changed secret) it receives. Adding rules requires the `org:manage-notifications` permission. **Sent alerts** lists every alert that was sent and its delivery status per channel.
+Channels are the destinations where alerts are delivered, such as a Slack channel, an email address or a webhook. Open **Channels** in the Alerting group and click **New channel**. The new channel's page opens; click **New rule** there to choose which events (for example a failed deployment, an opened incident or a changed secret) it receives. Adding rules requires the `org:manage-notifications` permission. **Sent alerts** lists every alert that was sent and its delivery status per channel.
 
 ## Permission-gated navigation
 
@@ -101,18 +100,20 @@ The Console uses role-based access control. Sidebar items are hidden when your r
 |---|---|
 | Incidents | `incidents:view` |
 | Members | `members:view` |
+| API keys | `api-keys:manage-own` (not Viewers) |
 | Audit log | `audit-log:view` (Owners and Admins) |
 | Single sign-on | `sso:manage` (Owners only) |
-| Costs | `org:view-billing` |
+| Costs, Billing | `org:view-billing` (Owners and Admins) |
 | Error tracking | `issues:view` |
-| Security group (Overview, Posture, Vulnerabilities, Exposure, Guardrails) | `security:view` |
+| Security group | `security:view` |
 | Alarms | `org:manage-alarms` |
 | Budgets | `org:manage-budgets` |
 | Secrets | `secrets:view` |
-| SSM parameters | `ssm-params:view` |
+| SSM parameters, Third-party providers | `ssm-params:view` |
+| Git connections | Not Viewers |
 | Domains | `domains:manage` |
 
-Overview, Projects, Runners, Activity, Logs, Metrics, Traces, Uptime, Synthetics, Channels, Sent alerts and AWS accounts are not filtered by permission in the sidebar. Every role that sees the Security group can read Guardrails; only owners and admins (`org:manage-guardrails`) can change them.
+Projects, Activity, Logs, Metrics, Traces, Uptime, Synthetics, Channels, Sent alerts, AWS accounts and Runners are shown to every role. Every role that sees the Security group can read Guardrails; only owners and admins (`org:manage-guardrails`) can change them.
 
 <Warning>
 If a sidebar item is missing, your role may not include the required permission. Ask your organization's owner or admin to adjust your access. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
@@ -130,15 +131,15 @@ Alarms are created when the stack is deployed. After you add an alarm to a resou
 
 ### The Error tracking page is empty despite errors in logs
 
-A stack reports errors only after it has been deployed with Stacktape v4, because the log subscriptions are added during deployment. Click **Settings** on the Error tracking page to open **Error tracking settings**: it shows whether error tracking is on for the organization and lists each deployed stack with whether its last deployment wired error tracking. Also check that the stack's `deploymentConfig.errorTracking` does not turn it off for that stage, and that the resource does not use `logging.logClass: infrequent-access`. See [Error tracking](/observability/error-tracking).
+A stack reports errors only after it has been deployed with Stacktape v4 while signed in to the Console, because the log subscriptions are added during that deployment. Stacks you deployed without an account and brought in with `stacktape connect` need one signed-in deploy. Click **Settings** on the Error tracking page to open **Error tracking settings**: it shows whether error tracking is on for the organization and lists each deployed stack with whether its last deployment wired error tracking. Also check that the stack's `deploymentConfig.errorTracking` does not turn it off for that stage, and that the resource does not use `logging.logClass: infrequent-access`. See [Error tracking](/observability/error-tracking).
 
 ### Sidebar items are missing
 
 Some sidebar items are permission-gated. If you don't see an item (for example, Costs or Alarms), your role may not include the required permission. See the [permission-gated navigation](#permission-gated-navigation) table or ask your organization admin.
 
-## Related features
+## Related pages
 
-- [Connecting your AWS account](/stacktape-console/connecting-your-aws-account): required before any deployment
+- [Connecting your AWS account](/stacktape-console/connecting-your-aws-account): what the Console's access to your account is, and how to revoke it
 - [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages): how the Console organizes your work
 - [API keys](/stacktape-console/api-keys): authenticate from the CLI and CI/CD
 - [Team and access control](/stacktape-console/team-and-access-control): invite members and manage roles
@@ -152,20 +153,8 @@ Some sidebar items are permission-gated. If you don't see an item (for example, 
 
 ### Do I need the Console to use Stacktape?
 
-No. [API keys](/stacktape-console/api-keys) let you authenticate with Stacktape from the CLI or CI/CD pipelines, and `stacktape deploy` does the deploying. The Console adds member access, cost visibility, incidents, error tracking, security findings, budgets and guardrails on top. Most teams use both: the CLI (directly or through GitOps) for deploying, and the Console for visibility and operational control.
+No. The CLI deploys with your own AWS credentials and needs no account. See [Use the CLI without an account](/getting-started/open-source-cli). The Console adds team access, Git deployments, cost visibility, incidents, error tracking, security findings, budgets and guardrails. Most teams use both: the CLI, directly or in CI, for deploying, and the Console for visibility and operations.
 
 ### Does Stacktape deploy into my own AWS account?
 
 Yes. Stacktape uses a cross-account IAM role to manage resources in your AWS account, so you never hand over long-lived AWS credentials. Connect more accounts from **AWS accounts** in the Configuration group. See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for the required role.
-
-### Where do I configure alarms?
-
-In the Stacktape configuration, in the `alarms` list of each resource. The alarms are created when the stack is deployed. The Console's Alarms page shows their state. Alarm rules created in the Console earlier are listed under **Legacy alarm rules**; export them into your configuration with `stacktape alarm export`.
-
-### How does Stacktape track AWS costs, and why is the Costs page empty?
-
-The Costs page breaks down AWS costs by project and stage, generated daily from AWS Cost and Usage Reports. New data can take up to a day to appear, so an empty page usually means a recently connected [AWS account](/stacktape-console/connecting-your-aws-account) or reports that haven't arrived yet. See [Managing costs](/managing-costs/overview) for budgets and optimization tips.
-
-### Why is a sidebar item missing for me?
-
-The Console uses role-based access control, and several sidebar items are permission-gated. For example, Members requires `members:view`, Costs requires `org:view-billing`, and Alarms and Budgets require the matching `org:manage-*` permission. If an item is missing, ask your organization's owner or admin to adjust your role. See [Team and access control](/stacktape-console/team-and-access-control).

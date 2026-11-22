@@ -1,148 +1,76 @@
 ---
-title: 'Observability Overview'
-order: 92
+title: 'Observability overview'
+order: 1
 seoTitle: 'Observability Overview — Logs, Metrics, Alarms & Error Tracking | Stacktape'
-seoDescription: 'Monitor your AWS stack with Stacktape: CloudWatch logs, metrics, threshold alarms, automated error detection, alert channels, deployment notifications, and log forwarding to external platforms.'
+seoDescription: 'Which Stacktape monitoring tool answers which question, what works without the Console, how alerts reach your team, and exactly which data leaves your AWS account.'
 ---
 
-# Observability Overview
+# Observability overview
 
-Stacktape surfaces logs, metrics, alarms, and issues through the CLI and Console — reading from the same AWS CloudWatch data your stack produces. In the Stacktape Console, each alert channel has rules that choose which events it receives, and Sent alerts records what was sent. Error tracking (the Console's Error tracking page) is on for every stage by default and is wired into each stack during deployment.
+Your functions, containers and databases send logs and metrics to CloudWatch in your own AWS account. Stacktape reads
+them for you and adds error tracking, uptime checks, incidents and alerts. This page shows which tool answers which
+question, what needs the Stacktape Console, and which data leaves your AWS account.
 
-## Observability surfaces
+## Pick a tool
 
-Stacktape provides multiple observability surfaces for supported workloads and AWS resources in your stack. Each surface is accessible from the CLI, the Console, or through your Stacktape configuration — depending on the feature.
+| Question | Tool | Needs the Console |
+|---|---|---|
+| What did my code print? | [Logs](/observability/logs) | No |
+| How busy or slow is a resource? | [Metrics](/observability/metrics) | No |
+| Why was this request slow? | [Tracing](/observability/tracing) | To view traces |
+| Tell me when a metric crosses a threshold | [Alarms](/observability/alarms) | No, for alerts sent from your account |
+| Which exceptions does my code throw? | [Error tracking](/observability/error-tracking) | Yes |
+| Is my endpoint up? | [Uptime checks](/observability/uptime-checks) | Yes |
+| Does sign-in or checkout still work? | [Synthetic tests](/observability/synthetic-tests) | To view runs |
+| What is broken right now, as one problem? | [Incidents](/observability/incidents) | Yes |
+| What's inside a running container? | [Debugging containers](/observability/debugging-containers) | No |
 
-| Surface | CLI | Console | Config |
-|---------|-----|---------|--------|
-| [Logs](/observability/logs) | [`stacktape logs`](/cli/logs) | See [Logs](/observability/logs) | — |
-| [Metrics](/observability/metrics) | [`stacktape metrics`](/cli/metrics) | See [Metrics](/observability/metrics) | — |
-| [Tracing](/observability/tracing) | — | Trace search and waterfall views | See [Tracing](/observability/tracing) |
-| [Uptime checks](/observability/uptime-checks) | — | Live status, availability history, incidents | See [Uptime checks](/observability/uptime-checks) |
-| [Synthetic tests](/observability/synthetic-tests) | — | Run history with screenshots | See [Synthetic tests](/observability/synthetic-tests) |
-| [Alarms](/observability/alarms) | [`stacktape alarm list`](/cli/alarms) | Alarm state and history | See [Alarms](/observability/alarms) |
-| [Incidents](/observability/incidents) | [`stacktape incident list`](/cli/incidents) and lifecycle commands | Correlated incident queue and evidence | — |
-| [Error tracking](/observability/error-tracking) | [`stacktape error list`](/cli/errors-list), [`error resolve`](/cli/errors-resolve), [`error ignore`](/cli/errors-ignore), [`error reopen`](/cli/errors-reopen) | Error inbox with grouping and occurrence counts | On by default; `deploymentConfig.errorTracking` turns it off or limits stages |
-| [Alert channels](/observability/alert-channels) | — | Create and manage channels | See [Alert channels](/observability/alert-channels) |
-| [Notification rules](/observability/notifications) | — | Which events each alert channel receives | — |
-| [Alert history](/observability/alert-history) | — | Unified log of all delivered alerts | — |
-| [Log forwarding](/observability/log-forwarding) | — | — | See [Log forwarding](/observability/log-forwarding) |
+Every CLI command that inspects a stack is listed in [Debug commands](/observability/debug-commands). To send logs to
+Datadog, Highlight.io or your own endpoint as well, use [log forwarding](/observability/log-forwarding).
 
-## Logs
+## How alerts reach your team
 
-Stacktape has a logs surface for inspecting CloudWatch Logs produced by your stack. Use [`stacktape logs`](/cli/logs) for ad-hoc log queries and live tailing from the terminal — filter by resource, time range, or keyword. The Console provides a persistent log viewer for browsing logs across resources and stages without leaving the browser. For full CLI options and details, see [Logs](/observability/logs).
+1. A **signal** fires: an alarm, a failed uptime check or synthetic test, an error in production, an unhealthy stack or
+   an expiring certificate.
+2. Stacktape groups related signals into one [incident](/observability/incidents), so a bad deploy that causes errors
+   and an outage is one problem.
+3. [Notification rules](/observability/notifications) choose which [alert channels](/observability/alert-channels)
+   get incident, deploy, security and other events: Slack, email, Teams, Discord or a webhook.
+4. [Sent alerts](/observability/alert-history) shows everything that was sent and whether it arrived.
 
-## Metrics
+Alarms can also notify Slack, Teams, Discord, email or a webhook straight from your AWS account, without the Console.
 
-Stacktape provides a metrics surface for viewing AWS CloudWatch metrics produced by your resources. Use [`stacktape metrics`](/cli/metrics) for quick terminal-based metric checks — useful during active debugging or in CI/CD scripts. The Console provides metric dashboards for ongoing monitoring across your stack. For full CLI options and details, see [Metrics](/observability/metrics).
+## Without the Console
 
-## Alarms
+With only AWS credentials, you get logs, metrics, alarms with notifications sent from your account, synthetic tests,
+tracing data in X-Ray, log forwarding and the debug commands. A deploy whose config uses uptime checks,
+`console-channel` or `slack-app` alarm targets, or `deploymentConfig.errorTracking` stops at validation and asks you to
+connect the Console. Error tracking stays off until you connect. See
+[Use the CLI without an account](/getting-started/open-source-cli).
 
-Alarms monitor CloudWatch metrics and fire when a threshold is breached. Define alarms per resource in your stack configuration and deploy to apply them. The Console shows their state and history. For the authoritative list of resource types that support config-time alarms, trigger types, and evaluation windows, see [Alarms](/observability/alarms).
+## What leaves your AWS account
 
-**Config-time definition** — use the `alarms` property on supported resources to define threshold-based alarms directly in your Stacktape configuration. These alarms are version-controlled and deploy with your stack. For the full property reference and supported trigger types, see [Alarms](/observability/alarms).
+Application logs, build artifacts, dependency lists and secret values stay in your AWS account; the one exception is
+the log line of each error that error tracking records. Some features send operational data to Stacktape. Each one is listed below with what it sends, and its own page lists every field.
+Before data leaves, known shapes of sensitive text are masked: secrets and tokens, values under keys such as `password`,
+email and IP addresses, card numbers and home directory paths. Free text can still carry anything your application
+logged, such as names.
 
-**Legacy Console rules** — existing rules remain visible under **Legacy alarm rules**. Use `stacktape alarm export` to move them into stack configuration. The Console no longer creates or edits alarm rules.
+| Feature | What Stacktape receives | Fields |
+|---|---|---|
+| CLI deploys while signed in | The command, target, Git branch and commit, CLI version, timing, result and the flags that name the target. No free-form flag values, secrets or keys. | [Activity](/stacktape-console/console-overview#viewing-deployment-activity) |
+| Error tracking | Each error's message, type, stack frames, its masked log line, request ID and location | [Error tracking](/observability/error-tracking#what-leaves-your-aws-account) |
+| Alarms | State changes of alarms with history: name, condition, state and resource | [Alarms](/observability/alarms#what-leaves-your-aws-account) |
+| Uptime checks | Check definitions and each probe's status, timings, failure reason and certificate expiry. No response bodies. | [Uptime checks](/observability/uptime-checks#what-leaves-your-aws-account) |
+| Synthetic tests | State changes of the test's alarm. Results, screenshots and logs stay in your account. | [Synthetic tests](/observability/synthetic-tests#what-leaves-your-aws-account) |
+| Logs, metrics and traces in the Console | Nothing is stored: your browser reads them from AWS with short-lived credentials | [Logs](/observability/logs#read-logs-in-the-console) |
+| Costs | A monthly cost breakdown of each connected AWS account, from its AWS cost report | [Cost dashboards](/managing-costs/dashboards) |
+| Security scanning | Configuration findings and where the dependency list is. Package names and versions go to OSV.dev; found vulnerabilities are stored. | [Security scanning](/stacktape-console/security-scanning#what-leaves-your-aws-account) |
+| Incident briefings, with an AI API key connected | A masked snapshot of what Stacktape already stores about the incident, sent to the provider of your organization's key. No logs or source code. | [Incident AI](/observability/incident-ai#what-leaves-your-aws-account) |
+| AI investigations and fixes, when you start one | What the agent reads, including your source code and command output, sent to the agent's provider under your credential | [Incident AI](/observability/incident-ai#what-leaves-your-aws-account) |
+| Slack app | What the cards show. Logs are never posted. | [Alert channels](/observability/alert-channels#what-stacktape-sends-to-slack) |
+| `stacktape init` | The generated config and region, for the price estimate. A coding agent sends the files it reads to its own provider. | [init](/cli/init#who-reads-your-code-and-what-leaves-your-machine) |
+| CLI telemetry | Command names, results and system details; when signed in, also option names and crash reports. Off with `STP_DISABLE_TELEMETRY=1`. | [Telemetry](/getting-started/open-source-cli#telemetry) |
 
-**From the CLI**, use [`stacktape alarm list`](/cli/alarms) to inspect alarm state in a stack.
-
-## Error tracking
-
-Error tracking is an error inbox for your deployed workloads, shown on the **Error tracking** page in the Console. Use `error list` to inspect errors from the CLI and `deploymentConfig.errorTracking` to control capture. Instead of manually searching logs for exceptions, Stacktape detects common runtime error patterns, groups repeated occurrences into a single item, and surfaces them with the error message, stack trace, originating resource, project, stage, and occurrence count.
-
-**How detection works** — on deployment, Stacktape adds CloudWatch Logs subscription filters to supported Stacktape-managed Lambda functions and `js-bundle` containers. Matching log events are sent to the Stacktape service Lambda in your stack, parsed, fingerprinted, and reported to the Console. Issues are grouped by fingerprint, project, and stage.
-
-Detection is log-pattern based. It looks for common runtime error markers: Lambda invoke errors, unhandled promise rejections, exceptions, tracebacks, panics, fatal errors, and stack-trace lines for TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP.
-
-**Turning it off or limiting stages**: error tracking is on for every stage of every stack by default. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`; the change takes effect at the stack's next deployment. Organization owners and admins can also turn it off for every stack in **Error tracking settings** (the **Settings** button on the Error tracking page).
-
-**From the CLI**, manage issues using [`stacktape error list`](/cli/errors-list), [`error resolve`](/cli/errors-resolve), [`error ignore`](/cli/errors-ignore), and [`error reopen`](/cli/errors-reopen). See the CLI reference pages for available options.
-
-**High-volume protection** — Stacktape includes built-in safety limits. Stale log batches are ignored, each detector invocation handles a bounded number of matching errors, context lookups are capped, and the Console stores only recent occurrence examples while keeping the full occurrence count.
-
-**Limitations** — Because detection starts from log messages, it can miss errors that don't match the recognized patterns and can also pick up application logs that merely look like errors. It is best for recurring runtime failures, not a complete observability or tracing system. On the next deployment, Stacktape skips issue detection for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages.
-
-For setup, detection scope, and limitations, see [Error tracking](/observability/error-tracking).
-
-## Alert channels
-
-Alert channels are the destinations where alarm and notification alerts get delivered. You create channels in the Stacktape Console, then use them in notification rules and budget alerts, or reference them from config alarms with `console-channel`.
-
-Channels deliver alerts to destinations such as Slack, email, or a webhook. For deployment and incident notifications, select a pre-created channel. For alarms in config, use a `console-channel` reference or configure the integration directly on the alarm.
-
-For supported integration types, setup instructions, and authentication details, see [Alert channels](/observability/alert-channels).
-
-## Notification rules
-
-Notification rules alert you when deployment lifecycle events happen — a deploy succeeds, fails, or is canceled. Each rule specifies which events to watch and which channel to deliver the alert to.
-
-Notification rules are managed in the Stacktape Console, on the page of the alert channel they send to.
-
-For event types and scoping, see [Notification rules](/observability/notifications).
-
-## Sent alerts
-
-The Console keeps one log of the alerts it sends: incidents, deploy and change notifications, and budget alerts. Use [Sent alerts](/observability/alert-history) to see every alert your organization was sent and whether it reached its channels.
-
-Stacktape also maintains separate focused histories:
-
-- **Alarm history**: an alarm's state changes in CloudWatch (when it fired and recovered), opened from an alarm on the Alarms page
-- **Budget history**: budget threshold alerts, under **Budgets → History**
-
-Notification rule alerts are listed in [Alert history](/observability/alert-history) itself; the old `/notifications/history` address redirects there.
-
-## Log forwarding
-
-Log forwarding streams logs from your workloads to an external observability platform using AWS Kinesis Data Firehose. Three destination types are supported: Datadog, Highlight.io, and custom HTTPS endpoint — see [Log forwarding](/observability/log-forwarding) for details on each. Failed deliveries are backed up to an S3 bucket automatically. For cost details, see [Managing costs](/managing-costs/overview).
-
-When log forwarding is configured on a workload, Stacktape skips issue detection for that workload — both features use a CloudWatch Logs subscription filter slot, and each log group has a limited number of slots.
-
-For supported targets, configuration details, and provider-specific setup, see [Log forwarding](/observability/log-forwarding).
-
-## CLI vs Console
-
-The CLI debug commands are designed for ad-hoc investigation — you're debugging a problem right now and want quick answers in your terminal. The Console is designed for ongoing monitoring — persistent views, alarm state and history, and team-wide visibility.
-
-**Use the CLI when:**
-- You're actively debugging a failing deployment or runtime error
-- You want a quick metric check without leaving your terminal
-- You need to query or filter logs
-- You're scripting observability checks in CI/CD
-
-**Use the Console when:**
-- You need to monitor alarm state across your organization
-- You want to manage issues as a team
-- You need a record of sent alerts and whether they were delivered
-- You're setting up notification routing for deployment events
-
-Both work against the same underlying CloudWatch data and Stacktape issue store. They're complementary, not competing.
-
-## FAQ
-
-### Can I use Datadog or another external platform instead of CloudWatch?
-
-Yes. Stacktape's [log forwarding](/observability/log-forwarding) streams logs to external platforms via Kinesis Data Firehose — three destination types are available (`datadog`, `highlight`, and `http-endpoint`). See the [Log forwarding](/observability/log-forwarding) page for supported targets and setup. CloudWatch metrics and alarms remain AWS-native — Stacktape doesn't replace CloudWatch, but you can forward the raw log data to your preferred platform for analysis and search.
-
-### Do I need to instrument my code to get logs and metrics?
-
-No. Lambda functions and container workloads write stdout/stderr to CloudWatch Logs automatically. AWS provides infrastructure metrics (invocations, errors, CPU, memory, latency) without code changes. For application-level metrics beyond what AWS provides, consult the [AWS CloudWatch documentation on publishing custom metrics](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/publishingMetrics.html).
-
-### Where do I configure alarms?
-
-Define alarms on each resource in your stack configuration and deploy. The Console displays deployed alarm state and history. Export existing legacy Console rules with `stacktape alarm export` before moving them into configuration. See [Alarms](/observability/alarms#migrating-legacy-console-alarm-rules).
-
-### How does issue detection differ from log monitoring?
-
-[Error tracking](/observability/error-tracking) is an automated error inbox. It detects, groups, and tracks recurring runtime errors with no setup, because it is on by default. Log monitoring (via [`stacktape logs`](/cli/logs) or the Console) gives you raw access to all log output. Issues answer "what's broken across my stack?" while logs answer "what happened at this specific time?"
-
-### Why isn't issue detection picking up my errors?
-
-Detection is log-pattern based and only recognizes common runtime error markers (unhandled exceptions, tracebacks, panics, fatal errors) for TypeScript/JavaScript, Python, Go, Java, .NET, Ruby, and PHP — errors that don't match these patterns are missed. It is also skipped entirely for workloads with Stacktape log forwarding configured, user-managed packaging, edge functions, unsupported languages, and disabled projects or stages. The log subscriptions are added during deployment, so a stack reports only after it has been deployed with Stacktape v4; **Error tracking settings** lists which deployed stacks are wired.
-
-### Why does enabling log forwarding disable issue detection on a workload?
-
-Both features rely on a CloudWatch Logs subscription filter, and each log group has a limited number of filter slots. When [log forwarding](/observability/log-forwarding) is configured on a workload, Stacktape skips issue detection there to avoid exhausting those slots. If you need automated error grouping for a workload, leave log forwarding off for it.
-
-### How much does observability cost on AWS?
-
-For details on CloudWatch, Kinesis Data Firehose, and overall AWS spend management, see [Managing costs](/managing-costs/overview).
+The Console connection itself is an IAM role in your account that Stacktape assumes with short-lived credentials. See
+[AWS permissions](/stacktape-console/aws-permissions).

@@ -1,6 +1,6 @@
 # stack history
 
-The `stack history` command lists recent recorded Stacktape operations with their status. Each entry shows success or failure status, timestamps, and error descriptions for failed operations. Use filters to narrow results by project, stage, or the current API-key user.
+The `stack history` command lists recent recorded Stacktape operations with their status. Each entry shows success or failure status, timestamps, and error descriptions for failed operations. Use filters to narrow results by project, stage, or the current API-key user. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. The history comes from the operations the Console recorded.
 
 ## Usage
 
@@ -52,7 +52,7 @@ Use `--agent` or `--json` to get machine-readable output suitable for scripts or
 stacktape stack history --agent
 ```
 
-## Flags reference
+## Options
 
 
 ## CLI Options: `stacktape stack history`

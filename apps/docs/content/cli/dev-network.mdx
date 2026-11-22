@@ -1,15 +1,15 @@
 ---
 title: 'dev network'
 order: 138
-seoTitle: 'dev network — See and Delete the Dev Network | Stacktape CLI Reference'
-seoDescription: 'See the dev network that connects deployed dev Lambda functions to your local databases, what its dev box costs, which stages use it, and delete it.'
+seoTitle: 'stacktape dev network: see the dev network | Stacktape CLI Reference'
+seoDescription: 'See the dev network that connects deployed dev Lambda functions to your local databases, what its dev box costs and which stages and sessions use it.'
 ---
 
 # dev network
 
 The first [`stacktape dev`](/cli/dev) that needs it creates one dev network per AWS account and region: a VPC with a small EC2 instance, the **dev box**. Deployed dev Lambda functions reach the databases on your machine through the box, and VPC functions get internet access through it. [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases) explains how it works and what it costs.
 
-`stacktape dev network` shows the network of a region. `stacktape dev network delete` deletes it.
+`stacktape dev network` shows the network of a region. [`stacktape dev network delete`](/cli/dev-network-delete) deletes it.
 
 ## Usage
 
@@ -38,39 +38,13 @@ The dev network is shared by the whole AWS account and region. Every dev functio
 
 ## Deleting the dev network
 
-```bash
-stacktape dev network delete --region eu-west-1
-```
+[`stacktape dev network delete`](/cli/dev-network-delete) deletes the network of a region, for example to stop paying for the dev box. Delete the dev stages that use it first. The next `stacktape dev` that needs a dev network creates it again.
 
-Delete the dev stages that use the network first, with [`stacktape delete --stage <stage>`](/cli/delete). While dev functions still run in the network, the command refuses and lists them, because their network interfaces keep the subnets in use. The deletion takes about 2 minutes and also removes the relay port leases. When dev functions were deleted shortly before, it can take up to about 20 minutes: AWS releases their network interfaces with a delay, and CloudFormation waits for that before it deletes the subnets. The command reports its progress once a minute meanwhile. The next `stacktape dev` that needs a dev network creates it again.
-
-The command asks for confirmation first. With `--json`, or outside a terminal, it cannot ask: pass `--yes`.
-
-The command also refuses while someone else depends on the network:
-
-- While a `stacktape dev` session uses it. The command asks the running dev box for its sessions and lists them. A box that has just started may not answer for about a minute; the command then refuses too. `--force` deletes the network anyway, and those sessions lose their connection.
-- While a `stacktape dev` session creates or updates the network. Run the command again when CloudFormation has finished.
-
-A `stacktape dev` that starts while the network is being deleted waits for the deletion to finish and then creates a new network.
-
-### When creating the network failed
-
-The first `stacktape dev` deploys its dev stage into the network while CloudFormation still creates the network's last parts. When one of them fails, CloudFormation cannot delete the network again while the stage's functions use its subnets, and the network stays behind in `DELETE_FAILED`. `stacktape dev` and `stacktape dev network` then report the failure and the steps that remove it:
-
-1. Delete the dev stages that use the network, with [`stacktape delete --stage <stage>`](/cli/delete).
-2. Wait a few minutes: Lambda releases the network interfaces of deleted functions only after a while.
-3. Run `stacktape dev network delete`. It deletes the failed network by its stack name and refuses while dev functions still use it.
-4. Run `stacktape dev` again; it creates a new network.
-
-Pass `--yes` to skip the confirmation prompt, for example in a script.
-
-## Flags reference
+## Options
 
 <CliCommandsApiReference command="dev:network" />
-
-<CliCommandsApiReference command="dev:network:delete" />
 
 ## Related commands
 
 - [`dev`](/cli/dev) — Start dev mode, which creates the dev network on first use.
-- [`delete`](/cli/delete) — Delete a dev stage before deleting the network.
+- [`dev network delete`](/cli/dev-network-delete) — Delete the dev network of a region.

@@ -1,409 +1,425 @@
 /**
- * `<ApiReference />` — recursive tree nav (dominant) + focused leaf detail (sidebar).
+ * `<ApiReference />`: a resource's configuration properties as one list of rows.
  *
- * Layout: dual-pane. The nav IS the schema view — every property and its inline type live in
- * the tree, so the right pane no longer renders a `<CodeBlockNew />` of the containing type
- * (that just duplicated information already visible in the nav). Instead the right pane is a
- * compact detail card for whichever leaf the user clicked: name, required indicator, type,
- * default, then the full description (short + long markdown).
- *
- * Right-pane focus rules:
- *   - No selection (initial)        → friendly hint pointing the user at the tree
- *   - Selection on a primitive leaf → that leaf's detail card
- *
- * Branches and union/reference properties never become the "selection" because the tree only
- * selects leaves. They expand in place. The breadcrumb at the top of the detail pane lets the
- * user jump back up the path quickly.
+ * Every row shows what a reader comes for without a click: the name, whether it is required, the type, the default
+ * and the short description, plus the allowed values of an enum. Longer explanations and examples open in place, and
+ * so do nested properties and the options of a union, indented under their parent. Each row has a stable link
+ * (`#api-ref_<definition>--<path>`); opening such a link expands the rows above it.
  */
-import clsx from 'clsx';
-import { useState, type ReactNode } from 'react';
-import type { ApiProperty } from '@/utils/api-reference-dto';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronRight, Search } from 'react-feather';
+import type { ApiProperty, ApiTypeInfo, ApiUnionBranch } from '@/utils/api-reference-dto';
+import { sanitizeHtml, stripHtml } from '@/utils/api-reference-text';
+import { CodeBlockNew } from '../CodeBlockNew';
 import {
-  PropertyDescription,
-  TypeView,
-  UnknownDefinition,
-  VariantShell,
-  VariantShellHeader,
+  filterProperties,
+  getAllowedValues,
   getDefinition,
   getPropertyChildren,
-  isDiscriminatedUnion,
-  narrowScrollbar,
-  tokens,
-  unwrapToUnion,
+  getShortTypeInfo,
+  sectionAnchorId,
+  sortRequiredFirst,
+  TypeView,
   type SharedRenderProps
 } from './shared';
-import { sanitizeHtml, stripHtml } from '@/utils/api-reference-text';
-import {
-  TreeNav,
-  pathKey,
-  resolveSelection,
-  useAutoOpenAncestors,
-  type ResolvedNode,
-  type SelectionPath
-} from './tree-nav';
 
-/* --------------------------------------------------------------------------------------------
- * Breadcrumb — surfaces the current path back through the tree without the user
- * having to scroll the nav. Each crumb is clickable.
- * -------------------------------------------------------------------------------------------- */
+const MAX_DEPTH = 6;
+/** Enums longer than this list their first values and fold the rest. */
+const VALUES_SHOWN = 12;
 
-function Breadcrumb({
-  rootName,
-  resolved,
-  onNavigate
+type OpenState = { isOpen: (key: string) => boolean; toggle: (key: string) => void };
+
+const rowId = (anchor: string, path: string[]) => `${anchor}--${path.join('.')}`;
+
+const renderValues = (list: (string | number)[], quoteStrings: boolean) =>
+  list.map((value) => (
+    <code key={String(value)}>{quoteStrings && typeof value === 'string' ? `"${value}"` : String(value)}</code>
+  ));
+
+/** Allowed values of a property or CLI option. Config values are quoted; CLI values are typed as they are. */
+export function AllowedValues({
+  values,
+  quoteStrings = true
 }: {
-  rootName: string;
-  resolved: ResolvedNode | null;
-  onNavigate: (path: SelectionPath) => void;
+  values: (string | number)[];
+  quoteStrings?: boolean;
 }) {
-  if (!resolved) return null;
   return (
-    <div className="font-sans flex flex-wrap items-center gap-[5px] mb-[14px] text-[11.5px]">
-      <button type="button" onClick={() => onNavigate([])} className={crumbClass(false)}>
-        {rootName}
-      </button>
-      {resolved.breadcrumb.map((crumb, idx) => {
-        const isLast = idx === resolved.breadcrumb.length - 1;
-        return (
-          <span key={pathKey(crumb.path)} className="inline-flex items-center gap-[5px]">
-            <span style={{ color: tokens.fadedText }}>›</span>
-            <button type="button" onClick={() => onNavigate(crumb.path)} className={crumbClass(isLast)}>
-              {crumb.kind === 'property' ? crumb.name : crumb.isDiscriminated ? `"${crumb.label}"` : crumb.label}
-            </button>
-          </span>
-        );
-      })}
+    <div className="docs-prop-values">
+      Allowed values: {renderValues(values.slice(0, VALUES_SHOWN), quoteStrings)}
+      {values.length > VALUES_SHOWN && (
+        <details className="inline">
+          <summary>{values.length - VALUES_SHOWN} more</summary>{' '}
+          {renderValues(values.slice(VALUES_SHOWN), quoteStrings)}
+        </details>
+      )}
     </div>
   );
 }
 
-const crumbClass = (isLast: boolean) =>
-  clsx(
-    'bg-transparent border-none font-mono text-[11.5px] cursor-pointer p-0 hover:text-[rgb(54_190_190)]',
-    // Base color is a class (not inline style) so the :hover utility above can win.
-    isLast ? 'font-semibold text-fc-primary' : 'font-medium text-[rgba(255,255,255,0.62)]'
-  );
-
-/* --------------------------------------------------------------------------------------------
- * Nested items — shown when the focused node has children (referenced type's properties,
- * union branches, or a branch's own properties). Each row is clickable and navigates the tree
- * to the corresponding nested node, so users can drill in without scrubbing the left rail.
- * -------------------------------------------------------------------------------------------- */
-
-function NestedPropertyRow({ property, onClick }: { property: ApiProperty; onClick: () => void }) {
-  const description = stripHtml(property.shortDescription);
+function Toggle({ label, expanded, onClick }: { label: string; expanded: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="font-sans block w-full text-left bg-transparent border-none rounded-[6px] px-[10px] py-2 cursor-pointer transition-[background] duration-[140ms] ease-[ease] hover:bg-[rgba(255,255,255,0.04)]"
-      style={{ color: tokens.text }}
-    >
-      <div className="flex flex-wrap items-baseline min-w-0">
-        <code className="font-mono text-[13px] font-medium flex-shrink-0" style={{ color: tokens.syntax.property }}>
-          {property.name}
-        </code>
-        <span className="font-mono flex-shrink-0 mr-2" style={{ color: tokens.syntax.punct }}>
-          :
-        </span>
-        {property.required && (
-          <span className="text-[10.5px] font-semibold flex-shrink-0 mr-2" style={{ color: tokens.required }}>
-            req
-          </span>
-        )}
-        <span className="min-w-0 text-[12.5px]">
-          <TypeView typeInfo={property.typeInfo} />
-        </span>
-      </div>
-      {description && (
-        <div className="mt-1 text-[12.5px] leading-[1.55]" style={{ color: tokens.mutedText }}>
-          {description}
-        </div>
-      )}
+    <button type="button" className="docs-prop-toggle" aria-expanded={expanded} onClick={onClick}>
+      <ChevronRight size={14} aria-hidden />
+      {label}
     </button>
   );
 }
 
-function NestedBranchRow({
-  branch,
-  isDiscriminated,
-  onClick
+const examplesFirstTypescript = (property: ApiProperty) =>
+  (property.examples ?? [])
+    .map((example) => ({
+      label: example.lang === 'yaml' ? 'YAML' : 'TypeScript',
+      lang: example.lang,
+      code: example.code
+    }))
+    .toSorted((a, b) => Number(a.lang === 'yaml') - Number(b.lang === 'yaml'));
+
+function childrenLabel(typeInfo: ApiTypeInfo) {
+  const children = getPropertyChildren(typeInfo);
+  if (!children) return null;
+  if (children.kind === 'union-branches') {
+    const count = children.branches.length;
+    return children.discriminator ? `${count} types` : `${count} options`;
+  }
+  const count = children.properties.length;
+  return `${count} ${count === 1 ? 'property' : 'properties'}`;
+}
+
+function PropertyRow({
+  property,
+  path,
+  anchor,
+  depth,
+  open
 }: {
-  branch: import('@/utils/api-reference-dto').ApiUnionBranch;
-  isDiscriminated: boolean;
-  onClick: () => void;
+  property: ApiProperty;
+  path: string[];
+  anchor: string;
+  depth: number;
+  open: OpenState;
 }) {
+  const id = rowId(anchor, path);
+  const children = depth < MAX_DEPTH ? getPropertyChildren(property.typeInfo) : null;
+  const allowedValues = getAllowedValues(property.typeInfo);
+  const examples = examplesFirstTypescript(property);
+  const hasDetails = Boolean(stripHtml(property.longDescription)) || examples.length > 0;
+  const detailsKey = `${id}:details`;
+  const childrenKey = `${id}:children`;
+  const detailsOpen = open.isOpen(detailsKey);
+  const childrenOpen = open.isOpen(childrenKey);
+  const shortDescription = sanitizeHtml(property.shortDescription);
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="font-sans block w-full text-left bg-transparent border-none rounded-[6px] px-[10px] py-2 cursor-pointer transition-[background] duration-[140ms] ease-[ease] hover:bg-[rgba(255,255,255,0.04)]"
-      style={{ color: tokens.text }}
-    >
-      <div className="flex flex-wrap items-baseline gap-2 min-w-0">
-        {isDiscriminated ? (
-          <span className="inline-flex items-baseline gap-[6px]">
-            <code className="font-mono text-[12.5px]" style={{ color: tokens.syntax.property }}>
-              type
-            </code>
-            <code className="font-mono text-[13px] font-semibold" style={{ color: tokens.syntax.string }}>
-              &quot;{branch.label}&quot;
-            </code>
+    <li id={id} className="docs-prop">
+      <div className="docs-prop-main">
+        <div className="docs-prop-head">
+          <a href={`#${id}`} className="docs-prop-name docs-unstyled-link">
+            {property.name}
+          </a>
+          {property.required && <span className="docs-prop-badge">Required</span>}
+          <span className="docs-prop-type">
+            <TypeView typeInfo={getShortTypeInfo(property.typeInfo)} />
           </span>
-        ) : (
-          <code className="font-mono text-[13px] font-semibold" style={{ color: tokens.syntax.type }}>
-            {branch.typeName ?? branch.label}
-          </code>
-        )}
-        <span className="text-[11.5px] flex-shrink-0" style={{ color: tokens.dimText }}>
-          {branch.properties.length} prop{branch.properties.length === 1 ? '' : 's'}
-        </span>
-      </div>
-      {branch.shortDescription && (
-        <div
-          className="mt-1 text-[12.5px] leading-[1.55]"
-          style={{ color: tokens.mutedText }}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(branch.shortDescription) }}
-        />
-      )}
-    </button>
-  );
-}
-
-function NestedSection({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="mt-[18px]">
-      <div className="font-sans text-[11.5px] mb-1 pl-[10px]" style={{ color: tokens.dimText }}>
-        {label}
-      </div>
-      <div className="flex flex-col gap-[2px]">{children}</div>
-    </div>
-  );
-}
-
-function NestedItems({ resolved, onNavigate }: { resolved: ResolvedNode; onNavigate: (path: SelectionPath) => void }) {
-  const lastPath = resolved.breadcrumb[resolved.breadcrumb.length - 1].path;
-
-  const propertyList = (label: string, properties: ApiProperty[]) => (
-    <NestedSection label={label}>
-      {properties.map((sub) => (
-        <NestedPropertyRow
-          key={sub.name}
-          property={sub}
-          onClick={() => onNavigate([...lastPath, { kind: 'property', name: sub.name }])}
-        />
-      ))}
-    </NestedSection>
-  );
-
-  if (resolved.kind === 'branch') {
-    if (resolved.branch.properties.length === 0) return null;
-    return propertyList('properties', resolved.branch.properties);
-  }
-
-  // resolved.kind === 'property'
-  const union = unwrapToUnion(resolved.property.typeInfo);
-  if (union) {
-    const isDisc = isDiscriminatedUnion(resolved.property.typeInfo);
-    return (
-      <NestedSection label={isDisc ? 'pick a type' : 'pick an option'}>
-        {union.branches.map((branch) => (
-          <NestedBranchRow
-            key={branch.label}
-            branch={branch}
-            isDiscriminated={isDisc}
-            onClick={() => onNavigate([...lastPath, { kind: 'branch', label: branch.label }])}
-          />
-        ))}
-      </NestedSection>
-    );
-  }
-
-  const childInfo = getPropertyChildren(resolved.property.typeInfo);
-  if (childInfo?.kind === 'type-properties') {
-    return propertyList(`properties of ${childInfo.typeName}`, childInfo.properties);
-  }
-
-  return null;
-}
-
-/* --------------------------------------------------------------------------------------------
- * Leaf detail — the focused view for any property selection. Shows name, type, default,
- * description, and (when the property has children) a clickable list of nested items.
- * -------------------------------------------------------------------------------------------- */
-
-function LeafDetail({ property }: { property: ApiProperty }) {
-  return (
-    <div className="font-sans text-[13px] leading-[1.65]">
-      {/* Header row: property name + required marker (only when required — never show "optional"). */}
-      <div className="flex flex-wrap items-baseline gap-2">
-        <code className="font-mono text-[17px] font-semibold leading-[1.3] break-words" style={{ color: tokens.text }}>
-          {property.name}
-        </code>
-        {property.required && (
-          <span className="text-[10.5px] font-semibold" style={{ color: tokens.required }}>
-            req
-          </span>
-        )}
-      </div>
-
-      {/* Type + default — plain inline labels, no surrounding box. */}
-      <div className="mt-[10px] flex flex-col gap-1 text-[13px]" style={{ color: tokens.text }}>
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="flex-shrink-0" style={{ color: tokens.dimText }}>
-            type
-          </span>
-          <span className="min-w-0 leading-[1.6]">
-            <TypeView typeInfo={property.typeInfo} mode="pretty" />
-          </span>
-        </div>
-        {property.defaultValue !== undefined && (
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="flex-shrink-0" style={{ color: tokens.dimText }}>
-              default
+          {property.defaultValue !== undefined && (
+            <span className="docs-prop-default">
+              Default <code>{property.defaultValue}</code>
             </span>
-            <code className="font-mono" style={{ color: tokens.syntax.string }}>
-              {property.defaultValue}
-            </code>
+          )}
+        </div>
+        {stripHtml(shortDescription) && (
+          <div className="docs-prop-description" dangerouslySetInnerHTML={{ __html: shortDescription }} />
+        )}
+        {allowedValues && allowedValues.length > 3 && <AllowedValues values={allowedValues} />}
+        {(hasDetails || children) && (
+          <div className="docs-prop-toggles">
+            {hasDetails && (
+              <Toggle
+                label={examples.length > 0 ? 'Details and example' : 'Details'}
+                expanded={detailsOpen}
+                onClick={() => open.toggle(detailsKey)}
+              />
+            )}
+            {children && (
+              <Toggle
+                label={childrenLabel(property.typeInfo) ?? 'Properties'}
+                expanded={childrenOpen}
+                onClick={() => open.toggle(childrenKey)}
+              />
+            )}
+          </div>
+        )}
+        {hasDetails && detailsOpen && (
+          <div className="docs-prop-details">
+            {stripHtml(property.longDescription) && (
+              <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(property.longDescription) }} />
+            )}
+            {examples.length > 0 && <CodeBlockNew tabs={examples} />}
           </div>
         )}
       </div>
-
-      {/* Description — short + long, full markdown rendering. Same body size as the rest. */}
-      {(stripHtml(property.shortDescription) || property.longDescription) && (
-        <div className="mt-[14px]">
-          <PropertyDescription property={property} />
+      {children && childrenOpen && (
+        <div className="docs-prop-children">
+          {children.kind === 'union-branches' ? (
+            <BranchList
+              branches={children.branches}
+              discriminator={children.discriminator}
+              path={path}
+              anchor={anchor}
+              depth={depth + 1}
+              open={open}
+            />
+          ) : (
+            <>
+              <div className="docs-prop-children-label">
+                Properties of <code>{children.typeName}</code>
+              </div>
+              <PropertyList
+                properties={sortRequiredFirst(children.properties)}
+                path={path}
+                anchor={anchor}
+                depth={depth + 1}
+                open={open}
+              />
+            </>
+          )}
         </div>
       )}
-    </div>
+    </li>
+  );
+}
+
+function PropertyList({
+  properties,
+  path,
+  anchor,
+  depth,
+  open
+}: {
+  properties: ApiProperty[];
+  path: string[];
+  anchor: string;
+  depth: number;
+  open: OpenState;
+}) {
+  return (
+    <ul className="docs-ref-list">
+      {properties.map((property) => (
+        <PropertyRow
+          key={property.name}
+          property={property}
+          path={[...path, property.name]}
+          anchor={anchor}
+          depth={depth}
+          open={open}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function BranchList({
+  branches,
+  discriminator,
+  path,
+  anchor,
+  depth,
+  open
+}: {
+  branches: ApiUnionBranch[];
+  discriminator: string | null;
+  path: string[];
+  anchor: string;
+  depth: number;
+  open: OpenState;
+}) {
+  return (
+    <>
+      <div className="docs-prop-children-label">
+        {discriminator ? (
+          <>
+            One of these types, chosen by <code>{discriminator}</code>
+          </>
+        ) : (
+          'One of these options'
+        )}
+      </div>
+      <ul className="docs-ref-list">
+        {branches.map((branch) => {
+          const branchPath = [...path, branch.label];
+          const id = rowId(anchor, branchPath);
+          const key = `${id}:children`;
+          const isOpen = open.isOpen(key);
+          const description = sanitizeHtml(branch.shortDescription ?? '');
+          const count = branch.properties.length;
+          return (
+            <li key={`${branch.label}-${branch.typeName ?? ''}`} id={id} className="docs-prop">
+              <div className="docs-prop-main">
+                <div className="docs-prop-head">
+                  <a href={`#${id}`} className="docs-prop-name docs-unstyled-link">
+                    {discriminator ? (
+                      <>
+                        {discriminator}: <span className="docs-syn-string">&quot;{branch.label}&quot;</span>
+                      </>
+                    ) : (
+                      (branch.typeName ?? branch.label)
+                    )}
+                  </a>
+                  {discriminator && branch.typeName && (
+                    <span className="docs-prop-type">
+                      <span className="docs-syn-type">{branch.typeName}</span>
+                    </span>
+                  )}
+                </div>
+                {stripHtml(description) && (
+                  <div className="docs-prop-description" dangerouslySetInnerHTML={{ __html: description }} />
+                )}
+                {count > 0 && depth < MAX_DEPTH && (
+                  <div className="docs-prop-toggles">
+                    <Toggle
+                      label={`${count} ${count === 1 ? 'property' : 'properties'}`}
+                      expanded={isOpen}
+                      onClick={() => open.toggle(key)}
+                    />
+                  </div>
+                )}
+              </div>
+              {isOpen && count > 0 && (
+                <div className="docs-prop-children">
+                  <PropertyList
+                    properties={sortRequiredFirst(branch.properties)}
+                    path={branchPath}
+                    anchor={anchor}
+                    depth={depth + 1}
+                    open={open}
+                  />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 
 /**
- * Branch detail — shown when the selection ends on a discriminated/non-discriminated branch.
- * Mirrors `LeafDetail`'s shape so the right pane stays visually consistent.
+ * The keys to open so the row at `segments` is rendered: each ancestor property's children (and, at a union, the
+ * chosen branch's children). Segments name properties, or a branch label right after a union property.
  */
-function BranchDetail({
-  property,
-  branch,
-  isDiscriminated
-}: {
-  property: ApiProperty;
-  branch: import('@/utils/api-reference-dto').ApiUnionBranch;
-  isDiscriminated: boolean;
-}) {
-  const branchTypeName = branch.typeName ?? branch.label;
-  return (
-    <div className="font-sans text-[13px] leading-[1.65]">
-      <div className="flex flex-wrap items-baseline gap-[10px]">
-        <code
-          className="font-mono text-[17px] font-semibold leading-[1.3] break-words"
-          style={{ color: tokens.syntax.type }}
-        >
-          {branchTypeName}
-        </code>
-        {isDiscriminated && (
-          <span className="inline-flex items-baseline gap-[6px]">
-            <code className="font-mono text-[12.5px]" style={{ color: tokens.syntax.property }}>
-              {property.name}.type
-            </code>
-            <code className="font-mono text-[12.5px] font-semibold" style={{ color: tokens.syntax.string }}>
-              &quot;{branch.label}&quot;
-            </code>
-          </span>
-        )}
-      </div>
-
-      {branch.shortDescription && (
-        <div
-          className="mt-3 text-[13px] leading-[1.65]"
-          style={{ color: tokens.text }}
-          dangerouslySetInnerHTML={{ __html: sanitizeHtml(branch.shortDescription) }}
-        />
-      )}
-    </div>
-  );
-}
-
-function EmptyHint() {
-  return (
-    <div className="font-sans text-[13px] leading-[1.6] px-1 py-5" style={{ color: tokens.dimText }}>
-      Click a property in the tree to see its description, default value, and full type.
-    </div>
-  );
-}
-
-/* --------------------------------------------------------------------------------------------
- * Main component.
- * -------------------------------------------------------------------------------------------- */
+const keysForPath = (properties: ApiProperty[], anchor: string, segments: string[]): string[] => {
+  const keys: string[] = [];
+  let current: ApiProperty[] | null = properties;
+  let pendingUnion: ApiUnionBranch[] | null = null;
+  const walked: string[] = [];
+  for (const segment of segments.slice(0, -1)) {
+    walked.push(segment);
+    if (pendingUnion) {
+      const branch: ApiUnionBranch | undefined = pendingUnion.find((candidate) => candidate.label === segment);
+      if (!branch) break;
+      keys.push(`${rowId(anchor, walked)}:children`);
+      current = branch.properties;
+      pendingUnion = null;
+      continue;
+    }
+    const property: ApiProperty | undefined = current?.find((candidate) => candidate.name === segment);
+    if (!property) break;
+    keys.push(`${rowId(anchor, walked)}:children`);
+    const children = getPropertyChildren(property.typeInfo);
+    if (children?.kind === 'union-branches') {
+      pendingUnion = children.branches;
+      current = null;
+    } else {
+      current = children?.kind === 'type-properties' ? children.properties : null;
+    }
+  }
+  return keys;
+};
 
 export function ApiReference({ definitionName }: SharedRenderProps) {
   const definition = getDefinition(definitionName);
-  const [selectionPath, setSelectionPath] = useState<SelectionPath>([]);
   const [openKeys, setOpenKeys] = useState<Set<string>>(() => new Set());
-  const [searchQuery, setSearchQuery] = useState('');
+  const [query, setQuery] = useState('');
+  const anchor = sectionAnchorId(definitionName);
+  const scrollTarget = useRef<string | null>(null);
 
-  useAutoOpenAncestors(selectionPath, setOpenKeys);
+  const open = useMemo<OpenState>(
+    () => ({
+      isOpen: (key) => openKeys.has(key),
+      toggle: (key) =>
+        setOpenKeys((previous) => {
+          const next = new Set(previous);
+          if (next.has(key)) next.delete(key);
+          else next.add(key);
+          return next;
+        })
+    }),
+    [openKeys]
+  );
 
-  if (!definition) return <UnknownDefinition name={definitionName} />;
+  // A link to a nested row opens the rows above it, then scrolls to it.
+  useEffect(() => {
+    if (!definition) return;
+    const prefix = `#${anchor}--`;
+    const reveal = () => {
+      const hash = decodeURIComponent(window.location.hash);
+      if (!hash.startsWith(prefix)) return;
+      const keys = keysForPath(definition.properties, anchor, hash.slice(prefix.length).split('.'));
+      if (keys.length === 0) return;
+      scrollTarget.current = hash.slice(1);
+      setOpenKeys((previous) => new Set([...previous, ...keys]));
+    };
+    reveal();
+    window.addEventListener('hashchange', reveal);
+    return () => window.removeEventListener('hashchange', reveal);
+  }, [anchor, definition]);
 
-  const resolved = resolveSelection(definition.properties, definition.definitionName, selectionPath);
+  // Scroll once the opened rows have rendered the target.
+  useEffect(() => {
+    const target = scrollTarget.current && document.getElementById(scrollTarget.current);
+    if (!target) return;
+    scrollTarget.current = null;
+    target.scrollIntoView({ block: 'start' });
+  }, [openKeys]);
+
+  if (!definition) {
+    return (
+      <p className="docs-ref-empty">
+        Unknown definition <code>{definitionName}</code>.
+      </p>
+    );
+  }
+
+  const visible = filterProperties(definition.properties, query, 'all');
+  const total = definition.properties.length;
 
   return (
-    <VariantShell definitionName={definition.definitionName}>
-      <VariantShellHeader
-        definitionName={definition.definitionName}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
-      <div
-        // Nav 55% / property info 45%. Nav shows the schema inline + needs the room.
-        className="grid [grid-template-columns:11fr_9fr] min-h-[600px] max-[795px]:[grid-template-columns:1fr] max-[795px]:min-h-0"
-      >
-        <div
-          className={clsx(
-            'border-r border-solid max-h-[720px] overflow-y-auto',
-            'max-[795px]:border-r-0 max-[795px]:border-b max-[795px]:max-h-[380px]',
-            narrowScrollbar
-          )}
-          style={{ borderColor: tokens.subtleBorder, background: tokens.surfaceSunken }}
-        >
-          <TreeNav
-            properties={definition.properties}
-            selectionPath={selectionPath}
-            openKeys={openKeys}
-            searchQuery={searchQuery}
-            onToggleOpen={(key) =>
-              setOpenKeys((prev) => {
-                const next = new Set(prev);
-                if (next.has(key)) next.delete(key);
-                else next.add(key);
-                return next;
-              })
-            }
-            onSelect={setSelectionPath}
-          />
+    <section id={anchor} className="docs-ref" aria-label={`${definition.definitionName} properties`}>
+      <div className="docs-ref-header">
+        <div className="docs-ref-title">
+          <code>{definition.definitionName}</code>
+          <span>
+            {total} {total === 1 ? 'property' : 'properties'}
+          </span>
         </div>
-        <div className={clsx('px-[22px] py-5 max-h-[720px] overflow-y-auto', narrowScrollbar)}>
-          <Breadcrumb rootName={definition.definitionName} resolved={resolved} onNavigate={setSelectionPath} />
-          {!resolved ? (
-            <EmptyHint />
-          ) : (
-            <>
-              {resolved.kind === 'branch' ? (
-                <BranchDetail
-                  property={resolved.property}
-                  branch={resolved.branch}
-                  isDiscriminated={resolved.isDiscriminated}
-                />
-              ) : (
-                <LeafDetail property={resolved.property} />
-              )}
-              <NestedItems resolved={resolved} onNavigate={setSelectionPath} />
-            </>
-          )}
-        </div>
+        {total > 6 && (
+          <label className="docs-ref-search">
+            <Search size={14} aria-hidden />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Filter properties"
+              aria-label={`Filter ${definition.definitionName} properties`}
+            />
+          </label>
+        )}
       </div>
-    </VariantShell>
+      {visible.length === 0 ? (
+        <p className="docs-ref-empty">No property matches “{query}”.</p>
+      ) : (
+        <PropertyList properties={visible} path={[]} anchor={anchor} depth={0} open={open} />
+      )}
+    </section>
   );
 }

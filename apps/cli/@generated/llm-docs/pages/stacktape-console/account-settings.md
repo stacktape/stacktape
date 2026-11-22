@@ -1,4 +1,4 @@
-# Account Settings
+# Account settings
 
 Account settings is your personal page in the Stacktape Console. Open it with **Account** in the profile menu at the top
 right. It holds your name and the ways you sign in, and it shows where you are signed in. These settings belong to you,

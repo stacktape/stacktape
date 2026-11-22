@@ -1,4 +1,4 @@
-# JS Bundle for Lambda
+# JS bundle for Lambda
 
 The `js-bundle` packaging type (`JsBundleLambdaPackaging`) packages a JavaScript or TypeScript [Lambda function](/resources/compute/lambda-function) from its entry file. Stacktape bundles the entry file and everything it imports into one minified file, installs the dependencies that cannot be bundled, and uploads the result. The bundle's source maps are stored in the stack's deployment bucket, outside the package.
 
@@ -80,7 +80,7 @@ export default defineConfig(() => {
 ```
 
 
-The `memory` and `timeout` properties in these examples are [`LambdaFunction`](/resources/compute/lambda-function) settings, not packaging options — they are included here for realistic context.
+The `memory` and `timeout` properties in these examples are [`LambdaFunction`](/resources/compute/lambda-function) settings, not packaging options: they are included here for realistic context.
 
 The handler file would export the named function:
 
@@ -149,18 +149,18 @@ The deployment bucket keeps a function's maps as long as it keeps a deployment p
 
 Key options:
 
-- **`nodeVersion`** — major Node.js version used to build the bundle. Supported: 16, 17, 18, 19, 20, 21, 22, 23, 24. Default: `24`. This does not replace the Lambda resource's `runtime`; set both to matching versions when overriding the default.
-- **`outputModuleFormat`** — `'cjs'` (CommonJS) or `'esm'` (ES Modules, enables top-level `await`). Node.js 24 and later use ESM output; with earlier Node.js versions the default is CommonJS. Edge functions remain CommonJS. Some npm packages don't support ESM, and ESM may produce less readable stack traces.
-- **`tsConfigPath`** — path to your `tsconfig.json`, used to resolve path aliases during bundling.
-- **`emitTsDecoratorMetadata`** — enable for frameworks that rely on TypeScript decorator metadata reflection (NestJS, TypeORM).
-- **`dependenciesToExcludeFromBundle`** — packages treated as external (not bundled into the single output file). They're installed separately in the deployment package. Set the array to `['*']` to exclude all dependencies from the bundle.
-- **`dependenciesToExcludeFromDeploymentPackage`** — removes non-bundled dependencies from the final package. Only applies to dependencies already excluded from the bundle. Set the array to `['*']` to exclude all non-bundled dependencies.
-- **`disableSourceMaps`** — skips source map generation. Error locations then point into the bundled code.
-- **`keepSourceMapsInPackage`** — keeps source maps in the deployment package and maps CloudWatch stack traces. Default: `false`. See [Source maps](#source-maps).
-- **`outputSourceMapsTo`** — also saves complete source maps to a local directory. Useful for external error tracking tools like Sentry or Datadog.
-- **`minify`** — minifies the bundle (whitespace and syntax). Local function and variable names are kept, so stack traces and error messages stay readable. Default: `true`.
-- **`minifyIdentifiers`** — also shortens local variable and function names. Slightly smaller bundle, but the names disappear from stack traces and error messages and change with every build, so Stacktape Console cannot group the same error across deployments. Default: `false`.
-- **`bundleAwsSdk`** — bundles `@aws-sdk/*` from your `node_modules` instead of using the copy the Lambda runtime provides. Enable it when you need a newer SDK than the runtime ships. Default: `false`.
+- **`nodeVersion`**: major Node.js version used to build the bundle. Supported: 16, 17, 18, 19, 20, 21, 22, 23, 24. Default: `24`. This does not replace the Lambda resource's `runtime`; set both to matching versions when overriding the default.
+- **`outputModuleFormat`**: `'cjs'` (CommonJS) or `'esm'` (ES Modules, enables top-level `await`). Node.js 24 and later use ESM output; with earlier Node.js versions the default is CommonJS. Edge functions remain CommonJS. Some npm packages don't support ESM, and ESM may produce less readable stack traces.
+- **`tsConfigPath`**: path to your `tsconfig.json`, used to resolve path aliases during bundling.
+- **`emitTsDecoratorMetadata`**: enable for frameworks that rely on TypeScript decorator metadata reflection (NestJS, TypeORM).
+- **`dependenciesToExcludeFromBundle`**: packages treated as external (not bundled into the single output file). They're installed separately in the deployment package. Set the array to `['*']` to exclude all dependencies from the bundle.
+- **`dependenciesToExcludeFromDeploymentPackage`**: removes non-bundled dependencies from the final package. Only applies to dependencies already excluded from the bundle. Set the array to `['*']` to exclude all non-bundled dependencies.
+- **`disableSourceMaps`**: skips source map generation. Error locations then point into the bundled code.
+- **`keepSourceMapsInPackage`**: keeps source maps in the deployment package and maps CloudWatch stack traces. Default: `false`. See [Source maps](#source-maps).
+- **`outputSourceMapsTo`**: also saves complete source maps to a local directory. Useful for external error tracking tools like Sentry or Datadog.
+- **`minify`**: minifies the bundle (whitespace and syntax). Local function and variable names are kept, so stack traces and error messages stay readable. Default: `true`.
+- **`minifyIdentifiers`**: also shortens local variable and function names. Slightly smaller bundle, but the names disappear from stack traces and error messages and change with every build, so Stacktape Console cannot group the same error across deployments. Default: `false`.
+- **`bundleAwsSdk`**: bundles `@aws-sdk/*` from your `node_modules` instead of using the copy the Lambda runtime provides. Enable it when you need a newer SDK than the runtime ships. Default: `false`.
 
 
 Example (TypeScript):
@@ -188,7 +188,7 @@ export default defineConfig(() => {
 ```
 
 
-This example sets both `runtime: 'nodejs22.x'` on the Lambda function and `nodeVersion: 22` in its packaging config. The former selects the AWS Lambda runtime; the latter selects the Node.js version the bundle targets. Keep them aligned. Because Node.js 22 otherwise defaults to CommonJS, `outputModuleFormat: 'esm'` explicitly enables ES Module output. Use `dependenciesToExcludeFromBundle` for dependencies you do not want statically bundled — excluded dependencies are installed separately in the deployment package. An APM agent such as `dd-trace` needs this, because it instruments other modules as they load from `node_modules`. Setting `tsConfigPath` lets the bundler resolve TypeScript path aliases during bundling.
+This example sets both `runtime: 'nodejs22.x'` on the Lambda function and `nodeVersion: 22` in its packaging config. The former selects the AWS Lambda runtime; the latter selects the Node.js version the bundle targets. Keep them aligned. Because Node.js 22 otherwise defaults to CommonJS, `outputModuleFormat: 'esm'` explicitly enables ES Module output. Use `dependenciesToExcludeFromBundle` for dependencies you do not want statically bundled: excluded dependencies are installed separately in the deployment package. An APM agent such as `dd-trace` needs this, because it instruments other modules as they load from `node_modules`. Setting `tsConfigPath` lets the bundler resolve TypeScript path aliases during bundling.
 
 
 > **Info:** Use `dependenciesToExcludeFromBundle` for dependencies with native binaries. Excluded dependencies are installed separately in the deployment package rather than being statically bundled. This is the most common fix when a dependency works locally but fails in Lambda with a binary-related error.
@@ -202,7 +202,7 @@ Stacktape caches deployment packages based on a checksum, so unchanged code is n
 
 When a stack has two or more JavaScript or TypeScript Lambda functions that can be packaged together, it builds them in a single pass and moves the npm dependencies they have in common into [Lambda layers](https://docs.aws.amazon.com/lambda/latest/dg/chapter-layers.html) that those functions share. Your own shared modules stay in each function's package while they total 2 MB or less, so editing them deploys as a code update, as fast as editing a handler, without publishing a new layer version. When a shared module runs setup code as it loads (for example, it sets `process.env` or starts tracing) before packages load, the packages and your modules stay in the shared layers together, so they still load in the original order. Nothing needs to be configured, and your imports do not change.
 
-The effect grows with the number of functions. Twenty-five functions that share a library and the AWS SDK produce twenty-five small packages plus one layer, instead of twenty-five packages that each carry a full copy of the shared code.
+The effect grows with the number of functions. Twenty-five functions that all import the same npm libraries (say, an ORM and a validation library) produce twenty-five small packages plus one layer, instead of twenty-five packages that each carry a full copy of those libraries. The AWS SDK is not part of this: the Lambda runtime provides it and Stacktape leaves it out of the package by default.
 
 Stacktape creates at most three layers, leaving two of Lambda's five layer slots for layers you attach yourself. Code that only one function uses is never moved into a layer.
 
@@ -264,7 +264,7 @@ Use `js-bundle` for most projects. It handles bundling and artifact creation wit
 
 ### Can I use ES Modules (ESM)?
 
-Yes. Node.js 24 and later use ES Module output automatically. With an earlier Node.js version, set `outputModuleFormat: 'esm'`; ESM also enables top-level `await`. Edge functions remain CommonJS. Some npm packages don't support ESM, and ESM can produce less readable stack traces — test your function after switching to catch compatibility issues.
+Yes. Node.js 24 and later use ES Module output automatically. With an earlier Node.js version, set `outputModuleFormat: 'esm'`; ESM also enables top-level `await`. Edge functions remain CommonJS. Some npm packages don't support ESM, and ESM can produce less readable stack traces: test your function after switching to catch compatibility issues.
 
 ### What is the maximum Lambda deployment package size?
 
@@ -274,7 +274,7 @@ AWS Lambda allows 250 MB unzipped for a function and all its layers together. It
 
 Usually you don't need to do anything. Stacktape detects packages that load native binaries or read their own files at run time, keeps them out of the bundle and installs them for the function's platform. Prisma's client is bundled, and the function gets the query engine for its architecture. With Prisma 5 or 6, add `rhel-openssl-3.0.x` (x86_64) or `linux-arm64-openssl-3.0.x` (arm64) to `binaryTargets` in `schema.prisma`; Prisma 7 needs no engine. If a dependency still works locally but fails in Lambda, add it to `dependenciesToExcludeFromBundle` to install it beside the bundle.
 
-### My function runs an older AWS SDK than the one in my package.json — why?
+### My function runs an older AWS SDK than the one in my package.json: why?
 
 On Node.js 18 and later, the Lambda runtime ships the AWS SDK v3, and `js-bundle` leaves `@aws-sdk/client-*` and `@aws-sdk/lib-*` imports out of the package so they resolve from the runtime. The runtime's copy can lag behind npm. If your code needs a newer SDK, set `bundleAwsSdk: true` to bundle the version from your `node_modules`.
 

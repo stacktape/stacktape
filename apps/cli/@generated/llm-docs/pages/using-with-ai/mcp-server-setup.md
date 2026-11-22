@@ -1,10 +1,6 @@
-# MCP Server Setup
+# MCP server
 
-
-> **Warning:** Preview — in active development. The Stacktape MCP server is under active development. Some operations may not work end-to-end in all environments, and behavior may change as the server stabilizes.
-
-
-The Stacktape MCP server gives AI coding assistants structured access to Stacktape documentation, CLI commands, project inspection, and dev mode control. Instead of copying CLI output back and forth, your assistant calls Stacktape tools directly and receives typed JSON responses it can reason about.
+The Stacktape MCP server gives coding agents structured access to Stacktape documentation, CLI commands, project inspection and dev mode. Instead of copying CLI output back and forth, your agent calls Stacktape tools directly and gets JSON answers. The server is in preview, so its tools can still change between releases.
 
 ## Quick start
 
@@ -214,8 +210,8 @@ Use the canonical names in each tool schema. CLI invocation arguments and `stack
 `stacktape_incident` is where an assistant starts an [incident](/observability/incidents) investigation. `action: "show"`
 with an `incidentId` returns the incident handoff as markdown, the same document
 [`incident show`](/cli/incidents-show) prints. It contains the incident's signals with their evidence, release and
-configuration changes, the timeline, earlier related incidents, the AI assessment (when your organization has connected an AI API key), the reports of any hosted AI runs
-and read-only next steps.
+configuration changes, the timeline, earlier related incidents, the AI assessment (when your organization has
+connected an AI API key), the reports of any hosted AI runs and read-only next steps.
 `action: "list"` finds incidents by `projectName`, `stage` and `status` (`ACTIVE` by default, `ALL` for resolved history
 as well) and returns at most `limit` of them (default 25).
 
@@ -335,12 +331,14 @@ The MCP server classifies every CLI command into a safety level and enforces per
 
 | Safety level | Behavior | Examples |
 |-------------|----------|---------|
-| `readOnly` | Executes without confirmation | `diff`, `status`, `stack list`, `logs`, `metrics`, `alarm list`, `incident show` |
+| `readOnly` | Executes without confirmation | `status`, `stack list`, `logs`, `metrics`, `alarm list`, `incident show` |
 | `diagnostic` | Executes without confirmation | `query sql`, `query dynamodb`, `query redis`, `query opensearch`, `aws call` |
 | `local` | Executes without confirmation | `synth`, `validate`, `package` |
-| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret set`](/cli/secret-set), [`rollback`](/cli/rollback) |
+| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`diff`](/cli/diff), [`secret set`](/cli/secret-set), [`rollback`](/cli/rollback) |
 | `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion shell` |
+
+`diff` needs your approval like a deploy. It never applies its changes, but before the preview it restores secrets scheduled for deletion, stores generated database passwords as new secrets, uploads a template and creates a CloudFormation change set in your account. See [what diff changes](/cli/diff#what-diff-changes-in-aws).
 
 For destructive commands, the MCP server asks the user directly through their AI client's confirmation form: an input-required round trip on the `2026-07-28` revision, a standard elicitation request on the 2025 revisions. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
 

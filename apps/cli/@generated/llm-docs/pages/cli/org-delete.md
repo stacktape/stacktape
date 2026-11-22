@@ -33,22 +33,6 @@ If any of these conditions are not met, the operation will fail.
 > **Warning:** Deleting the organization cannot be undone. Make sure you have another way to access anything you still need before continuing.
 
 
-## Flags reference
-
-The `org delete` command accepts the following flags. None are required in interactive mode; agent mode requires the organization ID and `--yes`.
-
-
-## CLI Options: `stacktape org delete`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--organization-id (positional 1)` | no | `string` | Organization ID — The ID of the Stacktape organization. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## Examples
 
 Check which organization your API key belongs to, then delete it. In a terminal, the command asks for confirmation.
@@ -66,6 +50,20 @@ Non-interactive deletion in CI or agent workflows:
 ```bash
 stacktape org delete "org_abc123" --agent --yes
 ```
+
+## Options
+
+
+## CLI Options: `stacktape org delete`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--organization-id (positional 1)` | no | `string` | Organization ID — The ID of the Stacktape organization. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
 
 ## Related commands
 

@@ -10068,7 +10068,7 @@
                     "name": "batchSize",
                     "required": false,
                     "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
-                    "longDescription": "<p>Maximum is 10,000.</p>",
+                    "longDescription": "<p>Maximum is 10,000 for standard queues and 10 for FIFO queues. Above 10, AWS requires <code>maxBatchWindowSeconds</code> of at\nleast 1.</p>",
                     "defaultValue": "10",
                     "typeInfo": {
                       "kind": "primitive",
@@ -10081,7 +10081,7 @@
                     "name": "maxBatchWindowSeconds",
                     "required": false,
                     "shortDescription": "<p> The maximum time (in seconds) to wait before invoking the function with a batch of records.</p>",
-                    "longDescription": "<p>Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.</p>",
+                    "longDescription": "<p>Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available. FIFO queues don&#39;t\nsupport a batching window.</p>",
                     "typeInfo": {
                       "kind": "primitive",
                       "types": [
@@ -10186,7 +10186,7 @@
                     "required": false,
                     "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
                     "longDescription": "<p>Maximum is 10,000.</p>",
-                    "defaultValue": "10",
+                    "defaultValue": "100",
                     "typeInfo": {
                       "kind": "primitive",
                       "types": [
@@ -10305,7 +10305,7 @@
                     "name": "batchSize",
                     "required": false,
                     "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
-                    "longDescription": "<p>Maximum is 1,000.</p>",
+                    "longDescription": "<p>Maximum is 10,000.</p>",
                     "defaultValue": "100",
                     "typeInfo": {
                       "kind": "primitive",
@@ -27085,7 +27085,7 @@
         "name": "batchSize",
         "required": false,
         "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
-        "longDescription": "<p>Maximum is 1,000.</p>",
+        "longDescription": "<p>Maximum is 10,000.</p>",
         "defaultValue": "100",
         "typeInfo": {
           "kind": "primitive",
@@ -35014,7 +35014,7 @@
         "required": false,
         "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
         "longDescription": "<p>Maximum is 10,000.</p>",
-        "defaultValue": "10",
+        "defaultValue": "100",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -38001,7 +38001,7 @@
                     "name": "batchSize",
                     "required": false,
                     "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
-                    "longDescription": "<p>Maximum is 10,000.</p>",
+                    "longDescription": "<p>Maximum is 10,000 for standard queues and 10 for FIFO queues. Above 10, AWS requires <code>maxBatchWindowSeconds</code> of at\nleast 1.</p>",
                     "defaultValue": "10",
                     "typeInfo": {
                       "kind": "primitive",
@@ -38014,7 +38014,7 @@
                     "name": "maxBatchWindowSeconds",
                     "required": false,
                     "shortDescription": "<p> The maximum time (in seconds) to wait before invoking the function with a batch of records.</p>",
-                    "longDescription": "<p>Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.</p>",
+                    "longDescription": "<p>Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available. FIFO queues don&#39;t\nsupport a batching window.</p>",
                     "typeInfo": {
                       "kind": "primitive",
                       "types": [
@@ -38119,7 +38119,7 @@
                     "required": false,
                     "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
                     "longDescription": "<p>Maximum is 10,000.</p>",
-                    "defaultValue": "10",
+                    "defaultValue": "100",
                     "typeInfo": {
                       "kind": "primitive",
                       "types": [
@@ -38238,7 +38238,7 @@
                     "name": "batchSize",
                     "required": false,
                     "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
-                    "longDescription": "<p>Maximum is 1,000.</p>",
+                    "longDescription": "<p>Maximum is 10,000.</p>",
                     "defaultValue": "100",
                     "typeInfo": {
                       "kind": "primitive",
@@ -43497,7 +43497,7 @@
       {
         "name": "streamingEnabled",
         "required": false,
-        "shortDescription": "<p> Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default).</p>",
+        "shortDescription": "<p> Stream SSR responses for a faster Time to First Byte and responses larger than the 6 MB buffered limit.</p>",
         "longDescription": "<p>Not compatible with <code>useEdgeLambda: true</code>.</p>",
         "defaultValue": "false",
         "typeInfo": {
@@ -43590,7 +43590,7 @@
       "requiredCount": 1,
       "optionalCount": 14
     },
-    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, ReleaseCommand, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype NextjsWebProps = {\n  /** Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace. */\n  appDirectory: string;\n  /** Override the default `next build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `next dev`. */\n  dev?: unknown;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: NextjsWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: NextjsServerLambdaProperties;\n  /** Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). */\n  streamingEnabled?: boolean;\n  /** Run SSR at CloudFront edge locations for lower latency worldwide. */\n  useEdgeLambda?: boolean;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n  /** Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. */\n  warmServerInstances?: number;\n};\n\n/** Union choices used by the properties above. */\ntype NextjsWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, ReleaseCommand, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype NextjsWebProps = {\n  /** Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace. */\n  appDirectory: string;\n  /** Override the default `next build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `next dev`. */\n  dev?: unknown;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Run a command once on each deploy, inside the VPC, before any workload gets the new code. */\n  releaseCommand?: NextjsWebReleaseCommand;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: NextjsServerLambdaProperties;\n  /** Stream SSR responses for a faster Time to First Byte and responses larger than the 6 MB buffered limit. */\n  streamingEnabled?: boolean;\n  /** Run SSR at CloudFront edge locations for lower latency worldwide. */\n  useEdgeLambda?: boolean;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n  /** Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. */\n  warmServerInstances?: number;\n};\n\n/** Union choices used by the properties above. */\ntype NextjsWebReleaseCommand =\n  | ReleaseCommand\n  | \"option-2\";\n// [!code focus-end]"
   },
   "NonCurrentVersionClassTransition": {
     "definitionName": "NonCurrentVersionClassTransition",
@@ -55021,7 +55021,7 @@
         "name": "batchSize",
         "required": false,
         "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
-        "longDescription": "<p>Maximum is 10,000.</p>",
+        "longDescription": "<p>Maximum is 10,000 for standard queues and 10 for FIFO queues. Above 10, AWS requires <code>maxBatchWindowSeconds</code> of at\nleast 1.</p>",
         "defaultValue": "10",
         "typeInfo": {
           "kind": "primitive",
@@ -55034,7 +55034,7 @@
         "name": "maxBatchWindowSeconds",
         "required": false,
         "shortDescription": "<p> The maximum time (in seconds) to wait before invoking the function with a batch of records.</p>",
-        "longDescription": "<p>Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.</p>",
+        "longDescription": "<p>Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available. FIFO queues don&#39;t\nsupport a batching window.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -56050,9 +56050,9 @@
       {
         "name": "maxMessageSizeBytes",
         "required": false,
-        "shortDescription": "<p> Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB).</p>",
-        "longDescription": "<p>Messages larger than this limit are rejected. For payloads over 256 KB, store the data in S3 and send the reference.</p>",
-        "defaultValue": "262144",
+        "shortDescription": "<p> Maximum message size in bytes. Range: 1,024 (1 KiB) to 1,048,576 (1 MiB).</p>",
+        "longDescription": "<p>Messages larger than this limit are rejected. For larger payloads, store the data in S3 and send the reference.</p>",
+        "defaultValue": "1048576",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -56164,7 +56164,7 @@
       "requiredCount": 0,
       "optionalCount": 13
     },
-    "typeDeclaration": "import type { SqsQueueAlarm, SqsQueueEventBusIntegration, SqsQueuePolicyStatement, SqsQueueRedrivePolicy } from 'stacktape';\n\n// [!code focus-start]\ntype SqsQueueProps = {\n  /** Additional alarms associated with this resource. */\n  alarms?: Array<SqsQueueAlarm>;\n  /** Automatically deduplicates messages based on their content (SHA-256 hash of the body). */\n  contentBasedDeduplication?: boolean;\n  /** Delay (in seconds) before new messages become visible to consumers. Range: 0–900. */\n  delayMessagesSecond?: number;\n  /** Disables globally configured alarms for this resource. */\n  disabledGlobalAlarms?: Array<string>;\n  /** A list of event sources that trigger message delivery to this queue. */\n  events?: Array<SqsQueueEventBusIntegration>;\n  /** Creates a FIFO queue that guarantees message order and exactly-once delivery. */\n  fifoEnabled?: boolean;\n  /** Enables high-throughput mode for FIFO queues (up to ~70,000 msg/s per queue). */\n  fifoHighThroughput?: boolean;\n  /** Seconds the queue waits for messages before returning an empty response. Range: 0–20. */\n  longPollingSeconds?: number;\n  /** Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB). */\n  maxMessageSizeBytes?: number;\n  /** How long unprocessed messages stay in the queue before being deleted. Range: 60s to 1,209,600s (14 days). */\n  messageRetentionPeriodSeconds?: number;\n  /** Custom access-control statements added to the queue's resource policy. */\n  policyStatements?: Array<SqsQueuePolicyStatement>;\n  /** Moves messages that fail processing too many times to a dead-letter queue for inspection. */\n  redrivePolicy?: SqsQueueRedrivePolicy;\n  /** How long (seconds) a message is hidden from other consumers after being received. Range: 0–43,200 (12 hours). */\n  visibilityTimeoutSeconds?: number;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { SqsQueueAlarm, SqsQueueEventBusIntegration, SqsQueuePolicyStatement, SqsQueueRedrivePolicy } from 'stacktape';\n\n// [!code focus-start]\ntype SqsQueueProps = {\n  /** Additional alarms associated with this resource. */\n  alarms?: Array<SqsQueueAlarm>;\n  /** Automatically deduplicates messages based on their content (SHA-256 hash of the body). */\n  contentBasedDeduplication?: boolean;\n  /** Delay (in seconds) before new messages become visible to consumers. Range: 0–900. */\n  delayMessagesSecond?: number;\n  /** Disables globally configured alarms for this resource. */\n  disabledGlobalAlarms?: Array<string>;\n  /** A list of event sources that trigger message delivery to this queue. */\n  events?: Array<SqsQueueEventBusIntegration>;\n  /** Creates a FIFO queue that guarantees message order and exactly-once delivery. */\n  fifoEnabled?: boolean;\n  /** Enables high-throughput mode for FIFO queues (up to ~70,000 msg/s per queue). */\n  fifoHighThroughput?: boolean;\n  /** Seconds the queue waits for messages before returning an empty response. Range: 0–20. */\n  longPollingSeconds?: number;\n  /** Maximum message size in bytes. Range: 1,024 (1 KiB) to 1,048,576 (1 MiB). */\n  maxMessageSizeBytes?: number;\n  /** How long unprocessed messages stay in the queue before being deleted. Range: 60s to 1,209,600s (14 days). */\n  messageRetentionPeriodSeconds?: number;\n  /** Custom access-control statements added to the queue's resource policy. */\n  policyStatements?: Array<SqsQueuePolicyStatement>;\n  /** Moves messages that fail processing too many times to a dead-letter queue for inspection. */\n  redrivePolicy?: SqsQueueRedrivePolicy;\n  /** How long (seconds) a message is hidden from other consumers after being received. Range: 0–43,200 (12 hours). */\n  visibilityTimeoutSeconds?: number;\n};\n// [!code focus-end]"
   },
   "SqsQueueReceivedMessagesCountTrigger": {
     "definitionName": "SqsQueueReceivedMessagesCountTrigger",

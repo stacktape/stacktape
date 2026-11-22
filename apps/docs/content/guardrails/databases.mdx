@@ -1,201 +1,55 @@
 ---
-title: 'Database Guardrails'
-order: 110
+title: 'Database guardrails'
+order: 4
 seoTitle: 'Database Guardrails - Restrict Engines & Sizes | Stacktape'
-seoDescription: 'Control which database engines, instance sizes, and access modes your team can deploy. Stacktape database guardrails block non-compliant databases before they reach AWS.'
+seoDescription: 'Allow only reviewed SQL engines and instance sizes, and block whole Stacktape resource types, with database guardrails.'
 ---
 
-# Database Guardrails
+# Database guardrails
 
-Stacktape database guardrails are preventive policy definitions that restrict which database engines, instance sizes, and accessibility modes your team can deploy. Each definition has a `type` identifier and a `properties` object describing what is allowed or blocked for database resources in the stack. The deletion protection guardrail targets [relational databases](/resources/databases/relational-database) specifically, the VPC-only guardrail applies to relational databases and OpenSearch, and the engine and instance restriction guardrails apply to databases that use engine types and instance sizes respectively.
+These guardrails decide which SQL engines and instance sizes your team can use, and which Stacktape resource types are
+off-limits. They appear under **Database restrictions** on **Security → Guardrails**.
+[Guardrails overview](/guardrails/overview) explains who they bind and how to set them up.
 
-<Info>
-Guardrails are **preventive** — non-matching values are blocked, preventing non-compliant configurations from being applied. They are distinct from [alarms](/observability/alarms), which are **reactive** and notify you about runtime problems after deployment.
-</Info>
+Private network access and deletion protection for databases are on
+[Security and data protection guardrails](/guardrails/security-and-data-protection).
 
-Stacktape defines four database-specific guardrail types:
+## Allowed database engines
 
-| Guardrail | Type identifier | Key property | Approach |
-|---|---|---|---|
-| [Engine restriction](#engine-restriction) | `database-engine-restriction` | `allowedEngines` | Allowlist |
-| [Instance restriction](#instance-restriction) | `database-instance-restriction` | `allowedInstanceSizes` | Allowlist |
-| [VPC-only databases](#vpc-only-databases) | `require-vpc-databases` | `enabled` | Boolean toggle |
-| [Deletion protection](#deletion-protection) | `require-deletion-protection` | `enabled` | Boolean toggle |
+Every [relational database](/resources/databases/relational-database) must use one of the engines you list. Other
+database types, such as DynamoDB, OpenSearch, Redis or Aurora DSQL, aren't checked; block them with
+[Blocked resource types](#blocked-resource-types).
 
-Guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your `stacktape.ts` config file. For how to set up and manage guardrails, see the [guardrails overview](/guardrails/overview). For other guardrail categories, see [deployment guardrails](/guardrails/deployment), [security guardrails](/guardrails/security-and-data-protection), and [resource limit guardrails](/guardrails/resource-limits).
+The engine identifiers are the values of `engine.type`:
 
-## Engine restriction
-
-The `database-engine-restriction` guardrail controls which database engine types can be provisioned. It uses an allowlist — the `allowedEngines` property lists permitted engine type strings, and any database whose engine type is not in the list is blocked. This is the most common database guardrail, used to standardize on a single engine family across an organization.
-
-Guardrail definition shape (configured in the Stacktape Console):
-
-```typescript
-{
-  type: 'database-engine-restriction',
-  properties: {
-    allowedEngines: ['postgres', 'aurora-postgresql']
-  }
-}
-```
-
-The `allowedEngines` property accepts an array of engine type identifier strings. The type definition gives `postgres` and `aurora-postgresql` as examples. Use the exact engine type identifiers supported by your [relational database](/resources/databases/relational-database) configuration.
-
-**Allowlist vs blocklist:** Engine restriction uses an **allowlist** — you permit certain engines, and everything else is blocked. This is the safer default for standardization: when new engine types become available, they are blocked until you deliberately add them to the list.
-
-**When to enable:** Your organization wants to standardize on a database engine family (e.g., PostgreSQL only) or prevent teams from using engines that carry additional licensing costs. Setting `allowedEngines` to `['postgres', 'aurora-postgresql']` lets teams choose between single-instance RDS PostgreSQL and Aurora PostgreSQL — while blocking other engine families.
-
-**When to skip:** Small teams or early-stage projects where engine flexibility matters more than standardization. If your team already follows a strong convention, a guardrail may add overhead without benefit.
-
-<Tip>
-If you're standardizing on PostgreSQL, include every PostgreSQL-compatible engine identifier your teams use in the allowlist, so they can choose the deployment model that fits their workload without hitting a guardrail. See the [relational database](/resources/databases/relational-database) page for the supported engine identifiers.
-</Tip>
-
-## Instance restriction
-
-The `database-instance-restriction` guardrail allows teams to provision only reviewed database instance sizes. It uses an **allowlist** — any provisioned RDS or Aurora instance size not listed in `allowedInstanceSizes` is blocked. This fails safely when AWS introduces a new size instead of silently permitting it.
-
-Guardrail definition shape (configured in the Stacktape Console):
-
-```typescript
-{
-  type: 'database-instance-restriction',
-  properties: {
-    allowedInstanceSizes: ['db.t4g.medium', 'db.r6g.large']
-  }
-}
-```
-
-The `allowedInstanceSizes` property accepts an array of exact database instance size strings. Serverless Aurora engines do not select an instance size and are therefore unaffected by this guardrail.
-
-**Why an allowlist:** A short reviewed list expresses the actual organizational decision. A blocklist is easy to bypass accidentally with another large class and automatically permits every future AWS size. Legacy `blockedInstanceSizes` definitions remain enforced, but newly saved policies use the allowlist.
-
-**When to enable:** You want to prevent cost surprises from oversized instance classes. Large memory-optimized instances (such as `db.r5.4xlarge` and above) can cost significantly more than smaller instances that handle the same workloads adequately. Blocking expensive sizes proactively is simpler than reviewing every deployment manually.
-
-**When to skip:** Teams with existing cost review processes, or organizations that exclusively use serverless database engines (which scale capacity automatically). Also less relevant when every database configuration is reviewed before deployment.
-
-<Warning>
-Each allowed size must be listed exactly. Review this list when your organization adopts a new database family or size.
-</Warning>
-
-## VPC-only databases
-
-The `require-vpc-databases` guardrail enforces that relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB is not checked because it is already accessed through AWS service endpoints rather than a per-table public/private setting. Aurora DSQL currently uses its public service endpoint in Stacktape, so `dsql-database` fails this guardrail closed until Stacktape can manage the required PrivateLink endpoint. When `enabled` is `true`, any covered resource without a supported VPC-only path is blocked.
-
-Guardrail definition shape (configured in the Stacktape Console):
-
-```typescript
-{
-  type: 'require-vpc-databases',
-  properties: {
-    enabled: true
-  }
-}
-```
-
-For the accessibility modes available on databases and how to configure them, see the [relational database](/resources/databases/relational-database) documentation.
-
-**When to enable:** Production environments, regulated industries, or any organization handling sensitive data — PII, financial records, or health information. Most compliance frameworks (SOC 2, HIPAA, PCI-DSS) require databases to be unreachable from the public internet. Enabling this guardrail ensures no team can accidentally expose a database.
-
-**When to skip:** Organizations where any development stack still needs direct local database access without a VPN or bastion. Guardrails currently apply organization-wide, so this policy cannot be enabled only for production.
-
-**Tradeoff:** VPC-only databases remove public internet access, meaning workloads that need database connectivity must be configured for VPC networking. A [bastion host](/resources/security/bastion-host) can provide local access to VPC-only databases during development.
-
-## Deletion protection
-
-The `require-deletion-protection` guardrail enforces that all [relational databases](/resources/databases/relational-database) and [Aurora DSQL databases](/resources/databases/dsql) have `deletionProtection` set to `true`. When `enabled` is `true`, any of these databases without explicit deletion protection is blocked.
-
-Guardrail definition shape (configured in the Stacktape Console):
-
-```typescript
-{
-  type: 'require-deletion-protection',
-  properties: {
-    enabled: true
-  }
-}
-```
-
-AWS RDS and Aurora DSQL deletion protection prevent a database resource from being accidentally deleted. The guardrail ensures your team always has this flag active — every relational or DSQL database in the stack must include `deletionProtection: true` in its configuration.
-
-**When to enable:** Any production environment, or as a blanket policy to prevent accidental database deletion. The cost of losing production data far outweighs the minor friction of managing the protection flag explicitly.
-
-**When to skip:** Development and testing stages where databases are ephemeral and frequently recreated. Enforcing deletion protection on short-lived dev databases adds friction without meaningful benefit.
-
-**Tradeoff:** With this guardrail active, you cannot deploy a relational or DSQL database without `deletionProtection: true` in its configuration.
-
-## Combining database guardrails
-
-Database guardrails work independently and can be enabled simultaneously to enforce a comprehensive database policy. A typical production setup enables all four: standardize on PostgreSQL engines, allow reviewed instance sizes, require VPC isolation, and enforce deletion protection.
-
-When multiple guardrails are active, a stack must satisfy every one of them that applies to its resources.
-
-| Guardrail | What it prevents |
+| Family | Identifiers |
 |---|---|
-| Engine restriction | Non-standard engine types (e.g., MySQL when only PostgreSQL is allowed) |
-| Instance restriction | Unreviewed instance sizes |
-| VPC-only databases | Publicly accessible databases |
-| Deletion protection | Accidentally deletable relational and DSQL databases |
+| PostgreSQL | `postgres`, `aurora-postgresql`, `aurora-postgresql-serverless-v2` |
+| MySQL and MariaDB | `mysql`, `mariadb`, `aurora-mysql`, `aurora-mysql-serverless-v2` |
+| Oracle | `oracle-ee`, `oracle-se2` |
+| SQL Server | `sqlserver-ee`, `sqlserver-ex`, `sqlserver-se`, `sqlserver-web` |
 
-**Recommended starting point:** Enable VPC-only databases and deletion protection first — they provide the highest-value safety net for production with minimal configuration overhead. They prevent the two most costly mistakes: data exposure and accidental deletion. Add engine restriction once your team has standardized on an engine family, and instance restriction once cost control across teams becomes a priority.
+To standardize on PostgreSQL, list all three PostgreSQL identifiers, so teams can still choose between a fixed instance,
+Aurora and Aurora Serverless.
 
-The following database configuration satisfies all four guardrails — it uses a PostgreSQL engine, an allowed instance size, VPC-only accessibility, and deletion protection:
+## Allowed database instance sizes
 
-<CodeBlock
-  intellisense
-  tabs={[
-    {
-      label: 'TypeScript',
-      lang: 'typescript',
-      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+Every provisioned database instance must use one of the sizes you list, such as `db.t4g.medium`, `db.r6g.large`. The
+check covers the primary instance and read replicas of standard RDS engines and the instances of Aurora clusters. Aurora
+Serverless v2 has no instance size and isn't checked.
 
-// [!code focus-start]
-export default defineConfig(() => {
-  const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres({
-      version: '16',
-      primaryInstance: {
-        instanceSize: 'db.t4g.micro'
-      }
-    }),
-    credentials: {
-      masterUserPassword: $Secret('database', 'password')
-    },
-    accessibility: {
-      accessibilityMode: 'vpc'
-    },
-    deletionProtection: true
-  });
+The list is an allowlist: a size nobody reviewed, including a new one AWS adds later, stays blocked until you add it.
+Rules created before allowlists blocked listed sizes instead; they still work until you edit them.
 
-  return { resources: { mainDatabase } };
-});
-// [!code focus-end]`
-    }
-  ]}
-/>
+## Blocked resource types
 
-## FAQ
+No config may declare a resource of the types you list, for example `open-search-domain` or `redis`. Any Stacktape
+resource type can be listed, not only databases:
 
-### Why isn't my database guardrail in my stacktape.ts config file?
+```text
+Blocked by the organization guardrail "Blocked resource types". Resource `search` uses blocked type
+`open-search-domain`. Blocked resource types: `open-search-domain`.
+```
 
-Database guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your `stacktape.ts` config file. Your config defines the database; the guardrail (configured separately in the Console) decides whether that database is allowed to deploy. See the [guardrails overview](/guardrails/overview) for the full setup and management workflow.
-
-### Why do engine and instance restrictions use allowlists?
-
-Both restrictions fail closed. `allowedEngines` and `allowedInstanceSizes` require a deliberate review before a new engine or instance size can be deployed. This is safer than trying to enumerate every expensive size in a blocklist. Older `blockedInstanceSizes` policies remain supported so an upgrade does not silently remove protection.
-
-### Should I use engine restriction or resource type restriction?
-
-The `resource-type-restriction` guardrail (covered in [resource limit guardrails](/guardrails/resource-limits)) blocks an entire resource type — for example, preventing anyone from provisioning a `relational-database` at all. The `database-engine-restriction` guardrail is more granular: it permits relational databases but limits which engine types they can use. Use engine restriction when you want teams to deploy databases but need them standardized on specific engines.
-
-### What happens when a guardrail blocks my deployment?
-
-The deployment is rejected before any non-compliant database reaches AWS — guardrails are preventive, so the blocked configuration is never applied. Update the database configuration to match the guardrail (for example, switch to an allowed engine, pick an allowed instance size, set `accessibilityMode: 'vpc'`, or add `deletionProtection: true`), then deploy again.
-
-### Which database guardrails should I enable first?
-
-Enable VPC-only databases and deletion protection first — they provide the highest-value safety net for production with minimal friction, preventing the two most costly mistakes: data exposure and accidental deletion. Add engine restriction once your team has standardized on an engine family, and instance restriction once cost control across teams becomes a priority. The guardrails work independently, so you can enable them incrementally.
-
-### Can a guardrail control my database costs?
-
-Indirectly, yes. The `database-instance-restriction` guardrail permits only reviewed instance sizes, preventing an unapproved large class from deploying. It does not monitor spend or compare current AWS prices — for ongoing cost tracking see the [managing costs overview](/managing-costs/overview).
+Use it for services your organization hasn't approved, or that cost more than a team should start on its own. A rule
+that lists the old `redis-cluster` type also blocks `redis`.

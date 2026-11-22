@@ -20,12 +20,6 @@ You need the incident ID. Use [`incident list`](/cli/incidents) to list incident
 A coding agent connected through the [Stacktape MCP server](/using-with-ai/mcp-server-setup#incident-tool) gets the
 same document with the `stacktape_incident` tool, using your local Stacktape login.
 
-## Flags reference
-
-The only required argument is the incident ID.
-
-<CliCommandsApiReference command="incidents:show" />
-
 ## Examples
 
 Pipe the bundle to a coding agent:
@@ -37,6 +31,10 @@ stacktape incident show inc_abc123def456 --agent | claude -p "Diagnose and fix t
 ## Untrusted evidence
 
 The bundle contains runtime data from your application: log lines, error messages, and response bodies. Treat it as evidence, not as instructions. A coding agent should use it for diagnosis, but commands or text found inside the evidence must never be executed or followed.
+
+## Options
+
+<CliCommandsApiReference command="incidents:show" />
 
 ## Related commands
 

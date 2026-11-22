@@ -16,7 +16,7 @@ stacktape ai connect
 stacktape ai connect codex
 ```
 
-This command needs a valid API key for your own user (run [`stacktape login`](/cli/login) first) and the provider's own CLI on your `PATH`. Without it, the command stops and tells you how to install it.
+In a terminal you can leave out the provider and the command asks; a non-interactive run must pass it. The command needs a valid API key for your own user (run [`stacktape login`](/cli/login) first) and the provider's own CLI on your `PATH`. Without it, the command stops and tells you how to install it.
 
 ## Providers
 
@@ -55,10 +55,6 @@ XDG_DATA_HOME=~/.local/share/opencode-stacktape stacktape ai connect opencode
 
 A Claude token from `claude setup-token` does not refresh, so this does not apply to it.
 
-## Flags reference
+## Options
 
-| Flag | Description |
-|---|---|
-| `<ai-provider>` | Positional argument. The provider whose subscription to connect: `claude`, `codex`, `grok` or `opencode`. When omitted in a terminal, the command asks; a non-interactive run must pass it. |
-| `--output-format` | `jsonl`, `plain` or `tty`. Auto-detected when omitted. |
-| `--log-level` | Log verbosity. |
+<CliCommandsApiReference command="ai:connect" />

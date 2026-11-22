@@ -18,12 +18,8 @@ stacktape ai disconnect
 stacktape ai disconnect grok
 ```
 
-This command needs a valid API key for your own user. Removing a sign-in that is not connected succeeds and changes nothing.
+A non-interactive run must pass the provider. The command needs a valid API key for your own user. Removing a sign-in that is not connected succeeds and changes nothing.
 
-## Flags reference
+## Options
 
-| Flag | Description |
-|---|---|
-| `<ai-provider>` | Positional argument. The provider whose sign-in to disconnect: `claude`, `codex`, `grok` or `opencode`. When omitted in a terminal, the command asks; a non-interactive run must pass it. |
-| `--output-format` | `jsonl`, `plain` or `tty`. Auto-detected when omitted. |
-| `--log-level` | Log verbosity. |
+<CliCommandsApiReference command="ai:disconnect" />

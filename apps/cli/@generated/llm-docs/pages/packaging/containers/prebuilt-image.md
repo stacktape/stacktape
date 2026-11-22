@@ -1,42 +1,14 @@
-# Prebuilt Image
+# Prebuilt image
 
-Prebuilt image packaging references an existing container image from any registry — Docker Hub, Amazon ECR, GitHub Container Registry, or a private registry. Stacktape skips the build step entirely and deploys the image directly. Use this when your image is already built by an external CI/CD pipeline, or when you want to run a third-party image like Nginx, Redis, or Prometheus.
+Prebuilt image packaging references an existing container image from any registry: Docker Hub, Amazon ECR, GitHub Container Registry, or a private registry. Stacktape skips the build step entirely and deploys the image directly. Use this when your image is already built by an external CI/CD pipeline, or when you want to run a third-party image like Nginx, Redis, or Prometheus.
 
 This packaging type applies to [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), and [batch jobs](/resources/compute/batch-job).
 
-## Container packaging types
-
-Stacktape has four container packaging types. Each targets a different workflow:
-
-| Type | When to use |
-|------|------------|
-| [`js-bundle`](/packaging/containers/js-bundle) | A JavaScript or TypeScript service with one entry file. Stacktape bundles it and builds a small image. |
-| [`buildpack`](/packaging/containers/buildpack) | Any other language or framework. Stacktape detects the project and builds the image without a Dockerfile. |
-| [`dockerfile`](/packaging/containers/dockerfile) | You need full control over the build. Provide your own Dockerfile and build context. |
-| **`prebuilt-image`** (this page) | The image already exists in a registry. Stacktape skips building entirely. |
-
-Use `prebuilt-image` if your image already exists. Use one of the other three types if you want Stacktape to build and push the image during deployment.
-
-## When to use
-
-Use prebuilt image packaging when:
-
-- **Your CI/CD pipeline already builds images.** If GitHub Actions, GitLab CI, or another pipeline pushes tagged images to a registry, reference them directly instead of rebuilding inside Stacktape.
-- **You're running third-party software.** Images like `nginx`, `redis`, `postgres`, or `grafana/grafana` are ready to use from Docker Hub or other public registries.
-- **You share images across multiple services.** A single image built once can be referenced by several Stacktape resources without redundant builds.
-- **You need full control over the build environment.** Build externally with any tooling (Bazel, Nix, Kaniko) and hand the final image to Stacktape.
-
-## When NOT to use
-
-Skip prebuilt image packaging when:
-
-- **You want Stacktape to handle the entire build.** The [`js-bundle`](/packaging/containers/js-bundle), [`buildpack`](/packaging/containers/buildpack) and [`dockerfile`](/packaging/containers/dockerfile) types build an image from source and upload it to a managed ECR repository.
-- **You don't have an external image pipeline yet.** Setting up a separate registry and build system adds operational overhead. Letting Stacktape build the image from source is simpler when you don't already have container build infrastructure.
-- **You want the image version to be derived from source.** With prebuilt-image, the documented input is the `image` string. Prefer changing that value when you want a new image version to be visible in config review. Build-based modes produce a new image from your source on each deploy.
+Use it when your CI pipeline already builds and pushes images, when you build with other tools (Bazel, Nix, Kaniko), or for third-party software such as `nginx` or `grafana/grafana`. If you want Stacktape to build the image from your source, use [`js-bundle`](/packaging/containers/js-bundle), [`buildpack`](/packaging/containers/buildpack) or [`dockerfile`](/packaging/containers/dockerfile) instead. With a prebuilt image, a new version reaches AWS only when the `image` value changes, so reference a specific tag or digest rather than `latest`.
 
 ## Basic example
 
-The smallest valid configuration references a public image by name and tag:
+This runs the official Apache `httpd` image as a web service. The image listens on port 80, so the example sets `port: 80`; without it, Stacktape sends traffic to port 3000.
 
 
 Example (TypeScript):
@@ -46,8 +18,9 @@ import { defineConfig, WebService, PrebuiltImagePackaging } from 'stacktape';
 export default defineConfig(() => {
   const webService = new WebService({
     packaging: new PrebuiltImagePackaging({
-      image: 'httpd:latest'
+      image: 'httpd:2.4'
     }),
+    port: 80,
     resources: {
       cpu: 0.25,
       memory: 512
@@ -61,7 +34,11 @@ export default defineConfig(() => {
 ```
 
 
-The `image` property accepts any valid container image reference: a Docker Hub short name (`httpd:latest`), a full registry URL (`123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:v1.2.3`), or a GitHub Container Registry path (`ghcr.io/my-org/my-app:main`).
+After the deploy, open the service URL the CLI prints; you should see Apache's "It works!" page.
+
+Stacktape also sets the `PORT` environment variable to the service's port. Images that read `PORT` (most Node.js, Python and Go servers) follow it; images with their own fixed port, like `httpd` or `nginx`, need `port` set to that port.
+
+The `image` property accepts any valid container image reference: a Docker Hub short name (`httpd:2.4`), a full registry URL (`123456789012.dkr.ecr.us-east-1.amazonaws.com/my-repo:v1.2.3`), or a GitHub Container Registry path (`ghcr.io/my-org/my-app:main`).
 
 ## Private registry images
 
@@ -103,7 +80,7 @@ export default defineConfig(() => {
 The `repositoryCredentialsSecretArn` property accepts the ARN of an AWS Secrets Manager secret containing `username` and `password` keys. Underneath, AWS ECS uses these credentials when pulling the image from the private registry.
 
 
-> **Info:** Amazon ECR does not need `repositoryCredentialsSecretArn` — underneath, AWS ECS authenticates to ECR via the task execution role. Use `repositoryCredentialsSecretArn` for non-ECR registries that require explicit username/password credentials.
+> **Info:** Amazon ECR does not need `repositoryCredentialsSecretArn`: underneath, AWS ECS authenticates to ECR via the task execution role. Use `repositoryCredentialsSecretArn` for non-ECR registries that require explicit username/password credentials.
 
 
 ## Overriding startup behavior
@@ -138,7 +115,7 @@ export default defineConfig(() => {
 ```
 
 
-The `command` property accepts a string array. Each element becomes a separate argument — this matches Docker's exec-form `CMD ["arg1", "arg2"]` behavior.
+The `command` property accepts a string array. Each element becomes a separate argument: this matches Docker's exec-form `CMD ["arg1", "arg2"]` behavior.
 
 ### Entrypoint override
 
@@ -169,7 +146,7 @@ export default defineConfig(() => {
 ```
 
 
-When both `entryPoint` and `command` are specified, `entryPoint` sets the executable and `command` provides its arguments — matching Docker's `ENTRYPOINT` + `CMD` composition model.
+When both `entryPoint` and `command` are specified, `entryPoint` sets the executable and `command` provides its arguments: matching Docker's `ENTRYPOINT` + `CMD` composition model.
 
 
 > **Info:** The container-workload packaging variant (`PrebuiltImageCwPackagingProps`) supports `image`, `command`, `entryPoint`, and `repositoryCredentialsSecretArn`. The batch-job packaging variant (`PrebuiltImageBjPackagingProps`) supports only `image` and `command`.
@@ -225,7 +202,7 @@ This pattern is common for adding observability sidecars (Datadog agent, OpenTel
 
 [Batch jobs](/resources/compute/batch-job) accept prebuilt-image packaging with a reduced property set: only `image` and `command` are available. The `entryPoint` and `repositoryCredentialsSecretArn` properties are not supported on batch jobs, so private registries that require username/password credentials are not usable from a batch-job prebuilt image.
 
-If a batch job needs to pull from a private registry, use [`dockerfile`](/packaging/containers/dockerfile) packaging instead, or push the image to Amazon ECR first — underneath, AWS ECS authenticates to ECR via the task execution role without needing `repositoryCredentialsSecretArn`. See the [batch job](/resources/compute/batch-job) page for full configuration examples.
+If a batch job needs to pull from a private registry, use [`dockerfile`](/packaging/containers/dockerfile) packaging instead, or push the image to Amazon ECR first: underneath, AWS ECS authenticates to ECR via the task execution role without needing `repositoryCredentialsSecretArn`. See the [batch job](/resources/compute/batch-job) page for full configuration examples.
 
 ## Image tagging strategy
 
@@ -238,7 +215,7 @@ The `image` property value is the image reference that Stacktape configures for 
 | Branch-based tags | `my-app:main` | Good for staging environments that track a branch. Still mutable. |
 
 
-> **Tip:** Use immutable tags (semantic versions or commit SHAs) for production. Mutable tags like `latest` are non-deterministic — the same tag can resolve to different image content over time. Immutable tags ensure every deploy references a specific, known image.
+> **Tip:** Use immutable tags (semantic versions or commit SHAs) for production. Mutable tags like `latest` are non-deterministic: the same tag can resolve to different image content over time. Immutable tags ensure every deploy references a specific, known image.
 
 
 Set `image` to the registry reference you want the container resource to use. For production, prefer immutable tags so the configured image version is explicit in review. For details on how the underlying compute resource rolls out a change, see the relevant compute resource page ([web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), etc.).
@@ -247,15 +224,15 @@ Set `image` to the registry reference you want the container resource to use. Fo
 
 ### When should I use prebuilt image vs letting Stacktape build the image?
 
-Use prebuilt image when the image already exists — built by your CI pipeline, pulled from a public registry, or shared across services. Use [`js-bundle`](/packaging/containers/js-bundle), [`buildpack`](/packaging/containers/buildpack) or [`dockerfile`](/packaging/containers/dockerfile) when you want Stacktape to build from source during deployment. Prebuilt image is faster to deploy (no build step) but requires external infrastructure to produce and push images, and the deployed version is only as explicit as the tag you put in the `image` string.
+Use prebuilt image when the image already exists: built by your CI pipeline, pulled from a public registry, or shared across services. Use [`js-bundle`](/packaging/containers/js-bundle), [`buildpack`](/packaging/containers/buildpack) or [`dockerfile`](/packaging/containers/dockerfile) when you want Stacktape to build from source during deployment. Prebuilt image is faster to deploy (no build step) but requires external infrastructure to produce and push images, and the deployed version is only as explicit as the tag you put in the `image` string.
 
 ### How do I pull from a private registry?
 
-Store the registry credentials in AWS Secrets Manager as a JSON object with `username` and `password` keys, then pass the secret ARN via `repositoryCredentialsSecretArn`. Public registries (Docker Hub, GitHub Container Registry) need no credentials, and Amazon ECR is authenticated automatically through the task execution role — only non-ECR private registries need `repositoryCredentialsSecretArn`. Note that batch jobs don't support `repositoryCredentialsSecretArn`, so for a private batch-job image push it to ECR first or use [`dockerfile`](/packaging/containers/dockerfile) packaging.
+Store the registry credentials in AWS Secrets Manager as a JSON object with `username` and `password` keys, then pass the secret ARN via `repositoryCredentialsSecretArn`. Public registries (Docker Hub, GitHub Container Registry) need no credentials, and Amazon ECR is authenticated automatically through the task execution role: only non-ECR private registries need `repositoryCredentialsSecretArn`. Note that batch jobs don't support `repositoryCredentialsSecretArn`, so for a private batch-job image push it to ECR first or use [`dockerfile`](/packaging/containers/dockerfile) packaging.
 
 ### What's the difference between command and entryPoint?
 
-The `command` property overrides the image's Docker `CMD` instruction — typically the arguments passed to the main process. The `entryPoint` property overrides the Docker `ENTRYPOINT` instruction — the executable itself. When both are set, `entryPoint` is the executable and `command` provides its arguments. Most users only need `command` to pass different flags or scripts to the existing entrypoint.
+The `command` property overrides the image's Docker `CMD` instruction: usually the arguments passed to the main process. The `entryPoint` property overrides the Docker `ENTRYPOINT` instruction: the executable itself. When both are set, `entryPoint` is the executable and `command` provides its arguments. Most users only need `command` to pass different flags or scripts to the existing entrypoint.
 
 ### How do I debug startup failures with a prebuilt image?
 
@@ -263,7 +240,7 @@ Check container logs using [`stacktape logs`](/cli/logs) with the resource name 
 
 ### Can I use the same prebuilt image across multiple Stacktape resources?
 
-Yes. Multiple resources can reference the same image tag, and each pulls independently. This is useful when a single base image serves different roles (API server, worker, migration runner) differentiated only by the `command` override — build once, deploy many times with different startup arguments.
+Yes. Multiple resources can reference the same image tag, and each pulls independently. This is useful when a single base image serves different roles (API server, worker, migration runner) differentiated only by the `command` override: build once, deploy many times with different startup arguments.
 
 ## API reference
 

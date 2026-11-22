@@ -19,10 +19,6 @@ stacktape query dynamodb <tableName> --stage <stage> --region <region> --operati
 
 The resource name argument must match the name of a `DynamoDbTable` resource in your Stacktape configuration. If you omit `--operation`, the command defaults to `sample`. When `--limit` is omitted, the command uses a default limit of 100.
 
-## CLI reference
-
-<CliCommandsApiReference command="query:dynamodb" />
-
 ## Operations
 
 The `query dynamodb` command supports five operations. All are read-only.
@@ -115,12 +111,6 @@ Scan for recent items (up to 10):
 stacktape query dynamodb eventsTable --stage staging --region us-east-1 --operation scan --limit 10
 ```
 
-## Related commands
-
-- [`query sql`](/cli/query-sql) — run read-only SQL queries against deployed PostgreSQL or MySQL databases.
-- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cache.
-- [`query opensearch`](/cli/query-opensearch) — search and inspect deployed OpenSearch domains.
-
 ## FAQ
 
 ### Can I query a global secondary index?
@@ -146,3 +136,13 @@ The [`aws call`](/cli/aws-call) command gives raw AWS SDK access and requires yo
 ### Does this command need a bastion tunnel or VPC access?
 
 No. DynamoDB is a regional AWS service accessible over the public internet — it does not run inside a VPC. No bastion tunnel is needed, unlike VPC-only resources such as [relational databases](/resources/databases/relational-database) or [Redis caches](/resources/databases/redis).
+
+## Options
+
+<CliCommandsApiReference command="query:dynamodb" />
+
+## Related commands
+
+- [`query sql`](/cli/query-sql) — run read-only SQL queries against deployed PostgreSQL or MySQL databases.
+- [`query redis`](/cli/query-redis) — inspect keys and values in a deployed Redis cache.
+- [`query opensearch`](/cli/query-opensearch) — search and inspect deployed OpenSearch domains.

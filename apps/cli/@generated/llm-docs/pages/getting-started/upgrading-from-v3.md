@@ -80,22 +80,38 @@ npm install --save-exact stacktape@3.7.1
 
 Upgrade one project at a time, and one stage before the others.
 
-1. **Install v4** on your machine and update the project's package. Keep the CLI and the package on the same version:
+1. **Install v4** on your machine and update the project's package. Name the version, so you get a v4 release and not an older default, and keep the CLI and the package on the same version:
 
 
 Example (npm):
 
 ```bash
-npm install --save-exact stacktape@4
+npm install --save-exact stacktape@4.0.0
+```
+
+
+Example (macOS):
+
+```bash
+curl -fsSL https://installs.stacktape.com/macos.sh | STACKTAPE_VERSION=4.0.0 sh
 ```
 
 
 Example (Linux):
 
 ```bash
-curl -fsSL https://installs.stacktape.com/linux.sh | sh
+curl -fsSL https://installs.stacktape.com/linux.sh | STACKTAPE_VERSION=4.0.0 sh
 ```
 
+
+Example (Windows):
+
+```powershell
+$env:STACKTAPE_VERSION='4.0.0'; irm https://installs.stacktape.com/windows.ps1 | iex
+```
+
+
+   Use a later 4.x version in place of `4.0.0` when there is one. `stacktape version` prints what you have.
 
 2. **Update the configuration** using the [configuration changes](#configuration-changes) that apply to it. v4 rejects the old names and prints the property it does not accept.
 
@@ -1036,7 +1052,7 @@ On Linux and Windows, the first v4 command on a machine moves the stored login i
 
 Before v4, every member of an organization reached every connected AWS account. Now Owners and Admins reach all accounts, and Developers and Viewers only the accounts chosen for them on the Members page. The update gives each Developer and Viewer the accounts their projects have deployed to, so day-to-day work continues. Someone who works with an account their projects never deployed to gets "Your access does not include the AWS account" until an Owner or Admin adds it.
 
-CI that deploys with a person's API key stops working when that person loses access or leaves. Use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) instead. See [Project and AWS account access](/stacktape-console/team-and-access-control#project-and-aws-account-access).
+CI that deploys with a person's API key stops working when that person loses access or leaves. Use an [organization key](/stacktape-console/api-keys#create-an-organization-key) instead. See [Project and AWS account access](/stacktape-console/team-and-access-control#project-and-aws-account-access).
 
 ### Removed Console features
 

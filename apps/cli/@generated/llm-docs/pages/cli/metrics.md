@@ -1,83 +1,57 @@
 # metrics
 
-The `stacktape metrics` command fetches CloudWatch metrics for a deployed resource and displays time-series data as a chart in your terminal. Use it to check invocation counts, error rates, CPU usage, database connections, or API latency without leaving your CLI or opening the AWS Console.
+`stacktape metrics` reads one CloudWatch metric of a deployed resource and draws it as a chart in your terminal. Use it to check invocations, errors, database CPU and connections or API latency without opening the AWS console. It needs AWS credentials for the account and works without a Stacktape account.
 
 ## Usage
-
-```bash
-stacktape metrics myApi Invocations --stage prod --region eu-west-1
-```
-
-The command sends a CloudWatch `GetMetricData` query with the chosen statistic and period, then renders the returned datapoints as a terminal chart. With `--agent`, the command disables the interactive chart and prints machine-readable metric data containing `resource`, `metric`, `period`, `stat`, `unit`, and `datapoints`.
-
-## Supported resource types and metrics
-
-The `metrics` command supports four resource types. Each type exposes a fixed set of CloudWatch metrics. Passing a resource whose deployed type is not in this list produces an error listing the supported types.
-
-| Resource type | Metrics |
-|---|---|
-| Lambda function (`function`) | `Invocations`, `Errors`, `Duration`, `Throttles`, `ConcurrentExecutions` |
-| Multi-container workload (`multi-container-workload`) | `CPUUtilization`, `MemoryUtilization` |
-| Relational database (`relational-database`) | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadLatency`, `WriteLatency` |
-| HTTP API Gateway (`http-api-gateway`) | `Count`, `4XXError`, `5XXError`, `Latency`, `IntegrationLatency` |
-
-For a supported resource type, passing an invalid metric name returns an error with a remediation line such as `Available metrics: ...` listing the valid metric names. For an unsupported resource type, the error lists the supported resource-type keys instead.
-
-## Important flags
-
-**`<metric>`** (required, second positional argument) — the CloudWatch metric name to fetch. Must match one of the supported metrics for the target resource type (see table above). Examples: `Invocations`, `CPUUtilization`, `DatabaseConnections`.
-
-**`<resource-name>`** (required, first positional argument) — the name of the resource as defined in your Stacktape configuration. The command looks up the resource in the deployed stack to determine its type and the correct CloudWatch dimension.
-
-**`--period`** — aggregation period in seconds. Defaults to `300` (5 minutes). Use shorter periods like `60` for higher-resolution data during active debugging, or longer periods like `3600` for broader trends.
-
-**`--stat`** — the statistic to compute for each period. Defaults to `Average`. Supported values include `Sum`, `Average`, `Maximum`, `Minimum`, and percentiles like `p99`. Use `Sum` for count-based metrics like `Invocations` or `Errors`, `Average` or `Maximum` for utilization metrics, and `p99` for latency tail analysis.
-
-**`--since`** — how far back to look. Accepts relative shorthand (`1h`, `30m`, `1d`, `30s`) or any value the JavaScript `Date` constructor accepts (e.g. `2025-01-15T10:00:00Z`). Defaults to 1 hour ago.
-
-## Examples
-
-Check the invocation count for a Lambda function over the last hour, aggregated in 5-minute windows.
 
 ```bash
 stacktape metrics myApi Invocations --stage prod --region eu-west-1 --stat Sum
 ```
 
-Check error count for the last 24 hours with 1-hour aggregation.
+The first argument is the resource name from your config, the second the metric. By default you get the last hour in 5-minute periods, averaged. Use `--stat Sum` for counts such as `Invocations`, `Errors` and `Throttles`, because an average of a count is not a total. Keep `Average` or `Maximum` for utilization, and use `p99` for latency.
+
+## Supported resources and metrics
+
+| Resource | Metrics |
+|---|---|
+| [Lambda function](/resources/compute/lambda-function) | `Invocations`, `Errors`, `Duration`, `Throttles`, `ConcurrentExecutions` |
+| [Relational database](/resources/databases/relational-database) | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadLatency`, `WriteLatency` |
+| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `Latency`, `IntegrationLatency` |
+
+The command accepts `4XXError` and `5XXError` for an HTTP API Gateway, but AWS publishes those counts for HTTP APIs as `4xx` and `5xx`, so the chart stays empty. Until the CLI is fixed, read API errors in the Console's [Metrics](/observability/metrics) page or in CloudWatch.
+
+Containers don't work yet. Web services, private services and worker services are refused, and a multi-container workload's `CPUUtilization` and `MemoryUtilization` come back empty because the query leaves out the ECS cluster. For containers, use the Console's Metrics page or `stacktape logs`. Another resource type or an unknown metric stops the command with a list of what it accepts.
+
+## Examples
+
+Errors in the last 24 hours, one point per hour:
 
 ```bash
 stacktape metrics myApi Errors --stage prod --region eu-west-1 --stat Sum --since 1d --period 3600
 ```
 
-Check CPU utilization for a multi-container workload.
-
-```bash
-stacktape metrics myBackend CPUUtilization --stage prod --region eu-west-1 --stat Average
-```
-
-Check tail latency (p99) for an HTTP API Gateway over the last 30 minutes.
+Tail latency of an HTTP API in the last 30 minutes:
 
 ```bash
 stacktape metrics myGateway Latency --stage prod --region eu-west-1 --stat p99 --since 30m
 ```
 
-Check database connections on a relational database.
+A fixed window, for example around an incident. `--since` takes a relative duration such as `30m` or a timestamp, `--until` a timestamp:
 
 ```bash
-stacktape metrics mainDatabase DatabaseConnections --stage prod --region eu-west-1 --stat Maximum --since 6h
+stacktape metrics mainDatabase DatabaseConnections --stage prod --region eu-west-1 --stat Maximum --since 2026-11-20T09:00:00Z --until 2026-11-20T11:00:00Z
 ```
 
-Get machine-readable output for use in scripts or AI agents.
+## Reading the data in a script
+
+With `--agent`, the command prints NDJSON: one JSON object per line. The metric data comes as JSON text in the `message` of a `log` line, with `resource`, `metric`, `period`, `stat`, `unit` and `datapoints` (each with `timestamp` and `value`). The last line is the command's `result`.
 
 ```bash
-stacktape metrics myApi Duration --stage prod --region eu-west-1 --agent
+stacktape metrics myApi Duration --stage prod --region eu-west-1 --agent \
+  | jq -c 'select(.type == "log") | .message | fromjson? | .datapoints'
 ```
 
-
-> **Info:** With `--agent`, the command prints metric data containing `resource`, `metric`, `period`, `stat`, `unit`, and an array of `datapoints` (each with `timestamp` and `value`). This is useful for piping into monitoring scripts or feeding to AI coding assistants.
-
-
-## Flags reference
+## Options
 
 
 ## CLI Options: `stacktape metrics`
@@ -102,32 +76,6 @@ stacktape metrics myApi Duration --stage prod --region eu-west-1 --agent
 
 ## Related commands
 
-- [`stacktape logs`](/cli/logs) — fetch and filter log events from a deployed resource.
-- [`stacktape alarm list`](/cli/alarms) — view CloudWatch alarm states for stack resources.
-- [`stacktape container exec`](/cli/container-exec) — run a command inside a deployed container to inspect runtime state.
-
-## FAQ
-
-### What resource types support metrics?
-
-The `stacktape metrics` command supports four deployed resource types: `function` (Lambda functions), `multi-container-workload`, `relational-database`, and `http-api-gateway`. If you pass a resource whose deployed type is not one of these, the command returns an error listing the supported type keys. Other Stacktape resource types such as [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), and [worker services](/resources/compute/worker-service) are not currently listed in the command's metric configuration.
-
-### What is the default time range and aggregation period?
-
-By default, the command fetches the last 1 hour of data with a 300-second (5-minute) aggregation period. Use `--since` to look further back (e.g. `--since 1d` for 24 hours) and `--period` to change the granularity. Shorter periods give more data points but may return empty values for low-traffic resources.
-
-### Which `--stat` should I use for a given metric?
-
-The default is `Average`, but that is wrong for counts: use `--stat Sum` for count-based metrics like `Invocations`, `Errors`, and `Throttles`, otherwise totals get averaged into misleading per-period values. Keep `Average` (or `Maximum`) for utilization metrics like `CPUUtilization` and `MemoryUtilization`, and use `p99` for latency tail analysis on `Duration` or `Latency`.
-
-### Can I fetch metrics for resources in a private VPC?
-
-Yes. The `metrics` command queries AWS CloudWatch directly — it does not connect to the resource itself. No [bastion tunnel](/cli/bastion-tunnel) is needed for metric queries, regardless of VPC configuration.
-
-### How do I see all available metrics for my resource?
-
-For a supported resource type, pass an invalid metric name and the error remediation includes a line listing the valid metrics (e.g. `Available metrics: Invocations, Errors, Duration, Throttles, ConcurrentExecutions`). For an unsupported resource type, the error lists the supported resource-type keys instead.
-
-### When should I use metrics vs logs?
-
-Use `stacktape metrics` to check aggregate trends — invocation counts, error rates, CPU utilization, latency percentiles. Use [`stacktape logs`](/cli/logs) to inspect individual request details, error stack traces, and application output. Metrics tell you *something is wrong*; logs tell you *what went wrong*.
+- [`logs`](/cli/logs) shows the requests and errors behind a number.
+- [`alarm list`](/cli/alarms) shows which CloudWatch alarms of the stack are firing.
+- [`container exec`](/cli/container-exec) runs a command in a deployed container.

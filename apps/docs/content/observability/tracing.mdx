@@ -1,6 +1,6 @@
 ---
 title: 'Tracing'
-order: 102
+order: 4
 seoTitle: 'Distributed Tracing with OpenTelemetry | Stacktape Docs'
 seoDescription: 'Enable OpenTelemetry distributed tracing for Lambda functions with one config property. Traces are stored in your own AWS account via X-Ray Transaction Search and explored in the Stacktape Console.'
 ---
@@ -9,14 +9,9 @@ seoDescription: 'Enable OpenTelemetry distributed tracing for Lambda functions w
 
 Tracing records the path of a request through your application: every operation it triggered — handler execution, SQL queries, HTTP calls to other services — how long each took, and where it failed. Stacktape instruments your functions with [OpenTelemetry](https://opentelemetry.io/) automatically; you enable it with one config property and deploy. Traces are stored in your own AWS account using X-Ray Transaction Search and explored on the Console's **Traces** page.
 
-## When to use
-
-Turn tracing on when you need to answer "why was this request slow?" or "where did this request fail?" — questions logs alone answer poorly because the evidence is scattered across services. Sampling makes it affordable to keep on permanently in production.
-
-## When NOT to use
-
-- **Counting and alerting on failures** — use [alarms](/observability/alarms) on error-rate metrics; traces explain individual requests, they don't aggregate.
-- **Reading application output** — use [logs](/observability/logs). Spans record timing and structure, not your log lines.
+Turn tracing on to answer "why was this request slow?" or "where did it fail?", which logs answer poorly when the
+evidence is spread over several services. To count failures and get alerted, use [alarms](/observability/alarms); to
+read your application's output, use [logs](/observability/logs). Traces show timing and structure, not log lines.
 
 ## Configuration
 

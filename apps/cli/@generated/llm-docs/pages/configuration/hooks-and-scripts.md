@@ -1,6 +1,6 @@
-# Hooks and Scripts
+# Hooks and scripts
 
-Stacktape hooks and scripts automate tasks around your deployment lifecycle — compiling assets before deploy, running database migrations after deploy, exporting data before deletion. Scripts are reusable commands defined in your config; hooks wire them to lifecycle events so they run automatically.
+Scripts are named commands in your config, such as a frontend build or a seed script. Run them with [`stacktape script run`](/cli/script-run), or attach them to hooks so they run before or after `deploy`, `delete`, `dev` and `bucket sync`. Hooks run on your machine or CI runner. For database migrations, use a [release command](/deployment-and-lifecycle/release-commands) instead; [Deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) compares the options.
 
 ## Scripts
 
@@ -18,7 +18,7 @@ Stacktape supports three script types, each suited to different execution and ne
 
 ### Local script
 
-A local script runs wherever the Stacktape CLI runs — your laptop during development, or the CI runner in a pipeline. This is the most common script type, covering builds, database migrations, linting, and data seeding.
+A local script runs wherever the Stacktape CLI runs: your laptop during development, or the CI runner in a pipeline. This is the most common script type, covering builds, database migrations, linting, and data seeding.
 
 Scripts can run shell commands or JS/TS/Python files. The examples below use `executeCommand`; see the configuration reference for the full set of execution properties.
 
@@ -60,7 +60,7 @@ export default defineConfig(() => {
 ```
 
 
-The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function — injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. A local script's `stdioMode` controls its terminal: `capture` (the default) shows its output in Stacktape's progress output, `inherit` hands it the terminal, including input, for interactive programs, and `ignore` discards its output. In captured output and in a failed script's error, Stacktape replaces the secret values it injected into the script, from `$Secret`, `$SsmParam` or the secret parameters of `connectTo` resources, with `[redacted]`.
+The `seedBucket` script uses `connectTo` to receive the same bucket connection details as the `api` function: injected as environment variables like `STP_UPLOADS_NAME`. See [connecting resources](/configuration/connecting-resources) for the full list of variables injected per resource type. The `buildFrontend` script runs in a subdirectory using `cwd`. A local script's `stdioMode` controls its terminal: `capture` (the default) shows its output in Stacktape's progress output, `inherit` hands it the terminal, including input, for interactive programs, and `ignore` discards its output. In captured output and in a failed script's error, Stacktape replaces the secret values it injected into the script, from `$Secret`, `$SsmParam` or the secret parameters of `connectTo` resources, with `[redacted]`.
 
 ### Local script with bastion tunneling
 
@@ -180,25 +180,25 @@ export default defineConfig(() => {
           cwd: './frontend'
         }
       },
-      openDocs: {
+      smokeTest: {
         type: 'local-script',
         properties: {
-          executeCommand: 'open https://my-app.example.com'
+          executeCommand: 'node scripts/smoke-test.js'
         }
       }
     },
     hooks: {
       beforeDeploy: [{ scriptName: 'buildFrontend' }],
-      afterDeploy: [{ scriptName: 'openDocs', skipOnCI: true }]
+      afterDeploy: [{ scriptName: 'smokeTest', skipOnLocal: true }]
     }
   };
 });
 ```
 
 
-The `buildFrontend` script runs before every deployment, compiling the frontend into `./frontend/dist` where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `openDocs` script opens the deployed URL after deploy but skips in CI environments (using `skipOnCI`). Note: the `open` command is macOS-specific — replace with `xdg-open` on Linux or `start` on Windows.
+The `buildFrontend` script runs before every deploy and builds the frontend into `./frontend/dist`, where the [hosting bucket](/resources/frontend/static-hosting) picks it up. The `smokeTest` script runs after deploys from CI (`skipOnLocal`). Each hook takes a list of scripts and runs them in order.
 
-To run database migrations, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before any workload gets the new code, and a failure stops the deploy. An `afterDeploy` hook runs after the new code is live, so its failure fails the command but does not undo the deployment.
+To run database migrations, use a [release command](/deployment-and-lifecycle/release-commands) rather than a hook: it runs inside the VPC before your services and functions get the new code, and a failure stops the deploy. An `afterDeploy` hook runs after the new code is live, so its failure fails the command but does not undo the deploy. If the machine that deploys a function has no Docker, which a function's release command needs, run the migration from an `afterDeploy` hook with `connectTo: ['database']`, through a bastion if the database is private.
 
 ### Lifecycle events
 
@@ -215,9 +215,7 @@ Hooks correspond to the before and after phases of the deploy, delete, dev, and 
 | `beforeDev` | Before dev mode starts | Dependency installation, local setup |
 | `afterDev` | After dev mode exits | Cleanup |
 
-
-> **Info:** Delete hook behavior depends on how the delete command is invoked. See the <a href="/cli/delete">delete CLI reference</a> for details.
-
+`stacktape delete` runs `beforeDelete` and `afterDelete` only when it can load the config, so run it in the project directory if you rely on them.
 
 ### When a hook fails
 
@@ -237,22 +235,20 @@ hooks:
       onFailure: continue
 ```
 
-A hook cannot roll a deployment back. To keep the old version when a check fails, run the check where it can stop the rollout: a [release command](/deployment-and-lifecycle/release-commands) runs before any workload gets the new code, and a [deployment script](/resources/advanced/deployment-scripts) with `deploymentConfig.autoRollback: true` rolls back the infrastructure changes of its deploy.
+A hook cannot roll a deploy back. To keep the old version when a check fails, run the check where it can stop the rollout: a [release command](/deployment-and-lifecycle/release-commands) runs before services and functions get the new code, and an `after:deploy` [deployment script](/resources/advanced/deployment-scripts) with `deploymentConfig.autoRollback: true` makes CloudFormation roll the whole deploy back.
 
 ### Conditional execution
 
 Hook entries can use `skipOnCI` and `skipOnLocal` to control where they run.
 
-- **`skipOnCI: true`** — skips the hook in CI/CD environments such as GitHub Actions or GitLab CI. Useful for interactive or local-only actions like opening a browser.
-- **`skipOnLocal: true`** — skips the hook when running locally; runs only in CI/CD. Useful for CI-only tasks like uploading test reports or sending notifications.
-
-The hooks example above demonstrates `skipOnCI` — the `openDocs` script runs locally after deploy but is skipped in CI pipelines.
+- **`skipOnCI: true`** skips the hook in CI, such as GitHub Actions or GitLab CI. Use it for local-only actions like opening a browser.
+- **`skipOnLocal: true`** runs the hook only in CI. Use it for smoke tests, test reports or notifications, as `smokeTest` does above.
 
 ## Environment variables in scripts
 
 Scripts commonly receive environment variables from `connectTo` and `environment`, configured inside the script's `properties`.
 
-**`connectTo`** auto-injects connection details for each listed resource as environment variables. The exact variables depend on the resource type — see [connecting resources](/configuration/connecting-resources) for the full per-resource injection table.
+**`connectTo`** auto-injects connection details for each listed resource as environment variables. The exact variables depend on the resource type: see [connecting resources](/configuration/connecting-resources) for the full per-resource injection table.
 
 **`environment`** lets you define additional variables explicitly. Values support [directives](/configuration/directives) like `$Secret()`, `$ResourceParam()`, and `$Var()`, so you can inject secrets and computed values at execution time.
 
@@ -260,28 +256,4 @@ Scripts commonly receive environment variables from `connectTo` and `environment
 
 ## Deployment scripts
 
-[Deployment scripts](/resources/advanced/deployment-scripts) are a separate Stacktape resource that runs as an AWS Lambda function in your stack, rather than on your local machine. Consider deployment scripts when you need cloud-based execution independent of the developer's machine. See the [deployment script resource page](/resources/advanced/deployment-scripts) for VPC and networking behavior. For most tasks — builds, migrations with local tools, seeding — hooks with local scripts are simpler and more flexible.
-
-## FAQ
-
-### How do I run a database migration on deploy?
-
-Set [`releaseCommand`](/deployment-and-lifecycle/release-commands) on a container service, a function or a server-rendered site. It runs inside the VPC before any workload gets the new code. On a function or site it builds an image of the project, which needs Docker on the machine that deploys.
-
-Without Docker, define a `local-script` that runs your migration tool and use `connectTo` to inject the database connection details as environment variables — see [connecting resources](/configuration/connecting-resources) for the variable names. Attach the script to the `afterDeploy` hook so it runs automatically. If your database has no public endpoint, use `local-script-with-bastion-tunneling` instead.
-
-### Can I run multiple scripts in a single hook?
-
-Yes. Each hook (`beforeDeploy`, `afterDeploy`, etc.) accepts an array of script references. Define them in the execution order you need — for example, run tests before building.
-
-### What happens if my afterDeploy hook fails?
-
-The stack stays deployed on the new version, and `stacktape deploy` exits with an error, so a CI job fails. Hooks listed after the failed one don't run. Fix the problem and run the script again with [`stacktape script run`](/cli/script-run). To let a hook fail without failing the deploy, set `onFailure: continue` on it. See [When a hook fails](#when-a-hook-fails).
-
-### When should I use hooks vs deployment scripts?
-
-Use hooks with local scripts when you need local tooling (npm, Prisma CLI, psql), filesystem access, or flexibility in execution time. Use [deployment scripts](/resources/advanced/deployment-scripts) when you need direct VPC access without bastion setup, or when you want consistent cloud execution independent of the developer's machine. Most teams use hooks for the majority of their automation.
-
-### How do I run a script against a private (VPC-only) database?
-
-Use `local-script-with-bastion-tunneling` when you need local tools like `prisma` or `psql` — it runs the script on your machine while routing connections through a [bastion host](/resources/security/bastion-host) (you need a `bastion` resource in your config). Use `bastion-script` instead when you only need basic shell commands and want to avoid running anything locally. For most workflows, bastion tunneling is the better choice.
+A [deployment script](/resources/advanced/deployment-scripts) is different: it is a resource, a Lambda function that CloudFormation runs in your stack after every deploy or before a delete, no matter who deploys. [Deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) explains when to use which.

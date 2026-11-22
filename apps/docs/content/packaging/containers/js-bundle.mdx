@@ -1,21 +1,21 @@
 ---
-title: 'JS Bundle for Containers'
-order: 80
+title: 'JS bundle for containers'
+order: 1
 seoTitle: 'JS Bundle Container Packaging for Node.js | Stacktape Docs'
 seoDescription: 'Build container images from a JavaScript or TypeScript entry file. Stacktape bundles the code with Bun, installs only native dependencies, and pushes the image to ECR.'
 ---
 
-# JS Bundle for Containers
+# JS bundle for containers
 
 The `js-bundle` packaging type (`JsBundleImagePackaging`) builds a container image from a JavaScript or TypeScript entry file. Stacktape bundles the entry file and everything it imports into one file, installs only the dependencies that cannot be bundled, and uploads the image to a managed ECR repository. No Dockerfile is needed.
 
 It applies to [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), [multi-container workloads](/resources/compute/multi-container-workload), [batch jobs](/resources/compute/batch-job) and [AgentCore runtimes](/resources/ai/agentcore-runtime).
 
-`js-bundle` supports JavaScript and TypeScript only. For Python, Java, Go, Ruby, PHP, .NET, Rust and other languages, use [`buildpack`](/packaging/containers/buildpack).
+`js-bundle` supports JavaScript and TypeScript, run with Node.js (the default), [Bun or Deno](#bun-and-deno). For Python, Java, Go, Ruby, PHP, .NET, Rust and other languages, use [`buildpack`](/packaging/containers/buildpack).
 
 ## When to use
 
-Use `js-bundle` for Node.js services with a single entry file: Express, Hono, Fastify, NestJS or plain Node.js workers. The image is small because it contains one bundled file and the few dependencies that must stay on disk.
+Use `js-bundle` for JavaScript and TypeScript services with a single entry file: Express, Hono, Fastify, NestJS or plain workers. The image is small because it contains one bundled file and the few dependencies that must stay on disk.
 
 Use another packaging type when:
 
@@ -80,13 +80,13 @@ The `cpu` and `memory` values belong to the web service, not to packaging. See [
 
 1. Stacktape bundles the entry file and its imports into one file with source maps.
 2. Dependencies that cannot be bundled are installed in Docker. These are packages with native binaries and packages listed in `dependenciesToExcludeFromBundle`.
-3. The bundle and those dependencies are copied into an Alpine-based Node.js image.
+3. The bundle and those dependencies are copied into the runtime image: Alpine-based Node.js by default, a glibc-based Node.js image with `requiresGlibcBinaries`, or the official Debian-based Bun or Deno image.
 4. The image is pushed to a managed ECR repository.
 
 The image holds the runtime and your code, with nothing else installed:
 
 - **No init process in the image.** ECS and AWS Batch start one as PID 1 (`initProcessEnabled`). It passes the stop signal to your server and reaps orphaned processes. An AgentCore runtime cannot start one, so its image gets `tini`.
-- **curl only for health checks.** When the container's `internalHealthCheck` command calls `curl`, the image installs it. BusyBox `wget` is always available on Alpine.
+- **curl only for health checks.** When the container's `internalHealthCheck` command calls `curl`, the image installs it. On the Alpine image, BusyBox `wget` is always available.
 - **OpenSSL.** The Alpine image already has the OpenSSL 3 libraries that Prisma and other native packages load. When your code, or a package installed beside the bundle, uses Prisma, it also gets the `openssl` command, which Prisma 5 needs to choose its query engine. The glibc image (`requiresGlibcBinaries`) installs `openssl`. Install anything else, such as the `openssl` command for your own code, with `customDockerBuildCommands`.
 - **Prisma query engine.** Prisma's client is bundled, and the image gets only the query engine its platform loads. With Prisma 5 or 6, add that engine to `binaryTargets` in `schema.prisma`: `linux-musl-openssl-3.0.x` for the Alpine image, `debian-openssl-3.0.x` for the glibc, Bun and Deno images, and `linux-musl-arm64-openssl-3.0.x` or `linux-arm64-openssl-3.0.x` on arm64. Prisma 7 needs no engine.
 
@@ -201,7 +201,7 @@ The bundle is minified by default. Whitespace and syntax are shortened, but loca
 
 ### Using glibc instead of Alpine musl
 
-The image is based on Alpine Linux, which uses musl libc. Some native dependencies need glibc, for example `sharp`, `canvas`, `bcrypt` and `puppeteer`. Set `requiresGlibcBinaries: true` to use a glibc-based image. The image is larger, so enable it only when you see errors such as `Error loading shared library` or `GLIBC_X.XX not found`.
+The Node.js image is based on Alpine Linux, which uses musl libc. (Bun and Deno images are Debian-based and already use glibc.) Some native dependencies need glibc, for example `sharp`, `canvas`, `bcrypt` and `puppeteer`. Set `requiresGlibcBinaries: true` to use a glibc-based image. The image is larger, so enable it only when you see errors such as `Error loading shared library` or `GLIBC_X.XX not found`.
 
 <CodeBlock
   intellisense
@@ -322,13 +322,13 @@ export default defineConfig(() => {
 | Dockerfile needed | No | No | Yes | No |
 | Input | Entry file | Project directory | Dockerfile and build context | Image reference |
 | Start command | Generated from the bundle | Detected or `startCommand` | `command`, `entryPoint` | `command`, `entryPoint` |
-| Base image | Alpine (or glibc) | Debian | Your choice | Your choice |
+| Base image | Alpine (glibc, Bun and Deno: Debian) | Debian | Your choice | Your choice |
 
 ## FAQ
 
 ### Where are built images stored, and what does it cost?
 
-Stacktape uploads each image to a managed ECR repository. You do not create or configure it. ECR charges for image storage and data transfer out, so smaller images cost less. Keep the default Alpine image unless a dependency needs glibc, and remove tests and development files with `excludeFiles`.
+Stacktape uploads each image to a managed ECR repository. You do not create or configure it. ECR charges for image storage and data transfer out, so smaller images cost less. On Node.js, keep the default Alpine image unless a dependency needs glibc, and remove tests and development files with `excludeFiles`.
 
 ### Can I set a custom start command?
 
@@ -336,7 +336,7 @@ No. The container runs the bundled entry file. If you need a different start com
 
 ### How do I install system packages in the image?
 
-Use `customDockerBuildCommands`. On the default Alpine image, use `apk add --no-cache <package>`. This covers tools such as `ffmpeg`, native crypto libraries and database clients.
+Use `customDockerBuildCommands`. On the default Node.js Alpine image, use `apk add --no-cache <package>`; on the glibc, Bun and Deno images, which are Debian-based, use `apt-get update && apt-get install -y <package>`. This covers tools such as `ffmpeg`, native crypto libraries and database clients.
 
 ## API reference
 

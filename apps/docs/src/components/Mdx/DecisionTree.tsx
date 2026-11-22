@@ -1,5 +1,4 @@
-import clsx from 'clsx';
-import { colors } from '@/styles/variables';
+import type { CSSProperties } from 'react';
 
 type FileNode = {
   name: string;
@@ -9,59 +8,49 @@ type FileNode = {
 };
 
 const folderIcon = (
-  <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
   </svg>
 );
 
 const fileIcon = (
-  <svg className="w-4 h-4 mr-2 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
     <polyline points="14 2 14 8 20 8" />
   </svg>
 );
 
-function FileNodeComponent({ node, isLast, depth }: { node: FileNode; isLast: boolean; depth: number }) {
+function FileNodeItem({ node }: { node: FileNode }) {
   const isFolder = node.type === 'folder' || (node.children && node.children.length > 0);
-
   return (
-    <div className={depth > 0 ? 'ml-5' : undefined}>
-      <div
-        className={clsx(
-          'flex items-center py-1 text-[0.875rem] font-mono relative',
-          isFolder ? 'text-primary' : 'text-fc-primary',
-          depth > 0 && 'before:absolute before:left-[-20px] before:text-light-gray',
-          depth > 0 && (isLast ? "before:content-['└─']" : "before:content-['├─']")
-        )}
-      >
-        {isFolder ? folderIcon : fileIcon}
-        <span className={isFolder ? 'font-semibold' : 'font-normal'}>{node.name}</span>
-        {node.description && (
-          <span className="ml-3 text-light-gray text-[0.8rem] font-[inherit]">{node.description}</span>
-        )}
+    <li>
+      <div className="docs-tree-entry">
+        <span className={isFolder ? 'docs-tree-name is-folder' : 'docs-tree-name'}>
+          {isFolder ? folderIcon : fileIcon}
+          {node.name}
+        </span>
+        {node.description && <span className="docs-tree-description">{node.description}</span>}
       </div>
       {node.children && node.children.length > 0 && (
-        <div className="border-l ml-2" style={{ borderLeftColor: `${colors.lightGray}33` }}>
-          {node.children.map((child, index) => (
-            <FileNodeComponent
-              key={child.name}
-              node={child}
-              isLast={index === node.children!.length - 1}
-              depth={depth + 1}
-            />
+        <ul>
+          {node.children.map((child) => (
+            <FileNodeItem key={child.name} node={child} />
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+    </li>
   );
 }
 
+/** A file tree, as nested lists with a guide line per level. Descriptions wrap below names on narrow screens. */
 export function ProjectStructure({ files }: { files: FileNode[] }) {
   return (
-    <div className="my-6 px-5 py-4 bg-element rounded-[8px] shadow-[0_2px_8px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.05)]">
-      {files.map((file, index) => (
-        <FileNodeComponent key={file.name} node={file} isLast={index === files.length - 1} depth={0} />
-      ))}
+    <div className="docs-tree">
+      <ul>
+        {files.map((file) => (
+          <FileNodeItem key={file.name} node={file} />
+        ))}
+      </ul>
     </div>
   );
 }
@@ -72,25 +61,20 @@ type FlowStep = {
   icon?: string;
 };
 
+/** An ordered sequence: numbered markers on a connecting line, a title and an optional sentence per step. */
 export function FlowDiagram({ steps }: { steps: FlowStep[] }) {
   return (
-    <div className="my-6 flex flex-col gap-0">
-      {steps.map((step, index) => (
-        <div key={step.title} className="flex items-stretch">
-          <div className="flex flex-col items-center mr-4">
-            <div className="w-8 h-8 rounded-full bg-primary text-darker flex items-center justify-center font-sans font-bold text-[14px] shrink-0">
-              {step.icon || index + 1}
-            </div>
-            {index < steps.length - 1 && (
-              <div className="w-[2px] flex-1 min-h-[20px]" style={{ backgroundColor: `${colors.primary}33` }} />
-            )}
-          </div>
-          <div className={index < steps.length - 1 ? 'pb-5' : undefined}>
-            <p className="font-semibold text-fc-primary mb-1">{step.title}</p>
-            {step.description && <p className="text-light-gray text-[0.875rem]">{step.description}</p>}
-          </div>
-        </div>
+    <ol className="docs-steps">
+      {steps.map((step) => (
+        <li
+          key={step.title}
+          className="docs-step"
+          style={step.icon ? ({ '--docs-step-marker': JSON.stringify(step.icon) } as CSSProperties) : undefined}
+        >
+          <p className="docs-step-title">{step.title}</p>
+          {step.description && <p className="docs-step-text">{step.description}</p>}
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }

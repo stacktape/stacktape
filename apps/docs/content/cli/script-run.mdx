@@ -17,8 +17,6 @@ stacktape script run myMigration --stage production
 
 `script run` requires the script name and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults set`](/cli/defaults-configure)).
 
-<CliCommandsApiReference command="script:run" />
-
 ## Examples
 
 Add `--region` when you want to override or avoid relying on a configured default region:
@@ -54,6 +52,10 @@ If `assumeRoleOfResource` is also defined in the script's configuration properti
 ## Errors
 
 If the script name does not match any key in the `scripts` section of your configuration, the command throws `stpErrors.e20({ scriptName })`. The command looks up the script by key in `scripts`, so the script name must exactly match a key defined in your configuration.
+
+## Options
+
+<CliCommandsApiReference command="script:run" />
 
 ## Related commands
 
