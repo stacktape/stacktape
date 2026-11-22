@@ -2,46 +2,22 @@
 title: 'HTTP API Gateway'
 order: 1
 seoTitle: 'HTTP API Gateway - Serverless API Routing | Stacktape Docs'
-seoDescription: 'Create serverless HTTP APIs with Stacktape using AWS API Gateway V2. Pay-per-request pricing at ~$1/million requests, automatic TLS, CORS, custom domains, and CDN support.'
+seoDescription: 'Create HTTP APIs for Lambda functions and containers with AWS API Gateway (HTTP API): routing, CORS, custom domains, CDN, access logs, and when an Application Load Balancer costs less.'
 ---
 
-# HTTP API Gateway
+An HTTP API Gateway is a public HTTPS endpoint, run by AWS API Gateway (HTTP API), that routes requests to
+[Lambda functions](/resources/compute/lambda-function) and container workloads. It costs $1 per million requests in
+us-east-1 and nothing when idle, which makes it the default entry point for APIs. [Web services](/resources/compute/web-service)
+use one by default too.
 
-A Stacktape HTTP API Gateway creates a managed, serverless HTTP endpoint that routes requests to [Lambda functions](/resources/compute/lambda-function) and container workloads through HTTP API integrations. It uses AWS API Gateway V2 (HTTP API) — no servers to provision, automatic TLS, built-in throttling, and pay-per-request pricing at ~$1 per million requests.
-
-## When to use
-
-HTTP API Gateway is the default choice for building serverless APIs on Stacktape. Use it when your backend is one or more Lambda functions that need a public HTTPS URL with path-based routing. The pay-per-request model makes it cost-effective for APIs with variable or low-to-moderate traffic — you pay nothing when no requests arrive.
-
-Common patterns that fit well:
-
-- **REST or RPC APIs** backed by Lambda functions — each route maps to a function
-- **Single-function catch-all** — one Lambda handles all routes (e.g., a Hono, Express, or FastAPI app) with a greedy path like `/{proxy+}`
-- **Mixed backend** — some routes go to Lambda functions, others to container workloads through the same API endpoint
-- **Spiky or unpredictable traffic** — pay-per-request scales from zero to thousands of requests per second without capacity planning
-
-## When NOT to use
-
-- **Container-based services that stay running** — an [Application Load Balancer](/resources/networking/application-load-balancer) is a better fit for [web services](/resources/compute/web-service). ALBs offer richer routing (headers, query params, source IPs) and an hourly base plus LCU usage that's cheaper at sustained high throughput.
-- **Sustained high-volume APIs** (roughly above 50–100 million requests/month) — ALB's hourly base plus LCU usage becomes more economical than pay-per-request at that scale.
-- **WebSocket or persistent connections** — this HTTP API resource routes request-response traffic only. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes, or an [Application Load Balancer](/resources/networking/application-load-balancer) for a persistent container server.
-- **TCP/TLS (non-HTTP) protocols** — use a [Network Load Balancer](/resources/networking/network-load-balancer) instead.
-
-<FeatureComparisonTable
-  columns={["HTTP API Gateway", "Application Load Balancer"]}
-  features={[
-    { name: "Pricing model", values: { "HTTP API Gateway": "~$1/million requests", "Application Load Balancer": "Flat hourly charge + LCU-based" } },
-    { name: "Best for", values: { "HTTP API Gateway": "Lambda functions", "Application Load Balancer": "Container workloads" } },
-    { name: "Scales to zero cost", values: { "HTTP API Gateway": true, "Application Load Balancer": false } },
-    { name: "Routing options", values: { "HTTP API Gateway": "Method + path", "Application Load Balancer": "Method, path, headers, query params, source IPs" } },
-    { name: "Route-level authorizers", values: { "HTTP API Gateway": true, "Application Load Balancer": false } },
-    { name: "CDN attachable", values: { "HTTP API Gateway": true, "Application Load Balancer": true } }
-  ]}
-/>
+An integration must answer within 30 seconds and a request or response can be at most 10 MB. For long-lived
+connections use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway), and for TCP use a
+[Network Load Balancer](/resources/networking/network-load-balancer).
 
 ## Basic example
 
-An HTTP API Gateway resource on its own is just the entry point — it does not define routes. Routes are defined on the compute resources (Lambda functions or container workloads) that reference the gateway by name. The simplest setup is a gateway plus one or more Lambda functions with [HTTP triggers](/resources/triggers/http-triggers).
+The gateway itself holds no routes. Each function or container declares the method and path it serves, with an
+[HTTP trigger](/resources/triggers/http-triggers) that names the gateway.
 
 <CodeBlock
   intellisense
@@ -83,27 +59,27 @@ export default defineConfig(() => {
   ]}
 />
 
-The gateway `myApi` has no configuration because TLS is included and access logging is enabled by default. The `getUsers` Lambda function registers a `GET /users` route on the gateway through its `HttpApiIntegration` event.
-
-You can reference the deployed gateway URL with `$ResourceParam('myApi', 'url')` in your config. To surface the URL in terminal output after every deploy, add it to `stackConfig.outputs`.
+The deploy prints the gateway URL (`https://<api-id>.execute-api.<region>.amazonaws.com`). `GET /users` on it now
+invokes `getUsers`. In the config, `$ResourceParam('myApi', 'url')` gives the same URL.
 
 ## Routing
 
-Routes are not defined on the HTTP API Gateway itself. Instead, each compute resource declares which gateway it connects to, which HTTP method to match, and which path pattern to handle. This keeps routing co-located with the code that serves each route.
+A gateway serves routes from any number of functions and containers. Each integration sets a `method` (`GET`, `POST`,
+`PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS` or `*` for any) and a `path`:
 
-A single gateway can serve routes from many Lambda functions and container workloads. Each integration specifies a `method` and a `path`. Supported methods are `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, and `*` (any method). Paths support three patterns:
+| Pattern | Example | Matches |
+|---|---|---|
+| Exact | `/users` | Only `/users` |
+| Parameter | `/users/{id}` | `/users/123`, with `id` in `event.pathParameters` |
+| Greedy | `/api/{proxy+}` | Everything under `/api/` |
 
-| Pattern | Example | Behavior |
-|---------|---------|----------|
-| Exact path | `/users` | Matches only `/users` |
-| Path parameter | `/users/{id}` | Matches `/users/123`; `id` available in `event.pathParameters` |
-| Greedy (catch-all) | `/api/{proxy+}` | Matches any path starting with `/api/` |
+The most specific route wins, so exact paths beat greedy ones. A container integration also needs `containerPort`.
+Each integration can have its own authorizer (a Cognito user pool, a Lambda function or IAM), which runs before your code. See
+[HTTP triggers](/resources/triggers/http-triggers) for integration and authorizer options.
 
-Routes are matched by specificity — exact paths take priority over wildcard paths. For container workloads, the HTTP API integration also requires `containerPort`, because API Gateway must know which container port receives the request. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API, including the container workload integration shape.
+### One function for all routes
 
-### Catch-all pattern
-
-For frameworks like Hono, Express, or FastAPI that handle routing internally, use a single Lambda with a greedy path:
+When a framework such as Hono, Express or FastAPI does the routing, send every request to one function:
 
 <CodeBlock
   intellisense
@@ -145,15 +121,31 @@ export default defineConfig(() => {
   ]}
 />
 
-This routes every request to a single Lambda. The framework inside the Lambda handles path matching, middleware, and responses. This is the most common pattern for building APIs with Stacktape.
+## Choosing between HTTP API Gateway and a load balancer
 
-### Route authorization
+An [Application Load Balancer](/resources/networking/application-load-balancer) costs a fixed $0.0225 an hour (about
+$16 a month) plus load balancer capacity units (LCUs, $0.008 each per hour) that grow with new connections, active
+connections, traffic and rule evaluations. An HTTP API Gateway costs $1 per million requests. Monthly cost in
+us-east-1 for small (2 KB) requests at a steady rate, each on a new connection
+([API Gateway pricing](https://aws.amazon.com/api-gateway/pricing/),
+[Elastic Load Balancing pricing](https://aws.amazon.com/elasticloadbalancing/pricing/)):
 
-Each HTTP API integration can optionally define an authorizer. Authorization runs before the integration. Rejection status depends on the authorizer and failure: IAM uses `403 Forbidden`, so do not assume every denial is `401`. Check the authorizer type and response mode. Authorization is configured per-route on the integration, not on the gateway itself. See [HTTP triggers](/resources/triggers/http-triggers) for the supported authorizer types and configuration details.
+| Requests per month | HTTP API Gateway | Application Load Balancer |
+|---|---|---|
+| 1 million | $1 | about $17 |
+| 10 million | $10 | about $17 |
+| 50 million | $50 | about $21 |
+| 200 million | $200 | about $34 |
+
+The load balancer gets cheaper from about 20 million requests a month. Bursty traffic and large responses add LCUs, and
+connections that clients reuse remove them. Cost isn't the only difference: a load balancer also routes by header,
+query string and source IP, keeps WebSocket connections to containers and has no 30-second limit, while the gateway
+has per-route authorizers and scales to zero cost.
 
 ## CORS
 
-Cross-Origin Resource Sharing (CORS) controls which browser-based frontends can call your API from a different domain. When CORS is enabled on the gateway, API Gateway handles preflight `OPTIONS` requests automatically — this overrides any CORS headers your application code sets.
+CORS lets a browser app on another origin call your API. With CORS on, the gateway answers preflight `OPTIONS`
+requests itself and replaces any CORS headers your code sets.
 
 <CodeBlock
   intellisense
@@ -183,15 +175,16 @@ export default defineConfig(() => {
   ]}
 />
 
-When `enabled` is `true` with no other options, the gateway uses permissive defaults: `*` for allowed origins and common headers. The `allowedMethods` are auto-detected from the integrations attached to the gateway, so you typically don't need to set them manually.
+`enabled: true` alone allows every origin. Allowed methods come from the routes on the gateway, so you rarely set them.
+`allowCredentials: true` is needed when the browser sends cookies or an `Authorization` header, and then you must list
+the origins instead of using `*`. `maxAge` sets how long browsers cache the preflight answer, in seconds.
 
-Set `allowCredentials: true` if your frontend sends cookies or `Authorization` headers in cross-origin requests — note that this requires listing specific origins rather than using `*`. The `maxAge` property (in seconds) controls how long browsers cache preflight responses; setting it to `86400` (24 hours) reduces preflight overhead for frequently-called APIs.
-
-<Tip>If your API is called only by server-side code, mobile apps, or same-origin frontends, you don't need CORS at all — skip this setting.</Tip>
+Server-side callers, mobile apps and same-origin frontends don't need CORS.
 
 ## Custom domains
 
-Stacktape can attach your own domain (e.g., `api.example.com`) to an HTTP API Gateway. Stacktape automatically provisions a free TLS certificate and creates a DNS record in Route53. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
+After you [set up the domain](/resources/networking/custom-domains#set-up-the-domain) with `stacktape domain add`,
+attach it to the gateway:
 
 <CodeBlock
   intellisense
@@ -216,17 +209,13 @@ export default defineConfig(() => {
   ]}
 />
 
-You can attach multiple domains to a single gateway. Each domain gets its own certificate, managed and auto-renewed by AWS. If you manage DNS records yourself, set `disableDnsRecordCreation: true` and Stacktape will provision the TLS certificate but skip creating the DNS record in Route53. If you have specific certificate requirements, provide `customCertificateArn` with an ACM certificate ARN from your AWS account; otherwise Stacktape provisions and renews free certificates automatically.
-
-For full details on domain management, see [Custom domains](/resources/networking/custom-domains).
+The deploy uses the issued certificate that covers `api.example.com` and creates the DNS record. To keep DNS at
+another provider, see [External DNS](/resources/networking/custom-domains#external-dns).
 
 ## CDN
 
-The `cdn` property attaches a CDN (CloudFront) in front of the HTTP API Gateway, placing a global caching and edge-delivery layer before your API. This reduces latency for geographically distributed users and offloads repeated requests from your backend.
-
-**When to enable CDN:** Your API serves cacheable public data (product catalogs, configuration endpoints, public content), or your users are spread across multiple continents and you need lower global latency.
-
-**When to skip CDN:** Most Lambda-backed APIs return dynamic, user-specific data that isn't cacheable. Adding a CDN to a fully dynamic API adds CloudFront request and data-transfer charges, and cached behavior adds invalidation and propagation considerations. For APIs serving only authenticated, personalized responses, the default direct API Gateway endpoint is sufficient.
+`cdn.enabled: true` puts a CloudFront distribution in front of the gateway. It helps when the API returns cacheable
+public data or users are far from your region. For personalized responses it only adds CloudFront charges.
 
 <CodeBlock
   intellisense
@@ -254,13 +243,19 @@ export default defineConfig(() => {
   ]}
 />
 
-Setting `enabled: true` activates the CDN. The `cloudfrontPriceClass` controls which CloudFront edge regions serve traffic — `PriceClass_100` (North America + Europe, cheapest), `PriceClass_200` (adds Asia, Middle East, Africa), or `PriceClass_All` (all regions worldwide). WAF protection for CDN-backed APIs is configured on the CDN layer — see [CDN](/resources/networking/cdn) and [Web Application Firewall](/resources/security/web-application-firewall) for details.
+`cloudfrontPriceClass` picks the CloudFront locations: `PriceClass_100` (North America and Europe, the cheapest),
+`PriceClass_200` or `PriceClass_All`. See [CDN](/resources/networking/cdn) for caching and routing options.
 
-See [CDN](/resources/networking/cdn) for the full CDN configuration surface, including caching behavior, custom domains on the CDN itself, edge functions, and route rewrites.
+## Firewall
+
+The gateway has no firewall setting of its own. Enable `cdn` and attach a
+[web application firewall](/resources/security/web-application-firewall) to the CDN, or use an Application Load
+Balancer with `useFirewall`.
 
 ## Access logging
 
-HTTP API Gateway logs every request by default. Logs include request ID, client IP, HTTP method, status code, protocol, and response length. View logs with [`stacktape logs`](/cli/logs) or in the Stacktape Console.
+The gateway logs every request (request ID, client IP, method, path, status, response size) and keeps the logs for 30
+days. Read them with [`stacktape logs`](/cli/logs).
 
 <CodeBlock
   intellisense
@@ -288,22 +283,15 @@ export default defineConfig(() => {
   ]}
 />
 
-The `format` property controls the log output shape — `JSON` (default), `CLF` (Common Log Format), `XML`, or `CSV`. JSON is the most practical for programmatic analysis and integrates well with log forwarding. The `retentionDays` property defaults to `30`. Allowed values are: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, or 3653 days.
-
-HTTP API access logs support the shared log-forwarding configuration surface for sending logs to external services. See [Log forwarding](/observability/log-forwarding) for setup details.
-
-To disable access logging entirely (not recommended for production), set `disabled: true`.
+`format` is `JSON` by default; `CLF`, `XML` and `CSV` are also accepted. `retentionDays` takes the CloudWatch values (1,
+3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827 or 3653). `logging.disabled: true` turns logging off,
+and [log forwarding](/observability/log-forwarding) sends logs to another service.
 
 ## Payload format
 
-The payload format controls the shape of the event object your Lambda function receives from API Gateway. There are two versions:
-
-| Version | Best for |
-|---------|----------|
-| `1.0` | Legacy integrations, existing code expecting the v1 event shape |
-| `2.0` | New projects — simpler, flatter event structure with less parsing code |
-
-When not set at the gateway level, the effective default is determined by each integration — integrations default to `1.0` unless overridden. You can set the format at the gateway level (applies to all routes unless an individual integration overrides it) or set it per-route on individual integrations.
+The payload format is the shape of the event a function receives. Integrations use `1.0` unless you set `payloadFormat`
+on the gateway or on the integration. `2.0` has a flatter event and is what AWS recommends for new code; Hono's Lambda
+adapter handles both. All HTTP events of one function must use the same format.
 
 <CodeBlock
   intellisense
@@ -328,11 +316,10 @@ export default defineConfig(() => {
   ]}
 />
 
-<Tip>For new projects, use `2.0`. The simplified event structure requires less parsing code and is the format AWS recommends going forward. Frameworks like Hono's AWS Lambda adapter handle both formats transparently.</Tip>
-
 ## Alarms
 
-Stacktape supports two alarm types for HTTP API Gateway: **error rate** (percentage of 4xx/5xx responses) and **latency** (request-to-response time). Alarm notification targets are configured per-alarm through the shared notification integrations — supported targets include Slack, Microsoft Teams, email, Discord, and webhook. Define alarms in the resource config and deploy to apply changes. [Export legacy Console rules](/observability/alarms#migrating-legacy-console-alarm-rules) into config.
+Gateway alarms use the `http-api-gateway-error-rate` (share of 4xx and 5xx responses) and `http-api-gateway-latency`
+triggers.
 
 <CodeBlock
   intellisense
@@ -373,44 +360,14 @@ export default defineConfig(() => {
   ]}
 />
 
-With the example settings and the default comparison operator (`GreaterThanThreshold`), the error-rate alarm fires when 4xx/5xx error rate is greater than 5%, and the latency alarm fires when p95 latency is greater than 3000 ms. For the latency alarm, the `statistic` property controls how the metric is aggregated — `avg` (default), `p90`, `p95`, `p99`, `min`, `max`, or `sum`. The error rate alarm does not support `statistic`. Both alarm types support a custom `comparisonOperator`: `GreaterThanThreshold` (default), `GreaterThanOrEqualToThreshold`, `LessThanThreshold`, and `LessThanOrEqualToThreshold`.
+The error-rate alarm fires above 5%, the latency alarm when p95 latency is above 3,000 ms. `statistic` applies to
+latency only (`avg` by default). See [Alarms](/observability/alarms) for `evaluation` settings, comparison operators
+and notification channels.
 
-You can fine-tune alarm sensitivity with the `evaluation` property: set the evaluation `period` (default 60 seconds), `evaluationPeriods` (how many recent periods to examine), and `breachedPeriods` (how many must breach to fire). This prevents alarms from firing on brief spikes.
-
-To exclude specific legacy Console rules during migration, list their names in `disabledGlobalAlarms`. For more on alarm configuration, see [Alarms](/observability/alarms).
-
-## Referenceable parameters
-
-Use `$ResourceParam('myApi', 'paramName')` in your config to reference gateway values after deployment.
-
-<ReferenceableParams resource="http-api-gateway" />
-
-## API Reference
+## Configuration reference
 
 <ApiReference definitionName="HttpApiGatewayProps" />
 
-## FAQ
+## Referenceable parameters
 
-### How much does AWS API Gateway HTTP API cost?
-
-AWS API Gateway V2 (HTTP API) costs ~$1 per million requests with no minimum fee or hourly charge. You pay only for the requests your API receives. Data transfer out is billed separately at standard AWS rates. There's a free tier of 1 million requests per month for the first 12 months.
-
-### How do I add routes to my HTTP API Gateway?
-
-Routes are not defined on the gateway resource. Instead, attach `HttpApiIntegration` events to your [Lambda functions](/resources/compute/lambda-function) or container workloads, referencing the gateway by its resource name. Each integration specifies an HTTP method and URL path. For container workloads, the integration also requires a `containerPort`. See [HTTP triggers](/resources/triggers/http-triggers) for the full integration API.
-
-### When should I use HTTP API Gateway vs an Application Load Balancer?
-
-Use HTTP API Gateway for Lambda-based APIs with variable traffic — you pay per request and scale to zero. Use an [Application Load Balancer](/resources/networking/application-load-balancer) for container-based [web services](/resources/compute/web-service) with sustained traffic — the flat hourly cost plus LCU-based pricing is cheaper above roughly 50–100 million requests per month. ALBs also support richer routing rules (headers, query params, source IPs).
-
-### Does HTTP API Gateway support WebSockets?
-
-No. This HTTP API Gateway resource routes request-response HTTP traffic by method and path. For real-time messaging, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) with Lambda routes. Use an [Application Load Balancer](/resources/networking/application-load-balancer) when you run a persistent container WebSocket server such as Socket.IO or `ws`.
-
-### What is the maximum payload size for HTTP API Gateway?
-
-AWS API Gateway V2 (HTTP API) has a maximum payload size of 10 MB for both requests and responses. For larger payloads, use S3 presigned URLs to upload/download files directly, or use an [Application Load Balancer](/resources/networking/application-load-balancer) which does not have this limit.
-
-### Can I protect my API Gateway with a firewall?
-
-The `HttpApiGateway` resource does not expose a top-level `useFirewall` property. To add WAF protection, enable `cdn` on the gateway and attach a [WebAppFirewall](/resources/security/web-application-firewall) resource to the CDN distribution. This provides rate limiting, IP filtering, geo-blocking, and bot protection at the edge layer in front of your API. See the [CDN](/resources/networking/cdn) and [Web Application Firewall](/resources/security/web-application-firewall) pages for configuration details.
+<ReferenceableParams resource="http-api-gateway" />
