@@ -707,37 +707,6 @@
   .stp-clickable-box:hover {
     border-color: var(--docs-accent-line);
   }
-  .stp-gradient-text {
-    background: linear-gradient(
-      120deg,
-      color-mix(in oklab, var(--docs-accent) 55%, white) 0%,
-      var(--docs-accent) 42%,
-      color-mix(in oklab, var(--docs-accent) 60%, var(--stp-interactive-accent)) 100%
-    );
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    color: transparent;
-  }
-  .stp-steps {
-    counter-reset: stp-step;
-  }
-  .stp-steps h3 {
-    margin-top: 0;
-  }
-  .stp-step {
-    counter-increment: stp-step;
-  }
-  .stp-step:last-of-type .stp-step-connector {
-    display: none;
-  }
-  .stp-step:last-of-type .stp-step-body {
-    padding-bottom: 0;
-  }
-  .stp-step-number::before {
-    content: counter(stp-step);
-  }
-
   /* A warning inside generated reference descriptions (the data renderer's blockquote). */
   .highlight-wrapper {
     display: grid;

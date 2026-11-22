@@ -166,6 +166,9 @@
     min-width: 0;
     padding: var(--docs-space-40) var(--docs-gutter) 0;
   }
+  .docs-main.is-home {
+    grid-template-columns: minmax(0, var(--docs-home-measure));
+  }
   .docs-article-column {
     min-width: 0;
   }

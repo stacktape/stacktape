@@ -73,20 +73,8 @@
   --font-sans: var(--docs-font-sans);
   --font-mono: var(--docs-font-mono);
 
-  --animate-hero-glow: hero-glow 7s ease-in-out infinite;
   --animate-code-fade-in: code-fade-in 160ms ease-out;
 
-  @keyframes hero-glow {
-    0%,
-    100% {
-      opacity: 0.55;
-      transform: translate(-50%, 0) scale(1);
-    }
-    50% {
-      opacity: 0.85;
-      transform: translate(-50%, 0) scale(1.08);
-    }
-  }
   @keyframes code-fade-in {
     from {
       opacity: 0.4;

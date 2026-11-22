@@ -118,6 +118,8 @@
   --docs-toc-w: 232px;
   /* The reading measure: about 80 characters of body text, independent of the rails. */
   --docs-measure: 46rem;
+  /* The home page lays out cards in up to three columns, so it gets a wider column than an article. */
+  --docs-home-measure: 68rem;
   --docs-gutter: var(--docs-space-48);
   --docs-rail-gap: var(--docs-space-48);
 

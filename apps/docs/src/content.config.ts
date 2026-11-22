@@ -14,7 +14,8 @@ const docs = defineCollection({
       order: z.number().optional(),
       category: z.string().optional(),
       seoTitle: z.string().optional(),
-      seoDescription: z.string().optional()
+      seoDescription: z.string().optional(),
+      hideTitle: z.boolean().optional()
     })
     .passthrough()
 });
