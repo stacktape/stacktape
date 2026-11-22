@@ -1,4 +1,4 @@
-# Connecting Resources
+# Connecting resources
 
 The `connectTo` property wires resources together inside a Stacktape stack. Adding a resource name to a workload's `connectTo` list automatically grants IAM permissions, injects `STP_*` environment variables with connection details, and — for databases and Redis caches — opens security group access. One line replaces manual IAM policies, networking rules, and environment configuration.
 

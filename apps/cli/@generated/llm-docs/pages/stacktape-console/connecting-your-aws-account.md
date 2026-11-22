@@ -1,4 +1,4 @@
-# Connecting Your AWS Account
+# Connecting your AWS account
 
 Stacktape deploys infrastructure into your own AWS account using a secure cross-account IAM role. You connect an AWS account once in the Stacktape Console, and Stacktape handles credential management from that point — no manual AWS access keys required. Your projects and stacks can be deployed to any region.
 

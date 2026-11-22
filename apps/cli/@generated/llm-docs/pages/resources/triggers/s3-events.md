@@ -1,4 +1,4 @@
-# S3 Events
+# S3 events
 
 An S3 event trigger invokes a [Lambda function](/resources/compute/lambda-function) or [batch job](/resources/compute/batch-job) when objects are created, deleted, or restored in an [S3 bucket](/resources/storage/s3-bucket). S3 triggers are the standard approach for event-driven file processing — image resizing, data imports, log parsing, virus scanning — without polling or idle infrastructure costs. S3 events are configured by adding an `S3Integration` to the `events` array of a Lambda function or batch job.
 

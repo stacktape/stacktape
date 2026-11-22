@@ -1,4 +1,4 @@
-# Bastion Host
+# Bastion host
 
 A Stacktape bastion host is a lightweight EC2 instance that gives you secure, keyless access to private resources in your VPC — [relational databases](/resources/databases/relational-database), [Redis caches](/resources/databases/redis), and [OpenSearch domains](/resources/databases/opensearch). It uses AWS Systems Manager instead of SSH keys, so there are no keys to generate, distribute, or rotate.
 

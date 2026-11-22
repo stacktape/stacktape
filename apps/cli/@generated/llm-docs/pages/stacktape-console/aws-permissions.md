@@ -1,4 +1,4 @@
-# AWS Permissions Needed
+# AWS permissions
 
 Stacktape connects to your AWS account by creating a CloudFormation stack that provisions a cross-account IAM role. Stacktape assumes this role to perform deployments and read logs and metrics through the connected account. This page explains what that connection grants and how to control it. For the setup flow, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
 

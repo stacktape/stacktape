@@ -1,4 +1,4 @@
-# Buildpack for Containers
+# Buildpack for containers
 
 The `buildpack` packaging type (`BuildpackImagePackaging`) builds a container image from a project directory without a Dockerfile. Stacktape detects the language, framework, package manager, tool versions and start command from the project's own files, builds the image and uploads it to a managed ECR repository.
 

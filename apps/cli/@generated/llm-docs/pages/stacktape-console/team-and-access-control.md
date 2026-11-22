@@ -1,4 +1,4 @@
-# Team and Access Control
+# Team and access control
 
 The **Members** page in the Organization group of the Stacktape Console controls who can use your organization and
 what they reach. Invite people, choose their role, projects and AWS accounts, require two-factor sign-in, give CI an

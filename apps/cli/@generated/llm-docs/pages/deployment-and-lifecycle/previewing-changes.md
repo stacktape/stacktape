@@ -1,4 +1,4 @@
-# Previewing Changes
+# Previewing changes
 
 The [`stacktape diff`](/cli/diff) command shows what a deployment would change in your stack without applying anything. It packages workloads, generates a CloudFormation template, creates a change set against the currently deployed stack, and displays which resources would be created, updated, replaced, or removed. Use it before deploying to production, reviewing pull requests, or whenever you need to verify that a config change does what you expect.
 

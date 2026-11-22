@@ -1,4 +1,4 @@
-# Organizations, Projects, and Stages
+# Organizations, projects and stages
 
 The Stacktape Console organizes work into three levels: organizations contain projects, and projects contain stages. A project represents a single application — typically one Git repository. A stage is an isolated deployment of that project (such as production, staging, or dev), with its own databases, functions, containers, and networking.
 

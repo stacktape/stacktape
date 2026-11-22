@@ -1,4 +1,4 @@
-# Billing and Subscription
+# Billing and subscription
 
 The Stacktape CLI is open source and free, and it works without a Stacktape account; see [Use the CLI without an account](/getting-started/open-source-cli). This page covers the plans of the Stacktape Console: Free, Flexible and Enterprise. You choose and switch plans on the Subscription Plans page, which uses Paddle for checkout. The Billing page shows billing details and invoices.
 

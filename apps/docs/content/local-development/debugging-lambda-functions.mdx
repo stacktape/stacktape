@@ -1,17 +1,17 @@
 ---
-title: 'Debugging Lambda Functions'
-order: 119
+title: 'Debugging Lambda functions'
+order: 3
 seoTitle: 'Debug Lambda Functions in Dev Mode | Stacktape Docs'
 seoDescription: 'Debug AWS Lambda functions with Stacktape dev mode. Stream logs in real time, rebuild functions on demand from the TUI, and connect them to deployed databases.'
 ---
 
-# Debugging Lambda Functions
+# Debugging Lambda functions
 
 Stacktape [dev mode](/local-development/dev-mode-overview) runs Lambda functions on real AWS infrastructure while you iterate on code locally. Stacktape deploys a dev stack to run selected functions on AWS. The dev TUI shows logs and supports on-demand rebuilds — giving you a fast edit-test loop without running a full stack deployment.
 
 ## How it works
 
-Lambda functions are dev-compatible workloads that deploy to the AWS-backed dev stack and execute on AWS Lambda. Unlike [container workloads](/local-development/debugging-containers) that run locally in Docker, Lambda functions run in their real cloud environment. This surfaces issues that local emulation would miss — you test against AWS Lambda rather than a local approximation.
+Lambda functions are dev-compatible workloads that deploy to the AWS-backed dev stack and execute on AWS Lambda. Unlike [container workloads](/local-development/dev-mode-overview#what-runs-where) that run locally in Docker, Lambda functions run in their real cloud environment. This surfaces issues that local emulation would miss — you test against AWS Lambda rather than a local approximation.
 
 Stacktape deploys a dev stack when one does not already exist for the target stage. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI. Unchanged starts reuse the existing dev stack. Restarting after cloud configuration or cloud-image changes, or with missing required outputs, can update it. The dev TUI then launches with log output, keyboard controls for rebuilding functions, and status for any [local databases](/local-development/local-databases) you selected.
 
@@ -189,7 +189,7 @@ A dev stage no longer creates a VPC or NAT of its own. VPC functions work in dev
 
 The dev box costs about $0.01 per hour while a dev session runs. It stops itself 30 minutes after the last session ends, and the next `stacktape dev` starts it again (the TUI shows "Starting the dev box…", which takes about 30 seconds and overlaps the rest of startup). A stopped box costs about $0.75 per month for its disk and the SSM parameter that holds its relay. While it is stopped, dev functions in the network have no internet access: schedules and queue consumers of a dev stage that fire while nobody develops fail until the next session.
 
-See the network with [`stacktape dev network`](/cli/dev-network) and delete it with `stacktape dev network delete`.
+See the network with [`stacktape dev network`](/cli/dev-network) and delete it with [`stacktape dev network delete`](/cli/dev-network-delete).
 
 ### Several developers
 

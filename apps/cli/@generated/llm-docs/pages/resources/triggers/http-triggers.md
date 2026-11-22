@@ -1,4 +1,4 @@
-# HTTP Triggers
+# HTTP triggers
 
 HTTP triggers route incoming web requests to your Stacktape [Lambda functions](/resources/compute/lambda-function) and [container workloads](/resources/compute/multi-container-workload). Two integration types are available: [HTTP API Gateway](/resources/networking/http-api-gateway) for serverless routing by method and path, and [Application Load Balancer](/resources/networking/application-load-balancer) for routing based on paths, methods, hosts, headers, query parameters, and source IP addresses. [Web services](/resources/compute/web-service) and [private services](/resources/compute/private-service) handle HTTP traffic through their own resource-level configuration rather than event triggers.
 

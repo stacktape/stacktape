@@ -1,4 +1,4 @@
-# GitOps with Console
+# Git deployments
 
 Stacktape Console can deploy a stage whenever someone pushes to a branch, and create a preview stage for every pull
 request. It works with GitHub, GitLab and Bitbucket. You connect the Git provider once, link a project to its

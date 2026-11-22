@@ -1,6 +1,6 @@
 ---
 title: 'Directives'
-order: 12
+order: 6
 seoTitle: 'Stacktape Directives — Dynamic Config Values | Docs'
 seoDescription: 'Use Stacktape directives like $Secret, $ResourceParam, $File, and $CfFormat to inject dynamic values into your infrastructure config. Full reference with TypeScript examples.'
 ---
@@ -86,6 +86,41 @@ export default defineConfig(({ stage }) => {
 />
 
 The examples below import runtime directive helpers like `$Secret`, `$ResourceParam`, `$CfFormat`, `$GitInfo`, `$Stage`, and `$Region` from the `stacktape` package. For most local operations in TypeScript configs, prefer native JavaScript: template literals instead of `$Format`, variables instead of `$Var`, and `fs`/`import` instead of `$File`.
+
+## Pass deployment context to your app
+
+The most common use of directives is to give your code values that depend on the deploy: the stage, the region, the commit, or a value you pass on the command line. They resolve when you run [`stacktape deploy`](/cli/deploy), so one config works for every stage.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    environment: {
+      STAGE: '$Stage()',
+      REGION: '$Region()',
+      GIT_COMMIT: "$GitInfo('commit')",
+      LOG_LEVEL: "$CliArgs('logLevel', 'info')"
+    }
+  });
+
+  return { resources: { api } };
+});
+// [!code focus-end]`
+    }
+  ]}
+/>
+
+Your code reads them as `process.env.STAGE`, `process.env.GIT_COMMIT` and so on. `LOG_LEVEL` is `info` unless you deploy with `-- --logLevel debug`. For values that differ more between stages, such as instance sizes or whole resources, see [Stages and environments](/configuration/stages-and-environments).
 
 ## Local directives reference
 
@@ -702,3 +737,11 @@ Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at co
 ### How do I access JSON properties from $Secret?
 
 Pass a top-level key as the second argument to read one value from a JSON secret: `$Secret('my-secret', 'apiKey')`, where `my-secret` is the secret name and `apiKey` is a top-level key in the JSON object. Nested key traversal is not supported. The secret value must be valid JSON — if it isn't, Stacktape reports a parsing error.
+
+### How do runtime directives resolve in dev mode?
+
+During local resolution, for example in [`stacktape dev`](/local-development/dev-mode-overview), runtime directives do not emit CloudFormation references. `$ResourceParam()` reads the value from the deployed stack. `$Secret()` fetches the secret from Secrets Manager, and `$SsmParam()` fetches the parameter from SSM. So `stacktape dev` needs the referenced values to exist in AWS.
+
+### How do I keep one config for development and production?
+
+For string values, use `$Stage()` directly or compose stage-specific names with `$Format()`, or template literals in TypeScript. Because `defineConfig` takes a function, you can use normal conditionals for bigger differences, such as a smaller database in `dev`. Create separate [secrets](/configuration/secrets) per stage for sensitive values that differ. See [Stages and environments](/configuration/stages-and-environments).

@@ -1,4 +1,4 @@
-# SNS Topic
+# SNS topic
 
 A Stacktape SNS topic is a fully managed, serverless pub/sub messaging service built on Amazon SNS. Publish a message once and deliver it to many subscribers — Lambda functions, SQS queues, email addresses, SMS numbers, or HTTP endpoints. You pay per publish with no upfront cost and no infrastructure to manage.
 

@@ -94,7 +94,7 @@ Budgets work with the other cost tools in the Console:
 |------|-----------|
 | [Dashboards](/managing-costs/dashboards) | See spending trends over time. |
 | **Budgets** (this page) | Get alerted when an account's spend crosses a limit. |
-| [Per-resource breakdown](/managing-costs/per-resource-breakdown) | Find the projects, stages and resources that drive costs. |
+| [Cost dashboards](/managing-costs/dashboards) | Find the projects, stages and resources that drive costs. |
 | [Optimization tips](/managing-costs/optimization-tips) | Lower your baseline spend. |
 
 ## FAQ
@@ -107,7 +107,7 @@ deployments, use [guardrails](/guardrails/overview) to restrict resource sizes, 
 ### Can I set a budget for one stage, project or database?
 
 No. A budget watches a whole AWS account. To see spend per project, stage or resource, use the
-[per-resource breakdown](/managing-costs/per-resource-breakdown). To alert on one stage's spend, deploy that stage to its
+[stage cost breakdown](/managing-costs/dashboards#stage-costs-per-resource). To alert on one stage's spend, deploy that stage to its
 own AWS account and create a budget for that account.
 
 ### How much do AWS Budgets cost?

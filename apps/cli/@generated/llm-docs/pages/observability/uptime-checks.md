@@ -1,4 +1,4 @@
-# Uptime Checks
+# Uptime checks
 
 Uptime checks probe your HTTP endpoints from multiple AWS regions and alert you when an endpoint stops responding successfully. The probes run inside your own AWS account — Stacktape provisions a small prober Lambda in each monitoring region, so there is no external monitoring vendor and no per-check subscription fee. The Console shows live status, availability and latency history, and an incident timeline for every check.
 

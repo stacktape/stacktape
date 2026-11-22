@@ -1,4 +1,4 @@
-# Kinesis Events
+# Kinesis events
 
 A Kinesis event trigger invokes a [Lambda function](/resources/compute/lambda-function) whenever new records arrive in a [Kinesis Data Stream](/resources/messaging/kinesis-stream). Records are delivered in configurable batches, making Kinesis triggers the primary choice for real-time data processing — clickstream analytics, log ingestion, IoT telemetry, and event-driven pipelines that require ordered, replayable delivery.
 

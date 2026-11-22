@@ -1,4 +1,4 @@
-# Resource Limit Guardrails
+# Resource limit guardrails
 
 Resource limit guardrails are preventive policies that cap compute sizing, allowed resource types, and total Stacktape resource count in your stack. They define maximum allowed values for governance checks — if a [Lambda function](/resources/compute/lambda-function) exceeds a memory ceiling or a [container workload](/resources/compute/web-service) requests too much CPU, the configuration is non-compliant with this guardrail.
 

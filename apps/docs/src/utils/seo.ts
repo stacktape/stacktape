@@ -112,7 +112,10 @@ export const extractFaqItems = (markdown: string): FaqItem[] => {
   return items;
 };
 
-/** Build an absolute-URL breadcrumb trail from the slug, naming each level from real page titles. */
+/**
+ * Build an absolute-URL breadcrumb trail from the slug, naming each level from real page titles. A level without a page
+ * of its own (such as `/resources/compute`) is left out, so the trail never links to a URL that does not exist.
+ */
 export const buildBreadcrumb = (slug: string[], allDocPages: { url: string; title: string }[]): BreadcrumbItem[] => {
   const titleByUrl = new Map(allDocPages.map((p) => [p.url, p.title]));
   const items: BreadcrumbItem[] = [{ name: 'Docs', url: `${SITE_URL}/` }];
@@ -120,8 +123,10 @@ export const buildBreadcrumb = (slug: string[], allDocPages: { url: string; titl
   for (const segment of slug) {
     acc.push(segment);
     const path = `/${acc.join('/')}`;
+    const title = titleByUrl.get(path);
+    if (!title) continue;
     // Trailing slash to match the served (trailingSlash: 'always') URLs the breadcrumb points at.
-    items.push({ name: titleByUrl.get(path) || slugToTitle(segment), url: `${SITE_URL}${path}/` });
+    items.push({ name: title, url: `${SITE_URL}${path}/` });
   }
   return items;
 };

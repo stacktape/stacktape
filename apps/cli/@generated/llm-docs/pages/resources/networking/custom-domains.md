@@ -1,4 +1,4 @@
-# Custom Domains
+# Custom domains
 
 Use a custom domain such as `api.example.com` to serve a resource at your own address. With DNS in Route 53, Stacktape can create the record for you. You can also [keep DNS at your current provider](#external-dns).
 

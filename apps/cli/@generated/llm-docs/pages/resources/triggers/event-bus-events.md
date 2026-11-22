@@ -1,4 +1,4 @@
-# Event Bus Events
+# Event bus events
 
 Stacktape's `EventBusIntegration` triggers a target when an event matching a pattern arrives on an Amazon EventBridge event bus. EventBridge is a serverless event router — you publish structured JSON events to a bus, define filter patterns, and EventBridge delivers matching events to your targets. Stacktape configures the EventBridge rule and target integration declaratively.
 

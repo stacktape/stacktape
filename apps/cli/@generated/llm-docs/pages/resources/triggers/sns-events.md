@@ -1,4 +1,4 @@
-# SNS Events
+# SNS events
 
 An SNS event trigger invokes a [Lambda function](/resources/compute/lambda-function) each time a message is published to an [SNS topic](/resources/messaging/sns-topic). SNS (Simple Notification Service) is AWS's pub/sub messaging service — publishers send messages to a topic, and every subscriber receives its own copy. SNS triggers fit fan-out patterns where one event needs to reach multiple independent consumers.
 

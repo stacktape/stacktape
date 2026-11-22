@@ -15625,7 +15625,7 @@
     },
     {
       "id": "page:/ci-cd-and-gitops/build-runners",
-      "title": "Build Runners",
+      "title": "Build runners",
       "route": "/ci-cd-and-gitops/build-runners",
       "sourcePath": "apps/docs/content/ci-cd-and-gitops/build-runners.mdx",
       "outputPath": "pages/ci-cd-and-gitops/build-runners.md",
@@ -15703,7 +15703,7 @@
     },
     {
       "id": "page:/ci-cd-and-gitops/gitops-with-console",
-      "title": "GitOps with Console",
+      "title": "Git deployments",
       "route": "/ci-cd-and-gitops/gitops-with-console",
       "sourcePath": "apps/docs/content/ci-cd-and-gitops/gitops-with-console.mdx",
       "outputPath": "pages/ci-cd-and-gitops/gitops-with-console.md",
@@ -15714,7 +15714,7 @@
         "gitops-with-console"
       ],
       "chunks": [
-        "page:/ci-cd-and-gitops/gitops-with-console#gitops-with-console",
+        "page:/ci-cd-and-gitops/gitops-with-console#git-deployments",
         "page:/ci-cd-and-gitops/gitops-with-console#when-to-use",
         "page:/ci-cd-and-gitops/gitops-with-console#before-you-start",
         "page:/ci-cd-and-gitops/gitops-with-console#connect-your-git-provider",
@@ -15739,7 +15739,7 @@
     },
     {
       "id": "page:/ci-cd-and-gitops/overview",
-      "title": "CI/CD and GitOps Overview",
+      "title": "CI/CD overview",
       "route": "/ci-cd-and-gitops/overview",
       "sourcePath": "apps/docs/content/ci-cd-and-gitops/overview.mdx",
       "outputPath": "pages/ci-cd-and-gitops/overview.md",
@@ -15750,31 +15750,23 @@
         "overview"
       ],
       "chunks": [
-        "page:/ci-cd-and-gitops/overview#ci-cd-and-gitops-overview",
-        "page:/ci-cd-and-gitops/overview#automation-options-at-a-glance",
+        "page:/ci-cd-and-gitops/overview#ci-cd-overview",
+        "page:/ci-cd-and-gitops/overview#compare-the-options",
         "page:/ci-cd-and-gitops/overview#feature-comparison",
-        "page:/ci-cd-and-gitops/overview#gitops-with-console",
-        "page:/ci-cd-and-gitops/overview#when-to-use-gitops",
-        "page:/ci-cd-and-gitops/overview#when-not-to-use-gitops",
-        "page:/ci-cd-and-gitops/overview#custom-ci-cd",
-        "page:/ci-cd-and-gitops/overview#when-to-use-custom-ci-cd",
-        "page:/ci-cd-and-gitops/overview#when-not-to-use-custom-ci-cd",
-        "page:/ci-cd-and-gitops/overview#self-hosted-github-actions-runners",
-        "page:/ci-cd-and-gitops/overview#build-runners",
-        "page:/ci-cd-and-gitops/overview#stacks-per-git-branch",
-        "page:/ci-cd-and-gitops/overview#choosing-the-right-approach",
+        "page:/ci-cd-and-gitops/overview#git-deployments-in-the-console",
+        "page:/ci-cd-and-gitops/overview#your-own-ci-pipeline",
+        "page:/ci-cd-and-gitops/overview#pull-request-previews",
+        "page:/ci-cd-and-gitops/overview#runners",
         "page:/ci-cd-and-gitops/overview#faq",
         "page:/ci-cd-and-gitops/overview#do-i-need-aws-credentials-in-my-ci-pipeline",
         "page:/ci-cd-and-gitops/overview#what-stage-does-a-gitops-pr-preview-deploy-to",
-        "page:/ci-cd-and-gitops/overview#can-i-run-tests-before-deploying-with-gitops",
-        "page:/ci-cd-and-gitops/overview#what-stage-names-should-i-use-for-branch-derived-stages",
         "page:/ci-cd-and-gitops/overview#how-much-do-automated-deployments-cost",
         "page:/ci-cd-and-gitops/overview#how-do-i-roll-back-a-failed-automated-deployment"
       ]
     },
     {
       "id": "page:/ci-cd-and-gitops/self-hosted-github-actions-runners",
-      "title": "Self-Hosted GitHub Actions Runners",
+      "title": "Self-hosted GitHub Actions runners",
       "route": "/ci-cd-and-gitops/self-hosted-github-actions-runners",
       "sourcePath": "apps/docs/content/ci-cd-and-gitops/self-hosted-github-actions-runners.mdx",
       "outputPath": "pages/ci-cd-and-gitops/self-hosted-github-actions-runners.md",
@@ -15817,7 +15809,7 @@
     },
     {
       "id": "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern",
-      "title": "Stacks per Git Branch Pattern",
+      "title": "Stacks per Git branch",
       "route": "/ci-cd-and-gitops/stacks-per-git-branch-pattern",
       "sourcePath": "apps/docs/content/ci-cd-and-gitops/stacks-per-git-branch-pattern.mdx",
       "outputPath": "pages/ci-cd-and-gitops/stacks-per-git-branch-pattern.md",
@@ -15828,7 +15820,7 @@
         "stacks-per-git-branch-pattern"
       ],
       "chunks": [
-        "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#stacks-per-git-branch-pattern",
+        "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#stacks-per-git-branch",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#how-the-pattern-works",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#long-lived-branch-stages",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#setting-up-with-gitops",
@@ -15853,6 +15845,29 @@
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#what-happens-to-data-when-a-preview-stage-is-deleted",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#how-do-i-debug-a-failing-pr-preview-deployment",
         "page:/ci-cd-and-gitops/stacks-per-git-branch-pattern#gitops-vs-custom-ci-cd-for-stacks-per-branch-which-should-i-choose"
+      ]
+    },
+    {
+      "id": "page:/cli",
+      "title": "Command index",
+      "route": "/cli",
+      "sourcePath": "apps/docs/content/cli/index.mdx",
+      "outputPath": "pages/cli.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli"
+      ],
+      "chunks": [
+        "page:/cli#command-index",
+        "page:/cli#set-up",
+        "page:/cli#deploy-and-manage-stacks",
+        "page:/cli#develop-locally",
+        "page:/cli#secrets-and-parameters",
+        "page:/cli#inspect-and-debug",
+        "page:/cli#incidents-and-errors",
+        "page:/cli#console-and-account",
+        "page:/cli#coding-agents"
       ]
     },
     {
@@ -15892,6 +15907,29 @@
         "page:/cli/ai-disconnect#ai-disconnect",
         "page:/cli/ai-disconnect#usage",
         "page:/cli/ai-disconnect#flags-reference"
+      ]
+    },
+    {
+      "id": "page:/cli/alarm-export",
+      "title": "alarm export",
+      "route": "/cli/alarm-export",
+      "sourcePath": "apps/docs/content/cli/alarm-export.mdx",
+      "outputPath": "pages/cli/alarm-export.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "alarm-export"
+      ],
+      "chunks": [
+        "page:/cli/alarm-export#alarm-export",
+        "page:/cli/alarm-export#usage",
+        "page:/cli/alarm-export#alarm-api-error-rate",
+        "page:/cli/alarm-export#applies-to-projects-all-stages-production",
+        "page:/cli/alarm-export#moving-the-rules-into-your-configuration",
+        "page:/cli/alarm-export#options",
+        "page:/cli/alarm-export#cli-options-stacktape-alarm-export",
+        "page:/cli/alarm-export#related-commands"
       ]
     },
     {
@@ -16176,6 +16214,31 @@
       ]
     },
     {
+      "id": "page:/cli/connect",
+      "title": "connect",
+      "route": "/cli/connect",
+      "sourcePath": "apps/docs/content/cli/connect.mdx",
+      "outputPath": "pages/cli/connect.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "connect"
+      ],
+      "chunks": [
+        "page:/cli/connect#connect",
+        "page:/cli/connect#usage",
+        "page:/cli/connect#what-happens",
+        "page:/cli/connect#who-can-connect-an-account",
+        "page:/cli/connect#in-scripts-and-coding-agents",
+        "page:/cli/connect#when-some-stacks-are-missing",
+        "page:/cli/connect#undo-it",
+        "page:/cli/connect#options",
+        "page:/cli/connect#cli-options-stacktape-connect",
+        "page:/cli/connect#related-commands"
+      ]
+    },
+    {
       "id": "page:/cli/container-exec",
       "title": "container exec",
       "route": "/cli/container-exec",
@@ -16381,6 +16444,27 @@
       ]
     },
     {
+      "id": "page:/cli/dev-network-delete",
+      "title": "dev network delete",
+      "route": "/cli/dev-network-delete",
+      "sourcePath": "apps/docs/content/cli/dev-network-delete.mdx",
+      "outputPath": "pages/cli/dev-network-delete.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "dev-network-delete"
+      ],
+      "chunks": [
+        "page:/cli/dev-network-delete#dev-network-delete",
+        "page:/cli/dev-network-delete#usage",
+        "page:/cli/dev-network-delete#when-creating-the-network-failed",
+        "page:/cli/dev-network-delete#options",
+        "page:/cli/dev-network-delete#cli-options-stacktape-dev-network-delete",
+        "page:/cli/dev-network-delete#related-commands"
+      ]
+    },
+    {
       "id": "page:/cli/dev-network",
       "title": "dev network",
       "route": "/cli/dev-network",
@@ -16397,10 +16481,8 @@
         "page:/cli/dev-network#usage",
         "page:/cli/dev-network#who-can-reach-the-tunnels",
         "page:/cli/dev-network#deleting-the-dev-network",
-        "page:/cli/dev-network#when-creating-the-network-failed",
-        "page:/cli/dev-network#flags-reference",
+        "page:/cli/dev-network#options",
         "page:/cli/dev-network#cli-options-stacktape-dev-network",
-        "page:/cli/dev-network#cli-options-stacktape-dev-network-delete",
         "page:/cli/dev-network#related-commands"
       ]
     },
@@ -17667,7 +17749,7 @@
     },
     {
       "id": "page:/configuration/configuration-files",
-      "title": "Configuration Files",
+      "title": "Configuration files",
       "route": "/configuration/configuration-files",
       "sourcePath": "apps/docs/content/configuration/configuration-files.mdx",
       "outputPath": "pages/configuration/configuration-files.md",
@@ -17708,7 +17790,7 @@
     },
     {
       "id": "page:/configuration/connecting-resources",
-      "title": "Connecting Resources",
+      "title": "Connecting resources",
       "route": "/configuration/connecting-resources",
       "sourcePath": "apps/docs/content/configuration/connecting-resources.mdx",
       "outputPath": "pages/configuration/connecting-resources.md",
@@ -17783,6 +17865,7 @@
         "page:/configuration/directives#why-directives-exist",
         "page:/configuration/directives#local-vs-runtime-directives",
         "page:/configuration/directives#using-directives-in-typescript",
+        "page:/configuration/directives#pass-deployment-context-to-your-app",
         "page:/configuration/directives#local-directives-reference",
         "page:/configuration/directives#stage",
         "page:/configuration/directives#region",
@@ -17814,12 +17897,14 @@
         "page:/configuration/directives#what-happens-if-a-referenced-secret-doesn-t-exist",
         "page:/configuration/directives#how-does-cfstackoutput-prevent-accidental-deletion",
         "page:/configuration/directives#can-i-import-an-output-from-a-stack-in-another-region",
-        "page:/configuration/directives#how-do-i-access-json-properties-from-secret"
+        "page:/configuration/directives#how-do-i-access-json-properties-from-secret",
+        "page:/configuration/directives#how-do-runtime-directives-resolve-in-dev-mode",
+        "page:/configuration/directives#how-do-i-keep-one-config-for-development-and-production"
       ]
     },
     {
       "id": "page:/configuration/hooks-and-scripts",
-      "title": "Hooks and Scripts",
+      "title": "Hooks and scripts",
       "route": "/configuration/hooks-and-scripts",
       "sourcePath": "apps/docs/content/configuration/hooks-and-scripts.mdx",
       "outputPath": "pages/configuration/hooks-and-scripts.md",
@@ -17852,7 +17937,7 @@
     },
     {
       "id": "page:/configuration/overrides-and-escape-hatches",
-      "title": "Overrides and Escape Hatches",
+      "title": "Overrides and escape hatches",
       "route": "/configuration/overrides-and-escape-hatches",
       "sourcePath": "apps/docs/content/configuration/overrides-and-escape-hatches.mdx",
       "outputPath": "pages/configuration/overrides-and-escape-hatches.md",
@@ -17902,7 +17987,7 @@
     },
     {
       "id": "page:/configuration/referenceable-parameters",
-      "title": "Referenceable Parameters",
+      "title": "Referenceable parameters",
       "route": "/configuration/referenceable-parameters",
       "sourcePath": "apps/docs/content/configuration/referenceable-parameters.mdx",
       "outputPath": "pages/configuration/referenceable-parameters.md",
@@ -18000,7 +18085,7 @@
     },
     {
       "id": "page:/configuration/resources",
-      "title": "Resources",
+      "title": "Declaring resources",
       "route": "/configuration/resources",
       "sourcePath": "apps/docs/content/configuration/resources.mdx",
       "outputPath": "pages/configuration/resources.md",
@@ -18011,10 +18096,10 @@
         "resources"
       ],
       "chunks": [
-        "page:/configuration/resources#resources",
+        "page:/configuration/resources#declaring-resources",
         "page:/configuration/resources#why-resources-exist",
         "page:/configuration/resources#defining-resources",
-        "page:/configuration/resources#resource-categories",
+        "page:/configuration/resources#which-resources-exist",
         "page:/configuration/resources#connecting-resources",
         "page:/configuration/resources#resource-references-with-directives",
         "page:/configuration/resources#how-resources-map-to-aws",
@@ -18070,7 +18155,7 @@
     },
     {
       "id": "page:/configuration/stages-and-environments",
-      "title": "Stages and Environments",
+      "title": "Stages and environments",
       "route": "/configuration/stages-and-environments",
       "sourcePath": "apps/docs/content/configuration/stages-and-environments.mdx",
       "outputPath": "pages/configuration/stages-and-environments.md",
@@ -18116,7 +18201,7 @@
     },
     {
       "id": "page:/configuration/variables-and-reuse",
-      "title": "Variables and Reuse",
+      "title": "Variables and reuse",
       "route": "/configuration/variables-and-reuse",
       "sourcePath": "apps/docs/content/configuration/variables-and-reuse.mdx",
       "outputPath": "pages/configuration/variables-and-reuse.md",
@@ -18172,49 +18257,8 @@
       ]
     },
     {
-      "id": "page:/deployment-and-lifecycle/deploy-time-parameters",
-      "title": "Deploy-Time Parameters",
-      "route": "/deployment-and-lifecycle/deploy-time-parameters",
-      "sourcePath": "apps/docs/content/deployment-and-lifecycle/deploy-time-parameters.mdx",
-      "outputPath": "pages/deployment-and-lifecycle/deploy-time-parameters.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "deployment-and-lifecycle",
-        "deploy-time-parameters"
-      ],
-      "chunks": [
-        "page:/deployment-and-lifecycle/deploy-time-parameters#deploy-time-parameters",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#typescript-programmatic-config",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#directive-syntax",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#resolution-phases",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#deployment-context-directives",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#custom-cli-arguments",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#external-configuration-files",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#git-metadata",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#string-composition",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#format",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#cfformat",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#cross-stack-references",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#stackoutput",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#cfstackoutput",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#secrets-and-ssm-parameters",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#resource-references",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#resourceparam",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#cfresourceparam",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#variables-and-self-reference",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#faq",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#what-is-the-difference-between-format-and-cfformat",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#how-do-i-manage-different-configurations-for-development-and-production",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#how-do-i-pass-secrets-to-my-application-at-deploy-time",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#can-i-reference-outputs-from-a-stack-in-a-different-aws-region",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#how-do-cloudformation-time-directives-behave-during-local-development",
-        "page:/deployment-and-lifecycle/deploy-time-parameters#when-should-i-use-file-vs-cliargs-for-external-configuration"
-      ]
-    },
-    {
       "id": "page:/deployment-and-lifecycle/deploying-stacks",
-      "title": "Deploying Stacks",
+      "title": "Deploying stacks",
       "route": "/deployment-and-lifecycle/deploying-stacks",
       "sourcePath": "apps/docs/content/deployment-and-lifecycle/deploying-stacks.mdx",
       "outputPath": "pages/deployment-and-lifecycle/deploying-stacks.md",
@@ -18263,7 +18307,7 @@
     },
     {
       "id": "page:/deployment-and-lifecycle/deployment-scripts-and-hooks",
-      "title": "Deployment Scripts and Hooks",
+      "title": "Deployment scripts and hooks",
       "route": "/deployment-and-lifecycle/deployment-scripts-and-hooks",
       "sourcePath": "apps/docs/content/deployment-and-lifecycle/deployment-scripts-and-hooks.mdx",
       "outputPath": "pages/deployment-and-lifecycle/deployment-scripts-and-hooks.md",
@@ -18313,7 +18357,7 @@
     },
     {
       "id": "page:/deployment-and-lifecycle/destroying-stacks",
-      "title": "Destroying Stacks",
+      "title": "Deleting stacks",
       "route": "/deployment-and-lifecycle/destroying-stacks",
       "sourcePath": "apps/docs/content/deployment-and-lifecycle/destroying-stacks.mdx",
       "outputPath": "pages/deployment-and-lifecycle/destroying-stacks.md",
@@ -18324,7 +18368,7 @@
         "destroying-stacks"
       ],
       "chunks": [
-        "page:/deployment-and-lifecycle/destroying-stacks#destroying-stacks",
+        "page:/deployment-and-lifecycle/destroying-stacks#deleting-stacks",
         "page:/deployment-and-lifecycle/destroying-stacks#how-deletion-works",
         "page:/deployment-and-lifecycle/destroying-stacks#using-the-cli",
         "page:/deployment-and-lifecycle/destroying-stacks#termination-protection",
@@ -18345,7 +18389,7 @@
     },
     {
       "id": "page:/deployment-and-lifecycle/gradual-deployments",
-      "title": "Gradual Deployments",
+      "title": "Gradual deployments",
       "route": "/deployment-and-lifecycle/gradual-deployments",
       "sourcePath": "apps/docs/content/deployment-and-lifecycle/gradual-deployments.mdx",
       "outputPath": "pages/deployment-and-lifecycle/gradual-deployments.md",
@@ -18390,7 +18434,7 @@
     },
     {
       "id": "page:/deployment-and-lifecycle/multi-region-deployments",
-      "title": "Multi-Region Deployments",
+      "title": "Multi-region deployments",
       "route": "/deployment-and-lifecycle/multi-region-deployments",
       "sourcePath": "apps/docs/content/deployment-and-lifecycle/multi-region-deployments.mdx",
       "outputPath": "pages/deployment-and-lifecycle/multi-region-deployments.md",
@@ -18429,7 +18473,7 @@
     },
     {
       "id": "page:/deployment-and-lifecycle/previewing-changes",
-      "title": "Previewing Changes",
+      "title": "Previewing changes",
       "route": "/deployment-and-lifecycle/previewing-changes",
       "sourcePath": "apps/docs/content/deployment-and-lifecycle/previewing-changes.mdx",
       "outputPath": "pages/deployment-and-lifecycle/previewing-changes.md",
@@ -18820,7 +18864,7 @@
     },
     {
       "id": "page:/guardrails/databases",
-      "title": "Database Guardrails",
+      "title": "Database guardrails",
       "route": "/guardrails/databases",
       "sourcePath": "apps/docs/content/guardrails/databases.mdx",
       "outputPath": "pages/guardrails/databases.md",
@@ -18848,7 +18892,7 @@
     },
     {
       "id": "page:/guardrails/deployment",
-      "title": "Deployment Guardrails",
+      "title": "Deployment guardrails",
       "route": "/guardrails/deployment",
       "sourcePath": "apps/docs/content/guardrails/deployment.mdx",
       "outputPath": "pages/guardrails/deployment.md",
@@ -18892,7 +18936,7 @@
     },
     {
       "id": "page:/guardrails/overview",
-      "title": "Guardrails Overview",
+      "title": "Guardrails overview",
       "route": "/guardrails/overview",
       "sourcePath": "apps/docs/content/guardrails/overview.mdx",
       "outputPath": "pages/guardrails/overview.md",
@@ -18923,7 +18967,7 @@
     },
     {
       "id": "page:/guardrails/resource-limits",
-      "title": "Resource Limit Guardrails",
+      "title": "Resource limit guardrails",
       "route": "/guardrails/resource-limits",
       "sourcePath": "apps/docs/content/guardrails/resource-limits.mdx",
       "outputPath": "pages/guardrails/resource-limits.md",
@@ -18956,7 +19000,7 @@
     },
     {
       "id": "page:/guardrails/security-and-data-protection",
-      "title": "Security and Data Protection Guardrails",
+      "title": "Security and data protection guardrails",
       "route": "/guardrails/security-and-data-protection",
       "sourcePath": "apps/docs/content/guardrails/security-and-data-protection.mdx",
       "outputPath": "pages/guardrails/security-and-data-protection.md",
@@ -19022,98 +19066,8 @@
       ]
     },
     {
-      "id": "page:/local-development/debug-commands-reference",
-      "title": "Debug Commands Reference",
-      "route": "/local-development/debug-commands-reference",
-      "sourcePath": "apps/docs/content/local-development/debug-commands-reference.mdx",
-      "outputPath": "pages/local-development/debug-commands-reference.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "local-development",
-        "debug-commands-reference"
-      ],
-      "chunks": [
-        "page:/local-development/debug-commands-reference#debug-commands-reference",
-        "page:/local-development/debug-commands-reference#command-overview",
-        "page:/local-development/debug-commands-reference#stack-targeting",
-        "page:/local-development/debug-commands-reference#viewing-logs",
-        "page:/local-development/debug-commands-reference#basic-usage",
-        "page:/local-development/debug-commands-reference#time-range",
-        "page:/local-development/debug-commands-reference#filtering",
-        "page:/local-development/debug-commands-reference#cloudwatch-logs-insights-queries",
-        "page:/local-development/debug-commands-reference#output-format",
-        "page:/local-development/debug-commands-reference#agent-mode",
-        "page:/local-development/debug-commands-reference#viewing-metrics",
-        "page:/local-development/debug-commands-reference#supported-resource-types-and-metrics",
-        "page:/local-development/debug-commands-reference#basic-usage-2",
-        "page:/local-development/debug-commands-reference#customizing-the-query",
-        "page:/local-development/debug-commands-reference#terminal-output",
-        "page:/local-development/debug-commands-reference#viewing-alarms",
-        "page:/local-development/debug-commands-reference#querying-sql-databases",
-        "page:/local-development/debug-commands-reference#querying-dynamodb",
-        "page:/local-development/debug-commands-reference#querying-redis",
-        "page:/local-development/debug-commands-reference#querying-opensearch",
-        "page:/local-development/debug-commands-reference#running-aws-sdk-commands",
-        "page:/local-development/debug-commands-reference#executing-commands-in-containers",
-        "page:/local-development/debug-commands-reference#interactive-container-shell",
-        "page:/local-development/debug-commands-reference#bastion-tunneling",
-        "page:/local-development/debug-commands-reference#bastion-shell-session",
-        "page:/local-development/debug-commands-reference#credentials-and-permissions",
-        "page:/local-development/debug-commands-reference#faq",
-        "page:/local-development/debug-commands-reference#how-do-i-view-real-time-logs-as-they-arrive",
-        "page:/local-development/debug-commands-reference#can-i-use-debug-commands-with-dev-mode-stacks",
-        "page:/local-development/debug-commands-reference#how-do-i-debug-a-vpc-only-database-without-a-bastion",
-        "page:/local-development/debug-commands-reference#what-s-the-difference-between-container-exec-and-container-shell",
-        "page:/local-development/debug-commands-reference#how-do-i-know-which-metrics-are-available-for-my-resource",
-        "page:/local-development/debug-commands-reference#how-much-do-debug-commands-cost",
-        "page:/local-development/debug-commands-reference#can-i-pipe-debug-command-output-to-other-tools"
-      ]
-    },
-    {
-      "id": "page:/local-development/debugging-containers",
-      "title": "Debugging Containers",
-      "route": "/local-development/debugging-containers",
-      "sourcePath": "apps/docs/content/local-development/debugging-containers.mdx",
-      "outputPath": "pages/local-development/debugging-containers.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "local-development",
-        "debugging-containers"
-      ],
-      "chunks": [
-        "page:/local-development/debugging-containers#debugging-containers",
-        "page:/local-development/debugging-containers#supported-resources",
-        "page:/local-development/debugging-containers#choosing-the-right-command",
-        "page:/local-development/debugging-containers#feature-comparison",
-        "page:/local-development/debugging-containers#interactive-shell-sessions",
-        "page:/local-development/debugging-containers#multiple-running-tasks",
-        "page:/local-development/debugging-containers#common-use-cases",
-        "page:/local-development/debugging-containers#running-one-off-commands",
-        "page:/local-development/debugging-containers#targeting-a-specific-task",
-        "page:/local-development/debugging-containers#scripting-and-automation",
-        "page:/local-development/debugging-containers#multi-container-workloads",
-        "page:/local-development/debugging-containers#viewing-container-logs",
-        "page:/local-development/debugging-containers#deployed-stacks-only",
-        "page:/local-development/debugging-containers#prerequisites",
-        "page:/local-development/debugging-containers#troubleshooting",
-        "page:/local-development/debugging-containers#resource-is-not-a-valid-container-based-resource",
-        "page:/local-development/debugging-containers#does-not-have-a-deployed-ecs-service",
-        "page:/local-development/debugging-containers#no-running-tasks-found-for-this-resource",
-        "page:/local-development/debugging-containers#session-disconnects-immediately",
-        "page:/local-development/debugging-containers#specifying-which-container-to-connect-to",
-        "page:/local-development/debugging-containers#faq",
-        "page:/local-development/debugging-containers#can-i-debug-containers-in-dev-mode",
-        "page:/local-development/debugging-containers#do-these-commands-use-ssh-and-do-i-need-to-open-any-ports",
-        "page:/local-development/debugging-containers#my-session-opens-and-immediately-closes-what-s-wrong",
-        "page:/local-development/debugging-containers#can-i-run-destructive-commands-like-rm-or-kill",
-        "page:/local-development/debugging-containers#why-do-i-get-an-error-listing-container-names"
-      ]
-    },
-    {
       "id": "page:/local-development/debugging-lambda-functions",
-      "title": "Debugging Lambda Functions",
+      "title": "Debugging Lambda functions",
       "route": "/local-development/debugging-lambda-functions",
       "sourcePath": "apps/docs/content/local-development/debugging-lambda-functions.mdx",
       "outputPath": "pages/local-development/debugging-lambda-functions.md",
@@ -19157,7 +19111,7 @@
     },
     {
       "id": "page:/local-development/dev-mode-overview",
-      "title": "Dev Mode Overview",
+      "title": "Dev mode",
       "route": "/local-development/dev-mode-overview",
       "sourcePath": "apps/docs/content/local-development/dev-mode-overview.mdx",
       "outputPath": "pages/local-development/dev-mode-overview.md",
@@ -19168,38 +19122,37 @@
         "dev-mode-overview"
       ],
       "chunks": [
-        "page:/local-development/dev-mode-overview#dev-mode-overview",
-        "page:/local-development/dev-mode-overview#how-dev-mode-works",
-        "page:/local-development/dev-mode-overview#startup-flow",
-        "page:/local-development/dev-mode-overview#running-dev-mode",
-        "page:/local-development/dev-mode-overview#run-all-resources",
-        "page:/local-development/dev-mode-overview#run-specific-resources",
-        "page:/local-development/dev-mode-overview#exclude-resources",
-        "page:/local-development/dev-mode-overview#watch-mode",
-        "page:/local-development/dev-mode-overview#disabling-tunnels",
+        "page:/local-development/dev-mode-overview#dev-mode",
+        "page:/local-development/dev-mode-overview#what-you-need",
+        "page:/local-development/dev-mode-overview#start-dev-mode",
+        "page:/local-development/dev-mode-overview#change-code-and-see-it",
+        "page:/local-development/dev-mode-overview#stop-dev-mode",
+        "page:/local-development/dev-mode-overview#what-runs-where",
+        "page:/local-development/dev-mode-overview#what-happens-when-it-starts",
+        "page:/local-development/dev-mode-overview#run-part-of-the-stack",
+        "page:/local-development/dev-mode-overview#keep-deployed-functions-away-from-local-databases",
         "page:/local-development/dev-mode-overview#local-database-emulation",
         "page:/local-development/dev-mode-overview#start-with-a-fresh-database",
         "page:/local-development/dev-mode-overview#connect-to-a-deployed-database-instead",
         "page:/local-development/dev-mode-overview#resources-the-dev-stack-needs-deployed",
         "page:/local-development/dev-mode-overview#environment-variables",
-        "page:/local-development/dev-mode-overview#rebuilding-workloads",
+        "page:/local-development/dev-mode-overview#terminal-commands",
         "page:/local-development/dev-mode-overview#local-efs-storage",
         "page:/local-development/dev-mode-overview#lifecycle-hooks",
         "page:/local-development/dev-mode-overview#dev-stack-isolation",
-        "page:/local-development/dev-mode-overview#agent-mode",
-        "page:/local-development/dev-mode-overview#command-reference",
+        "page:/local-development/dev-mode-overview#agent-mode-for-coding-agents",
+        "page:/local-development/dev-mode-overview#flags",
         "page:/local-development/dev-mode-overview#faq",
-        "page:/local-development/dev-mode-overview#do-i-need-docker-installed-for-dev-mode",
         "page:/local-development/dev-mode-overview#which-resource-types-does-dev-mode-support-and-what-isn-t-emulated-locally",
         "page:/local-development/dev-mode-overview#how-do-lambda-functions-connect-to-local-databases-in-dev-mode",
-        "page:/local-development/dev-mode-overview#how-do-i-reset-my-local-database-data",
         "page:/local-development/dev-mode-overview#what-is-the-difference-between-dev-mode-and-deploying-to-a-dev-stage",
-        "page:/local-development/dev-mode-overview#does-dev-mode-cost-anything-on-aws"
+        "page:/local-development/dev-mode-overview#does-dev-mode-cost-anything-on-aws",
+        "page:/local-development/dev-mode-overview#next-steps"
       ]
     },
     {
       "id": "page:/local-development/local-databases",
-      "title": "Local Databases",
+      "title": "Local databases",
       "route": "/local-development/local-databases",
       "sourcePath": "apps/docs/content/local-development/local-databases.mdx",
       "outputPath": "pages/local-development/local-databases.md",
@@ -19269,7 +19222,7 @@
     },
     {
       "id": "page:/managing-costs/dashboards",
-      "title": "Cost Dashboards",
+      "title": "Cost dashboards",
       "route": "/managing-costs/dashboards",
       "sourcePath": "apps/docs/content/managing-costs/dashboards.mdx",
       "outputPath": "pages/managing-costs/dashboards.md",
@@ -19281,26 +19234,21 @@
       ],
       "chunks": [
         "page:/managing-costs/dashboards#cost-dashboards",
-        "page:/managing-costs/dashboards#organization-overview",
-        "page:/managing-costs/dashboards#aws-costs-kpi",
-        "page:/managing-costs/dashboards#aws-costs-by-project",
-        "page:/managing-costs/dashboards#aws-costs-by-resource",
-        "page:/managing-costs/dashboards#budgets",
-        "page:/managing-costs/dashboards#costs-per-stack",
-        "page:/managing-costs/dashboards#filters",
-        "page:/managing-costs/dashboards#cost-table",
+        "page:/managing-costs/dashboards#organization-the-overview-page",
+        "page:/managing-costs/dashboards#aws-account-the-costs-page",
+        "page:/managing-costs/dashboards#stage-costs-per-resource",
         "page:/managing-costs/dashboards#faq",
-        "page:/managing-costs/dashboards#how-often-is-cost-data-updated",
+        "page:/managing-costs/dashboards#why-is-no-cost-data-showing-for-my-stack",
         "page:/managing-costs/dashboards#does-stacktape-add-any-markup-to-aws-costs",
-        "page:/managing-costs/dashboards#how-is-this-different-from-the-aws-billing-console",
-        "page:/managing-costs/dashboards#can-i-set-up-alerts-when-costs-exceed-a-threshold",
-        "page:/managing-costs/dashboards#how-far-back-can-i-view-cost-history",
-        "page:/managing-costs/dashboards#can-i-compare-costs-across-multiple-aws-accounts"
+        "page:/managing-costs/dashboards#how-is-this-different-from-aws-cost-explorer",
+        "page:/managing-costs/dashboards#why-is-my-database-the-most-expensive-resource",
+        "page:/managing-costs/dashboards#can-i-compare-costs-across-multiple-aws-accounts",
+        "page:/managing-costs/dashboards#can-i-get-an-alert-when-costs-exceed-a-threshold"
       ]
     },
     {
       "id": "page:/managing-costs/optimization-tips",
-      "title": "Cost Optimization Tips",
+      "title": "Cost optimization tips",
       "route": "/managing-costs/optimization-tips",
       "sourcePath": "apps/docs/content/managing-costs/optimization-tips.mdx",
       "outputPath": "pages/managing-costs/optimization-tips.md",
@@ -19346,7 +19294,7 @@
     },
     {
       "id": "page:/managing-costs/overview",
-      "title": "Managing Costs Overview",
+      "title": "Costs overview",
       "route": "/managing-costs/overview",
       "sourcePath": "apps/docs/content/managing-costs/overview.mdx",
       "outputPath": "pages/managing-costs/overview.md",
@@ -19357,7 +19305,7 @@
         "overview"
       ],
       "chunks": [
-        "page:/managing-costs/overview#managing-costs-overview",
+        "page:/managing-costs/overview#costs-overview",
         "page:/managing-costs/overview#stacktape-charges-vs-aws-charges",
         "page:/managing-costs/overview#viewing-costs",
         "page:/managing-costs/overview#cost-attribution",
@@ -19369,36 +19317,6 @@
         "page:/managing-costs/overview#can-a-budget-watch-a-single-project-or-stage",
         "page:/managing-costs/overview#what-aws-services-typically-cost-the-most-in-stacktape-deployments",
         "page:/managing-costs/overview#what-s-the-difference-between-the-overview-dashboard-and-the-costs-per-stack-page"
-      ]
-    },
-    {
-      "id": "page:/managing-costs/per-resource-breakdown",
-      "title": "Per-Resource Cost Breakdown",
-      "route": "/managing-costs/per-resource-breakdown",
-      "sourcePath": "apps/docs/content/managing-costs/per-resource-breakdown.mdx",
-      "outputPath": "pages/managing-costs/per-resource-breakdown.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "managing-costs",
-        "per-resource-breakdown"
-      ],
-      "chunks": [
-        "page:/managing-costs/per-resource-breakdown#per-resource-cost-breakdown",
-        "page:/managing-costs/per-resource-breakdown#costs-per-stack",
-        "page:/managing-costs/per-resource-breakdown#per-resource-breakdown",
-        "page:/managing-costs/per-resource-breakdown#viewing-costs-vs-controlling-costs",
-        "page:/managing-costs/per-resource-breakdown#using-cost-data-effectively",
-        "page:/managing-costs/per-resource-breakdown#identify-expensive-resources",
-        "page:/managing-costs/per-resource-breakdown#compare-stages",
-        "page:/managing-costs/per-resource-breakdown#track-cost-trends-month-over-month",
-        "page:/managing-costs/per-resource-breakdown#set-budget-alerts-based-on-real-data",
-        "page:/managing-costs/per-resource-breakdown#faq",
-        "page:/managing-costs/per-resource-breakdown#why-is-no-cost-data-showing-for-my-stack",
-        "page:/managing-costs/per-resource-breakdown#how-far-back-can-i-view-cost-data",
-        "page:/managing-costs/per-resource-breakdown#does-this-include-stacktape-s-subscription-fee",
-        "page:/managing-costs/per-resource-breakdown#why-is-my-database-the-most-expensive-resource",
-        "page:/managing-costs/per-resource-breakdown#how-does-this-differ-from-aws-cost-explorer"
       ]
     },
     {
@@ -19456,7 +19374,7 @@
     },
     {
       "id": "page:/observability/alert-channels",
-      "title": "Alert Channels",
+      "title": "Alert channels",
       "route": "/observability/alert-channels",
       "sourcePath": "apps/docs/content/observability/alert-channels.mdx",
       "outputPath": "pages/observability/alert-channels.md",
@@ -19493,7 +19411,7 @@
     },
     {
       "id": "page:/observability/alert-history",
-      "title": "Sent Alerts",
+      "title": "Sent alerts",
       "route": "/observability/alert-history",
       "sourcePath": "apps/docs/content/observability/alert-history.mdx",
       "outputPath": "pages/observability/alert-history.md",
@@ -19513,6 +19431,96 @@
         "page:/observability/alert-history#an-alert-shows-1-of-3-failed-did-my-team-get-it",
         "page:/observability/alert-history#why-is-an-event-i-expected-missing",
         "page:/observability/alert-history#can-i-see-sent-alerts-from-the-cli"
+      ]
+    },
+    {
+      "id": "page:/observability/debug-commands",
+      "title": "Debug commands",
+      "route": "/observability/debug-commands",
+      "sourcePath": "apps/docs/content/observability/debug-commands.mdx",
+      "outputPath": "pages/observability/debug-commands.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "observability",
+        "debug-commands"
+      ],
+      "chunks": [
+        "page:/observability/debug-commands#debug-commands",
+        "page:/observability/debug-commands#command-overview",
+        "page:/observability/debug-commands#stack-targeting",
+        "page:/observability/debug-commands#viewing-logs",
+        "page:/observability/debug-commands#basic-usage",
+        "page:/observability/debug-commands#time-range",
+        "page:/observability/debug-commands#filtering",
+        "page:/observability/debug-commands#cloudwatch-logs-insights-queries",
+        "page:/observability/debug-commands#output-format",
+        "page:/observability/debug-commands#agent-mode",
+        "page:/observability/debug-commands#viewing-metrics",
+        "page:/observability/debug-commands#supported-resource-types-and-metrics",
+        "page:/observability/debug-commands#basic-usage-2",
+        "page:/observability/debug-commands#customizing-the-query",
+        "page:/observability/debug-commands#terminal-output",
+        "page:/observability/debug-commands#viewing-alarms",
+        "page:/observability/debug-commands#querying-sql-databases",
+        "page:/observability/debug-commands#querying-dynamodb",
+        "page:/observability/debug-commands#querying-redis",
+        "page:/observability/debug-commands#querying-opensearch",
+        "page:/observability/debug-commands#running-aws-sdk-commands",
+        "page:/observability/debug-commands#executing-commands-in-containers",
+        "page:/observability/debug-commands#interactive-container-shell",
+        "page:/observability/debug-commands#bastion-tunneling",
+        "page:/observability/debug-commands#bastion-shell-session",
+        "page:/observability/debug-commands#credentials-and-permissions",
+        "page:/observability/debug-commands#faq",
+        "page:/observability/debug-commands#how-do-i-view-real-time-logs-as-they-arrive",
+        "page:/observability/debug-commands#can-i-use-debug-commands-with-dev-mode-stacks",
+        "page:/observability/debug-commands#how-do-i-debug-a-vpc-only-database-without-a-bastion",
+        "page:/observability/debug-commands#what-s-the-difference-between-container-exec-and-container-shell",
+        "page:/observability/debug-commands#how-do-i-know-which-metrics-are-available-for-my-resource",
+        "page:/observability/debug-commands#how-much-do-debug-commands-cost",
+        "page:/observability/debug-commands#can-i-pipe-debug-command-output-to-other-tools"
+      ]
+    },
+    {
+      "id": "page:/observability/debugging-containers",
+      "title": "Debugging deployed containers",
+      "route": "/observability/debugging-containers",
+      "sourcePath": "apps/docs/content/observability/debugging-containers.mdx",
+      "outputPath": "pages/observability/debugging-containers.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "observability",
+        "debugging-containers"
+      ],
+      "chunks": [
+        "page:/observability/debugging-containers#debugging-deployed-containers",
+        "page:/observability/debugging-containers#supported-resources",
+        "page:/observability/debugging-containers#choosing-the-right-command",
+        "page:/observability/debugging-containers#feature-comparison",
+        "page:/observability/debugging-containers#interactive-shell-sessions",
+        "page:/observability/debugging-containers#multiple-running-tasks",
+        "page:/observability/debugging-containers#common-use-cases",
+        "page:/observability/debugging-containers#running-one-off-commands",
+        "page:/observability/debugging-containers#targeting-a-specific-task",
+        "page:/observability/debugging-containers#scripting-and-automation",
+        "page:/observability/debugging-containers#multi-container-workloads",
+        "page:/observability/debugging-containers#viewing-container-logs",
+        "page:/observability/debugging-containers#deployed-stacks-only",
+        "page:/observability/debugging-containers#prerequisites",
+        "page:/observability/debugging-containers#troubleshooting",
+        "page:/observability/debugging-containers#resource-is-not-a-valid-container-based-resource",
+        "page:/observability/debugging-containers#does-not-have-a-deployed-ecs-service",
+        "page:/observability/debugging-containers#no-running-tasks-found-for-this-resource",
+        "page:/observability/debugging-containers#session-disconnects-immediately",
+        "page:/observability/debugging-containers#specifying-which-container-to-connect-to",
+        "page:/observability/debugging-containers#faq",
+        "page:/observability/debugging-containers#can-i-debug-containers-in-dev-mode",
+        "page:/observability/debugging-containers#do-these-commands-use-ssh-and-do-i-need-to-open-any-ports",
+        "page:/observability/debugging-containers#my-session-opens-and-immediately-closes-what-s-wrong",
+        "page:/observability/debugging-containers#can-i-run-destructive-commands-like-rm-or-kill",
+        "page:/observability/debugging-containers#why-do-i-get-an-error-listing-container-names"
       ]
     },
     {
@@ -19556,7 +19564,7 @@
     },
     {
       "id": "page:/observability/incident-ai",
-      "title": "AI Assessment, Investigation and Fixes",
+      "title": "AI investigation and fixes",
       "route": "/observability/incident-ai",
       "sourcePath": "apps/docs/content/observability/incident-ai.mdx",
       "outputPath": "pages/observability/incident-ai.md",
@@ -19567,7 +19575,7 @@
         "incident-ai"
       ],
       "chunks": [
-        "page:/observability/incident-ai#ai-assessment-investigation-and-fixes",
+        "page:/observability/incident-ai#ai-investigation-and-fixes",
         "page:/observability/incident-ai#automatic-briefing",
         "page:/observability/incident-ai#investigate-with-ai",
         "page:/observability/incident-ai#coding-agents",
@@ -19612,7 +19620,7 @@
     },
     {
       "id": "page:/observability/log-forwarding",
-      "title": "Log Forwarding",
+      "title": "Log forwarding",
       "route": "/observability/log-forwarding",
       "sourcePath": "apps/docs/content/observability/log-forwarding.mdx",
       "outputPath": "pages/observability/log-forwarding.md",
@@ -19732,7 +19740,7 @@
     },
     {
       "id": "page:/observability/notifications",
-      "title": "Notification Rules",
+      "title": "Notification rules",
       "route": "/observability/notifications",
       "sourcePath": "apps/docs/content/observability/notifications.mdx",
       "outputPath": "pages/observability/notifications.md",
@@ -19761,7 +19769,7 @@
     },
     {
       "id": "page:/observability/overview",
-      "title": "Observability Overview",
+      "title": "Observability overview",
       "route": "/observability/overview",
       "sourcePath": "apps/docs/content/observability/overview.mdx",
       "outputPath": "pages/observability/overview.md",
@@ -19795,7 +19803,7 @@
     },
     {
       "id": "page:/observability/synthetic-tests",
-      "title": "Synthetic Tests",
+      "title": "Synthetic tests",
       "route": "/observability/synthetic-tests",
       "sourcePath": "apps/docs/content/observability/synthetic-tests.mdx",
       "outputPath": "pages/observability/synthetic-tests.md",
@@ -19845,7 +19853,7 @@
     },
     {
       "id": "page:/observability/uptime-checks",
-      "title": "Uptime Checks",
+      "title": "Uptime checks",
       "route": "/observability/uptime-checks",
       "sourcePath": "apps/docs/content/observability/uptime-checks.mdx",
       "outputPath": "pages/observability/uptime-checks.md",
@@ -19868,7 +19876,7 @@
     },
     {
       "id": "page:/packaging/containers/buildpack",
-      "title": "Buildpack for Containers",
+      "title": "Buildpack for containers",
       "route": "/packaging/containers/buildpack",
       "sourcePath": "apps/docs/content/packaging/containers/buildpack.mdx",
       "outputPath": "pages/packaging/containers/buildpack.md",
@@ -19960,7 +19968,7 @@
     },
     {
       "id": "page:/packaging/containers/js-bundle",
-      "title": "JS Bundle for Containers",
+      "title": "JS bundle for containers",
       "route": "/packaging/containers/js-bundle",
       "sourcePath": "apps/docs/content/packaging/containers/js-bundle.mdx",
       "outputPath": "pages/packaging/containers/js-bundle.md",
@@ -20003,7 +20011,7 @@
     },
     {
       "id": "page:/packaging/containers/prebuilt-image",
-      "title": "Prebuilt Image",
+      "title": "Prebuilt image",
       "route": "/packaging/containers/prebuilt-image",
       "sourcePath": "apps/docs/content/packaging/containers/prebuilt-image.mdx",
       "outputPath": "pages/packaging/containers/prebuilt-image.md",
@@ -20091,7 +20099,7 @@
     },
     {
       "id": "page:/packaging/function/custom-artifact",
-      "title": "Custom Artifact",
+      "title": "Custom artifact",
       "route": "/packaging/function/custom-artifact",
       "sourcePath": "apps/docs/content/packaging/function/custom-artifact.mdx",
       "outputPath": "pages/packaging/function/custom-artifact.md",
@@ -20126,7 +20134,7 @@
     },
     {
       "id": "page:/packaging/function/js-bundle",
-      "title": "JS Bundle for Lambda",
+      "title": "JS bundle for Lambda",
       "route": "/packaging/function/js-bundle",
       "sourcePath": "apps/docs/content/packaging/function/js-bundle.mdx",
       "outputPath": "pages/packaging/function/js-bundle.md",
@@ -20171,7 +20179,7 @@
     },
     {
       "id": "page:/packaging/overview",
-      "title": "Packaging Overview",
+      "title": "Packaging overview",
       "route": "/packaging/overview",
       "sourcePath": "apps/docs/content/packaging/overview.mdx",
       "outputPath": "pages/packaging/overview.md",
@@ -20201,8 +20209,39 @@
       ]
     },
     {
+      "id": "page:/resources",
+      "title": "Resource catalog",
+      "route": "/resources",
+      "sourcePath": "apps/docs/content/resources/index.mdx",
+      "outputPath": "pages/resources.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "resources"
+      ],
+      "chunks": [
+        "page:/resources#resource-catalog",
+        "page:/resources#pick-by-what-you-are-building",
+        "page:/resources#choose-a-compute-resource",
+        "page:/resources#all-resources",
+        "page:/resources#compute",
+        "page:/resources#frontend",
+        "page:/resources#databases",
+        "page:/resources#storage",
+        "page:/resources#networking",
+        "page:/resources#messaging",
+        "page:/resources#triggers",
+        "page:/resources#orchestration",
+        "page:/resources#security",
+        "page:/resources#agentcore",
+        "page:/resources#advanced",
+        "page:/resources#what-else-goes-in-a-stack",
+        "page:/resources#what-resources-cost"
+      ]
+    },
+    {
       "id": "page:/resources/advanced/aws-cdk-constructs",
-      "title": "AWS CDK Constructs",
+      "title": "AWS CDK constructs",
       "route": "/resources/advanced/aws-cdk-constructs",
       "sourcePath": "apps/docs/content/resources/advanced/aws-cdk-constructs.mdx",
       "outputPath": "pages/resources/advanced/aws-cdk-constructs.md",
@@ -20241,7 +20280,7 @@
     },
     {
       "id": "page:/resources/advanced/custom-resources",
-      "title": "Custom Resources",
+      "title": "Custom resources",
       "route": "/resources/advanced/custom-resources",
       "sourcePath": "apps/docs/content/resources/advanced/custom-resources.mdx",
       "outputPath": "pages/resources/advanced/custom-resources.md",
@@ -20293,7 +20332,7 @@
     },
     {
       "id": "page:/resources/advanced/deployment-scripts",
-      "title": "Deployment Scripts",
+      "title": "Deployment scripts",
       "route": "/resources/advanced/deployment-scripts",
       "sourcePath": "apps/docs/content/resources/advanced/deployment-scripts.mdx",
       "outputPath": "pages/resources/advanced/deployment-scripts.md",
@@ -20336,7 +20375,7 @@
     },
     {
       "id": "page:/resources/advanced/raw-cloudformation-resources",
-      "title": "Raw CloudFormation Resources",
+      "title": "Raw CloudFormation resources",
       "route": "/resources/advanced/raw-cloudformation-resources",
       "sourcePath": "apps/docs/content/resources/advanced/raw-cloudformation-resources.mdx",
       "outputPath": "pages/resources/advanced/raw-cloudformation-resources.md",
@@ -20574,7 +20613,7 @@
     },
     {
       "id": "page:/resources/compute/batch-job",
-      "title": "Batch Job",
+      "title": "Batch job",
       "route": "/resources/compute/batch-job",
       "sourcePath": "apps/docs/content/resources/compute/batch-job.mdx",
       "outputPath": "pages/resources/compute/batch-job.md",
@@ -20676,7 +20715,7 @@
     },
     {
       "id": "page:/resources/compute/edge-function",
-      "title": "Edge Function",
+      "title": "Edge function",
       "route": "/resources/compute/edge-function",
       "sourcePath": "apps/docs/content/resources/compute/edge-function.mdx",
       "outputPath": "pages/resources/compute/edge-function.md",
@@ -20717,7 +20756,7 @@
     },
     {
       "id": "page:/resources/compute/lambda-function",
-      "title": "Lambda Function",
+      "title": "Lambda function",
       "route": "/resources/compute/lambda-function",
       "sourcePath": "apps/docs/content/resources/compute/lambda-function.mdx",
       "outputPath": "pages/resources/compute/lambda-function.md",
@@ -20773,7 +20812,7 @@
     },
     {
       "id": "page:/resources/compute/multi-container-workload",
-      "title": "Multi-Container Workload",
+      "title": "Multi-container workload",
       "route": "/resources/compute/multi-container-workload",
       "sourcePath": "apps/docs/content/resources/compute/multi-container-workload.mdx",
       "outputPath": "pages/resources/compute/multi-container-workload.md",
@@ -20825,7 +20864,7 @@
     },
     {
       "id": "page:/resources/compute/private-service",
-      "title": "Private Service",
+      "title": "Private service",
       "route": "/resources/compute/private-service",
       "sourcePath": "apps/docs/content/resources/compute/private-service.mdx",
       "outputPath": "pages/resources/compute/private-service.md",
@@ -20880,7 +20919,7 @@
     },
     {
       "id": "page:/resources/compute/web-service",
-      "title": "Web Service",
+      "title": "Web service",
       "route": "/resources/compute/web-service",
       "sourcePath": "apps/docs/content/resources/compute/web-service.mdx",
       "outputPath": "pages/resources/compute/web-service.md",
@@ -20935,7 +20974,7 @@
     },
     {
       "id": "page:/resources/compute/worker-service",
-      "title": "Worker Service",
+      "title": "Worker service",
       "route": "/resources/compute/worker-service",
       "sourcePath": "apps/docs/content/resources/compute/worker-service.mdx",
       "outputPath": "pages/resources/compute/worker-service.md",
@@ -21215,7 +21254,7 @@
     },
     {
       "id": "page:/resources/databases/relational-database",
-      "title": "Relational Database",
+      "title": "Relational database",
       "route": "/resources/databases/relational-database",
       "sourcePath": "apps/docs/content/resources/databases/relational-database.mdx",
       "outputPath": "pages/resources/databases/relational-database.md",
@@ -21523,7 +21562,7 @@
     },
     {
       "id": "page:/resources/frontend/static-hosting",
-      "title": "Static Hosting",
+      "title": "Static hosting",
       "route": "/resources/frontend/static-hosting",
       "sourcePath": "apps/docs/content/resources/frontend/static-hosting.mdx",
       "outputPath": "pages/resources/frontend/static-hosting.md",
@@ -21680,7 +21719,7 @@
     },
     {
       "id": "page:/resources/messaging/event-bus",
-      "title": "Event Bus",
+      "title": "Event bus",
       "route": "/resources/messaging/event-bus",
       "sourcePath": "apps/docs/content/resources/messaging/event-bus.mdx",
       "outputPath": "pages/resources/messaging/event-bus.md",
@@ -21745,7 +21784,7 @@
     },
     {
       "id": "page:/resources/messaging/kinesis-stream",
-      "title": "Kinesis Stream",
+      "title": "Kinesis stream",
       "route": "/resources/messaging/kinesis-stream",
       "sourcePath": "apps/docs/content/resources/messaging/kinesis-stream.mdx",
       "outputPath": "pages/resources/messaging/kinesis-stream.md",
@@ -21789,7 +21828,7 @@
     },
     {
       "id": "page:/resources/messaging/sns-topic",
-      "title": "SNS Topic",
+      "title": "SNS topic",
       "route": "/resources/messaging/sns-topic",
       "sourcePath": "apps/docs/content/resources/messaging/sns-topic.mdx",
       "outputPath": "pages/resources/messaging/sns-topic.md",
@@ -21832,7 +21871,7 @@
     },
     {
       "id": "page:/resources/messaging/sqs-queue",
-      "title": "SQS Queue",
+      "title": "SQS queue",
       "route": "/resources/messaging/sqs-queue",
       "sourcePath": "apps/docs/content/resources/messaging/sqs-queue.mdx",
       "outputPath": "pages/resources/messaging/sqs-queue.md",
@@ -21999,7 +22038,7 @@
     },
     {
       "id": "page:/resources/networking/custom-domains",
-      "title": "Custom Domains",
+      "title": "Custom domains",
       "route": "/resources/networking/custom-domains",
       "sourcePath": "apps/docs/content/resources/networking/custom-domains.mdx",
       "outputPath": "pages/resources/networking/custom-domains.md",
@@ -22161,7 +22200,7 @@
     },
     {
       "id": "page:/resources/orchestration/state-machine",
-      "title": "State Machine",
+      "title": "State machine",
       "route": "/resources/orchestration/state-machine",
       "sourcePath": "apps/docs/content/resources/orchestration/state-machine.mdx",
       "outputPath": "pages/resources/orchestration/state-machine.md",
@@ -22204,7 +22243,7 @@
     },
     {
       "id": "page:/resources/security/bastion-host",
-      "title": "Bastion Host",
+      "title": "Bastion host",
       "route": "/resources/security/bastion-host",
       "sourcePath": "apps/docs/content/resources/security/bastion-host.mdx",
       "outputPath": "pages/resources/security/bastion-host.md",
@@ -22249,7 +22288,7 @@
     },
     {
       "id": "page:/resources/security/user-auth-pool",
-      "title": "User Authentication Pool",
+      "title": "User authentication pool",
       "route": "/resources/security/user-auth-pool",
       "sourcePath": "apps/docs/content/resources/security/user-auth-pool.mdx",
       "outputPath": "pages/resources/security/user-auth-pool.md",
@@ -22301,7 +22340,7 @@
     },
     {
       "id": "page:/resources/security/web-application-firewall",
-      "title": "Web Application Firewall",
+      "title": "Web application firewall",
       "route": "/resources/security/web-application-firewall",
       "sourcePath": "apps/docs/content/resources/security/web-application-firewall.mdx",
       "outputPath": "pages/resources/security/web-application-firewall.md",
@@ -22350,7 +22389,7 @@
     },
     {
       "id": "page:/resources/storage/efs-filesystem",
-      "title": "EFS Filesystem",
+      "title": "EFS file system",
       "route": "/resources/storage/efs-filesystem",
       "sourcePath": "apps/docs/content/resources/storage/efs-filesystem.mdx",
       "outputPath": "pages/resources/storage/efs-filesystem.md",
@@ -22366,7 +22405,7 @@
         "EfsFilesystemProps"
       ],
       "chunks": [
-        "page:/resources/storage/efs-filesystem#efs-filesystem",
+        "page:/resources/storage/efs-filesystem#efs-file-system",
         "page:/resources/storage/efs-filesystem#when-to-use",
         "page:/resources/storage/efs-filesystem#when-not-to-use",
         "page:/resources/storage/efs-filesystem#basic-example",
@@ -22390,7 +22429,7 @@
     },
     {
       "id": "page:/resources/storage/s3-bucket",
-      "title": "S3 Bucket",
+      "title": "S3 bucket",
       "route": "/resources/storage/s3-bucket",
       "sourcePath": "apps/docs/content/resources/storage/s3-bucket.mdx",
       "outputPath": "pages/resources/storage/s3-bucket.md",
@@ -22436,7 +22475,7 @@
     },
     {
       "id": "page:/resources/triggers/alarms-as-triggers",
-      "title": "Alarms as Triggers",
+      "title": "Alarms as triggers",
       "route": "/resources/triggers/alarms-as-triggers",
       "sourcePath": "apps/docs/content/resources/triggers/alarms-as-triggers.mdx",
       "outputPath": "pages/resources/triggers/alarms-as-triggers.md",
@@ -22506,7 +22545,7 @@
     },
     {
       "id": "page:/resources/triggers/dynamodb-streams",
-      "title": "DynamoDB Streams",
+      "title": "DynamoDB streams",
       "route": "/resources/triggers/dynamodb-streams",
       "sourcePath": "apps/docs/content/resources/triggers/dynamodb-streams.mdx",
       "outputPath": "pages/resources/triggers/dynamodb-streams.md",
@@ -22545,7 +22584,7 @@
     },
     {
       "id": "page:/resources/triggers/event-bus-events",
-      "title": "Event Bus Events",
+      "title": "Event bus events",
       "route": "/resources/triggers/event-bus-events",
       "sourcePath": "apps/docs/content/resources/triggers/event-bus-events.mdx",
       "outputPath": "pages/resources/triggers/event-bus-events.md",
@@ -22589,7 +22628,7 @@
     },
     {
       "id": "page:/resources/triggers/http-triggers",
-      "title": "HTTP Triggers",
+      "title": "HTTP triggers",
       "route": "/resources/triggers/http-triggers",
       "sourcePath": "apps/docs/content/resources/triggers/http-triggers.mdx",
       "outputPath": "pages/resources/triggers/http-triggers.md",
@@ -22627,7 +22666,7 @@
     },
     {
       "id": "page:/resources/triggers/kafka-topics",
-      "title": "Kafka topics",
+      "title": "Kafka topic events",
       "route": "/resources/triggers/kafka-topics",
       "sourcePath": "apps/docs/content/resources/triggers/kafka-topics.mdx",
       "outputPath": "pages/resources/triggers/kafka-topics.md",
@@ -22642,7 +22681,7 @@
         "KafkaTopicIntegration"
       ],
       "chunks": [
-        "page:/resources/triggers/kafka-topics#kafka-topics",
+        "page:/resources/triggers/kafka-topics#kafka-topic-events",
         "page:/resources/triggers/kafka-topics#stacktape-kafka-cluster",
         "page:/resources/triggers/kafka-topics#existing-amazon-msk-cluster",
         "page:/resources/triggers/kafka-topics#self-managed-kafka",
@@ -22652,7 +22691,7 @@
     },
     {
       "id": "page:/resources/triggers/kinesis-events",
-      "title": "Kinesis Events",
+      "title": "Kinesis events",
       "route": "/resources/triggers/kinesis-events",
       "sourcePath": "apps/docs/content/resources/triggers/kinesis-events.mdx",
       "outputPath": "pages/resources/triggers/kinesis-events.md",
@@ -22696,7 +22735,7 @@
     },
     {
       "id": "page:/resources/triggers/overview",
-      "title": "Triggers Overview",
+      "title": "Triggers overview",
       "route": "/resources/triggers/overview",
       "sourcePath": "apps/docs/content/resources/triggers/overview.mdx",
       "outputPath": "pages/resources/triggers/overview.md",
@@ -22736,7 +22775,7 @@
     },
     {
       "id": "page:/resources/triggers/s3-events",
-      "title": "S3 Events",
+      "title": "S3 events",
       "route": "/resources/triggers/s3-events",
       "sourcePath": "apps/docs/content/resources/triggers/s3-events.mdx",
       "outputPath": "pages/resources/triggers/s3-events.md",
@@ -22773,7 +22812,7 @@
     },
     {
       "id": "page:/resources/triggers/schedule-triggers",
-      "title": "Schedule Triggers",
+      "title": "Schedule triggers",
       "route": "/resources/triggers/schedule-triggers",
       "sourcePath": "apps/docs/content/resources/triggers/schedule-triggers.mdx",
       "outputPath": "pages/resources/triggers/schedule-triggers.md",
@@ -22817,7 +22856,7 @@
     },
     {
       "id": "page:/resources/triggers/sns-events",
-      "title": "SNS Events",
+      "title": "SNS events",
       "route": "/resources/triggers/sns-events",
       "sourcePath": "apps/docs/content/resources/triggers/sns-events.mdx",
       "outputPath": "pages/resources/triggers/sns-events.md",
@@ -22854,7 +22893,7 @@
     },
     {
       "id": "page:/resources/triggers/sqs-events",
-      "title": "SQS Events",
+      "title": "SQS events",
       "route": "/resources/triggers/sqs-events",
       "sourcePath": "apps/docs/content/resources/triggers/sqs-events.mdx",
       "outputPath": "pages/resources/triggers/sqs-events.md",
@@ -22893,7 +22932,7 @@
     },
     {
       "id": "page:/stacktape-console/account-settings",
-      "title": "Account Settings",
+      "title": "Account settings",
       "route": "/stacktape-console/account-settings",
       "sourcePath": "apps/docs/content/stacktape-console/account-settings.mdx",
       "outputPath": "pages/stacktape-console/account-settings.md",
@@ -22930,7 +22969,7 @@
     },
     {
       "id": "page:/stacktape-console/api-keys",
-      "title": "API Keys",
+      "title": "API keys",
       "route": "/stacktape-console/api-keys",
       "sourcePath": "apps/docs/content/stacktape-console/api-keys.mdx",
       "outputPath": "pages/stacktape-console/api-keys.md",
@@ -22962,7 +23001,7 @@
     },
     {
       "id": "page:/stacktape-console/audit-log",
-      "title": "Audit Log",
+      "title": "Audit log",
       "route": "/stacktape-console/audit-log",
       "sourcePath": "apps/docs/content/stacktape-console/audit-log.mdx",
       "outputPath": "pages/stacktape-console/audit-log.md",
@@ -22993,7 +23032,7 @@
     },
     {
       "id": "page:/stacktape-console/aws-permissions",
-      "title": "AWS Permissions Needed",
+      "title": "AWS permissions",
       "route": "/stacktape-console/aws-permissions",
       "sourcePath": "apps/docs/content/stacktape-console/aws-permissions.mdx",
       "outputPath": "pages/stacktape-console/aws-permissions.md",
@@ -23004,7 +23043,7 @@
         "aws-permissions"
       ],
       "chunks": [
-        "page:/stacktape-console/aws-permissions#aws-permissions-needed",
+        "page:/stacktape-console/aws-permissions#aws-permissions",
         "page:/stacktape-console/aws-permissions#overview",
         "page:/stacktape-console/aws-permissions#what-stacktape-does-in-your-account",
         "page:/stacktape-console/aws-permissions#connection-mode",
@@ -23030,7 +23069,7 @@
     },
     {
       "id": "page:/stacktape-console/billing-and-subscription",
-      "title": "Billing and Subscription",
+      "title": "Billing and subscription",
       "route": "/stacktape-console/billing-and-subscription",
       "sourcePath": "apps/docs/content/stacktape-console/billing-and-subscription.mdx",
       "outputPath": "pages/stacktape-console/billing-and-subscription.md",
@@ -23073,7 +23112,7 @@
     },
     {
       "id": "page:/stacktape-console/connecting-your-aws-account",
-      "title": "Connecting Your AWS Account",
+      "title": "Connecting your AWS account",
       "route": "/stacktape-console/connecting-your-aws-account",
       "sourcePath": "apps/docs/content/stacktape-console/connecting-your-aws-account.mdx",
       "outputPath": "pages/stacktape-console/connecting-your-aws-account.md",
@@ -23111,7 +23150,7 @@
     },
     {
       "id": "page:/stacktape-console/console-overview",
-      "title": "Console Overview",
+      "title": "Console overview",
       "route": "/stacktape-console/console-overview",
       "sourcePath": "apps/docs/content/stacktape-console/console-overview.mdx",
       "outputPath": "pages/stacktape-console/console-overview.md",
@@ -23123,10 +23162,11 @@
       ],
       "chunks": [
         "page:/stacktape-console/console-overview#console-overview",
-        "page:/stacktape-console/console-overview#what-the-console-does",
+        "page:/stacktape-console/console-overview#get-your-stacks-into-the-console",
+        "page:/stacktape-console/console-overview#find-your-stack-and-its-logs",
+        "page:/stacktape-console/console-overview#the-overview-page",
+        "page:/stacktape-console/console-overview#what-you-can-do-in-the-console",
         "page:/stacktape-console/console-overview#console-navigation",
-        "page:/stacktape-console/console-overview#the-overview-route",
-        "page:/stacktape-console/console-overview#getting-started",
         "page:/stacktape-console/console-overview#common-tasks",
         "page:/stacktape-console/console-overview#viewing-deployment-activity",
         "page:/stacktape-console/console-overview#managing-secrets",
@@ -23142,18 +23182,16 @@
         "page:/stacktape-console/console-overview#an-alarm-does-not-exist-in-aws",
         "page:/stacktape-console/console-overview#the-error-tracking-page-is-empty-despite-errors-in-logs",
         "page:/stacktape-console/console-overview#sidebar-items-are-missing",
-        "page:/stacktape-console/console-overview#related-features",
+        "page:/stacktape-console/console-overview#related-pages",
         "page:/stacktape-console/console-overview#faq",
         "page:/stacktape-console/console-overview#do-i-need-the-console-to-use-stacktape",
         "page:/stacktape-console/console-overview#does-stacktape-deploy-into-my-own-aws-account",
-        "page:/stacktape-console/console-overview#where-do-i-configure-alarms",
-        "page:/stacktape-console/console-overview#how-does-stacktape-track-aws-costs-and-why-is-the-costs-page-empty",
-        "page:/stacktape-console/console-overview#why-is-a-sidebar-item-missing-for-me"
+        "page:/stacktape-console/console-overview#how-does-stacktape-track-aws-costs-and-why-is-the-costs-page-empty"
       ]
     },
     {
       "id": "page:/stacktape-console/organizations-projects-and-stages",
-      "title": "Organizations, Projects, and Stages",
+      "title": "Organizations, projects and stages",
       "route": "/stacktape-console/organizations-projects-and-stages",
       "sourcePath": "apps/docs/content/stacktape-console/organizations-projects-and-stages.mdx",
       "outputPath": "pages/stacktape-console/organizations-projects-and-stages.md",
@@ -23197,7 +23235,7 @@
     },
     {
       "id": "page:/stacktape-console/security-scanning",
-      "title": "Security Scanning",
+      "title": "Security scanning",
       "route": "/stacktape-console/security-scanning",
       "sourcePath": "apps/docs/content/stacktape-console/security-scanning.mdx",
       "outputPath": "pages/stacktape-console/security-scanning.md",
@@ -23231,7 +23269,7 @@
     },
     {
       "id": "page:/stacktape-console/single-sign-on",
-      "title": "Single Sign-On",
+      "title": "Single sign-on",
       "route": "/stacktape-console/single-sign-on",
       "sourcePath": "apps/docs/content/stacktape-console/single-sign-on.mdx",
       "outputPath": "pages/stacktape-console/single-sign-on.md",
@@ -23269,7 +23307,7 @@
     },
     {
       "id": "page:/stacktape-console/team-and-access-control",
-      "title": "Team and Access Control",
+      "title": "Team and access control",
       "route": "/stacktape-console/team-and-access-control",
       "sourcePath": "apps/docs/content/stacktape-console/team-and-access-control.mdx",
       "outputPath": "pages/stacktape-console/team-and-access-control.md",
@@ -23299,7 +23337,7 @@
     },
     {
       "id": "page:/using-with-ai/agent-mode-in-dev",
-      "title": "Agent Mode in Dev",
+      "title": "Agent mode in dev",
       "route": "/using-with-ai/agent-mode-in-dev",
       "sourcePath": "apps/docs/content/using-with-ai/agent-mode-in-dev.mdx",
       "outputPath": "pages/using-with-ai/agent-mode-in-dev.md",
@@ -23355,7 +23393,7 @@
     },
     {
       "id": "page:/using-with-ai/mcp-server-setup",
-      "title": "MCP Server Setup",
+      "title": "MCP server",
       "route": "/using-with-ai/mcp-server-setup",
       "sourcePath": "apps/docs/content/using-with-ai/mcp-server-setup.mdx",
       "outputPath": "pages/using-with-ai/mcp-server-setup.md",
@@ -23366,7 +23404,7 @@
         "mcp-server-setup"
       ],
       "chunks": [
-        "page:/using-with-ai/mcp-server-setup#mcp-server-setup",
+        "page:/using-with-ai/mcp-server-setup#mcp-server",
         "page:/using-with-ai/mcp-server-setup#quick-start",
         "page:/using-with-ai/mcp-server-setup#when-to-use",
         "page:/using-with-ai/mcp-server-setup#when-not-to-use",
@@ -23415,7 +23453,7 @@
     },
     {
       "id": "page:/using-with-ai/overview",
-      "title": "Using Stacktape with AI",
+      "title": "Coding agents overview",
       "route": "/using-with-ai/overview",
       "sourcePath": "apps/docs/content/using-with-ai/overview.mdx",
       "outputPath": "pages/using-with-ai/overview.md",
@@ -23426,7 +23464,7 @@
         "overview"
       ],
       "chunks": [
-        "page:/using-with-ai/overview#using-stacktape-with-ai",
+        "page:/using-with-ai/overview#coding-agents-overview",
         "page:/using-with-ai/overview#start-here",
         "page:/using-with-ai/overview#the-ai-assisted-development-workflow",
         "page:/using-with-ai/overview#flow",

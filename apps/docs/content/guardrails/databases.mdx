@@ -1,11 +1,11 @@
 ---
-title: 'Database Guardrails'
-order: 110
+title: 'Database guardrails'
+order: 4
 seoTitle: 'Database Guardrails - Restrict Engines & Sizes | Stacktape'
 seoDescription: 'Control which database engines, instance sizes, and access modes your team can deploy. Stacktape database guardrails block non-compliant databases before they reach AWS.'
 ---
 
-# Database Guardrails
+# Database guardrails
 
 Stacktape database guardrails are preventive policy definitions that restrict which database engines, instance sizes, and accessibility modes your team can deploy. Each definition has a `type` identifier and a `properties` object describing what is allowed or blocked for database resources in the stack. The deletion protection guardrail targets [relational databases](/resources/databases/relational-database) specifically, the VPC-only guardrail applies to relational databases and OpenSearch, and the engine and instance restriction guardrails apply to databases that use engine types and instance sizes respectively.
 

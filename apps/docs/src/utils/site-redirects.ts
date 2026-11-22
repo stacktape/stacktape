@@ -9,7 +9,12 @@ export const V4_RENAMED_PAGES: Record<string, string> = {
   '/packaging/function/stacktape-buildpack/': '/packaging/function/js-bundle/',
   '/stacktape-console/visual-config-editor/': '/stacktape-console/console-overview/',
   '/using-with-ai/config-generation-from-repository/': '/cli/init/',
-  '/using-with-ai/ai-coding-assistant-integrations/': '/using-with-ai/mcp-server-setup/'
+  '/using-with-ai/ai-coding-assistant-integrations/': '/using-with-ai/mcp-server-setup/',
+  // Docs structure, November 2026: merged duplicate pages and moved deployed-stack debugging to Observability.
+  '/deployment-and-lifecycle/deploy-time-parameters/': '/configuration/directives/',
+  '/managing-costs/per-resource-breakdown/': '/managing-costs/dashboards/',
+  '/local-development/debugging-containers/': '/observability/debugging-containers/',
+  '/local-development/debug-commands-reference/': '/observability/debug-commands/'
 };
 
 /**

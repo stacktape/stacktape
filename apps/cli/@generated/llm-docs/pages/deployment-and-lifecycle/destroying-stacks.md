@@ -1,4 +1,4 @@
-# Destroying Stacks
+# Deleting stacks
 
 The [`stacktape delete`](/cli/delete) command deletes Stacktape deployment artifacts and asks AWS CloudFormation to delete the deployed stack. Stacktape initializes stack services, validates configured [guardrails](/guardrails/overview), prompts for confirmation, and checks termination protection before proceeding. CloudFormation then removes the stack's resources in dependency order, subject to each resource's AWS-level deletion policies and state. Use this to tear down development stages, expired previews, or decommissioned environments.
 

@@ -1,4 +1,4 @@
-# JS Bundle for Containers
+# JS bundle for containers
 
 The `js-bundle` packaging type (`JsBundleImagePackaging`) builds a container image from a JavaScript or TypeScript entry file. Stacktape bundles the entry file and everything it imports into one file, installs only the dependencies that cannot be bundled, and uploads the image to a managed ECR repository. No Dockerfile is needed.
 

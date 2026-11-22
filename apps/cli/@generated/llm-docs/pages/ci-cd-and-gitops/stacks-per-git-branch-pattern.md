@@ -1,4 +1,4 @@
-# Stacks per Git Branch Pattern
+# Stacks per Git branch
 
 The stacks-per-branch pattern maps git branches and pull requests to Stacktape stages so each line of development gets its own deployed infrastructure. By deriving the stage name from a branch or PR number, teams get isolated environments for production, staging, PR reviews, and feature development — with automated lifecycle management through [GitOps](/ci-cd-and-gitops/gitops-with-console) or [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) pipelines.
 

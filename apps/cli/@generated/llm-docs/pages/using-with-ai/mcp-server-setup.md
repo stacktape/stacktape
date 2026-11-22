@@ -1,4 +1,4 @@
-# MCP Server Setup
+# MCP server
 
 
 > **Warning:** Preview — in active development. The Stacktape MCP server is under active development. Some operations may not work end-to-end in all environments, and behavior may change as the server stabilizes.

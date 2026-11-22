@@ -1,4 +1,4 @@
-# Self-Hosted GitHub Actions Runners
+# Self-hosted GitHub Actions runners
 
 Stacktape can manage self-hosted GitHub Actions runners on EC2 instances in your connected AWS account. You keep full GitHub Actions flexibility — custom steps, matrix builds, reusable workflows — while running jobs on a managed EC2 instance with more compute, pre-installed tools, and automatic hibernation to reduce idle costs.
 

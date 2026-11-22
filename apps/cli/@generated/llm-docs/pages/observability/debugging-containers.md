@@ -1,4 +1,4 @@
-# Debugging Containers
+# Debugging deployed containers
 
 Stacktape provides two CLI commands for debugging deployed container workloads: [`container shell`](/cli/container-session) for interactive shell access and [`container exec`](/cli/container-exec) for running one-off commands. `container shell` starts Stacktape's SSM shell-session helper for the selected ECS task, while `container exec` runs Stacktape's ECS Exec command helper and prints the captured result as JSON.
 

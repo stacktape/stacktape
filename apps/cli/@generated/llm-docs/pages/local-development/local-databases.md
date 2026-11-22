@@ -1,4 +1,4 @@
-# Local Databases
+# Local databases
 
 Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databases locally in Docker, avoiding the corresponding AWS database service. Dev-stack resources and the [dev network](/local-development/debugging-lambda-functions#the-dev-network) can still incur AWS charges. Data persists between sessions and workloads receive connection settings automatically. Use `dev.remote: true` to connect to the deployed database instead.
 

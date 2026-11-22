@@ -1,4 +1,4 @@
-# Web Application Firewall
+# Web application firewall
 
 A Stacktape web application firewall (WAF) blocks common web exploits — SQL injection, cross-site scripting, bad bots, and volumetric attacks — before they reach your APIs, load balancers, and auth pools. It uses AWS WAF underneath and ships with AWS-managed rule sets by default, providing baseline protection with minimal configuration.
 

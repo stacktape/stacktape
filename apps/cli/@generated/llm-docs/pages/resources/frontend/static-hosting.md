@@ -1,4 +1,4 @@
-# Static Hosting
+# Static hosting
 
 A Stacktape hosting-bucket deploys static frontend files to S3 and serves them through a CloudFront CDN. Use it for static sites, SPAs, and pre-rendered framework outputs where the deploy artifact is a directory of HTML, CSS, JavaScript, images, and other assets rather than a server process.
 

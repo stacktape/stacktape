@@ -1,4 +1,4 @@
-# Synthetic Tests
+# Synthetic tests
 
 A synthetic test runs your script on a schedule from AWS CloudWatch Synthetics in your own account and alerts you when a run fails. Where an [uptime check](/observability/uptime-checks) asks "does the endpoint respond?", a synthetic test verifies a whole flow: sign-in, checkout, a multi-step API sequence with assertions.
 

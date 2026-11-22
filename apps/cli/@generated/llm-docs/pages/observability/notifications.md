@@ -1,4 +1,4 @@
-# Notification Rules
+# Notification rules
 
 Notification rules decide which Stacktape events an [alert channel](/observability/alert-channels) receives, such as a failed deployment, an opened incident or a changed secret. Each rule belongs to one channel, lists one or more event types and can be limited to specific projects and stages. Rules are managed on the channel's page in the Console.
 

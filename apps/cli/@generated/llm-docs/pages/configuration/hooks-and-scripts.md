@@ -1,4 +1,4 @@
-# Hooks and Scripts
+# Hooks and scripts
 
 Stacktape hooks and scripts automate tasks around your deployment lifecycle — compiling assets before deploy, running database migrations after deploy, exporting data before deletion. Scripts are reusable commands defined in your config; hooks wire them to lifecycle events so they run automatically.
 

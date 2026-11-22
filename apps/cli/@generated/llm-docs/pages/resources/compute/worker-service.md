@@ -1,4 +1,4 @@
-# Worker Service
+# Worker service
 
 A Stacktape worker service runs an always-on container inside your VPC with no public URL. Use it for background workers, queue consumers, polling loops, and internal tasks that need persistent access to databases, queues, or other stack resources. Under the hood, it runs as an ECS Fargate (or EC2) service.
 

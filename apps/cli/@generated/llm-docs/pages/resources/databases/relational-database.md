@@ -1,4 +1,4 @@
-# Relational Database
+# Relational database
 
 A Stacktape relational database provisions a fully managed SQL database on AWS. Stacktape provisions the database, configures credentials, network access, backup retention, and maintenance windows. AWS RDS or Aurora runs the database operations — patching, automated backups, and recovery. You pick an engine (PostgreSQL, MySQL, MariaDB, or others) and deploy.
 

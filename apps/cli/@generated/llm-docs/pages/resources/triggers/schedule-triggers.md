@@ -1,4 +1,4 @@
-# Schedule Triggers
+# Schedule triggers
 
 A schedule trigger invokes a Stacktape [Lambda function](/resources/compute/lambda-function) on a recurring time-based schedule — cron jobs, periodic data processing, cache warming, report generation, or any task that runs at fixed intervals. Schedule triggers use AWS rate and cron expressions to invoke the target function on a recurring schedule.
 

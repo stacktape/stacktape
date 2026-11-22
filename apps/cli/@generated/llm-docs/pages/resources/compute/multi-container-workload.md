@@ -1,4 +1,4 @@
-# Multi-Container Workload
+# Multi-container workload
 
 A Stacktape multi-container-workload runs multiple containers together as a single ECS task, sharing CPU, memory, and network namespace. Fargate (serverless) is the default; specify `instanceTypes` for EC2-based compute. Use it when containers must start and stop together, communicate via `localhost`, or route different types of traffic to different processes within the same task.
 

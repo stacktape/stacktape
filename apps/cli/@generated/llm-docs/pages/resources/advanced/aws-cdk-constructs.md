@@ -1,4 +1,4 @@
-# AWS CDK Constructs
+# AWS CDK constructs
 
 A Stacktape CDK construct resource (`AwsCdkConstruct`) lets you embed an AWS CDK construct directly inside your Stacktape stack. Write a CDK construct class in TypeScript or JavaScript, point to the file with `entryfilePath`, optionally set `exportName` and `constructProperties`, and Stacktape deploys it as part of your stack. Use it as an escape hatch for AWS resources that Stacktape does not natively support.
 

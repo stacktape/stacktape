@@ -1,4 +1,4 @@
-# Agent Mode in Dev
+# Agent mode in dev
 
 
 > **Warning - Preview — in active development:** Agent mode is usable today but still evolving. Verify available endpoints by calling `GET /` on the running agent server. Some details on this page may change between Stacktape releases.

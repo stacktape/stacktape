@@ -1,4 +1,4 @@
-# Packaging Overview
+# Packaging overview
 
 Stacktape packaging turns your source code into a deployable artifact: a Lambda zip for functions or a container image for always-on services. Your [resource type](/configuration/resources) determines which category applies. The packaging type you choose controls how the artifact is built.
 

@@ -1,11 +1,11 @@
 ---
-title: 'Deployment Scripts'
+title: 'Deployment scripts'
 seoTitle: 'Deployment Scripts — Run Migrations on Deploy | Stacktape'
 seoDescription: 'Run database migrations, seed data, and cleanup tasks during deploy or delete with Stacktape deployment scripts. Lambda-backed and VPC-aware, with rollback for failed after-deploy scripts.'
-order: 68
+order: 1
 ---
 
-# Deployment Scripts
+# Deployment scripts
 
 A Stacktape deployment script runs a [Lambda function](/resources/compute/lambda-function) automatically during stack deployment or deletion. Use it for database migrations, seed data, cache warming, or cleanup tasks that need to execute inside AWS. With `connectTo` and `joinDefaultVpc`, deployment scripts can reach VPC-protected resources like databases and Redis caches. Deployment scripts use AWS Lambda pricing — you pay per invocation and for compute time measured in GB-seconds.
 

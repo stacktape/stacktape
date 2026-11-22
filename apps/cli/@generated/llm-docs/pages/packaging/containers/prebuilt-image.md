@@ -1,4 +1,4 @@
-# Prebuilt Image
+# Prebuilt image
 
 Prebuilt image packaging references an existing container image from any registry — Docker Hub, Amazon ECR, GitHub Container Registry, or a private registry. Stacktape skips the build step entirely and deploys the image directly. Use this when your image is already built by an external CI/CD pipeline, or when you want to run a third-party image like Nginx, Redis, or Prometheus.
 
