@@ -129,7 +129,9 @@ const commandPolicies: Record<StacktapeCommand, Omit<CliCommandPolicy, 'requires
   delete: { category: 'deployment', safety: 'destructive' },
   rollback: { category: 'deployment', safety: 'mutating' },
   'cf:rollback': { category: 'deployment', safety: 'mutating' },
-  diff: { category: 'deployment', safety: 'readOnly' },
+  // Not read-only: before it previews, diff creates or restores missing Secrets Manager secrets, uploads a template and
+  // requests a change set, as a deploy would.
+  diff: { category: 'deployment', safety: 'mutating' },
   'deployment-script:run': { category: 'deployment', safety: 'mutating' },
   'script:run': { category: 'deployment', safety: 'mutating' },
   synth: { category: 'local', safety: 'local' },

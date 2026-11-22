@@ -55,8 +55,11 @@ export const renderYaml = (composition: CompositionResult, settings: DeclaredSet
 export const renderTypeScript = async (
   composition: CompositionResult,
   settings: DeclaredSettings = {}
-): Promise<string> =>
-  prettier.format(convertYamlToTypescript(renderYaml(composition, settings)), {
+): Promise<string> => yamlConfigToTypeScript(renderYaml(composition, settings));
+
+/** A YAML configuration rewritten as a formatted `stacktape.ts`. */
+export const yamlConfigToTypeScript = (yaml: string): Promise<string> =>
+  prettier.format(convertYamlToTypescript(yaml), {
     parser: 'typescript',
     printWidth: 120,
     singleQuote: true

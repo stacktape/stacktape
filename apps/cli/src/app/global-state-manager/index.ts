@@ -647,9 +647,8 @@ export class GlobalStateManager {
     this.localTargetAwsAccount = this.#localTargetAccount(account);
     await operationReporter.finishEvent({
       eventType: 'LOAD_AWS_CREDENTIALS',
-      finalMessage: profile
-        ? `AWS credentials loaded (profile ${profile})`
-        : 'AWS credentials loaded (standard AWS credential chain)'
+      // Printed before anything changes, so an account-free command shows which AWS account it is about to change.
+      finalMessage: `AWS credentials loaded for AWS account ${account} (${profile ? `profile ${profile}` : 'standard AWS credential chain'})`
     });
   };
 
