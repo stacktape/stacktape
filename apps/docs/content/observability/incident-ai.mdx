@@ -177,38 +177,14 @@ See [Team and access control](/stacktape-console/team-and-access-control#roles) 
 
 ## FAQ
 
-### Does Investigate or Fix deploy anything?
+### Which agent should I choose?
 
-No. An investigation publishes nothing: what it changes in the checkout on the runner is discarded. A fix ends in a pull request on a new branch. Stacktape deploys nothing, merges nothing and starts no preview deployment for it. You review, test, merge and deploy the change yourself.
-
-### Can the agent change my AWS resources?
-
-No. The agent has no AWS credentials. It reads AWS only through Stacktape's reviewed read-only operations, which Stacktape executes for it, and an operation outside that catalog is refused. A change to production goes through the pull request you merge and deploy.
-
-### Can I use it without connecting a Git repository?
-
-The automatic briefing and Investigate with AI work without one. The investigation then diagnoses from the incident and your AWS account, and its report says the source was not available. Fix with AI needs a GitHub repository, private or public, connected through the Stacktape GitHub App.
+The one your team already uses and pays for. When the agent's commands must not be able to read its credential or the
+run's files, choose Claude Code or Codex (see [Coding agents](#coding-agents)). On the organization's API key, Claude
+Code and OpenCode also stop at the run's spend limit.
 
 ### What happens when a run fails?
 
-The incident page shows why. For example, the provider rejected the credential, a usage or spend limit was reached, the runner had no free capacity, or the run took too long. Nothing is retried with another credential. A fix whose change could not be pushed or published keeps it with the run: the page lists the changed files and shows the change as a patch. You can start a new run once the cause is resolved.
-
-### Is my source code sent to the AI provider?
-
-Only in Investigate and Fix runs, and only when your repository is connected and Stacktape recorded the full commit of the live release. The agent reads and runs your code on your runner and sends what it reads to its provider under the terms of the credential you chose. Unlike the answers of Stacktape's tools, source code and command output are not masked. The automatic briefing never reads source code.
-
-### Which agent should I choose?
-
-The one your team already uses and pays for. When the agent's commands must not be able to read its credential or the run's files, choose Claude Code or Codex (see [Coding agents](#coding-agents)). On the organization's API key, Claude Code and OpenCode also stop at the run's spend limit.
-
-### Can a Viewer start a run?
-
-No. Viewers can read briefings and run results on the projects they can access. Starting a run needs the Owner, Admin or Developer role and access to the project.
-
-### Does the briefing change the incident's severity or alerts?
-
-No. Severity, status, signals and pages come from monitoring, and alerts never wait for the briefing. When the model thinks the severity may be understated or overstated, the briefing says so, and the severity stays as monitoring set it.
-
-### Can Stacktape change my main branch?
-
-No. For a fix, the runner pushes one new branch, `stacktape/fix-<run>`, and Stacktape opens a pull request from it. Neither pushes to any other branch or merges.
+The incident page shows why: the provider rejected the credential, a usage or spend limit was reached, the runner had
+no free capacity, or the run took too long. Nothing is retried with another credential. A fix whose change couldn't be
+pushed keeps it with the run as a patch. Start a new run once the cause is resolved.
