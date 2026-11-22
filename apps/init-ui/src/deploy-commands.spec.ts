@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { secretCommand, stackCommand } from './deploy-commands';
+import { deletionProtectedResources, secretCommand, stackCommand } from './deploy-commands';
 
 describe('stackCommand', () => {
   it('makes every stack target explicit for deploy and delete', () => {
@@ -51,5 +51,18 @@ describe('secretCommand', () => {
     expect(secretCommand('rmq_url', 'eu-west-1', 'Development Account')).toBe(
       'stacktape secret set rmq_url --region eu-west-1 --aws-account "Development Account"'
     );
+  });
+});
+
+describe('deletionProtectedResources', () => {
+  it('names only the resources that delete would refuse', () => {
+    expect(
+      deletionProtectedResources({
+        db: { type: 'relational-database', properties: { deletionProtection: true } },
+        cache: { type: 'redis-cluster', properties: {} },
+        oldDb: { type: 'relational-database', properties: { deletionProtection: false } },
+        api: { type: 'web-service', properties: {} }
+      })
+    ).toEqual(['db']);
   });
 });
