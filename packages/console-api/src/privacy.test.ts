@@ -52,6 +52,7 @@ const SENTINEL = {
 test('the package publishes only the reviewed external contracts', () => {
   assert.deepEqual(publishedSources.map(({ file }) => file).toSorted(), [
     'anonymous.ts',
+    'api-key-scopes.ts',
     'api-key.ts',
     'aws-identity.ts',
     'billing.ts',
