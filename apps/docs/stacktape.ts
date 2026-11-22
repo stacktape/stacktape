@@ -10,7 +10,7 @@
 import { isAbsolute } from 'node:path';
 import { $CfResourceParam, Bucket, defineConfig, LocalScript } from '@stacktape/config-authoring';
 import { buildRedirectFunctionCode } from './src/build/cdn-redirects.ts';
-import { SITE_REDIRECTS } from './src/utils/site-redirects.ts';
+import { CDN_REDIRECTS } from './src/utils/site-redirects.ts';
 
 const REDIRECT_FUNCTION = 'DocsRedirectsFunction';
 
@@ -70,8 +70,7 @@ export default defineConfig({ projectName: 'docs', region: 'eu-west-1' }, ({ sta
           Name: `docs-${stage}-redirects`,
           AutoPublish: true,
           FunctionConfig: { Comment: 'Answers old docs URLs with a 301', Runtime: 'cloudfront-js-2.0' },
-          // Search consoles and crawlers still ask for the Stacktape 3 sitemap URL.
-          FunctionCode: buildRedirectFunctionCode({ ...SITE_REDIRECTS, '/sitemap.xml': '/sitemap-index.xml' })
+          FunctionCode: buildRedirectFunctionCode(CDN_REDIRECTS)
         }
       }
     }
