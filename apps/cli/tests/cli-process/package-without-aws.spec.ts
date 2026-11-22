@@ -305,6 +305,10 @@ describe('stacktape package without AWS', () => {
     expect(run.exitCode, run.output).toBe(0);
     expect(run.zips).toHaveLength(1);
     expect(aws.actions).toEqual(['GetCallerIdentity']);
+    // The account the command works in is named before it changes anything.
+    expect(run.output).toContain(
+      `AWS credentials loaded for AWS account ${KEYS_ACCOUNT} (standard AWS credential chain)`
+    );
   });
 
   test('a failing profile that names its account is not replaced by container credentials of another account', async () => {

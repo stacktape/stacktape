@@ -3,3 +3,20 @@ import { ApiReference } from '@/components/Mdx/api-reference';
 const { definitionName } = Astro.props as { definitionName: string };
 ---
 <ApiReference client:visible definitionName={definitionName} />
+
+<script>
+// Nested property rows exist only after the island hydrates, and `client:visible` waits until the reference is on
+  // screen. For a link to a nested row, bring the reference into view so it hydrates; the island then opens the rows
+  // above the target and scrolls to it.
+  const revealReference = () => {
+    const hash = decodeURIComponent(window.location.hash);
+    const separator = hash.indexOf('--');
+    if (!hash.startsWith('#api-ref_') || separator === -1) return;
+    if (document.getElementById(hash.slice(1))) return;
+    const reference = document.getElementById(hash.slice(1, separator));
+    if (!reference?.closest('astro-island')?.hasAttribute('ssr')) return;
+    reference.scrollIntoView({ block: 'start' });
+  };
+  revealReference();
+  window.addEventListener('hashchange', revealReference);
+</script>

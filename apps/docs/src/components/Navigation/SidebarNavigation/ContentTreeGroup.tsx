@@ -1,6 +1,6 @@
-import { createElement, type CSSProperties } from 'react';
+import { createElement, useContext, type CSSProperties } from 'react';
 import { ChevronRight } from 'react-feather';
-import { ContentTreeNode, navIndentStyle } from './ContentTreeNode';
+import { ContentTreeNode, NavIdPrefixContext, navIndentStyle } from './ContentTreeNode';
 import { useExpansionToggle, useIsExpanded } from './expansion-store';
 import type { NavGroup } from './navigation-data';
 
@@ -12,7 +12,7 @@ export function ContentTreeGroup({ group }: { group: NavGroup }) {
   const groupKey = `group:${group.id}`;
   const isExpanded = useIsExpanded(groupKey);
   const toggle = useExpansionToggle();
-  const childrenId = `docs-nav-${group.id}`;
+  const childrenId = `${useContext(NavIdPrefixContext)}-${group.id}`;
 
   // The root group holds the Introduction entry only: no heading, always open.
   if (group.id === '__root') {

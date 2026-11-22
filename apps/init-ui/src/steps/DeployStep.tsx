@@ -15,7 +15,7 @@ import { PipelineCard } from '../components/PipelineCard';
 import { RegionPicker } from '../components/RegionPicker';
 import { Row, RowList } from '../components/RowList';
 import { ConsoleOfferCard } from '../components/ConsoleOfferCard';
-import { secretCommand, stackCommand } from '../deploy-commands';
+import { deletionProtectedResources, secretCommand, stackCommand } from '../deploy-commands';
 import type { SignInRequest, WizardState } from '../session';
 import { gapsToList } from '../gaps';
 import { requiredSecrets } from '@stacktape/config-inference/compose/required-secrets';
@@ -131,6 +131,7 @@ export function DeployStep({
 
   const resources = Object.entries(state.composition?.resources ?? {});
   const hasDatabase = resources.some(([, resource]) => resource.type === 'relational-database');
+  const protectedNames = deletionProtectedResources(state.composition?.resources ?? {});
 
   if (file === undefined) {
     return (
@@ -292,7 +293,7 @@ export function DeployStep({
               >
                 {showRemoval ? 'Hide' : 'Done experimenting? Remove'} this deployment
               </button>
-              {showRemoval && (
+              {showRemoval && protectedNames.length === 0 && (
                 <div className="mt-3 flex flex-col gap-2">
                   <p className="m-0 text-[0.9rem] text-[var(--stp-text-muted)]">
                     This command removes everything this deploy created
@@ -300,6 +301,31 @@ export function DeployStep({
                     <span className="wizard-code">{file.filename}</span> stay.
                   </p>
                   <CopyableCommand command={deleteCommand} />
+                </div>
+              )}
+              {showRemoval && protectedNames.length > 0 && (
+                <div className="mt-3 flex flex-col gap-3 text-[0.9rem] text-[var(--stp-text-muted)]">
+                  <p className="m-0">
+                    Deletion protection is on for {listNames(protectedNames)}, so{' '}
+                    <span className="wizard-code">stacktape delete</span> refuses to remove this stack until you turn it
+                    off. Removing it deletes everything this deploy created
+                    {hasDatabase ? ', including the database and its data' : ''}. Your code and{' '}
+                    <span className="wizard-code">{file.filename}</span> stay.
+                  </p>
+                  <ol className="m-0 flex flex-col gap-3 pl-5">
+                    <li className="flex flex-col gap-2">
+                      <span>
+                        In <span className="wizard-code">{file.filename}</span>, set{' '}
+                        <span className="wizard-code">deletionProtection: false</span> on {listNames(protectedNames)},
+                        then deploy:
+                      </span>
+                      <CopyableCommand command={redeployCommand} />
+                    </li>
+                    <li className="flex flex-col gap-2">
+                      <span>Delete the stack:</span>
+                      <CopyableCommand command={deleteCommand} />
+                    </li>
+                  </ol>
                 </div>
               )}
             </section>

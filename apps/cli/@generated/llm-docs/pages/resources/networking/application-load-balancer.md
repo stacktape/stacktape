@@ -1,10 +1,10 @@
 # Application Load Balancer
 
-A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container workloads and [Lambda functions](/resources/compute/lambda-function) based on path, host, headers, query parameters, and source IPs. It uses AWS ALB underneath — flat ~$18/month pricing (AWS Free Tier eligible), WebSocket support, [firewall](/resources/security/web-application-firewall) attachment, and [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
+A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container workloads and [Lambda functions](/resources/compute/lambda-function) based on path, host, headers, query parameters, and source IPs. It uses AWS ALB underneath: an hourly base of about $18/month plus usage-based LCU charges (AWS Free Tier eligible), WebSocket support, [firewall](/resources/security/web-application-firewall) attachment, and [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
 
 ## When to use
 
-Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
+Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a fixed-base alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
 
 Common patterns that fit well:
 
@@ -13,7 +13,7 @@ Common patterns that fit well:
 - **Container WebSocket applications** — keep framework-managed connections and server state in long-running services behind the ALB; for Lambda routes that scale to zero, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway)
 - **Firewall-protected APIs** — attach a [web application firewall](/resources/security/web-application-firewall) directly to the ALB to protect against common web exploits
 - **Gradual deployments** — canary and linear deployment strategies require an ALB
-- **Sustained high traffic** — flat pricing is cheaper than pay-per-request above moderate volume
+- **Sustained high traffic** — an hourly base plus LCUs is cheaper than pay-per-request above moderate volume
 
 ## When NOT to use
 
@@ -27,7 +27,7 @@ Common patterns that fit well:
 
 | Feature | Application Load Balancer | HTTP API Gateway |
 | --- | --- | --- |
-| Pricing model | Flat ~$18/month + LCU-based | Pay-per-request |
+| Pricing model | ~$18/month hourly base + LCU usage | Pay-per-request |
 | Best for | Container workloads | Lambda functions |
 | Scales to zero cost | No | Yes |
 | Routing options | Path, method, host, headers, query params, source IPs | Method + path |
@@ -393,7 +393,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ### How much does an Application Load Balancer cost?
 
-AWS ALB has a flat base charge of roughly $18/month plus a variable component based on Load Balancer Capacity Units (LCUs). LCUs measure active connections, new connections, bandwidth, and rule evaluations — most moderate-traffic apps stay near the base cost. ALB is AWS Free Tier eligible. Note the base cost runs even at zero traffic, so a pay-per-request [HTTP API Gateway](/resources/networking/http-api-gateway) is cheaper for low or spiky volume.
+AWS ALB has an hourly base charge of roughly $18/month plus a variable component based on Load Balancer Capacity Units (LCUs). LCUs measure active connections, new connections, bandwidth, and rule evaluations — most moderate-traffic apps stay near the base cost. ALB is AWS Free Tier eligible. Note the base cost runs even at zero traffic, so a pay-per-request [HTTP API Gateway](/resources/networking/http-api-gateway) is cheaper for low or spiky volume.
 
 ### How do I route traffic to multiple services through one ALB?
 
@@ -405,7 +405,7 @@ An [Application Load Balancer](/resources/networking/application-load-balancer) 
 
 ### When should I use an ALB vs HTTP API Gateway?
 
-Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-based request-response APIs with variable or low traffic. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes that should scale to zero. Use an Application Load Balancer for container-based services, persistent WebSocket servers, or advanced HTTP routing (headers, query params, source IPs). ALB's flat pricing is cheaper above roughly 500k requests per day. ALB also supports [gradual deployments](/deployment-and-lifecycle/gradual-deployments) and direct [WAF attachment](/resources/security/web-application-firewall).
+Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-based request-response APIs with variable or low traffic. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes that should scale to zero. Use an Application Load Balancer for container-based services, persistent WebSocket servers, or advanced HTTP routing (headers, query params, source IPs). ALB's hourly base plus LCU usage is cheaper above roughly 500k requests per day. ALB also supports [gradual deployments](/deployment-and-lifecycle/gradual-deployments) and direct [WAF attachment](/resources/security/web-application-firewall).
 
 ### Does the Application Load Balancer support WebSockets?
 

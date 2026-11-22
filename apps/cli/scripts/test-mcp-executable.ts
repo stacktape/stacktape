@@ -693,7 +693,8 @@ const verify = async () => {
         await call('stacktape_cli', {
           action: 'run',
           command: 'diff',
-          args: { stage: 'j12', region: 'eu-west-1', badArg: true }
+          args: { stage: 'j12', region: 'eu-west-1', badArg: true },
+          confirm: true
         })
       ).code,
       'VALIDATION_ERROR'
