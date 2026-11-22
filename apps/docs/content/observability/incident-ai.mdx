@@ -45,7 +45,7 @@ The briefing gives hypotheses from stored evidence, not a verified diagnosis. Th
 The briefing appears:
 
 - on the incident page in the Console, under **AI assessment**, with the time its evidence was collected;
-- on the incident's card in Slack when the incident goes to a [Stacktape Slack app](/observability/alert-channels#slack-stacktape-app) channel: the summary and why it may need attention now, with a link to the full assessment. The card is updated when a new briefing is ready;
+- on the incident's card in Slack when the incident goes to a [Stacktape Slack app](/observability/alert-channels#slack) channel: the summary and why it may need attention now, with a link to the full assessment. The card is updated when a new briefing is ready;
 - in the [agent handoff](/observability/incidents#agent-handoff-bundle) that **Copy details for agent** and `stacktape incident show` return.
 
 A Stacktape-managed model writes the briefing from a scrubbed, bounded snapshot of what Stacktape already stores about the incident (see [What leaves your AWS account](#what-leaves-your-aws-account)). It does not read raw log lines, your source code or live state in your AWS account. Stacktape pays for it and limits how many briefings it prepares per organization per hour, so during a burst of incidents some briefings wait. A briefing that cannot be prepared within a day is dropped. Alerts and monitoring are unaffected either way.
