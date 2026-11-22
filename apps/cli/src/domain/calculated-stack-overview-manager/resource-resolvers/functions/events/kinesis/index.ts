@@ -79,13 +79,12 @@ export const resolveKinesisEvents = ({
 
       // Resolve streamArn from kinesisStreamName if provided
       let streamArn: string | Intrinsic = event.properties.streamArn;
-      let streamUsesEnhancedFanOut = false;
       if (event.properties.kinesisStreamName) {
-        streamUsesEnhancedFanOut = !!resolveReferenceToKinesisStream({
+        resolveReferenceToKinesisStream({
           referencedFrom: name,
           referencedFromType: configParentResourceType,
           stpResourceReference: event.properties.kinesisStreamName
-        }).enableEnhancedFanOut;
+        });
         streamArn = getAtt(
           cfLogicalNames.kinesisStream(event.properties.kinesisStreamName),
           'Arn'
@@ -93,10 +92,7 @@ export const resolveKinesisEvents = ({
       }
 
       let consumerArn = event.properties.consumerArn;
-      // A stream with enhanced fan-out gives each trigger its own consumer unless the trigger decides otherwise.
-      const autoCreateConsumer =
-        event.properties.autoCreateConsumer ?? (streamUsesEnhancedFanOut && !event.properties.consumerArn);
-      if (autoCreateConsumer) {
+      if (event.properties.autoCreateConsumer) {
         calculatedStackOverviewManager.addCfChildResource({
           cfLogicalName: cfLogicalNames.kinesisEventConsumer(name, index),
           nameChain,

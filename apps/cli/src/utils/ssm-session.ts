@@ -329,26 +329,6 @@ export const runEcsExecSsmShellSession = async ({
   return startSessionResponse.SessionId;
 };
 
-const ECS_EXEC_EXIT_CODE_MARKER = '__STACKTAPE_EXIT_CODE__=';
-
-/**
- * The Session Manager plugin exits with 0 whenever the session itself worked, whatever the command returned. The
- * command runs in a `/bin/sh` subshell, so even `exit` returns to the shell, which then prints the exit code after a
- * marker that `readEcsExecResult` reads back.
- */
-export const wrapEcsExecCommand = (command: string) =>
-  `/bin/sh -c '${`(\n${command}\n)\necho "${ECS_EXEC_EXIT_CODE_MARKER}$?"`.replaceAll("'", "'\\''")}'`;
-
-/** The command's output and exit code; the exit code is `null` when the session ended before the command reported one. */
-export const readEcsExecResult = (output: string): { output: string; exitCode: number | null } => {
-  const marker = [...output.matchAll(new RegExp(`${ECS_EXEC_EXIT_CODE_MARKER}(\\d+)\\r?\\n?`, 'g'))].at(-1);
-  if (!marker) return { output, exitCode: null };
-  return {
-    output: output.slice(0, marker.index) + output.slice(marker.index + marker[0].length),
-    exitCode: Number(marker[1])
-  };
-};
-
 /**
  * Execute a command in a container and capture output (non-interactive)
  */
@@ -362,9 +342,9 @@ export const runEcsExecCommand = async ({
   taskArn: string;
   containerName: string;
   command: string;
-}): Promise<{ output: string; exitCode: number | null }> => {
+}): Promise<{ output: string; exitCode: number }> => {
   const executeCommandCommandInput: ExecuteCommandCommandInput = {
-    command: wrapEcsExecCommand(command),
+    command,
     interactive: true, // ECS Exec requires interactive=true even for non-interactive commands
     task: taskArn,
     cluster: clusterArn,
@@ -403,7 +383,10 @@ export const runEcsExecCommand = async ({
       }
     );
 
-    return readEcsExecResult(result.stdout || result.stderr || '');
+    return {
+      output: result.stdout || result.stderr || '',
+      exitCode: result.exitCode ?? 1
+    };
   } finally {
     await awsSdkManager.systemsManager.terminateSession({ sessionId: startSessionResponse.SessionId });
   }

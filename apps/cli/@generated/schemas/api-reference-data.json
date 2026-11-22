@@ -35281,8 +35281,8 @@
       {
         "name": "enableEnhancedFanOut",
         "required": false,
-        "shortDescription": "<p> Give each consumer its own dedicated 2 MB/s read throughput (instead of sharing).</p>",
-        "longDescription": "<p>Use when you have multiple consumers reading from the same stream and need low latency. Each function that\ntriggers on this stream through <code>kinesisStreamName</code> gets its own stream consumer, as if its trigger set\n<code>autoCreateConsumer: true</code>. A trigger that sets <code>consumerArn</code> or <code>autoCreateConsumer: false</code> keeps its own setting.</p>",
+        "shortDescription": "<p> Deprecated: has no effect. Set <code>autoCreateConsumer: true</code> on a function&#39;s trigger instead.</p>",
+        "longDescription": "<p>This property never changed the deployed stream and is ignored; Stacktape prints a deprecation warning when it is\nset. To give a function its own enhanced fan-out consumer with dedicated 2 MB/s read throughput per shard, set\n<code>autoCreateConsumer: true</code> (or <code>consumerArn</code>) on its <code>kinesis-stream</code> trigger, as in the examples below.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -35372,7 +35372,7 @@
       "requiredCount": 0,
       "optionalCount": 5
     },
-    "typeDeclaration": "import type { KinesisStreamEncryption } from 'stacktape';\n\n// [!code focus-start]\ntype KinesisStreamProps = {\n  /** How the stream scales. */\n  capacityMode?: \"ON_DEMAND\" | \"PROVISIONED\";\n  /** Give each consumer its own dedicated 2 MB/s read throughput (instead of sharing). */\n  enableEnhancedFanOut?: boolean;\n  /** Encrypt data at rest using a KMS key. */\n  encryption?: KinesisStreamEncryption;\n  /** How long records stay in the stream (hours). Range: 24–8,760 (365 days). Beyond 24h costs extra. */\n  retentionPeriodHours?: number;\n  /** Number of shards. Only used when `capacityMode` is `PROVISIONED`. */\n  shardCount?: number;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { KinesisStreamEncryption } from 'stacktape';\n\n// [!code focus-start]\ntype KinesisStreamProps = {\n  /** How the stream scales. */\n  capacityMode?: \"ON_DEMAND\" | \"PROVISIONED\";\n  /** Deprecated: has no effect. Set `autoCreateConsumer: true` on a function's trigger instead. */\n  enableEnhancedFanOut?: boolean;\n  /** Encrypt data at rest using a KMS key. */\n  encryption?: KinesisStreamEncryption;\n  /** How long records stay in the stream (hours). Range: 24–8,760 (365 days). Beyond 24h costs extra. */\n  retentionPeriodHours?: number;\n  /** Number of shards. Only used when `capacityMode` is `PROVISIONED`. */\n  shardCount?: number;\n};\n// [!code focus-end]"
   },
   "LambdaAlarm": {
     "definitionName": "LambdaAlarm",

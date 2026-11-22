@@ -864,31 +864,11 @@ test('a new function connected to Aurora is created while the instances are; con
   });
 });
 
-test('a stream with enhanced fan-out gives each trigger its own consumer unless the trigger sets its own', async () => {
-  const trigger = (properties: string) => `
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: handler.ts
-      events:
-        - type: kinesis-stream
-          properties:
-            kinesisStreamName: fanout${properties}`;
-  const template = await synthesize(`resources:
+test('the deprecated enableEnhancedFanOut flag leaves event source mappings and consumers unchanged', async () => {
+  const config = (streamProperties: string) => `resources:
   fanout:
-    type: kinesis-stream
-    properties:
-      enableEnhancedFanOut: true
-  shared:
-    type: kinesis-stream
-  dedicated:${trigger('')}
-  polling:${trigger(`
-            autoCreateConsumer: false`)}
-  existing:${trigger(`
-            consumerArn: arn:aws:kinesis:eu-west-1:123456789012:stream/other/consumer/existing:1`)}
-  sharedReader:
+    type: kinesis-stream${streamProperties}
+  reader:
     type: function
     properties:
       packaging:
@@ -898,18 +878,26 @@ test('a stream with enhanced fan-out gives each trigger its own consumer unless 
       events:
         - type: kinesis-stream
           properties:
-            kinesisStreamName: shared
-`);
-  const consumers = Object.entries(template.Resources).filter(
-    ([, { Type }]) => Type === 'AWS::Kinesis::StreamConsumer'
+            kinesisStreamName: fanout
+`;
+  const streamResources = (template: Awaited<ReturnType<typeof synthesize>>) =>
+    Object.fromEntries(
+      Object.entries(template.Resources).filter(([, { Type }]) =>
+        ['AWS::Lambda::EventSourceMapping', 'AWS::Kinesis::StreamConsumer'].includes(Type)
+      )
+    );
+  const withFlag = streamResources(
+    await synthesize(
+      config(`
+    properties:
+      enableEnhancedFanOut: true`)
+    )
   );
-  expect(consumers.map(([logicalId]) => logicalId)).toEqual(['DedicatedEvent0StreamConsumer']);
-  expect(consumers[0][1]).toMatchObject({ Properties: { StreamARN: { 'Fn::GetAtt': ['FanoutStream', 'Arn'] } } });
-  const source = (name: string) =>
-    (template.Resources[`${name}Event0EventSourceMapping`] as { Properties: { EventSourceArn: unknown } }).Properties
-      .EventSourceArn;
-  expect(source('Dedicated')).toEqual({ 'Fn::GetAtt': ['DedicatedEvent0StreamConsumer', 'ConsumerARN'] });
-  expect(source('Polling')).toEqual({ 'Fn::GetAtt': ['FanoutStream', 'Arn'] });
-  expect(source('Existing')).toBe('arn:aws:kinesis:eu-west-1:123456789012:stream/other/consumer/existing:1');
-  expect(source('SharedReader')).toEqual({ 'Fn::GetAtt': ['SharedStream', 'Arn'] });
+  const withoutFlag = streamResources(await synthesize(config('')));
+  // An existing mapping keeps reading the stream directly: a new EventSourceArn would replace it and reset its position.
+  expect(withFlag).toEqual(withoutFlag);
+  expect(Object.values(withFlag).map(({ Type }) => Type)).toEqual(['AWS::Lambda::EventSourceMapping']);
+  expect(withFlag.ReaderEvent0EventSourceMapping).toMatchObject({
+    Properties: { EventSourceArn: { 'Fn::GetAtt': ['FanoutStream', 'Arn'] } }
+  });
 });

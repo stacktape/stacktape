@@ -11,7 +11,6 @@ import {
 } from '@aws-sdk/client-cloudwatch-logs';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { externalToolPath } from '../../src/utils/external-tools';
-import { wrapEcsExecCommand } from '../../src/utils/ssm-session';
 import { buildOperationsCli, createOperationsFixture, seedDeployedStack, targetArgs } from './cli-process';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 import { toQueryXml } from './loopback-aws';
@@ -34,9 +33,8 @@ if (session.SessionId === 'startup-fail') { console.error(session.TokenValue); p
 if (session.SessionId === 'ignore-term' || session.SessionId === 'startup-wait') process.on('SIGTERM', () => {});
 if (session.SessionId === 'idle-zero' || session.SessionId === 'idle-fail') setTimeout(() => process.exit(session.SessionId === 'idle-zero' ? 0 : 7), 300);
 if (session.SessionId === 'fail') process.exit(7);
-if (session.SessionId === 'exec-fail') { console.log('j9-exec-failed\\n__STACKTAPE_EXIT_CODE__=3'); process.exit(0); }
-if (session.SessionId === 'exec-session-fail') { console.error('j9-exec-session-failed'); process.exit(7); }
-if (session.SessionId === 'exec') { console.log('j9-exec-result\\n__STACKTAPE_EXIT_CODE__=0'); process.exit(0); }
+if (session.SessionId === 'exec-fail') { console.error('j9-exec-failed'); process.exit(7); }
+if (session.SessionId === 'exec') { console.log('j9-exec-result'); process.exit(0); }
 if (session.SessionId !== 'startup-wait') console.log(['tunnel', 'idle-zero', 'idle-fail', 'ignore-term'].includes(session.SessionId) ? 'Waiting for connections...' : 'j9-shell-ready');
 process.stdin.setEncoding('utf8');
 process.stdin.on('data', (input) => { writeFileSync('.j9-input', input); console.log('j9-shell-received'); process.exit(0); });
@@ -326,14 +324,14 @@ test.skipIf(process.platform === 'win32')(
       expect(JSON.parse(output.message as string)).toMatchObject({
         containerName: 'sidecar',
         taskArn: taskArn('second'),
-        output: 'j9-exec-result\n',
+        output: 'j9-exec-result',
         exitCode: 0
       });
       expect(fixture.aws.callsTo('ecs.ExecuteCommand')[0].input).toMatchObject({
         cluster: clusterArn,
         task: taskArn('second'),
         container: 'sidecar',
-        command: wrapEcsExecCommand('printf j9-command'),
+        command: 'printf j9-command',
         interactive: true
       });
       const state = await record(fixture);
@@ -355,18 +353,12 @@ test.skipIf(process.platform === 'win32')(
         ...targetArgs,
         '--agent'
       ]);
-      // The session worked and the plugin exited with 0, but the command failed.
       expect(failed.exitCode).toBe(1);
-      const failedResult = parseCliJsonl(failed.stdout, 'container:exec');
-      expect(failedResult.result.code).toBe('CONTAINER_EXEC_FAILED');
-      expect(failedResult.result.message).toContain('exited with code 3');
-      const failedOutput = failedResult.events.find(
-        (event) => event.type === 'log' && typeof event.message === 'string' && event.message.startsWith('{')
-      );
-      expect(JSON.parse(failedOutput.message as string)).toMatchObject({ output: 'j9-exec-failed\n', exitCode: 3 });
+      expect(parseCliJsonl(failed.stdout, 'container:exec').result.code).toBe('CONTAINER_EXEC_FAILED');
+      expect(failed.stdout).toContain('j9-exec-failed');
       expect(failed.stdout + failed.stderr).not.toContain(token);
-      await seedContainer(fixture, 'exec-session-fail');
-      const sessionFailed = await fixture.run([
+      await seedContainer(fixture, 'exec');
+      const withoutTaskArn = await fixture.run([
         'container:exec',
         '--resourceName',
         'service',
@@ -377,16 +369,13 @@ test.skipIf(process.platform === 'win32')(
         ...targetArgs,
         '--agent'
       ]);
-      expect(sessionFailed.exitCode).toBe(1);
-      const sessionFailedResult = parseCliJsonl(sessionFailed.stdout, 'container:exec');
-      expect(sessionFailedResult.result.code).toBe('CONTAINER_EXEC_FAILED');
-      expect(sessionFailedResult.result.message).toContain('did not report an exit code');
+      expect(withoutTaskArn.exitCode, withoutTaskArn.stdout + withoutTaskArn.stderr).toBe(0);
       // Without --taskArn the first task of the service is used, never the release task listed before it.
       expect(fixture.aws.callsTo('ecs.ExecuteCommand').at(-1).input.task).toBe(taskArn('first'));
       expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual([
         'exec',
         'exec-fail',
-        'exec-session-fail'
+        'exec'
       ]);
       assertRequests(fixture);
     } finally {
@@ -784,7 +773,7 @@ test.skipIf(process.platform === 'win32')(
 );
 
 test.skipIf(process.platform === 'win32')(
-  'public container exec positionals reach the ECS command',
+  'public container exec positionals reach the ECS command unchanged',
   async () => {
     const fixture = await create();
     try {
@@ -803,7 +792,7 @@ test.skipIf(process.platform === 'win32')(
       ]);
       expect(child.exitCode, child.stdout + child.stderr).toBe(0);
       expect(fixture.aws.callsTo('ecs.ExecuteCommand')[0].input).toMatchObject({
-        command: wrapEcsExecCommand('printf j9-command'),
+        command: 'printf j9-command',
         container: 'sidecar',
         task: taskArn('second')
       });

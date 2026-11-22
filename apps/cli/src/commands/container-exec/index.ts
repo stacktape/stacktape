@@ -42,21 +42,12 @@ export const commandContainerExec = async () => {
       2
     )
   );
-  if (result.exitCode === null) {
-    throw new CliError({
-      category: 'AWS',
-      code: 'CONTAINER_EXEC_FAILED',
-      message:
-        'The command did not report an exit code: the container exec session failed or the container has no `/bin/sh`.',
-      hints: 'Check the session output above. `container exec` runs the command with `/bin/sh -c`.'
-    });
-  }
   if (result.exitCode !== 0) {
     throw new CliError({
       category: 'AWS',
       code: 'CONTAINER_EXEC_FAILED',
-      message: `The command exited with code ${result.exitCode}.`,
-      hints: 'Check the command output above.'
+      message: `The container exec session failed (Session Manager plugin exit code ${result.exitCode}).`,
+      hints: 'Check the session output and retry the command.'
     });
   }
 };

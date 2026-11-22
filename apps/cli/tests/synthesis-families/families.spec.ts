@@ -1623,9 +1623,8 @@ describe('account-free stacks', () => {
       (error: { code?: string; message: string }) => `${error.code}: ${error.message}`
     );
 
-  test("a private service's internal HTTP load balancer and a Convex without its dashboard deploy without the Console", async () => {
+  test('a Convex without its dashboard deploys without the Console and without any Console DNS resource', async () => {
     const template = await synthesizeAccountFree({
-      internal: service('private-service', { loadBalancing: { type: 'application-load-balancer' } }),
       backend: {
         type: 'convex',
         properties: {
@@ -1635,18 +1634,25 @@ describe('account-free stacks', () => {
         }
       }
     });
-    const listeners = resourcesOfType(template, 'AWS::ElasticLoadBalancingV2::Listener').map(
-      ([, resource]) => resource.Properties?.Protocol
-    );
-    expect(listeners).toContain('HTTP');
+    expectReferencesResolve(template);
+    // Default domains and their certificate are provisioned through the Console, which this AWS account never joined.
+    expect(Object.keys(template.Resources).filter((logicalId) => logicalId.includes('DefaultDomain'))).toEqual([]);
+    expect(json(template)).not.toContain('stacktape-app.com');
+    expect(resourcesOfType(template, 'AWS::ElasticLoadBalancingV2::Listener').length).toBeGreaterThan(0);
   });
 
-  test('a load balancer served on an HTTPS default domain and a Convex without domains still need the Console', async () => {
+  test('a load balancer served on a default domain and a Convex without domains still need the Console', async () => {
     const webServiceRefusal = await refusal({
       web: service('web-service', { loadBalancing: { type: 'application-load-balancer' } })
     });
     expect(webServiceRefusal).toStartWith('CONFIG_NEEDS_CONSOLE');
     expect(webServiceRefusal).toContain('default domain of `web');
+    // Its default domain is created through the Console even when every listener is HTTP.
+    const privateServiceRefusal = await refusal({
+      internal: service('private-service', { loadBalancing: { type: 'application-load-balancer' } })
+    });
+    expect(privateServiceRefusal).toStartWith('CONFIG_NEEDS_CONSOLE');
+    expect(privateServiceRefusal).toContain('default domain of `internal');
     const convexRefusal = await refusal({
       backend: { type: 'convex', properties: { appDirectory: './convex', dashboard: { enabled: false } } }
     });

@@ -13,18 +13,13 @@ const CONNECT = 'Run: stacktape connect — your stacks are added as they are, n
 const names = (items: { name: string }[]) => items.map(({ name }) => `\`${name}\``).join(', ');
 
 /**
- * An HTTPS or TLS listener without its own domain or certificate is served on a `*.stacktape-app.com` default domain,
- * which the Console provides. A load balancer without listeners gets an HTTPS one. HTTP listeners (such as a private
- * service's internal load balancer) need no certificate, and HTTP APIs and CDNs fall back to their AWS URLs instead.
+ * A load balancer without its own domain or certificate is served on a `*.stacktape-app.com` default domain, which the
+ * Console provides. HTTP APIs and CDNs fall back to their AWS URLs instead; a TLS listener has no such fallback.
  */
 const loadBalancersNeedingDefaultDomain = (configManager: ConfigManager) => [
   ...configManager.allApplicationLoadBalancers.filter(
     ({ customDomains, listeners, cdn }) =>
-      (!customDomains?.length &&
-        (!listeners ||
-          listeners.some(
-            ({ protocol, customCertificateArns }) => protocol === 'HTTPS' && !customCertificateArns?.length
-          ))) ||
+      (!customDomains?.length && !listeners?.some(({ customCertificateArns }) => customCertificateArns?.length)) ||
       (cdn?.enabled && !cdn.customDomains?.length)
   ),
   ...configManager.allNetworkLoadBalancers.filter(
