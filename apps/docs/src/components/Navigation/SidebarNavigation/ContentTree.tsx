@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ContentTreeGroup } from './ContentTreeGroup';
+import { NavIdPrefixContext } from './ContentTreeNode';
 import { createExpansionStore, ExpansionStoreContext } from './expansion-store';
 import { getNavigationTree } from './navigation-data';
 import { VersionSwitcher } from './VersionSwitcher';
@@ -9,11 +10,13 @@ import type { DocPage } from '@/utils/docs-data';
 export function ContentTree({
   allDocPages,
   pathname: initialPathname = '/',
-  version = 'v4'
+  version = 'v4',
+  idPrefix = 'docs-nav'
 }: {
   allDocPages: DocPage[];
   pathname?: string;
   version?: DocsVersion;
+  idPrefix?: string;
 }) {
   const navigationTree = useMemo(() => getNavigationTree(allDocPages || [], version), [allDocPages, version]);
 
@@ -52,10 +55,12 @@ export function ContentTree({
 
   return (
     <ExpansionStoreContext.Provider value={store}>
-      <VersionSwitcher version={version} pathname={pathname} />
-      {navigationTree.map((group) => (
-        <ContentTreeGroup key={group.id} group={group} />
-      ))}
+      <NavIdPrefixContext.Provider value={idPrefix}>
+        <VersionSwitcher version={version} pathname={pathname} />
+        {navigationTree.map((group) => (
+          <ContentTreeGroup key={group.id} group={group} />
+        ))}
+      </NavIdPrefixContext.Provider>
     </ExpansionStoreContext.Provider>
   );
 }
