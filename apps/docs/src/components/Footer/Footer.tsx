@@ -1,26 +1,30 @@
 import config from '@/site-config';
 
+/** The end of every page: copyright and a few plain links. */
 export function Footer() {
   return (
-    <footer>
-      <div className="flex items-center max-w-[570px] justify-center gap-[40px] mx-auto my-[12px] max-[720px]:my-[10px]">
-        <p className="text-center max-[720px]:hidden">{config.metadata.copyright}</p>
-        <a
-          href="https://status.stacktape.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Stacktape system status"
-        >
-          <div className="flex items-center gap-[7px]">
-            <div className="w-[8px] h-[8px] bg-[#22c55e] rounded-full animate-status-pulse" />
-            <p>System status</p>
-          </div>
-        </a>
-        <a href="mailto:info@stacktape.com" target="_blank" rel="noopener noreferrer">
-          <p className="text-center">info@stacktape.com</p>
-        </a>
-      </div>
-      <p className="hidden mb-[20px] text-center max-[720px]:block">{config.metadata.copyright}</p>
+    <footer className="docs-footer">
+      <span>{config.metadata.copyright}</span>
+      <ul className="docs-footer-links">
+        <li>
+          <a href="https://status.stacktape.com" target="_blank" rel="noopener noreferrer">
+            Status
+          </a>
+        </li>
+        <li>
+          <a href="mailto:info@stacktape.com">info@stacktape.com</a>
+        </li>
+        <li>
+          <a href="https://github.com/stacktape/stacktape" target="_blank" rel="noopener noreferrer">
+            GitHub
+          </a>
+        </li>
+        <li>
+          <a href="https://stacktape.com" target="_blank" rel="noopener noreferrer">
+            stacktape.com
+          </a>
+        </li>
+      </ul>
     </footer>
   );
 }
