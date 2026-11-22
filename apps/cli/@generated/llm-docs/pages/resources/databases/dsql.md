@@ -1,10 +1,22 @@
 # Aurora DSQL
 
-The `dsql-database` resource creates an Amazon Aurora DSQL cluster with no instances, capacity, passwords, or network rules to configure. DSQL is a serverless, PostgreSQL-compatible database that scales automatically. Connections use TLS and a short-lived IAM authentication token.
+A `dsql-database` is an Amazon Aurora DSQL cluster: a serverless, PostgreSQL-compatible database with no instances,
+passwords or network rules to configure. It scales on its own, and your code connects over TLS with a short-lived IAM
+token.
 
-## When to use
+You pay for the work done (distributed processing units, $8 per million) and $0.33 per GB-month of storage, with a
+monthly free allowance of 100,000 units and 1 GB ([DSQL pricing](https://aws.amazon.com/rds/aurora/dsql/pricing/)). An
+idle database costs only its storage.
 
-DSQL is a good fit for a new application that needs relational transactions and SQL but does not want to size database instances, manage credentials, or operate failover. A resource can be created with no properties:
+DSQL supports a subset of PostgreSQL. Check the
+[compatibility guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-migration-guide.html)
+before moving an existing app, especially one that uses extensions, uncommon data types or long-running sessions. For
+full PostgreSQL, MySQL and the other engines, password sign-in or backup settings in your config, use a
+[relational database](/resources/databases/relational-database).
+
+## Basic example
+
+A DSQL database needs no properties:
 
 
 Example (TypeScript):
@@ -28,12 +40,6 @@ resources:
     type: dsql-database
 ```
 
-
-## When not to use
-
-DSQL implements a PostgreSQL-compatible subset rather than running ordinary PostgreSQL. Check the [Aurora DSQL PostgreSQL compatibility documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-migration-guide.html) before migrating an existing application, especially if it depends on PostgreSQL extensions, unsupported data types, long-running sessions, or engine-specific administration.
-
-Use a [relational database](/resources/databases/relational-database) when you require full PostgreSQL, MySQL, MariaDB, Oracle, or SQL Server compatibility; a private VPC-only endpoint configured directly by Stacktape; conventional password authentication; or built-in Stacktape backup and restore settings.
 
 ## Connect a workload
 
@@ -158,6 +164,19 @@ CloudFormation with the valid choices in the error.
 
 For CloudFormation properties not exposed above, use the `cluster` child through [overrides and transforms](/configuration/overrides-and-escape-hatches).
 
+## Configuration reference
+
+
+### Definition: `DsqlDatabaseProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/dsql-database` with definition name `DsqlDatabaseProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `deletionProtection` | no | `boolean` | `false` |
+| `kmsKeyArn` | no | `string` | - |
+
+
 ## Referenceable parameters
 
 
@@ -173,16 +192,3 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `region` | AWS region containing the cluster. | `$ResourceParam("<<resource-name>>", "region")` |
 | `id` | DSQL cluster ID. | `$ResourceParam("<<resource-name>>", "id")` |
 | `arn` | DSQL cluster ARN. | `$ResourceParam("<<resource-name>>", "arn")` |
-
-
-## API Reference
-
-
-### Definition: `DsqlDatabaseProps`
-
-The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/dsql-database` with definition name `DsqlDatabaseProps`.
-
-| Property | Required | Type | Default |
-| --- | --- | --- | --- |
-| `deletionProtection` | no | `boolean` | `false` |
-| `kmsKeyArn` | no | `string` | - |

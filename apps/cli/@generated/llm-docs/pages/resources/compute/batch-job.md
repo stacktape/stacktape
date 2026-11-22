@@ -1,29 +1,18 @@
 # Batch job
 
-A Stacktape batch job runs a containerized task to completion for work such as data processing, ML training, video encoding, and imports. Use a batch job when the work has a clear finish point, needs explicit CPU, memory, or GPU requirements, and should be triggered by schedules, HTTP requests, storage events, queues, streams, or event buses.
+A batch job runs a container until it finishes: a nightly export, a video transcode, an import, a model training run.
+A trigger starts it (a schedule, an HTTP request, a file upload, a queue message and others), and you declare the CPU,
+memory and optional GPU it needs. It runs on AWS Batch, which starts EC2 instances for queued jobs and stops them when
+the queue is empty.
 
-**Pricing context:** Batch jobs run on EC2 instances that AWS Batch starts for queued jobs and terminates when the queue is empty, so you pay for the instances while jobs run. Spot capacity can save up to 90% when interruptions are acceptable.
-
-## When to use
-
-A batch job is the right choice when the workload should start, do a defined unit of work, and exit. Common examples include nightly exports, object-processing pipelines, one-off video transcodes, queue-driven processing bursts, and ML jobs that can run in a container with declared CPU, memory, and optional GPU requirements.
-
-- **Long-running jobs** — use a batch job for work that does not fit naturally into a short request/response function.
-- **Compute-heavy tasks** — specify `cpu`, `memory`, and optionally `gpu`; Stacktape lets AWS select matching compute from the declared requirements.
-- **Event-triggered processing** — trigger jobs from schedules, HTTP API Gateway, Application Load Balancer, S3, SNS, SQS, Kinesis, DynamoDB streams, CloudWatch Logs, or EventBridge event buses.
-- **Interruptible work** — enable Spot capacity for jobs that can restart safely, especially with `retryConfig`.
-
-## When NOT to use
-
-- **Always-on HTTP services** — use a [web-service](/resources/compute/web-service) for containers that must serve public HTTP traffic continuously.
-- **Internal always-on services** — use a [private-service](/resources/compute/private-service) for long-lived containers reachable only within your stack or VPC.
-- **Continuous background workers** — use a [worker-service](/resources/compute/worker-service) for containers that run continuously rather than starting per job.
-- **Short event handlers** — use a [Lambda function](/resources/compute/lambda-function) for short-lived, event-driven tasks where per-invocation billing is preferable.
-- **Non-idempotent side effects on Spot** — keep `useSpotInstances` disabled for jobs that charge payments, send emails, or perform work that cannot safely be repeated.
+You pay for the EC2 instances while jobs run, including their start-up time, and nothing between jobs. Spot capacity
+costs up to 90% less if the job can be interrupted. For work under 15 minutes, a
+[Lambda function](/resources/compute/lambda-function) starts faster; for a process that never ends, use a
+[worker service](/resources/compute/worker-service).
 
 ## Basic example
 
-This example runs a scheduled TypeScript container every night. `js-bundle` packaging builds the container from `./src/jobs/nightly-report.ts`; `resources` requests 2 vCPU and 4096 MB memory; `timeout` stops the job if it runs longer than one hour.
+A TypeScript job that runs every night at 02:00 UTC:
 
 
 Example (TypeScript):
@@ -58,11 +47,16 @@ export default defineConfig(() => {
 ```
 
 
-The schedule expression uses AWS cron syntax and runs in UTC. Use `rate(...)` for simple intervals such as `rate(2 hours)`, and use `cron(...)` when the job must run at a specific time or day. See [schedule triggers](/resources/triggers/schedule-triggers) for trigger details.
+`js-bundle` builds the image from `./src/jobs/nightly-report.ts`, `resources` asks for 2 vCPU and 4096 MB, and
+`timeout` stops a run after one hour. Schedules use AWS cron or `rate(2 hours)` syntax in UTC; see
+[Schedule triggers](/resources/triggers/schedule-triggers). Each run's output appears in
+`stacktape logs nightlyReport --stage dev`.
 
 ## Compute resources
 
-A batch job declares the CPU and memory required by one job run. Stacktape uses those requirements to let AWS provision matching compute. Add `gpu` only for workloads that require GPU acceleration, such as model training or GPU-backed rendering; omit `gpu` for normal CPU-only processing.
+`cpu` is a whole number of vCPUs and `memory` is in MB; AWS Batch picks instances that fit. Request a little less than a
+power of two, for example `7680` instead of `8192` MB, because the instance keeps some memory for itself. Add `gpu` only
+for GPU work such as training or rendering.
 
 
 Example (TypeScript):
@@ -89,9 +83,9 @@ export default defineConfig(() => {
 ```
 
 
-`cpu` is the number of vCPUs, a whole number, because AWS Batch assigns whole vCPUs on EC2 instances. `memory` is memory in MB. The source recommends using slightly less than exact powers of two for memory-sensitive sizing because AWS reserves memory for system processes; for example, `7680` MB may fit better than exactly `8192` MB on an 8 GB instance class.
-
-Jobs run on x86 instances with the Amazon ECS-optimized Amazon Linux 2023 image. Jobs with `gpu` use its NVIDIA variant on `p4d` and `g5` instances. The instances require IMDSv2 and use cgroup v2. Job credentials come from the job role, not instance metadata, but software inside the container that reads instance metadata with IMDSv1, or that reads memory limits only from cgroup v1 (such as Java before 8u372), needs a current version.
+Jobs run on x86 instances with the Amazon ECS-optimized Amazon Linux 2023 image; GPU jobs use its NVIDIA variant on
+`p4d` and `g5` instances. The instances require IMDSv2 and use cgroup v2, so software in your image that reads instance
+metadata with IMDSv1, or memory limits only from cgroup v1 (such as Java before 8u372), needs a current version.
 
 ## Packaging
 
@@ -104,15 +98,12 @@ A batch job supports four container image packaging types. Start with `js-bundle
 | [`dockerfile`](/packaging/containers/dockerfile) | Control the Dockerfile, build context, build args and startup command |
 | [`prebuilt-image`](/packaging/containers/prebuilt-image) | Run an image that already exists in a registry and optionally override its command |
 
-Use `container.environment` for runtime settings that belong to this job, such as feature flags or fixed paths. Use `$Secret()` or `$ResourceParam()` when a value should come from Stacktape directives instead of being hard-coded; see [directives](/configuration/directives) for the supported directive model.
-
-## Dev mode
-
-Batch jobs run in AWS Batch when triggered; they are not local processes. `--resources` and `--skip-resources` cannot select or skip them. Their images are built and pushed during dev startup, so restart dev mode after changing Batch code. Use a dev-specific configuration to omit a job or disable its triggers. A deployed job can reach local databases through the [dev network](/local-development/debugging-lambda-functions#the-dev-network), with its AWS costs, permissions and network round trip.
+Put the job's settings in `container.environment`, secrets in [`$Secret()`](/configuration/secrets).
 
 ## Triggers
 
-A batch job can start from several event sources: HTTP API Gateway, Application Load Balancer, S3, SNS, SQS, Kinesis, DynamoDB streams, CloudWatch Logs, schedules, and EventBridge event buses. Pick the trigger based on where the unit of work originates, and keep the job handler idempotent when the source can retry delivery.
+Pick the trigger by where the work comes from. Sources that retry delivery can start the same job twice, so make the
+job safe to repeat.
 
 | Trigger type | Use it for |
 |--------------|------------|
@@ -127,11 +118,13 @@ A batch job can start from several event sources: HTTP API Gateway, Application 
 | `cloudwatch-log` | Matching CloudWatch log records start the job |
 | `event-bus` | EventBridge events matching a pattern start the job |
 
-The API reference carries the full property shape for each integration. For a broader decision guide across trigger families, see [triggers overview](/resources/triggers/overview).
+The [configuration reference](#configuration-reference) has each trigger's options, and the
+[triggers overview](/resources/triggers/overview) compares them.
 
 ### Reading trigger data
 
-The container receives the serialized trigger event in `STP_TRIGGER_EVENT_DATA`. Parse it in your process entrypoint. `STP_CURRENT_ATTEMPT` and `STP_MAXIMUM_ATTEMPTS` are string environment variables describing this execution's attempt; this is a container process, not a Lambda `handler(event)` invocation.
+The job is a process, not a handler: it gets the trigger event as JSON in `STP_TRIGGER_EVENT_DATA`, and the attempt
+number in `STP_CURRENT_ATTEMPT` and `STP_MAXIMUM_ATTEMPTS`.
 
 ```typescript
 const event = JSON.parse(process.env.STP_TRIGGER_EVENT_DATA ?? '{}');
@@ -142,7 +135,7 @@ await processJob(event, { attempt, maximumAttempts });
 
 ## Retries and timeout
 
-A batch job can stop runaway work with `timeout` and retry failed attempts with `retryConfig`. Use a timeout whenever the job processes external input, calls remote APIs, or might hang on corrupted data. Use retries when failures are transient or the job can safely restart from the beginning.
+`timeout` (in seconds) stops a job that runs too long. `retryConfig` runs failed or timed-out jobs again.
 
 
 Example (TypeScript):
@@ -171,15 +164,20 @@ export default defineConfig(() => {
 ```
 
 
-`timeout` is measured in seconds; when a job exceeds it, the job is killed and retried if `retryConfig` is set. `attempts` defaults to `1`, `retryIntervalSeconds` defaults to `0`, and `retryIntervalMultiplier` defaults to `1`. `attempts` includes the initial attempt. With the example's three attempts, interval `30` and multiplier `2`, the current implementation waits 60 seconds before attempt 2 and 120 seconds before attempt 3. Waits follow interval × failed-attempt number × multiplier; there is no wait after the final attempt.
+`attempts` counts the first run and defaults to 1. The wait before each retry is `retryIntervalSeconds` × the number of
+failed attempts × `retryIntervalMultiplier`: with 3 attempts, interval 30 and multiplier 2, the job waits 60 seconds
+before attempt 2 and 120 seconds before attempt 3.
 
 
-> **Warning:** Retries repeat the whole job attempt. Make job code idempotent before enabling multiple attempts for writes, imports, notifications, or any operation that can create duplicated side effects.
+> **Warning:** A retry runs the whole job again. Make writes, imports and notifications safe to repeat before you allow more
+than one attempt.
 
 
 ## Spot capacity
 
-`useSpotInstances` lets a batch job use discounted spare AWS capacity. The source documents savings up to 90%, but Spot jobs can be interrupted. Use Spot for restartable data imports, image processing, or ML training with checkpoints; keep on-demand capacity for strict deadlines or non-repeatable side effects.
+`useSpotInstances: true` runs jobs on spare EC2 capacity for up to 90% less. AWS can take the instance back: the
+container gets `SIGTERM` and 120 seconds to stop. Use Spot for restartable imports, image processing or training with
+checkpoints, together with `retryConfig`, and keep on-demand capacity for deadlines and work that can't be repeated.
 
 
 Example (TypeScript):
@@ -207,11 +205,10 @@ export default defineConfig(() => {
 ```
 
 
-When AWS interrupts a Spot-backed batch job, the container receives `SIGTERM` and has 120 seconds to shut down gracefully. Store progress externally if partial work matters, and combine Spot with retries so interrupted jobs are resubmitted instead of ending as failed work.
-
 ## Connecting to resources
 
-Use `connectTo` when a batch job needs access to resources in the same stack. Stacktape can grant IAM permissions, open network access for supported databases and Redis, and inject connection environment variables into the job container using the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern.
+`connectTo` grants IAM permissions, opens the network path to databases and Redis, and injects
+`STP_<RESOURCE>_<PARAM>` variables into the job.
 
 
 Example (TypeScript):
@@ -249,11 +246,13 @@ export default defineConfig(() => {
 ```
 
 
-With the resource names above, the job receives database variables such as `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, and `STP_MAIN_DATABASE_PORT`, plus bucket variables such as `STP_REPORTS_NAME` and `STP_REPORTS_ARN`. For permissions outside `connectTo`, use `iamRoleStatements`.
+This job gets `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, `STP_MAIN_DATABASE_PORT` and the other
+database variables, plus `STP_REPORTS_NAME` and `STP_REPORTS_ARN`. For other AWS permissions, use `iamRoleStatements`.
 
 ## Logging
 
-A batch job can send container `stdout` and `stderr` to CloudWatch Logs. Logging is enabled unless `logging.disabled` is set, and the documented default retention period is 90 days. Use logs for progress markers, failure causes, and job input identifiers that help you trace one run after a retry.
+The job's output goes to CloudWatch Logs, kept for 90 days by default (`logging.retentionDays`). Log the input ID and
+attempt number so you can follow one run across retries.
 
 
 Example (TypeScript):
@@ -279,31 +278,15 @@ export default defineConfig(() => {
 ```
 
 
-`retentionDays` accepts CloudWatch retention values exposed in the API reference, including `1`, `3`, `5`, `7`, `14`, `30`, `60`, `90`, `120`, `150`, `180`, `365`, `400`, `545`, `731`, `1827`, and `3653`. View runtime logs with [`stacktape logs`](/cli/logs).
+## Dev mode
 
-## FAQ
+Batch jobs always run in AWS Batch, also in [`stacktape dev`](/local-development/dev-mode-overview): dev mode builds and
+pushes their images at startup, so restart it after changing job code. `--resources` and `--skip-resources` don't apply
+to them; use a dev-specific config to leave a job or its triggers out. A job reaches local databases through the
+[dev network](/local-development/debugging-lambda-functions#the-dev-network), with its AWS costs and network round
+trip.
 
-### When should I use a batch-job vs a Lambda function or worker-service?
-
-Use a [Lambda function](/resources/compute/lambda-function) for short-lived, event-driven tasks billed per invocation. Use a [worker-service](/resources/compute/worker-service) when the container should stay running continuously. Use a batch job when the work is long-running, container-native, compute-heavy, possibly GPU-backed, and has a clear end state where the process starts, does a unit of work, and exits.
-
-### Should I use Spot instances for batch jobs?
-
-Use `useSpotInstances: true` when the job can restart from the beginning or resume from checkpoints. Spot capacity can reduce cost up to 90%, but AWS can interrupt the job: the container receives `SIGTERM` and has 120 seconds to shut down gracefully. Combine Spot with `retryConfig` so interrupted jobs are resubmitted, and avoid Spot for payment, email, or other non-idempotent, deadline-sensitive work.
-
-### Why do my batch jobs run more than once or create duplicate side effects?
-
-Retries repeat the entire job attempt, and several trigger sources (SQS, SNS, Kinesis, streams) can also redeliver. `attempts` defaults to `1`, `retryIntervalSeconds` to `0`, and `retryIntervalMultiplier` to `1`, so duplicates only appear once you raise the attempt count or use a retrying trigger. Make job code idempotent before enabling multiple attempts for writes, imports, or notifications.
-
-### How should I size cpu and memory for a batch job?
-
-`cpu` is a whole number of vCPUs and `memory` is in MB. Because AWS reserves some memory for system processes, request slightly less than an exact power of two for memory-sensitive sizing: for example `7680` MB often fits better than exactly `8192` MB on an 8 GB instance class. Add `resources.gpu` only for workloads that need GPU acceleration such as model training or rendering.
-
-### How much does a batch job cost?
-
-These jobs use managed EC2 or EC2 Spot capacity. Estimate cost from the selected EC2 instances and how long capacity stays running, including startup, drain and idle time, plus storage, networking and supporting services. Fargate per-vCPU/per-GB prices do not apply to this implementation. See [optimization tips](/managing-costs/optimization-tips) for broader guidance.
-
-## API Reference
+## Configuration reference
 
 
 ### Definition: `BatchJobProps`
