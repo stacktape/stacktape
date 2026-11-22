@@ -7,9 +7,9 @@ seoDescription: 'Deploy multiple isolated environments from one codebase with St
 
 # Stages and environments
 
-A Stacktape stage is a named deployment of your project — such as `dev`, `staging`, or `production`. Each stage creates
+A Stacktape stage is a named deployment of your project: such as `dev`, `staging`, or `production`. Each stage creates
 a fully isolated set of AWS resources under its own CloudFormation stack. One codebase, multiple stages: develop against
-cheap resources, test against a staging replica, and deploy production with full redundancy — all from the same
+cheap resources, test against a staging replica, and deploy production with full redundancy: all from the same
 configuration file.
 
 ## Why stages exist
@@ -21,7 +21,7 @@ conventions. Stages solve this by making the environment a first-class parameter
 independent stacks per stage.
 
 Because every stage produces its own CloudFormation stack with its own resources, a development deploy does not touch
-production databases, functions, or storage — each stage's resources are independently provisioned. Stages can fit CI/CD workflows; for example, a team might deploy `main` to `production` and feature branches to short-lived stages.
+production databases, functions, or storage: each stage's resources are independently provisioned. Stages can fit CI/CD workflows; for example, a team might deploy `main` to `production` and feature branches to short-lived stages.
 
 ## How stages work
 
@@ -34,7 +34,7 @@ Stacktape derives the CloudFormation stack name from your project name and stage
 ```
 
 A project named `my-api` deployed to stage `dev` creates a stack called `my-api-dev`. The same project deployed to
-`production` creates `my-api-production`. Each stage creates a separate CloudFormation stack with separately provisioned resources — databases, Lambda functions, queues, and storage are all independent between stages.
+`production` creates `my-api-production`. Each stage creates a separate CloudFormation stack with separately provisioned resources: databases, Lambda functions, queues, and storage are all independent between stages.
 
 ### Stage name constraints
 
@@ -63,7 +63,7 @@ stacktape deploy --stage production --region eu-west-1
 ```
 
 Each command creates (or updates) a completely separate CloudFormation stack with its own resources. Deleting a stage
-removes only that stage's resources — other stages are unaffected.
+removes only that stage's resources: other stages are unaffected.
 
 ## Production and non-production stages
 
@@ -82,7 +82,7 @@ export default defineConfig(({ stage }) => ({
 
 ## Stage-aware configuration
 
-The `defineConfig` callback receives a `stage` parameter. Use standard TypeScript logic — conditionals, lookup objects, helper functions — to vary your config per stage.
+The `defineConfig` callback receives a `stage` parameter. Use standard TypeScript logic (conditionals, lookup objects, helper functions) to vary your config per stage.
 
 <CodeBlock
   intellisense
@@ -137,7 +137,7 @@ export default defineConfig(({ stage }) => {
 />
 
 In this example, the production stage gets a larger database instance with multi-AZ redundancy, more Lambda memory, and
-tighter log levels — while development stages use minimal resources to keep costs low. The `$Secret` directive
+tighter log levels: while development stages use minimal resources to keep costs low. The `$Secret` directive
 can reference a different secret name per stage, such as `db-password-dev` and `db-password-production`, when you
 create separate secrets for those stages. See [Secrets](/configuration/secrets) for how to create and manage secrets.
 
@@ -234,11 +234,11 @@ stacktape delete --stage feat-42 --region eu-west-1
 ```
 
 Feature branch stages are disposable by design. Each one gets its own database, its own API endpoint, and its own
-resources. Keep stage names short — abbreviate branch names if needed.
+resources. Keep stage names short: abbreviate branch names if needed.
 
 ### Preview environments for pull requests
 
-Stages are a good fit for per-PR preview environments. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setup details.
+Stages are a good fit for per-PR preview environments. See [Git deployments](/ci-cd-and-gitops/gitops-with-console) and [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setup details.
 
 ## Conditional resources
 
@@ -304,7 +304,7 @@ Store separate Stacktape secrets for each stage. Use
 [`stacktape secret set`](/cli/secret-set) to create them, and the
 [`$Secret` directive](/configuration/directives) to reference them in config.
 
-Create separate secrets for each stage — for example, `db-password-dev` and `db-password-production` — using [`stacktape secret set`](/cli/secret-set):
+Create separate secrets for each stage (for example, `db-password-dev` and `db-password-production`) using [`stacktape secret set`](/cli/secret-set):
 
 ```bash
 stacktape secret set --region eu-west-1
@@ -386,8 +386,7 @@ Custom domains are managed separately. See [custom domains](/resources/networkin
 
 ## Sharing resources across stages
 
-Sometimes you want to share certain resources (like a database) across stages. Use a separate "shared infrastructure"
-project deployed as its own stack, then reference its outputs from other projects.
+To let several stages or projects share one database, put it in its own project, deploy that project once, and export what the others need. Here the `shared-infra` project runs one database for all non-production stages (stage `dev`) and one for production:
 
 <ProjectStructure
   files={[
@@ -398,68 +397,84 @@ project deployed as its own stack, then reference its outputs from other project
         {
           name: 'shared-infra',
           type: 'folder',
-          children: [{ name: 'stacktape.ts', description: 'Database, shared cache' }]
+          children: [{ name: 'stacktape.ts', description: 'The database; exports its host and port' }]
         },
-        { name: 'api', type: 'folder', children: [{ name: 'stacktape.ts', description: 'References shared-infra outputs' }] },
-        { name: 'web', type: 'folder', children: [{ name: 'stacktape.ts', description: 'References shared-infra outputs' }] }
+        { name: 'api', type: 'folder', children: [{ name: 'stacktape.ts', description: 'Imports the exports' }] }
       ]
     }
   ]}
 />
 
-The shared infrastructure project deploys resources that other projects reference:
+The shared project exports the host and port as stack outputs:
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'TypeScript',
+      label: 'shared-infra/stacktape.ts',
       lang: 'typescript',
-      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+      code: `import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret, $ResourceParam } from 'stacktape';
 
 // [!code focus-start]
-export default defineConfig(({ stage }) => {
+export default defineConfig({ projectName: 'shared-infra' }, ({ stage }) => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
       version: '16',
       primaryInstance: { instanceSize: 'db.t4g.micro' }
     }),
     credentials: {
-      masterUserPassword: $Secret('shared-db-password-' + stage)
+      masterUserPassword: $Secret(\`shared-db-password-\${stage}\`)
     }
   });
 
-  return { resources: { database } };
+  return {
+    resources: { database },
+    stackConfig: {
+      outputs: [
+        { name: 'DbHost', value: $ResourceParam('database', 'host'), export: true },
+        { name: 'DbPort', value: $ResourceParam('database', 'port'), export: true }
+      ]
+    }
+  };
 });
 // [!code focus-end]`
     }
   ]}
 />
 
-A consuming project references the shared stack's outputs using the `$CfStackOutput` directive, which resolves at CloudFormation deploy time. A `$StackOutput` directive is also available for resolving values locally at config-evaluation time. The referenced stack must already be deployed. Manage shared infrastructure carefully — consuming stacks depend on its outputs. See [directives](/configuration/directives) for details on cross-stack references.
+Deploy it to the two stages the others use:
+
+```bash
+stacktape deploy --stage dev --region eu-west-1
+```
+
+```bash
+stacktape deploy --stage production --region eu-west-1
+```
+
+Every stage of the `api` project then imports from one of those two stacks. `pr-42`, `staging` and `dev` all use `shared-infra-dev`:
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'TypeScript',
+      label: 'api/stacktape.ts',
       lang: 'typescript',
-      code: `import {
-  defineConfig,
-  LambdaFunction,
-  $CfStackOutput,
-  JsBundleLambdaPackaging
-} from 'stacktape';
+      code: `import { defineConfig, WebService, JsBundleImagePackaging, $CfStackOutput, $Secret } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(({ stage }) => {
-  const api = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
+  const sharedStage = stage === 'production' ? 'production' : 'dev';
+  const sharedStack = \`shared-infra-\${sharedStage}\`;
+
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
     environment: {
-      DATABASE_URL: $CfStackOutput('shared-infra-' + stage, 'DatabaseConnectionString')
-    }
+      DB_HOST: $CfStackOutput(sharedStack, 'DbHost'),
+      DB_PORT: $CfStackOutput(sharedStack, 'DbPort')
+    },
+    secrets: [{ name: 'DB_PASSWORD', valueFrom: $Secret(\`shared-db-password-\${sharedStage}\`) }]
   });
 
   return { resources: { api } };
@@ -469,7 +484,9 @@ export default defineConfig(({ stage }) => {
   ]}
 />
 
-This keeps a single database instance serving multiple services within the same stage, reducing cost in development while still allowing full isolation between stages. See [directives](/configuration/directives) for more about cross-stack references.
+- Export only values that are not secret. The password stays in Secrets Manager and reaches the container through `secrets`.
+- `$CfStackOutput` makes CloudFormation import the export. While any stack imports it, the shared stack cannot remove that output or be deleted; delete or update the importing stacks first. `$StackOutput` reads the value once at deploy time and creates no such link.
+- `connectTo` does not work across stacks, so it grants nothing here. This example works because the database's default `accessibilityMode` is `internet`, protected by its password. For a database reachable only inside a VPC, both projects must run in a network that can reach it; see [Connecting resources](/configuration/connecting-resources#can-i-connect-to-resources-in-a-different-stack).
 
 ## Setting defaults
 
@@ -511,27 +528,24 @@ stacktape delete --stage feat-42 --region eu-west-1
 
 Deletion removes the stage's CloudFormation stack. Other stages remain completely unaffected.
 
-<Warning>
-  You cannot run `stacktape deploy` on a stage that is currently running in [dev mode](/local-development/dev-mode-overview).
-  Stop dev mode first with [`stacktape dev stop`](/cli/dev-stop), then deploy.
-</Warning>
+A stage that [dev mode](/local-development/dev-mode-overview) created stays a dev stack after dev mode stops, and `stacktape deploy` refuses it. Use a separate stage name for dev mode (for example `local`), or delete the dev stack with `stacktape delete --stage <stage>` before deploying that stage.
 
 ## Best practices
 
-**Use consistent stage names.** Pick a naming convention — `dev`, `staging`, `production` — and stick to it across all
+**Use consistent stage names.** Pick a naming convention (`dev`, `staging`, `production`) and stick to it across all
 projects. Consistent names simplify CI/CD pipelines and make `$Secret('db-password-' + stage)` patterns predictable.
 
 **Keep dev stages minimal.** Use the smallest instance sizes and lowest scaling in development. The multi-tier lookup
 pattern shown above makes this automatic and keeps development costs low without manual intervention.
 
 **Make staging mirror production.** The whole point of a staging stage is to catch issues before production. Use the
-same instance types, same scaling ranges, and same configuration — just with test data and lower traffic.
+same instance types, same scaling ranges, and same configuration: just with test data and lower traffic.
 
 **Separate secrets per stage.** Never reuse production credentials in development. Stage-interpolated secret names
 (`db-password-dev`, `db-password-production`) enforce this by convention.
 
 **Delete ephemeral stages promptly.** Feature branch and PR preview stages accumulate if not cleaned up. See
-[GitOps with Console](/ci-cd-and-gitops/gitops-with-console) and [Stacks per git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setting up preview-stage workflows, or manually run
+[Git deployments](/ci-cd-and-gitops/gitops-with-console) and [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) for setting up preview-stage workflows, or manually run
 [`stacktape delete`](/cli/delete).
 
 **Add safeguards in production.** Enable multi-AZ for databases, add a
@@ -543,7 +557,7 @@ to add these only in production.
 
 ### How do I access the stage name in my config?
 
-The `defineConfig` callback receives an object with a `stage` property. Use standard TypeScript logic to branch on the stage value — ternary operators, lookup objects, or if statements all work. In directive strings that need the stage at CloudFormation deploy time, use the [`$Stage()` directive](/configuration/directives).
+The `defineConfig` callback receives an object with a `stage` property. Use standard TypeScript logic to branch on the stage value: ternary operators, lookup objects, or if statements all work. In directive strings that need the stage at CloudFormation deploy time, use the [`$Stage()` directive](/configuration/directives).
 
 ### Can I include resources only in certain stages?
 
@@ -551,11 +565,11 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. Stacktape provisions each stage's resources independently and does not share data between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). Deploying or deleting one stage has no effect on other stages.
+Each stage has its own CloudFormation stack and its own resources: databases, functions, buckets and so on. Deploying or deleting one stage does not touch the others. Non-production stages of an account and region do share one VPC, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages), but each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Production stages get a VPC of their own.
 
 ### What happens when I deploy to an existing stage?
 
-Deploying to an existing stage updates that stage's CloudFormation stack rather than creating a new one. CloudFormation computes the diff between the current and desired state and applies only the changes needed. Deleting a stage removes only that stage's stack — other stages are unaffected.
+Deploying to an existing stage updates that stage's CloudFormation stack rather than creating a new one. CloudFormation computes the diff between the current and desired state and applies only the changes needed. Deleting a stage removes only that stage's stack: other stages are unaffected.
 
 ### Can different stages use different AWS regions?
 
@@ -563,4 +577,4 @@ Yes. The region is a separate parameter from the stage, so you can deploy `dev` 
 
 ### How do I keep development costs low across stages?
 
-Vary resource sizing by stage. Branch on the `stage` parameter to give dev and preview stages the smallest instance sizes and lowest scaling, while production gets larger instances and multi-AZ — the multi-tier lookup pattern shown above makes this automatic. You can also conditionally skip expensive resources (like a database) in ephemeral `pr-*` stages, or have several services in the same stage share one database via the [`$CfStackOutput` directive](/configuration/directives).
+Vary resource sizing by stage. Branch on the `stage` parameter to give dev and preview stages the smallest instance sizes and lowest scaling, while production gets larger instances and multi-AZ: the multi-tier lookup pattern shown above makes this automatic. You can also conditionally skip expensive resources (like a database) in ephemeral `pr-*` stages, or have several services in the same stage share one database via the [`$CfStackOutput` directive](/configuration/directives).

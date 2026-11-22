@@ -41,7 +41,7 @@ Give every developer their own stage, such as `--stage dev-alice` and `--stage d
 Edit a file and save. Then:
 
 - **With `--watch`**, dev mode rebuilds the changed workload by itself. Containers restart, and Lambda functions get the new code in AWS.
-- **Without `--watch`**, type `rs` and press Enter to rebuild everything, or `rs myApi` to rebuild one workload.
+- **Without `--watch`**, press **Ctrl+R** to rebuild. With several workloads running, a picker opens: press a workload's number, or `a` for all. **Ctrl+A** rebuilds everything at once.
 - **Frontends** reload through the framework's own hot reload, with or without `--watch`.
 
 ```bash
@@ -52,17 +52,18 @@ A rebuild deploys code only. After you change the configuration, such as a new r
 
 ## Stop dev mode
 
-Type `q` and press Enter. The dev stack stays in AWS for the next start, and your local database data stays in `.stacktape/dev-data/<stage>/`. A dev session started with `--agent` runs in the background: stop it with [`stacktape dev stop`](/cli/dev-stop).
+Press **Ctrl+C**. The dev stack stays in AWS for the next start, and your local database data stays in `.stacktape/dev-data/<stage>/`. A dev session started with `--agent` runs in the background: stop it with [`stacktape dev stop`](/cli/dev-stop).
 
 ## What runs where
 
 | Resource | Where it runs | After a change |
 |---|---|---|
-| Containers: [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [private service](/resources/compute/private-service) and [workloads of several containers](/resources/compute/multi-container-workload) | Docker on your machine | Rebuilt with `--watch` or `rs` |
-| [Lambda functions](/resources/compute/lambda-function) | AWS, built on your machine | Code updated in AWS with `--watch` or `rs`. Logs stream to your terminal. |
+| Containers: [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [private service](/resources/compute/private-service) and [workloads of several containers](/resources/compute/multi-container-workload) | Docker on your machine | Rebuilt with `--watch` or **Ctrl+R** |
+| [Lambda functions](/resources/compute/lambda-function) | AWS, built on your machine | Code updated in AWS with `--watch` or **Ctrl+R**. Logs stream to your terminal. |
 | SSR frontends: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) | Its own dev server | Its own hot reload |
 | [Static hosting](/resources/frontend/static-hosting) with a `dev` command | Your dev command | Your dev command's reload |
 | [Relational databases](/resources/databases/relational-database), [Redis](/resources/databases/redis), [DynamoDB](/resources/databases/dynamodb), [OpenSearch](/resources/databases/opensearch) | Docker on your machine | Data persists in `.stacktape/dev-data/<stage>/` |
+| [Batch jobs](/resources/compute/batch-job) | AWS, in the dev stack. They cannot be selected or skipped | Restart dev mode to rebuild their images |
 | Everything else, such as queues, topics, buckets and state machines | AWS, in the dev stack | Restart dev mode after you change its config |
 
 Lambda functions in AWS reach the databases on your machine through the dev box, a small EC2 instance in your account's dev network. See [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases). Local databases listen on `127.0.0.1` only, and nothing is exposed on the internet.
@@ -73,15 +74,15 @@ A container counts as running once its port accepts connections, so a test start
 
 When you run `stacktape dev`, these steps run in order:
 
-1. **Load credentials and configuration** — Stacktape reads your AWS credentials and config file.
-2. **Select resources** — You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
-3. **Check references** — Before any AWS work, Stacktape checks every `$ResourceParam` that ends up in the dev stack, so a misspelled parameter or a [reference to a local database](#resources-the-dev-stack-needs-deployed) fails within seconds.
-4. **Load AWS metadata** — Stacktape fetches stack information from AWS.
-5. **Ensure secrets and SSM parameters** — Stacktape can generate supported missing database credentials. Other missing secrets and SSM parameters require user-supplied values: interactive runs prompt, while agent/noninteractive runs stop with creation instructions. Deleting a dev stage keeps the database secrets dev mode generated; delete one with `stacktape secret delete` when no stage needs it. See [secret ownership](/local-development/debugging-lambda-functions#aws-permissions).
-6. **Prepare the dev network** — When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A session that finds another session creating the network continues as soon as the dev box exists, too. A first start that creates the network and the dev stack takes about 5 minutes.
-7. **Deploy dev stack** — Create the stack if missing, or update it when cloud configuration, cloud images or required outputs change. Otherwise reuse it.
-8. **Start local resources and workloads** — Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
-9. **Wait for new API stages** — AWS answers some requests to a new HTTP or WebSocket API stage with 403 or 404 for about half a minute after CloudFormation creates it. A function behind such an API reports running only after its stage is 45 seconds old. For a WebSocket API, dev mode also opens a few test connections, which run your `$connect` and `$disconnect` handlers. Later starts reuse the stage and do not wait.
+1. **Load credentials and configuration**: Stacktape reads your AWS credentials and config file.
+2. **Select resources**: You choose which resources to run via the interactive picker, or Stacktape uses the `--resources` and `--skip-resources` flags.
+3. **Check references**: Before any AWS work, Stacktape checks every `$ResourceParam` that ends up in the dev stack, so a misspelled parameter or a [reference to a local database](#resources-the-dev-stack-needs-deployed) fails within seconds.
+4. **Load AWS metadata**: Stacktape fetches stack information from AWS.
+5. **Ensure secrets and SSM parameters**: Stacktape can generate supported missing database credentials. Other missing secrets and SSM parameters require user-supplied values: interactive runs prompt, while agent/noninteractive runs stop with creation instructions. Deleting a dev stage keeps the database secrets dev mode generated; delete one with `stacktape secret delete` when no stage needs it. See [secret ownership](/local-development/debugging-lambda-functions#aws-permissions).
+6. **Prepare the dev network**: When deployed functions use local databases or join the VPC, Stacktape creates the account's [dev network](/local-development/debugging-lambda-functions#the-dev-network) on first use, once per account and region, and starts its dev box in the background. A new network's dev box exists after about 1 minute; the next step starts then, while CloudFormation finishes the network. A session that finds another session creating the network continues as soon as the dev box exists, too. A first start that creates the network and the dev stack takes about 5 minutes.
+7. **Deploy dev stack**: Create the stack if missing, or update it when cloud configuration, cloud images or required outputs change. Otherwise reuse it.
+8. **Start local resources and workloads**: Docker containers start for selected databases, dev mode connects to the dev box, then container workloads, frontends, and Lambda deploys run in parallel.
+9. **Wait for new API stages**: AWS answers some requests to a new HTTP or WebSocket API stage with 403 or 404 for about half a minute after CloudFormation creates it. A function behind such an API reports running only after its stage is 45 seconds old. For a WebSocket API, dev mode also opens a few test connections, which run your `$connect` and `$disconnect` handlers. Later starts reuse the stage and do not wait.
 
 <Info>
 Unchanged starts skip the dev stack deployment step. Stacktape still loads AWS metadata, prepares local resources, and starts or deploys the selected workloads.
@@ -131,15 +132,15 @@ Use `--fresh-db` to reset databases prepared during startup, including relay dep
 stacktape dev --stage dev --region eu-west-1 --fresh-db
 ```
 
-### Connect to a deployed database instead
+### Use a database in AWS instead
 
-When you need to test against a real AWS database — for example, to use production-like data or test an engine feature the local emulator doesn't cover — use `--remote-resources` to make a selected emulatable database use its deployed counterpart instead of local emulation:
+When the local copy is not enough, for example to test an engine feature the Docker image lacks, `--remote-resources` deploys that database in AWS as part of the dev stack, instead of running it locally:
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --remote-resources myDatabase
 ```
 
-Use `--remote-resources` for emulatable databases when you want dev mode to use the deployed database instead of the local Docker emulator. To make the choice permanent, set `dev.remote: true` on the resource in your config. Functions and local containers that list a remote resource in `connectTo` get the same permissions as in a full deployment.
+This creates a real database for the dev stage (or reuses the one an earlier session created). It takes several minutes the first time and costs what the database costs, until you delete the dev stage. It is not another stage's database: the dev stack never connects to the database of a deployed stage such as `production`. To work against an existing database, pass its connection details yourself, for example from a secret. To make the choice permanent, set `dev.remote: true` on the resource. Functions and local containers that list a remote resource in `connectTo` get the same permissions as in a full deployment.
 
 ### Resources the dev stack needs deployed
 
@@ -152,7 +153,7 @@ For more details on local database setup, supported engines, and troubleshooting
 
 ## Environment variables
 
-Workloads connected to locally-emulated resources receive `STP_*` environment variables pointing to local endpoints instead of AWS endpoints. Dev mode uses the same variable names as deployed stacks — only the values change.
+Workloads connected to locally-emulated resources receive `STP_*` environment variables pointing to local endpoints instead of AWS endpoints. Dev mode uses the same variable names as deployed stacks: only the values change.
 
 For a [relational database](/resources/databases/relational-database) resource named `myDb` connected to a workload via [`connectTo`](/configuration/connecting-resources), the connection string, host, and port point at the local emulator. For example, a PostgreSQL database may produce variables like:
 
@@ -168,18 +169,16 @@ Local containers also get `AWS_REGION` and `AWS_DEFAULT_REGION` with the stage's
 
 Code on your machine talks to the dev stack, and deployed functions talk to your local databases, across the distance to the stage's region. In a region far from you, every first connection takes noticeably longer (several hundred milliseconds per round trip), and a client with a short connect timeout can fail. Node.js, for example, gives up on each address after 250 ms by default; raise it with `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=2000`, or run dev mode in a region close to you.
 
-## Terminal commands
+## Keyboard shortcuts
 
-Type a command in the dev mode terminal and press Enter:
-
-| Command | Action |
+| Key | Action |
 |---|---|
-| `rs` | Rebuild all workloads |
-| `rs <name>` | Rebuild a specific workload by name |
-| `c` or `clear` | Clear the log output |
-| `q` or `quit` | Stop dev mode and exit |
+| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
+| **Ctrl+A** | Rebuild all workloads |
+| **Tab** | Switch between the overview and the logs |
+| **Ctrl+C** | Stop dev mode |
 
-When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, use `rs` after editing code to see changes. Use `rs <name>` to rebuild a single workload without restarting others — useful when iterating on one service in a multi-resource config.
+With `--watch`, workloads rebuild by themselves when their files change. Rebuilding one workload leaves the others running.
 
 A workload whose rebuild fails, for example because of a syntax error, shows the error and stays failed until a rebuild succeeds. A Lambda function keeps its previous code until then. A rebuild deploys code only: after a change to the configuration file, stop dev mode and start it again.
 
@@ -241,10 +240,6 @@ These are the flags you use most. [`stacktape dev`](/cli/dev) lists every flag, 
 | `--agent-port` | Port for that HTTP API (default: 7331) |
 
 ## FAQ
-
-### Which resource types does dev mode support, and what isn't emulated locally?
-
-Dev mode supports container workloads ([web-service](/resources/compute/web-service), [worker-service](/resources/compute/worker-service), [private-service](/resources/compute/private-service), [multi-container-workload](/resources/compute/multi-container-workload)), [Lambda functions](/resources/compute/lambda-function), [hosting buckets](/resources/frontend/static-hosting) (with `dev` config), and all SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix). Local emulation covers relational databases, Redis, DynamoDB, and OpenSearch. Other resource types such as [SQS queues](/resources/messaging/sqs-queue), [SNS topics](/resources/messaging/sns-topic), [S3 buckets](/resources/storage/s3-bucket), and [state machines](/resources/orchestration/state-machine) run in the dev stack according to the dev deployment policy, rather than only when selected workloads need them. Batch jobs also run in AWS; restart dev mode to rebuild their images.
 
 ### How do Lambda functions connect to local databases in dev mode?
 
