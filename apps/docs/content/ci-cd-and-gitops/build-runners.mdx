@@ -1,106 +1,99 @@
 ---
 title: 'Build runners'
 order: 5
-seoTitle: 'EC2 Build Runners for GitOps Deployments | Stacktape'
-seoDescription: 'Learn how Stacktape EC2 runners execute Console-managed GitOps deployments, keep build caches between runs, stop when idle, and let you choose compute per project.'
+seoTitle: 'Build runners for Git deployments | Stacktape Docs'
+seoDescription: 'How Stacktape runners build and deploy Git deployments on EC2 in your AWS account: when they start and stop, instance sizes, build cache, setup commands and what they cost.'
 ---
 
 # Build runners
 
-Stacktape Console executes GitOps deployments on a dedicated EC2 runner in your connected AWS account. Each Git-backed project has its own runner, AWS region, and instance type.
+A runner is an EC2 instance in your AWS account that builds and deploys a project for the Stacktape Console. Each
+project gets one runner per AWS account and region it deploys to from Git. It keeps a build cache between deploys and
+stops when it has nothing to do.
 
-The runner keeps dependency and build caches on its EBS volume between deployments. It automatically stops after 15 minutes without deployment or GitHub Actions work, so compute charges stop while the project is idle. The next job starts the existing instance and reuses its caches.
+A runner runs:
 
-## When the runner is used
+- [Git deployments](/ci-cd-and-gitops/gitops-with-console): pushes, pull request previews and their deletion;
+- `stacktape deploy --runner ec2`, when you want the build to run in AWS instead of on your machine;
+- [GitHub Actions jobs](/ci-cd-and-gitops/self-hosted-github-actions-runners), when you turn them on for the project;
+- AI runs you start from an incident.
 
-The EC2 runner executes operations started by Stacktape Console, including:
+Deploys from your terminal and from [your own pipeline](/ci-cd-and-gitops/custom-ci-cd) build on that machine and
+don't need a runner.
 
-- deployments triggered by pushes or pull requests
-- deployments started manually from the Console
-- stage deletions started from the Console
-- self-hosted GitHub Actions jobs when that feature is enabled for the project
+## When it starts and stops
 
-Local CLI commands and [custom CI/CD pipelines](/ci-cd-and-gitops/custom-ci-cd) normally run on the machine or CI runner that invokes Stacktape. Their compute and lifecycle are independent from the Console-managed runner.
+Stacktape creates a project's runner the first time it needs one, usually when you create the project's first Git
+deployment. A job starts the stopped instance and reuses its cache. After the runner has been idle for 15 minutes,
+Stacktape stops it. Instances that support EC2 hibernation hibernate instead, so they resume faster.
 
-## Runner configuration
+The idle time is a setting: from 5 minutes to 24 hours, or **Keep running**. A runner that keeps running has no start
+delay and bills compute all the time.
 
-Runner settings are configured per project in the Stacktape Console. Open **Runners**, select the project's runner and open its **Settings** tab to choose the instance size, the build cache limit, what happens when the runner is idle and the project's setup commands. The runner region is selected when you create a Git-backed project.
+A runner runs up to two deployments at once, plus up to two background jobs (GitHub Actions jobs and AI runs). More
+work waits for a free slot.
 
-### Instance types
+## What it costs
 
-The instance type controls the CPU and memory available during builds. Larger instances can shorten CPU-intensive builds but cost more while running.
+AWS bills your account for:
 
-| Instance type | vCPU | Memory |
-| --- | --- | --- |
-| `m6a.large` | 2 | 8 GB |
-| `m6a.xlarge` | 4 | 16 GB |
-| `c7a.xlarge` | 4 | 8 GB |
-| `c7a.2xlarge` | 8 | 16 GB |
-| `c7a.4xlarge` | 16 | 32 GB |
-| `c7a.8xlarge` | 32 | 64 GB |
+- EC2 compute while the instance runs, including the idle time before it stops;
+- its two EBS disks all the time, also while it is stopped;
+- ordinary data transfer and CloudWatch charges from its work.
 
-The default is `c7a.2xlarge` with 8 vCPU and 16 GB of memory. The available families suit different workloads:
+The default disks are a 50 GiB system disk and a 50 GiB build cache disk, about $8.80 a month in Ireland at gp3 rates.
+Larger instance sizes get a larger system disk for hibernation. The cache disk grows as the cache fills, up to the
+**Build cache limit** (200 GiB by default). The **Runners** page shows each runner's estimated cost from AWS list
+prices in its region.
 
-- **`c7a`** instances favor CPU-intensive builds, such as compiling applications and building container images.
-- **`m6a`** instances provide more memory per vCPU for memory-heavy builds.
+The runner, its disks and its IAM role are deleted when you delete the project or its last Git deployment in that AWS
+account and region, unless GitHub Actions jobs still use it.
 
-Start with the default and change the size if runner metrics or build duration show that the project needs a different balance. A new size takes effect before the next operation executes.
+## Settings
 
-### Runner region
+Open **Configuration → Runners** in the Console, select the project's runner and open its **Settings** tab.
 
-The runner region determines where its EC2 instance, EBS volume, and supporting resources live. Choose a region supported by Stacktape's runner image and suitable for the AWS account that will own the infrastructure.
+| Setting | What it does |
+|---|---|
+| **Instance size** | CPU and memory for builds. Bigger builds faster and costs more per hour. |
+| **When idle** | How long the runner waits before it stops, or **Keep running**. |
+| **Build cache limit** | The largest the cache disk grows, from 50 to 2,000 GiB. |
+| **GitHub Actions** | Runs the repository's GitHub Actions jobs on this runner. See [Self-hosted GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners). |
+| **Setup commands** | Shell commands each deployment runs before it builds. See below. |
 
-<Tip>
-Choose a runner region close to the regions where you usually deploy. This can reduce latency and cross-region data transfer during builds and uploads.
-</Tip>
+Changes apply when the runner next prepares for work. A new size replaces the instance after its current work and
+keeps the build cache.
+
+### Instance sizes
+
+| Instance size | vCPU | Memory |
+|---|---|---|
+| `m6a.large` | 2 | 8 GiB |
+| `m6a.xlarge` | 4 | 16 GiB |
+| `c7a.xlarge` | 4 | 8 GiB |
+| `c7a.2xlarge` | 8 | 16 GiB |
+| `c7a.4xlarge` | 16 | 32 GiB |
+| `c7a.8xlarge` | 32 | 64 GiB |
+
+**Automatic**, the default, is `c7a.2xlarge`. In regions without C7a instances it is `c6i.2xlarge`, which has the
+same size. `c7a` suits CPU-heavy work such as compiling and building images; `m6a` has more memory per vCPU. Start with
+the default and change it when build times or memory use say so.
 
 ### Setup commands
 
-Setup commands are shell commands that each deployment on a runner runs before `stacktape deploy`, in a fresh checkout
-of your code. Use them to install tools your build needs, point a package manager at a private registry, or export
-environment variables for the build (`export NAME=value`).
+Setup commands run before `stacktape deploy`, in a fresh checkout of your code. Use them to install a tool the build
+needs, point a package manager at a private registry, or export variables for the build (`export NAME=value`).
 
-- **Every project:** owners and admins edit them with the **Setup commands** button at the top of the **Runners** page.
-- **One project:** edit them on the **Settings** tab of the project's runner. They run after the commands for every
-  project.
+- **Every project:** Owners and Admins edit them with **Setup commands** at the top of the **Runners** page. They run
+  first.
+- **One project:** edit them on the runner's **Settings** tab. They run after the commands for every project.
 
 The commands run in order in Bash as a user without root, so install tools into the home directory (for example
 `pip install --user` or `npm install -g`). If a command fails, the deployment stops and its log shows the output.
-Deletes, rollbacks and GitHub Actions jobs do not run setup commands. A line starting with `#` names the commands under
-it, and a blank line starts a new group. Keep the commands deterministic, pin tool versions and do not print secrets.
+Deletes, rollbacks and GitHub Actions jobs don't run setup commands. A line starting with `#` names the commands under
+it, and a blank line starts a new group. Pin tool versions and don't print secrets.
 
-## Lifecycle and cost
+## Build cache
 
-The runner is provisioned when first needed and reused for later work. When a job arrives, Stacktape makes sure the instance is running and ready before dispatching the operation. After 15 minutes without active work, Stacktape stops the instance and attempts to hibernate it where AWS supports that lifecycle.
-
-You pay AWS directly for the runner resources in your account:
-
-- EC2 compute while the instance is running
-- EBS storage while the runner exists, including while stopped or hibernated
-- ordinary AWS data transfer and logging charges generated by runner activity
-
-Rates vary by region and change over time. Use the [AWS Pricing Calculator](https://calculator.aws/) or your AWS billing tools for current estimates.
-
-## Build caches
-
-The runner stores package-manager, source, and build caches on its persistent volume. This avoids downloading and rebuilding unchanged inputs on every deployment. Stacktape isolates individual operation work directories while reusing the caches that make repeated jobs faster.
-
-Use `--no-cache` for a CLI deployment when you need Stacktape to rebuild artifacts without its normal build cache. That flag does not delete the runner or all operating-system-level caches.
-
-## FAQ
-
-### Do I need a Console runner for custom CI/CD?
-
-No. GitHub Actions, GitLab CI, CircleCI, and other custom pipelines can run the Stacktape CLI on their own workers. The Console-managed runner is for operations dispatched through Stacktape Console and for the optional self-hosted GitHub Actions integration.
-
-### What instance type should I choose?
-
-Start with `c7a.2xlarge`. Choose a smaller type for lightweight or infrequent builds, a larger `c7a` type for CPU-bound compilation and container builds, or an `m6a` type when the build needs more memory per CPU. Re-evaluate based on real build duration and AWS cost rather than choosing the largest instance by default.
-
-### What happens when the runner is idle?
-
-Stacktape stops the EC2 instance after 15 minutes without active deployment or GitHub Actions work. The EBS volume remains so caches survive, and AWS continues billing for that storage. The next job starts the runner before executing.
-
-### Can deployment and GitHub Actions jobs run at the same time?
-
-They use the same project runner. Stacktape coordinates runner work so jobs do not corrupt shared state. If the runner is busy, new work waits or reports that the runner is occupied rather than starting an unsafe overlapping operation.
+The cache disk keeps package manager caches, Docker layers and build output between jobs, so unchanged dependencies
+and images aren't downloaded or rebuilt. Deployments and GitHub Actions jobs keep separate caches.
