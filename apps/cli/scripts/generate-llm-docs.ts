@@ -772,15 +772,13 @@ const homeHeroToMarkdown = (propsRaw: string): string => {
     commandLabel: string;
     commands: Array<{ label: string; code: string }>;
     commandNote?: string;
-    steps?: string[];
   }>('HomeHero', propsRaw);
   return [
     `# ${props.title}`,
     props.lead,
     `${props.commandLabel}:`,
     props.commands.map((command) => `- ${command.label}: \`${command.code}\``).join('\n'),
-    props.commandNote,
-    props.steps && `Wizard steps: ${props.steps.join(', ')}.`
+    props.commandNote
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -789,7 +787,7 @@ const homeHeroToMarkdown = (propsRaw: string): string => {
 const homePathsToMarkdown = (propsRaw: string): string => {
   const props = homeProps<{
     title: string;
-    items: Array<{ title: string; text: string; command?: string; links: HomeLink[] }>;
+    items: Array<{ title: string; text: string; command?: string; steps?: string[]; links: HomeLink[] }>;
   }>('HomePaths', propsRaw);
   return [
     `## ${props.title}`,
@@ -797,6 +795,7 @@ const homePathsToMarkdown = (propsRaw: string): string => {
       [
         `### ${item.title}`,
         item.text,
+        item.steps && `Steps: ${item.steps.join(', ')}.`,
         item.command && `\`\`\`bash\n${item.command}\n\`\`\``,
         homeLinksToMarkdown(item.links)
       ]
@@ -813,7 +812,8 @@ const homeExampleToMarkdown = (propsRaw: string, children: string): string => {
     stack: string;
     resources: Array<{ service: string; name: string; detail: string; inVpc?: boolean }>;
     extras: string[];
-    deploy: string;
+    deployTitle: string;
+    deploy: Array<{ label: string; command: string }>;
   }>('HomeExample', propsRaw);
   const resources = props.resources.map(
     (resource) =>
@@ -825,7 +825,8 @@ const homeExampleToMarkdown = (propsRaw: string, children: string): string => {
     children.trim(),
     `What it creates in your AWS account, in the stack \`${props.stack}\`:`,
     [...resources, ...props.extras.map((extra) => `- ${extra}`)].join('\n'),
-    props.deploy
+    `${props.deployTitle}:`,
+    props.deploy.map((step, index) => `${index + 1}. ${step.label}: \`${step.command}\``).join('\n')
   ].join('\n\n');
 };
 

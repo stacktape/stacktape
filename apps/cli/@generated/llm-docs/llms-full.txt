@@ -19052,7 +19052,7 @@ Yes. The `database-engine-restriction` guardrail lets you define an `allowedEngi
 Source: `apps/docs/content/index.mdx`
 Route: `/`
 
-Stacktape is an open-source CLI that reads your project, writes the infrastructure config with you and deploys it to AWS with your own credentials. The Stacktape Console is optional and adds deploy history, costs, alerts and team access.
+Stacktape is an open-source CLI. It reads your project, writes the infrastructure config with you and deploys it with your own AWS credentials. A Console for teams is optional.
 
 Run it in your project directory:
 
@@ -19061,23 +19061,23 @@ Run it in your project directory:
 - Linux: `curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init`
 - Windows: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"`
 
-It opens a wizard in your browser. You review what it found and the monthly price, then deploy. No Stacktape account needed.
-
-Wizard steps: Start, Analyze, Review, Deploy.
+It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed.
 
 
 ## Where to start
 
 ### Deploy an existing app
 
-Run init in your app directory. The wizard finds your services, databases and sites, shows the AWS resources and their price, and deploys when you confirm.
+Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.
+
+Steps: Start, Analyze, Review, Deploy.
 
 - [How init works](/cli/init)
 - [First deploy](/getting-started/deploy-your-first-stage)
 
 ### Start a new project
 
-Pick a starter, such as Express with Postgres, Next.js or FastAPI. Init downloads it and prints the commands that deploy it.
+Start from a working starter, such as Express with Postgres, Next.js or FastAPI.
 
 ```bash
 npx stacktape@latest init --starter-project
@@ -19087,7 +19087,7 @@ npx stacktape@latest init --starter-project
 
 ### Evaluate Stacktape for your team
 
-Where it runs, what leaves your AWS account, how you would leave, CI/CD, observability, costs and access.
+Short answers on where it runs, what leaves your account, lock-in, networking, CI/CD, observability, costs and access.
 
 
 ## A config and what it creates
@@ -19175,7 +19175,10 @@ What it creates in your AWS account, in the stack `my-api-dev`:
 - Security groups, an IAM role and CloudWatch logs
 - The password read from AWS Secrets Manager
 
-To deploy it, store the password with `stacktape secret set db-password --region eu-west-1`, then run `stacktape deploy --project my-api --stage dev --region eu-west-1`.
+Deploy it:
+
+1. Store the database password in your account: `stacktape secret set db-password --region eu-west-1`
+2. Create the stack: `stacktape deploy --project my-api --stage dev --region eu-west-1`
 
 
 ## The open-source CLI and the optional Console
@@ -19206,11 +19209,11 @@ Above $200 a month, the Flexible plan costs 19–25% of the managed AWS spend. A
 
 ### Where it runs
 
-Every resource is in your AWS account, in one CloudFormation stack per stage. The CLI uses your credentials. Stacktape gets access to the account only if you connect the Console. [Using the CLI without an account](/getting-started/open-source-cli)
+AWS resources are created in your account, one CloudFormation stack per stage. MongoDB Atlas and Upstash resources, if you use them, live with those providers. Stacktape gets access to your AWS account only if you connect the Console. [Using the CLI without an account](/getting-started/open-source-cli)
 
 ### What leaves your account
 
-With the Console: error events with their log excerpts, metrics, check results and security findings. Logs, build artifacts and secrets stay in AWS. The CLI sends anonymous usage telemetry, which you can turn off. [Telemetry](/getting-started/open-source-cli#telemetry)
+With the Console: error events with log excerpts, metrics, check results and security findings. An incident AI run you start sends what the agent reads, code included, to its model provider. Logs, build artifacts and secrets stay in AWS. The CLI sends anonymous usage telemetry, which you can turn off. [What error tracking sends](/observability/error-tracking#what-leaves-your-aws-account)
 
 ### How you would leave
 
