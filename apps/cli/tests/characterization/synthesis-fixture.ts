@@ -83,6 +83,7 @@ export const synthesizeFixture = async ({
   devNetwork,
   devSkippedFunctions,
   sharedNetwork,
+  consoleConnected = true,
   existingStackResources = deployedTemplate && existingResourcesOf(deployedTemplate)
 }: {
   /** An already compiled TypeScript-style config. Mutually exclusive with `configPath`. */
@@ -107,6 +108,8 @@ export const synthesizeFixture = async ({
   existingStackResources?: EnrichedStackResourceInfo[];
   /** The shared non-production network the stage runs in, as `prepareStageNetwork` decides before synthesis. */
   sharedNetwork?: { network: SharedNetwork; usesNat: boolean };
+  /** False synthesizes the account-free stack, which also runs the validation of Console-only features. */
+  consoleConnected?: boolean;
 }) => {
   if (!compiledConfig === !configPath) {
     throw new Error('synthesizeFixture needs exactly one of compiledConfig or configPath.');
@@ -194,10 +197,10 @@ export const synthesizeFixture = async ({
       workingDir: globalStateManager.workingDir,
       ...synthesisContext
     };
-    // Fixtures synthesize what a deploy with the Console builds; `consoleConnected: false` is the account-free stack.
+    // Fixtures synthesize what a deploy with the Console builds by default; `consoleConnected: false` is the account-free stack.
     await configManager.init({
       configRequired: true,
-      context: { ...getConfigManagerContext(stackContext), consoleConnected: true }
+      context: { ...getConfigManagerContext(stackContext), consoleConnected }
     });
     configManager.setDevNetworkPlacement(devNetwork);
     configManager.setDevSkippedFunctions(devSkippedFunctions ?? []);

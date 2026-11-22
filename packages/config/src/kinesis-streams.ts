@@ -307,8 +307,9 @@ export interface KinesisStreamProps {
    *
    * ---
    *
-   * Use when you have multiple consumers reading from the same stream and need low latency.
-   * Enhanced fan-out consumers are auto-created when a Lambda uses `autoCreateConsumer: true`.
+   * Use when you have multiple consumers reading from the same stream and need low latency. Each function that
+   * triggers on this stream through `kinesisStreamName` gets its own stream consumer, as if its trigger set
+   * `autoCreateConsumer: true`. A trigger that sets `consumerArn` or `autoCreateConsumer: false` keeps its own setting.
    *
    *
    * ---

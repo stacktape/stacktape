@@ -1,12 +1,11 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import { runEcsExecCommand } from '@utils/ssm-session';
 import { containerErrors } from '../_utils/container-errors';
+import { isServiceTask, resolveDeployedEcsService } from '../_utils/deployed-ecs-service';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 type ContainerExecArgs = StacktapeCliArgs & { taskArn?: string };
@@ -43,12 +42,21 @@ export const commandContainerExec = async () => {
       2
     )
   );
+  if (result.exitCode === null) {
+    throw new CliError({
+      category: 'AWS',
+      code: 'CONTAINER_EXEC_FAILED',
+      message:
+        'The command did not report an exit code: the container exec session failed or the container has no `/bin/sh`.',
+      hints: 'Check the session output above. `container exec` runs the command with `/bin/sh -c`.'
+    });
+  }
   if (result.exitCode !== 0) {
     throw new CliError({
       category: 'AWS',
       code: 'CONTAINER_EXEC_FAILED',
-      message: `The container exec session failed (Session Manager plugin exit code ${result.exitCode}).`,
-      hints: 'Check the session output and retry the command.'
+      message: `The command exited with code ${result.exitCode}.`,
+      hints: 'Check the command output above.'
     });
   }
 };
@@ -56,41 +64,11 @@ export const commandContainerExec = async () => {
 const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => {
   const { resourceName, container, taskArn: specifiedTaskArn } = args;
 
-  const workloadInfo = deployedStackOverviewManager.deployedWorkloadsWithEcsTaskDefinition.find(
-    ({ nameChain }) => nameChain[0] === resourceName
-  );
-  if (!workloadInfo) {
-    throw containerErrors.invalidResource(resourceName);
-  }
-
-  const ecsServiceEntry = Object.entries(workloadInfo.resource.cloudformationChildResources).find(
-    ([, { cloudformationResourceType }]) => {
-      return (
-        cloudformationResourceType === 'AWS::ECS::Service' ||
-        cloudformationResourceType === 'Stacktape::ECSBlueGreenV1::Service'
-      );
-    }
-  );
-
-  if (!ecsServiceEntry) {
-    throw new CliError({
-      category: 'NON_EXISTING_RESOURCE',
-      code: 'CONTAINER_SERVICE_NOT_DEPLOYED',
-      message: `Resource \`${resourceName}\` does not have a deployed ECS service.`,
-      hints: 'The resource may be a dev stack without running containers. Deploy a full stack to use this command.'
-    });
-  }
-
-  const ecsServiceCfLogicalName = ecsServiceEntry[0];
-
   const {
-    ecsServiceTaskDefinition,
-    ecsService: { clusterArn }
-  } = stackManager.existingStackResources.find(
-    ({ LogicalResourceId }) => LogicalResourceId === ecsServiceCfLogicalName
-  );
-
-  const containersInTaskDefinition = ecsServiceTaskDefinition.containerDefinitions.map(({ name }) => name);
+    clusterArn,
+    serviceName,
+    containerNames: containersInTaskDefinition
+  } = resolveDeployedEcsService(resourceName);
 
   if (
     (containersInTaskDefinition.length > 1 && !container) ||
@@ -99,10 +77,12 @@ const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => 
     throw containerErrors.selectionRequired({ resourceName, availableContainers: containersInTaskDefinition });
   }
 
-  const tasks = await awsSdkManager.ecs.listTasks({
-    ecsClusterName: clusterArn,
-    desiredStatus: DesiredStatus.RUNNING
-  });
+  const tasks = (
+    await awsSdkManager.ecs.listTasks({
+      ecsClusterName: clusterArn,
+      desiredStatus: DesiredStatus.RUNNING
+    })
+  ).filter((task) => isServiceTask(task, serviceName));
 
   if (tasks.length === 0) {
     throw new CliError({

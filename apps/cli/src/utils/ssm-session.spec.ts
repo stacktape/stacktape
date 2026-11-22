@@ -2,8 +2,11 @@ import { describe, expect, it } from 'bun:test';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import type { SsmPortForwardingTunnel } from './ssm-session';
 import { PassThrough } from 'node:stream';
+import { spawnSync } from 'node:child_process';
 import {
   describePluginStartFailure,
+  readEcsExecResult,
+  wrapEcsExecCommand,
   getTunneledEnvironmentVariableReferences,
   substituteTunneledEndpointsInEnvironmentVars,
   waitForPluginListening
@@ -160,5 +163,31 @@ describe('Session Manager plugin start failures', () => {
     await expect(listening).rejects.toThrow(
       'The SSM tunnel from local port 4321 to 127.0.0.1:7835 closed before it was ready: the Session Manager plugin exited with code 255.'
     );
+  });
+});
+
+// The Session Manager plugin exits with 0 when the session worked, so the command's exit code travels in its output.
+describe.skipIf(process.platform === 'win32')('container exec exit codes', () => {
+  it.each([
+    ['printf ok', 'ok', 0],
+    ["echo 'single quoted' && exit 3", 'single quoted\n', 3],
+    ['echo "double $((1 + 1))"; false', 'double 2\n', 1],
+    ['printf %s "it\'s" | tr a-z A-Z', "IT'S", 0]
+  ])('%s reports its own output and exit code', (command, expectedOutput, expectedExitCode) => {
+    // The container agent runs the wrapped command through a shell, as `sh -c` does here.
+    const run = spawnSync('/bin/sh', ['-c', wrapEcsExecCommand(command)], { encoding: 'utf8' });
+    expect(run.status).toBe(0);
+    expect(readEcsExecResult(run.stdout)).toEqual({ output: expectedOutput, exitCode: expectedExitCode });
+  });
+
+  it('has no exit code when the session ends before the command reports one', () => {
+    expect(readEcsExecResult('An error occurred (TargetNotConnectedException)')).toEqual({
+      output: 'An error occurred (TargetNotConnectedException)',
+      exitCode: null
+    });
+    expect(readEcsExecResult('done\r\n__STACKTAPE_EXIT_CODE__=2\r\n\r\nExiting session')).toEqual({
+      output: 'done\r\n\r\nExiting session',
+      exitCode: 2
+    });
   });
 });

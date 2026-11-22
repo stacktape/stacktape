@@ -623,3 +623,48 @@ describe('state machine definitions', () => {
     expect(result.valid).toBe(false);
   });
 });
+
+describe('alarm-triggered functions', () => {
+  test('the trigger rule listens to the alarm that alarmName references', async () => {
+    const template = await synthesizeFixture({
+      workingDir: fixturesDir,
+      compiledConfig: {
+        config: {
+          resources: {
+            api: {
+              type: 'function',
+              properties: {
+                packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } },
+                alarms: [{ trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } } }]
+              }
+            },
+            onAlarm: {
+              type: 'function',
+              properties: {
+                packaging: { type: 'js-bundle', properties: { entryfilePath: './src/handler.ts' } },
+                events: [{ type: 'cloudwatch-alarm', properties: { alarmName: 'api.alarms.0' } }]
+              }
+            }
+          }
+        }
+      } as never
+    });
+    if (templateOutputDirectory) {
+      await mkdir(templateOutputDirectory, { recursive: true });
+      await writeFile(
+        join(templateOutputDirectory, 'alarm-triggered-function.json'),
+        JSON.stringify(template, null, 2)
+      );
+    }
+    expectReferencesResolve(template);
+    const alarms = resourcesOfType(template, 'AWS::CloudWatch::Alarm');
+    expect(alarms).toHaveLength(1);
+    const alarmRule = resourcesOfType(template, 'AWS::Events::Rule').find(
+      ([, resource]) =>
+        json(resource.Properties.EventPattern).includes('CloudWatch Alarm State Change') &&
+        json(resource.Properties.Targets).includes('OnAlarm')
+    );
+    expect(alarmRule).toBeDefined();
+    expect(json(alarmRule![1].Properties.EventPattern)).toContain(json({ 'Fn::GetAtt': [alarms[0][0], 'Arn'] }));
+  });
+});

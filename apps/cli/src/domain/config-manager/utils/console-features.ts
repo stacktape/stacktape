@@ -13,13 +13,18 @@ const CONNECT = 'Run: stacktape connect — your stacks are added as they are, n
 const names = (items: { name: string }[]) => items.map(({ name }) => `\`${name}\``).join(', ');
 
 /**
- * A load balancer without its own domain or certificate is served on a `*.stacktape-app.com` default domain, which the
- * Console provides. HTTP APIs and CDNs fall back to their AWS URLs instead; a TLS listener has no such fallback.
+ * An HTTPS or TLS listener without its own domain or certificate is served on a `*.stacktape-app.com` default domain,
+ * which the Console provides. A load balancer without listeners gets an HTTPS one. HTTP listeners (such as a private
+ * service's internal load balancer) need no certificate, and HTTP APIs and CDNs fall back to their AWS URLs instead.
  */
 const loadBalancersNeedingDefaultDomain = (configManager: ConfigManager) => [
   ...configManager.allApplicationLoadBalancers.filter(
     ({ customDomains, listeners, cdn }) =>
-      (!customDomains?.length && !listeners?.some(({ customCertificateArns }) => customCertificateArns?.length)) ||
+      (!customDomains?.length &&
+        (!listeners ||
+          listeners.some(
+            ({ protocol, customCertificateArns }) => protocol === 'HTTPS' && !customCertificateArns?.length
+          ))) ||
       (cdn?.enabled && !cdn.customDomains?.length)
   ),
   ...configManager.allNetworkLoadBalancers.filter(
@@ -27,8 +32,10 @@ const loadBalancersNeedingDefaultDomain = (configManager: ConfigManager) => [
       !customDomains?.length &&
       listeners.some(({ protocol, customCertificateArns }) => protocol === 'TLS' && !customCertificateArns?.length)
   ),
+  // The dashboard needs a domain only while it is enabled; a dashboard domain is rejected when it is off.
   ...configManager.convexes.filter(
-    ({ customDomains }) => !customDomains?.cloud || !customDomains?.site || !customDomains?.dashboard
+    ({ customDomains, dashboard }) =>
+      !customDomains?.cloud || !customDomains?.site || (dashboard?.enabled !== false && !customDomains?.dashboard)
   )
 ];
 

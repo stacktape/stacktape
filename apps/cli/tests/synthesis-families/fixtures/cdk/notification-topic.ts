@@ -6,6 +6,7 @@ import { CfnOutput, Duration } from 'aws-cdk-lib';
 
 export default class NotificationTopic extends Construct {
   readonly topicArnOutput: CfnOutput;
+  readonly queueUrlOutput: CfnOutput;
 
   constructor(scope: Construct, id: string) {
     super(scope, id);
@@ -13,5 +14,9 @@ export default class NotificationTopic extends Construct {
     const topic = new Topic(this, 'Topic', { displayName: 'notifications' });
     topic.addSubscription(new SqsSubscription(queue));
     this.topicArnOutput = new CfnOutput(this, 'TopicArn', { value: topic.topicArn });
+    this.queueUrlOutput = new CfnOutput(this, 'QueueUrl', {
+      value: queue.queueUrl,
+      description: 'Where the topic delivers notifications'
+    });
   }
 }

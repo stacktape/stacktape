@@ -468,8 +468,13 @@ describe('AWS CDK construct family', () => {
       expect(json(subscription.resource.Properties?.TopicArn)).toContain(topic.logicalId);
       expect(json(subscription.resource.Properties?.Endpoint)).toContain(queue.logicalId);
       expect(queue.resource.Properties?.MessageRetentionPeriod).toBe(345600);
-      const outputs = Object.values(template.Outputs ?? {}) as { Value: unknown }[];
-      expect(outputs.some(({ Value }) => json(Value).includes(topic.logicalId))).toBe(true);
+      const outputs = Object.values(template.Outputs ?? {}) as { Value: unknown; Description?: string }[];
+      const topicOutput = outputs.find(({ Value }) => json(Value).includes(topic.logicalId));
+      const queueOutput = outputs.find(({ Value }) => json(Value).includes(queue.logicalId));
+      // A construct output keeps its description, and one without a description has none.
+      expect(topicOutput).toBeDefined();
+      expect(topicOutput?.Description).toBeUndefined();
+      expect(queueOutput?.Description).toBe('Where the topic delivers notifications');
     },
     CDK_FIRST_LOAD_TIMEOUT_MS
   );
@@ -1588,5 +1593,63 @@ describe('Redis family', () => {
     expect(onlyResourceOfType(template, 'AWS::ElastiCache::ServerlessCache').resource.Properties?.SubnetIds).toEqual(
       reversed
     );
+  });
+});
+
+describe('account-free stacks', () => {
+  const domain = (name: string) => ({
+    domainName: `${name}.example.com`,
+    customCertificateArn: 'arn:aws:acm:eu-west-1:123456789999:certificate/account-free',
+    disableDnsRecordCreation: true
+  });
+  const service = (type: string, properties: Record<string, unknown> = {}) => ({
+    type,
+    properties: {
+      packaging: { type: 'js-bundle', properties: { entryfilePath: './src/web.ts' } },
+      resources: { cpu: 0.25, memory: 512 },
+      port: 3000,
+      ...properties
+    }
+  });
+  const synthesizeAccountFree = (resources: Record<string, unknown>) =>
+    synthesizeFixture({
+      compiledConfig: { config: { resources } } as never,
+      workingDir: fixturesDir,
+      consoleConnected: false
+    });
+  const refusal = (resources: Record<string, unknown>) =>
+    synthesizeAccountFree(resources).then(
+      () => '',
+      (error: { code?: string; message: string }) => `${error.code}: ${error.message}`
+    );
+
+  test("a private service's internal HTTP load balancer and a Convex without its dashboard deploy without the Console", async () => {
+    const template = await synthesizeAccountFree({
+      internal: service('private-service', { loadBalancing: { type: 'application-load-balancer' } }),
+      backend: {
+        type: 'convex',
+        properties: {
+          appDirectory: './convex',
+          dashboard: { enabled: false },
+          customDomains: { cloud: domain('convex-cloud'), site: domain('convex-site') }
+        }
+      }
+    });
+    const listeners = resourcesOfType(template, 'AWS::ElasticLoadBalancingV2::Listener').map(
+      ([, resource]) => resource.Properties?.Protocol
+    );
+    expect(listeners).toContain('HTTP');
+  });
+
+  test('a load balancer served on an HTTPS default domain and a Convex without domains still need the Console', async () => {
+    const webServiceRefusal = await refusal({
+      web: service('web-service', { loadBalancing: { type: 'application-load-balancer' } })
+    });
+    expect(webServiceRefusal).toStartWith('CONFIG_NEEDS_CONSOLE');
+    expect(webServiceRefusal).toContain('default domain of `web');
+    const convexRefusal = await refusal({
+      backend: { type: 'convex', properties: { appDirectory: './convex', dashboard: { enabled: false } } }
+    });
+    expect(convexRefusal).toStartWith('CONFIG_NEEDS_CONSOLE');
   });
 });

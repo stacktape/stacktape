@@ -7584,9 +7584,9 @@
       {
         "name": "minCapacity",
         "required": false,
-        "shortDescription": "<p> Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM.</p>",
-        "longDescription": "<p>Set low (0.5) for dev/staging to minimize cost. The database scales up instantly under load.</p>",
-        "defaultValue": "0.5",
+        "shortDescription": "<p> Minimum ACUs (0-128 in 0.5 increments). 0 pauses the database when it is idle. ~1 ACU ≈ 2 GB RAM.</p>",
+        "longDescription": "<p>With the default 0, the database pauses after about 5 idle minutes and costs nothing for compute while paused; the\nfirst connection after a pause waits about 15 seconds for it to resume. Set 0.5 or more to keep it running. The\ndatabase scales up instantly under load.</p>",
+        "defaultValue": "0",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -7632,7 +7632,7 @@
       "requiredCount": 1,
       "optionalCount": 5
     },
-    "typeDeclaration": "// [!code focus-start]\ntype AuroraServerlessV2EngineProperties = {\n  /** Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`. */\n  version: string;\n  /** Name of the initial database. */\n  dbName?: string;\n  /** Skip automatic minor version upgrades (e.g., 16.4 → 16.5). */\n  disableAutoMinorVersionUpgrade?: boolean;\n  /** Maximum ACUs (0.5-128 in 0.5 increments). Caps your scaling and cost. */\n  maxCapacity?: number;\n  /** Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM. */\n  minCapacity?: number;\n  /** Number of reader instances in the Aurora Serverless v2 cluster. */\n  serverlessReadersCount?: number;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype AuroraServerlessV2EngineProperties = {\n  /** Engine version: a release line such as `17` (PostgreSQL) or `8.4` (MySQL), or a full version such as `17.9`. */\n  version: string;\n  /** Name of the initial database. */\n  dbName?: string;\n  /** Skip automatic minor version upgrades (e.g., 16.4 → 16.5). */\n  disableAutoMinorVersionUpgrade?: boolean;\n  /** Maximum ACUs (0.5-128 in 0.5 increments). Caps your scaling and cost. */\n  maxCapacity?: number;\n  /** Minimum ACUs (0-128 in 0.5 increments). 0 pauses the database when it is idle. ~1 ACU ≈ 2 GB RAM. */\n  minCapacity?: number;\n  /** Number of reader instances in the Aurora Serverless v2 cluster. */\n  serverlessReadersCount?: number;\n};\n// [!code focus-end]"
   },
   "AwsCdkConstruct": {
     "definitionName": "AwsCdkConstruct",
@@ -20669,9 +20669,9 @@
                 {
                   "name": "minCapacity",
                   "required": false,
-                  "shortDescription": "<p> Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM.</p>",
-                  "longDescription": "<p>Set low (0.5) for dev/staging to minimize cost. The database scales up instantly under load.</p>",
-                  "defaultValue": "0.5",
+                  "shortDescription": "<p> Minimum ACUs (0-128 in 0.5 increments). 0 pauses the database when it is idle. ~1 ACU ≈ 2 GB RAM.</p>",
+                  "longDescription": "<p>With the default 0, the database pauses after about 5 idle minutes and costs nothing for compute while paused; the\nfirst connection after a pause waits about 15 seconds for it to resume. Set 0.5 or more to keep it running. The\ndatabase scales up instantly under load.</p>",
+                  "defaultValue": "0",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -35282,7 +35282,7 @@
         "name": "enableEnhancedFanOut",
         "required": false,
         "shortDescription": "<p> Give each consumer its own dedicated 2 MB/s read throughput (instead of sharing).</p>",
-        "longDescription": "<p>Use when you have multiple consumers reading from the same stream and need low latency.\nEnhanced fan-out consumers are auto-created when a Lambda uses <code>autoCreateConsumer: true</code>.</p>",
+        "longDescription": "<p>Use when you have multiple consumers reading from the same stream and need low latency. Each function that\ntriggers on this stream through <code>kinesisStreamName</code> gets its own stream consumer, as if its trigger set\n<code>autoCreateConsumer: true</code>. A trigger that sets <code>consumerArn</code> or <code>autoCreateConsumer: false</code> keeps its own setting.</p>",
         "defaultValue": "false",
         "typeInfo": {
           "kind": "primitive",
@@ -51734,9 +51734,9 @@
                 {
                   "name": "minCapacity",
                   "required": false,
-                  "shortDescription": "<p> Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM.</p>",
-                  "longDescription": "<p>Set low (0.5) for dev/staging to minimize cost. The database scales up instantly under load.</p>",
-                  "defaultValue": "0.5",
+                  "shortDescription": "<p> Minimum ACUs (0-128 in 0.5 increments). 0 pauses the database when it is idle. ~1 ACU ≈ 2 GB RAM.</p>",
+                  "longDescription": "<p>With the default 0, the database pauses after about 5 idle minutes and costs nothing for compute while paused; the\nfirst connection after a pause waits about 15 seconds for it to resume. Set 0.5 or more to keep it running. The\ndatabase scales up instantly under load.</p>",
+                  "defaultValue": "0",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
