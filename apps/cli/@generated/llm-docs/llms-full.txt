@@ -8865,7 +8865,13 @@ A Stacktape project has one configuration file in its root, `stacktape.ts` or `s
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, HttpApiGateway, LambdaFunction, HttpApiIntegration, JsBundleLambdaPackaging } from 'stacktape';
+import {
+  defineConfig,
+  HttpApiGateway,
+  LambdaFunction,
+  HttpApiIntegration,
+  JsBundleLambdaPackaging
+} from 'stacktape';
 
 export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const api = new HttpApiGateway({});
