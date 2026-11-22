@@ -1441,118 +1441,102 @@ Route: `/cli`
 
 Every command runs as `stacktape <command>`, or `stp <command>` for short. `stacktape help <command>` prints a command's flags in the terminal. Each page below has the same flags, with examples.
 
-Most commands work without a Stacktape account. Commands that act on a stack use your local AWS credentials. Commands marked **Console** need a Stacktape sign-in, from [`stacktape login`](/cli/login) or a `STACKTAPE_API_KEY` in CI.
+Most commands work without a Stacktape account. Commands that act on a stack use your local AWS credentials. Commands marked (Console) need a Stacktape sign-in, from [`stacktape login`](/cli/login) or a `STACKTAPE_API_KEY` in CI.
 
 ## Set up
 
-| Command | What it does |
-|---|---|
-| [`init`](/cli/init) | Creates the Stacktape configuration for your project, or a new project from a starter, and guides you through the first deploy. |
-| [`aws-profile create`](/cli/aws-profile-create) | Creates an AWS profile on your machine. |
-| [`aws-profile list`](/cli/aws-profile-list) | Lists the AWS profiles on your machine. |
-| [`aws-profile update`](/cli/aws-profile-update) | Updates an AWS profile. |
-| [`aws-profile delete`](/cli/aws-profile-delete) | Deletes an AWS profile. |
-| [`defaults set`](/cli/defaults-configure) | Sets default values for flags such as the region, stage and AWS profile. |
-| [`defaults list`](/cli/defaults-list) | Prints the defaults you set. |
-| [`domain add`](/cli/domain-add) | Adds a registered domain to your AWS account, so Stacktape can manage its DNS records and certificates. |
-| [`upgrade`](/cli/upgrade) | Upgrades the CLI to the latest version. |
-| [`version`](/cli/version) | Prints the installed CLI version. |
-| [`help`](/cli/help) | Prints the commands, or the flags of one command. |
+- [`init`](/cli/init): Creates the Stacktape configuration for your project, or a new project from a starter, and guides you through the first deploy.
+- [`aws-profile create`](/cli/aws-profile-create): Creates an AWS profile on your machine.
+- [`aws-profile list`](/cli/aws-profile-list): Lists the AWS profiles on your machine.
+- [`aws-profile update`](/cli/aws-profile-update): Updates an AWS profile.
+- [`aws-profile delete`](/cli/aws-profile-delete): Deletes an AWS profile.
+- [`defaults set`](/cli/defaults-configure): Sets default values for flags such as the region, stage and AWS profile.
+- [`defaults list`](/cli/defaults-list): Prints the defaults you set.
+- [`domain add`](/cli/domain-add): Adds a registered domain to your AWS account, so Stacktape can manage its DNS records and certificates.
+- [`upgrade`](/cli/upgrade): Upgrades the CLI to the latest version.
+- [`version`](/cli/version): Prints the installed CLI version.
+- [`help`](/cli/help): Prints the commands, or the flags of one command.
 
 ## Deploy and manage stacks
 
-| Command | What it does |
-|---|---|
-| [`validate`](/cli/validate) | Checks your configuration without deploying anything. |
-| [`diff`](/cli/diff) | Shows what a deploy would change in the stack. |
-| [`synth`](/cli/synth) | Prints the CloudFormation template your configuration produces. |
-| [`package`](/cli/package) | Builds the deployment packages of your functions and containers. |
-| [`deploy`](/cli/deploy) | Creates or updates a stage in your AWS account. |
-| [`status`](/cli/info-stack) | Shows a deployed stack's URLs, outputs and resources. **Console** |
-| [`stack list`](/cli/info-stacks) | Lists the stacks deployed in a region. |
-| [`stack history`](/cli/info-operations) | Lists recent deploys and other operations with their result. **Console** |
-| [`rollback`](/cli/rollback) | Returns the stack to a previous deployment version. |
-| [`stack recover`](/cli/cf-rollback) | Recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`. |
-| [`stack update-modules`](/cli/cf-module-update) | Updates the CloudFormation modules the stack uses. |
-| [`deployment-script run`](/cli/deployment-script-run) | Runs a deployment script of the stack in AWS. |
-| [`bucket sync`](/cli/bucket-sync) | Mirrors a local directory into a bucket, removing files that no longer exist locally. |
-| [`delete`](/cli/delete) | Deletes a stage and its resources. |
+- [`validate`](/cli/validate): Checks your configuration without deploying anything.
+- [`diff`](/cli/diff): Shows what a deploy would change in the stack.
+- [`synth`](/cli/synth): Prints the CloudFormation template your configuration produces.
+- [`package`](/cli/package): Builds the deployment packages of your functions and containers.
+- [`deploy`](/cli/deploy): Creates or updates a stage in your AWS account.
+- [`status`](/cli/info-stack) (Console): Shows a deployed stack's URLs, outputs and resources.
+- [`stack list`](/cli/info-stacks): Lists the stacks deployed in a region.
+- [`stack history`](/cli/info-operations) (Console): Lists recent deploys and other operations with their result.
+- [`rollback`](/cli/rollback): Returns the stack to a previous deployment version.
+- [`stack recover`](/cli/cf-rollback): Recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`.
+- [`stack update-modules`](/cli/cf-module-update): Updates the CloudFormation modules the stack uses.
+- [`deployment-script run`](/cli/deployment-script-run): Runs a deployment script of the stack in AWS.
+- [`bucket sync`](/cli/bucket-sync): Mirrors a local directory into a bucket, removing files that no longer exist locally.
+- [`delete`](/cli/delete): Deletes a stage and its resources.
 
 ## Develop locally
 
-| Command | What it does |
-|---|---|
-| [`dev`](/cli/dev) | Runs your app on your machine, connected to its resources. |
-| [`dev stop`](/cli/dev-stop) | Stops a dev session started with `dev --agent`, and cleans up containers left by crashed sessions. |
-| [`dev network`](/cli/dev-network) | Shows the dev network of an AWS account and region. |
-| [`dev network delete`](/cli/dev-network-delete) | Deletes the dev network of an AWS account and region. |
-| [`script run`](/cli/script-run) | Runs a script from your configuration. |
+- [`dev`](/cli/dev): Runs your app on your machine, connected to its resources.
+- [`dev stop`](/cli/dev-stop): Stops a dev session started with `dev --agent`, and cleans up containers left by crashed sessions.
+- [`dev network`](/cli/dev-network): Shows the dev network of an AWS account and region.
+- [`dev network delete`](/cli/dev-network-delete): Deletes the dev network of an AWS account and region.
+- [`script run`](/cli/script-run): Runs a script from your configuration.
 
 ## Secrets and parameters
 
-| Command | What it does |
-|---|---|
-| [`secret set`](/cli/secret-set) | Creates or updates a secret in AWS Secrets Manager. |
-| [`secret get`](/cli/secret-get) | Prints a secret's details, and its value only when you ask. |
-| [`secret delete`](/cli/secret-delete) | Deletes a secret. |
-| [`param get`](/cli/param-get) | Prints one parameter of a deployed resource, such as a URL or ARN. |
+- [`secret set`](/cli/secret-set): Creates or updates a secret in AWS Secrets Manager.
+- [`secret get`](/cli/secret-get): Prints a secret's details, and its value only when you ask.
+- [`secret delete`](/cli/secret-delete): Deletes a secret.
+- [`param get`](/cli/param-get): Prints one parameter of a deployed resource, such as a URL or ARN.
 
 ## Inspect and debug
 
-| Command | What it does |
-|---|---|
-| [`logs`](/cli/logs) | Prints and filters the logs of a deployed resource. |
-| [`metrics`](/cli/metrics) | Prints CloudWatch metrics of a deployed resource. |
-| [`alarm list`](/cli/alarms) | Lists the alarms of the stack and their state. |
-| [`aws call`](/cli/aws-call) | Runs a read-only AWS SDK call against the stack's resources. |
-| [`container shell`](/cli/container-session) | Opens a shell inside a running container. |
-| [`container exec`](/cli/container-exec) | Runs one command in a running container and prints the output. |
-| [`bastion shell`](/cli/bastion-session) | Opens a shell on the stack's bastion host. |
-| [`bastion tunnel`](/cli/bastion-tunnel) | Opens a tunnel from your machine to a private database or cache. |
-| [`query sql`](/cli/query-sql) | Runs a read-only SQL query against a relational database. |
-| [`query dynamodb`](/cli/query-dynamodb) | Reads items and the schema of a DynamoDB table. |
-| [`query redis`](/cli/query-redis) | Reads keys, values and server info from a Redis cache. |
-| [`query opensearch`](/cli/query-opensearch) | Searches an OpenSearch domain. |
+- [`logs`](/cli/logs): Prints and filters the logs of a deployed resource.
+- [`metrics`](/cli/metrics): Prints CloudWatch metrics of a deployed resource.
+- [`alarm list`](/cli/alarms): Lists the alarms of the stack and their state.
+- [`aws call`](/cli/aws-call): Runs a read-only AWS SDK call against the stack's resources.
+- [`container shell`](/cli/container-session): Opens a shell inside a running container.
+- [`container exec`](/cli/container-exec): Runs one command in a running container and prints the output.
+- [`bastion shell`](/cli/bastion-session): Opens a shell on the stack's bastion host.
+- [`bastion tunnel`](/cli/bastion-tunnel): Opens a tunnel from your machine to a private database or cache.
+- [`query sql`](/cli/query-sql): Runs a read-only SQL query against a relational database.
+- [`query dynamodb`](/cli/query-dynamodb): Reads items and the schema of a DynamoDB table.
+- [`query redis`](/cli/query-redis): Reads keys, values and server info from a Redis cache.
+- [`query opensearch`](/cli/query-opensearch): Searches an OpenSearch domain.
 
 ## Incidents and errors
 
-| Command | What it does |
-|---|---|
-| [`incident list`](/cli/incidents) | Lists incidents: downtime, failing checks, firing alarms and production errors. **Console** |
-| [`incident show`](/cli/incidents-show) | Prints everything known about one incident. **Console** |
-| [`incident ack`](/cli/incidents-ack) | Marks an incident as being handled. **Console** |
-| [`incident watch`](/cli/incidents-watch) | Waits until an incident recovers and stays recovered. **Console** |
-| [`incident resolve`](/cli/incidents-resolve) | Resolves an incident after you deployed and verified a fix. **Console** |
-| [`error list`](/cli/errors-list) | Lists runtime errors from your functions and containers. **Console** |
-| [`error resolve`](/cli/errors-resolve) | Marks an error as resolved. It reopens if the error comes back. **Console** |
-| [`error ignore`](/cli/errors-ignore) | Ignores an error, so it does not reopen or alert. **Console** |
-| [`error reopen`](/cli/errors-reopen) | Reopens a resolved or ignored error. **Console** |
+- [`incident list`](/cli/incidents) (Console): Lists incidents: downtime, failing checks, firing alarms and production errors.
+- [`incident show`](/cli/incidents-show) (Console): Prints everything known about one incident.
+- [`incident ack`](/cli/incidents-ack) (Console): Marks an incident as being handled.
+- [`incident watch`](/cli/incidents-watch) (Console): Waits until an incident recovers and stays recovered.
+- [`incident resolve`](/cli/incidents-resolve) (Console): Resolves an incident after you deployed and verified a fix.
+- [`error list`](/cli/errors-list) (Console): Lists runtime errors from your functions and containers.
+- [`error resolve`](/cli/errors-resolve) (Console): Marks an error as resolved. It reopens if the error comes back.
+- [`error ignore`](/cli/errors-ignore) (Console): Ignores an error, so it does not reopen or alert.
+- [`error reopen`](/cli/errors-reopen) (Console): Reopens a resolved or ignored error.
 
 ## Console and account
 
-| Command | What it does |
-|---|---|
-| [`login`](/cli/login) | Signs this machine in to Stacktape. |
-| [`logout`](/cli/logout) | Signs this machine out of Stacktape. |
-| [`connect`](/cli/connect) | Connects the AWS account of your local credentials to the Console, without redeploying anything. |
-| [`whoami`](/cli/info-whoami) | Shows your user, organization, connected AWS accounts and projects. **Console** |
-| [`org list`](/cli/org-list) | Lists the organizations you can access. **Console** |
-| [`org create`](/cli/org-create) | Creates an organization. **Console** |
-| [`org delete`](/cli/org-delete) | Deletes the organization of your API key. **Console** |
-| [`project list`](/cli/project-list) | Lists projects with their stages, status and costs. **Console** |
-| [`project create`](/cli/project-create) | Creates a project. **Console** |
-| [`project delete`](/cli/project-delete) | Deletes a project. **Console** |
-| [`alarm export`](/cli/alarm-export) | Prints alarm rules created in the Console as configuration you can paste. **Console** |
+- [`login`](/cli/login): Signs this machine in to Stacktape.
+- [`logout`](/cli/logout): Signs this machine out of Stacktape.
+- [`connect`](/cli/connect): Connects the AWS account of your local credentials to the Console, without redeploying anything.
+- [`whoami`](/cli/info-whoami) (Console): Shows your user, organization, connected AWS accounts and projects.
+- [`org list`](/cli/org-list) (Console): Lists the organizations you can access.
+- [`org create`](/cli/org-create) (Console): Creates an organization.
+- [`org delete`](/cli/org-delete) (Console): Deletes the organization of your API key.
+- [`project list`](/cli/project-list) (Console): Lists projects with their stages, status and costs.
+- [`project create`](/cli/project-create) (Console): Creates a project.
+- [`project delete`](/cli/project-delete) (Console): Deletes a project.
+- [`alarm export`](/cli/alarm-export) (Console): Prints alarm rules created in the Console as configuration you can paste.
 
 ## Coding agents
 
-| Command | What it does |
-|---|---|
-| [`mcp`](/cli/mcp) | Starts the Stacktape MCP server for coding agents. |
-| [`mcp add`](/cli/mcp-add) | Registers the MCP server with Claude Code, Codex, Cursor, VS Code and other agents. |
-| [`mcp remove`](/cli/mcp-remove) | Removes the MCP server registration. |
-| [`ai connect`](/cli/ai-connect) | Connects your own AI subscription for the AI incident runs in the Console. **Console** |
-| [`ai disconnect`](/cli/ai-disconnect) | Removes an AI subscription you connected. **Console** |
+- [`mcp`](/cli/mcp): Starts the Stacktape MCP server for coding agents.
+- [`mcp add`](/cli/mcp-add): Registers the MCP server with Claude Code, Codex, Cursor, VS Code and other agents.
+- [`mcp remove`](/cli/mcp-remove): Removes the MCP server registration.
+- [`ai connect`](/cli/ai-connect) (Console): Connects your own AI subscription for the AI incident runs in the Console.
+- [`ai disconnect`](/cli/ai-disconnect) (Console): Removes an AI subscription you connected.
 
 ---
 
@@ -19768,14 +19752,14 @@ Type `q` and press Enter. The dev stack stays in AWS for the next start, and you
 
 ## What runs where
 
-| Resource | Where it runs | How a change gets there |
+| Resource | Where it runs | After a change |
 |---|---|---|
-| Container workloads: [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [private service](/resources/compute/private-service), [multi-container workload](/resources/compute/multi-container-workload) | Docker on your machine | Rebuilt with `--watch` or `rs` |
-| [Lambda functions](/resources/compute/lambda-function) | AWS, built on your machine | Code updated in AWS with `--watch` or `rs`; logs stream to your terminal |
-| SSR frontends: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) | The framework's dev server | The framework's hot reload |
+| Containers: [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [private service](/resources/compute/private-service) and [workloads of several containers](/resources/compute/multi-container-workload) | Docker on your machine | Rebuilt with `--watch` or `rs` |
+| [Lambda functions](/resources/compute/lambda-function) | AWS, built on your machine | Code updated in AWS with `--watch` or `rs`. Logs stream to your terminal. |
+| SSR frontends: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) | Its own dev server | Its own hot reload |
 | [Static hosting](/resources/frontend/static-hosting) with a `dev` command | Your dev command | Your dev command's reload |
 | [Relational databases](/resources/databases/relational-database), [Redis](/resources/databases/redis), [DynamoDB](/resources/databases/dynamodb), [OpenSearch](/resources/databases/opensearch) | Docker on your machine | Data persists in `.stacktape/dev-data/<stage>/` |
-| Everything else, such as queues, topics, buckets and state machines | AWS, in the dev stack | Restart dev mode after a config change |
+| Everything else, such as queues, topics, buckets and state machines | AWS, in the dev stack | Restart dev mode after you change its config |
 
 Lambda functions in AWS reach the databases on your machine through the dev box, a small EC2 instance in your account's dev network. See [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases). Local databases listen on `127.0.0.1` only, and nothing is exposed on the internet.
 
@@ -26121,18 +26105,18 @@ A resource is one part of your stack: a service, a database, a bucket, a queue. 
 
 ## Choose a compute resource
 
-Compute resources run your code. Pick by how the code is called and how long it runs.
+Compute resources run your code. Pick by how it runs and whether it may cost money with no traffic.
 
-| Resource | Called by | Runs | Public URL | Bills while idle |
-|---|---|---|---|---|
-| [Web service](/resources/compute/web-service) | HTTP requests from the internet | Always on, in containers | Yes | Yes |
-| [Private service](/resources/compute/private-service) | Other resources in the stack | Always on, in containers | No | Yes |
-| [Worker service](/resources/compute/worker-service) | Nothing; it polls queues or runs loops | Always on, in containers | No | Yes |
-| [Multi-container workload](/resources/compute/multi-container-workload) | HTTP, load balancers or nothing | Always on, several containers in one task | Optional | Yes |
-| [Lambda function](/resources/compute/lambda-function) | [Triggers](/resources/triggers/overview): HTTP, queues, schedules, files, streams | Per event, up to 15 minutes | Optional | No |
-| [Batch job](/resources/compute/batch-job) | Triggers: schedules, HTTP, files, queues, streams | Until the job finishes | No | No |
-| [Edge function](/resources/compute/edge-function) | CloudFront requests and responses | Per request, at the edge | Through a CDN | No |
-| [Convex](/resources/compute/convex) | Your Convex clients | A self-hosted Convex backend | Yes | Yes |
+| Resource | How it runs | Costs while idle |
+|---|---|---|
+| [Web service](/resources/compute/web-service) | Always on, in containers, with a public HTTPS URL | Yes |
+| [Private service](/resources/compute/private-service) | Always on, in containers. Only resources in the stack can call it. | Yes |
+| [Worker service](/resources/compute/worker-service) | Always on, in containers, with no URL. It polls queues or runs loops. | Yes |
+| [Multi-container workload](/resources/compute/multi-container-workload) | Always on, several containers in one task | Yes |
+| [Lambda function](/resources/compute/lambda-function) | Per event from a [trigger](/resources/triggers/overview), such as a request, a queue message or a schedule, for up to 15 minutes | No |
+| [Batch job](/resources/compute/batch-job) | From a trigger until the job finishes | No |
+| [Edge function](/resources/compute/edge-function) | Per CloudFront request or response | No |
+| [Convex](/resources/compute/convex) | Always on, as a self-hosted Convex backend | Yes |
 
 Containers are packaged with [container packaging](/packaging/overview#container-packaging) and Lambda functions with [function packaging](/packaging/overview#function-packaging).
 
@@ -26169,7 +26153,7 @@ Containers are packaged with [container packaging](/packaging/overview#container
 | Resource | AWS service | Use it for |
 |---|---|---|
 | [Relational database](/resources/databases/relational-database) | RDS or Aurora | PostgreSQL, MySQL, MariaDB and other SQL engines |
-| [Aurora DSQL](/resources/databases/dsql) | Aurora DSQL | Serverless PostgreSQL-compatible SQL with IAM sign-in |
+| [Aurora DSQL](/resources/databases/dsql) | Aurora DSQL | Serverless SQL that works like PostgreSQL, with IAM sign-in |
 | [DynamoDB](/resources/databases/dynamodb) | DynamoDB | Key-value and document data at any scale |
 | [Redis](/resources/databases/redis) | ElastiCache | Caching, sessions, rate limits and pub/sub inside your VPC |
 | [Upstash Redis](/resources/databases/upstash-redis) | Upstash (outside AWS) | Pay-per-request Redis for serverless apps |
@@ -26253,7 +26237,7 @@ Triggers are not resources of their own. You add them to a Lambda function, and 
 | Resource | AWS service | Use it for |
 |---|---|---|
 | [Deployment scripts](/resources/advanced/deployment-scripts) | Lambda | Migrations, seeding and cleanup run inside AWS during a deploy or delete |
-| [Custom resources](/resources/advanced/custom-resources) | Lambda and CloudFormation | Provisioning something CloudFormation does not support, with your own code |
+| [Custom resources](/resources/advanced/custom-resources) | Lambda | Provisioning, with your own code, what AWS templates do not support |
 | [AWS CDK constructs](/resources/advanced/aws-cdk-constructs) | Any | Adding an existing CDK construct to the stack |
 | [Raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) | Any | Declaring any AWS resource directly |
 

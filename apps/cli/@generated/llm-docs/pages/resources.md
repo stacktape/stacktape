@@ -25,18 +25,18 @@ A resource is one part of your stack: a service, a database, a bucket, a queue. 
 
 ## Choose a compute resource
 
-Compute resources run your code. Pick by how the code is called and how long it runs.
+Compute resources run your code. Pick by how it runs and whether it may cost money with no traffic.
 
-| Resource | Called by | Runs | Public URL | Bills while idle |
-|---|---|---|---|---|
-| [Web service](/resources/compute/web-service) | HTTP requests from the internet | Always on, in containers | Yes | Yes |
-| [Private service](/resources/compute/private-service) | Other resources in the stack | Always on, in containers | No | Yes |
-| [Worker service](/resources/compute/worker-service) | Nothing; it polls queues or runs loops | Always on, in containers | No | Yes |
-| [Multi-container workload](/resources/compute/multi-container-workload) | HTTP, load balancers or nothing | Always on, several containers in one task | Optional | Yes |
-| [Lambda function](/resources/compute/lambda-function) | [Triggers](/resources/triggers/overview): HTTP, queues, schedules, files, streams | Per event, up to 15 minutes | Optional | No |
-| [Batch job](/resources/compute/batch-job) | Triggers: schedules, HTTP, files, queues, streams | Until the job finishes | No | No |
-| [Edge function](/resources/compute/edge-function) | CloudFront requests and responses | Per request, at the edge | Through a CDN | No |
-| [Convex](/resources/compute/convex) | Your Convex clients | A self-hosted Convex backend | Yes | Yes |
+| Resource | How it runs | Costs while idle |
+|---|---|---|
+| [Web service](/resources/compute/web-service) | Always on, in containers, with a public HTTPS URL | Yes |
+| [Private service](/resources/compute/private-service) | Always on, in containers. Only resources in the stack can call it. | Yes |
+| [Worker service](/resources/compute/worker-service) | Always on, in containers, with no URL. It polls queues or runs loops. | Yes |
+| [Multi-container workload](/resources/compute/multi-container-workload) | Always on, several containers in one task | Yes |
+| [Lambda function](/resources/compute/lambda-function) | Per event from a [trigger](/resources/triggers/overview), such as a request, a queue message or a schedule, for up to 15 minutes | No |
+| [Batch job](/resources/compute/batch-job) | From a trigger until the job finishes | No |
+| [Edge function](/resources/compute/edge-function) | Per CloudFront request or response | No |
+| [Convex](/resources/compute/convex) | Always on, as a self-hosted Convex backend | Yes |
 
 Containers are packaged with [container packaging](/packaging/overview#container-packaging) and Lambda functions with [function packaging](/packaging/overview#function-packaging).
 
@@ -73,7 +73,7 @@ Containers are packaged with [container packaging](/packaging/overview#container
 | Resource | AWS service | Use it for |
 |---|---|---|
 | [Relational database](/resources/databases/relational-database) | RDS or Aurora | PostgreSQL, MySQL, MariaDB and other SQL engines |
-| [Aurora DSQL](/resources/databases/dsql) | Aurora DSQL | Serverless PostgreSQL-compatible SQL with IAM sign-in |
+| [Aurora DSQL](/resources/databases/dsql) | Aurora DSQL | Serverless SQL that works like PostgreSQL, with IAM sign-in |
 | [DynamoDB](/resources/databases/dynamodb) | DynamoDB | Key-value and document data at any scale |
 | [Redis](/resources/databases/redis) | ElastiCache | Caching, sessions, rate limits and pub/sub inside your VPC |
 | [Upstash Redis](/resources/databases/upstash-redis) | Upstash (outside AWS) | Pay-per-request Redis for serverless apps |
@@ -157,7 +157,7 @@ Triggers are not resources of their own. You add them to a Lambda function, and 
 | Resource | AWS service | Use it for |
 |---|---|---|
 | [Deployment scripts](/resources/advanced/deployment-scripts) | Lambda | Migrations, seeding and cleanup run inside AWS during a deploy or delete |
-| [Custom resources](/resources/advanced/custom-resources) | Lambda and CloudFormation | Provisioning something CloudFormation does not support, with your own code |
+| [Custom resources](/resources/advanced/custom-resources) | Lambda | Provisioning, with your own code, what AWS templates do not support |
 | [AWS CDK constructs](/resources/advanced/aws-cdk-constructs) | Any | Adding an existing CDK construct to the stack |
 | [Raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) | Any | Declaring any AWS resource directly |
 

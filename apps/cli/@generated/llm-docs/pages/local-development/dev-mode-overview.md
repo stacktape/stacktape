@@ -49,14 +49,14 @@ Type `q` and press Enter. The dev stack stays in AWS for the next start, and you
 
 ## What runs where
 
-| Resource | Where it runs | How a change gets there |
+| Resource | Where it runs | After a change |
 |---|---|---|
-| Container workloads: [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [private service](/resources/compute/private-service), [multi-container workload](/resources/compute/multi-container-workload) | Docker on your machine | Rebuilt with `--watch` or `rs` |
-| [Lambda functions](/resources/compute/lambda-function) | AWS, built on your machine | Code updated in AWS with `--watch` or `rs`; logs stream to your terminal |
-| SSR frontends: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) | The framework's dev server | The framework's hot reload |
+| Containers: [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), [private service](/resources/compute/private-service) and [workloads of several containers](/resources/compute/multi-container-workload) | Docker on your machine | Rebuilt with `--watch` or `rs` |
+| [Lambda functions](/resources/compute/lambda-function) | AWS, built on your machine | Code updated in AWS with `--watch` or `rs`. Logs stream to your terminal. |
+| SSR frontends: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) | Its own dev server | Its own hot reload |
 | [Static hosting](/resources/frontend/static-hosting) with a `dev` command | Your dev command | Your dev command's reload |
 | [Relational databases](/resources/databases/relational-database), [Redis](/resources/databases/redis), [DynamoDB](/resources/databases/dynamodb), [OpenSearch](/resources/databases/opensearch) | Docker on your machine | Data persists in `.stacktape/dev-data/<stage>/` |
-| Everything else, such as queues, topics, buckets and state machines | AWS, in the dev stack | Restart dev mode after a config change |
+| Everything else, such as queues, topics, buckets and state machines | AWS, in the dev stack | Restart dev mode after you change its config |
 
 Lambda functions in AWS reach the databases on your machine through the dev box, a small EC2 instance in your account's dev network. See [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases). Local databases listen on `127.0.0.1` only, and nothing is exposed on the internet.
 
