@@ -65,8 +65,8 @@ If you deployed with `stacktape init`, the wizard's **Deploy on every push** car
 GitHub Actions, GitLab CI/CD or Bitbucket Pipelines file, and the list of secrets to add. The GitHub workflow assumes
 an IAM role through OIDC.
 
-[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) has complete workflows for GitHub Actions, GitLab CI, Bitbucket
-Pipelines and CircleCI, with tests, approvals, previews and concurrency.
+[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) has workflows for GitHub Actions, GitLab CI, Bitbucket Pipelines and
+CircleCI, with tests, approvals, previews and concurrency, and what a job needs to build container images.
 
 If your jobs run on GitHub Actions and hosted runners are too slow or can't reach your VPC,
 [self-hosted GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) run them on a Stacktape

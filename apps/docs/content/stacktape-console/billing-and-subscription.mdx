@@ -70,7 +70,7 @@ The Enterprise plan runs a single-tenant Console in your own AWS account and reg
 A Free organization can deploy while its managed AWS spend for the current calendar month (UTC) is $200 or less.
 
 - **What counts.** The same managed spend the Flexible fee is based on, from the AWS billing data Stacktape reads.
-- **Grace, once per organization.** The first time the organization is over the limit, Stacktape emails its Owners and Admins and starts a 7-day grace period. Deploys keep working during it. In any later month, deploys pause as soon as the organization passes the limit, with no new grace period.
+- **Grace, once per organization.** The first time the organization is over the limit, Stacktape emails its Owners and Admins and starts a 7-day grace period. Deploys keep working during it, but only within the calendar month (UTC) it started in: a grace period that starts on November 29 doesn't cover December. In any later month, deploys pause as soon as the organization passes the limit, with no new grace period.
 - **What pauses.** After the grace period, every new deploy: `stacktape deploy`, including code-only (fast) deploys, remote and runner deploys, deploys after a Git push and deploys started from the Console. `stacktape dev` does not start either, because it deploys a dev stack. A deploy that already started finishes normally.
 - **What keeps working.** Your running infrastructure is never touched. Deleting stages, rolling back, running scripts and the rest of the Console keep working.
 - **How it lifts.** Upgrading to Flexible lifts it immediately. Without an upgrade, deploys resume when the next calendar month starts.

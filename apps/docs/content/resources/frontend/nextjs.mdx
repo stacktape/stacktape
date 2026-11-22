@@ -7,7 +7,7 @@ seoDescription: 'Deploy a Next.js app on AWS with Stacktape: server rendering on
 
 A `nextjs-web` deploys a Next.js app on AWS. Stacktape builds it with OpenNext, runs server rendering in a Lambda
 function, puts static assets in S3, serves both through a CloudFront CDN, and creates what ISR and image optimization
-need. You pay per request and for traffic, with no charge while nobody visits.
+need. Nothing runs while nobody visits: you pay per request and for traffic, plus a little storage.
 
 For a site exported with `output: 'export'`, [static hosting](/resources/frontend/static-hosting) is simpler. To run
 Next.js as a long-running Node server instead, use a [web service](/resources/compute/web-service).
@@ -76,7 +76,8 @@ new NextjsWeb({
 - `memory`: 1024 MB by default, 128 to 10,240. More memory also means more CPU; 1,769 MB is one vCPU.
 - `timeout`: 30 seconds by default, which is also the maximum.
 - `joinDefaultVpc: true`: needed to reach a relational database or Redis. The function then has no direct internet
-  access; S3 and DynamoDB stay reachable through VPC endpoints.
+  access; S3 and DynamoDB stay reachable through VPC endpoints, but the ISR revalidation queue (SQS) doesn't.
+  See [Connect to resources](#connect-to-resources).
 - `logging`: retention and forwarding of its CloudWatch logs.
 
 ### Cold starts
@@ -135,7 +136,12 @@ export default defineConfig(() => {
 />
 
 The server code reads `STP_MAIN_DATABASE_CONNECTION_STRING`. A DynamoDB table or bucket works without
-`joinDefaultVpc`. See [Connecting resources](/configuration/connecting-resources) for what each resource injects.
+`joinDefaultVpc`.
+
+With `joinDefaultVpc`, the server function can't reach SQS, where it queues ISR revalidation. If the app uses ISR, set
+[`stackConfig.nat`](/configuration/connecting-resources#nat-internet-access-from-private-subnets), or add an SQS
+interface endpoint to the VPC yourself; otherwise background revalidation fails. The same goes for
+external APIs the server calls. See [Connecting resources](/configuration/connecting-resources) for what each resource injects.
 
 Set other values with `environment`, and secrets with [`$Secret()`](/configuration/directives). `environment` applies
 to the build and to the server function, so `NEXT_PUBLIC_*` variables, which `next build` inlines into browser code,
@@ -185,7 +191,8 @@ as on the other [framework resources](/resources/frontend/astro#caching). Most N
 ## Cost
 
 A quiet app costs little: Lambda bills per request and duration, S3 per GB stored and per request, CloudFront per GB
-and per request. Warm instances add their scheduled invocations. After a deploy, the
+and per request, and the DynamoDB table that tracks ISR per GB stored (with point-in-time recovery) and per request.
+Warm instances add their scheduled invocations, whether or not anyone visits. After a deploy, the
 [cost dashboards](/managing-costs/dashboards) show the real spend per stack.
 
 ## Configuration reference

@@ -15663,6 +15663,7 @@
         "page:/ci-cd-and-gitops/custom-ci-cd#without-a-stacktape-account",
         "page:/ci-cd-and-gitops/custom-ci-cd#with-the-console",
         "page:/ci-cd-and-gitops/custom-ci-cd#the-deploy-command",
+        "page:/ci-cd-and-gitops/custom-ci-cd#docker-in-the-job",
         "page:/ci-cd-and-gitops/custom-ci-cd#github-actions",
         "page:/ci-cd-and-gitops/custom-ci-cd#deploys-of-production-run-one-at-a-time",
         "page:/ci-cd-and-gitops/custom-ci-cd#pull-request-previews",

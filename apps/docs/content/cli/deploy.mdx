@@ -149,7 +149,8 @@ This organization is at $162.40 of the $200 Free limit for November 2026; on Fle
 ```
 
 The first time the organization goes over $200, a 7-day grace period starts and Owners and Admins get an email.
-Deploys keep working during it, and each one prints the countdown. After the grace period, and in any later month as
+Deploys keep working during it, and each one prints the countdown. The grace period ends early when the calendar month
+(UTC) ends: one that starts on November 29 doesn't cover December. After the grace period, and in any later month as
 soon as the organization is over the limit, the deploy stops with a `Free Plan Limit Reached` error. The CLI has
 loaded your AWS credentials by then, but nothing in your stack has changed:
 

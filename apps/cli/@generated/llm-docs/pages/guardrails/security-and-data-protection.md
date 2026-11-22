@@ -7,10 +7,13 @@ overview](/guardrails/overview) explains who they bind and how to turn them on.
 
 ## Keep SQL and OpenSearch private
 
-[Relational databases](/resources/databases/relational-database) and
-[OpenSearch domains](/resources/databases/opensearch) must accept connections only from inside your VPC. Their
-`accessibilityMode` must be `vpc` or `scoping-workloads-in-vpc`; the default, `internet`, is refused, and so is
-`whitelisted-ips-only`.
+This guardrail checks the access mode of [relational databases](/resources/databases/relational-database) and
+[OpenSearch domains](/resources/databases/opensearch). Their `accessibilityMode` must be `vpc` or
+`scoping-workloads-in-vpc`; the default, `internet`, is refused, and so is `whitelisted-ips-only`.
+
+It doesn't check `whitelistedIps`. A relational database in a VPC mode still accepts connections from the addresses
+listed there, and keeps a public IP address unless `forceDisablePublicIp` is `true`. For a database that only the VPC
+can reach, leave `whitelistedIps` out and turn the public IP off:
 
 ```yaml
 resources:
@@ -19,6 +22,7 @@ resources:
     properties:
       accessibility:
         accessibilityMode: vpc
+        forceDisablePublicIp: true
 ```
 
 [Aurora DSQL](/resources/databases/dsql) databases are refused while this guardrail is on: they use a public
@@ -36,15 +40,19 @@ deploymentConfig:
   terminationProtection: true
 ```
 
-CloudFormation then refuses to delete the stack from any tool, including the AWS console, until someone turns protection
-off and deploys. A [command restriction](/guardrails/deployment#command-restriction) on `delete` stops only Stacktape's
-own command.
+CloudFormation then refuses to delete the stack from any tool, including the AWS console. A
+[command restriction](/guardrails/deployment#command-restriction) on `delete` stops only Stacktape's own command.
+
+While this guardrail is on, a deploy with `terminationProtection: false` is refused too. To delete a stack, an Owner
+or Admin first turns the guardrail off, then you deploy with protection off and delete. Guardrails apply to the whole
+organization, so other stacks lose the rule meanwhile.
 
 ## Protect databases from deletion
 
 Every relational database and Aurora DSQL database must set `deletionProtection: true`. AWS then refuses to delete the
 database, and `stacktape delete` stops before deleting anything while a protected database is in the stack. A deploy
-can't remove or replace it either. To delete it, set `deletionProtection: false` and deploy first.
+can't remove or replace it either. To delete it, an Owner or Admin first turns the guardrail off, then you deploy
+with `deletionProtection: false` and delete.
 
 ```yaml
 resources:
@@ -92,6 +100,9 @@ Every application load balancer must name a [web application firewall](/resource
 in `useFirewall`. This covers the load balancers you declare and those that web and private services create; on a web
 service, `useFirewall` is a property of the service. The internal load balancer of a self-hosted Convex resource has no firewall setting and is skipped.
 
+A web service uses an HTTP API Gateway by default, and `useFirewall` works only with an application load balancer, so
+set `loadBalancing` next to it. The firewall must have the `regional` scope.
+
 ```yaml
 resources:
   firewall:
@@ -101,6 +112,8 @@ resources:
   api:
     type: web-service
     properties:
+      loadBalancing:
+        type: application-load-balancer
       useFirewall: firewall
 ```
 

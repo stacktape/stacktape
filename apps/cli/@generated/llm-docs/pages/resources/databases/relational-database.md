@@ -189,8 +189,9 @@ every mode.
 | `scoping-workloads-in-vpc` | Only workloads that list the database in `connectTo`, plus `whitelistedIps` |
 | `whitelisted-ips-only` | Only the addresses in `whitelistedIps` |
 
-Use `scoping-workloads-in-vpc` for production. It admits only the workloads that declare the database in
-[`connectTo`](/configuration/connecting-resources).
+Use `scoping-workloads-in-vpc` for production. It admits the workloads that declare the database in
+[`connectTo`](/configuration/connecting-resources), plus any `whitelistedIps`. The example below also admits one office
+address; leave `whitelistedIps` out if only your workloads should connect.
 
 
 Example (TypeScript):
@@ -224,7 +225,8 @@ export default defineConfig(() => {
 
 `whitelistedIps` adds addresses, for example your office or a CI runner, and has no effect in `internet` mode. In the
 VPC modes the database keeps a public IP address that only whitelisted addresses can reach. `forceDisablePublicIp: true`
-removes it. On Aurora you can set it only when you create the database.
+removes it; set it, without `whitelistedIps`, for a database nothing outside the VPC can reach. On Aurora you can set it
+only when you create the database.
 
 To connect from your machine to a database that isn't open to the internet, use a
 [bastion host](/resources/security/bastion-host) and [`stacktape bastion tunnel`](/cli/bastion-tunnel), or pass

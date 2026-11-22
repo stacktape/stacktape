@@ -21,7 +21,7 @@ The `domain add` wizard walks through the following steps, stopping at the first
 
 The command stores domain status in Parameter Store after key checkpoints (hosted-zone setup, certificate-validation-record setup), so later runs can read saved domain status. Re-run `domain add` after DNS or certificate validation has had time to complete.
 
-A certificate for a root domain also covers its first-level subdomains (`*.mydomain.com`). For a deeper name such as `api.dev.mydomain.com`, enter that full name to get a certificate for it. See [custom domains](/resources/networking/custom-domains#set-up-the-domain).
+A certificate for a two-part root domain also covers its first-level subdomains (`*.mydomain.com`); for `mydomain.co.uk` it doesn't, so enter each hostname. For a deeper name such as `api.dev.mydomain.com`, enter that full name to get a certificate for it. See [custom domains](/resources/networking/custom-domains#set-up-the-domain).
 
 ## DNS ownership scenarios
 
@@ -76,7 +76,7 @@ stacktape domain add --region eu-west-1 --aws-account my-prod-account
 
 ### Can I add a subdomain instead of a root domain?
 
-Yes. Enter the full name, such as `api.dev.mydomain.com`. The command sets up DNS for the root domain (`mydomain.com`) and requests certificates for the name you entered. You need this only for names more than one level below the root, because the root domain's certificate already covers `*.mydomain.com`.
+Yes. Enter the full name, such as `api.dev.mydomain.com`. The command sets up DNS for the root domain (`mydomain.com`) and requests certificates for the name you entered. For a two-part root domain such as `mydomain.com`, its certificate also covers `*.mydomain.com`, so you need this only for names more than one level below it. For a longer root domain, such as `mydomain.co.uk`, the command requests no wildcard, so add each hostname you use, such as `api.mydomain.co.uk`.
 
 ### What happens if my domain is not yet registered?
 

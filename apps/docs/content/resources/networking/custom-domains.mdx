@@ -9,7 +9,11 @@ A custom domain serves a resource at your own address, such as `api.example.com`
 generates. You need a domain you already own. With its DNS in Route 53, Stacktape finds the certificate and creates the
 DNS record on every deploy. You can also [keep DNS at your current provider](#external-dns).
 
-Without a custom domain, every resource still gets an HTTPS URL from AWS, which is enough for development stages.
+Without a custom domain, API Gateways, CDNs and the frontends still get an HTTPS URL from AWS, which is enough for
+development stages. Load balancers don't. Stacktape serves an application load balancer, or a network load balancer's
+TLS listener, on a `*.stacktape-app.com` domain that the [Stacktape Console](/getting-started/add-the-console)
+provides. Without the Console, give it a custom domain or your own certificate, or the deploy stops and asks for one. A
+network load balancer's TCP listeners use the AWS hostname without TLS.
 
 ## Set up the domain
 
@@ -31,9 +35,11 @@ Do this once per root domain and AWS region, before the first deploy that uses t
    region and in `us-east-1` (CDNs and AppSync use `us-east-1`) and adds their validation records to the zone.
 4. Wait until the certificates show **Issued** in ACM, usually a few minutes after the validation records exist.
 
-For a root domain such as `example.com`, the certificates cover `example.com` and `*.example.com`. A wildcard covers
-one level only, so for `api.dev.example.com` enter that full name in `stacktape domain add` to get a certificate for
-it. The command still uses the `example.com` zone.
+For a two-part root domain such as `example.com`, the certificates cover `example.com` and `*.example.com`. A wildcard
+covers one level only, so for `api.dev.example.com` enter that full name in `stacktape domain add` to get a certificate
+for it. The command still uses the `example.com` zone. For a longer root domain, such as `example.co.uk`, the command
+requests no wildcard, so enter each hostname you use, such as `api.example.co.uk`. Check the names a certificate covers
+in ACM before you deploy.
 
 ## Basic example
 
@@ -91,9 +97,11 @@ One API Gateway hostname can't serve both a WebSocket API and an HTTP API. Use t
 
 ## TLS certificates
 
-Leave out `customCertificateArn` and Stacktape picks the most specific issued certificate that covers the hostname: an
-exact match first, then a wildcard. Set `customCertificateArn` to use a certificate you manage yourself, for example
-one from a certificate authority your company requires.
+Leave out `customCertificateArn` and Stacktape picks the most specific certificate that covers the hostname, issued or
+still pending validation: an exact match first, then a wildcard. If it picks a pending certificate, the deploy stops
+until that certificate is issued, even when an issued wildcard also covers the name. Wait for validation to finish, or
+set `customCertificateArn` to the issued certificate. Set `customCertificateArn` also to use a certificate you manage
+yourself, for example one from a certificate authority your company requires.
 
 <CodeBlock
   intellisense

@@ -58,6 +58,17 @@ manager in the job first.
 
 To deploy to several regions, run the command once per region. Each region gets its own stack.
 
+### Docker in the job
+
+Building a container image needs the Docker CLI with Buildx and a running Docker daemon. Every container workload needs
+one (`js-bundle`, `buildpack` and `dockerfile` packaging), and so do Lambda functions with `buildpack` packaging and
+some native dependencies of `js-bundle` functions. GitHub's hosted Ubuntu runners have Docker. The GitLab, Bitbucket
+and CircleCI examples below run in a plain Node.js container without it, so as written they deploy only stacks that
+need no Docker build. For anything else, give the job Docker the way your CI documents it:
+[GitLab Docker-in-Docker](https://docs.gitlab.com/ci/docker/using_docker_build/),
+[the Bitbucket Docker service](https://support.atlassian.com/bitbucket-cloud/docs/run-docker-commands-in-bitbucket-pipelines/)
+or [CircleCI's machine executor or remote Docker](https://circleci.com/docs/guides/execute/building-docker-images/).
+
 ## GitHub Actions
 
 Create `.github/workflows/deploy.yml`. The deploy job runs only after the tests pass:
@@ -181,7 +192,7 @@ deploy-production:
 ```
 
 `STACKTAPE_API_KEY` or the AWS credentials come from the project's CI/CD variables. A `resource_group` runs one job at
-a time per group.
+a time per group. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
 
 ## Bitbucket Pipelines
 
@@ -199,7 +210,7 @@ pipelines:
             - npx stacktape deploy --stage production --region eu-west-1 --yes
 ```
 
-Store `STACKTAPE_API_KEY` or the AWS credentials as secured repository variables.
+Store `STACKTAPE_API_KEY` or the AWS credentials as secured repository variables. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
 
 ## CircleCI
 
@@ -225,7 +236,7 @@ workflows:
               only: main
 ```
 
-Store `STACKTAPE_API_KEY` or the AWS credentials as project environment variables.
+Store `STACKTAPE_API_KEY` or the AWS credentials as project environment variables. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
 
 ## Review changes before an approval
 

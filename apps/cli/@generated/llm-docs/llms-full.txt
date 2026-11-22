@@ -159,6 +159,17 @@ manager in the job first.
 
 To deploy to several regions, run the command once per region. Each region gets its own stack.
 
+### Docker in the job
+
+Building a container image needs the Docker CLI with Buildx and a running Docker daemon. Every container workload needs
+one (`js-bundle`, `buildpack` and `dockerfile` packaging), and so do Lambda functions with `buildpack` packaging and
+some native dependencies of `js-bundle` functions. GitHub's hosted Ubuntu runners have Docker. The GitLab, Bitbucket
+and CircleCI examples below run in a plain Node.js container without it, so as written they deploy only stacks that
+need no Docker build. For anything else, give the job Docker the way your CI documents it:
+[GitLab Docker-in-Docker](https://docs.gitlab.com/ci/docker/using_docker_build/),
+[the Bitbucket Docker service](https://support.atlassian.com/bitbucket-cloud/docs/run-docker-commands-in-bitbucket-pipelines/)
+or [CircleCI's machine executor or remote Docker](https://circleci.com/docs/guides/execute/building-docker-images/).
+
 ## GitHub Actions
 
 Create `.github/workflows/deploy.yml`. The deploy job runs only after the tests pass:
@@ -282,7 +293,7 @@ deploy-production:
 ```
 
 `STACKTAPE_API_KEY` or the AWS credentials come from the project's CI/CD variables. A `resource_group` runs one job at
-a time per group.
+a time per group. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
 
 ## Bitbucket Pipelines
 
@@ -300,7 +311,7 @@ pipelines:
             - npx stacktape deploy --stage production --region eu-west-1 --yes
 ```
 
-Store `STACKTAPE_API_KEY` or the AWS credentials as secured repository variables.
+Store `STACKTAPE_API_KEY` or the AWS credentials as secured repository variables. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
 
 ## CircleCI
 
@@ -326,7 +337,7 @@ workflows:
               only: main
 ```
 
-Store `STACKTAPE_API_KEY` or the AWS credentials as project environment variables.
+Store `STACKTAPE_API_KEY` or the AWS credentials as project environment variables. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
 
 ## Review changes before an approval
 
@@ -659,8 +670,8 @@ If you deployed with `stacktape init`, the wizard's **Deploy on every push** car
 GitHub Actions, GitLab CI/CD or Bitbucket Pipelines file, and the list of secrets to add. The GitHub workflow assumes
 an IAM role through OIDC.
 
-[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) has complete workflows for GitHub Actions, GitLab CI, Bitbucket
-Pipelines and CircleCI, with tests, approvals, previews and concurrency.
+[Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) has workflows for GitHub Actions, GitLab CI, Bitbucket Pipelines and
+CircleCI, with tests, approvals, previews and concurrency, and what a job needs to build container images.
 
 If your jobs run on GitHub Actions and hosted runners are too slow or can't reach your VPC,
 [self-hosted GitHub Actions runners](/ci-cd-and-gitops/self-hosted-github-actions-runners) run them on a Stacktape
@@ -2810,7 +2821,8 @@ This organization is at $162.40 of the $200 Free limit for November 2026; on Fle
 ```
 
 The first time the organization goes over $200, a 7-day grace period starts and Owners and Admins get an email.
-Deploys keep working during it, and each one prints the countdown. After the grace period, and in any later month as
+Deploys keep working during it, and each one prints the countdown. The grace period ends early when the calendar month
+(UTC) ends: one that starts on November 29 doesn't cover December. After the grace period, and in any later month as
 soon as the organization is over the limit, the deploy stops with a `Free Plan Limit Reached` error. The CLI has
 loaded your AWS credentials by then, but nothing in your stack has changed:
 
@@ -3318,7 +3330,7 @@ stacktape dev --stage dev --region eu-west-1 --fresh-db
 
 ## Free plan limit reached
 
-This applies only when the CLI is signed in to an organization on the Console's Free plan; without a Stacktape account there is no limit. Dev mode deploys a dev stack, so it follows the same [Free plan cost limit](/cli/deploy#free-plan-cost-limit) as `deploy`: $200 of managed AWS costs per UTC month, with a one-time 7-day grace period the first time an organization goes over. After that, dev mode stops before it deploys anything and prints the costs and the upgrade link. Running infrastructure keeps working, and so do [`dev stop`](/cli/dev-stop) and [`delete`](/cli/delete).
+This applies only when the CLI is signed in to an organization on the Console's Free plan; without a Stacktape account there is no limit. Dev mode deploys a dev stack, so it follows the same [Free plan cost limit](/cli/deploy#free-plan-cost-limit) as `deploy`: $200 of managed AWS costs per UTC month, with a one-time grace period of up to 7 days, within that UTC month, the first time an organization goes over. After that, dev mode stops before it deploys anything and prints the costs and the upgrade link. Running infrastructure keeps working, and so do [`dev stop`](/cli/dev-stop) and [`delete`](/cli/delete).
 
 ## Options
 
@@ -3492,7 +3504,7 @@ The `domain add` wizard walks through the following steps, stopping at the first
 
 The command stores domain status in Parameter Store after key checkpoints (hosted-zone setup, certificate-validation-record setup), so later runs can read saved domain status. Re-run `domain add` after DNS or certificate validation has had time to complete.
 
-A certificate for a root domain also covers its first-level subdomains (`*.mydomain.com`). For a deeper name such as `api.dev.mydomain.com`, enter that full name to get a certificate for it. See [custom domains](/resources/networking/custom-domains#set-up-the-domain).
+A certificate for a two-part root domain also covers its first-level subdomains (`*.mydomain.com`); for `mydomain.co.uk` it doesn't, so enter each hostname. For a deeper name such as `api.dev.mydomain.com`, enter that full name to get a certificate for it. See [custom domains](/resources/networking/custom-domains#set-up-the-domain).
 
 ## DNS ownership scenarios
 
@@ -3547,7 +3559,7 @@ stacktape domain add --region eu-west-1 --aws-account my-prod-account
 
 ### Can I add a subdomain instead of a root domain?
 
-Yes. Enter the full name, such as `api.dev.mydomain.com`. The command sets up DNS for the root domain (`mydomain.com`) and requests certificates for the name you entered. You need this only for names more than one level below the root, because the root domain's certificate already covers `*.mydomain.com`.
+Yes. Enter the full name, such as `api.dev.mydomain.com`. The command sets up DNS for the root domain (`mydomain.com`) and requests certificates for the name you entered. For a two-part root domain such as `mydomain.com`, its certificate also covers `*.mydomain.com`, so you need this only for names more than one level below it. For a longer root domain, such as `mydomain.co.uk`, the command requests no wildcard, so add each hostname you use, such as `api.mydomain.co.uk`.
 
 ### What happens if my domain is not yet registered?
 
@@ -11338,7 +11350,7 @@ resources:
 ```
 
 
-Each `valueFrom` is exactly one `$Secret(...)` or `$SsmParam(...)` directive. SSM parameters used here must be `SecureString`. Stacktape lets the container read only the secrets and parameters it references. If a SecureString uses your own KMS key, also allow `kms:Decrypt` for that key with `iamRoleStatements`.
+Each `valueFrom` is exactly one `$Secret(...)` or `$SsmParam(...)` directive. SSM parameters used here must be `SecureString`. Stacktape lets the container read only the secrets and parameters it references. Keep the default AWS managed key on these secrets and parameters. With your own KMS key, the task fails to start: the values are fetched by the task execution role, which Stacktape creates without `kms:Decrypt`, and `iamRoleStatements` go to a different role (the one your code runs with). To use your own key anyway, allow `kms:Decrypt` in the key policy for callers in your account that come through Secrets Manager or SSM (the `kms:CallerAccount` and `kms:ViaService` conditions).
 
 
 > **Warning:** `$Secret()` under a container's `environment` makes CloudFormation write the value into the task definition, where anyone who can describe the task definition reads it. Use `secrets`.
@@ -11368,6 +11380,8 @@ A secret scheduled for deletion that the config still references is restored.
 
 Each deploy pins the secret version that was current at that moment. Changing the value in Secrets Manager does not change running workloads; deploy again to roll out the new version. This applies to rotation too: Stacktape does not set up rotation, and after AWS rotates a secret, the next deploy picks up the new version.
 
+`$SsmParam()` in a container's `secrets` is the exception. ECS and Batch read the parameter when a task starts, without a version, so a task that starts after you change the parameter (a restart, a scale-out, a new job) gets the new value while older tasks keep the old one. A deploy notices the new version and replaces all running tasks. A rollback to an earlier deploy still reads the current value. Everywhere else, `$SsmParam()` is pinned to the version number at deploy time.
+
 Commands that run locally read the current value instead: [dev mode](/local-development/dev-mode-overview), scripts and hooks. Commands that connect to a deployed database, such as `stacktape query-sql`, use the version in the deployed connection string, so their credentials match the database.
 
 [`stacktape secret get --show-secrets`](/cli/secret-get) prints the current value. Before deleting a secret with [`stacktape secret delete`](/cli/secret-delete), remove every `$Secret()` reference to it and deploy, or delete the stacks that use it. Otherwise their next deploy fails.
@@ -11381,7 +11395,7 @@ Commands that run locally read the current value instead: [dev mode](/local-deve
 | Store | AWS Secrets Manager | SSM Parameter Store |
 | JSON keys | Yes | No |
 | Encryption | Always, with KMS | SecureString parameters, with KMS |
-| Pinned per deploy | The version ID | The version number |
+| Pinned per deploy | The version ID | The version number, except in container `secrets` |
 
 For values that are not secret, such as public URLs, feature flags or sizes, use plain config values or [variables](/configuration/variables-and-reuse).
 
@@ -13329,8 +13343,8 @@ You don't need it to deploy. The CLI works without an account; see [Use the CLI 
   at or under $200 in a calendar month (UTC). Managed spend is what the stacks Stacktape manages cost in AWS, across
   all connected accounts.
 - **Over the limit**: from $150, a successful deploy prints what the Flexible plan would cost. The first time the
-  organization goes over $200, Owners and Admins get an email and deploys keep working for 7 more days. After that,
-  new deploys and dev sessions pause until the next month starts or someone upgrades. Running apps, deletes and
+  organization goes over $200, Owners and Admins get an email and deploys keep working for up to 7 more days, within
+  that calendar month. After that, new deploys and dev sessions pause until the next month starts or someone upgrades. Running apps, deletes and
   rollbacks keep working.
 - **Flexible**: no limit. One rate on the month's managed AWS spend, from 25% down to 19%.
 
@@ -15630,7 +15644,7 @@ can see them.
 | Region restriction | Only the listed AWS regions | [Deployment](/guardrails/deployment#region-restriction) |
 | Command restriction | The listed commands don't run | [Deployment](/guardrails/deployment#command-restriction) |
 | Require custom domains | Web services and hosting buckets use your own domain | [Deployment](/guardrails/deployment#require-custom-domains) |
-| Keep SQL and OpenSearch private | Databases and OpenSearch accept traffic only from your VPC | [Security](/guardrails/security-and-data-protection#keep-sql-and-opensearch-private) |
+| Keep SQL and OpenSearch private | Databases and OpenSearch use a VPC access mode | [Security](/guardrails/security-and-data-protection#keep-sql-and-opensearch-private) |
 | Protect stacks from deletion | CloudFormation termination protection | [Security](/guardrails/security-and-data-protection#protect-stacks-from-deletion) |
 | Protect databases from deletion | `deletionProtection` on SQL and Aurora DSQL databases | [Security](/guardrails/security-and-data-protection#protect-databases-from-deletion) |
 | Require recoverable data stores | Backups for SQL databases, DynamoDB and EFS | [Security](/guardrails/security-and-data-protection#require-recoverable-data-stores) |
@@ -15725,10 +15739,13 @@ overview](/guardrails/overview) explains who they bind and how to turn them on.
 
 ## Keep SQL and OpenSearch private
 
-[Relational databases](/resources/databases/relational-database) and
-[OpenSearch domains](/resources/databases/opensearch) must accept connections only from inside your VPC. Their
-`accessibilityMode` must be `vpc` or `scoping-workloads-in-vpc`; the default, `internet`, is refused, and so is
-`whitelisted-ips-only`.
+This guardrail checks the access mode of [relational databases](/resources/databases/relational-database) and
+[OpenSearch domains](/resources/databases/opensearch). Their `accessibilityMode` must be `vpc` or
+`scoping-workloads-in-vpc`; the default, `internet`, is refused, and so is `whitelisted-ips-only`.
+
+It doesn't check `whitelistedIps`. A relational database in a VPC mode still accepts connections from the addresses
+listed there, and keeps a public IP address unless `forceDisablePublicIp` is `true`. For a database that only the VPC
+can reach, leave `whitelistedIps` out and turn the public IP off:
 
 ```yaml
 resources:
@@ -15737,6 +15754,7 @@ resources:
     properties:
       accessibility:
         accessibilityMode: vpc
+        forceDisablePublicIp: true
 ```
 
 [Aurora DSQL](/resources/databases/dsql) databases are refused while this guardrail is on: they use a public
@@ -15754,15 +15772,19 @@ deploymentConfig:
   terminationProtection: true
 ```
 
-CloudFormation then refuses to delete the stack from any tool, including the AWS console, until someone turns protection
-off and deploys. A [command restriction](/guardrails/deployment#command-restriction) on `delete` stops only Stacktape's
-own command.
+CloudFormation then refuses to delete the stack from any tool, including the AWS console. A
+[command restriction](/guardrails/deployment#command-restriction) on `delete` stops only Stacktape's own command.
+
+While this guardrail is on, a deploy with `terminationProtection: false` is refused too. To delete a stack, an Owner
+or Admin first turns the guardrail off, then you deploy with protection off and delete. Guardrails apply to the whole
+organization, so other stacks lose the rule meanwhile.
 
 ## Protect databases from deletion
 
 Every relational database and Aurora DSQL database must set `deletionProtection: true`. AWS then refuses to delete the
 database, and `stacktape delete` stops before deleting anything while a protected database is in the stack. A deploy
-can't remove or replace it either. To delete it, set `deletionProtection: false` and deploy first.
+can't remove or replace it either. To delete it, an Owner or Admin first turns the guardrail off, then you deploy
+with `deletionProtection: false` and delete.
 
 ```yaml
 resources:
@@ -15810,6 +15832,9 @@ Every application load balancer must name a [web application firewall](/resource
 in `useFirewall`. This covers the load balancers you declare and those that web and private services create; on a web
 service, `useFirewall` is a property of the service. The internal load balancer of a self-hosted Convex resource has no firewall setting and is skipped.
 
+A web service uses an HTTP API Gateway by default, and `useFirewall` works only with an application load balancer, so
+set `loadBalancing` next to it. The firewall must have the `regional` scope.
+
 ```yaml
 resources:
   firewall:
@@ -15819,6 +15844,8 @@ resources:
   api:
     type: web-service
     properties:
+      loadBalancing:
+        type: application-load-balancer
       useFirewall: firewall
 ```
 
@@ -29665,8 +29692,9 @@ every mode.
 | `scoping-workloads-in-vpc` | Only workloads that list the database in `connectTo`, plus `whitelistedIps` |
 | `whitelisted-ips-only` | Only the addresses in `whitelistedIps` |
 
-Use `scoping-workloads-in-vpc` for production. It admits only the workloads that declare the database in
-[`connectTo`](/configuration/connecting-resources).
+Use `scoping-workloads-in-vpc` for production. It admits the workloads that declare the database in
+[`connectTo`](/configuration/connecting-resources), plus any `whitelistedIps`. The example below also admits one office
+address; leave `whitelistedIps` out if only your workloads should connect.
 
 
 Example (TypeScript):
@@ -29700,7 +29728,8 @@ export default defineConfig(() => {
 
 `whitelistedIps` adds addresses, for example your office or a CI runner, and has no effect in `internet` mode. In the
 VPC modes the database keeps a public IP address that only whitelisted addresses can reach. `forceDisablePublicIp: true`
-removes it. On Aurora you can set it only when you create the database.
+removes it; set it, without `whitelistedIps`, for a database nothing outside the VPC can reach. On Aurora you can set it
+only when you create the database.
 
 To connect from your machine to a database that isn't open to the internet, use a
 [bastion host](/resources/security/bastion-host) and [`stacktape bastion tunnel`](/cli/bastion-tunnel), or pass
@@ -30260,9 +30289,9 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 Source: `apps/docs/content/resources/frontend/astro.mdx`
 Route: `/resources/frontend/astro`
 
-A `astro-web` deploys a Astro app with server rendering on AWS. Stacktape builds the app, runs the server code in a
-Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic,
-with no charge while nobody visits.
+An `astro-web` deploys an Astro app with server rendering on AWS. Stacktape builds the app, runs the server code in a
+Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic.
+No server runs while nobody visits; the stored assets still cost a little.
 
 For a fully static Astro site (no `output: 'server'`), [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'astro-static-website'` is simpler and has no function to pay for. To run Astro as a long-running Node server instead, use a
 [web service](/resources/compute/web-service).
@@ -30475,7 +30504,7 @@ Route: `/resources/frontend/nextjs`
 
 A `nextjs-web` deploys a Next.js app on AWS. Stacktape builds it with OpenNext, runs server rendering in a Lambda
 function, puts static assets in S3, serves both through a CloudFront CDN, and creates what ISR and image optimization
-need. You pay per request and for traffic, with no charge while nobody visits.
+need. Nothing runs while nobody visits: you pay per request and for traffic, plus a little storage.
 
 For a site exported with `output: 'export'`, [static hosting](/resources/frontend/static-hosting) is simpler. To run
 Next.js as a long-running Node server instead, use a [web service](/resources/compute/web-service).
@@ -30538,7 +30567,8 @@ new NextjsWeb({
 - `memory`: 1024 MB by default, 128 to 10,240. More memory also means more CPU; 1,769 MB is one vCPU.
 - `timeout`: 30 seconds by default, which is also the maximum.
 - `joinDefaultVpc: true`: needed to reach a relational database or Redis. The function then has no direct internet
-  access; S3 and DynamoDB stay reachable through VPC endpoints.
+  access; S3 and DynamoDB stay reachable through VPC endpoints, but the ISR revalidation queue (SQS) doesn't.
+  See [Connect to resources](#connect-to-resources).
 - `logging`: retention and forwarding of its CloudWatch logs.
 
 ### Cold starts
@@ -30591,7 +30621,12 @@ export default defineConfig(() => {
 
 
 The server code reads `STP_MAIN_DATABASE_CONNECTION_STRING`. A DynamoDB table or bucket works without
-`joinDefaultVpc`. See [Connecting resources](/configuration/connecting-resources) for what each resource injects.
+`joinDefaultVpc`.
+
+With `joinDefaultVpc`, the server function can't reach SQS, where it queues ISR revalidation. If the app uses ISR, set
+[`stackConfig.nat`](/configuration/connecting-resources#nat-internet-access-from-private-subnets), or add an SQS
+interface endpoint to the VPC yourself; otherwise background revalidation fails. The same goes for
+external APIs the server calls. See [Connecting resources](/configuration/connecting-resources) for what each resource injects.
 
 Set other values with `environment`, and secrets with [`$Secret()`](/configuration/directives). `environment` applies
 to the build and to the server function, so `NEXT_PUBLIC_*` variables, which `next build` inlines into browser code,
@@ -30641,7 +30676,8 @@ as on the other [framework resources](/resources/frontend/astro#caching). Most N
 ## Cost
 
 A quiet app costs little: Lambda bills per request and duration, S3 per GB stored and per request, CloudFront per GB
-and per request. Warm instances add their scheduled invocations. After a deploy, the
+and per request, and the DynamoDB table that tracks ISR per GB stored (with point-in-time recovery) and per request.
+Warm instances add their scheduled invocations, whether or not anyone visits. After a deploy, the
 [cost dashboards](/managing-costs/dashboards) show the real spend per stack.
 
 ## Configuration reference
@@ -30695,8 +30731,8 @@ Source: `apps/docs/content/resources/frontend/nuxt.mdx`
 Route: `/resources/frontend/nuxt`
 
 A `nuxt-web` deploys a Nuxt app with server rendering on AWS. Stacktape builds the app, runs the server code in a
-Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic,
-with no charge while nobody visits.
+Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic.
+No server runs while nobody visits; the stored assets still cost a little.
 
 For a Nuxt site you generate fully with `nuxt generate`, [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'nuxt-static-website'` is simpler and has no function to pay for. To run Nuxt as a long-running Node server instead, use a
 [web service](/resources/compute/web-service).
@@ -30889,8 +30925,8 @@ Source: `apps/docs/content/resources/frontend/remix.mdx`
 Route: `/resources/frontend/remix`
 
 A `remix-web` deploys a Remix app with server rendering on AWS. Stacktape builds the app, runs the server code in a
-Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic,
-with no charge while nobody visits.
+Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic.
+No server runs while nobody visits; the stored assets still cost a little.
 
 For a site with no server rendering, [static hosting](/resources/frontend/static-hosting) is simpler and has no function to pay for. To run Remix as a long-running Node server instead, use a
 [web service](/resources/compute/web-service).
@@ -31083,8 +31119,8 @@ Source: `apps/docs/content/resources/frontend/solidstart.mdx`
 Route: `/resources/frontend/solidstart`
 
 A `solidstart-web` deploys a SolidStart app with server rendering on AWS. Stacktape builds the app, runs the server code in a
-Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic,
-with no charge while nobody visits.
+Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic.
+No server runs while nobody visits; the stored assets still cost a little.
 
 For a site with no server rendering, [static hosting](/resources/frontend/static-hosting) is simpler and has no function to pay for. To run SolidStart as a long-running Node server instead, use a
 [web service](/resources/compute/web-service).
@@ -31469,8 +31505,8 @@ Source: `apps/docs/content/resources/frontend/sveltekit.mdx`
 Route: `/resources/frontend/sveltekit`
 
 A `sveltekit-web` deploys a SvelteKit app with server rendering on AWS. Stacktape builds the app, runs the server code in a
-Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic,
-with no charge while nobody visits.
+Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic.
+No server runs while nobody visits; the stored assets still cost a little.
 
 For a SvelteKit site built with `adapter-static`, [static hosting](/resources/frontend/static-hosting) with `hostingContentType: 'sveltekit-static-website'` is simpler and has no function to pay for. To run SvelteKit as a long-running Node server instead, use a
 [web service](/resources/compute/web-service).
@@ -31679,8 +31715,8 @@ Source: `apps/docs/content/resources/frontend/tanstack-start.mdx`
 Route: `/resources/frontend/tanstack-start`
 
 A `tanstack-web` deploys a TanStack Start app with server rendering on AWS. Stacktape builds the app, runs the server code in a
-Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic,
-with no charge while nobody visits.
+Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic.
+No server runs while nobody visits; the stored assets still cost a little.
 
 For a site with no server rendering, [static hosting](/resources/frontend/static-hosting) is simpler and has no function to pay for. To run TanStack Start as a long-running Node server instead, use a
 [web service](/resources/compute/web-service).
@@ -33966,7 +34002,11 @@ A custom domain serves a resource at your own address, such as `api.example.com`
 generates. You need a domain you already own. With its DNS in Route 53, Stacktape finds the certificate and creates the
 DNS record on every deploy. You can also [keep DNS at your current provider](#external-dns).
 
-Without a custom domain, every resource still gets an HTTPS URL from AWS, which is enough for development stages.
+Without a custom domain, API Gateways, CDNs and the frontends still get an HTTPS URL from AWS, which is enough for
+development stages. Load balancers don't. Stacktape serves an application load balancer, or a network load balancer's
+TLS listener, on a `*.stacktape-app.com` domain that the [Stacktape Console](/getting-started/add-the-console)
+provides. Without the Console, give it a custom domain or your own certificate, or the deploy stops and asks for one. A
+network load balancer's TCP listeners use the AWS hostname without TLS.
 
 ## Set up the domain
 
@@ -33988,9 +34028,11 @@ Do this once per root domain and AWS region, before the first deploy that uses t
    region and in `us-east-1` (CDNs and AppSync use `us-east-1`) and adds their validation records to the zone.
 4. Wait until the certificates show **Issued** in ACM, usually a few minutes after the validation records exist.
 
-For a root domain such as `example.com`, the certificates cover `example.com` and `*.example.com`. A wildcard covers
-one level only, so for `api.dev.example.com` enter that full name in `stacktape domain add` to get a certificate for
-it. The command still uses the `example.com` zone.
+For a two-part root domain such as `example.com`, the certificates cover `example.com` and `*.example.com`. A wildcard
+covers one level only, so for `api.dev.example.com` enter that full name in `stacktape domain add` to get a certificate
+for it. The command still uses the `example.com` zone. For a longer root domain, such as `example.co.uk`, the command
+requests no wildcard, so enter each hostname you use, such as `api.example.co.uk`. Check the names a certificate covers
+in ACM before you deploy.
 
 ## Basic example
 
@@ -34042,9 +34084,11 @@ One API Gateway hostname can't serve both a WebSocket API and an HTTP API. Use t
 
 ## TLS certificates
 
-Leave out `customCertificateArn` and Stacktape picks the most specific issued certificate that covers the hostname: an
-exact match first, then a wildcard. Set `customCertificateArn` to use a certificate you manage yourself, for example
-one from a certificate authority your company requires.
+Leave out `customCertificateArn` and Stacktape picks the most specific certificate that covers the hostname, issued or
+still pending validation: an exact match first, then a wildcard. If it picks a pending certificate, the deploy stops
+until that certificate is issued, even when an issued wildcard also covers the name. Wait for validation to finish, or
+set `customCertificateArn` to the issued certificate. Set `customCertificateArn` also to use a certificate you manage
+yourself, for example one from a certificate authority your company requires.
 
 
 Example (TypeScript):
@@ -39798,7 +39842,7 @@ The Enterprise plan runs a single-tenant Console in your own AWS account and reg
 A Free organization can deploy while its managed AWS spend for the current calendar month (UTC) is $200 or less.
 
 - **What counts.** The same managed spend the Flexible fee is based on, from the AWS billing data Stacktape reads.
-- **Grace, once per organization.** The first time the organization is over the limit, Stacktape emails its Owners and Admins and starts a 7-day grace period. Deploys keep working during it. In any later month, deploys pause as soon as the organization passes the limit, with no new grace period.
+- **Grace, once per organization.** The first time the organization is over the limit, Stacktape emails its Owners and Admins and starts a 7-day grace period. Deploys keep working during it, but only within the calendar month (UTC) it started in: a grace period that starts on November 29 doesn't cover December. In any later month, deploys pause as soon as the organization passes the limit, with no new grace period.
 - **What pauses.** After the grace period, every new deploy: `stacktape deploy`, including code-only (fast) deploys, remote and runner deploys, deploys after a Git push and deploys started from the Console. `stacktape dev` does not start either, because it deploys a dev stack. A deploy that already started finishes normally.
 - **What keeps working.** Your running infrastructure is never touched. Deleting stages, rolling back, running scripts and the rest of the Console keep working.
 - **How it lifts.** Upgrading to Flexible lifts it immediately. Without an upgrade, deploys resume when the next calendar month starts.

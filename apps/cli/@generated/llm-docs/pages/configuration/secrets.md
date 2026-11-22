@@ -64,7 +64,7 @@ resources:
 ```
 
 
-Each `valueFrom` is exactly one `$Secret(...)` or `$SsmParam(...)` directive. SSM parameters used here must be `SecureString`. Stacktape lets the container read only the secrets and parameters it references. If a SecureString uses your own KMS key, also allow `kms:Decrypt` for that key with `iamRoleStatements`.
+Each `valueFrom` is exactly one `$Secret(...)` or `$SsmParam(...)` directive. SSM parameters used here must be `SecureString`. Stacktape lets the container read only the secrets and parameters it references. Keep the default AWS managed key on these secrets and parameters. With your own KMS key, the task fails to start: the values are fetched by the task execution role, which Stacktape creates without `kms:Decrypt`, and `iamRoleStatements` go to a different role (the one your code runs with). To use your own key anyway, allow `kms:Decrypt` in the key policy for callers in your account that come through Secrets Manager or SSM (the `kms:CallerAccount` and `kms:ViaService` conditions).
 
 
 > **Warning:** `$Secret()` under a container's `environment` makes CloudFormation write the value into the task definition, where anyone who can describe the task definition reads it. Use `secrets`.
@@ -94,6 +94,8 @@ A secret scheduled for deletion that the config still references is restored.
 
 Each deploy pins the secret version that was current at that moment. Changing the value in Secrets Manager does not change running workloads; deploy again to roll out the new version. This applies to rotation too: Stacktape does not set up rotation, and after AWS rotates a secret, the next deploy picks up the new version.
 
+`$SsmParam()` in a container's `secrets` is the exception. ECS and Batch read the parameter when a task starts, without a version, so a task that starts after you change the parameter (a restart, a scale-out, a new job) gets the new value while older tasks keep the old one. A deploy notices the new version and replaces all running tasks. A rollback to an earlier deploy still reads the current value. Everywhere else, `$SsmParam()` is pinned to the version number at deploy time.
+
 Commands that run locally read the current value instead: [dev mode](/local-development/dev-mode-overview), scripts and hooks. Commands that connect to a deployed database, such as `stacktape query-sql`, use the version in the deployed connection string, so their credentials match the database.
 
 [`stacktape secret get --show-secrets`](/cli/secret-get) prints the current value. Before deleting a secret with [`stacktape secret delete`](/cli/secret-delete), remove every `$Secret()` reference to it and deploy, or delete the stacks that use it. Otherwise their next deploy fails.
@@ -107,7 +109,7 @@ Commands that run locally read the current value instead: [dev mode](/local-deve
 | Store | AWS Secrets Manager | SSM Parameter Store |
 | JSON keys | Yes | No |
 | Encryption | Always, with KMS | SecureString parameters, with KMS |
-| Pinned per deploy | The version ID | The version number |
+| Pinned per deploy | The version ID | The version number, except in container `secrets` |
 
 For values that are not secret, such as public URLs, feature flags or sizes, use plain config values or [variables](/configuration/variables-and-reuse).
 

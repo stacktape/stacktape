@@ -1,8 +1,8 @@
 # SolidStart
 
 A `solidstart-web` deploys a SolidStart app with server rendering on AWS. Stacktape builds the app, runs the server code in a
-Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic,
-with no charge while nobody visits.
+Lambda function, puts static assets in S3 and serves both through a CloudFront CDN. You pay per request and for traffic.
+No server runs while nobody visits; the stored assets still cost a little.
 
 For a site with no server rendering, [static hosting](/resources/frontend/static-hosting) is simpler and has no function to pay for. To run SolidStart as a long-running Node server instead, use a
 [web service](/resources/compute/web-service).
