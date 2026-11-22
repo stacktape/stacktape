@@ -14,7 +14,13 @@ export const V4_RENAMED_PAGES: Record<string, string> = {
   '/deployment-and-lifecycle/deploy-time-parameters/': '/configuration/directives/',
   '/managing-costs/per-resource-breakdown/': '/managing-costs/dashboards/',
   '/local-development/debugging-containers/': '/observability/debugging-containers/',
-  '/local-development/debug-commands-reference/': '/observability/debug-commands/'
+  '/local-development/debug-commands-reference/': '/observability/debug-commands/',
+  // Getting started, November 2026: the init-first path replaced the hand-written-config path.
+  '/getting-started/configure-your-stack/': '/getting-started/',
+  '/getting-started/deploy-your-first-stage/': '/getting-started/deploy-an-existing-app/',
+  '/getting-started/use-the-dev-mode/': '/local-development/dev-mode-overview/',
+  '/getting-started/using-console-ui/': '/stacktape-console/console-overview/',
+  '/getting-started/ci-cd/': '/ci-cd-and-gitops/overview/'
 };
 
 /**

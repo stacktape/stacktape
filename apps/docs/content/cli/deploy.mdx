@@ -15,7 +15,13 @@ The `stacktape deploy` command deploys your stack to AWS. If the stack does not 
 stacktape deploy --stage <stage> --region <region>
 ```
 
-Both `--stage` and `--region` are required. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--config`.
+The command reads the Stacktape configuration file in the current directory: `stacktape.yml`, `stacktape.yaml`, `stacktape.ts` or `stacktape.js`. If there is more than one, or the file is elsewhere, pass `--config`. The stage and region are required. When the config declares `projectName` and `region`, as the one [`init`](/cli/init) writes does, `--stage` is enough:
+
+```bash
+stacktape deploy --stage dev
+```
+
+Flags override the config. The region can also come from `AWS_REGION`, [`defaults set`](/cli/defaults-configure) or your AWS profile.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
@@ -29,7 +35,7 @@ stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktap
 4. **Deploy** — Creates or updates a CloudFormation stack. When only code changed, updates the changed functions and container services directly instead (see [Fast deployments](#fast-deployments)).
 5. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
 
-After a successful deploy, Stacktape prints short stack information and completion links, including a Stacktape Console URL for the deployed stack.
+After a successful deploy, Stacktape prints short stack information and the URLs of your resources. When the CLI is signed in to the Stacktape Console, it also prints the Console link of the stage. Without an account, the first successful deploy of a project in an interactive terminal can print a one-line hint about the Console; see [Add the Console](/getting-started/add-the-console).
 
 ## Fast deployments
 
@@ -153,20 +159,32 @@ stacktape diff --stage production --region us-east-1
 
 ## Free plan cost limit
 
-A Free organization cannot deploy once its managed AWS costs for the current calendar month (UTC) are above $100. The
-deploy stops before it touches AWS with a `Free Plan Limit Reached` error that shows this month's costs, the limit and
-the link to upgrade:
+This applies only to organizations on the Console's Free plan. Without a Stacktape account there is no limit.
+
+The Free plan covers up to $200 of managed AWS costs per calendar month (UTC). From $150, a successful deploy prints how
+close the organization is and what the Flexible plan would cost:
+
+```text
+This organization is at $162.40 of the $200 Free limit for November 2026; on Flexible, this spend would cost about $41 (https://console.stacktape.com/subscription-plans).
+```
+
+The first time the organization goes over $200, a 7-day grace period starts and Owners and Admins get an email.
+Deploys keep working during it, and each one prints the countdown. After the grace period, and in any later month as
+soon as the organization is over the limit, the deploy stops with a `Free Plan Limit Reached` error. The CLI has
+loaded your AWS credentials by then, but nothing in your stack has changed:
 
 ```text
 [x] Free Plan Limit Reached
 
-Deploys are paused. This organization is on the Free plan, and the AWS costs Stacktape manages for it are
-$142.17 in October 2026 (UTC), above the plan's limit of $100 a month.
+Deploys are paused for this organization. The AWS costs Stacktape manages for it are $214.17 in November 2026, above
+the Free plan's $200 a month. The 7-day grace ended on 24 Nov at 14:05 UTC. Deploys resume on December 1, or right
+away when an Owner or Admin upgrades to the Flexible plan at https://console.stacktape.com/subscription-plans. Your
+running infrastructure is not affected, and deleting or rolling back stages still works.
 ```
 
-Upgrading to the Flexible plan lifts the limit immediately; otherwise deploys resume when the next month starts.
-[`delete`](/cli/delete) and [`rollback`](/cli/rollback) keep working, and running infrastructure is not affected. See
-[Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) for what counts.
+[`delete`](/cli/delete) and [`rollback`](/cli/rollback) keep working. When the month's costs aren't known yet, the
+deploy goes ahead. See [Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) for
+what counts.
 
 ## Dev stacks cannot be deployed
 

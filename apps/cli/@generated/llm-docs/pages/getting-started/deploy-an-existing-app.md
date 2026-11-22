@@ -1,0 +1,220 @@
+# Deploy an existing app
+
+`stacktape init` reads your project, works out the AWS setup it needs and writes it to one file. You see every
+resource and its monthly price before the file is saved. Nothing is created in AWS until you confirm the deploy. This
+guide follows the wizard screen by screen.
+
+## Before you start
+
+- [Install the CLI](/getting-started#run-it-in-your-apps-directory). The installer can start `init` for you.
+- Open a terminal in the root of your app, the directory with its `package.json`, `pyproject.toml`, `go.mod` or
+  `Dockerfile`. For an app inside a monorepo, use the app's own directory.
+- Commit your work first, so you can see what init changes. It adds one config file and, for a TypeScript config,
+  updates `package.json`.
+- AWS credentials are needed only for the last step. You can set them up when the wizard asks. See
+  [Set up AWS credentials](/getting-started/aws-credentials).
+
+## Start the wizard
+
+```bash
+stacktape init
+```
+
+The CLI starts the wizard on your machine and opens it in your browser. The link works once, for this session. Leave
+the command running while you use the wizard and press Ctrl+C when you're done.
+
+To read an app from another directory, pass `--project-directory ./apps/api`. To get the address without opening a
+browser, for example to open it in a different browser, pass `--no-browser`.
+
+## 1. Start: choose who reads your code
+
+The first screen is **Put this project on AWS**. It shows the directory it will read and does nothing until you click
+**Analyze my project**.
+
+Under **Options** you choose what reads the code:
+
+- **Claude Code or Codex**, when installed. The agent runs on this machine with read-only tools, under the account you
+  already have with it. It sends the files it chooses to read to its own model provider, as it always does. Nothing
+  goes to Stacktape. It usually takes under a minute. With Claude Code you can also pick the model.
+- **Files only, no agent.** The built-in scanner reads manifests, Compose files, Dockerfiles, Procfiles, Render, Fly.io
+  and Heroku manifests, and Serverless Framework, SAM, SST, CDK and Terraform declarations. Nothing is sent to an AI
+  provider. It takes a second and falls back to defaults more often.
+
+An installed agent is the default. To skip agent detection, start with `stacktape init --coding-agent none`.
+
+## 2. Analyze
+
+The built-in scan always runs first. If it answers everything, the wizard says your agent was not needed and no tokens
+were spent. Otherwise the agent reads your project and you watch each file it opens. From `.env` files, only the
+variable names are kept.
+
+If the analysis finds no server, worker or website, the wizard says so and has nothing to save. Run `stacktape init`
+in the app's own directory, or click **Analyze again with Claude Code** (or Codex) if you started with files only.
+
+## 3. Review: your app on AWS
+
+**Here's your app on AWS** shows what will be created, in three tabs:
+
+- **Diagram**: the resources and how they connect.
+- **What & why**: each resource, with the line of your code that led to it under **Where we saw this**.
+- **File**: the configuration that will be saved.
+
+Below the tabs:
+
+- **Decided for you** lists what your code didn't say and the answer the wizard picked for it. Change any of it and
+  the file and the price follow.
+- **Important choices** appears when they apply: how much traffic to size for, what happens when one machine fails,
+  how much backup history to keep and who can reach the SQL database. Each option shows what it adds to the price.
+- **Before you deploy** lists what only you can provide: secrets your app reads, settings your code reads with no
+  default, and anything else the deploy still needs.
+
+### What it will cost
+
+Each resource shows a monthly price, and the total is at the top. Prices come from AWS list prices for the region you
+pick. Usage charges, such as requests and data transfer, come on top. A resource without a known price says **Price
+unavailable**.
+
+To calculate the price, the wizard sends the generated configuration and the region to Stacktape's price estimator.
+The configuration contains no source code and no secret values.
+
+### Save the file
+
+1. In the **File** tab, choose **YAML** or **TypeScript**. YAML is the default.
+2. Pick the region. It's saved in the file as `region`, and every command in this project deploys there. The wizard
+   preselects the region your AWS setup uses, or `eu-west-1`.
+3. Click **Save stacktape.yml & continue**, or **Save stacktape.ts & continue**.
+
+The file declares the project name and region, so later commands only need a stage. Saving needs no AWS credentials
+and no Stacktape account.
+
+If your project already has a `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`, init leaves it alone and writes
+`stacktape.generated.yml` (or `.ts`) beside it. Deploy that file with `--config stacktape.generated.yml`, or merge it
+into yours. An old `stacktape.js` is not detected: move or delete it. With two config files in one directory, every
+command stops with an error until you pass `--config`.
+
+For a TypeScript config in a project with a `package.json`, init adds the `stacktape` package as a dev dependency
+pinned to your CLI version and prints the install command for your package manager. Run it, so your editor has the
+types.
+
+## 4. Deploy
+
+The deploy is optional. **Ready to deploy** shows where the stack will go:
+
+- **AWS account on this machine**, the **AWS identity** and the **AWS profile** (or environment variables) it comes
+  from.
+- **Region**, from the file.
+- **Stage**, `dev` by default. A stage is one environment of the app, such as `dev` or `production`. Each stage is a
+  separate stack.
+
+If the account is not the one you want, stop the command and start again with the right profile:
+
+```bash
+AWS_PROFILE=my-dev-account stacktape init
+```
+
+If the wizard says **This machine has no AWS credentials yet**, or **AWS did not accept the credentials on this
+machine**, set them up as in [Set up AWS credentials](/getting-started/aws-credentials) and click **Check again**.
+Nothing on the page is lost.
+
+### Before you deploy
+
+- **Secrets.** For each secret, the wizard gives you a command such as `stacktape secret set stripe_api_key --region
+  eu-west-1`. Run it in your terminal. It asks for the value, so the value never lands in the file or your shell
+  history.
+- **Settings nothing sets yet.** If your app needs one of them to start, add it under `environment` in the saved file.
+
+### Optional: try it on this machine first
+
+Under **Optional**, **Try it on this machine first** has a **Build and start it here** button. It builds your services
+in Docker and starts them without network access and with placeholder settings, to catch an app that won't start
+before it reaches AWS. It runs your project's code, including install scripts. If it finds a startup failure, the
+deploy waits until you fix it or set the result aside. You don't need Docker if you skip it.
+
+### Check the target, then deploy
+
+1. Click **Check exact AWS target**. This is read-only. It shows the stack name, AWS account and region.
+2. Read what it found:
+   - **This will create a new stack**: nothing with this name exists in that account and region.
+   - **This will update a stack that already exists**: the deploy makes that stack match your file, and removes
+     anything in it the file doesn't define.
+   - A stack that another tool or another Stacktape project owns, or one that AWS is still changing, is blocked. The
+     wizard says why and, where a command fixes it, gives you the command.
+3. Click **Create new stack** or **Update existing stack**.
+
+The deploy usually takes a few minutes. A first deploy with a new database takes 10 to 15 minutes. The wizard shows
+each phase, warnings and the full log.
+
+If the deploy fails for a reason that could come from how your code was read, such as a wrong start command, the agent
+reads the project again with the error in hand, the file is rebuilt and the deploy runs again. This happens at most
+twice. Problems with the AWS account itself, such as expired credentials or a missing permission, are shown as they
+are. With files only, there is no repair.
+
+### It's live
+
+**It's live** lists the public HTTPS address of each resource that has one. Open it to check your app. Below it:
+
+- **Add dev to the Stacktape Console**: optional, see [below](#add-the-console).
+- **Ship a change**: the command that deploys again after you edit your code.
+- **Deploy on every push**: if your project pushes to GitHub, GitLab or Bitbucket, **Add a GitHub Actions pipeline**
+  (or GitLab CI/CD, Bitbucket Pipelines) writes a CI file and lists the secrets to add to your repository.
+- **Done experimenting? Remove this deployment**: the command that deletes everything the deploy created, including
+  any database and its data. Your code and config file stay. A database the wizard added is protected from deletion,
+  so turn that off first; see [Delete the stage](/getting-started/after-the-first-deploy#delete-the-stage).
+
+## Deploy from your terminal instead
+
+Under **Optional**, **Run it from your terminal instead** has the same deploy as a command, for example:
+
+```bash
+stacktape deploy --config stacktape.yml --project my-app --stage dev --region eu-west-1
+```
+
+It creates the stack or updates it, and shows the account and target before it changes anything. In the project
+directory, `stacktape deploy --stage dev` does the same, because the file names the project and region.
+
+## What the deploy costs
+
+AWS charges your AWS account for the resources from the moment they exist. The estimate on the Review step is what
+they cost per month before usage. Stacktape charges nothing for the CLI or for a deploy without an account.
+
+Some resources cost money even with no traffic, such as a database or an always-on container. If you're only trying
+Stacktape, remove the stage when you're done. See [Delete the stage](/getting-started/after-the-first-deploy#delete-the-stage).
+
+## Add the Console
+
+After a successful deploy, the wizard offers **Add dev to the Stacktape Console**: deploy history, costs, alerts and
+team access for the stage, free up to $200 a month of AWS spend. **Connect to the Console** signs you in (or creates an
+account) in a new tab, then connects the AWS account. Your app is not redeployed. **Not now** skips it, and
+`stacktape connect` does the same later. See [Add the Console](/getting-started/add-the-console).
+
+## Without a browser
+
+On Linux without a display, for example over SSH, and in CI, init runs in the terminal. You can ask for it anywhere
+with `--headless`:
+
+```bash
+stacktape init --headless
+```
+
+It reads the project, prints the resources and what it decided for you, prints the monthly estimate and writes the
+file. It doesn't ask questions and doesn't deploy. Review the file, then run `stacktape deploy --stage dev`. Add
+`--config-format typescript` for a TypeScript file, and `--coding-agent none` to skip the agent.
+
+## If something goes wrong
+
+### The wizard found nothing to deploy
+
+Your app is probably in a subdirectory. Run `stacktape init` there, or pass `--project-directory`. If you used files
+only, try again with an agent: it reads source code, not only manifests.
+
+### AWS rejects the credentials
+
+AWS IAM Identity Center (SSO) sessions expire. Run `aws sso login --profile <name>` and click **Check again**. The
+wizard explains other errors. The identity also needs permission to create the resources in your file. See
+[Set up AWS credentials](/getting-started/aws-credentials#what-permissions-you-need).
+
+### The target is blocked
+
+A stack with the same name already exists and belongs to another tool or another Stacktape project, or AWS is still
+working on it. Pick another stage name, or wait and click **Check again**. A failed first deploy can leave a stack that
+AWS only allows deleting; the wizard gives you the delete command.

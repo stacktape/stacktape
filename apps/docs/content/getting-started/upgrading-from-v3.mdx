@@ -1,6 +1,6 @@
 ---
 title: 'Upgrading from v3'
-order: 9
+order: 99
 seoTitle: 'Upgrading from Stacktape v3 to v4 | Stacktape Docs'
 seoDescription: 'Move a Stacktape v3 project to v4: what to do before the upgrade, configuration renames with before/after examples, CLI changes, what the first v4 deployment changes, and Stacktape Console changes.'
 ---
@@ -67,14 +67,18 @@ Do these before the v4 release reaches your machines and CI, or right now if it 
 
 Upgrade one project at a time, and one stage before the others.
 
-1. **Install v4** on your machine and update the project's package. Keep the CLI and the package on the same version:
+1. **Install v4** on your machine and update the project's package. Name the version, so you get a v4 release and not an older default, and keep the CLI and the package on the same version:
 
    <CodeBlock
      tabs={[
-       { label: 'npm', lang: 'bash', code: `npm install --save-exact stacktape@4` },
-       { label: 'Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | sh` }
+       { label: 'npm', lang: 'bash', code: `npm install --save-exact stacktape@4.0.0` },
+       { label: 'macOS', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/macos.sh | STACKTAPE_VERSION=4.0.0 sh` },
+       { label: 'Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | STACKTAPE_VERSION=4.0.0 sh` },
+       { label: 'Windows', lang: 'powershell', code: `$env:STACKTAPE_VERSION='4.0.0'; irm https://installs.stacktape.com/windows.ps1 | iex` }
      ]}
    />
+
+   Use a later 4.x version in place of `4.0.0` when there is one. `stacktape version` prints what you have.
 
 2. **Update the configuration** using the [configuration changes](#configuration-changes) that apply to it. v4 rejects the old names and prints the property it does not accept.
 
