@@ -1,4 +1,4 @@
-# Kinesis Stream
+# Kinesis stream
 
 A Stacktape Kinesis stream is a fully managed, real-time data stream built on Amazon Kinesis Data Streams. Producers push records continuously — logs, clickstreams, IoT telemetry, analytics events — and consumers process them in order with sub-second latency. Use it when you need ordered, replayable streaming rather than one-at-a-time messaging.
 

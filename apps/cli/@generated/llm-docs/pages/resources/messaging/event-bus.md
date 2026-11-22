@@ -1,4 +1,4 @@
-# Event Bus
+# Event bus
 
 A Stacktape event bus is a serverless event router built on Amazon EventBridge. Producers publish structured events and pattern-based rules route each event to one or more targets — [Lambda functions](/resources/compute/lambda-function), [SQS queues](/resources/messaging/sqs-queue), and [batch jobs](/resources/compute/batch-job). You pay per event with no capacity to manage.
 

@@ -1,4 +1,4 @@
-# Database Guardrails
+# Database guardrails
 
 Stacktape database guardrails are preventive policy definitions that restrict which database engines, instance sizes, and accessibility modes your team can deploy. Each definition has a `type` identifier and a `properties` object describing what is allowed or blocked for database resources in the stack. The deletion protection guardrail targets [relational databases](/resources/databases/relational-database) specifically, the VPC-only guardrail applies to relational databases and OpenSearch, and the engine and instance restriction guardrails apply to databases that use engine types and instance sizes respectively.
 

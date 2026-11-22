@@ -1,4 +1,4 @@
-# Referenceable Parameters
+# Referenceable parameters
 
 The `$ResourceParam` [directive](/configuration/directives) retrieves deployment-time outputs — URLs, ARNs, hostnames, ports, and connection strings — from supported resource types listed on this page. Use it in environment variables, stack outputs, or any string-valued config property to wire resources together when [`connectTo`](/configuration/connecting-resources) doesn't cover your specific use case.
 

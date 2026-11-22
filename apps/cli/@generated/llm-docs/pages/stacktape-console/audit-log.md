@@ -1,4 +1,4 @@
-# Audit Log
+# Audit log
 
 The **Audit log** page answers "who changed what" for your organization. It shows three kinds of rows in one table,
 newest first:

@@ -1,11 +1,4 @@
----
-title: 'Debug Commands Reference'
-order: 121
-seoTitle: 'Debug Commands Reference | Stacktape Docs'
-seoDescription: 'Reference for Stacktape debug CLI commands: view logs and metrics, query databases, execute container commands, and tunnel through bastions.'
----
-
-# Debug Commands Reference
+# Debug commands
 
 Stacktape provides a suite of CLI commands for inspecting deployed stacks without leaving your terminal. This page documents `logs` and `metrics` in depth and covers the essentials of each remaining command with links to dedicated CLI reference pages. The `container exec` command runs a one-shot command inside a running container and returns its output, while `container shell` and `bastion shell` open interactive shell sessions — treat all three with appropriate care in production stages, since they let you run arbitrary commands against live infrastructure.
 
@@ -26,7 +19,9 @@ Stacktape provides a suite of CLI commands for inspecting deployed stacks withou
 | [`bastion tunnel`](/cli/bastion-tunnel) | Port-forwarding through a bastion |
 | [`bastion shell`](/cli/bastion-session) | SSM shell on a bastion instance |
 
-<Info>This page covers `logs` and `metrics` in depth. For the other commands, use the linked CLI reference pages for their flags, operations, and requirements.</Info>
+
+> **Info:** This page covers `logs` and `metrics` in depth. For the other commands, use the linked CLI reference pages for their flags, operations, and requirements.
+
 
 ## Stack targeting
 
@@ -183,7 +178,9 @@ The [`stacktape aws call`](/cli/aws-call) command runs AWS SDK v3 calls against 
 
 The [`stacktape container exec`](/cli/container-exec) command runs a one-shot command inside a running container and returns the output. See the [CLI reference](/cli/container-exec) for the full flag list.
 
-<Warning>`container exec` and `container shell` execute arbitrary commands inside live containers. These are NOT read-only operations — use caution in production stages.</Warning>
+
+> **Warning:** `container exec` and `container shell` execute arbitrary commands inside live containers. These are NOT read-only operations — use caution in production stages.
+
 
 ## Interactive container shell
 

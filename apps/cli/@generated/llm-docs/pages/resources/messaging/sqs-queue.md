@@ -1,4 +1,4 @@
-# SQS Queue
+# SQS queue
 
 A Stacktape SQS queue is a fully managed, serverless message queue built on Amazon SQS. Producers send messages and consumers process them at their own pace — decoupling your services so a spike in one part of your system does not cascade into another. You pay per message with no upfront cost and no capacity to manage.
 

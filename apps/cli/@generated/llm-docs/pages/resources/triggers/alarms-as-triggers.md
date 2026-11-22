@@ -1,4 +1,4 @@
-# Alarms as Triggers
+# Alarms as triggers
 
 A Stacktape `cloudwatch-alarm` event binds a [Lambda function](/resources/compute/lambda-function) to an alarm defined in the `alarms` section of your configuration. When the alarm transitions to `ALARM` state, the function is invoked. The `AlarmIntegrationProps` type configures only `alarmName` — no payload schema, batching, or retry options are exposed. Use alarm triggers to run custom remediation, incident escalation, or notification logic — going beyond the built-in Slack, Teams, email, Discord, and webhook [notification targets](/observability/alert-channels) that alarms support.
 

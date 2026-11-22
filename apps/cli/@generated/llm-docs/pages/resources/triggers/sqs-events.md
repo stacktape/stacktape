@@ -1,4 +1,4 @@
-# SQS Events
+# SQS events
 
 An SQS event trigger invokes a [Lambda function](/resources/compute/lambda-function) whenever messages arrive in an [SQS queue](/resources/messaging/sqs-queue). Messages are delivered in batches — the function fires when the batch size is reached, a time window expires, or the 6 MB payload limit is hit. SQS triggers decouple producers from consumers and absorb traffic spikes between services.
 

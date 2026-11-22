@@ -1072,13 +1072,15 @@ const writeLlmsFiles = async (pages: LlmDocPage[], outputDirectory: string) => {
   const curatedPages = [
     ['/getting-started/configure-your-stack', 'Define your first Stacktape project and resources.'],
     ['/getting-started/deploy-your-first-stage', 'Deploy a stage to your own AWS account.'],
-    ['/configuration/resources', 'Understand resource syntax and the available resource catalog.'],
+    ['/resources', 'Pick a resource: every resource with the AWS service it creates and what it is for.'],
+    ['/configuration/resources', 'Understand how resources are declared, named and connected.'],
     ['/configuration/connecting-resources', 'Wire resources together with IAM permissions and environment variables.'],
     ['/resources/compute/lambda-function', 'Configure and deploy AWS Lambda functions.'],
     ['/resources/compute/web-service', 'Run containerized HTTP services on AWS.'],
     ['/local-development/dev-mode-overview', 'Develop locally while connected to cloud resources.'],
     ['/deployment-and-lifecycle/deploying-stacks', 'Understand deployments, stages, and lifecycle behavior.'],
     ['/using-with-ai/mcp-server-setup', 'Connect an AI coding assistant to Stacktape tools using MCP.'],
+    ['/cli', 'Look up a CLI command: every command grouped by task.'],
     ['/getting-started/going-to-production', 'Review production readiness, security, cost, and reliability.']
   ] as const;
   const lines = [

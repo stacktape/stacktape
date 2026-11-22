@@ -1,4 +1,4 @@
-# Variables and Reuse
+# Variables and reuse
 
 Stacktape supports both [TypeScript and YAML configuration](/configuration/configuration-files). TypeScript gives you full language-level tools for eliminating duplication: constants, functions, imports, and conditional logic. For YAML configurations, the `variables` property provides named reusable values referenced with `$Var().variableName`. Neither format requires an external templating engine.
 

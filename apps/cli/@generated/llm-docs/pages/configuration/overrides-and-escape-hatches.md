@@ -1,4 +1,4 @@
-# Overrides and Escape Hatches
+# Overrides and escape hatches
 
 Stacktape generates AWS CloudFormation templates from your configuration. When you need to customize the underlying AWS resources beyond what Stacktape exposes — set a parameter Stacktape doesn't surface, tune a database engine setting, or add an AWS resource type Stacktape doesn't natively support — overrides and escape hatches give you direct access to the CloudFormation layer without leaving your Stacktape project.
 
@@ -494,4 +494,4 @@ Use CDK constructs when you need multiple interrelated resources with complex co
 
 ### Can I override resources conditionally based on the stage?
 
-Yes. Since TypeScript configs are executable code, you can use standard conditionals. Access the stage name via [deploy-time parameters](/deployment-and-lifecycle/deploy-time-parameters) or environment variables, then conditionally include overrides. For example, you might enable enhanced RDS monitoring only in production by checking the stage name before adding the `MonitoringInterval` override.
+Yes. Since TypeScript configs are executable code, you can use standard conditionals. Read the stage from the `defineConfig` callback's `stage` parameter, or use the [`$Stage()` directive](/configuration/directives), then conditionally include overrides. For example, you might enable enhanced RDS monitoring only in production by checking the stage name before adding the `MonitoringInterval` override.

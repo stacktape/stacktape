@@ -1,4 +1,4 @@
-# DynamoDB Streams
+# DynamoDB streams
 
 A DynamoDB stream trigger invokes a [Lambda function](/resources/compute/lambda-function) whenever items are created, updated, or deleted in a [DynamoDB table](/resources/databases/dynamodb). Records arrive in batches from the table's change stream, giving you a real-time feed of every mutation without polling. This enables audit logs, materialized views, cross-region replication, and downstream notifications.
 

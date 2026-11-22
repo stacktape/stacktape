@@ -1,4 +1,4 @@
-# Guardrails Overview
+# Guardrails overview
 
 Stacktape guardrails are organization-level preventive rules that restrict what can be deployed and how. They define allowed or blocked values for stages, regions, commands, resource types, and resource settings — enforcing security, cost, and compliance policies before infrastructure changes occur.
 

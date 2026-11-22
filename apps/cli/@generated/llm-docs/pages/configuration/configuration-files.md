@@ -1,4 +1,4 @@
-# Configuration Files
+# Configuration files
 
 Stacktape configuration defines your infrastructure as code in a single file. You declare resources — APIs, databases, containers, functions — and Stacktape provisions them on AWS. The configuration supports two formats: TypeScript (recommended) and YAML. Both produce identical infrastructure; the choice affects your authoring experience.
 

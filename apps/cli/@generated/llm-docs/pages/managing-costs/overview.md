@@ -1,4 +1,4 @@
-# Managing Costs Overview
+# Costs overview
 
 AWS infrastructure costs are billed directly to your AWS account, separate from Stacktape's subscription fee. The Stacktape Console provides cost dashboards, cost attribution by project and stage, and budget alerts to help you understand and control your AWS spend. This section also covers optimization strategies to reduce costs.
 
@@ -6,7 +6,7 @@ Managing costs involves three activities, each covered in a dedicated page:
 
 | Activity | Question it answers | Details |
 |----------|---------------------|---------|
-| **Viewing costs** | What am I spending and where? | [Dashboards](/managing-costs/dashboards), [Per-resource breakdown](/managing-costs/per-resource-breakdown) |
+| **Viewing costs** | What am I spending and where? | [Cost dashboards](/managing-costs/dashboards) |
 | **Controlling costs** | How do I prevent overspend? | [Budgets](/managing-costs/budgets) |
 | **Reducing costs** | How do I spend less? | [Optimization tips](/managing-costs/optimization-tips) |
 
@@ -37,7 +37,7 @@ The **costs per stack page** lets you select a connected AWS account and a time 
 > **Info:** New stacks may take up to a day to appear in cost data after their first deployment.
 
 
-For the full walkthrough of these views, see [Dashboards](/managing-costs/dashboards). The overview dashboard includes an AWS Costs by Resource chart — see [Per-resource breakdown](/managing-costs/per-resource-breakdown) for the dedicated cost-breakdown page.
+[Cost dashboards](/managing-costs/dashboards) walks through these views, from the organization down to one resource.
 
 ### Cost attribution
 

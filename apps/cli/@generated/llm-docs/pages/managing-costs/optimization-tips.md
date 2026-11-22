@@ -1,9 +1,9 @@
-# Cost Optimization Tips
+# Cost optimization tips
 
 AWS bills go directly to your AWS account — Stacktape's subscription fee is separate. Many deployed AWS resources can incur cost, and always-on resources compound over time. This page covers the highest-impact levers for reducing what you pay without sacrificing reliability.
 
 
-> **Info:** Use the [cost dashboards](/managing-costs/dashboards) and [per-resource breakdown](/managing-costs/per-resource-breakdown) in the Stacktape Console to identify where your spend is concentrated before optimizing. Set up [budget alerts](/managing-costs/budgets) so you catch cost spikes early.
+> **Info:** Use the [cost dashboards](/managing-costs/dashboards) in the Stacktape Console to identify where your spend is concentrated before optimizing. Set up [budget alerts](/managing-costs/budgets) so you catch cost spikes early.
 
 
 ## Choose the right compute model
@@ -268,7 +268,7 @@ Use this checklist when reviewing a stack's cost profile:
 
 ### How do I see what each resource costs?
 
-The Stacktape Console provides [per-resource cost breakdowns](/managing-costs/per-resource-breakdown) that attribute AWS charges to individual resources, stages, and projects. You can also view overall AWS spend across your organization using the [cost dashboards](/managing-costs/dashboards). AWS bills your AWS account directly — these tools help you understand the bill, but they don't add charges.
+The Stacktape Console provides [per-resource cost breakdowns](/managing-costs/dashboards#stage-costs-per-resource) that attribute AWS charges to individual resources, stages, and projects. You can also view overall AWS spend across your organization using the [cost dashboards](/managing-costs/dashboards). AWS bills your AWS account directly — these tools help you understand the bill, but they don't add charges.
 
 ### Does Stacktape add cost on top of AWS?
 
@@ -292,4 +292,4 @@ DynamoDB on-demand mode charges per read and write operation with no idle cost. 
 
 ### How do I prevent unexpected cost spikes?
 
-Set up [budget alerts](/managing-costs/budgets) with thresholds at 80% and 100% of your expected monthly spend. Cap auto-scaling with `maxInstances` on container services and `maxCapacity` on Aurora Serverless v2 databases. Set `timeout` on batch jobs so stuck jobs are killed. Review the [per-resource breakdown](/managing-costs/per-resource-breakdown) weekly to catch anomalies early. Delete old [stages](/configuration/stages-and-environments) you're no longer using.
+Set up [budget alerts](/managing-costs/budgets) with thresholds at 80% and 100% of your expected monthly spend. Cap auto-scaling with `maxInstances` on container services and `maxCapacity` on Aurora Serverless v2 databases. Set `timeout` on batch jobs so stuck jobs are killed. Review the [per-resource breakdown](/managing-costs/dashboards#stage-costs-per-resource) weekly to catch anomalies early. Delete old [stages](/configuration/stages-and-environments) you're no longer using.

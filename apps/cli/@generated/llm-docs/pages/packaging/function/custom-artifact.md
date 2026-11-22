@@ -1,4 +1,4 @@
-# Custom Artifact
+# Custom artifact
 
 Custom artifact packaging lets you bring a pre-built Lambda deployment package to Stacktape. Point `packagePath` at a zip file, a directory, or a non-zip file — Stacktape automatically zips directories and non-zip files, then deploys the result. This packaging mode applies only to [Lambda function](/resources/compute/lambda-function) resources.
 

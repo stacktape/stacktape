@@ -1,4 +1,4 @@
-# State Machine
+# State machine
 
 A Stacktape state machine uses AWS Step Functions to orchestrate multi-step workflows with branching, retries, parallel execution, and error handling — without writing orchestration code. Define your workflow in [Amazon States Language (ASL)](https://states-language.net/spec.html), and Stacktape handles the underlying AWS infrastructure. Pay per state transition (~$0.025/1,000 transitions).
 

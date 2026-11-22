@@ -1,4 +1,4 @@
-# S3 Bucket
+# S3 bucket
 
 A Stacktape Bucket creates an Amazon S3 bucket for storing files, images, backups, or any binary data. S3 offers 99.999999999% (eleven nines) durability with pay-per-use pricing — you pay only for storage used and data transferred. Buckets are the most common way to store unstructured data on AWS.
 

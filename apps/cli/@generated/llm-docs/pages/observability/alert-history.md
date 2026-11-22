@@ -1,4 +1,4 @@
-# Sent Alerts
+# Sent alerts
 
 **Sent alerts** (under Alerting in the Stacktape Console) lists every alert Stacktape sent to your
 [alert channels](/observability/alert-channels): incidents, deploys and changes covered by a channel's

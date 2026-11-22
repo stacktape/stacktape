@@ -1,4 +1,4 @@
-# Triggers Overview
+# Triggers overview
 
 Triggers define what causes a Stacktape compute resource to execute. A [Lambda function](/resources/compute/lambda-function) sitting idle costs nothing — a trigger connects it to an event source (an HTTP request, a file upload, a queue message, a cron schedule) so it runs when work arrives. Stacktape trigger integrations primarily attach events to Lambda functions and container workloads; EventBridge event bus integrations can also trigger [batch jobs](/resources/compute/batch-job).
 

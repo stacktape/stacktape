@@ -1,4 +1,4 @@
-# Custom Resources
+# Custom resources
 
 A Stacktape custom resource runs a Lambda function during stack create, update, and delete operations to provision infrastructure or services that Stacktape and CloudFormation don't natively support. Use custom resources to integrate third-party APIs, SaaS platforms, or custom provisioning logic into your deployment lifecycle — paired as a definition (the backing Lambda) and one or more instances (the invocations).
 

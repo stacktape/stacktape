@@ -1,4 +1,4 @@
-# Kafka topics
+# Kafka topic events
 
 A `kafka-topic` event lets AWS Lambda poll one Kafka topic and invoke your function with batches of records. The
 simplest source is a Stacktape [Kafka cluster](/resources/messaging/kafka-cluster): Stacktape configures IAM access,

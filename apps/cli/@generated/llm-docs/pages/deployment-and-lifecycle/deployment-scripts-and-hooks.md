@@ -1,4 +1,4 @@
-# Deployment Scripts and Hooks
+# Deployment scripts and hooks
 
 Stacktape provides two complementary mechanisms for automating work around deployments. **Hooks** run named scripts before or after CLI commands on your machine or CI runner. **Deployment scripts** execute as Lambda functions inside AWS during the CloudFormation lifecycle. Together they cover pre-deploy builds, post-deploy migrations, and pre-delete cleanup.
 

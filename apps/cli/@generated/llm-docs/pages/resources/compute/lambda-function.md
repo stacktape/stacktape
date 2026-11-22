@@ -1,4 +1,4 @@
-# Lambda Function
+# Lambda function
 
 A Stacktape Lambda function is a serverless compute resource that runs code in response to events — HTTP requests, queues, schedules, file uploads, and more. Lambda functions scale automatically from zero, bill only for consumed compute time, and require no server management. Underneath, Stacktape deploys to AWS Lambda.
 

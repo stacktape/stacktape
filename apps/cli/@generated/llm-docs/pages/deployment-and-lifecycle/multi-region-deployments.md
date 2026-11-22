@@ -1,4 +1,4 @@
-# Multi-Region Deployments
+# Multi-region deployments
 
 Stacktape deploys each stack to a single AWS region. To serve users across multiple continents with low latency — or to satisfy data-residency regulations — deploy the same configuration to multiple regions as independent stacks. Each region runs its own CloudFormation stack with its own compute, databases, and networking.
 
@@ -71,7 +71,7 @@ export default defineConfig(() => {
 
 The `resources` property sets the CPU (in vCPUs) and memory (in MB) for the container — see [Web Service](/resources/compute/web-service) for all configuration options including scaling. This example uses `DockerfilePackaging`; Stacktape also supports [`js-bundle`](/packaging/containers/js-bundle), [`buildpack`](/packaging/containers/buildpack) and [`prebuilt-image`](/packaging/containers/prebuilt-image) packaging.
 
-The `defineConfig` callback receives a `params` object containing deploy-time context. The available properties — defined in the `GetConfigParams` type — are `region`, `stage`, `projectName`, `command`, `awsProfile`, `cliArgs` (all CLI arguments passed to the command), and `user` (an object with `id`, `name`, and `email`). Destructure what you need (e.g., `defineConfig(({ region, stage }) => { ... })`) to write conditional logic — different scaling targets, instance sizes, or feature flags per region — all from a single `stacktape.ts` file. For simpler cases where only one or two values differ, [deploy-time parameters](/deployment-and-lifecycle/deploy-time-parameters) or [directives](/configuration/directives) may be a cleaner approach than conditional logic.
+The `defineConfig` callback receives a `params` object containing deploy-time context. The available properties — defined in the `GetConfigParams` type — are `region`, `stage`, `projectName`, `command`, `awsProfile`, `cliArgs` (all CLI arguments passed to the command), and `user` (an object with `id`, `name`, and `email`). Destructure what you need (e.g., `defineConfig(({ region, stage }) => { ... })`) to write conditional logic — different scaling targets, instance sizes, or feature flags per region — all from a single `stacktape.ts` file. For simpler cases where only one or two values differ, [directives](/configuration/directives) such as `$Region()` may be a cleaner approach than conditional logic.
 
 ## Multi-region patterns
 

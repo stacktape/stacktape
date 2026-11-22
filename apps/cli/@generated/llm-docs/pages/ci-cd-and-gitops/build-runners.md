@@ -1,4 +1,4 @@
-# Build Runners
+# Build runners
 
 Stacktape Console executes GitOps deployments on a dedicated EC2 runner in your connected AWS account. Each Git-backed project has its own runner, AWS region, and instance type.
 

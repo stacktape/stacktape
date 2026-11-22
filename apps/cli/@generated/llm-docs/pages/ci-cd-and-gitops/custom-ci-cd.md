@@ -336,7 +336,7 @@ Implement this with separate workflow triggers or CI stages. The core command st
 
 ### Passing config-level variables per environment
 
-Stacktape supports deploy-time parameterization so you can keep one configuration file across all environments while varying database sizes, instance counts, or feature flags. See [deploy-time parameters](/deployment-and-lifecycle/deploy-time-parameters) and [directives](/configuration/directives) for the available patterns.
+Stacktape supports deploy-time parameterization so you can keep one configuration file across all environments while varying database sizes, instance counts, or feature flags. See [Stages and environments](/configuration/stages-and-environments) and [Directives](/configuration/directives#pass-deployment-context-to-your-app) for the available patterns.
 
 ## Previewing changes before deploying
 

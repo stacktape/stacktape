@@ -1,4 +1,4 @@
-# AI Assessment, Investigation and Fixes
+# AI investigation and fixes
 
 Stacktape uses AI on [incidents](/observability/incidents) in three ways:
 

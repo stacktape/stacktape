@@ -1,4 +1,4 @@
-# Security and Data Protection Guardrails
+# Security and data protection guardrails
 
 Stacktape security and data-protection guardrails express requirements that the CLI can verify before changing infrastructure: private database access, deletion protection, recoverable data stores, dead-letter queues, WAF, and redundant container services. Each guardrail has a `type` and a `properties` object that describes the requirement to enforce.
 

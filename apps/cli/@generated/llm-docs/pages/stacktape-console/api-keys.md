@@ -1,4 +1,4 @@
-# API Keys
+# API keys
 
 Stacktape API keys let you authenticate with Stacktape from the CLI or in CI/CD pipelines. Create keys with bounded expiration dates in the Stacktape Console, track when each key was last used, and revoke keys instantly when they are no longer needed or compromised. API keys are managed per-organization.
 

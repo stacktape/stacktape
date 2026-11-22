@@ -1,4 +1,4 @@
-# JS Bundle for Lambda
+# JS bundle for Lambda
 
 The `js-bundle` packaging type (`JsBundleLambdaPackaging`) packages a JavaScript or TypeScript [Lambda function](/resources/compute/lambda-function) from its entry file. Stacktape bundles the entry file and everything it imports into one minified file, installs the dependencies that cannot be bundled, and uploads the result. The bundle's source maps are stored in the stack's deployment bucket, outside the package.
 

@@ -1,4 +1,4 @@
-# Alert Channels
+# Alert channels
 
 Alert channels are the destinations where Stacktape delivers alerts — a Slack channel, an email inbox, a Discord webhook, or a custom HTTP endpoint. You create channels in the Stacktape Console, then use them in [config alarms](/observability/alarms#notification-targets), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets) so every alert reaches the right people.
 

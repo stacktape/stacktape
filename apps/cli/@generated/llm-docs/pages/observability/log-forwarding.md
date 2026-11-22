@@ -1,4 +1,4 @@
-# Log Forwarding
+# Log forwarding
 
 Stacktape can forward logs from your resources to external observability services — Datadog, Highlight.io, or any HTTPS endpoint. Underneath, Stacktape provisions an AWS Kinesis Data Firehose delivery stream that delivers log records over HTTPS to your configured destination. Failed deliveries go to a backup S3 bucket. Three destination types are available: `datadog`, `highlight`, and `http-endpoint`.
 

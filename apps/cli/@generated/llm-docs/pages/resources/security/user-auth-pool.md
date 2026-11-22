@@ -1,4 +1,4 @@
-# User Authentication Pool
+# User authentication pool
 
 A Stacktape user authentication pool is a managed identity provider built on Amazon Cognito that handles user sign-up, sign-in, and access control. It supports email and phone verification, multi-factor authentication, social login (Google, Facebook, Apple), enterprise SSO (SAML, OIDC), and OAuth 2.0 flows — without requiring you to build or maintain auth infrastructure.
 

@@ -1,4 +1,4 @@
-# Edge Function
+# Edge function
 
 A Stacktape edge function is an `EdgeLambdaFunction` resource that packages Lambda code for CloudFront edge events such as viewer request and origin request. Use it to make small request or response decisions close to users: rewrite URLs, adjust headers, run A/B routing, or add lightweight authorization checks before traffic reaches an origin.
 

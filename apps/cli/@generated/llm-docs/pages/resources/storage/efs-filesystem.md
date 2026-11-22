@@ -1,4 +1,4 @@
-# EFS Filesystem
+# EFS file system
 
 A Stacktape EfsFilesystem creates an Amazon Elastic File System — shared, persistent file storage that multiple containers can read and write simultaneously. EFS volumes grow and shrink automatically with no capacity planning. Mount a volume to your containers to share uploads, CMS media, ML model files, or any data that must survive container restarts.
 

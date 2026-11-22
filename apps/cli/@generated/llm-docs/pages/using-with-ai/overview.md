@@ -1,4 +1,4 @@
-# Using Stacktape with AI
+# Coding agents overview
 
 
 > **Warning:** Preview — in active development. The Stacktape MCP server is under active development. Available tools, safety behavior, and integration details may change between releases.

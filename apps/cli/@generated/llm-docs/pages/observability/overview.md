@@ -1,4 +1,4 @@
-# Observability Overview
+# Observability overview
 
 Stacktape surfaces logs, metrics, alarms, and issues through the CLI and Console — reading from the same AWS CloudWatch data your stack produces. In the Stacktape Console, each alert channel has rules that choose which events it receives, and Sent alerts records what was sent. Error tracking (the Console's Error tracking page) is on for every stage by default and is wired into each stack during deployment.
 
@@ -20,6 +20,8 @@ Stacktape provides multiple observability surfaces for supported workloads and A
 | [Notification rules](/observability/notifications) | — | Which events each alert channel receives | — |
 | [Alert history](/observability/alert-history) | — | Unified log of all delivered alerts | — |
 | [Log forwarding](/observability/log-forwarding) | — | — | See [Log forwarding](/observability/log-forwarding) |
+| [Debug commands](/observability/debug-commands) | [`stacktape logs`](/cli/logs), [`query sql`](/cli/query-sql), [`aws call`](/cli/aws-call) and others | — | — |
+| [Debugging deployed containers](/observability/debugging-containers) | [`stacktape container shell`](/cli/container-session), [`container exec`](/cli/container-exec) | Remote session on a container resource | — |
 
 ## Logs
 

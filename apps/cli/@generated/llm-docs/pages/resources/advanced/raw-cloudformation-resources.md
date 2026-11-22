@@ -1,4 +1,4 @@
-# Raw CloudFormation Resources
+# Raw CloudFormation resources
 
 Stacktape's `cloudformationResources` config property adds raw AWS CloudFormation resources directly to your stack's template. Use this escape hatch when you need an AWS service that Stacktape doesn't offer as a built-in resource type — the resources merge into the generated CloudFormation template as-is and do not count toward your Stacktape resource limit.
 

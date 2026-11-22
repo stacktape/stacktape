@@ -1,5 +1,8 @@
-import config, { type DocsVersion, type SidebarIcon } from '@/site-config';
+import config, { type DocsVersion, type SidebarIcon, type SidebarSubgroup } from '@/site-config';
 import type { DocPage } from '@/utils/docs-data';
+
+/** Sort key of configured subgroups: after every page that sits directly in the group. */
+const CONFIGURED_SUBGROUP_ORDER = 1_000_000;
 
 /** localStorage key used to persist the user's explicit collapse/expand toggles. */
 export const NAV_STATE_STORAGE_KEY = 'stacktape-docs-nav-state-v1';
@@ -19,7 +22,8 @@ export type NavItem = {
    *  the synthetic path for virtual nodes. */
   key: string;
   title: string;
-  /** Page order from frontmatter; virtual nodes inherit min(descendant.order). */
+  /** Page order from frontmatter (or the position in a subgroup's `pages` list). Configured
+   *  subgroups sort by their position in the config; other virtual nodes inherit min(descendant.order). */
   order: number;
   /** Optional icon for virtual subgroup nodes; resolved from config.sidebar.groups[].subgroups
    *  during tree construction. Null for real pages and virtual nodes without a configured icon. */
@@ -57,8 +61,10 @@ const capitalizeSegment = (segment: string) =>
  *    has no real page becomes a virtual node (no link, expandable, title derived from segment).
  * 3. Real pages are slotted into the tree at their full URL. If a real page lands on a path that
  *    a virtual node already occupies, the virtual node is "promoted" — gains the page's url + title.
- * 4. Sort siblings by order ASC, then title ASC. Virtual nodes carry min(descendant.order) so they
- *    sort sensibly relative to leaf siblings.
+ * 4. Pages listed in a configured subgroup's `pages` go under that subgroup instead of their URL
+ *    path, in list order.
+ * 5. Sort siblings by order ASC, then title ASC. Configured subgroups sort by their position in the
+ *    config, after the group's own pages; other virtual nodes carry min(descendant.order).
  */
 // Sort children recursively. Order is the primary key (lower first), title alphabetic is the
 // tie-breaker.
@@ -77,10 +83,13 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
   // The v3 archive has its own taxonomy; its URLs carry a `/v3` prefix that grouping ignores.
   const sidebar = version === 'v3' ? config.v3Sidebar : config.sidebar;
   const basePath = version === 'v3' ? config.v3Sidebar.basePath : '';
-  // Initialize groups from config + build a virtual-subgroup-path → icon lookup so virtual
-  // nodes in the tree can render with a meaningful icon next to their label.
+  // Initialize groups from config + build lookups for the configured subgroups: their icon, label
+  // and position, and which subgroup each explicitly listed page belongs to.
   const groupMap = new Map<string, NavGroup>();
   const subgroupIconByPath = new Map<string, SidebarIcon>();
+  const subgroupTitleByPath = new Map<string, string>();
+  const subgroupRankByPath = new Map<string, number>();
+  const listedPageParent = new Map<string, { subgroupPath: string; rank: number }>();
   for (const g of sidebar.groups) {
     const id = g.path.replace(/^\//, '');
     groupMap.set(id, {
@@ -92,9 +101,13 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
       defaultOpen: ('defaultOpen' in g && g.defaultOpen) || false,
       children: []
     });
-    for (const sub of 'subgroups' in g ? (g.subgroups ?? []) : []) {
-      subgroupIconByPath.set(sub.path, sub.icon);
-    }
+    const subgroups: SidebarSubgroup[] = 'subgroups' in g ? (g.subgroups ?? []) : [];
+    subgroups.forEach((sub, index) => {
+      if (sub.icon) subgroupIconByPath.set(sub.path, sub.icon);
+      if (sub.title) subgroupTitleByPath.set(sub.path, sub.title);
+      subgroupRankByPath.set(sub.path, index);
+      sub.pages?.forEach((pageUrl, rank) => listedPageParent.set(pageUrl, { subgroupPath: sub.path, rank }));
+    });
   }
 
   // Catch-all for the root index page (and anything that fails to match a configured group).
@@ -173,6 +186,30 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
     const groupId = segments[0];
     const group = groupMap.get(groupId) || rootGroup;
 
+    // A page listed in a subgroup's `pages` sits under that subgroup whatever its URL, ranked by
+    // its position in the list (the CLI keeps flat `/cli/<command>` URLs but groups them by task).
+    const listed = listedPageParent.get(url);
+    if (listed) {
+      const subgroupNode = ensureNode({
+        pathKey: listed.subgroupPath,
+        isLeaf: false,
+        realUrl: null,
+        title:
+          subgroupTitleByPath.get(listed.subgroupPath) ?? capitalizeSegment(listed.subgroupPath.split('/').pop() ?? ''),
+        order: listed.rank,
+        parentChildren: group.children
+      });
+      ensureNode({
+        pathKey: url,
+        isLeaf: true,
+        realUrl: url,
+        title: page.title,
+        order: listed.rank,
+        parentChildren: subgroupNode.children
+      });
+      continue;
+    }
+
     // The first segment IS the group's path prefix — the group itself represents it. Walk only
     // segments[1..] to build the tree underneath. Pages whose URL is exactly the group root
     // (e.g. /configuration with no further segment) become the group's first child.
@@ -197,12 +234,20 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
         pathKey: pathSoFar,
         isLeaf,
         realUrl: isLeaf ? url : null,
-        title: isLeaf ? page.title : capitalizeSegment(segments[i]),
+        title: isLeaf ? page.title : (subgroupTitleByPath.get(pathSoFar) ?? capitalizeSegment(segments[i])),
         order: page.order ?? 999,
         parentChildren
       });
       parentChildren = node.children;
     }
+  }
+
+  // Configured subgroups keep the position they have in the config, after the group's own pages
+  // (an overview or index page comes first). Without this they would inherit the lowest order of
+  // their pages, so one low-ranked page could move a whole family up the list.
+  for (const [subgroupPath, rank] of subgroupRankByPath) {
+    const node = nodeMap.get(subgroupPath);
+    if (node && node.url === null) node.order = CONFIGURED_SUBGROUP_ORDER + rank;
   }
 
   for (const group of groupMap.values()) {

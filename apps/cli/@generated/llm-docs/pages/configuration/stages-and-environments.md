@@ -1,4 +1,4 @@
-# Stages and Environments
+# Stages and environments
 
 A Stacktape stage is a named deployment of your project — such as `dev`, `staging`, or `production`. Each stage creates
 a fully isolated set of AWS resources under its own CloudFormation stack. One codebase, multiple stages: develop against

@@ -5,8 +5,10 @@
 /ci-cd-and-gitops/overview
 /ci-cd-and-gitops/self-hosted-github-actions-runners
 /ci-cd-and-gitops/stacks-per-git-branch-pattern
+/cli
 /cli/ai-connect
 /cli/ai-disconnect
+/cli/alarm-export
 /cli/alarms
 /cli/aws-call
 /cli/aws-profile-create
@@ -18,6 +20,7 @@
 /cli/bucket-sync
 /cli/cf-module-update
 /cli/cf-rollback
+/cli/connect
 /cli/container-exec
 /cli/container-session
 /cli/defaults-configure
@@ -27,6 +30,7 @@
 /cli/deployment-script-run
 /cli/dev
 /cli/dev-network
+/cli/dev-network-delete
 /cli/dev-stop
 /cli/diff
 /cli/domain-add
@@ -84,7 +88,6 @@
 /configuration/stages-and-environments
 /configuration/variables-and-reuse
 /deployment-and-lifecycle/code-swap
-/deployment-and-lifecycle/deploy-time-parameters
 /deployment-and-lifecycle/deploying-stacks
 /deployment-and-lifecycle/deployment-scripts-and-hooks
 /deployment-and-lifecycle/destroying-stacks
@@ -107,8 +110,6 @@
 /guardrails/overview
 /guardrails/resource-limits
 /guardrails/security-and-data-protection
-/local-development/debug-commands-reference
-/local-development/debugging-containers
 /local-development/debugging-lambda-functions
 /local-development/dev-mode-overview
 /local-development/local-databases
@@ -116,10 +117,11 @@
 /managing-costs/dashboards
 /managing-costs/optimization-tips
 /managing-costs/overview
-/managing-costs/per-resource-breakdown
 /observability/alarms
 /observability/alert-channels
 /observability/alert-history
+/observability/debug-commands
+/observability/debugging-containers
 /observability/error-tracking
 /observability/incident-ai
 /observability/incidents
@@ -139,6 +141,7 @@
 /packaging/function/custom-artifact
 /packaging/function/js-bundle
 /packaging/overview
+/resources
 /resources/advanced/aws-cdk-constructs
 /resources/advanced/custom-resources
 /resources/advanced/deployment-scripts

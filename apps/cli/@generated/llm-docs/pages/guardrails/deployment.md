@@ -1,4 +1,4 @@
-# Deployment Guardrails
+# Deployment guardrails
 
 Deployment guardrails are preventive policies that restrict where and how your team deploys. They enforce allowed stages, limit AWS regions, block specific CLI commands, ban resource types, and cap resources per stack. Unlike [alarms](/observability/alarms) that react to runtime anomalies, guardrails block non-compliant operations before any infrastructure changes happen.
 
