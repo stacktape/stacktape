@@ -102,6 +102,8 @@ Deleting the stack (or the check) removes the check's probing; the shared prober
 
 ## What leaves your AWS account
 
+[What leaves your AWS account](/observability/overview#what-leaves-your-aws-account) compares every feature in one table.
+
 The probes run in your account, but the Console decides when a check is down, so it receives:
 
 - **On deploy:** each check's definition: name, URL, method, interval, timeout, redirect setting, assertions, regions, failure and recovery thresholds, and its `notificationChannels`: the `console-channel` name, the `slack-app` channel name and ID, or the email sender and recipient. No channel credential is sent, because uptime checks accept only channels without one.
