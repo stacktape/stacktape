@@ -198,7 +198,7 @@ export const capApiKeyScopes = (
   return { deploys: cap('deploys'), incidents: cap('incidents'), organization: cap('organization') };
 };
 
-export type ApiKeyScopePresetId = 'full' | 'ci-deploys' | 'incident-response' | 'read-only';
+export type ApiKeyScopePresetId = 'full' | 'ci-deploys' | 'on-call' | 'read-only';
 
 /** The common jobs a key is made for. Full access stores no scopes, so the key behaves exactly as keys always have. */
 export const API_KEY_SCOPE_PRESETS: ReadonlyArray<{
@@ -215,8 +215,8 @@ export const API_KEY_SCOPE_PRESETS: ReadonlyArray<{
     scopes: { deploys: 'WRITE', incidents: 'NONE', organization: 'NONE' }
   },
   {
-    id: 'incident-response',
-    label: 'Incident response',
+    id: 'on-call',
+    label: 'On-call',
     description: 'Read deploys; acknowledge and resolve incidents and errors.',
     scopes: { deploys: 'READ', incidents: 'WRITE', organization: 'NONE' }
   },
