@@ -7,7 +7,7 @@ seoDescription: 'Print the alarm rules created in the Stacktape Console as alarm
 
 # alarm export
 
-`stacktape alarm export` prints the alarm rules created in the Stacktape Console as entries for the `alarms` list of a resource in your configuration. The Console no longer creates or edits alarm rules. The old ones are listed under **Legacy alarm rules** on the Console's Alarms page and keep applying to matching deployments until the stack defines its alarms in configuration.
+`stacktape alarm export` prints the alarm rules created in the Stacktape Console as entries for the `alarms` list of a resource in your configuration. The Console no longer creates or edits alarm rules. The old ones are listed under **Legacy alarm rules** on the Console's Alarms page and keep applying to every matching resource until you exclude or delete them.
 
 The command needs a Console sign-in ([`stacktape login`](/cli/login)) and changes nothing. It only prints.
 
@@ -19,7 +19,7 @@ stacktape alarm export
 
 The output starts with how many rules it found. Each rule follows as a YAML list entry, with a comment that names the rule and the projects and stages it applies to:
 
-```yaml
+```yaml configExample="fragment"
 # alarm "api-error-rate"
 # applies to projects: all · stages: production
 - trigger:
@@ -38,10 +38,32 @@ The Console channels a rule sent to become `console-channel` entries. When the o
 
 1. Run `stacktape alarm export`.
 2. Add each entry to the `alarms` list of every resource it should watch. Where a rule applies only to some stages, use [stage-based configuration](/configuration/stages-and-environments).
-3. Deploy each affected stage. Once a stack deploys with the alarm in its configuration, the Console rule stops applying to that stack.
-4. Check the alarms on the Console's Alarms page or with [`stacktape alarm list`](/cli/alarms), then delete the legacy rule in the Console.
+3. On the same resources, add the rule's name to `disabledGlobalAlarms`. Without it the Console rule keeps applying next to your new alarm, and the resource gets two alarms that notify twice.
+4. Deploy each affected stage.
+5. Check the alarms on the Console's Alarms page or with [`stacktape alarm list`](/cli/alarms). Once every stack the rule applies to has deployed, delete the legacy rule in the Console.
 
-[Alarms](/observability/alarms#migrating-legacy-console-alarm-rules) explains the alarm settings and how `disabledGlobalAlarms` excludes a legacy rule from a resource while you migrate.
+For the `api-error-rate` rule above, the function's configuration looks like this:
+
+```yaml configExample="fragment"
+resources:
+  api:
+    type: function
+    properties:
+      # ...
+      alarms:
+        - trigger:
+            type: lambda-error-rate
+            properties:
+              thresholdPercent: 5
+          notificationChannels:
+            - type: console-channel
+              properties:
+                channelName: production-alerts
+      disabledGlobalAlarms:
+        - api-error-rate
+```
+
+[Alarms](/observability/alarms#migrating-legacy-console-alarm-rules) explains the alarm settings.
 
 ## Options
 

@@ -103,14 +103,14 @@ Do not use spot instances for jobs with non-idempotent side effects (sending ema
 
 For [web services](/resources/compute/web-service), the load balancing type directly affects monthly cost. The `loadBalancing` property accepts three types:
 
-**`http-api-gateway` (default)** charges ~$1 per million requests with no base cost. At low traffic, this is the cheapest option. At high sustained traffic (above ~500k requests/day), the per-request charges add up and a flat-rate load balancer becomes more cost-effective.
+**`http-api-gateway` (default)** charges ~$1 per million requests with no base cost. At low traffic, this is the cheapest option. At high sustained traffic (above ~500k requests/day), the per-request charges add up and a load balancer, billed per hour plus usage (LCUs), becomes more cost-effective.
 
 **`application-load-balancer`** has a flat base cost of ~$18/month plus usage-based charges. It becomes more cost-effective than API Gateway at higher traffic volumes. It's required for [gradual deployments](/deployment-and-lifecycle/gradual-deployments), top-level [firewalls](/resources/security/web-application-firewall), and WebSocket support.
 
 **`network-load-balancer`** is for non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols — use it only when you need raw TCP. It does not support CDN, top-level firewall, or gradual deployments.
 
 <Tip>
-Most teams should start with the default `http-api-gateway`. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your request volume makes the flat monthly cost cheaper than per-request pricing.
+Most teams should start with the default `http-api-gateway`. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your request volume makes its hourly base and LCU charges cheaper than per-request pricing.
 </Tip>
 
 ## Right-size Lambda memory
