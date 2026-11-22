@@ -9,7 +9,12 @@ export const V4_RENAMED_PAGES: Record<string, string> = {
   '/packaging/function/stacktape-buildpack/': '/packaging/function/js-bundle/',
   '/stacktape-console/visual-config-editor/': '/stacktape-console/console-overview/',
   '/using-with-ai/config-generation-from-repository/': '/cli/init/',
-  '/using-with-ai/ai-coding-assistant-integrations/': '/using-with-ai/mcp-server-setup/'
+  '/using-with-ai/ai-coding-assistant-integrations/': '/using-with-ai/mcp-server-setup/',
+  '/getting-started/configure-your-stack/': '/getting-started/',
+  '/getting-started/deploy-your-first-stage/': '/getting-started/deploy-an-existing-app/',
+  '/getting-started/use-the-dev-mode/': '/local-development/dev-mode-overview/',
+  '/getting-started/using-console-ui/': '/stacktape-console/console-overview/',
+  '/getting-started/ci-cd/': '/ci-cd-and-gitops/overview/'
 };
 
 /**

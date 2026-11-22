@@ -80,22 +80,38 @@ npm install --save-exact stacktape@3.7.1
 
 Upgrade one project at a time, and one stage before the others.
 
-1. **Install v4** on your machine and update the project's package. Keep the CLI and the package on the same version:
+1. **Install v4** on your machine and update the project's package. Name the version, so you get a v4 release and not an older default, and keep the CLI and the package on the same version:
 
 
 Example (npm):
 
 ```bash
-npm install --save-exact stacktape@4
+npm install --save-exact stacktape@4.0.0
+```
+
+
+Example (macOS):
+
+```bash
+curl -fsSL https://installs.stacktape.com/macos.sh | STACKTAPE_VERSION=4.0.0 sh
 ```
 
 
 Example (Linux):
 
 ```bash
-curl -fsSL https://installs.stacktape.com/linux.sh | sh
+curl -fsSL https://installs.stacktape.com/linux.sh | STACKTAPE_VERSION=4.0.0 sh
 ```
 
+
+Example (Windows):
+
+```powershell
+$env:STACKTAPE_VERSION='4.0.0'; irm https://installs.stacktape.com/windows.ps1 | iex
+```
+
+
+   Use a later 4.x version in place of `4.0.0` when there is one. `stacktape version` prints what you have.
 
 2. **Update the configuration** using the [configuration changes](#configuration-changes) that apply to it. v4 rejects the old names and prints the property it does not accept.
 

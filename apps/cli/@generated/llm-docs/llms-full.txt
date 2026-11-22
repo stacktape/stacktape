@@ -882,10 +882,6 @@ A common combined pattern:
 
 There is no conflict between the approaches. GitOps and custom CI/CD operate independently and can target different stages or regions within the same project.
 
-
-> **Tip:** If you are setting up CI/CD for the first time, the [Getting Started CI/CD guide](/getting-started/ci-cd) walks through the initial setup step by step.
-
-
 ## FAQ
 
 ### Do I need AWS credentials in my CI pipeline?
@@ -3189,7 +3185,13 @@ The `stacktape deploy` command deploys your stack to AWS. If the stack does not 
 stacktape deploy --stage <stage> --region <region>
 ```
 
-Both `--stage` and `--region` are required. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--config`.
+The command reads the Stacktape configuration file in the current directory: `stacktape.yml`, `stacktape.yaml`, `stacktape.ts` or `stacktape.js`. If there is more than one, or the file is elsewhere, pass `--config`. The stage and region are required. When the config declares `projectName` and `region`, as the one [`init`](/cli/init) writes does, `--stage` is enough:
+
+```bash
+stacktape deploy --stage dev
+```
+
+Flags override the config. The region can also come from `AWS_REGION`, [`defaults set`](/cli/defaults-configure) or your AWS profile.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
@@ -3203,7 +3205,7 @@ stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktap
 4. **Deploy** — Creates or updates a CloudFormation stack. When only code changed, updates the changed functions and container services directly instead (see [Fast deployments](#fast-deployments)).
 5. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
 
-After a successful deploy, Stacktape prints short stack information and completion links, including a Stacktape Console URL for the deployed stack.
+After a successful deploy, Stacktape prints short stack information and the URLs of your resources. When the CLI is signed in to the Stacktape Console, it also prints the Console link of the stage. Without an account, the first successful deploy of a project in an interactive terminal can print a one-line hint about the Console; see [Add the Console](/getting-started/add-the-console).
 
 ## Fast deployments
 
@@ -3353,20 +3355,32 @@ stacktape diff --stage production --region us-east-1
 
 ## Free plan cost limit
 
-A Free organization cannot deploy once its managed AWS costs for the current calendar month (UTC) are above $100. The
-deploy stops before it touches AWS with a `Free Plan Limit Reached` error that shows this month's costs, the limit and
-the link to upgrade:
+This applies only to organizations on the Console's Free plan. Without a Stacktape account there is no limit.
+
+The Free plan covers up to $200 of managed AWS costs per calendar month (UTC). From $150, a successful deploy prints how
+close the organization is and what the Flexible plan would cost:
+
+```text
+This organization is at $162.40 of the $200 Free limit for November 2026; on Flexible, this spend would cost about $41 (https://console.stacktape.com/subscription-plans).
+```
+
+The first time the organization goes over $200, a 7-day grace period starts and Owners and Admins get an email.
+Deploys keep working during it, and each one prints the countdown. After the grace period, and in any later month as
+soon as the organization is over the limit, the deploy stops with a `Free Plan Limit Reached` error. The CLI has
+loaded your AWS credentials by then, but nothing in your stack has changed:
 
 ```text
 [x] Free Plan Limit Reached
 
-Deploys are paused. This organization is on the Free plan, and the AWS costs Stacktape manages for it are
-$142.17 in October 2026 (UTC), above the plan's limit of $100 a month.
+Deploys are paused for this organization. The AWS costs Stacktape manages for it are $214.17 in November 2026, above
+the Free plan's $200 a month. The 7-day grace ended on 24 Nov at 14:05 UTC. Deploys resume on December 1, or right
+away when an Owner or Admin upgrades to the Flexible plan at https://console.stacktape.com/subscription-plans. Your
+running infrastructure is not affected, and deleting or rolling back stages still works.
 ```
 
-Upgrading to the Flexible plan lifts the limit immediately; otherwise deploys resume when the next month starts.
-[`delete`](/cli/delete) and [`rollback`](/cli/rollback) keep working, and running infrastructure is not affected. See
-[Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) for what counts.
+[`delete`](/cli/delete) and [`rollback`](/cli/rollback) keep working. When the month's costs aren't known yet, the
+deploy goes ahead. See [Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) for
+what counts.
 
 ## Dev stacks cannot be deployed
 
@@ -5129,18 +5143,12 @@ stacktape whoami --debug
 Source: `apps/docs/content/cli/init.mdx`
 Route: `/cli/init`
 
-`stacktape init` reads the project you already have and writes a Stacktape configuration for it.
+`stacktape init` reads the project you already have, proposes the AWS setup it needs and writes it to one Stacktape
+configuration file. It can then deploy that file to your AWS account. With `--starter-id` or `--starter-project`, it
+creates a new project from a starter instead.
 
-It opens a wizard in your browser and reads your code **on your machine** using a coding agent you
-already have installed — Claude Code or Codex. It does not interview you: where your code does not say,
-it picks the sensible answer, then shows you what it picked and the line behind every resource it
-proposes, so you can change any of it. No source, filenames, or configuration contents are sent to
-Stacktape, and no account is needed.
-
-To be precise about where your code goes: an agent works the way it always does — it sends the file
-contents it chooses to read to its own model provider, under the account you already have with it, with
-read-only tools (it cannot run scripts or install anything). If you would rather no AI read the code at
-all, pick **Files only** — the built-in scanner reads manifests locally and sends nothing anywhere.
+No Stacktape account is needed. [Deploy an existing app](/getting-started/deploy-an-existing-app) walks through the
+wizard screen by screen, and [Start a new project](/getting-started/start-a-new-project) covers starters.
 
 ## Usage
 
@@ -5148,85 +5156,88 @@ all, pick **Files only** — the built-in scanner reads manifests locally and se
 stacktape init
 ```
 
-Run it in the directory of the project you want to deploy. The command prints a `http://127.0.0.1:…`
-address and opens it; the wizard runs there and the terminal keeps the session alive until you close it
-with Ctrl+C.
+Run it in the root directory of the app. The command prints a local `http://127.0.0.1:…` address and opens it in your
+browser. The wizard runs there, and the terminal keeps the session alive until you press Ctrl+C.
+
+On Linux without a display, for example over SSH, and in CI, init runs in the terminal instead. See
+[`--headless`](#--headless).
 
 ## What happens, in order
 
-1. **Start.** The wizard opens with nothing read yet. It shows which directory it will read and which
-   agents it found, and waits. Reading starts when you press the button — never before.
-2. **Read.** The agent opens files and you watch it happen: every file it reads appears as it reads it.
-   Only the *names* of your environment variables are ever kept or shown. Before the agent starts, a
-   deterministic pass has already read the manifests that state the deployment most clearly:
-   Docker Compose, Dockerfiles and Procfiles; Render, Fly.io and Heroku app manifests; and literal
-   declarations in Serverless Framework, SAM, SST, CDK and Terraform. It also notices when one of
-   those tools already deploys the project.
-3. **Review.** Every resource, with the reason it exists, the line of your code behind it, and what it
-   costs — a real monthly estimate per resource and in total, priced from AWS list prices. Anything
-   the code could not settle was decided for you, listed under "Decided for you", and can be changed
-   with one click — the configuration is rebuilt from your choice, and the price updates with it.
-   Nothing blocks. You choose YAML or TypeScript, and the file is written.
-4. **Try it locally (optional).** With your explicit click, the wizard can build and start supported
-   services in Docker. Building may download dependencies and run their install hooks. The started
-   app receives throwaway settings and has no network. Every result says whether the service passed,
-   failed, was inconclusive, or could not be checked. A proven startup failure holds the Deploy
-   button until you fix it or explicitly set the result aside; a skipped check is never shown as a
-   pass.
-5. **Deploy.** No Stacktape account is needed: without one, the wizard deploys with your local AWS
-   credentials. The first click is read-only:
-   a short-lived CLI process resolves the same AWS credentials or connected AWS account that deploy will use,
-   then shows the exact account, region and stack name. You separately confirm creating a new stack or
-   updating a specific existing Stacktape stack. Foreign, mismatched and unsafe stacks are blocked. The
-   deploy child checks that target again before it creates secrets or changes AWS, then reports progress,
-   warnings and typed HTTPS URLs. This step is optional and clearly marked as the one that costs money.
-   If you are signed in and your Stacktape organization has multiple connected AWS accounts and no saved default, start with
-   `stacktape init --aws-account <account-name>`. That account selection is carried through the target check,
-   deploy, and typed URL lookup.
-   If the deploy fails for a reason that could be our reading of your code — a wrong start
-   command, a missing build step — the agent re-reads the project against the actual error, the
-   configuration is rebuilt, and the deploy runs again. At most twice, and never for problems with the
-   AWS account itself.
+The wizard has four steps:
 
-## Who reads your code
+1. **Start.** Nothing is read yet. The screen shows the directory and the agents it found. Under **Options** you pick
+   Claude Code, Codex or **Files only, no agent**, and for Claude Code the model. Reading starts when you click
+   **Analyze my project**.
+2. **Analyze.** A built-in scan runs first. It reads Docker Compose files, Dockerfiles and Procfiles, Render, Fly.io
+   and Heroku manifests, literal declarations in Serverless Framework, SAM, SST, CDK and Terraform, and notices when
+   one of those tools already deploys the project. If the scan answers everything, the agent is not called. Otherwise
+   the agent reads the code and every file it opens appears as it reads it.
+3. **Review.** Every resource with the reason it exists, the line of code behind it and its monthly price, in the
+   **Diagram**, **What & why** and **File** tabs. **Decided for you** lists what the code didn't say, and
+   **Important choices** covers capacity, availability, backups and database access where they apply. **Before you
+   deploy** lists secrets and settings only you can provide. You choose YAML or TypeScript and the region, then save
+   the file with **Save stacktape.yml & continue**.
+4. **Deploy.** Optional, and the only step that changes AWS. **Check exact AWS target** is read-only: it resolves the
+   same AWS credentials or connected AWS account the deploy will use and shows the account, region and stack name.
+   You then confirm **Create new stack** or **Update existing stack**. Stacks owned by another tool or another
+   project, and stacks AWS is still changing, are blocked. The deploy checks the target again before it creates
+   secrets or changes anything.
 
-`init` drives a coding agent that is already installed and already paid for — your subscription, your
-machine. It never sends your code to Stacktape.
+Deploy also has an optional **Try it on this machine first** check. **Build and start it here** builds your services
+in Docker and starts them with placeholder settings and no network, to catch an app that won't start. The build may
+download dependencies and run their install hooks. A proven startup failure holds the deploy until you fix it or set
+the result aside. This check is unrelated to [`stacktape dev`](/cli/dev), which creates resources in AWS.
 
-The preview has no Stacktape-hosted AI fallback. If neither local agent is available, the **No agent**
-mode below performs deterministic file analysis instead of uploading source or snippets elsewhere.
+If a deploy fails for a reason that could come from how the code was read, such as a wrong start command, the agent
+reads the project again with the error, the configuration is rebuilt and the deploy runs again. This happens at most
+twice, and never for problems with the AWS account itself. With files only, there is no repair.
+
+After a successful deploy without a Stacktape account, the wizard offers the
+[Stacktape Console](/getting-started/add-the-console). When the project pushes to GitHub, GitLab or Bitbucket, it
+also offers to write a CI pipeline. When this machine is already signed in, it links to the stage in the Console.
+
+## Who reads your code and what leaves your machine
 
 | Agent | How it is used |
 |---|---|
-| **Claude Code** | Every built-in tool is switched off; the only tools it has are the ones Stacktape gives it, all read-only. You can pick the model. |
+| **Claude Code** | Every built-in tool is switched off. The only tools it has are the ones Stacktape gives it, all read-only. You can pick the model. |
 | **Codex** | Runs read-only in a scratch working directory, because its patch tool cannot be disabled. |
-| **No agent** | Reads package manifests, Compose, Dockerfiles, Procfiles, Render/Fly.io/Heroku manifests, supported IaC declarations, lockfiles, environment-variable names, and whatever already deploys the project. Free, instant, and leans on defaults more often. |
+| **Files only, no agent** | The built-in scanner reads manifests, Compose files, Dockerfiles, Procfiles, deployment manifests, supported IaC declarations, lockfiles and environment variable names. Free, instant, and falls back to defaults more often. |
 
-An imported deployment file describes what the project expects; it does not give `init` access to
-the provider account or prove that the deployment is currently running. The Review step says when it
-found such a file. A Stacktape deploy creates a separate stack: it does not take over, change or delete
-resources managed by the existing tool.
+- **Your code.** An agent sends the file contents it chooses to read to its own model provider, under the account
+  you already have with it, as it always does. Stacktape never receives source code or file contents. With files
+  only, no AI provider receives anything.
+- **The price estimate.** To price the Review step, init sends the generated configuration and the region to
+  Stacktape's public price estimator. The configuration holds resource names and settings, not code or secret
+  values.
+- **Usage statistics.** Init records anonymous outcome statistics: which frameworks were found, whether the deploy
+  worked and how long the analysis took. Set `STP_DISABLE_TELEMETRY=1` to turn them off.
 
-The agent cannot write to your repository, cannot reach the network through us, and cannot put words in
-front of you: it reports findings from a fixed list of kinds, and every word you read in the wizard is
-written by Stacktape.
+The agent cannot write to your repository and cannot put words in front of you. It reports findings from a fixed list
+of kinds, and every word in the wizard is written by Stacktape.
+
+An imported deployment file, such as a Render or Serverless Framework config, describes what the project expects. It
+doesn't give init access to that provider's account. A Stacktape deploy creates a separate stack and doesn't take
+over, change or delete resources managed by the other tool.
 
 ## Important flags
 
 ### `--coding-agent`
 
-Which agent reads the project. `auto` (the default) takes the best one installed. Naming one that is not
-installed fails rather than quietly using another.
+Which agent reads the project: `auto` (the default), `claude-code`, `codex` or `none`. In the browser, the agent you
+name is preselected and you can still pick another one; the model is chosen there too. Naming an agent that is not
+installed fails instead of using another one. `none` skips agent detection.
 
 ```bash
-stacktape init --coding-agent claude-code
-stacktape init --coding-agent none          # static analysis only
+stacktape init --coding-agent none
 ```
 
 ### `--headless`
 
-Runs the whole thing in the terminal instead of opening a browser. Use it over SSH, in a container, or in
-CI. Nothing prompts: the terminal prints what was decided for you, and the configuration is written.
+Runs init in the terminal instead of the browser. It reads the project, prints the resources and what it decided,
+prints the monthly estimate and writes the configuration. It asks nothing and doesn't deploy. Init also runs this way
+on its own in CI and on Linux without a display.
 
 ```bash
 stacktape init --headless
@@ -5234,178 +5245,151 @@ stacktape init --headless
 
 ### `--no-browser`
 
-Starts the wizard and prints its address without opening anything. Use it when the browser you want is not
-this machine's default, or when the port is forwarded from somewhere else.
-
-```bash
-stacktape init --no-browser
-```
-
-### `--infrastructure-type`
-
-How much infrastructure to create: `low-cost`, `standard` (the default), or `production`. It sets every
-size and safety setting in the generated configuration, and it is the only thing reading your code
-cannot tell us.
-
-- **low-cost** — one small copy of everything. Trying it out, a side project, staging.
-- **standard** — room for real traffic, a week of backups, deletion protection on your database.
-- **production** — two copies of your app so one failure changes nothing, and a standby database in a
-  second datacentre.
-
-```bash
-stacktape init --infrastructure-type production
-```
+Starts the wizard and prints its address without opening a browser. Use it when you want to open the address in
+another browser. It doesn't bring the wizard to a machine where init runs in the terminal.
 
 ### `--config-format`
 
-`yaml` (the default) or `typescript`. In the browser this is chosen on the Review step instead, once you
-have seen what is in the file.
+`yaml` (the default) or `typescript`. In the browser you choose it on the Review step instead.
 
-```bash
-stacktape init --headless --config-format typescript
-```
+### `--infrastructure-type`
+
+Starting sizes and safety settings: `low-cost`, `standard` (the default) or `production`. In the browser, the same
+choices are under **Important choices** on the Review step.
 
 ### `--project-directory`
 
-The project to read. Defaults to the current directory.
+The project to read, when it isn't the current directory.
 
 ```bash
-stacktape init --project-directory ./my-app
+stacktape init --project-directory ./apps/api
 ```
 
-### `--starter-id`, `--starter-project`
+### `--aws-account`
 
-Initialize from a ready-made project instead of reading yours. These skip the wizard entirely.
+When this machine is signed in to Stacktape and the organization has several connected AWS accounts, the name of the
+account to deploy to. It's carried through the target check, the deploy and the commands the wizard prints.
+
+### `--starter-id`, `--starter-project`, `--initialize-project-to`
+
+Create a new project from a starter instead of reading one. `--starter-project` shows the list; `--starter-id` takes
+the ID shown on each card in [Starter projects](/getting-started/starter-projects). `--initialize-project-to` sets the
+target directory. If that directory isn't empty, the CLI warns and asks `Continue?`, and answering yes deletes its
+contents.
 
 ```bash
-stacktape init --starter-id lambda-api-postgres
+stacktape init --starter-id hono-api \
+  --initialize-project-to ./hono-api --config-format yaml
 ```
-
-### `--initialize-project-to`
-
-Where a starter project's files are placed.
-
-
-> **Warning:** If the directory is not empty, its contents are deleted first. Point it at a new or empty directory.
-
 
 ## Existing and generated configuration files
 
-Init preserves `stacktape.yml`, `stacktape.yaml` and `stacktape.ts`. When one exists, it writes `stacktape.generated.yml` or `.ts` beside it, replacing any previous file at that generated path. Review or save edits to an existing generated file before rerunning init. For a TypeScript config in a project with `package.json`, init also adds or updates the `stacktape` dependency to match the CLI and prints the install command; it does not run the package manager. Deploy the generated config with `--config`, or merge it yourself:
+Init never overwrites `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`. When one exists, it writes
+`stacktape.generated.yml` or `stacktape.generated.ts` beside it, replacing a generated file from an earlier run. Deploy
+the generated file with `--config`, or merge it into yours:
 
 ```bash
-stacktape deploy \
-  --config stacktape.generated.yml \
-  --project <project-name> \
-  --stage dev \
-  --region eu-west-1
+stacktape deploy --config stacktape.generated.yml --stage dev
 ```
+
+An existing `stacktape.js` is not detected. Init writes a new `stacktape.yml` next to it, and commands then stop
+because the directory has two config files. Move or delete the old file, or pass `--config` every time.
+
+For a TypeScript config in a project with a `package.json`, init adds or updates the `stacktape` dev dependency to
+match the CLI and prints the install command. It doesn't run the package manager.
+
+## All flags
+
+
+## CLI Options: `stacktape init`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `--coding-agent` | no | `string` | Coding Agent — Which installed coding agent analyses the project. The agent reads your code using your own subscription; your code is never sent to Stacktape. • **auto** (default): use the best agent found on this machine. • **claude-code** / **codex**: use that agent specifically, and fail if it is not installed. • **none**: skip the agent entirely and rely on static analysis alone. Faster and free, but finds less. | `auto`, `claude-code`, `codex`, `none` |
+| `--config-format` | no | `string` | Config Format — Format (language) used for the generated config. Options are typescript or yaml. | `yaml`, `typescript` |
+| `--headless` | no | `boolean` | Headless — If `true`, runs `init` entirely in the terminal instead of opening the browser wizard. Use this over SSH, in a container, or in CI. Questions that cannot be answered from the command line are reported rather than asked, and the configuration is still written. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--infrastructure-type` | no | `string` | Infrastructure Type — How much infrastructure `init` creates for you. It sets every size and safety setting in the generated configuration, and it is the one thing reading your code cannot tell us. • **low-cost**: one small copy of everything. For trying this out, a side project, or staging. • **standard** (default): room for real traffic, a week of backups, and deletion protection on your database. • **production**: two copies of your app so one failure changes nothing, and a standby database in a second datacentre. | `low-cost`, `standard`, `production` |
+| `--initialize-project-to` | no | `string` | Initialize Project To — The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--no-browser` | no | `boolean` | No Browser — If `true`, prints the address instead of opening a browser: `init` still starts the wizard, and `login` still waits for you to approve the sign-in. Use this when the browser you want is not this machine's default, on another device, or behind a forwarded port. | - |
+| `--project-directory` | no | `string` | Project Directory — The root directory where the project configuration should be generated. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--starter-id` | no | `string` | Starter ID — The identifier of the starter project to initialize. | - |
+| `--starter-project` | no | `boolean` | Starter Project — If `true`, initializes from a starter project template instead of running the default wizard flow. | - |
+
 
 ## Examples
 
-Read the project with Claude Code's most careful model:
+Read the project with Claude Code:
 
 ```bash
 stacktape init --coding-agent claude-code
 ```
 
-No agent, no browser, cheapest infrastructure — a configuration in one step:
+A configuration in one step, with no agent, no browser and the smallest sizes:
 
 ```bash
 stacktape init --headless --coding-agent none --infrastructure-type low-cost
 ```
 
+Pick a starter from the list:
+
+```bash
+stacktape init --starter-project
+```
+
 ## Related commands
 
-- [`deploy`](/cli/deploy) — deploy the configuration `init` wrote.
-- [`dev`](/cli/dev) — run the project locally against a minimal dev stack.
-- [`delete`](/cli/delete) — remove everything a deploy created.
+- [`deploy`](/cli/deploy) deploys the configuration init wrote.
+- [`dev`](/cli/dev) runs the project locally against a small dev stack.
+- [`delete`](/cli/delete) removes everything a deploy created.
 
 ## FAQ
 
-### Does my code leave my machine?
-
-If you choose Claude Code or Codex, that local agent sends the file contents it selects to its own
-model provider under your account, just as it normally does. Stacktape receives no source, file names,
-or configuration contents. If you choose **Files only**, no AI provider receives code either.
-
-Stacktape does receive anonymous outcome statistics — which frameworks were detected, whether the
-deploy succeeded, how long the analysis took — so we can see where generation fails and fix it. Set
-`STP_DISABLE_TELEMETRY=1` to turn that off. [What the CLI sends](/getting-started/deploy-your-first-stage#what-does-the-cli-send-to-stacktape)
-lists everything else.
-
 ### What about my .env files?
 
-Only the *names* are kept. `DATABASE_URL` tells the analysis that a database exists — and its value is
-looked at once, in memory on your machine, for two things and two things only: whether the scheme says
-`postgres://` or `mysql://`, and whether the host belongs to a provider like Supabase, so we do not
-propose replacing a database that is already live. Both reduce to a single word before anything is
-stored. The value itself is never written to the facts, never quoted in a citation, never logged and
-never shown — every citation from an environment file stops at the `=`.
+Only the variable names are kept. The value of a variable such as `DATABASE_URL` is read once, in memory on your
+machine, for two things: whether the scheme says `postgres://` or `mysql://`, and whether the host belongs to a
+provider like Supabase, so init doesn't propose replacing a database that is already live. Both reduce to a single
+word before anything is stored. The value is never written to the analysis, quoted, logged or shown.
 
 ### Do I need an AWS account before running init?
 
-Not to run it. You need one to deploy. The wizard can use local AWS credentials or an AWS account
-connected to your Stacktape organization. Before any AWS change it resolves the same credentials the
-deploy command will use and shows the exact account, region and stack target for confirmation.
+Not to read the project and save the file. You need one to deploy. The wizard can use local AWS credentials or an AWS
+account connected to your Stacktape organization, and shows the exact account, region and stack before any change.
+See [Set up AWS credentials](/getting-started/aws-credentials).
 
 ### Do I need a Stacktape account?
 
-No. Analyzing your project and writing the file happen on your machine, with nothing sent to us.
-The deploy uses your local AWS credentials. After a successful deploy, the wizard offers the
-Stacktape Console (free up to $200 a month of AWS spend) for deploy history, costs, alerts and team
-access. You can connect it there or later with `stacktape connect`, or skip it. If this machine is
-already signed in, the wizard deploys through your Stacktape organization and links to the stage in
-the Console.
-
-### What does “Try it here first” run?
-
-Only after you click it, `init` runs your project's build and start commands using disposable Docker
-images and containers. The image build may access the network to download dependencies and may run
-package-manager install hooks from the project. The started application receives throwaway values
-instead of your secrets and has no network access. This is not supported for every packaging and
-resource type yet: the wizard labels each service **Passed**, **Failed**, **Inconclusive**, or **Not
-checked** and never presents a skipped check as proof. Docker is optional; if it is missing, your
-generated file is unaffected and the wizard says that AWS would be the first full run.
-
-### How do I run init non-interactively, in CI or from an AI coding agent?
-
-`--headless`, optionally with `--agent` for JSONL output. Nothing prompts: everything the code cannot
-answer is decided, and the terminal prints what was decided.
-
-### Why does it barely ask me anything?
-
-Because almost nothing needs asking. Where your code does not say, there is nearly always an answer a
-careful person would pick — so it picks it, shows you on the Review step, and lets you change it. The
-one real question is how big the infrastructure should be, which is why it is shown alongside the
-resources and monthly estimate on the Review step.
+No. Without one, the deploy uses your local AWS credentials. After a successful deploy, the wizard offers the
+Stacktape Console, free up to $200 a month of managed AWS spend. You can connect it there, later with
+`stacktape connect`, or never.
 
 ### Which agent should I choose?
 
-Whichever you already have. Claude Code and Codex both produce a better result than static analysis,
-because they read the code rather than pattern-matching over it. If you have neither, "Files only" still
-produces a working configuration — it just falls back to defaults more often.
+Whichever you already have. Claude Code and Codex read the code, so they settle more than the scanner, which reads
+manifests and falls back to defaults more often. If the scanner finds no server, worker or website, the wizard offers
+to analyze again with an installed agent.
 
-### What happens when the deploy fails?
+### Can I run init from CI or a coding agent?
 
-The failure is read first. If it is about your AWS account — expired credentials, a missing
-permission, a quota — it is shown to you plainly, because no change to the configuration can fix it.
-If it could be about the code, the same agent that read your project reads it again with the actual
-error in hand, corrects what we believed, and the deploy runs again with the rebuilt configuration.
-The wizard names exactly which resources the repair rewrote, and the file in your project is always
-the version that deployed. It stops after two repairs and shows the real error rather than looping.
-If you chose "Files only", nothing is ever handed to an agent — the deploy just fails, plainly.
+Yes, with `--headless`. Add `--agent` for JSONL output. Nothing prompts: everything the code doesn't answer is decided,
+and the output says what was decided. Init doesn't deploy in this mode; run `stacktape deploy` afterwards.
 
 ### Does init deploy anything?
 
-Only after two explicit actions on the last step: a read-only target check, then confirmation to create
-the absent stack or update the exact existing StackId that was shown. The deploy child repeats that check
-and stops if the account, region, name, ownership, status or StackId changed. Everything before the final
-confirmation is a file on your disk or a read-only AWS check.
+Only after two actions on the Deploy step: the read-only target check, then confirming the new or existing stack it
+showed. The deploy repeats the check and stops if the account, region, name, ownership or status changed. Everything
+before that is a file on your disk or a read-only AWS call.
 
 ### Will init overwrite files in my project?
 
-Init preserves canonical config files but can replace a previous `stacktape.generated.yml` or `.ts` and update the `stacktape` dependency in `package.json`; see [existing and generated configuration files](#existing-and-generated-configuration-files). The `--initialize-project-to` flag empties the target directory before placing a starter project there.
+It never overwrites a `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`. It can replace its own
+`stacktape.generated.*` from an earlier run and update the `stacktape` dependency in `package.json`. See
+[existing and generated configuration files](#existing-and-generated-configuration-files). For starters,
+`--initialize-project-to` empties a non-empty target directory after you confirm.
 
 ---
 
@@ -5414,7 +5398,9 @@ Init preserves canonical config files but can replace a previous `stacktape.gene
 Source: `apps/docs/content/cli/login.mdx`
 Route: `/cli/login`
 
-The `stacktape login` command authenticates the Stacktape CLI on the current system. For local development, run it interactively: you approve the sign-in in your browser, and the CLI keeps the local auth state. For CI/CD, use a dedicated Stacktape API key stored in your CI provider's secret store.
+The `stacktape login` command signs the Stacktape CLI in to the Stacktape Console on the current system. You approve the sign-in in your browser, and the CLI keeps the local auth state.
+
+You don't need to log in to deploy: without an account, the CLI deploys with your local AWS credentials. To add the Console to stacks you already deployed, run [`stacktape connect`](/getting-started/add-the-console#connect-from-the-terminal) instead. It signs you in and connects the AWS account of your credentials in one step. `login` only signs you in.
 
 ## Usage
 
@@ -5429,13 +5415,7 @@ In interactive mode (the default), the command asks how you want to sign in:
 
 Over SSH, in a container or on a machine without a browser, the browser sign-in still works: open the printed address on any device. Pass `--no-browser` to only print it. If your account belongs to several organizations, the CLI asks which one this machine works in. After successful authentication, Stacktape displays your user name and organization.
 
-For CI/CD, prefer setting `STACKTAPE_API_KEY` as a masked secret in the runner environment. If you need an explicit login step, pass the key from the CI secret variable. Never paste an API key into an AI chat, issue tracker, shell transcript, or log.
-
-```bash
-stacktape login --api-key "$STACKTAPE_API_KEY" --agent
-```
-
-You can create CI keys from the [Stacktape Console's API keys page](/stacktape-console/api-keys). Manual API keys are bearer secrets and should be treated as shown-once credentials.
+For CI/CD, see [Non-interactive login](#non-interactive-login).
 
 ## What happens during login
 
@@ -5458,13 +5438,9 @@ An interactive login creates a CLI session for the organization you choose. It e
 
 ## Non-interactive login
 
-For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI can read this environment variable directly, so an explicit `login` step is often unnecessary. If your workflow does use `login`, pass the key from the secret variable and combine with `--agent` for programmatic output.
+For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI reads this environment variable directly, so an explicit `login` step is usually unnecessary. For a pipeline, use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci): it belongs to the organization and keeps working when the person who created it leaves. API keys are bearer secrets and are shown only once. Never paste one into an AI chat, issue tracker, shell transcript or log, and don't hardcode it in workflow YAML.
 
-```bash
-stacktape login --api-key "$STACKTAPE_API_KEY" --agent
-```
-
-Do not hardcode the key in workflow YAML. Reference the CI secret.
+If your workflow does use `login`, pass the key from the secret variable and add `--agent` for programmatic output:
 
 ```bash
 stacktape login --api-key "$STACKTAPE_API_KEY" --agent
@@ -5531,7 +5507,7 @@ stacktape login
 
 ### Where do I find my Stacktape API key?
 
-Create CI/API keys from the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). Manual keys are scoped to an organization, expire by default, and are shown only once. See [API keys](/stacktape-console/api-keys) for details on managing keys.
+Create a personal key on the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). For CI, Owners and Admins create an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) on the Members page instead, so the pipeline keeps working when people leave. Keys are scoped to an organization, expire by default, and are shown only once. See [API keys](/stacktape-console/api-keys) for details on managing keys.
 
 ### Do I need an explicit `login` step in CI/CD?
 
@@ -9319,7 +9295,7 @@ Assuming a resource named `usersTable`:
 | `streamArn` | `STP_USERS_TABLE_STREAM_ARN` | DynamoDB Streams ARN |
 | `endpoint` | `STP_USERS_TABLE_ENDPOINT` | Dev mode only: address of the local DynamoDB Local |
 
-In [dev mode](/getting-started/use-the-dev-mode), local tables run in DynamoDB Local. A workload, local script or frontend connected to them also gets `AWS_ENDPOINT_URL_DYNAMODB`, which the AWS SDK reads, so `new DynamoDBClient({})` reaches the local tables without code changes. A workload connected to both a local and a deployed table does not get it, because one endpoint cannot serve both; pass `STP_<TABLE>_ENDPOINT` as the `endpoint` of the client for the local table instead.
+In [dev mode](/local-development/dev-mode-overview), local tables run in DynamoDB Local. A workload, local script or frontend connected to them also gets `AWS_ENDPOINT_URL_DYNAMODB`, which the AWS SDK reads, so `new DynamoDBClient({})` reaches the local tables without code changes. A workload connected to both a local and a deployed table does not get it, because one endpoint cannot serve both; pass `STP_<TABLE>_ENDPOINT` as the `endpoint` of the client for the local table instead.
 
 ### SQS queue
 
@@ -15764,548 +15740,682 @@ Not always. AWS CloudFormation rollback can fail if a resource can't be restored
 
 ---
 
-# CI/CD
+# Quickstart
 
-Source: `apps/docs/content/getting-started/ci-cd.mdx`
-Route: `/getting-started/ci-cd`
+Source: `apps/docs/content/getting-started/index.mdx`
+Route: `/getting-started`
 
-Stacktape offers two paths to automated deployments: **GitOps via the Stacktape Console** (recommended) and **custom CI pipelines** using the CLI. GitOps gives you push-to-deploy and PR preview environments for GitHub, GitLab and Bitbucket repositories without writing a pipeline file. Custom CI gives full control when you already have an established workflow.
+Stacktape deploys your app into your own AWS account. The CLI reads your project, writes one configuration file and
+deploys it as a CloudFormation stack. You don't need a Stacktape account.
+
+## Run it in your app's directory
+
+Open a terminal in the root of the app you want to deploy and run the command for your system. It installs the CLI
+and starts `stacktape init`. The standalone CLI doesn't need Node.js.
 
 
-> **Info:** Already have CI/CD running? Skip ahead to [Going to production](/getting-started/going-to-production).
-
-
-## GitOps via the Stacktape Console
-
-GitOps is the recommended path for most teams. You connect your repository once, then Stacktape manages the deployment trigger — every push to the configured branch deploys automatically.
-
-### CLI prompt after first deploy
-
-When the CLI is signed in to the Console, after a successful deploy that creates a new stack, it asks whether to deploy automatically on pushes to your current branch (only in an interactive terminal). If you accept, it opens the browser to connect GitHub, GitLab or Bitbucket when needed, and creates a Git deployment for the stage you just deployed. If you skip the prompt, you can set up Git deployments at any time in the Stacktape Console.
-
-### What you can configure
-
-In the Console, these rules are called **Git deployments**. Each one maps a Git event to a deployment. You set:
-
-- **Deployment trigger** — **Push to branch**, or **Pull request opened** into a branch
-- **Branch** — the branch that is pushed to, or that pull requests merge into
-- **Stage** — the stage to deploy, such as `production` or `staging`; pull request previews always use `pr-<number>`
-- **AWS account and region** — where the stage deploys
-- **Config path** — the Stacktape config file in the repository
-- **Delete stack after pull request is merged or closed?** — for previews, deletes the preview stage when the pull request closes
-
-You can create several Git deployments per project — for example, one that deploys `main` to `production` and another that creates preview environments for every pull request.
-
-### PR preview environments
-
-When you configure a pull request trigger, Stacktape creates an isolated stage for each pull request (merge request on GitLab), named `pr-<number>`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape deletes the stage if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
-
-If several pushes arrive close together, deployments of the same stage run one after another, never at the same time.
-
-### Connecting your repository
-
-Git deployments work with GitHub (through the Stacktape GitHub App), GitLab (gitlab.com groups) and Bitbucket Cloud (through the Stacktape app for Bitbucket). An organization owner or admin connects the provider under **Git connections** in the Console's profile menu. Then link the project to its repository. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for the steps for each provider.
-
-## Custom CI/CD integration
-
-If you prefer managing your own pipeline — or need pre-deploy steps like tests and lint — use the Stacktape CLI directly. Any CI system that can run shell commands works: GitHub Actions, GitLab CI, CircleCI, and others.
-
-### Credentials
-
-The pipeline needs one of these:
-
-| Credentials | When to use |
-|----------|---------|
-| AWS credentials only | Without a Stacktape account. Set AWS credentials in the job, for example with an IAM role your CI provider assumes through OIDC. The CLI deploys to the AWS account they belong to. See [CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account). |
-| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Create a key in the Console under [API keys](/stacktape-console/api-keys). The CLI deploys into the AWS account you connected to your Stacktape organization. |
-
-Store credentials in your CI provider's secret store and expose them to the CLI as environment variables. The examples below use an API key.
-
-### GitHub Actions example
-
-Create `.github/workflows/deploy.yml` in your repository:
-
-```yaml
-name: Deploy
-on:
-  push:
-    branches: [main]
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Deploy to production
-        env:
-          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: |
-          npx stacktape deploy --project my-project --stage production --region us-east-1 --yes
-```
-
-Replace `my-project` with your Stacktape project name. Store `STACKTAPE_API_KEY` in your repository's secrets settings. The `--yes` flag skips the interactive confirmation prompt that would block CI.
-
-### GitLab CI example
-
-Add to `.gitlab-ci.yml`:
-
-```yaml
-deploy:
-  image: node:20
-  stage: deploy
-  only:
-    - main
-  script:
-    - npx stacktape deploy --project my-project --stage production --region us-east-1 --yes
-  variables:
-    STACKTAPE_API_KEY: $STACKTAPE_API_KEY
-```
-
-### PR previews in custom CI
-
-Use dynamic stage names based on the PR number to create isolated preview environments.
-
-Deploy when the PR opens or updates:
+Example (macOS):
 
 ```bash
-npx stacktape deploy --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
+curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init
 ```
 
-Clean up when the PR closes:
+
+Example (Linux):
 
 ```bash
-npx stacktape delete --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
-```
-
-For more detail on custom pipelines, see [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd).
-
-## Which path to choose
-
-Use this comparison to decide between Console-managed GitOps and a self-managed CI pipeline.
-
-
-## Feature Comparison
-
-| Feature | GitOps (Console) | Custom CI/CD |
-| --- | --- | --- |
-| Setup effort | Minutes, no files | Write workflow file |
-| Pipeline maintenance | Stacktape manages the deploy trigger | You own it |
-| PR previews | Built-in with auto-delete | Manual setup with dynamic stage names |
-| Custom steps (tests, lint, gates) | Not supported | Full control |
-| Repository source | Connected git repository | Any CI system |
-
-
-**Recommendation:** Start with GitOps. It takes minutes to set up and handles PR previews automatically. If you need custom test steps, approval gates, or multi-stage pipelines that run before or after the deploy, switch to custom CI or combine both — use GitOps for staging and custom CI for branches that need extra validation before deploying to production.
-
-## Next step
-
-Your deployments are now automated. The final step covers production hardening — alarms, budgets, custom domains, and guardrails.
-
----
-
-# Configure Your Stack
-
-Source: `apps/docs/content/getting-started/configure-your-stack.mdx`
-Route: `/getting-started/configure-your-stack`
-
-A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, databases, containers — using typed TypeScript classes. Stacktape reads this file when you deploy, run dev mode, or manage resources, and creates the corresponding AWS resources in your account. Create one from scratch, bootstrap from a starter, or let `stacktape init` analyze your repository.
-
-
-> **Info:** Already have a `stacktape.ts`? Skip to [using dev mode](/getting-started/use-the-dev-mode) or [deploying your first stage](/getting-started/deploy-your-first-stage).
-
-
-> **Tip:** **Recommended starting path:** Run `stacktape init` in your repository. It reads the code and proposes the infrastructure, or starts a new project from a starter template. Either way, understanding the config format below will help you customize what you get.
-
-
-## Install the package
-
-```bash
-npm install stacktape --save-dev
-```
-
-Install the `stacktape` package for typed resource classes and directives such as [`$Secret`](/configuration/directives) and [`$ResourceParam`](/configuration/directives). You get full IDE autocompletion and type checking as you write your config.
-
-## Your first stacktape.ts
-
-Create a `stacktape.ts` file in your project root. This example deploys a [Lambda function](/resources/compute/lambda-function) behind an [HTTP API Gateway](/resources/networking/http-api-gateway) — a common starting point for REST APIs:
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  HttpApiGateway,
-  LambdaFunction,
-  HttpApiIntegration,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-export default defineConfig(() => {
-  const api = new HttpApiGateway({});
-
-  const myFunction = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    memory: 512,
-    timeout: 30,
-    events: [
-      new HttpApiIntegration({
-        httpApiGatewayName: 'api',
-        method: 'GET',
-        path: '/hello'
-      })
-    ]
-  });
-
-  return {
-    resources: { api, myFunction }
-  };
-});
+curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init
 ```
 
 
-Here's what each piece does:
+Example (Windows):
 
-- **`defineConfig`** wraps your config in a function Stacktape calls at command time. It provides a context object with deployment details — stage, region, project name — you can use for [dynamic configuration](#adapt-config-per-stage).
-- **Resource classes** like `LambdaFunction` and `HttpApiGateway` define Stacktape resources. Stacktape creates and manages the corresponding AWS infrastructure. Each class accepts a typed configuration object with autocompletion in VS Code, WebStorm, and other TypeScript-capable editors.
-- **`JsBundleLambdaPackaging`** tells Stacktape to bundle the Lambda from a JavaScript or TypeScript entry file. See [JS Bundle for Lambda](/packaging/function/js-bundle) for details.
-- **`HttpApiIntegration`** routes HTTP requests through the API Gateway to the function. The `httpApiGatewayName` value (`'api'`) points the function at the `api` gateway created above.
-- **The returned `resources` object** is required. The object keys name the resources that [`connectTo`](/configuration/connecting-resources) uses to wire up access between resources and that [`$ResourceParam()`](/configuration/directives) uses to reference outputs from other resources.
-
-The handler at `./src/handler.ts` is standard application code:
-
-```typescript
-export default async () => {
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ message: 'Hello from Stacktape!' })
-  };
-};
-```
-
-## Adapt config per stage
-
-The `defineConfig` callback receives a context object you can use to vary infrastructure per [stage](/configuration/stages-and-environments). Since the config is TypeScript, conditionals, loops, shared modules, and any npm package work naturally. This example adds a [relational database](/resources/databases/relational-database) and connects it to a Lambda function, using the `stage` parameter to vary the database instance size between production and development:
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  HttpApiGateway,
-  LambdaFunction,
-  RelationalDatabase,
-  RdsEnginePostgres,
-  HttpApiIntegration,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-export default defineConfig(({ stage }) => {
-  const isProduction = stage === 'production';
-
-  const database = new RelationalDatabase({
-    credentials: {
-      masterUserPassword: "$Secret('database', 'password')"
-    },
-    engine: new RdsEnginePostgres({
-      version: '16',
-      primaryInstance: {
-        instanceSize: isProduction ? 'db.t4g.medium' : 'db.t4g.micro'
-      }
-    })
-  });
-
-  const api = new HttpApiGateway({});
-
-  const apiHandler = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    memory: isProduction ? 1024 : 512,
-    timeout: 30,
-    connectTo: [database],
-    events: [
-      new HttpApiIntegration({
-        httpApiGatewayName: 'api',
-        method: '*',
-        path: '/*'
-      })
-    ]
-  });
-
-  return {
-    resources: { api, database, apiHandler }
-  };
-});
+```powershell
+iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 ```
 
 
-In this example, `connectTo: ['database']` grants `apiHandler` network access to the resource named `database` and injects connection details as environment variables — Stacktape injects names like `STP_DATABASE_CONNECTION_STRING` and `STP_DATABASE_HOST`. See [connecting resources](/configuration/connecting-resources) for the variables injected per resource type.
-
-The `stage` parameter lets you write standard TypeScript conditionals to vary any property per stage. Use the [`$Secret`](/configuration/directives) directive for credentials like `masterUserPassword` to keep secrets out of your config file.
-
-### Context properties
-
-The context object passed to the `defineConfig` callback includes:
-
-| Property      | Type                                             | Description                                                |
-| ------------- | ------------------------------------------------ | ---------------------------------------------------------- |
-| `stage`       | `string`                                         | Current stage name (e.g., `dev`, `production`)             |
-| `region`      | `string`                                         | AWS region (e.g., `us-east-1`, `eu-west-1`)                |
-| `projectName` | `string`                                         | Project name, always set when the config declares it ([project settings](/configuration/configuration-files#project-name-and-region)) |
-| `command`     | `string`                                         | CLI command being run (`deploy`, `delete`, `dev`, etc.)     |
-| `cliArgs`     | `Readonly<Record<string, unknown>>`              | Options of the current command, such as `stage` or `configPath` |
-
-The [defineConfig callback](/configuration/configuration-files#the-defineconfig-callback) reference lists every context property and explains how command-line options and your own values reach the config.
-
-## Quick-start with stacktape init
-
-[`stacktape init`](/cli/init) reads an existing repository and writes a config for it, after you review the
-proposed infrastructure in its wizard. In an empty directory, it starts a new project from a starter template:
+Example (npm):
 
 ```bash
 npx stacktape@latest init
 ```
 
-This is the fastest path from zero to a working project. Keep the config it writes in version control, so
-infrastructure changes are reviewed with code changes.
 
-## Beyond resources
+The installer puts the CLI in `~/.stacktape/bin` and adds it to your `PATH`. Open a new terminal before you run
+`stacktape` yourself. To only install it, leave out the trailing `init`.
 
-The `resources` section is the only required part of a Stacktape config, but several optional sections are available as your project grows: [hooks](/configuration/hooks-and-scripts) for running scripts automatically before or after deploy, delete, dev, or bucket sync operations; [scripts](/configuration/hooks-and-scripts) for runnable tasks like database migrations (three types: `local-script`, `local-script-with-bastion-tunneling`, and `bastion-script`); [variables](/configuration/variables-and-reuse) for reusable values; [directives](/configuration/directives) for custom deploy-time logic; and [deployment settings](/deployment-and-lifecycle/deploying-stacks) for rollback behavior and termination protection. See [configuration files](/configuration/configuration-files) for the complete reference.
+## What happens next
 
-## Next step
+`stacktape init` opens a wizard in your browser. Keep the command running while you use it. The wizard has four steps:
 
-You have a config that defines what to deploy. Next, use dev mode to iterate locally — edit your code and see changes without waiting for full deployments.
+1. **Start.** Pick the coding agent that reads your code, or none, and click **Analyze my project**.
+2. **Analyze.** The agent reads your project on your machine. You see every file it opens. No code is sent to
+   Stacktape.
+3. **Review.** You get the resources it proposes, the line of code behind each one and the monthly price. Change any
+   choice, pick YAML or TypeScript and the region, and save the file.
+4. **Deploy.** This step is optional. The wizard shows the exact AWS account and stack, deploys after you confirm and
+   gives you the live URL.
+
+Nothing is created in AWS before you confirm the deploy. [Deploy an existing app](/getting-started/deploy-an-existing-app)
+walks through every screen.
+
+## What you need
+
+- **An AWS account, with credentials on your machine.** Only the deploy needs them, and the wizard checks them before
+  it does anything. If you have never used AWS from the terminal, [set up AWS credentials](/getting-started/aws-credentials)
+  first.
+- **Claude Code or Codex (optional).** If one of them is installed, it reads your code and the result is better. Without
+  one, Stacktape reads only manifests and config files.
+- **Docker, for most apps that are not JavaScript or TypeScript functions.** Stacktape builds container images and
+  Python, Go or Java functions on your machine. See [Packaging](/packaging/overview).
+
+## No app yet?
+
+Start from a starter project instead. Run this in the directory where the new project folder should go:
+
+```bash
+stacktape init --starter-project
+```
+
+The CLI asks which starter, where to put it and which config format to use. Then it prints the commands that deploy
+it. See [Start a new project](/getting-started/start-a-new-project).
+
+## What it costs
+
+- The CLI is free and open source under the MIT license.
+- AWS bills you for the resources in your account. The wizard shows the monthly estimate before you deploy, and one
+  command removes everything when you're done.
+- The [Stacktape Console](/getting-started/add-the-console) is optional. It's free while your organization's AWS spend
+  managed by Stacktape stays at or under $200 a month.
+
+Prefer to write the configuration yourself? [Configuration files](/configuration/configuration-files) explains the
+format. You can still deploy it with the same commands.
 
 ---
 
-# Deploy Your First Stage
+# Add the Console
 
-Source: `apps/docs/content/getting-started/deploy-your-first-stage.mdx`
-Route: `/getting-started/deploy-your-first-stage`
+Source: `apps/docs/content/getting-started/add-the-console.mdx`
+Route: `/getting-started/add-the-console`
 
-Deploying a Stacktape stage takes your `stacktape.ts` configuration and provisions real AWS infrastructure — a CloudFormation stack containing every resource you declared. This page walks you through AWS credentials and your first deploy command. You don't need a Stacktape account: the open-source CLI deploys with your own AWS credentials. See [Use the CLI without an account](/getting-started/open-source-cli) for what that covers.
+The Stacktape Console is the hosted part of Stacktape. It adds what a team shares: deploy history, costs, alerts,
+error tracking, team access and deploys from Git. You add it to stacks you already deployed. Connecting doesn't
+redeploy, rename or replace anything.
 
+You don't need it to deploy. The CLI works without an account; see [Use the CLI without an account](/getting-started/open-source-cli).
 
-> **Info:** Already deployed before? Skip to [CI/CD](/getting-started/ci-cd) or [Going to production](/getting-started/going-to-production).
+## What you get
 
+- **Deploy history** of every stage: who deployed what and when.
+- **Costs** per project, stage and resource, and [budgets](/managing-costs/budgets) with alerts.
+- **Alerts** in Slack or by email, [uptime checks](/observability/uptime-checks) and
+  [error tracking](/observability/error-tracking) with incidents.
+- **Team access**: members with roles, limited to the projects and AWS accounts you choose, and organization keys for
+  CI.
+- **Deploys from Git**: push to deploy, pull request previews and Stacktape-managed build runners. See
+  [GitOps with Console](/ci-cd-and-gitops/gitops-with-console).
+- **Organization rules**: [guardrails](/guardrails/overview), security reports and the audit log.
 
-## Prerequisites
+## What it costs
 
-Before deploying, you need:
+- **Free**: $0, no card, the whole Console. It applies while the AWS spend Stacktape manages for your organization is
+  at or under $200 in a calendar month (UTC). Managed spend is what the stacks Stacktape manages cost in AWS, across
+  all connected accounts.
+- **Over the limit**: from $150, a successful deploy prints what the Flexible plan would cost. The first time the
+  organization goes over $200, Owners and Admins get an email and deploys keep working for 7 more days. After that,
+  new deploys and dev sessions pause until the next month starts or someone upgrades. Running apps, deletes and
+  rollbacks keep working.
+- **Flexible**: no limit. One rate on the month's managed AWS spend, from 25% down to 19%.
 
-- A `stacktape.ts` configuration file (created in [Configure your stack](/getting-started/configure-your-stack))
-- An AWS account to deploy into, and credentials for it on your machine
+AWS bills your AWS account for the resources, as before. See [Billing and subscription](/stacktape-console/billing-and-subscription)
+for the rates and examples.
 
-If you followed [Use the dev mode](/getting-started/use-the-dev-mode), your config is already tested locally and ready for a real deployment.
+## Connect from the init wizard
 
-## Step 1: Set up AWS credentials
+After a successful deploy, the wizard shows **Add dev to the Stacktape Console** below the live address.
 
-Stacktape deploys into your own AWS account with the AWS credentials on your machine. It finds them the same way the AWS CLI does: environment variables such as `AWS_ACCESS_KEY_ID` or `AWS_PROFILE`, the default profile in `~/.aws`, or an AWS IAM Identity Center (SSO) session.
+1. Click **Connect to the Console**. A new tab opens the Stacktape sign-in.
+2. Sign in, or create an account. Check that the tab shows the same code as the wizard, and approve.
+3. If your account belongs to more than one organization, pick one.
+4. The wizard connects the AWS account it deployed to. This usually takes a minute or two.
+5. When it says **Connected to the Stacktape Console**, click **Open dev in the Console**.
 
-If you already use the AWS CLI, you are set. Otherwise, create a profile with [`stacktape aws-profile create`](/cli/aws-profile-create) or sign in with the AWS CLI:
+Your app keeps running the whole time. **Not now** skips the offer; you can connect later from the terminal.
 
-```bash
-aws sso login --profile my-dev-account
-```
+## Connect from the terminal
 
-Pass `--profile <name>` to Stacktape commands to use a profile other than the default one.
-
-
-> **Tip:** Stacktape itself costs nothing here. AWS bills the resources your stacks create in your AWS account.
-
-
-## Step 2: Deploy
-
-With credentials in place, deploy your stack with the [`stacktape deploy`](/cli/deploy) command.
-
-```bash
-stacktape deploy --project my-app --stage dev --region eu-west-1
-```
-
-The project name and stage name together name the stack. Stages let you run multiple independent copies of your infrastructure — `dev`, `staging`, `production` — from the same configuration. See the [`stacktape deploy`](/cli/deploy) CLI reference for the full list of flags and their accepted values.
-
-If your configuration file is not named `stacktape.ts` or is in a different directory, point the CLI at it explicitly.
-
-```bash
-stacktape deploy --project my-app --stage dev --region eu-west-1 --config ./infra/stacktape.ts
-```
-
-### What happens during deploy
-
-Stacktape processes your configuration in four phases:
-
-
-## Flow
-1. **Build & Package**: Bundles your application code (Lambda zips, container images), resolves resource configuration, evaluates directives and secrets, and generates the CloudFormation template.
-2. **Upload**: Packaged artifacts are uploaded to an S3 deployment bucket in your AWS account.
-3. **Deploy**: A CloudFormation stack is created (first deploy) or updated with the generated template. CloudFormation provisions, updates, or removes AWS resources as needed.
-4. **Post-deploy**: For stacks that include hosting buckets or CDNs, Stacktape syncs static files and invalidates CDN caches. Then it prepares deployed stack information and resource links.
-
-
-On the first deploy, CloudFormation creates the stack and all resources from scratch. On subsequent deploys, Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack. When only code changed, Stacktape updates the changed Lambda functions or container services directly instead of running a CloudFormation stack update.
-
-### Deploy output
-
-After a successful deploy, the CLI prints the URLs of your resources, such as API endpoints and website addresses.
-
-If the CLI is signed in to the [Stacktape Console](/stacktape-console/console-overview), the output also includes a Console URL for the stage:
-
-```
-https://console.stacktape.com/projects/{project}/{stage}/overview
-```
-
-## Add the Console (optional)
-
-The Console adds deploy history, costs, alerts, error tracking and team access. It is free while your organization's managed AWS spend is up to $200 a month. To add it, run:
+Run this with the AWS credentials of the account your stacks are in:
 
 ```bash
 stacktape connect
 ```
 
-It signs you in, connects the AWS account of your current credentials to your organization and opens the Console, where the stacks you already deployed appear. Nothing is redeployed. See [Use the CLI without an account](/getting-started/open-source-cli#connect-the-console-later).
+Add `--profile my-dev-account` to use a profile other than the default one. The command:
 
-## What gets created in AWS
+1. **Signs you in**, if this machine isn't signed in yet. Choose **Sign in with the browser**. The CLI prints an
+   address and a code and opens the address. Sign in or create an account, check the code and approve.
+2. **Connects the AWS account** of your credentials to your organization. It creates a small CloudFormation stack in
+   your account with an IAM role that the Console uses. If it can't create the stack with your credentials, it opens
+   AWS CloudFormation in your browser instead: check the box that allows creating IAM resources and choose **Create
+   stack**.
+3. **Finds the Stacktape stacks** already in the account and adds them to the Console as projects and stages.
 
-A standard Stacktape deploy creates or updates a CloudFormation stack in your AWS account. When only code changed, Stacktape updates Lambda function code or container services directly without a CloudFormation stack update. The CloudFormation stack is the unit Stacktape manages for the stage. Inside the stack, CloudFormation provisions whatever your configuration declares:
+It ends with `Nothing was redeployed or changed.` and the link to your projects. Open the link to see your stages.
 
-| What | Example |
-|---|---|
-| Your declared resources | Lambda functions, container services, databases, buckets, queues — everything in your `stacktape.ts` |
-| Deployment artifacts | Uploaded before the stack is deployed; Stacktape passes the CloudFormation template URL to CloudFormation |
-| IAM roles and policies | Resource access configured through [`connectTo`](/configuration/connecting-resources); see [Connecting resources](/configuration/connecting-resources) for details |
-| Log groups | CloudWatch log groups for each compute resource that produces logs |
+If a region couldn't be read, the CLI says which one. An Owner or Admin can run **Find existing stacks** on the **AWS
+accounts** page of the Console later.
 
-Because Stacktape deploys through CloudFormation, the resulting AWS resources also appear in the AWS console for direct inspection.
+### Who can connect an AWS account
 
-## Verifying the deploy
+An Owner or Admin of the organization. When you create an account, you're the Owner of its new organization. A
+Developer or Viewer gets `Your role in <organization> cannot connect AWS accounts` and needs an Owner or Admin to run
+`stacktape connect` with credentials for that account.
 
-After the deploy completes, verify your stack is running.
+### What the connection can do in your AWS account
 
-Open the resource URL printed by the CLI. For a [web service](/resources/compute/web-service) or [Lambda function](/resources/compute/lambda-function) with an HTTP trigger, this is a live HTTPS endpoint you can hit immediately.
+The connection's IAM role has administrator access, so the Console can deploy from Git, read logs and metrics and
+manage your stacks. It's the standard AWS way to give a service access to an account, with short-lived credentials
+and no access keys stored by Stacktape. To remove it, delete the connection in the Console or delete its
+CloudFormation stack in AWS. See [AWS permissions](/stacktape-console/aws-permissions) and
+[Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
 
-If you use the Console, the deploy output also includes a Console URL for the deployed stack. See [Manage your app in the Console](/getting-started/using-console-ui) for what you can do there.
+## What changes after connecting
 
-To view logs from the CLI, use [`stacktape logs`](/cli/logs).
+- The CLI on this machine is signed in. Your deploys are recorded in the Console, and Console features in your config
+  work.
+- A deploy prints the Console link of the stage when it finishes.
+- Error tracking for a stage starts with its next deploy, because the deploy adds the log subscription it needs.
+  Deploy each stage once more to turn it on.
+- Some features send data from your AWS account to Stacktape. Error tracking, for example, sends each error with its
+  log line, after masking secrets and tokens. Your logs and secrets themselves stay in your account. Each feature's
+  page says what leaves it.
 
-```bash
-stacktape logs
-```
+## CI with the Console
 
-## Redeploying after changes
+A pipeline uses an API key instead of a browser sign-in. Owners and Admins create an
+[organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) on the Members page and store
+it as the `STACKTAPE_API_KEY` secret of the pipeline. Unlike a personal key, it keeps working when people leave. If
+the organization has more than one connected AWS account, pass `--aws-account <name>` to the deploy. See
+[Deploy from your CI](/ci-cd-and-gitops/custom-ci-cd).
 
-After making code or configuration changes, run the same deploy command again.
+## Work without the Console again
 
-```bash
-stacktape deploy --project my-app --stage dev --region eu-west-1
-```
+Run [`stacktape logout`](/cli/logout). The CLI goes back to working without an account. Nothing you deployed changes.
+In CI, remove `STACKTAPE_API_KEY` from the pipeline.
 
-Stacktape prepares the CloudFormation template, computes a diff, uploads artifacts, and submits the template to CloudFormation to update the stack.
-
-### Code-only changes deploy in seconds
-
-When a deployment changes only the code of functions or container services, Stacktape updates them directly instead of through CloudFormation. You don't need a flag for this. Changes to infrastructure or configuration always go through CloudFormation, and `--full` forces it. See [Fast deployments](/cli/deploy#fast-deployments).
-
-## Deploying multiple stages
-
-Stages are independent copies of your infrastructure. Deploy a staging environment alongside dev by choosing a different stage name.
-
-```bash
-stacktape deploy --project my-app --stage staging --region eu-west-1
-```
-
-Each stage is deployed as its own CloudFormation stack with its own resources and URLs. Use different stage names to run separate copies of the resources declared by your configuration. This lets you test changes in staging without affecting production users. For automated stage-per-branch workflows, see [Stacks per git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
-
-## Troubleshooting
-
-### No AWS credentials found
-
-The CLI found no AWS credentials. Set them up as described in [Step 1](#step-1-set-up-aws-credentials), or pass `--profile <name>`. If you use AWS IAM Identity Center, run `aws sso login` again when the session expires.
-
-### "No connected AWS accounts"
-
-This applies only when the CLI is signed in to the Console. Open the connected AWS accounts page in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) and connect an account, or run `stacktape connect` with your AWS credentials set.
-
-### "belongs to AWS account …, which is not connected"
-
-This applies only when the CLI is signed in to the Console. `--profile`, `AWS_PROFILE` or AWS keys in your environment point to an AWS account that is not connected to your organization. Stacktape deploys to the account your local AWS credentials belong to. Unset them, pass `--aws-account <name>`, or connect that account. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
-
-### Deploy takes longer than expected
-
-First deploys take longer because every resource must be created from scratch. Databases and container services take longer to provision than Lambda functions. Subsequent deploys that only change code take seconds, because Stacktape updates the code directly.
-
-### A resource fails to create
-
-If a resource fails to create, the resources that were already created stay, and the stack is left in `CREATE_FAILED`. Fix the error and deploy again to continue from there, or run `stacktape delete` to remove everything. The CLI displays the specific error. Common causes include IAM permission issues, resource limit quotas, or invalid configuration values. For rollback options, see [`stacktape rollback`](/cli/rollback) for version-based rollback and [`stacktape stack recover`](/cli/cf-rollback) for CloudFormation-level rollback.
-
-### Deploy fails during dev mode
-
-You cannot deploy to a stage that currently has an active [dev mode](/getting-started/use-the-dev-mode) session. Stop dev mode first with [`stacktape dev stop`](/cli/dev-stop), or deploy to a different stage name.
-
-## FAQ
-
-### How long does a first deploy take?
-
-First deploys depend on the resources being provisioned. Lambda-only stacks are the fastest. Stacks with databases, container services, or custom domains take longer because AWS provisions those resources sequentially. Subsequent deploys that only change application code are faster since CloudFormation only updates the diff — and code-only changes skip CloudFormation entirely.
-
-### Does Stacktape cost money to use with AWS?
-
-The CLI is free and open source. AWS bills the resources your stacks create in your AWS account. The Console is free while your organization's managed AWS spend is up to $200 a month; see [Billing and subscription](/stacktape-console/billing-and-subscription) for the plans.
-
-### Can I deploy to any AWS region?
-
-Yes. Your stacks can deploy to any AWS region. If you use the Console, its AWS account connection stack is created in `eu-west-1`, which does not limit where your stacks run. Specify the region with `--region` on each deploy command, or set a default with [`stacktape defaults set`](/cli/defaults-configure).
-
-### Is the connection between the Stacktape Console and my AWS account secure?
-
-Without the Console there is no connection: the CLI uses your own AWS credentials. When you connect the Console, the connection uses a CloudFormation stack that grants Stacktape cross-account AssumeRole access — the standard AWS approach for third-party integrations. You can revoke access instantly by deleting the connection stack in AWS or removing the account from the Console.
-
-### What happens if I lose internet during a deploy?
-
-CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, check the stack status with [`stacktape status`](/cli/info-stack) before running another deploy.
-
-### What's the difference between stages and AWS accounts?
-
-Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack with fully isolated resources. You can also deploy different stages to different AWS accounts by using different AWS credentials, or by connecting several AWS accounts in the Console (e.g., production in a separate account). See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
-
-### Can I preview what a deploy will change before running it?
-
-Yes. Use [`stacktape diff`](/cli/diff) to see the CloudFormation change set without actually deploying. This shows which resources would be created, updated, replaced, or deleted.
+A stage served on a default `*.stacktape-app.com` domain keeps it, but the CLI won't deploy that stage without an
+account, because the deploy would remove the domain. Add your own domain first, or deploy it signed in.
 
 ---
 
-### What does the CLI send to Stacktape?
+# After the first deploy
 
-Without an account, the CLI sends only anonymous usage data: the command name, whether it succeeded and the error code, the CLI version, operating system, CPU architecture, whether it runs in CI and a random installation ID. [Use the CLI without an account](/getting-started/open-source-cli#telemetry) lists it in full.
+Source: `apps/docs/content/getting-started/after-the-first-deploy.mdx`
+Route: `/getting-started/after-the-first-deploy`
 
-When you are signed in, the CLI sends usage statistics and reports of its own crashes, so we can see which commands fail and fix them. Set `STP_DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1` to turn both off.
+Your app runs in your AWS account as one CloudFormation stack. This page covers the commands you use from here on:
+check the app, read its logs, ship a change, add stages and remove what you don't need.
 
-- **After every command:** the command name, the names of the options you used (not their values), how long it took, whether it succeeded, the error code if it failed, your operating system, locale, time zone and the CLI version.
-- **When the CLI crashes:** the error type, message and stack trace, the command, your operating system, CPU architecture and whether it ran in CI. The CLI prints an error ID you can give our support. Errors in your configuration, code or AWS account are not reported this way; only failures of the CLI itself are.
-- **Identity:** a random ID of your machine. After `stacktape login`, events are linked to your Stacktape user and organization, and your account's email and name are attached to your user.
+The commands below run in the project directory. The config written by `stacktape init` declares the project name and
+region, so a stage is all they need. For a starter, add the `--project` and `--region` values from the commands init
+printed, for example `--project hono-api --region eu-west-1`.
 
-Before a crash report leaves your machine, the CLI masks tokens and other credentials, email and IP addresses, AWS account IDs and the user name in home-directory paths. Error messages can still contain other text, such as file or resource names. The CLI never sends configuration values, source code, environment variables or AWS credentials. Stacktape processes this data in [PostHog](https://posthog.com) in the EU.
+## Check that it works
+
+Open the URL from the end of the deploy. The wizard lists it under **It's live**, and the terminal prints it after the
+deploy. HTTP APIs, web services and websites get an HTTPS address from AWS, or your own domain once you
+[add one](/resources/networking/custom-domains).
+
+## Read the logs
+
+```bash
+stacktape logs api --stage dev
+```
+
+`api` is the resource name: its key under `resources` in your config. The command prints the last 100 log lines from
+the past hour and keeps printing new ones until you press Ctrl+C. Use `--since 6h` to look further back and
+`--filter ERROR` to show only matching lines. See [`stacktape logs`](/cli/logs) and [Logs](/observability/logs).
+
+## Ship a change
+
+Edit your code, then run the same deploy:
+
+```bash
+stacktape deploy --stage dev
+```
+
+When only the code of functions or container services changed, Stacktape updates them directly instead of through
+CloudFormation. A function update takes seconds. Changes to the configuration, such as a new resource or an
+environment variable, go through CloudFormation and take longer. To see what a deploy would change first, run
+`stacktape diff --stage dev`.
+
+To change the infrastructure, edit `stacktape.yml` (or `stacktape.ts`). [Resources](/configuration/resources),
+[Connecting resources](/configuration/connecting-resources) and [Secrets](/configuration/secrets) cover the common
+changes.
+
+## Add another stage
+
+A stage is another copy of the app from the same config, for example `staging` next to `dev`:
+
+```bash
+stacktape deploy --stage staging
+```
+
+Each stage is its own stack, named `<project>-<stage>`, with its own resources, URLs and data. Non-production stages
+in one AWS account and region share one network (VPC), but each keeps its own security groups. Production stages get a
+network of their own. To vary sizes or settings by stage, see
+[Stages and environments](/configuration/stages-and-environments).
+
+To keep production in a separate AWS account, deploy it with that account's credentials, for example
+`--profile my-prod-account`.
+
+## Find the stack in AWS
+
+Everything Stacktape deploys is a regular AWS resource in your account. Open **CloudFormation** in the AWS console,
+pick the region and open the stack `<project>-<stage>`. The **Resources** tab lists everything in it, with links to
+each service. The stack keeps working if you stop using Stacktape.
+
+## Delete the stage
+
+When you're done with a stage, delete it:
+
+```bash
+stacktape delete --stage dev
+```
+
+This removes the stack and everything in it, including databases and the data in them, and the stage's deployment
+bucket. Your code and config file stay. Back up any data you want to keep first: a delete can't be undone. See
+[`stacktape delete`](/cli/delete).
+
+A database that `stacktape init` added has `deletionProtection: true`, so the delete stops before it removes anything
+and names the database. To delete it anyway, set `deletionProtection: false` on the database in your config, run
+`stacktape deploy --stage dev`, then run the delete again.
+
+## If a deploy fails
+
+The CLI prints the error from AWS. Common causes are a missing IAM permission, an AWS quota and an invalid value in
+the config.
+
+By default, a failed deploy keeps what it already created or updated. Fix the error and deploy again to continue from
+where it stopped. To remove a failed first deploy instead, run `stacktape delete`. With `--auto-rollback`,
+CloudFormation undoes a failed deploy by itself. See [When a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+
+If you lose your connection during a deploy, CloudFormation keeps going in AWS. Check the stack in the CloudFormation
+console before you deploy again.
+
+A stage created by [dev mode](/local-development/dev-mode-overview) can't be deployed with `stacktape deploy`. Use
+another stage name for the deploy.
+
+## Where to go next
+
+- **[Add the Console](/getting-started/add-the-console).** Deploy history, costs, alerts and team access for your
+  stages. Free while the AWS spend it manages stays at or under $200 a month.
+- **[Deploy from CI/CD](/ci-cd-and-gitops/overview).** Deploy on every push from GitHub Actions, GitLab or another CI,
+  or let the Console deploy from Git.
+- **[Run it locally with dev mode](/local-development/dev-mode-overview).** Run your code on your machine against a
+  small stack in AWS, and see changes without a deploy.
+- **[Prepare for production](/getting-started/going-to-production).** Domains, alarms, rollouts and budgets before
+  real users arrive.
 
 ---
 
-# Going to Production
+# Set up AWS credentials
+
+Source: `apps/docs/content/getting-started/aws-credentials.mdx`
+Route: `/getting-started/aws-credentials`
+
+Stacktape deploys into your own AWS account with the AWS credentials on your machine. It finds them the same way the
+AWS CLI does, so if the AWS CLI works for you, Stacktape works too. Reading your project and writing the config don't
+need credentials. Only the deploy does.
+
+## Check what you already have
+
+If you have the [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed,
+run:
+
+```bash
+aws sts get-caller-identity
+```
+
+It prints the AWS account ID and the identity your credentials belong to. If it's the account you want to deploy to,
+you're done. For a named profile, add `--profile my-dev-account`.
+
+If it fails or prints another account, set up credentials with one of the two ways below.
+
+## Which AWS account to use
+
+Use an account for development, not the one your production runs in. A separate account keeps experiments away from
+production data and makes it clear what they cost. If you don't have an AWS account yet,
+[create one at AWS](https://portal.aws.amazon.com/billing/signup).
+
+Don't deploy with the root user of the account, the email address you signed up with. Create an identity for daily
+work, as described below.
+
+## If your company uses IAM Identity Center (SSO)
+
+Many companies sign in to AWS through AWS IAM Identity Center, often with a start URL like
+`https://my-company.awsapps.com/start`. Ask whoever manages your AWS accounts for the URL and a role in a development
+account, then run:
+
+```bash
+aws configure sso
+```
+
+It asks for a session name, the start URL and its region, opens your browser to sign in, and lets you pick the
+account and role. At the end it asks for a profile name, for example `my-dev-account`.
+
+SSO sessions expire. When a command says your credentials are expired, sign in again:
+
+```bash
+aws sso login --profile my-dev-account
+```
+
+## If you have your own AWS account
+
+For a personal account without IAM Identity Center, create an IAM user with an access key:
+
+1. Sign in to the [AWS Management Console](https://console.aws.amazon.com/) and open **IAM**.
+2. Go to **Users** and click **Create user**. Give it a name, for example `stacktape-dev`.
+3. Under permissions, choose **Attach policies directly** and select **AdministratorAccess**. See
+   [what permissions you need](#what-permissions-you-need).
+4. Open the new user, go to **Security credentials** and click **Create access key**. Choose **Command Line Interface
+   (CLI)** as the use case.
+5. Copy the access key ID and the secret access key. AWS shows the secret only once.
+
+Then save the key as a profile on your machine. Either command works and stores it in `~/.aws/credentials`:
+
+```bash
+stacktape aws-profile create
+```
+
+```bash
+aws configure --profile my-dev-account
+```
+
+An access key works until you delete it. Keep it out of your repository, and delete it in IAM when you no longer need
+it.
+
+## Tell Stacktape which credentials to use
+
+Stacktape picks credentials in this order:
+
+1. `--profile <name>` on the command.
+2. The `AWS_PROFILE` environment variable.
+3. AWS keys in environment variables, such as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+4. A profile saved with [`stacktape defaults set`](/cli/defaults-configure).
+5. The `default` profile in `~/.aws`, and the rest of the standard AWS credential chain.
+
+The init wizard takes the profile from the environment, so start it like this:
+
+```bash
+AWS_PROFILE=my-dev-account stacktape init
+```
+
+For other commands, pass the flag:
+
+```bash
+stacktape deploy --stage dev --profile my-dev-account
+```
+
+On Windows PowerShell, set the variable first with `$env:AWS_PROFILE = "my-dev-account"`.
+
+## What permissions you need
+
+A deploy creates a CloudFormation stack with everything in your config: functions, containers, databases, buckets and
+the IAM roles they run with. The identity that deploys needs permission to create all of it, including IAM roles.
+
+In a development account, the **AdministratorAccess** policy is the simple answer. In an account with restricted
+permissions, ask whoever manages it for a role that can create the resources in your config and their IAM roles. If a
+permission is missing, the deploy stops with the AWS error that names it.
+
+## What it costs
+
+Credentials cost nothing. AWS bills the account for the resources you deploy. To get an email before a bill grows, set
+a budget in **Billing and Cost Management** → **Budgets** in the AWS console.
+
+---
+
+# Deploy an existing app
+
+Source: `apps/docs/content/getting-started/deploy-an-existing-app.mdx`
+Route: `/getting-started/deploy-an-existing-app`
+
+`stacktape init` reads your project, works out the AWS setup it needs and writes it to one file. You see every
+resource and its monthly price before the file is saved. Nothing is created in AWS until you confirm the deploy. This
+guide follows the wizard screen by screen.
+
+## Before you start
+
+- [Install the CLI](/getting-started#run-it-in-your-apps-directory). The installer can start `init` for you.
+- Open a terminal in the root of your app, the directory with its `package.json`, `pyproject.toml`, `go.mod` or
+  `Dockerfile`. For an app inside a monorepo, use the app's own directory.
+- Commit your work first, so you can see what init changes. It adds one config file and, for a TypeScript config,
+  updates `package.json`.
+- AWS credentials are needed only for the last step. You can set them up when the wizard asks. See
+  [Set up AWS credentials](/getting-started/aws-credentials).
+
+## Start the wizard
+
+```bash
+stacktape init
+```
+
+The CLI starts the wizard on your machine and opens it in your browser. The link works once, for this session. Leave
+the command running while you use the wizard and press Ctrl+C when you're done.
+
+To read an app from another directory, pass `--project-directory ./apps/api`. To get the address without opening a
+browser, for example to open it in a different browser, pass `--no-browser`.
+
+## 1. Start: choose who reads your code
+
+The first screen is **Put this project on AWS**. It shows the directory it will read and does nothing until you click
+**Analyze my project**.
+
+Under **Options** you choose what reads the code:
+
+- **Claude Code or Codex**, when installed. The agent runs on this machine with read-only tools, under the account you
+  already have with it. It sends the files it chooses to read to its own model provider, as it always does. Nothing
+  goes to Stacktape. It usually takes under a minute. With Claude Code you can also pick the model.
+- **Files only, no agent.** The built-in scanner reads manifests, Compose files, Dockerfiles, Procfiles, Render, Fly.io
+  and Heroku manifests, and Serverless Framework, SAM, SST, CDK and Terraform declarations. Nothing is sent to an AI
+  provider. It takes a second and falls back to defaults more often.
+
+An installed agent is the default. To skip agent detection, start with `stacktape init --coding-agent none`.
+
+## 2. Analyze
+
+The built-in scan always runs first. If it answers everything, the wizard says your agent was not needed and no tokens
+were spent. Otherwise the agent reads your project and you watch each file it opens. From `.env` files, only the
+variable names are kept.
+
+If the analysis finds no server, worker or website, the wizard says so and has nothing to save. Run `stacktape init`
+in the app's own directory, or click **Analyze again with Claude Code** (or Codex) if you started with files only.
+
+## 3. Review: your app on AWS
+
+**Here's your app on AWS** shows what will be created, in three tabs:
+
+- **Diagram**: the resources and how they connect.
+- **What & why**: each resource, with the line of your code that led to it under **Where we saw this**.
+- **File**: the configuration that will be saved.
+
+Below the tabs:
+
+- **Decided for you** lists what your code didn't say and the answer the wizard picked for it. Change any of it and
+  the file and the price follow.
+- **Important choices** appears when they apply: how much traffic to size for, what happens when one machine fails,
+  how much backup history to keep and who can reach the SQL database. Each option shows what it adds to the price.
+- **Before you deploy** lists what only you can provide: secrets your app reads, settings your code reads with no
+  default, and anything else the deploy still needs.
+
+### What it will cost
+
+Each resource shows a monthly price, and the total is at the top. Prices come from AWS list prices for the region you
+pick. Usage charges, such as requests and data transfer, come on top. A resource without a known price says **Price
+unavailable**.
+
+To calculate the price, the wizard sends the generated configuration and the region to Stacktape's price estimator.
+The configuration contains no source code and no secret values.
+
+### Save the file
+
+1. In the **File** tab, choose **YAML** or **TypeScript**. YAML is the default.
+2. Pick the region. It's saved in the file as `region`, and every command in this project deploys there. The wizard
+   preselects the region your AWS setup uses, or `eu-west-1`.
+3. Click **Save stacktape.yml & continue**, or **Save stacktape.ts & continue**.
+
+The file declares the project name and region, so later commands only need a stage. Saving needs no AWS credentials
+and no Stacktape account.
+
+If your project already has a `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`, init leaves it alone and writes
+`stacktape.generated.yml` (or `.ts`) beside it. Deploy that file with `--config stacktape.generated.yml`, or merge it
+into yours. An old `stacktape.js` is not detected: move or delete it. With two config files in one directory, every
+command stops with an error until you pass `--config`.
+
+For a TypeScript config in a project with a `package.json`, init adds the `stacktape` package as a dev dependency
+pinned to your CLI version and prints the install command for your package manager. Run it, so your editor has the
+types.
+
+## 4. Deploy
+
+The deploy is optional. **Ready to deploy** shows where the stack will go:
+
+- **AWS account on this machine**, the **AWS identity** and the **AWS profile** (or environment variables) it comes
+  from.
+- **Region**, from the file.
+- **Stage**, `dev` by default. A stage is one environment of the app, such as `dev` or `production`. Each stage is a
+  separate stack.
+
+If the account is not the one you want, stop the command and start again with the right profile:
+
+```bash
+AWS_PROFILE=my-dev-account stacktape init
+```
+
+If the wizard says **This machine has no AWS credentials yet**, or **AWS did not accept the credentials on this
+machine**, set them up as in [Set up AWS credentials](/getting-started/aws-credentials) and click **Check again**.
+Nothing on the page is lost.
+
+### Before you deploy
+
+- **Secrets.** For each secret, the wizard gives you a command such as `stacktape secret set stripe_api_key --region
+  eu-west-1`. Run it in your terminal. It asks for the value, so the value never lands in the file or your shell
+  history.
+- **Settings nothing sets yet.** If your app needs one of them to start, add it under `environment` in the saved file.
+
+### Optional: try it on this machine first
+
+Under **Optional**, **Try it on this machine first** has a **Build and start it here** button. It builds your services
+in Docker and starts them without network access and with placeholder settings, to catch an app that won't start
+before it reaches AWS. It runs your project's code, including install scripts. If it finds a startup failure, the
+deploy waits until you fix it or set the result aside. You don't need Docker if you skip it.
+
+### Check the target, then deploy
+
+1. Click **Check exact AWS target**. This is read-only. It shows the stack name, AWS account and region.
+2. Read what it found:
+   - **This will create a new stack**: nothing with this name exists in that account and region.
+   - **This will update a stack that already exists**: the deploy makes that stack match your file, and removes
+     anything in it the file doesn't define.
+   - A stack that another tool or another Stacktape project owns, or one that AWS is still changing, is blocked. The
+     wizard says why and, where a command fixes it, gives you the command.
+3. Click **Create new stack** or **Update existing stack**.
+
+The deploy usually takes a few minutes. A first deploy with a new database takes 10 to 15 minutes. The wizard shows
+each phase, warnings and the full log.
+
+If the deploy fails for a reason that could come from how your code was read, such as a wrong start command, the agent
+reads the project again with the error in hand, the file is rebuilt and the deploy runs again. This happens at most
+twice. Problems with the AWS account itself, such as expired credentials or a missing permission, are shown as they
+are. With files only, there is no repair.
+
+### It's live
+
+**It's live** lists the public HTTPS address of each resource that has one. Open it to check your app. Below it:
+
+- **Add dev to the Stacktape Console**: optional, see [below](#add-the-console).
+- **Ship a change**: the command that deploys again after you edit your code.
+- **Deploy on every push**: if your project pushes to GitHub, GitLab or Bitbucket, **Add a GitHub Actions pipeline**
+  (or GitLab CI/CD, Bitbucket Pipelines) writes a CI file and lists the secrets to add to your repository.
+- **Done experimenting? Remove this deployment**: the command that deletes everything the deploy created, including
+  any database and its data. Your code and config file stay. A database the wizard added is protected from deletion,
+  so turn that off first; see [Delete the stage](/getting-started/after-the-first-deploy#delete-the-stage).
+
+## Deploy from your terminal instead
+
+Under **Optional**, **Run it from your terminal instead** has the same deploy as a command, for example:
+
+```bash
+stacktape deploy --config stacktape.yml --project my-app --stage dev --region eu-west-1
+```
+
+It creates the stack or updates it, and shows the account and target before it changes anything. In the project
+directory, `stacktape deploy --stage dev` does the same, because the file names the project and region.
+
+## What the deploy costs
+
+AWS charges your AWS account for the resources from the moment they exist. The estimate on the Review step is what
+they cost per month before usage. Stacktape charges nothing for the CLI or for a deploy without an account.
+
+Some resources cost money even with no traffic, such as a database or an always-on container. If you're only trying
+Stacktape, remove the stage when you're done. See [Delete the stage](/getting-started/after-the-first-deploy#delete-the-stage).
+
+## Add the Console
+
+After a successful deploy, the wizard offers **Add dev to the Stacktape Console**: deploy history, costs, alerts and
+team access for the stage, free up to $200 a month of AWS spend. **Connect to the Console** signs you in (or creates an
+account) in a new tab, then connects the AWS account. Your app is not redeployed. **Not now** skips it, and
+`stacktape connect` does the same later. See [Add the Console](/getting-started/add-the-console).
+
+## Without a browser
+
+On Linux without a display, for example over SSH, and in CI, init runs in the terminal. You can ask for it anywhere
+with `--headless`:
+
+```bash
+stacktape init --headless
+```
+
+It reads the project, prints the resources and what it decided for you, prints the monthly estimate and writes the
+file. It doesn't ask questions and doesn't deploy. Review the file, then run `stacktape deploy --stage dev`. Add
+`--config-format typescript` for a TypeScript file, and `--coding-agent none` to skip the agent.
+
+## If something goes wrong
+
+### The wizard found nothing to deploy
+
+Your app is probably in a subdirectory. Run `stacktape init` there, or pass `--project-directory`. If you used files
+only, try again with an agent: it reads source code, not only manifests.
+
+### AWS rejects the credentials
+
+AWS IAM Identity Center (SSO) sessions expire. Run `aws sso login --profile <name>` and click **Check again**. The
+wizard explains other errors. The identity also needs permission to create the resources in your file. See
+[Set up AWS credentials](/getting-started/aws-credentials#what-permissions-you-need).
+
+### The target is blocked
+
+A stack with the same name already exists and belongs to another tool or another Stacktape project, or AWS is still
+working on it. Pick another stage name, or wait and click **Check again**. A failed first deploy can leave a stack that
+AWS only allows deleting; the wizard gives you the delete command.
+
+---
+
+# Going to production
 
 Source: `apps/docs/content/getting-started/going-to-production.mdx`
 Route: `/getting-started/going-to-production`
 
-Your stack is deployed and CI/CD pushes changes automatically. Before real users hit it, harden the deployment with alarms, budgets, custom domains, gradual rollouts, and policy guardrails. Each topic below covers what to configure, why it matters, and links to its dedicated deep-dive.
+Your app is deployed. Before real users arrive, add alarms, database backups, a budget, your own domain, gradual rollouts and, for a team, guardrails. Each section says what to configure and links to the full guide.
 
+Most of it is configuration that works with the CLI alone. Budgets and guardrails are [Console](/getting-started/add-the-console) features; each section says so, and what to use without the Console.
 
-> **Info:** Already hardened? Skip ahead to [Resources](/configuration/resources) to configure individual resource types, [Observability](/observability/overview) for monitoring, or [Managing Costs](/managing-costs/overview) for spend control.
-
+Deploy production as its own stage, for example `--stage production`, ideally in a separate AWS account from development.
 
 ## Alarms
 
-Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms on individual resources in your stack config and deploy to apply them. The [Stacktape Console](/getting-started/using-console-ui) shows deployed alarm state and history.
+Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms on individual resources in your stack config and deploy to apply them. They are CloudWatch alarms in your AWS account. The [Stacktape Console](/stacktape-console/console-overview) also shows their state and history.
 
 Alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS received-message count and not-empty alarms. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
 
@@ -16356,11 +16466,17 @@ This alarm fires when more than 5% of invocations fail in at least 2 out of 3 co
 
 For production, most teams use Slack (`type: 'slack'` with `conversationId` and `accessToken`) or a custom webhook. See [Alarms](/observability/alarms) for all trigger types, notification channel configuration, and migration of legacy Console rules.
 
+## Database backups
+
+AWS takes a daily backup of a [relational database](/resources/databases/relational-database). `automatedBackupRetentionDays` sets how many days are kept: `1` by default, up to `35`. For production, keep at least `7`, so you can still recover from a problem you find days later. Set `deletionProtection: true` so a deploy or a delete can't remove the database. A database added by `stacktape init` has deletion protection on, and **Keep recovery copies** on the Review step sets 7 days of backups. See [Backups and maintenance](/resources/databases/relational-database#backups-and-maintenance).
+
 ## Budgets
 
-Budgets catch surprise AWS bills. In the [Stacktape Console](/getting-started/using-console-ui), a budget sets a monthly spending limit for one connected AWS account and alerts your [alert channels](/observability/alert-channels) when the account's spend crosses percentages of it (80% and 100% by default). Forecast alerts, on by default, also warn you when AWS forecasts that the month's spend will cross a percentage.
+Budgets catch surprise AWS bills. In the [Stacktape Console](/getting-started/add-the-console), a budget sets a monthly spending limit for one connected AWS account and alerts your [alert channels](/observability/alert-channels) when the account's spend crosses percentages of it (80% and 100% by default). Forecast alerts, on by default, also warn you when AWS forecasts that the month's spend will cross a percentage.
 
 A budget watches the whole AWS account. It cannot filter by project or stage. If you want separate limits for production and development, run them in separate AWS accounts. See [Budgets](/managing-costs/budgets) for setup details.
+
+Without the Console, create a budget in the AWS console under **Billing and Cost Management** → **Budgets**. It can email you when actual or forecast spend crosses a threshold.
 
 
 > **Tip:** Create a budget for every AWS account that runs production stages. Even a generous limit catches mistakes such as a runaway Lambda loop or an oversized database instance before they become expensive. Set the limit to your expected monthly bill and keep the default 80% and 100% alerts.
@@ -16368,7 +16484,7 @@ A budget watches the whole AWS account. It cannot filter by project or stage. If
 
 ## Custom domains
 
-Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. Provide your domain name, and Stacktape creates DNS records in Route53 and provisions TLS certificates automatically. The example below shows the most common case — a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
+Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. When the domain's DNS is in Route 53 in your AWS account, Stacktape creates the DNS records and the TLS certificate for you. The example below shows the most common case, a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
 
 
 Example (TypeScript):
@@ -16390,9 +16506,12 @@ export default defineConfig(() => {
 ```
 
 
-Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain add`](/cli/domain-add) command to register a domain, or add the hosted zone manually in the AWS Console. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
+There are two ways to set up the domain:
 
-Custom domains add no Stacktape cost, but Route53 hosted-zone and DNS-query charges apply in AWS. For production, custom domains are worth the cost — they give users a branded URL instead of an auto-generated AWS hostname, and TLS certificates are provisioned and renewed automatically.
+- **DNS in Route 53.** Run [`stacktape domain add`](/cli/domain-add) for a domain you already own. It checks the domain, can move its DNS to a Route 53 hosted zone in your account and requests the TLS certificates. After that, `customDomains` is all a resource needs.
+- **DNS at your current provider**, such as Cloudflare. Request a certificate in AWS Certificate Manager, set `customCertificateArn` and `disableDnsRecordCreation: true`, deploy, and add a CNAME record at your provider. See [External DNS](/resources/networking/custom-domains#external-dns).
+
+Custom domains add no Stacktape cost. In AWS, a Route 53 hosted zone and its DNS queries cost a little each month, and the certificates are free.
 
 ## Gradual deployments
 
@@ -16462,7 +16581,7 @@ Multi-region adds operational complexity and cost — you manage separate deploy
 
 ## Guardrails
 
-Guardrails define organization-wide policy rules that restrict what deployments can do — which stages and regions are allowed, what resource types and sizes are permitted, and which security settings are required. They prevent teams from deploying configurations that violate your standards.
+Guardrails are a [Console](/getting-started/add-the-console) feature. They define organization-wide policy rules that restrict what deployments can do — which stages and regions are allowed, what resource types and sizes are permitted, and which security settings are required. They prevent teams from deploying configurations that violate your standards.
 
 Available guardrail types cover four categories:
 
@@ -16481,39 +16600,42 @@ Before sending real traffic, run through these concrete checks:
 
 1. **Confirm alarms notify correctly.** Trigger a test error in your function or service and verify the notification reaches your on-call channel. An alarm without `notificationChannels` fires silently in CloudWatch — check that every production alarm has at least one target configured. Use [`stacktape logs`](/cli/logs) to confirm CloudWatch is receiving log data.
 
-2. **Set a budget.** Open **Budgets** in the [Stacktape Console](/getting-started/using-console-ui) and create a budget for your production AWS account with a monthly limit matching your expected spend. Keep the default alerts at 80% and 100%, and keep forecast alerts on so you hear about spend trends before they reach the limit.
+2. **Check database backups.** Confirm `deletionProtection: true` and at least 7 days of `automatedBackupRetentionDays` on every production database. In the AWS console, **RDS** → your database → **Maintenance & backups** shows the latest backup.
 
-3. **Verify your custom domain resolves.** Open your custom domain in a browser and confirm the TLS certificate is valid (lock icon, no warnings). If you registered the domain with [`stacktape domain add`](/cli/domain-add), the DNS records are managed automatically. If you manage DNS externally, verify the CNAME or alias record points to the correct AWS endpoint.
+3. **Set a budget.** Create a budget for your production AWS account with a monthly limit matching your expected spend: under **Budgets** in the Stacktape Console, or in AWS Budgets without it. Keep alerts at 80% and 100% of the limit, and turn on forecast alerts so you hear about a trend before it reaches the limit.
 
-4. **Test a gradual deployment.** Push a small change and monitor the deployment in the [Stacktape Console](/getting-started/using-console-ui). Confirm that traffic shifts gradually according to your chosen strategy. Use [`stacktape logs`](/cli/logs) to verify the new version is handling requests correctly.
+4. **Verify your custom domain resolves.** Open your custom domain in a browser and confirm the TLS certificate is valid (lock icon, no warnings). With DNS in Route 53, Stacktape creates the records. With external DNS, check that the CNAME record points to the AWS hostname.
 
-5. **Review guardrails.** Confirm deletion protection is required for production databases, VPC-only access is enforced where needed, and resource limits match your team's standards. See [Guardrails](/guardrails/overview) for the full list of policy rules.
+5. **Test a gradual deployment.** Deploy a small change and watch the CLI output, or the deployment in the Console. Confirm that traffic shifts according to your chosen strategy, and use [`stacktape logs`](/cli/logs) to check that the new version handles requests.
+
+6. **Review guardrails (Console).** Confirm deletion protection is required for production databases, VPC-only access is enforced where needed, and resource limits match your team's standards. See [Guardrails](/guardrails/overview) for the full list of policy rules.
 
 ## What's next
 
-You've completed the Getting Started guide. Your stack is deployed, monitored, automated, and hardened. From here:
+That's the end of Getting started. From here:
 
 - [Resources](/configuration/resources) — the full resource catalogue with configuration guides
 - [Observability](/observability/overview) — logs, metrics, alarms, and alerting in depth
 - [Managing Costs](/managing-costs/overview) — dashboards, budgets, and optimization
 - [Guardrails](/guardrails/overview) — deployment, security, and resource-limit policies
 - [Deploying & Lifecycle](/deployment-and-lifecycle/deploying-stacks) — deploys, previews, rollbacks, and multi-region patterns
+- [CI/CD](/ci-cd-and-gitops/overview) — deploy production from your pipeline or from Git
 
 ---
 
-# Use the CLI Without an Account
+# Use the CLI without an account
 
 Source: `apps/docs/content/getting-started/open-source-cli.mdx`
 Route: `/getting-started/open-source-cli`
 
 The Stacktape CLI is open source under the MIT license and works without a Stacktape account. It deploys with your own AWS credentials, straight to AWS. It also sends anonymous usage telemetry, which you can turn off (see [Telemetry](#telemetry)). You can deploy, update, roll back and delete stacks, run dev mode, and read logs and secrets without signing up for anything.
 
-The [Stacktape Console](/stacktape-console/console-overview) adds what a team shares: deploy history, costs, alerts, error tracking and access control. It is free while your organization's managed AWS spend is up to $200 a month. You can connect it later with one command, and your existing stacks appear in it without a redeploy.
+The [Stacktape Console](/getting-started/add-the-console) adds what a team shares: deploy history, costs, alerts, error tracking and access control. It is free while your organization's managed AWS spend is up to $200 a month. You can connect it later with one command, and your existing stacks appear in it without a redeploy.
 
 ## How the CLI chooses its mode
 
 - **Signed in.** When the CLI has a Stacktape API key, from [`stacktape login`](/cli/login) or the `STACKTAPE_API_KEY` environment variable, it works with the Console.
-- **Without an account.** Otherwise, stack commands run on your local AWS credentials and the CLI does not call the Stacktape API. No command asks you to sign in first.
+- **Without an account.** Otherwise, stack commands run on your local AWS credentials and don't depend on any Stacktape service. No command asks you to sign in first.
 
 A stack is the same in both modes. The same configuration gives the same stack name, the same deployment bucket and the same resources. The only differences are additions that Console features need, such as organization-wide alarms.
 
@@ -16548,34 +16670,15 @@ Commands that are Console features by nature, such as `stacktape org list`, `sta
 
 ### When the configuration uses a Console feature
 
-When a configuration uses something only the Console provides, validation stops before anything is deployed. The error names the property and how to fix it, for example:
+When a configuration uses something only the Console provides, validation stops before anything is deployed. The error names the resources and how to fix it, for example:
 
 ```
-uptimeChecks needs the Stacktape Console (free up to $200/month of AWS spend).
-Run: stacktape connect — your stacks are added as they are, no redeploy. Or remove uptimeChecks.
+Uptime checks (`homepageCheck`) need the Stacktape Console (free up to $200/month of AWS spend). Run: stacktape connect — your stacks are added as they are, no redeploy. Or remove the uptime-check resources.
 ```
 
 ## Connect the Console later
 
-Run `stacktape connect` from a terminal where your AWS credentials are set:
-
-```bash
-stacktape connect
-```
-
-1. If you are not signed in, it starts the browser sign-in that [`stacktape login`](/cli/login) uses. You can create an account there.
-2. It connects the AWS account of your current credentials to your organization. This is the same connection as [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
-3. It prints the Console address. The Stacktape stacks already in that AWS account appear there as projects and stages.
-
-`stacktape connect` never redeploys, renames or replaces anything. From then on, the CLI works with the Console: deploys are recorded, and Console features in your configuration can be used.
-
-The Console is free while the organization's managed AWS spend is up to $200 a month. See [Billing and subscription](/stacktape-console/billing-and-subscription) for the plans.
-
-### Go back to working without an account
-
-Run [`stacktape logout`](/cli/logout). The CLI returns to working without an account. Nothing you deployed changes. In CI, remove `STACKTAPE_API_KEY` from the pipeline.
-
-A stage that serves on a default `*.stacktape-app.com` domain keeps it, but the CLI refuses to deploy that stage without an account, because the deploy would remove the domain. Add your own domain first, or deploy it signed in.
+Run `stacktape connect` from a terminal where your AWS credentials are set. It signs you in, connects the AWS account of your credentials to your organization and adds the Stacktape stacks already in that account to the Console. It never redeploys, renames or replaces anything. [Add the Console](/getting-started/add-the-console) explains each step, what it creates in your account and how to go back with `stacktape logout`.
 
 ## CI/CD without an account
 
@@ -16613,7 +16716,7 @@ Deploy history, costs and alerts for this stage, shared with your team: stacktap
 
 The CLI also prints a hint when a deploy waits because someone else is deploying the same stage. It first says who holds the lock.
 
-A hint never opens a browser or asks a question. It appears only in an interactive terminal, after the command's result, and at most once per project. It never appears in CI, in JSON output or after a failure. Set `STP_NO_HINTS=1` to turn hints off.
+A hint never opens a browser or asks a question. It appears only in an interactive terminal, after the command's result, and each hint at most once per project on this machine. It never appears in CI, in JSON output, in quiet mode or after a failure. Set `STP_NO_HINTS=1` to turn hints off.
 
 ## Telemetry
 
@@ -16631,7 +16734,17 @@ It never sends project, stack, stage or AWS account names or IDs, file paths, co
 
 Telemetry is off when `STP_DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1` is set, and always off in CI.
 
-When you are signed in, the CLI sends more, such as crash reports linked to your user. See [What does the CLI send to Stacktape?](/getting-started/deploy-your-first-stage#what-does-the-cli-send-to-stacktape)
+`stacktape init` also records anonymous outcome statistics of the analysis: which frameworks it found, whether the deploy worked and how long the analysis took. They never include code, names or files, and the same variables turn them off.
+
+### When you're signed in
+
+When you are signed in, the CLI sends usage statistics and reports of its own crashes, so we can see which commands fail and fix them. Set `STP_DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1` to turn both off.
+
+- **After every command:** the command name, the names of the options you used (not their values), how long it took, whether it succeeded, the error code if it failed, your operating system, locale, time zone and the CLI version.
+- **When the CLI crashes:** the error type, message and stack trace, the command, your operating system, CPU architecture and whether it ran in CI. The CLI prints an error ID you can give our support. Errors in your configuration, code or AWS account are not reported this way; only failures of the CLI itself are.
+- **Identity:** a random ID of your machine. After `stacktape login`, events are linked to your Stacktape user and organization, and your account's email and name are attached to your user.
+
+Before a crash report leaves your machine, the CLI masks tokens and other credentials, email and IP addresses, AWS account IDs and the user name in home-directory paths. Error messages can still contain other text, such as file or resource names. The CLI never sends configuration values, source code, environment variables or AWS credentials. Stacktape processes this data in [PostHog](https://posthog.com) in the EU.
 
 ## License
 
@@ -16649,39 +16762,172 @@ No. `stacktape connect` finds the stacks already in your AWS account and shows t
 
 ### Does the CLI contact Stacktape when I'm not signed in?
 
-It does not call the Stacktape API, and a deploy never depends on a Stacktape service. It still makes these requests:
+A deploy never depends on a Stacktape service. The CLI still makes these requests:
 
 - the anonymous telemetry described above, unless you turn it off
 - a check for a newer CLI version, and short notices such as planned maintenance
 - downloads of Stacktape's public CloudFormation resource types from a public S3 bucket, when a stack uses them. No sign-in is involved.
+- from `stacktape init`, the monthly price estimate: it sends the generated configuration and the region to Stacktape's public price estimator. Your source code is never sent.
 
-The first two never stop or slow down a command.
+The telemetry, the version check and the price estimate never stop a command when they fail.
 
 ---
 
-# Starter Projects
+# Start a new project
+
+Source: `apps/docs/content/getting-started/start-a-new-project.mdx`
+Route: `/getting-started/start-a-new-project`
+
+Starter projects are working apps with their Stacktape configuration already written: APIs, full-stack apps, workers,
+AI agents and more. `stacktape init` copies one into a new directory and prints the commands that deploy it.
+
+This guide uses the Hono API starter, a small TypeScript API that runs in a Lambda function behind an HTTP API Gateway.
+It deploys in a few minutes and costs close to nothing while nobody calls it. The steps are the same for every starter.
+
+## 1. Create the project
+
+Run this in the directory where the project folder should go:
+
+```bash
+stacktape init --starter-id hono-api \
+  --initialize-project-to ./hono-api --config-format yaml
+```
+
+- `--starter-id` is the starter's ID. Each card in [Starter projects](/getting-started/starter-projects) shows it.
+- `--initialize-project-to` is the new directory. If it exists and isn't empty, the CLI warns you and asks
+  `Continue?`. Answering yes deletes everything in it.
+- `--config-format` is `yaml` or `typescript`.
+
+To choose interactively, run `stacktape init --starter-project`. The CLI asks three things: **Choose a starter
+project**, **Where to create the project?** (`stacktape-project` by default, `.` for the current directory) and
+**Config format**.
+
+The CLI downloads the starter from GitHub and prints a summary:
+
+- where the project is and which config file it has,
+- the resources and their monthly price, when it can be estimated,
+- the region it picked and why,
+- the commands to run next.
+
+The last part looks like this:
+
+```text
+Navigate to the project:
+  cd ./hono-api
+Run hybrid-local dev mode (deploys minimal, free dev stack to AWS):
+  stacktape dev --project hono-api --stage local --region eu-west-1
+Deploy to AWS:
+  stacktape deploy --project hono-api --stage dev --region eu-west-1
+```
+
+The region is the one your AWS setup uses, from `AWS_REGION`, your Stacktape defaults or your AWS profile, or
+`eu-west-1` when none is set. Change `--region` in the commands if you want another one.
+
+## 2. Look at what you got
+
+```text
+hono-api/
+├── src/index.ts      the API: GET /, GET /posts and POST /posts
+├── stacktape.yml     two resources: apiGateway and api
+└── package.json
+```
+
+`stacktape.yml` declares an HTTP API Gateway (`apiGateway`) and a Lambda function (`api`) that bundles
+`src/index.ts`. Every request to the gateway goes to the function.
+
+You don't need to run `npm install` first. The deploy installs dependencies when they changed.
+
+## 3. Set the secrets, if the starter has any
+
+Some starters need values only you have, such as an API key for an external service. For those, the summary lists one
+command per secret before the deploy command:
+
+```bash
+stacktape secret set <name> --region eu-west-1
+```
+
+It asks for the value and stores it as a secret in your AWS account. The Hono starter has no secrets. Database
+passwords are generated by the deploy, so they are never on this list.
+
+## 4. Deploy
+
+Deploying needs AWS credentials on your machine. If you don't have them yet, see
+[Set up AWS credentials](/getting-started/aws-credentials).
+
+```bash
+cd ./hono-api
+stacktape deploy --project hono-api --stage dev --region eu-west-1
+```
+
+The CLI says which AWS credentials it uses, builds the function, uploads it to your AWS account and creates a
+CloudFormation stack named after the project and stage, `hono-api-dev`. The first deploy of this starter takes a few
+minutes. Starters with a database or a container service take longer.
+
+When it's done, the CLI prints the URL of the API Gateway.
+
+## 5. Check that it works
+
+Open the URL in your browser, or call it:
+
+```bash
+curl https://<api-id>.execute-api.eu-west-1.amazonaws.com/
+```
+
+```json
+{ "message": "Hello from Hono on AWS Lambda!" }
+```
+
+`/posts` returns two sample posts. If you get an error, read the function's logs:
+
+```bash
+stacktape logs api --project hono-api --stage dev --region eu-west-1
+```
+
+`api` is the resource name from `stacktape.yml`. [After the first deploy](/getting-started/after-the-first-deploy)
+covers redeploying, more stages and deleting the stack.
+
+## What it costs
+
+AWS bills your AWS account for the resources. The Hono starter is pay-per-request: Lambda and HTTP API Gateway charge
+per request and have a free tier, so a test deployment that nobody calls costs close to nothing. Starters with a
+database, a container service or a load balancer cost money every hour they exist. Check the monthly price in the
+summary before you deploy, and [delete the stage](/getting-started/after-the-first-deploy#delete-the-stage) when you're
+done trying it.
+
+The CLI is free. You don't need a Stacktape account.
+
+## Starters with TypeScript configs
+
+With `--config-format typescript`, the project gets a `stacktape.ts` that imports from the `stacktape` npm package.
+Keep that package on the same version as your CLI (`stacktape version` prints it):
+
+```bash
+npm install --save-dev stacktape@<cli-version>
+```
+
+## Dev mode
+
+The summary also prints a `stacktape dev` command. Dev mode runs your code on your machine against a small stack in
+AWS, so you see changes without a full deploy. It uses its own stage, `local`, because a stage created by dev mode
+can't be deployed with `stacktape deploy`. See [Dev mode](/local-development/dev-mode-overview).
+
+---
+
+# Starter projects
 
 Source: `apps/docs/content/getting-started/starter-projects.mdx`
 Route: `/getting-started/starter-projects`
 
-Starter projects are complete, production-ready stacks you can deploy in minutes. Each one ships with
-application code, a `stacktape.yml` config and all the infrastructure it needs — pick the one closest to
-what you're building, deploy it to your own AWS account, and start iterating.
-
-There are two ways to use a starter:
-
-- **Deploy in Console** — open the project in the [Stacktape Console](https://console.stacktape.com) and
-  deploy it to your AWS account with a guided flow.
-- **Scaffold locally with the CLI** — bootstrap the project into your working directory and deploy it
-  yourself:
+Each starter is a working app with its Stacktape configuration. Pick the one closest to what you're building, create
+it with the command on its card and deploy it to your AWS account. Most starters come with both a YAML and a
+TypeScript config. The CLI asks which one you want and keeps only that one.
 
 ```bash
 stacktape init --starter-id <starter-id>
 ```
 
-
-> **Info:** The `<starter-id>` matches the project's GitHub repository slug shown on each card (for example
-`hono-api` or `nextjs-saas`).
+[Start a new project](/getting-started/start-a-new-project) walks through creating, deploying and checking one. The
+cards link to each starter's source on GitHub, which is also a good reference when you configure your own app.
 
 
 Browse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starter-id <starter-id>`.
@@ -16773,22 +17019,38 @@ npm install --save-exact stacktape@3.7.1
 
 Upgrade one project at a time, and one stage before the others.
 
-1. **Install v4** on your machine and update the project's package. Keep the CLI and the package on the same version:
+1. **Install v4** on your machine and update the project's package. Name the version, so you get a v4 release and not an older default, and keep the CLI and the package on the same version:
 
 
 Example (npm):
 
 ```bash
-npm install --save-exact stacktape@4
+npm install --save-exact stacktape@4.0.0
+```
+
+
+Example (macOS):
+
+```bash
+curl -fsSL https://installs.stacktape.com/macos.sh | STACKTAPE_VERSION=4.0.0 sh
 ```
 
 
 Example (Linux):
 
 ```bash
-curl -fsSL https://installs.stacktape.com/linux.sh | sh
+curl -fsSL https://installs.stacktape.com/linux.sh | STACKTAPE_VERSION=4.0.0 sh
 ```
 
+
+Example (Windows):
+
+```powershell
+$env:STACKTAPE_VERSION='4.0.0'; irm https://installs.stacktape.com/windows.ps1 | iex
+```
+
+
+   Use a later 4.x version in place of `4.0.0` when there is one. `stacktape version` prints what you have.
 
 2. **Update the configuration** using the [configuration changes](#configuration-changes) that apply to it. v4 rejects the old names and prints the property it does not accept.
 
@@ -17747,301 +18009,6 @@ If you used a `4.0.0-preview` release, these changed since then:
 - The default Python runtime is `python3.13`, not `python3.14`. Set `runtime: python3.14` to keep it.
 - An `agentcore-gateway` needs an explicit `authorizer`. A JWT authorizer moves under `properties` with `type: jwt` (`authorizer: { type: jwt, properties: { discoveryUrl: ... } }`). A gateway meant to be open sets `authorizer: { type: none }`.
 - AgentCore timing fields name their unit: on a runtime, `lifecycle.maxLifetime` is now `maxLifetimeSeconds` and `lifecycle.idleRuntimeSessionTimeout` is `idleTimeoutSeconds`. On a memory, `expirationDays` and `eventExpiryDuration` are replaced by one `eventRetentionDays` (default 30). Values are unchanged.
-
----
-
-# Use the Dev Mode
-
-Source: `apps/docs/content/getting-started/use-the-dev-mode.mdx`
-Route: `/getting-started/use-the-dev-mode`
-
-Stacktape dev mode runs your workloads locally while connecting them to real or locally emulated AWS resources. Container workloads run in Docker, databases start as local emulators, SSR frontends use their native dev servers, and Lambda function code is built and pushed to AWS. Edit code, save, and see results without redeploying.
-
-
-> **Info:** Already familiar with dev mode? Skip ahead to [Deploy your first stage](/getting-started/deploy-your-first-stage).
-
-
-## What you need
-
-You should have a `stacktape.ts` from [step 1](/getting-started/configure-your-stack). You also need:
-
-- **Docker** running on your machine — needed for container workloads and local database emulation. Not required if your config only has Lambda functions without locally emulated databases
-- **Stacktape CLI** installed (`npm install -g stacktape`)
-- An AWS account connected — dev mode initializes AWS credentials and deploys a dev stack when one does not already exist
-
-## Start dev mode
-
-Start Stacktape dev mode from the directory containing your `stacktape.ts`:
-
-```bash
-stacktape dev --stage dev --region eu-west-1
-```
-
-On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Unchanged starts reuse it. A restart can update the stack after cloud configuration or cloud-image changes, or when required outputs are missing.
-
-An interactive picker lets you choose which resources to run. To skip the picker and run everything:
-
-```bash
-stacktape dev --stage dev --region eu-west-1 --resources all
-```
-
-To run only specific resources:
-
-```bash
-stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
-```
-
-Dev mode watches your `stacktape.ts`. Code changes are rebuilt, but a configuration change (new resources, environment variables, connections) needs a restart: dev mode tells you so and refuses rebuilds until you restart it. The restart updates the dev stack with the new configuration.
-
-
-> **Tip:** When multiple developers work on the same project, use a unique stage name per developer (e.g., `--stage dev-alice`, `--stage dev-bob`). Each stage gets its own dev stack and local data directory.
-
-
-## What runs where
-
-Stacktape dev mode splits your stack between local execution and AWS, depending on resource type:
-
-| Resource type | Where it runs | How changes work |
-|---|---|---|
-| Container workloads (web-service, private-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (`rs` command) |
-| Lambda functions | Packaged locally and code updated on AWS | Repackaged and updated on file change or manual trigger; logs stream to your terminal |
-| SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix) | Local dev server | Automatic hot reload via the framework's built-in HMR |
-| Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
-| Databases (PostgreSQL, MySQL, Redis, DynamoDB, OpenSearch) | Docker-backed local emulators | Persistent data in `.stacktape/dev-data/{stage}/` |
-
-Lambda functions have their code built and pushed to AWS, where they run. They reach the databases running on your machine through the dev box of your account's dev network (see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases)); use `--remote-resources` to connect them to deployed databases instead. Logs from Lambda invocations stream directly to your terminal.
-
-A container workload counts as running once its port accepts connections, so a test started when dev mode reports it ready reaches the app. All local DynamoDB tables run in one DynamoDB Local, and workloads, local scripts and frontends connected to them get `AWS_ENDPOINT_URL_DYNAMODB`, so unchanged AWS SDK code uses the local tables.
-
-## The edit-save-see loop
-
-The edit-save-see loop is the core Stacktape dev mode workflow. Here is an example config that shows a typical setup:
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  RelationalDatabase,
-  RdsEnginePostgres,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-export default defineConfig(() => {
-  const myDatabase = new RelationalDatabase({
-    credentials: {
-      masterUserPassword: "$Secret('database', 'password')"
-    },
-    engine: new RdsEnginePostgres({
-      version: '16',
-      primaryInstance: { instanceSize: 'db.t4g.micro' }
-    })
-  });
-
-  const api = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/handler.ts'
-    }),
-    connectTo: [myDatabase],
-    environment: { STAGE: '$Stage()' }
-  });
-
-  return {
-    resources: { myDatabase, api }
-  };
-});
-```
-
-
-The `version` property selects the PostgreSQL engine version and the local Docker image, subject to the adapter's supported tag mapping. The AWS `instanceSize` controls the deployed RDS compute tier; it does not size the local Docker database. See [relational databases](/resources/databases/relational-database) for supported versions and sizing.
-
-With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
-
-1. Starts a local PostgreSQL emulator (Docker container on your machine)
-2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use the deployed database instead, run with `--remote-resources myDatabase`: the dev stack then includes the database, and the function connects to it
-3. Injects environment variables so your code can connect — for a database resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`
-
-Now edit `./src/handler.ts`, save, and either:
-
-- **With `--watch` flag**: Stacktape detects the change and automatically repackages and updates the Lambda code
-- **Without `--watch`**: Type `rs` and press Enter in the terminal to trigger a rebuild
-
-For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly through the framework's built-in hot module replacement — no rebuild step needed.
-
-## Enable file watching
-
-Stacktape dev mode can automatically rebuild workloads when source files change. Add `--watch` to enable this:
-
-```bash
-stacktape dev --stage dev --region eu-west-1 --resources all --watch
-```
-
-Container workloads are rebuilt and restarted. Lambda functions are repackaged and updated on AWS. Frontends handle their own watching natively regardless of this flag.
-
-## Local database emulation
-
-Stacktape dev mode starts Docker-backed local emulators for supported database resources:
-
-| Config resource type | Local emulator type |
-|---|---|
-| PostgreSQL / Aurora PostgreSQL | `postgres` |
-| MySQL / Aurora MySQL | `mysql` / `mariadb` |
-| Redis | `redis` |
-| DynamoDB | `dynamodb` |
-| OpenSearch | `opensearch` |
-
-Database data persists between sessions in `.stacktape/dev-data/{stage}/`. This means you can stop and restart dev mode without losing your test data.
-
-To reset databases prepared at startup, including relay dependencies (DynamoDB Local tables share storage; see [reset scope](/local-development/local-databases#resetting-local-data)):
-
-```bash
-stacktape dev --stage dev --region eu-west-1 --fresh-db
-```
-
-To skip local emulation and connect to an already-deployed database on AWS:
-
-```bash
-stacktape dev --stage dev --region eu-west-1 --remote-resources myDatabase
-```
-
-## Environment variables
-
-Stacktape dev mode injects `STP_*` environment variables into local workloads, pointing to local endpoints. For a resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`. The exact host and port values are assigned by dev mode at startup and visible in the dev-mode TUI output.
-
-For connected resources, dev mode keeps the same `STP_*` environment variable names while pointing them at local or AWS endpoints depending on how the resource is run. Other database parameters (host, port, database name) are available via the [`$ResourceParam()` directive](/configuration/directives) when needed.
-
-## Terminal commands
-
-Stacktape dev mode accepts interactive commands while running. Type a command and press Enter:
-
-| Command | Action |
-|---|---|
-| `rs` | Rebuild all workloads |
-| `rs myApi` | Rebuild a specific workload |
-| `c` or `clear` | Clear the log output |
-| `q` or `quit` | Stop dev mode |
-
-## Useful flags
-
-The [`stacktape dev`](/cli/dev) command accepts flags to control which resources run, how rebuilds work, and whether databases are emulated locally or connected remotely.
-
-| Flag | Description |
-|---|---|
-| `--resources` | Which resources to run (`all` or comma-separated names) |
-| `--skip-resources` | Exclude specific resources |
-| `--watch` | Auto-rebuild on file changes |
-| `--fresh-db` | Delete local database data before starting |
-| `--remote-resources` | Connect to deployed AWS resources instead of local emulation |
-| `--no-tunnel` | Prevent deployed functions from receiving local-database relay variables. Stacktape normally manages the dev-box connection; VPC functions still use the dev network. Use `--remote-resources` for deployed database connections |
-
-
-> **Tip:** Run `stacktape help dev` to see all available flags and their short aliases.
-
-
-## Agent mode
-
-Stacktape dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code, Codex or Cursor. Pass `--agent` to start it as a background daemon:
-
-```bash
-stacktape dev --stage dev --region eu-west-1 --resources all --agent
-```
-
-The agent server starts on port 7331 by default (or the next available port). See [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the full endpoint reference and usage guide.
-
-## Debugging
-
-Stacktape provides CLI commands for inspecting logs and metrics from your running resources, both during dev mode and against deployed stacks:
-
-- [`stacktape logs`](/cli/logs) — Stream or search logs from your Lambda functions and container workloads
-- [`stacktape metrics`](/cli/metrics) — View CloudWatch metrics for any resource
-
-For deeper coverage of debugging workflows, see [Dev mode overview](/local-development/dev-mode-overview).
-
-## Next step
-
-Your code works locally. Time to ship it.
-
----
-
-# Using Console UI
-
-Source: `apps/docs/content/getting-started/using-console-ui.mdx`
-Route: `/getting-started/using-console-ui`
-
-The Stacktape Console becomes your operations hub the moment you deploy a stack. It gives you a central place to inspect deployments, view costs once reports arrive, manage secrets, and — with minimal setup — monitor alarms, track runtime errors, and receive alerts. The Console is optional and free while your organization's managed AWS spend is up to $200 a month.
-
-If you deployed without an account, run `stacktape connect`. It signs you in, connects the AWS account of your current AWS credentials and opens the Console, where the stacks you already deployed appear without a redeploy. See [Use the CLI without an account](/getting-started/open-source-cli#connect-the-console-later).
-
-
-> **Info:** Already familiar with the Console? Skip ahead to [CI/CD](/getting-started/ci-cd) to set up automated deployments.
-
-
-## The Overview dashboard
-
-The Overview page is the Console's default landing route. After your first deployment, it shows KPI cards for total deployments, average duration, error rate, automation rate, and AWS costs — all with sparkline trends. Below the KPIs, a gadget grid displays deployment frequency charts, recent deployments, open issues, recent alerts, cost breakdowns by project and by resource type, budget status, and automation ratio. Use the time range selector (7d, 14d, 30d, 90d, 6m, 1y) at the top right to adjust the window.
-
-Key items — recent deployments, open issues, recent alerts, and budget alerts — link through to their respective detail pages, making the Overview your daily check-in surface. If you have no deployed stages yet, the Console shows a getting-started guide instead.
-
-
-> Screenshot: Stacktape Console Overview dashboard showing deployment frequency chart, KPI cards for deployments/duration/error rate/costs, and recent deployments list Caption: The Overview dashboard after several deployments — deployment data appears automatically.
-
-
-## Logs
-
-Use [`stacktape logs`](/cli/logs) for CLI log access. See [Observability — Logs](/observability/logs) for the detailed workflow including log querying, filtering, and forwarding to external services.
-
-## Metrics
-
-Use [`stacktape metrics`](/cli/metrics) for CLI-based metric queries. See [Observability — Metrics](/observability/metrics) for the detailed metric reference.
-
-## Alarms
-
-Alarms are defined in your Stacktape configuration, in the `alarms` list of a resource such as a Lambda function, database, HTTP API Gateway, Application Load Balancer or SQS queue. Stacktape creates the CloudWatch alarms when the stack is deployed. The **Alarms** page in the Alerting group shows the current state of the CloudWatch alarms in your connected AWS accounts, and [`stacktape alarm list`](/cli/alarms) shows the state from the CLI.
-
-An alarm sends to the `notificationChannels` listed on it, such as Slack, email or a webhook. A firing alarm also opens an [incident](/observability/incidents), which a [notification rule](/observability/notifications) can send to a Console [alert channel](/observability/alert-channels). Alarm rules created in the Console earlier are legacy; they are listed under **Legacy alarm rules** on the Alarms page, and `stacktape alarm export` moves them into your configuration. See [Observability: Alarms](/observability/alarms) for the full setup guide.
-
-## Error tracking
-
-The **Error tracking** page in the Observability group is a built-in error inbox. Stacktape reads runtime errors from the logs of your functions and containers and groups repeated occurrences into one issue per distinct error and resource, with the error message, project, stage, function name, occurrence count and last-seen time.
-
-Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
-
-
-> Screenshot: Stacktape Console Error tracking page showing summary cards (Open/Resolved/Ignored counts), filters, and a table of runtime errors with occurrence counts and status Caption: The Error tracking page groups repeated runtime errors so you don't search logs by hand.
-
-
-Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. Keep a dedicated tracing or APM tool when you need custom context, release tracking or client-side error capture. See [Observability: Error tracking](/observability/error-tracking) for configuration details and the CLI commands [`stacktape error list`](/cli/errors-list) and [`stacktape error resolve`](/cli/errors-resolve).
-
-## Cost dashboards
-
-The Costs page lists month-to-date costs per stack, with project, stage, and AWS region shown for each row. You select an AWS account and a month to see month-to-date costs per stack, then open a stack's costs page from the table row for more detail. Reports are generated daily from AWS Cost and Usage Reports and can take a while before they are available.
-
-The Overview dashboard also surfaces costs by project and by resource type for a quick spend overview. See [Managing Costs — Dashboards](/managing-costs/dashboards) and [Managing Costs — Budgets](/managing-costs/budgets) to set up spending alerts.
-
-## Secrets management
-
-The Secrets page lists AWS Secrets Manager secrets and lets you create, show, update, and delete them. The page asks you to choose an AWS account and AWS region before listing or changing secrets. Reference secrets with `$Secret()` in your Stacktape configuration — the secret value stays in AWS Secrets Manager instead of being committed to your config file or version control. See [Configuration — Secrets](/configuration/secrets) for the runtime details.
-
-You can also manage secrets from the CLI with [`stacktape secret set`](/cli/secret-set), [`stacktape secret get`](/cli/secret-get), and [`stacktape secret delete`](/cli/secret-delete). See [Configuration — Secrets](/configuration/secrets) for the full workflow.
-
-## Quick reference
-
-A deploy gives the Console enough stack metadata to show deployments, costs (when reports arrive), and stack-scoped operational views. Some features require additional setup: define alarms in your configuration, create alert channels, and manage secrets separately.
-
-| Feature | Where in Console | CLI equivalent | Setup required |
-|---------|-----------------|----------------|----------------|
-| Deployments | Overview | [`stacktape stack history`](/cli/info-operations) | None — shown when deployed stages exist |
-| Logs | — | [`stacktape logs`](/cli/logs) | None |
-| Metrics | — | [`stacktape metrics`](/cli/metrics) | None |
-| Alarms | Alerting → Alarms | View state: [`stacktape alarm list`](/cli/alarms) | `alarms` on resources in the config + alert channel |
-| Error tracking | Observability → Error tracking | [`stacktape error list`](/cli/errors-list) | None, on by default |
-| Costs | Organization → Costs | — | None — reports arrive daily |
-| Secrets | Configuration → Secrets | [`stacktape secret set`](/cli/secret-set) | Connected AWS account + AWS region selection |
-
-## Next step
-
-Your stack is deployed and observable. The next step is automating deployments so every push to your main branch triggers a redeploy — and pull requests get their own preview stages.
 
 ---
 
@@ -49586,50 +49553,65 @@ Open the Billing page in the Stacktape Console. It shows billing details, an inv
 Source: `apps/docs/content/stacktape-console/connecting-your-aws-account.mdx`
 Route: `/stacktape-console/connecting-your-aws-account`
 
-Stacktape deploys infrastructure into your own AWS account using a secure cross-account IAM role. You connect an AWS account once in the Stacktape Console, and Stacktape handles credential management from that point — no manual AWS access keys required. Your projects and stacks can be deployed to any region.
+The Stacktape Console works with your AWS accounts through a connection: an IAM role in your account that Stacktape
+assumes with short-lived credentials. With it, the Console deploys from Git, shows logs, metrics and costs, and runs
+deploys for the CLI when it is signed in. You connect each AWS account once.
 
-## Overview
+The open-source CLI doesn't need a connection. Without a Stacktape account, it deploys with your own AWS credentials.
+See [Use the CLI without an account](/getting-started/open-source-cli).
 
-The **AWS accounts** page (`/aws-accounts`) in the Stacktape Console lets you establish and manage the trust relationship between Stacktape and your AWS accounts. When you connect an account, Stacktape generates a link to an AWS CloudFormation Quick Create Stack page. The CloudFormation stack creates a cross-account IAM role that Stacktape assumes to interact with your AWS account — perform deployments, list logs, fetch metrics, and manage resources on your behalf. Credentials are temporary and short-lived — no permanent AWS access keys are stored or exchanged.
+There are two ways to connect an account:
 
-Each connected account appears in a table showing its name, AWS account ID, connection status, creation date, and primary regions. You can connect multiple AWS accounts to a single organization — for example, separate accounts for production and development.
+- **From the terminal**, if you already deploy with the CLI: [`stacktape connect`](/getting-started/add-the-console#connect-from-the-terminal)
+  signs you in, creates the connection with your local AWS credentials and adds the Stacktape stacks already in the
+  account as projects and stages. Nothing is redeployed.
+- **In the Console**, on the **AWS accounts** page, as described below.
 
-Connecting your account is free. You only pay for the AWS resources that Stacktape deploys into your account. For a detailed breakdown of what permissions the cross-account role includes, see [AWS permissions](/stacktape-console/aws-permissions).
+Connecting costs nothing by itself. The Console is free while the AWS spend it manages for your organization stays at
+or under $200 a month; see [Billing and subscription](/stacktape-console/billing-and-subscription). AWS bills your
+account for the resources.
 
-If you already deploy with the CLI without an account, you can connect from the terminal instead: [`stacktape connect`](/getting-started/open-source-cli#connect-the-console-later) signs you in, connects the AWS account of your current AWS credentials, and opens the Console. The Stacktape stacks already in that account appear as projects and stages, without a redeploy.
+## Connect an account in the Console
 
-The Console needs a connected account; the open-source CLI does not. Without a Stacktape account, the CLI deploys with your own AWS credentials. See [Use the CLI without an account](/getting-started/open-source-cli).
+You need to be an Owner or Admin of the organization.
 
-## Walkthrough
+1. Open **AWS accounts**. With no account connected yet, the page shows **Connect an AWS account**. To add another
+   account later, click **Connect AWS account**.
+2. Fill in **Account name**, a name your team recognizes, such as `production`. You use it in the CLI as
+   `--aws-account production`.
+3. Click **Open AWS CloudFormation**. AWS opens in a new tab with everything filled in.
+4. At the bottom of the AWS page, check the box that lets CloudFormation create IAM resources, then choose **Create
+   stack**.
+5. Come back to the Console. Setup takes about a minute after you choose **Create stack**. The page shows
+   **Connected** when it's done.
 
-You need the `org:manage-aws-accounts` permission in your Stacktape organization to connect an account.
+The role has administrator access, so Stacktape can create and update everything your configurations declare. See
+[AWS permissions](/stacktape-console/aws-permissions) for what it can do and how to restrict it.
 
-1. **Open the modal** — In the Stacktape Console, open `/aws-accounts` and click **Connect AWS account**.
-2. **Name the account** — Enter a label for the connection (e.g. "production" or "dev-account"). This name is for your reference only — the Console pre-fills a default like `aws-account-1`.
-3. **Create the connection stack in AWS** — Click **Connect account in AWS console**. This opens the generated AWS connection link in a new tab. The modal shows an image of the AWS-side steps to follow.
-4. **Wait for activation** — Return to the Stacktape Console. A newly created connection can appear as PENDING until the AWS CloudFormation stack finishes. While a PENDING account exists, the Console refetches account data every two seconds. When the backend returns the account as ACTIVE, the table shows ACTIVE.
+The connection stack is always created in `eu-west-1`. That doesn't limit where you deploy: your projects can deploy
+to any region Stacktape supports.
 
-> **Warning:** The connection CloudFormation stack must be created in the **eu-west-1** region. The Console opens a generated AWS link that targets the correct region. Your projects and stacks can be deployed to **any** region.
+To bring in stacks that were deployed before the account was connected, open the account's menu and choose **Find
+existing stacks**.
 
-The connection modal contains two steps: an account name input field (Step 1) and an image illustrating the AWS-side steps to follow when creating the CloudFormation connection stack (Step 2).
+## Account status
 
-## Connection States
+The **Status** column on the AWS accounts page says what Stacktape can do with each account:
 
-Each connected AWS account has one of three states:
-
-| State | Meaning | Action needed |
+| Status | Meaning | What to do |
 |-------|---------|---------------|
-| **ACTIVE** (green) | Connection is working. Stacktape can deploy to this account. | None. |
-| **PENDING** (orange) | The connection link was generated but the CloudFormation stack hasn't finished creating. | Use the "Finish the account connection" link shown in the Note column to complete stack creation in AWS. |
-| **BLOCKED** (red) | The connection failed or was revoked. The status reason explains why. | Check the status reason in the Note column, fix the issue in AWS, and reconnect if needed. |
-
-While a PENDING account exists on the AWS accounts page, the Console refetches account data every two seconds. When the backend returns the account as ACTIVE, the table shows ACTIVE.
+| **Connected**, Can deploy | Stacktape deploys your projects here and shows their logs, metrics and costs. | Nothing. |
+| **Connected**, Read-only | Stacktape shows logs, metrics and costs but can't deploy. | An Owner or Admin can click **Allow deploys**. |
+| **Connecting** | The role is being created in AWS. | Wait; the page updates by itself. |
+| **Setup not finished** | Someone started connecting, and AWS hasn't confirmed it. | Click **Finish setup** to see what to check. |
+| **Could not connect** | The CloudFormation stack in AWS failed. | Click **Finish setup** to see what to do. |
+| **No access** | The role was deleted in AWS, or Stacktape can't reach the account. | Disconnect the account, then connect it again. |
 
 ## Common Tasks
 
 ### Connecting multiple AWS accounts
 
-Organizations commonly connect separate AWS accounts for different purposes — a production account with stricter controls and a development account for experimentation. Click **Connect AWS account** again and repeat the walkthrough for each additional account. Each connection is created through its own generated AWS CloudFormation flow.
+Organizations commonly connect separate AWS accounts for different purposes, such as a production account with stricter controls and a development account for experimentation. Click **Connect AWS account** and repeat the steps for each additional account.
 
 ### Choosing the account for a CLI command
 
@@ -49650,41 +49632,39 @@ Each of these commands prints the account it uses, for example `AWS credentials 
 
 You can revoke Stacktape's access to your AWS account in two ways:
 
-- **Delete the AWS account connection in the Stacktape Console** — removes the connection from Stacktape's side.
-- **Delete the CloudFormation connection stack in the AWS Console** — removes the IAM role from your AWS account. If Stacktape later reports the connection as BLOCKED, check the status reason in the Note column.
+- **Disconnect the account in the Stacktape Console**: open the account's menu on the AWS accounts page and choose **Disconnect account**. This removes the connection from Stacktape's side.
+- **Delete the CloudFormation connection stack in the AWS Console**: this removes the IAM role from your AWS account. The Console then shows the account as **No access**.
 
 ### Checking which regions an account uses
 
-The AWS accounts table shows **Primary regions** for each connected account. The table displays the account's primary regions when checked, or "not checked" if regions haven't been evaluated yet. The connection modal also states that projects and stacks can be deployed to any region.
+The **Regions** column of the AWS accounts page shows the regions each account has deployments in. Stacktape checks them once the account is connected.
 
 ## Troubleshooting
 
-### Account stuck in PENDING
+### Account stuck in Connecting or Setup not finished
 
-If your account remains in PENDING state:
-
-1. Use the **Finish the account connection** link in the Note column to reopen the generated AWS CloudFormation flow. If AWS reports a stack creation failure, inspect the failure in the AWS CloudFormation console.
-2. Verify the stack is being created in the **eu-west-1** region — the Console's generated link targets the correct region automatically.
-3. Users with the `org:manage-aws-accounts` permission see a delete control on connected-account rows. If you cannot complete the AWS-side stack, delete the account entry and start a new connection.
+1. Click **Finish setup**. If you closed AWS before creating the stack, choose **Open AWS again**. If AWS reports a stack creation failure, the Console shows why.
+2. Check that the stack is created in the **eu-west-1** region. The link the Console opens targets it automatically.
+3. If you can't complete the AWS side, an Owner or Admin can remove the account from its menu and start a new connection.
 
 ### Cannot delete a connected AWS account
 
 Stacktape prevents deletion when projects reference the account in their GitOps deployment configurations. The error message lists the affected projects. Delete the GitOps deployment configurations from the listed projects, then retry the deletion.
 
-### Account shows BLOCKED
+### Account shows No access
 
-A BLOCKED state means the connection is no longer usable. Read the status reason in the Note column — for example, the IAM role may have been modified or removed. Fix the underlying issue in AWS. You can remove the Stacktape-side connection from the table if you need to recreate it.
+The connection is no longer usable: someone deleted Stacktape's role in AWS, or Stacktape can't reach the account. Deploys to it fail and its logs can't be shown. Disconnect the account, then connect it again.
 
 ### "You do not have permission to manage AWS accounts"
 
-This action requires the `org:manage-aws-accounts` permission. Ask your organization owner or admin to grant you the appropriate role. See [Team and access control](/stacktape-console/team-and-access-control) for details.
+Connecting and disconnecting accounts is for Owners and Admins. Ask one of them, or ask for that role. See [Team and access control](/stacktape-console/team-and-access-control) for details.
 
 ## Related Features
 
 - [AWS permissions](/stacktape-console/aws-permissions) — details on what the cross-account role can do
 - [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — how connected accounts relate to your project structure
 - [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — auto-deploy to connected accounts on push
-- [Deploy your first stage](/getting-started/deploy-your-first-stage) — uses a connected account to run your first deployment
+- [Add the Console](/getting-started/add-the-console) — connect the Console to stacks you deployed with the CLI
 
 ## FAQ
 
@@ -49694,23 +49674,19 @@ No. Stacktape uses cross-account IAM role assumption, not static access keys. Th
 
 ### Can I deploy to any AWS region after connecting?
 
-Yes. The connection stack must be created in `eu-west-1`, but that only controls where the connection CloudFormation stack is created. Your projects and stacks can be deployed to any region.
+Yes, to any region Stacktape supports. The connection stack is always created in `eu-west-1`, but that only controls where the connection's CloudFormation stack lives.
 
 ### Is connecting my AWS account free?
 
-Connecting the account is free. You pay only for the AWS resources that Stacktape later deploys into your account.
+Connecting has no fee. The Console itself is free while the AWS spend it manages stays at or under $200 a month, and the Flexible plan charges a percentage above that; see [Billing and subscription](/stacktape-console/billing-and-subscription). AWS bills your account for the resources.
 
 ### How do I revoke Stacktape's access to my AWS account?
 
-You have two options: delete the AWS account connection in the Stacktape Console (removes it from Stacktape's side), or delete the CloudFormation connection stack in the AWS Console (removes the IAM role from your account). Either one stops deployments to that account from working. After deleting the stack in AWS, Stacktape reports the connection as BLOCKED — remove it from the AWS accounts table and create a new connection to restore access.
+You have two options: disconnect the account in the Stacktape Console (removes it from Stacktape's side), or delete the CloudFormation connection stack in the AWS Console (removes the IAM role from your account). Either one stops Console deployments to that account. After you delete the stack in AWS, the Console shows the account as **No access**: disconnect it and connect it again to restore access.
 
-### Why is the "Connect AWS account" button disabled?
+### Why can't I connect an account?
 
-Connecting and deleting account connections requires the `org:manage-aws-accounts` permission. If the button (or the delete control on a connected-account row) is disabled, you don't currently have that organization permission. Ask your organization owner or admin to grant the appropriate role — see [Team and access control](/stacktape-console/team-and-access-control).
-
-### Why won't my account stay connected (stuck in PENDING)?
-
-PENDING means the connection link was generated but the CloudFormation stack in AWS hasn't finished creating. The Console refetches the account every two seconds and flips it to ACTIVE automatically once the backend reports it. If it stays PENDING, use the "Finish the account connection" link in the Note column to reopen the AWS flow, and verify the stack is being created in the **eu-west-1** region.
+Connecting and disconnecting accounts is for Owners and Admins of the organization. Developers and Viewers don't see these actions. Ask an Owner or Admin, or see [Team and access control](/stacktape-console/team-and-access-control).
 
 ### Why can't I delete a connected AWS account?
 

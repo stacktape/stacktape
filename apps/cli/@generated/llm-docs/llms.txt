@@ -5,8 +5,6 @@
 Use the concise index below to locate the canonical documentation page for a task. For a single-file corpus that includes page content and generated TypeScript configuration reference, use [llms-full.txt](/llms-full.txt).
 
 ## Start Here
-- [Configure Your Stack](/getting-started/configure-your-stack): Define your first Stacktape project and resources.
-- [Deploy Your First Stage](/getting-started/deploy-your-first-stage): Deploy a stage to your own AWS account.
 - [Resources](/configuration/resources): Understand resource syntax and the available resource catalog.
 - [Connecting Resources](/configuration/connecting-resources): Wire resources together with IAM permissions and environment variables.
 - [Lambda Function](/resources/compute/lambda-function): Configure and deploy AWS Lambda functions.
@@ -14,7 +12,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Dev Mode Overview](/local-development/dev-mode-overview): Develop locally while connected to cloud resources.
 - [Deploying Stacks](/deployment-and-lifecycle/deploying-stacks): Understand deployments, stages, and lifecycle behavior.
 - [MCP Server Setup](/using-with-ai/mcp-server-setup): Connect an AI coding assistant to Stacktape tools using MCP.
-- [Going to Production](/getting-started/going-to-production): Review production readiness, security, cost, and reliability.
+- [Going to production](/getting-started/going-to-production): Review production readiness, security, cost, and reliability.
 
 ## Complete Documentation Index
 - [Build Runners](/ci-cd-and-gitops/build-runners) - source: apps/docs/content/ci-cd-and-gitops/build-runners.mdx
@@ -111,15 +109,16 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Previewing Changes](/deployment-and-lifecycle/previewing-changes) - source: apps/docs/content/deployment-and-lifecycle/previewing-changes.mdx
 - [Release commands](/deployment-and-lifecycle/release-commands) - source: apps/docs/content/deployment-and-lifecycle/release-commands.mdx
 - [Rollbacks](/deployment-and-lifecycle/rollbacks) - source: apps/docs/content/deployment-and-lifecycle/rollbacks.mdx
-- [CI/CD](/getting-started/ci-cd) - source: apps/docs/content/getting-started/ci-cd.mdx
-- [Configure Your Stack](/getting-started/configure-your-stack) - source: apps/docs/content/getting-started/configure-your-stack.mdx
-- [Deploy Your First Stage](/getting-started/deploy-your-first-stage) - source: apps/docs/content/getting-started/deploy-your-first-stage.mdx
-- [Going to Production](/getting-started/going-to-production) - source: apps/docs/content/getting-started/going-to-production.mdx
-- [Use the CLI Without an Account](/getting-started/open-source-cli) - source: apps/docs/content/getting-started/open-source-cli.mdx
-- [Starter Projects](/getting-started/starter-projects) - source: apps/docs/content/getting-started/starter-projects.mdx
+- [Quickstart](/getting-started) - source: apps/docs/content/getting-started/index.mdx
+- [Add the Console](/getting-started/add-the-console) - source: apps/docs/content/getting-started/add-the-console.mdx
+- [After the first deploy](/getting-started/after-the-first-deploy) - source: apps/docs/content/getting-started/after-the-first-deploy.mdx
+- [Set up AWS credentials](/getting-started/aws-credentials) - source: apps/docs/content/getting-started/aws-credentials.mdx
+- [Deploy an existing app](/getting-started/deploy-an-existing-app) - source: apps/docs/content/getting-started/deploy-an-existing-app.mdx
+- [Going to production](/getting-started/going-to-production) - source: apps/docs/content/getting-started/going-to-production.mdx
+- [Use the CLI without an account](/getting-started/open-source-cli) - source: apps/docs/content/getting-started/open-source-cli.mdx
+- [Start a new project](/getting-started/start-a-new-project) - source: apps/docs/content/getting-started/start-a-new-project.mdx
+- [Starter projects](/getting-started/starter-projects) - source: apps/docs/content/getting-started/starter-projects.mdx
 - [Upgrading from v3](/getting-started/upgrading-from-v3) - source: apps/docs/content/getting-started/upgrading-from-v3.mdx
-- [Use the Dev Mode](/getting-started/use-the-dev-mode) - source: apps/docs/content/getting-started/use-the-dev-mode.mdx
-- [Using Console UI](/getting-started/using-console-ui) - source: apps/docs/content/getting-started/using-console-ui.mdx
 - [Database Guardrails](/guardrails/databases) - source: apps/docs/content/guardrails/databases.mdx
 - [Deployment Guardrails](/guardrails/deployment) - source: apps/docs/content/guardrails/deployment.mdx
 - [Guardrails Overview](/guardrails/overview) - source: apps/docs/content/guardrails/overview.mdx

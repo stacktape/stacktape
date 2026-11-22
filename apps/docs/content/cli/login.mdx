@@ -7,7 +7,9 @@ seoDescription: 'Authenticate the Stacktape CLI with interactive sign-in locally
 
 # login
 
-The `stacktape login` command authenticates the Stacktape CLI on the current system. For local development, run it interactively: you approve the sign-in in your browser, and the CLI keeps the local auth state. For CI/CD, use a dedicated Stacktape API key stored in your CI provider's secret store.
+The `stacktape login` command signs the Stacktape CLI in to the Stacktape Console on the current system. You approve the sign-in in your browser, and the CLI keeps the local auth state.
+
+You don't need to log in to deploy: without an account, the CLI deploys with your local AWS credentials. To add the Console to stacks you already deployed, run [`stacktape connect`](/getting-started/add-the-console#connect-from-the-terminal) instead. It signs you in and connects the AWS account of your credentials in one step. `login` only signs you in.
 
 ## Usage
 
@@ -22,13 +24,7 @@ In interactive mode (the default), the command asks how you want to sign in:
 
 Over SSH, in a container or on a machine without a browser, the browser sign-in still works: open the printed address on any device. Pass `--no-browser` to only print it. If your account belongs to several organizations, the CLI asks which one this machine works in. After successful authentication, Stacktape displays your user name and organization.
 
-For CI/CD, prefer setting `STACKTAPE_API_KEY` as a masked secret in the runner environment. If you need an explicit login step, pass the key from the CI secret variable. Never paste an API key into an AI chat, issue tracker, shell transcript, or log.
-
-```bash
-stacktape login --api-key "$STACKTAPE_API_KEY" --agent
-```
-
-You can create CI keys from the [Stacktape Console's API keys page](/stacktape-console/api-keys). Manual API keys are bearer secrets and should be treated as shown-once credentials.
+For CI/CD, see [Non-interactive login](#non-interactive-login).
 
 ## What happens during login
 
@@ -51,13 +47,9 @@ The `login` command itself does not require an existing API key — it is one of
 
 ## Non-interactive login
 
-For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI can read this environment variable directly, so an explicit `login` step is often unnecessary. If your workflow does use `login`, pass the key from the secret variable and combine with `--agent` for programmatic output.
+For CI/CD pipelines and automated scripts, set `STACKTAPE_API_KEY` as a masked CI secret. The CLI reads this environment variable directly, so an explicit `login` step is usually unnecessary. For a pipeline, use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci): it belongs to the organization and keeps working when the person who created it leaves. API keys are bearer secrets and are shown only once. Never paste one into an AI chat, issue tracker, shell transcript or log, and don't hardcode it in workflow YAML.
 
-```bash
-stacktape login --api-key "$STACKTAPE_API_KEY" --agent
-```
-
-Do not hardcode the key in workflow YAML. Reference the CI secret.
+If your workflow does use `login`, pass the key from the secret variable and add `--agent` for programmatic output:
 
 ```bash
 stacktape login --api-key "$STACKTAPE_API_KEY" --agent
@@ -112,7 +104,7 @@ stacktape login
 
 ### Where do I find my Stacktape API key?
 
-Create CI/API keys from the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). Manual keys are scoped to an organization, expire by default, and are shown only once. See [API keys](/stacktape-console/api-keys) for details on managing keys.
+Create a personal key on the [Stacktape Console's API keys page](https://console.stacktape.com/api-keys). For CI, Owners and Admins create an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) on the Members page instead, so the pipeline keeps working when people leave. Keys are scoped to an organization, expire by default, and are shown only once. See [API keys](/stacktape-console/api-keys) for details on managing keys.
 
 ### Do I need an explicit `login` step in CI/CD?
 
