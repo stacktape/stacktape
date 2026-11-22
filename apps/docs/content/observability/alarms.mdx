@@ -7,29 +7,20 @@ seoDescription: 'Configure CloudWatch alarms for Lambda functions, databases, AP
 
 # Alarms
 
-Stacktape alarms monitor CloudWatch metrics for your deployed resources and fire when a threshold is breached. Define alarms on individual resources in your stack configuration and deploy the stack to apply changes. The [Stacktape Console](/stacktape-console/console-overview) shows alarm state and history. When an alarm fires, it sends to its configured `notificationChannels` and opens an [incident](/observability/incidents), which Console notification rules can route to [alert channels](/observability/alert-channels).
+An alarm watches a CloudWatch metric of one resource, such as a function's error rate or a database's free storage,
+and notifies you when it crosses a threshold. You define alarms on the resource in your config, and the deploy creates
+them in CloudWatch in your AWS account.
 
-## When to use
+- **Without the Console**, an alarm delivers to Slack, Microsoft Teams, Discord, email or a webhook straight from your
+  AWS account. See [Notification targets](#notification-targets).
+- **With the [Console](/getting-started/add-the-console)**, an alarm can also deliver to a Console
+  [alert channel](/observability/alert-channels) (`console-channel`) or the Stacktape Slack app (`slack-app`), and a
+  firing alarm opens an [incident](/observability/incidents). A deploy without a Console connection refuses
+  `console-channel` and `slack-app` targets.
 
-Set up alarms when you need automated alerting on resource health — error rates, latency, CPU usage, storage pressure, or queue depth. Alarms are the primary way to get notified before a problem becomes an outage.
-
-Common starting points:
-
-- **Lambda error rate** — catch deployment regressions or upstream failures within minutes.
-- **Database CPU and free storage** — prevent saturation before it causes connection timeouts.
-- **API error rate** — detect HTTP 5xx spikes across your API gateway or load balancer.
-- **SQS queue depth** — spot consumer backlog before messages start expiring.
-
-For production stages, define at least one error-rate alarm per public-facing resource and one storage/CPU alarm per database. Keep these alarms in version control with each stack so threshold changes are reviewed and deployed with your code.
-
-## When NOT to use
-
-Alarms are not the right tool for every monitoring need:
-
-- **Debugging a specific request** — use [logs](/observability/logs) and the [`stacktape logs`](/cli/logs) CLI command instead.
-- **Trend analysis over weeks** — use [metrics](/observability/metrics) dashboards in the Console for visual exploration.
-- **Tracking application-level errors** — [error tracking](/observability/error-tracking) automatically groups and deduplicates runtime errors from your code. Alarms operate on aggregate CloudWatch metrics, not individual error instances.
-- **Cost alerting** — use [budgets](/managing-costs/budgets) to get notified when spend crosses a threshold.
+A good start for a production stage: an error-rate alarm on each public API, function or load balancer, and CPU and
+free-storage alarms on each database. Runtime exceptions are better caught by [error tracking](/observability/error-tracking),
+and spend by [budgets](/managing-costs/budgets).
 
 ## Supported resources
 
@@ -312,13 +303,15 @@ The `includeInHistory` property controls whether alarm state changes should appe
 
 ### What leaves your AWS account
 
+[What leaves your AWS account](/observability/overview#what-leaves-your-aws-account) compares every feature in one table.
+
 When an alarm with history changes state, the stack's service Lambda sends the Console the alarm event: the alarm name and trigger type, the project, stage and region, the new state and its time, the alarm's description, ARN and condition (comparison, statistic and unit), the stack name, the affected resource with its AWS console link, a link to the alarm, and the EventBridge event ID. It also sends the `console-channel` names and resolved `slack-app` channel IDs, which the Console delivers. Inline targets and their settings stay in your account.
 
 ## Migrating legacy Console alarm rules
 
 The Console no longer creates or edits alarm rules. Existing rules appear under **Legacy alarm rules** on the Alarms page. They keep applying to every matching resource until you exclude them on that resource or delete them.
 
-Run `stacktape alarm export` to print those rules as config entries, including their project and stage scope. Add each entry to the `alarms` list of every resource it should monitor, and preserve stage-specific behavior with [stage-based configuration](/configuration/stages-and-environments).
+Run [`stacktape alarm export`](/cli/alarm-export) to print those rules as config entries, including their project and stage scope. Add each entry to the `alarms` list of every resource it should monitor, and preserve stage-specific behavior with [stage-based configuration](/configuration/stages-and-environments).
 
 On the same resources, list the rule's name in `disabledGlobalAlarms`. Without it the legacy rule still applies next to the alarm you added, and the resource gets two alarms that notify twice. Deploy each affected stage, check the alarms, and then delete the legacy rule in the Console. The [`alarm export` guide](/cli/alarm-export#moving-the-rules-into-your-configuration) shows a complete example.
 
@@ -354,28 +347,23 @@ Stacktape alarm state changes can be used as event sources for [Lambda functions
 
 ### How much do CloudWatch alarms cost?
 
-AWS CloudWatch charges per alarm-metric per month. Stacktape alarms use standard resolution (periods must be multiples of 60 seconds). For most stacks, alarm costs are a small fraction of overall compute and database spend. See [managing costs](/managing-costs/overview) for broader cost guidance.
+AWS charges per alarm metric per month. Stacktape alarms use standard resolution, so their periods are multiples of 60
+seconds. For most stacks, alarms cost a small fraction of compute and database spend. See
+[CloudWatch pricing](https://aws.amazon.com/cloudwatch/pricing/).
 
-### Can I set different alarm thresholds for production vs development?
+### Can I set different thresholds for production and development?
 
-Yes. Use [stage-based configuration](/configuration/stages-and-environments) in your TypeScript config to select thresholds or omit alarms for a stage, then deploy each affected stage.
+Yes. Use [stage-based configuration](/configuration/stages-and-environments) to pick thresholds or leave alarms out for
+a stage, then deploy each affected stage.
 
-### How do I avoid false alarms from short traffic spikes?
+### How do I test that an alarm works?
 
-Tune the `evaluation` property. Increase `evaluationPeriods` (how many periods to look at) and set `breachedPeriods` to require multiple periods in breach before firing. For example, `evaluationPeriods: 5` with `breachedPeriods: 3` means the threshold must be breached in at least 3 of the last 5 periods. Increasing `period` from 60 to 300 seconds also smooths out short spikes by aggregating metric data over a wider window.
+Deploy it, check it with [`stacktape alarm list`](/cli/alarms), then set a threshold your current traffic breaches (for
+example `thresholdPercent: 0` on an error-rate alarm), deploy and wait one evaluation period. Check that the alert
+arrives, then restore the real threshold.
 
-### Where do I change an alarm rule?
+### Can I alarm on a custom metric my application publishes?
 
-Edit the resource's `alarms` list in the stack configuration and deploy. If the alarm comes from a legacy Console rule, [export it into configuration](#migrating-legacy-console-alarm-rules) first.
-
-### Can I alarm on custom CloudWatch metrics from my application?
-
-Custom application-level metrics emitted via the CloudWatch SDK are not directly supported as alarm triggers in the Stacktape config. For each resource type, Stacktape provides a fixed set of trigger types covering the most critical metrics. The one exception is the `application-load-balancer-custom` trigger, which lets you alarm on any supported ALB CloudWatch metric by specifying the metric name and a threshold — see the [API reference](#api-reference) for supported properties.
-
-### How do I test that my alarms work?
-
-Deploy a stage with alarms configured and use [`stacktape alarm list`](/cli/alarms) to verify the alarms were created. To trigger a test alarm, temporarily set a threshold that your current traffic would breach (e.g. `thresholdPercent: 0` on an error-rate alarm) and wait for the evaluation period to elapse. Check your notification target (Slack, email, etc.) for the alert, then restore the real threshold.
-
-### When should I use alarms vs error tracking?
-
-[Alarms](/observability/alarms) monitor aggregate CloudWatch metrics (error rates, CPU, latency) and fire based on thresholds you define. [Error tracking](/observability/error-tracking) automatically detects, groups, and deduplicates individual runtime errors from your application code. Use alarms for infrastructure-level health monitoring and error tracking for application-level errors. Most production stacks benefit from both — alarms catch broad degradation while error tracking catches specific bugs.
+Not from the Stacktape config. Each resource type has a fixed set of triggers; only `application-load-balancer-custom`
+takes any ALB metric by name. For your own metrics, create the alarm in CloudWatch or add it as raw CloudFormation in
+your config's [overrides](/configuration/overrides-and-escape-hatches).

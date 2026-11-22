@@ -7,17 +7,16 @@ seoDescription: 'Run scripted browser and API tests on a schedule from your own 
 
 # Synthetic tests
 
-A synthetic test runs your script on a schedule from AWS CloudWatch Synthetics in your own account and alerts you when a run fails. Where an [uptime check](/observability/uptime-checks) asks "does the endpoint respond?", a synthetic test verifies a whole flow: sign-in, checkout, a multi-step API sequence with assertions.
+A synthetic test runs your script on a schedule with AWS CloudWatch Synthetics in your own account and alerts you when
+a run fails. An [uptime check](/observability/uptime-checks) asks whether an endpoint answers; a synthetic test checks a
+whole flow, such as sign-in, checkout or a sequence of API calls with assertions.
 
-## When to use
+Write one for the few flows whose breakage costs you customers, typically sign-up, sign-in and payment. Each test adds
+a monthly cost (see [Cost](#cost)). Synthetic tests watch a deployed stage continuously; they don't gate deploys and
+they aren't load tests.
 
-Write a synthetic test for the handful of flows whose breakage costs you customers — typically sign-up, sign-in, and payment. One browser test per critical flow in production is the sweet spot; each additional test adds real monthly cost (see below).
-
-## When NOT to use
-
-- **"Is it up?"** — an [uptime check](/observability/uptime-checks) answers that for a fraction of the cost.
-- **Pre-deploy verification** — synthetic tests monitor continuously; they don't gate deployments.
-- **Load testing** — one run at a time, on a schedule.
+Synthetic tests run without the Stacktape Console. With it, the Console's **Synthetics** page shows each run with its
+screenshots, and a failing test can open an [incident](/observability/incidents).
 
 ## Configuration
 
@@ -89,7 +88,16 @@ exports.handler = async () => {
 
 Stacktape creates a CloudWatch alarm on the test's success rate. One failed run trips it; the next passing run resolves it. Between runs the alarm holds its last real state — a failing test on a sparse schedule stays failing until a run actually passes, and a new test's first passing run does not announce a recovery. With `notificationChannels` configured, both events are delivered like [alarm](/observability/alarms#notification-targets) notifications: inline channels from your account, and `console-channel` references by the Console, which lists them in Sent alerts. Only actual failing runs alarm; a canary that stops running entirely does not page (its state is visible on the Synthetics page).
 
+## See the runs in the Console
+
+Open **Observability → Synthetics** and click a test. The status says whether it is **Passing** or **Failing**, with a
+link to its incident. **Runs** lists every run; turn on **Failures only** to find the broken ones. Open a run for its
+screenshots, the steps before a failure, and its logs. **About this test** shows the schedule, the region and the
+runtime.
+
 ## What leaves your AWS account
+
+[What leaves your AWS account](/observability/overview#what-leaves-your-aws-account) compares every feature in one table.
 
 Run results, screenshots and the canary's logs stay in your account. The Console's Synthetics page reads them from your account in your browser, with short-lived credentials, and Stacktape's servers do not store them.
 
@@ -97,7 +105,13 @@ When the test's alarm changes state, the stack sends the Console the alarm event
 
 ## Cost
 
-CloudWatch Synthetics charges ~$0.0012 per run (first 100 runs each month are free), plus the underlying Lambda, S3 and CloudWatch Logs usage. A browser test at `rate(5 minutes)` runs ~8,900 times a month — roughly $11 in run charges and $15–20 all-in. An `api` test runs shorter and lands closer to $11–13. Slower schedules cost proportionally less: `rate(15 minutes)` is about a third of that.
+CloudWatch Synthetics charges per run: $0.0012 in US East (N. Virginia), with the first 100 runs a month in an account
+free. Other regions can cost more.
+A test on `rate(5 minutes)` runs about 8,900 times in a 31-day month, which is about $10.70 in run charges. Each run
+also uses Lambda time, S3 storage for its results and screenshots, and CloudWatch Logs, which depend on the region,
+how long the run takes and its memory. A browser test takes longer than an `api` test, so it costs more on top. A
+slower schedule costs proportionally less: `rate(15 minutes)` is a third. See
+[CloudWatch pricing](https://aws.amazon.com/cloudwatch/pricing/) for your region.
 
 ## Limits
 
