@@ -1660,7 +1660,8 @@ export interface SqsIntegrationProps {
    *
    * ---
    *
-   * Maximum is 10,000.
+   * Maximum is 10,000 for standard queues and 10 for FIFO queues. Above 10, AWS requires `maxBatchWindowSeconds` of at
+   * least 1.
    *
    * @default 10
    */
@@ -1670,7 +1671,8 @@ export interface SqsIntegrationProps {
    *
    * ---
    *
-   * Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
+   * Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available. FIFO queues don't
+   * support a batching window.
    */
   maxBatchWindowSeconds?: number;
   /**
@@ -1765,7 +1767,7 @@ export interface KinesisIntegrationProps {
    *
    * Maximum is 10,000.
    *
-   * @default 10
+   * @default 100
    */
   batchSize?: number;
   /**
@@ -1863,7 +1865,7 @@ export interface DynamoDbIntegrationProps {
    *
    * ---
    *
-   * Maximum is 1,000.
+   * Maximum is 10,000.
    *
    * @default 100
    */

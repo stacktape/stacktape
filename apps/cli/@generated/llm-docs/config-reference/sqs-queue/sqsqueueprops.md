@@ -24,7 +24,7 @@ type SqsQueueProps = {
   fifoHighThroughput?: boolean;
   /** Seconds the queue waits for messages before returning an empty response. Range: 0–20. */
   longPollingSeconds?: number;
-  /** Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB). */
+  /** Maximum message size in bytes. Range: 1,024 (1 KiB) to 1,048,576 (1 MiB). */
   maxMessageSizeBytes?: number;
   /** How long unprocessed messages stay in the queue before being deleted. Range: 60s to 1,209,600s (14 days). */
   messageRetentionPeriodSeconds?: number;
@@ -532,11 +532,11 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number`
-- Default: `262144`
+- Default: `1048576`
 
-Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB).
+Maximum message size in bytes. Range: 1,024 (1 KiB) to 1,048,576 (1 MiB).
 
-Messages larger than this limit are rejected. For payloads over 256 KB, store the data in S3 and send the reference.
+Messages larger than this limit are rejected. For larger payloads, store the data in S3 and send the reference.
 
 ### Example 1 (yaml)
 

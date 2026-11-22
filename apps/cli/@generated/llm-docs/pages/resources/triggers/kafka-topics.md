@@ -1,11 +1,12 @@
 # Kafka topic events
 
-A `kafka-topic` event lets AWS Lambda poll one Kafka topic and invoke your function with batches of records. The
-simplest source is a Stacktape [Kafka cluster](/resources/messaging/kafka-cluster): Stacktape configures IAM access,
-networking, and the Lambda event-source mapping.
+A `kafka-topic` event makes Lambda read one Kafka topic and run a [Lambda function](/resources/compute/lambda-function)
+with batches of records. The simplest source is a Stacktape [Kafka cluster](/resources/messaging/kafka-cluster):
+Stacktape sets up IAM access, networking and the event source mapping. Existing Amazon MSK clusters and self-managed
+Kafka work too.
 
-Kafka is an expensive choice if you only need background jobs. Prefer an [SQS queue](/resources/messaging/sqs-queue)
-or [Kinesis stream](/resources/messaging/kinesis-stream) unless Kafka protocol compatibility is a requirement.
+Kafka is expensive for plain background jobs. Use an [SQS queue](/resources/triggers/sqs-events) or a
+[Kinesis stream](/resources/triggers/kinesis-events) unless you need Kafka itself.
 
 ## Stacktape Kafka cluster
 
@@ -29,23 +30,40 @@ resources:
             startFrom: latest
 ```
 
-`startFrom` is deliberately required:
+`startFrom` is required, so you choose on purpose:
 
-- `latest` processes records that arrive after the mapping becomes active.
-- `earliest` starts from the oldest retained records and can cause a large first processing burst.
+- `latest` processes records that arrive after the trigger becomes active.
+- `earliest` starts from the oldest retained records. Expect a large first burst of invocations.
 
-Stacktape creates shared Lambda and STS interface VPC endpoints for an on-demand Lambda poller attached to a native
-cluster. Those endpoints have their own hourly and data-processing charges in every availability zone. The Lambda
-function itself does not need `joinDefaultVpc` merely to consume the trigger; the poller has separate networking.
-The endpoints use private DNS for the shared VPC and their default endpoint policy, so ordinary workload calls remain
-governed by workload IAM rather than being accidentally blocked at the endpoint.
+The topic must exist before records can flow. MSK Serverless doesn't create topics automatically and CloudFormation
+can't declare them; [Create topics](/resources/messaging/kafka-cluster#create-topics) shows the setup code.
 
-The topic must already exist. MSK Serverless disables automatic topic creation and CloudFormation does not support
-declarative topics for Serverless clusters. See [Create topics](/resources/messaging/kafka-cluster#create-topics).
+The function doesn't need `joinDefaultVpc` to receive records; Lambda's poller has its own networking. For the poller,
+Stacktape creates Lambda and STS interface endpoints in the stack's VPC. They're shared by the stack and charged per
+hour and per GB in every availability zone.
+
+A Stacktape cluster in a reused VPC (`stackConfig.vpc.reuseVpc`) can't feed a `kafka-topic` trigger, because the
+endpoints would collide with ones another project owns. Use a Stacktape-created VPC outside `us-east-1`, or an existing
+cluster with networking you provide.
+
+Records arrive grouped by topic and partition, with keys and values base64-encoded:
+
+```typescript
+type KafkaEvent = { records: Record<string, Array<{ offset: number; key?: string; value: string }>> };
+
+export default async (event: KafkaEvent) => {
+  for (const records of Object.values(event.records)) {
+    for (const record of records) {
+      const order = JSON.parse(Buffer.from(record.value, 'base64').toString('utf-8'));
+      console.info(record.offset, order);
+    }
+  }
+};
+```
 
 ## Existing Amazon MSK cluster
 
-Use `mskClusterArn` for an existing cluster in the same AWS account and region:
+Use `mskClusterArn` for a cluster in the same account and region that uses IAM authentication:
 
 ```yaml
 events:
@@ -56,22 +74,14 @@ events:
       startFrom: earliest
 ```
 
-This v1 contract assumes the cluster uses IAM authentication. Stacktape scopes the function role to the exact cluster,
-topic, and consumer group. You remain responsible for the existing cluster's security groups, subnets, routes, and
-on-demand poller connectivity. A public subnet and internet gateway alone are not enough: the event-source poller
-needs NAT or private Lambda and STS endpoints. Secret-based SCRAM and mTLS for an existing MSK ARN are not exposed in
-this contract; use the self-managed form when those credentials are required.
-
-Cross-account MSK event sources require an AWS-managed VPC connection and are not supported by this v1 event.
-
-A native Stacktape cluster in a reused VPC can be used by directly connected workloads, but cannot be a Lambda Kafka
-event source in v1. Lambda and STS private-DNS endpoints are VPC-global and Stacktape will not collide with endpoints
-owned by another project. Use an existing `mskClusterArn` after providing its networking yourself, or use a
-Stacktape-owned VPC outside `us-east-1` for the native cluster-and-trigger path.
+Stacktape scopes the function's role to that cluster, topic and consumer group. The cluster's network is yours to
+prepare: its subnets need NAT or Lambda and STS endpoints, because a public subnet with an internet gateway isn't enough
+for the poller. MSK clusters in another account aren't supported. For SCRAM or mTLS credentials, use the self-managed
+form below.
 
 ## Self-managed Kafka
 
-For Kafka outside Amazon MSK, provide bootstrap brokers and a Secrets Manager authentication secret:
+For Kafka outside Amazon MSK, give the brokers and an authentication secret in Secrets Manager:
 
 ```yaml
 events:
@@ -95,42 +105,34 @@ events:
           - sg-0123456789abcdef0
 ```
 
-The `vpc` block configures the **event-source poller's** network interfaces. Setting `joinDefaultVpc` on the function
-does not make the poller able to reach private brokers. Provide broker-reachable subnets and security groups; multi-AZ
-placement is recommended. The poller's subnets also need NAT or Lambda and STS interface endpoints; add a Secrets Manager endpoint when
-authentication secrets cannot be reached through NAT.
+`vpc` places the poller, not the function. Give it subnets and security groups that can reach the brokers, ideally in
+more than one availability zone. Those subnets also need NAT or Lambda and STS endpoints, plus a Secrets Manager
+endpoint if the secret can't be reached through NAT.
 
-Supported authentication types are `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`. For SASL,
-the secret contains `username` and `password`. For mTLS, configure `clientCertificate` and optionally
-`serverRootCaCertificate` secret ARNs. Stacktape grants secret reads. If a secret is encrypted with a customer-managed
-KMS key, add `kms:Decrypt` for that exact key with `iamRoleStatements`; a key ARN cannot be inferred from the secret ARN.
+Authentication types are `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH` and `MTLS`. A SASL secret holds
+`username` and `password`. For mTLS, set the `clientCertificate` secret and optionally `serverRootCaCertificate`.
+Stacktape grants read access to the secrets. If a secret uses a customer-managed KMS key, add `kms:Decrypt` for that key
+with `iamRoleStatements`.
 
 ## Batching and consumer groups
 
-`batchSize` accepts 1–10,000 records. Omit `maxBatchWindowSeconds` to keep Lambda's 500 ms Kafka default. Unlike SQS,
-Kinesis, and DynamoDB mappings, Kafka can use a batch larger than 10 while retaining that sub-second default.
+`batchSize` is 100 by default and up to 10,000. Without `maxBatchWindowSeconds`, Lambda waits up to 500 ms to fill a
+batch; the maximum is 300 seconds.
 
-Omit `consumerGroupId` for the safe default: AWS assigns a unique group to the mapping. The advanced explicit value is
-for retaining an existing group identity or controlled migrations. It is immutable, must be unique across mappings,
-and an existing group's committed offsets take precedence over `startFrom`. Sharing an ID with another active consumer
-splits partitions instead of duplicating messages.
+Leave `consumerGroupId` out and AWS gives the trigger its own group. Set it only to keep an existing group's identity.
+It can't change after creation, and the group's committed offsets win over `startFrom`. Two active consumers with the
+same ID split the partitions between them instead of each getting every record.
 
-Changing a source, topic, start position, or explicit group replaces the mapping. AWS can reject create-before-delete
-replacement when the old mapping still owns the same explicit group. In that case, remove the mapping in one deployment
-and add it back in the next.
+Changing the source, topic, start position or explicit group replaces the trigger. AWS can refuse to create the new one
+while the old one still owns the same explicit group. Then remove the trigger in one deploy and add it back in the next.
 
-```yaml
-properties:
-  kafkaClusterName: events
-  topicName: orders
-  startFrom: latest
-  batchSize: 100
-  maxBatchWindowSeconds: 1
-  consumerGroupId: orders-worker-v2
-```
+## Failures and retries
 
-Kafka event functions can have a maximum timeout of 840 seconds (14 minutes). Records are delivered at least once;
-make handlers idempotent and decode Kafka record keys and values from base64.
+If the function throws, Lambda retries the whole batch until it succeeds or the records expire from the topic, and the
+partition doesn't move on meanwhile. Records can arrive more than once, so make the handler idempotent. Functions with a
+Kafka trigger can run for at most 14 minutes (`timeout: 840`).
+
+## Configuration reference
 
 
 ### Definition: `KafkaTopicIntegration`
@@ -144,5 +146,10 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `properties` | yes | `option-1 \| option-2 \| option-3` | - |
 
 
-See [AWS Lambda Kafka event-source documentation](https://docs.aws.amazon.com/lambda/latest/dg/with-kafka.html) for the
-runtime event shape and current service constraints.
+The [AWS Kafka event source guide](https://docs.aws.amazon.com/lambda/latest/dg/with-kafka.html) describes the event
+shape and service limits in detail.
+
+## Next steps
+
+- [Kafka cluster](/resources/messaging/kafka-cluster): create the cluster and its topics, and what it costs.
+- [Lambda function](/resources/compute/lambda-function): timeout, memory and logs of the consumer.

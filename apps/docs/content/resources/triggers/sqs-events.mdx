@@ -120,7 +120,16 @@ even without errors, so write the handler to be idempotent: processing the same 
 twice.
 
 The function's `timeout` can't be longer than the queue's `visibilityTimeoutSeconds`, or AWS refuses the trigger.
-Stacktape checks this before deploying. AWS recommends a visibility timeout of six times the function timeout.
+Stacktape checks this before deploying and stops with:
+
+<Error>
+Error in `function` `orderProcessor`: its `timeout` (60 s) is longer than the visibility timeout of its trigger queue
+`orderQueue` (30 s, the default). AWS refuses such a trigger, because a message would become visible to other
+consumers while the function still processes it.
+</Error>
+
+Raise `visibilityTimeoutSeconds` on the queue or lower the function's `timeout`. AWS recommends a visibility timeout of
+six times the function timeout.
 
 ### Send failing messages to a dead-letter queue
 
