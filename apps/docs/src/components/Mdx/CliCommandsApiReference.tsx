@@ -2,6 +2,7 @@ import type { ApiTypeInfo } from '@/utils/api-reference-dto';
 import { cliCommandReference } from 'virtual:stacktape/cli-command-reference';
 import { renderDocsMarkdown } from '@/utils/docs-markdown';
 import { stripHtml } from '@/utils/api-reference-text';
+import { AllowedValues } from './api-reference';
 import { getAllowedValues, getShortTypeInfo, TypeView } from './api-reference/shared';
 
 export type CliCommandArg = {
@@ -16,7 +17,6 @@ export type CliCommandArg = {
 };
 
 /** Enums longer than this list their first values and fold the rest. */
-const VALUES_SHOWN = 12;
 /** Commands with more options than this get a row of jump links above the list. */
 const JUMP_LIST_MIN = 8;
 
@@ -34,22 +34,6 @@ const optionName = (arg: CliCommandArg) =>
   `${arg.alias ? `-${arg.alias}, ` : ''}--${arg.flag}${arg.positional !== undefined ? ` (positional ${arg.positional + 1})` : ''}`;
 
 const optionId = (command: string, arg: CliCommandArg) => `option-${command}-${arg.flag}`;
-
-const renderValues = (list: (string | number)[]) =>
-  list.map((value) => <code key={String(value)}>{String(value)}</code>);
-
-function AllowedValues({ values }: { values: (string | number)[] }) {
-  return (
-    <div className="docs-prop-values">
-      Allowed values: {renderValues(values.slice(0, VALUES_SHOWN))}
-      {values.length > VALUES_SHOWN && (
-        <details className="inline">
-          <summary>{values.length - VALUES_SHOWN} more</summary> {renderValues(values.slice(VALUES_SHOWN))}
-        </details>
-      )}
-    </div>
-  );
-}
 
 /**
  * The options of one CLI command, from the generated command metadata: a static list (no client JavaScript) with a
@@ -112,7 +96,9 @@ export function CliCommandsApiReference({ command }: { command: string }) {
                   {stripHtml(shortHtml) && (
                     <div className="docs-prop-description" dangerouslySetInnerHTML={{ __html: shortHtml }} />
                   )}
-                  {allowedValues && allowedValues.length > 3 && <AllowedValues values={allowedValues} />}
+                  {allowedValues && allowedValues.length > 3 && (
+                    <AllowedValues values={allowedValues} quoteStrings={false} />
+                  )}
                   {stripHtml(longHtml) && (
                     <details className="docs-prop-more">
                       <summary className="docs-prop-toggle">More about --{arg.flag}</summary>

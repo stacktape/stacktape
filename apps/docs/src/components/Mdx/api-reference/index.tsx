@@ -31,16 +31,26 @@ type OpenState = { isOpen: (key: string) => boolean; toggle: (key: string) => vo
 
 const rowId = (anchor: string, path: string[]) => `${anchor}--${path.join('.')}`;
 
-const renderValues = (list: (string | number)[]) =>
-  list.map((value) => <code key={String(value)}>{typeof value === 'string' ? `"${value}"` : String(value)}</code>);
+const renderValues = (list: (string | number)[], quoteStrings: boolean) =>
+  list.map((value) => (
+    <code key={String(value)}>{quoteStrings && typeof value === 'string' ? `"${value}"` : String(value)}</code>
+  ));
 
-function AllowedValues({ values }: { values: (string | number)[] }) {
+/** Allowed values of a property or CLI option. Config values are quoted; CLI values are typed as they are. */
+export function AllowedValues({
+  values,
+  quoteStrings = true
+}: {
+  values: (string | number)[];
+  quoteStrings?: boolean;
+}) {
   return (
     <div className="docs-prop-values">
-      Allowed values: {renderValues(values.slice(0, VALUES_SHOWN))}
+      Allowed values: {renderValues(values.slice(0, VALUES_SHOWN), quoteStrings)}
       {values.length > VALUES_SHOWN && (
         <details className="inline">
-          <summary>{values.length - VALUES_SHOWN} more</summary> {renderValues(values.slice(VALUES_SHOWN))}
+          <summary>{values.length - VALUES_SHOWN} more</summary>{' '}
+          {renderValues(values.slice(VALUES_SHOWN), quoteStrings)}
         </details>
       )}
     </div>
