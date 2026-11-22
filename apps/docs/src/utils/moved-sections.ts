@@ -29,41 +29,39 @@ export const MOVED_SECTIONS: Record<string, Record<string, string>> = {
     'when-should-i-use-file-vs-cliargs-for-external-configuration': '/configuration/directives/#file'
   },
   '/managing-costs/dashboards/': {
-    'costs-per-stack': '/managing-costs/dashboards/#aws-account-the-costs-page',
-    'per-resource-breakdown': '/managing-costs/dashboards/#stage-costs-per-resource',
-    'identify-expensive-resources': '/managing-costs/dashboards/#stage-costs-per-resource',
-    'compare-stages': '/managing-costs/dashboards/#aws-account-the-costs-page',
+    'costs-per-stack': '/managing-costs/dashboards/#the-costs-page',
+    'per-resource-breakdown': '/managing-costs/dashboards/#a-stages-costs',
+    'identify-expensive-resources': '/managing-costs/dashboards/#a-stages-costs',
+    'compare-stages': '/managing-costs/dashboards/#the-costs-page',
     'set-budget-alerts-based-on-real-data': '/managing-costs/budgets/',
-    'does-this-include-stacktapes-subscription-fee':
-      '/managing-costs/dashboards/#does-stacktape-add-any-markup-to-aws-costs',
+    'does-this-include-stacktapes-subscription-fee': '/managing-costs/dashboards/#the-costs-page',
     'how-does-this-differ-from-aws-cost-explorer':
       '/managing-costs/dashboards/#how-is-this-different-from-aws-cost-explorer'
   },
   '/getting-started/': {
-    'install-the-package': '/configuration/configuration-files/#typescript-configuration',
-    'your-first-stacktapets': '/configuration/configuration-files/#typescript-configuration',
+    'install-the-package': '/configuration/configuration-files/#typescript-or-yaml',
+    'your-first-stacktapets': '/configuration/configuration-files/#a-minimal-config',
     'adapt-config-per-stage': '/configuration/stages-and-environments/#stage-aware-configuration',
     'context-properties': '/configuration/stages-and-environments/#config-callback-parameters',
     'quick-start-with-stacktape-init': '/getting-started/#run-it-in-your-apps-directory',
-    'beyond-resources': '/configuration/configuration-files/#config-file-structure',
+    'beyond-resources': '/configuration/configuration-files/#top-level-fields',
     'next-step': '/getting-started/#what-happens-next'
   },
   '/getting-started/deploy-an-existing-app/': {
     prerequisites: '/getting-started/deploy-an-existing-app/#before-you-start',
     'step-1-set-up-aws-credentials': '/getting-started/aws-credentials/',
     'step-2-deploy': '/getting-started/deploy-an-existing-app/#4-deploy',
-    'what-happens-during-deploy': '/deployment-and-lifecycle/deploying-stacks/#how-deployment-works',
+    'what-happens-during-deploy': '/deployment-and-lifecycle/deploying-stacks/#what-a-deploy-does',
     'deploy-output': '/getting-started/deploy-an-existing-app/#4-deploy',
     'add-the-console-optional': '/getting-started/deploy-an-existing-app/#add-the-console',
     'verifying-the-deploy': '/getting-started/deploy-an-existing-app/#its-live',
-    'redeploying-after-changes': '/deployment-and-lifecycle/deploying-stacks/#running-a-deployment',
+    'redeploying-after-changes': '/deployment-and-lifecycle/deploying-stacks/#run-a-deploy',
     'code-only-changes-deploy-in-seconds': '/deployment-and-lifecycle/deploying-stacks/#fast-deployments',
     'deploying-multiple-stages': '/configuration/stages-and-environments/#deploying-a-stage',
     troubleshooting: '/getting-started/deploy-an-existing-app/#if-something-goes-wrong',
     'no-aws-credentials-found': '/getting-started/deploy-an-existing-app/#aws-rejects-the-credentials',
-    'deploy-takes-longer-than-expected': '/deployment-and-lifecycle/deploying-stacks/#deployment-is-slow',
-    'how-long-does-a-first-deploy-take':
-      '/deployment-and-lifecycle/deploying-stacks/#how-long-does-a-stacktape-deployment-take',
+    'deploy-takes-longer-than-expected': '/deployment-and-lifecycle/deploying-stacks/#deploys-are-slow',
+    'how-long-does-a-first-deploy-take': '/deployment-and-lifecycle/deploying-stacks/#deploys-are-slow',
     'does-stacktape-cost-money-to-use-with-aws': '/getting-started/deploy-an-existing-app/#what-the-deploy-costs',
     'can-i-preview-what-a-deploy-will-change-before-running-it': '/deployment-and-lifecycle/previewing-changes/'
   },
@@ -75,7 +73,7 @@ export const MOVED_SECTIONS: Record<string, Record<string, string>> = {
     'next-step': '/local-development/dev-mode-overview/#next-steps'
   },
   '/stacktape-console/console-overview/': {
-    'the-overview-dashboard': '/stacktape-console/console-overview/#the-overview-page',
+    'the-overview-dashboard': '/stacktape-console/console-overview/#the-projects-home',
     logs: '/observability/logs/',
     metrics: '/observability/metrics/',
     alarms: '/stacktape-console/console-overview/#setting-up-alarms',
