@@ -47,7 +47,6 @@
     font-weight: var(--docs-weight-heading);
     line-height: var(--docs-leading-heading);
     text-wrap: balance;
-    scroll-margin-top: calc(var(--docs-header-h) + var(--docs-space-24));
   }
   /* A heading inside the article (the home page owns its own H1 when it hides the page title). */
   .mdx-content h1 {

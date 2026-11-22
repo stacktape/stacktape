@@ -467,7 +467,6 @@
   .docs-prop {
     margin: 0;
     padding: 0;
-    scroll-margin-top: calc(var(--docs-header-h) + var(--docs-space-48));
   }
   .docs-ref-list > .docs-prop + .docs-prop,
   .docs-prop-children > .docs-ref-list > .docs-prop + .docs-prop {

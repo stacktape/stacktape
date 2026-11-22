@@ -320,7 +320,7 @@ export function HomePaths({ title, items }: { title: string; items: Path[] }) {
 
 function Section({ id, title, lead, children }: { id: string; title: string; lead?: ReactNode; children: ReactNode }) {
   return (
-    <section id={id} className="@container font-sans mb-16 scroll-mt-[80px]" aria-labelledby={`${id}-title`}>
+    <section id={id} className="@container font-sans mb-16" aria-labelledby={`${id}-title`}>
       <h2
         id={`${id}-title`}
         className="m-0 text-[24px] font-semibold leading-[1.25] tracking-[-0.015em] text-ink @min-[560px]:text-[26px]"

@@ -525,7 +525,7 @@
     align-items: center;
     gap: var(--docs-space-8);
     width: 100%;
-    height: 40px;
+    height: calc(var(--docs-toc-bar-h) - 1px);
     color: var(--docs-text-muted);
     font-size: var(--docs-text-sm);
     text-align: left;
@@ -553,12 +553,20 @@
   .docs-toc-bar-button[aria-expanded='true'] svg {
     transform: rotate(180deg);
   }
+  /* The open outline lies over the article instead of pushing it down, so choosing a section never moves the page
+     under the reader before it scrolls. */
   .docs-toc-bar-panel {
-    background: var(--docs-bg);
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
     max-height: min(60dvh, 520px);
-    padding: var(--docs-space-4) 0 var(--docs-space-16);
+    padding: var(--docs-space-4) var(--docs-gutter) var(--docs-space-16);
     overflow-y: auto;
     overscroll-behavior: contain;
+    border-bottom: 1px solid var(--docs-border);
+    background: var(--docs-bg);
+    box-shadow: var(--docs-shadow-sheet);
   }
   .docs-toc-bar-panel .docs-toc-link {
     padding-block: 7px;

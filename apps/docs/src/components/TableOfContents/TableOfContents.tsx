@@ -18,9 +18,18 @@ const toSections = (items: TableOfContentsItem[]): Section[] => {
   return sections;
 };
 
+/** The line under the sticky chrome where a linked heading lands (`--docs-anchor-offset`, read from the page). */
+const anchorLine = () => parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 80;
+
+/** Keys that scroll the page; pressing one hands the outline back to scroll tracking. */
+const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
+
 /**
- * The id of the heading being read: the last one whose top has passed the header. Empty while the reader is still
- * above the first section (the title and introduction).
+ * The id of the heading being read: the last one whose top has reached the anchor line, the same line a heading link
+ * scrolls to. Empty while the reader is still above the first section (the title and introduction).
+ *
+ * A heading the reader asked for (a link with its fragment, or an outline click) stays selected until the reader
+ * scrolls by hand, even when it sits too close to the end of the page to reach the line.
  */
 const useActiveHeading = (ids: string[]) => {
   const [activeId, setActiveId] = useState('');
@@ -28,15 +37,21 @@ const useActiveHeading = (ids: string[]) => {
     const elements = ids.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => el !== null);
     if (elements.length === 0) return;
     let frame = 0;
+    let requested = '';
     const update = () => {
       frame = 0;
-      const offset = (parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 80) + 8;
+      if (requested) {
+        setActiveId(requested);
+        return;
+      }
+      // A heading counts as reached a few pixels early, so sub-pixel positions after a jump never miss it.
+      const line = anchorLine() + 4;
       let current = '';
       for (const element of elements) {
-        if (element.getBoundingClientRect().top - offset > 0) break;
+        if (element.getBoundingClientRect().top > line) break;
         current = element.id;
       }
-      // At the very bottom the last sections may never reach the top: mark the last one.
+      // At the very bottom the last sections may never reach the line: mark the last one.
       if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
         current = elements.at(-1)!.id;
       }
@@ -45,13 +60,32 @@ const useActiveHeading = (ids: string[]) => {
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
-    update();
+    const followHash = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      requested = ids.includes(id) ? id : '';
+      schedule();
+    };
+    const release = (event: Event) => {
+      if (!requested) return;
+      if (event instanceof KeyboardEvent && !SCROLL_KEYS.has(event.key)) return;
+      requested = '';
+      schedule();
+    };
+    followHash();
+    window.addEventListener('hashchange', followHash);
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
+    window.addEventListener('wheel', release, { passive: true });
+    window.addEventListener('touchmove', release, { passive: true });
+    window.addEventListener('keydown', release);
     return () => {
       cancelAnimationFrame(frame);
+      window.removeEventListener('hashchange', followHash);
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
+      window.removeEventListener('wheel', release);
+      window.removeEventListener('touchmove', release);
+      window.removeEventListener('keydown', release);
     };
   }, [ids]);
   return activeId;

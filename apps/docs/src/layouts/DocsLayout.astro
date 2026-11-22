@@ -149,6 +149,15 @@ const siteJsonLd = isHome ? [
     {siteJsonLd.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
     {pageJsonLd.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
 
+    <script is:inline>
+    // See `html[data-smooth-scroll]` in global.css. The router replaces the root attributes on every navigation.
+      (() => {
+        const smooth = () => requestAnimationFrame(() => document.documentElement.setAttribute('data-smooth-scroll', ''));
+        if (document.readyState === 'complete') smooth();
+        else addEventListener('load', smooth, { once: true });
+        document.addEventListener('astro:page-load', smooth);
+      })();
+    </script>
     <ClientRouter />
     <PostHogAnalytics />
   </head>
