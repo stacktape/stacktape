@@ -4,19 +4,7 @@ import { FlowDiagram, ProjectStructure } from '@/components/Mdx/DecisionTree';
 import { FeatureComparisonTable } from '@/components/Mdx/FeatureComparisonTable';
 import { ErrorCallout, Info, Tip, Warning } from '@/components/Mdx/Highlighter';
 import { MdxImage } from '@/components/Mdx/Image';
-import {
-  ButtonRow,
-  CTAButton,
-  CTASection,
-  FeatureGrid,
-  LandingCover,
-  LandingHero,
-  OpenSourceBanner,
-  PricingColumns,
-  Step,
-  Steps,
-  Testimonials
-} from '@/components/Mdx/Landing';
+import { HomeExample, HomeHero, HomeMap, HomeOffers, HomePaths, HomeTeams } from '@/components/Mdx/Home';
 import { PreviousNext } from '@/components/Mdx/PreviousNext';
 import { ReferenceableParams } from '@/components/Mdx/ReferenceableParams';
 import { Table } from '@/components/Mdx/Table';
@@ -49,17 +37,12 @@ const reactMdxComponents = {
   FlowDiagram,
   FeatureComparisonTable,
   Tab,
-  LandingHero,
-  LandingCover,
-  CTAButton,
-  ButtonRow,
-  FeatureGrid,
-  Steps,
-  Step,
-  CTASection,
-  OpenSourceBanner,
-  Testimonials,
-  PricingColumns
+  HomeHero,
+  HomePaths,
+  HomeExample,
+  HomeOffers,
+  HomeTeams,
+  HomeMap
 };
 
 export default reactMdxComponents;

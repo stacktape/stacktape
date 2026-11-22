@@ -165,7 +165,8 @@ const siteJsonLd = isHome ? [
       />
       <main id="main-content">
         <slot name="before-title" />
-        <h1 class="page-title">{title}</h1>
+        {/* The home page renders its own H1 in its hero. */}
+        {!isHome && <h1 class="page-title">{title}</h1>}
         <article class="mdx-content"><slot /></article>
         <Divider style={{ marginTop: '55px' }} />
         <Footer />
