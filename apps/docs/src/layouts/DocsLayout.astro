@@ -10,6 +10,7 @@ import { SidebarNavigation } from '@/components/Navigation/SidebarNavigation/Sid
 import { MobileHamburgerNavigation } from '@/components/Navigation/MobileHamburgerNavigation/MobileHamburgerNavigation';
 import { TableOfContents } from '@/components/TableOfContents/TableOfContents';
 import PostHogAnalytics from '@/components/PostHogAnalytics.astro';
+import { getSectionTrail } from '@/components/Navigation/SidebarNavigation/navigation-data';
 
 type Props = {
   title: string;
@@ -30,6 +31,9 @@ const isHome = currentPath === '/';
 // The outline lists H2 and H3. A page with fewer than two sections gets no outline at all.
 const outline = tableOfContents.filter((item) => item.level === 2 || item.level === 3);
 const hasToc = outline.filter((item) => item.level === 2).length >= 2;
+// Where the page sits ("Resources / Compute"), shown above the title of every page below a section.
+const sectionTrail = version === 'v4' ? getSectionTrail(currentPath, allDocPages) : [];
+const showTrail = !hideTitle && sectionTrail.length > 0;
 
 // The navigation islands below carry explicit `transition:persist` names. Without them Astro
 // auto-generates names from element order, which can mismatch across pages (different island
@@ -171,6 +175,7 @@ const siteJsonLd = isHome ? [
         <div class="docs-article-column">
           {hasToc && <TableOfContents client:idle variant="bar" tableOfContents={outline} />}
           <slot name="before-title" />
+          {showTrail && <p class="docs-page-section">{sectionTrail.join(' / ')}</p>}
           {!hideTitle && <h1 class="docs-page-title">{title}</h1>}
           <article class="mdx-content"><slot /></article>
           <Footer />

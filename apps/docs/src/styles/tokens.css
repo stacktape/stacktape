@@ -146,6 +146,7 @@
     --docs-text-h2: 1.375rem;
     --docs-text-h3: 1.125rem;
     --docs-gutter: var(--docs-space-20);
-    --docs-flow-section: var(--docs-space-40);
+    --docs-flow-section: 36px;
+    --docs-leading-body: 1.62;
   }
 }

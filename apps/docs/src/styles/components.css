@@ -39,6 +39,13 @@
   .docs-callout[data-variant='error'] {
     --docs-callout-color: var(--docs-danger);
   }
+  @media (max-width: 639px) {
+    .docs-callout {
+      grid-template-columns: 16px minmax(0, 1fr);
+      column-gap: 10px;
+      padding: 10px 12px;
+    }
+  }
   .docs-callout-icon {
     display: flex;
     align-items: center;
@@ -1025,7 +1032,7 @@
     margin-top: var(--docs-space-24);
   }
   .docs-404-links {
-    margin-top: var(--docs-space-48);
+    margin-top: var(--docs-space-32);
   }
   .docs-button {
     display: inline-flex;

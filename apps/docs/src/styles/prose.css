@@ -14,6 +14,15 @@
     text-wrap: balance;
   }
 
+  .docs-page-section {
+    margin: 0 0 var(--docs-space-8);
+    word-spacing: 0.15em;
+    color: var(--docs-text-faint);
+    font-size: var(--docs-text-sm);
+    font-weight: var(--docs-weight-medium);
+    line-height: 1.4;
+  }
+
   .mdx-content {
     min-width: 0;
     color: var(--docs-text);

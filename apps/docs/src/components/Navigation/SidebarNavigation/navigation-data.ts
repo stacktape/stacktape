@@ -40,7 +40,7 @@ export type NavGroup = {
 // title-cased like "Cli" or "Aws"). Add as needed.
 const acronyms = new Set(['ai', 'cli', 'aws', 'api', 'sdk', 'mcp', 'cdn', 'cdk', 'sql', 'efs', 'sns', 'sqs', 'waf']);
 
-const capitalizeSegment = (segment: string) =>
+export const capitalizeSegment = (segment: string) =>
   segment
     .split('-')
     .map((word) =>
@@ -236,9 +236,9 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
  * Compute the expansion state of every group/item.
  *
  * Three-layer rule:
- *   1. Defaults — auto-open of every ancestor of the current page. Only on a page outside the tree
- *      (the home page, the 404 page) do the config's group `defaultOpen` flags and `defaultOpenPaths`
- *      apply, so a reader on a resource page sees that page's neighbours, not unrelated sections.
+ *   1. Defaults — auto-open of every ancestor of the current page. Only on the home page do the
+ *      config's group `defaultOpen` flags and `defaultOpenPaths` apply, so a reader on a resource
+ *      page sees that page's neighbours, not unrelated sections.
  *   2. User overrides — explicit toggles from the persisted store. These trump defaults so a user
  *      can collapse a section that's also the active branch (and have it stay collapsed across
  *      navigation).
@@ -262,18 +262,20 @@ export const computeExpandedState = ({
     return item.children.some((child) => isActiveOrAncestor(child));
   };
 
-  const pageInTree = groups.some((group) => group.children.some((child) => isActiveOrAncestor(child)));
+  // The configured default-open sections only apply on the home page. Elsewhere the tree opens the current page's
+  // branch and nothing else (the 404 page opens nothing, so its recovery actions carry the weight).
+  const isHome = normalizedPath === '/' || normalizedPath === config.v3Sidebar.basePath;
 
   for (const group of groups) {
     const groupKey = `group:${group.id}`;
     const containsActive = group.children.some((child) => isActiveOrAncestor(child));
-    const defaultExpanded = containsActive || (!pageInTree && group.defaultOpen);
+    const defaultExpanded = containsActive || (isHome && group.defaultOpen);
     expanded[groupKey] = userOverrides[groupKey] ?? defaultExpanded;
 
     const walk = (items: NavItem[]) => {
       for (const item of items) {
         if (item.children.length === 0) continue;
-        const itemDefault = isActiveOrAncestor(item) || (!pageInTree && defaultOpenPaths.has(item.key));
+        const itemDefault = isActiveOrAncestor(item) || (isHome && defaultOpenPaths.has(item.key));
         expanded[item.key] = userOverrides[item.key] ?? itemDefault;
         walk(item.children);
       }
@@ -282,4 +284,17 @@ export const computeExpandedState = ({
   }
 
   return expanded;
+};
+
+/** The section names above a page, as the sidebar shows them: `/resources/compute/web-service` → Resources, Compute. */
+export const getSectionTrail = (pathname: string, allDocPages: DocPage[]): string[] => {
+  const segments = pathname.split('/').filter(Boolean);
+  return segments.slice(0, -1).map((segment, index) => {
+    const path = `/${segments.slice(0, index + 1).join('/')}`;
+    const title =
+      index === 0
+        ? config.sidebar.groups.find((group) => group.path === path)?.title
+        : allDocPages.find((page) => page.url === path)?.title;
+    return title ?? capitalizeSegment(segment);
+  });
 };
