@@ -19,8 +19,6 @@ import {
 import type { IconType } from 'react-icons';
 import siteConfig from '@/site-config';
 import { colors } from '@/styles/variables';
-import { Button } from '@/components/Button/Button';
-import StacktapeCover from '@/assets/cover-transparent.png';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Shared tokens
@@ -53,46 +51,6 @@ const Icon = ({ name, size = 22, color }: { name?: string; size?: number; color?
   const Component = (name && iconRegistry[name]) || LuSparkles;
   return <Component size={size} color={color || colors.stacktapeGreen} />;
 };
-
-// ────────────────────────────────────────────────────────────────────────────
-// CTA buttons
-// ────────────────────────────────────────────────────────────────────────────
-
-export function CTAButton({
-  href,
-  children,
-  variant = 'primary',
-  icon
-}: {
-  href: string;
-  children: ReactNode;
-  variant?: 'primary' | 'secondary' | 'ghost';
-  icon?: string;
-}) {
-  // Map to the shared button variants used across the site (header, console, etc.).
-  const buttonVariant = variant === 'secondary' ? 'secondary' : variant === 'ghost' ? 'plain' : 'primary';
-  return (
-    <Button
-      variant={buttonVariant}
-      href={href}
-      width="fit-content"
-      height="40px"
-      iconPosition="end"
-      icon={icon ? <Icon name={icon} size={18} color={colors.fontColorPrimary} /> : undefined}
-      className="text-[0.95rem] py-0 pr-4 pl-[18px]"
-    >
-      {children}
-    </Button>
-  );
-}
-
-export function ButtonRow({ children, align = 'left' }: { children: ReactNode; align?: 'left' | 'center' }) {
-  return (
-    <div className={clsx('flex flex-wrap gap-3 mt-[26px]', align === 'center' ? 'justify-center' : 'justify-start')}>
-      {children}
-    </div>
-  );
-}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Hero
@@ -156,28 +114,6 @@ export function LandingHero({
         {children}
       </div>
     </div>
-  );
-}
-
-export function LandingCover() {
-  const coverSrc =
-    typeof StacktapeCover === 'string' ? StacktapeCover : (StacktapeCover as unknown as { src: string }).src;
-
-  return (
-    <figure className="font-sans relative my-6">
-      <img
-        src={coverSrc}
-        alt="Stacktape Console project dashboard alongside a terminal showing an infrastructure deployment in progress"
-        width={3034}
-        height={2408}
-        loading="eager"
-        decoding="async"
-        className="block h-auto w-full"
-      />
-      <figcaption className="text-center text-[0.8rem] leading-relaxed text-fc-ternary">
-        Define, deploy and operate production-grade AWS infrastructure from one workflow.
-      </figcaption>
-    </figure>
   );
 }
 
@@ -285,66 +221,6 @@ export function DocsMap({ items }: { items: MapItem[] }) {
           </a>
         );
       })}
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Steps (numbered vertical timeline; children may include CodeBlocks)
-// ────────────────────────────────────────────────────────────────────────────
-
-// Numbering + the "last step has no connector / bottom padding" are driven by CSS (a counter and
-// :last-of-type, defined on `.stp-step*` in global.css) rather than by the parent injecting
-// `_index`/`_last` props. Astro renders MDX children as opaque wrapped nodes, so a <Steps> parent
-// can't clone its <Step> children to pass those props — every Step would otherwise render as "1".
-export function Step({ title, children }: { title: string; children?: ReactNode }) {
-  return (
-    <div className="stp-step flex gap-4">
-      <div className="flex flex-col items-center">
-        <div
-          className="stp-step-number w-[34px] h-[34px] shrink-0 rounded-full flex items-center justify-center font-bold text-[14px] text-[#06201d] shadow-[0_4px_12px_rgba(54,190,190,0.3)]"
-          style={{ background: brandGradient }}
-        />
-        <div className="stp-step-connector w-[2px] flex-1 min-h-[24px] bg-[rgba(54,190,190,0.22)] mt-1" />
-      </div>
-      <div className="stp-step-body flex-1 pb-[14px] min-w-0">
-        <h3 className="text-[1.05rem] font-[650] mt-1 mb-2 mx-0 text-fc-primary">{title}</h3>
-        <div className="text-[0.9rem] text-fc-lighter leading-[1.6]">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-export function Steps({ children }: { children: ReactNode }) {
-  return <div className="stp-steps font-sans my-[26px]">{children}</div>;
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Closing CTA band
-// ────────────────────────────────────────────────────────────────────────────
-
-export function CTASection({
-  title,
-  subtitle,
-  children
-}: {
-  title: string;
-  subtitle?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="mt-10 mb-[10px] mx-0 px-[30px] py-9 rounded-2xl text-center relative overflow-hidden bg-[linear-gradient(135deg,rgba(54,190,190,0.1),rgba(74,166,220,0.06))] shadow-[inset_0_0_0_1px_rgba(54,190,190,0.22)]">
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: `radial-gradient(ellipse at 50% -20%, ${colors.stacktapeGreen}1f 0%, transparent 60%)` }}
-      />
-      <div className="relative">
-        <h2 className="text-[1.7rem] font-[720] tracking-[-0.02em] m-0 text-fc-primary max-[650px]:text-[1.4rem]">
-          {title}
-        </h2>
-        {subtitle && <p className="mt-3 text-base text-fc-lighter max-w-[600px] mx-auto leading-[1.6]">{subtitle}</p>}
-        <div className="flex flex-wrap gap-3 justify-center mt-6">{children}</div>
-      </div>
     </div>
   );
 }

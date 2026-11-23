@@ -4,19 +4,14 @@ import { FlowDiagram, ProjectStructure } from '@/components/Mdx/DecisionTree';
 import { FeatureComparisonTable } from '@/components/Mdx/FeatureComparisonTable';
 import { ErrorCallout, Info, Tip, Warning } from '@/components/Mdx/Highlighter';
 import { MdxImage } from '@/components/Mdx/Image';
+import { ConfigToAws } from '@/components/Mdx/ConfigToAws';
 import {
-  ButtonRow,
-  CTAButton,
-  CTASection,
   DocsMap,
   FeatureGrid,
   GoalPath,
   GoalPaths,
-  LandingCover,
   LandingHero,
   PricingColumns,
-  Step,
-  Steps,
   Testimonials
 } from '@/components/Mdx/Landing';
 import { PreviousNext } from '@/components/Mdx/PreviousNext';
@@ -52,13 +47,8 @@ const reactMdxComponents = {
   FeatureComparisonTable,
   Tab,
   LandingHero,
-  LandingCover,
-  CTAButton,
-  ButtonRow,
+  ConfigToAws,
   FeatureGrid,
-  Steps,
-  Step,
-  CTASection,
   GoalPaths,
   GoalPath,
   DocsMap,

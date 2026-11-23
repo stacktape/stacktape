@@ -8,35 +8,24 @@ seoDescription: 'Deploy production-grade serverless and container apps to your o
 <LandingHero
   title="From scratch to production-grade AWS infra in a day."
   accent="No DevOps knowledge required."
-  subtitle="Stacktape deploys your app into your own AWS account. You describe its services, databases and domains in one config file, and the CLI builds your code and creates the AWS resources. The CLI is open source and works without a Stacktape account."
+  subtitle="Stacktape turns one config file into infrastructure in your own AWS account, and the CLI builds and deploys your code to it. The CLI is open source and works without a Stacktape account."
 />
 
-## Quick start
+<ConfigToAws>
+  `stacktape deploy` creates these resources with your AWS credentials, and AWS bills you for them directly. `stacktape delete` removes all of them.
+</ConfigToAws>
 
-<Steps>
-  <Step title="Run stacktape init in your project">
-    Use npm, or the standalone installer, which needs no Node.js and starts `stacktape init` right after it installs.
-    <CodeBlock tabs={[
-      { label: 'npm', lang: 'bash', code: `npx stacktape init` },
-      { label: 'macOS', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init` },
-      { label: 'Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init` },
-      { label: 'Windows', lang: 'powershell', code: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"` }
-    ]} />
-  </Step>
-  <Step title="Review the config and deploy">
-    A wizard opens in your browser. It reads your project, proposes a config and writes it once you have reviewed it.
-    Then it shows the AWS account and stack it will deploy to, and deploys with the AWS credentials on your machine. You
-    don't need a Stacktape account.
-  </Step>
-  <Step title="Keep going from the terminal">
-    After the first deploy, the wizard offers the [Stacktape Console](/stacktape-console/console-overview) and a CI/CD
-    pipeline. From then on you develop against real AWS resources and redeploy from the terminal or CI.
-    <CodeBlock tabs={[
-      { label: 'dev mode', lang: 'bash', code: `stacktape dev --stage dev --region eu-west-1` },
-      { label: 'deploy', lang: 'bash', code: `stacktape deploy --stage production --region eu-west-1` }
-    ]} />
-  </Step>
-</Steps>
+## Start with your own project
+
+Run this in your project's folder. A wizard opens in your browser, proposes a config from your code and deploys it
+after you review it. You don't need a Stacktape account; the wizard offers the Console after the first deploy.
+
+<CodeBlock tabs={[
+  { label: 'npm', lang: 'bash', code: `npx stacktape init` },
+  { label: 'macOS', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init` },
+  { label: 'Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init` },
+  { label: 'Windows', lang: 'powershell', code: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"` }
+]} />
 
 ## Pick your path
 
@@ -75,109 +64,25 @@ seoDescription: 'Deploy production-grade serverless and container apps to your o
   ]}
 />
 
-## Everything you need, in one framework
+## Why teams use Stacktape
 
 <FeatureGrid
   items={[
     { icon: 'container', title: 'Containers & serverless', text: 'Deploy Lambda functions and containers side by side — Fargate for steady workloads, Lambda for spiky ones, EC2 when you need raw control.' },
     { icon: 'boxes', title: 'Full power of AWS', text: 'SQL and NoSQL databases, load balancers, API gateways, Redis, MongoDB Atlas, queues, buckets and more — all first-class building blocks.' },
     { icon: 'layers', title: 'Risk-free', text: 'Extend, override or eject anytime. Everything compiles to plain CloudFormation you can inspect and take with you.' },
-    { icon: 'code', title: 'Infrastructure as code', text: 'TypeScript, YAML or JSON — about 97% shorter than writing the equivalent CloudFormation by hand.' },
     { icon: 'git', title: 'Built-in CI/CD', text: 'Push-to-deploy and isolated preview deployments for every pull request, straight out of the box.' },
-    { icon: 'refresh', title: 'Development mode', text: 'Run services locally while connected to real cloud resources — test changes without redeploying every time.' },
-    { icon: 'bolt', title: 'Smart builds', text: 'Zero-config, optimized parallel builds with advanced caching for every function and container.' },
     { icon: 'shield', title: 'Security built in', text: 'Secret management, least-privilege permissions and private networking — configured by default.' },
     { icon: 'wallet', title: 'Cost optimization', text: 'A detailed cost breakdown across all your stacks and accounts. Billed by AWS, with no markup.' }
   ]}
 />
 
-<LandingCover />
+## Loved by teams shipping on AWS
 
-## A real Stacktape config
-
-A complete HTTP API backed by DynamoDB, with CORS, a custom domain per stage, auto-generated IAM and environment variables:
-
-<CodeBlock
-  intellisense
-  tabs={[{
-    label: 'stacktape.ts',
-    lang: 'typescript',
-    code: `import {
-  defineConfig,
-  DynamoDbTable,
-  HttpApiGateway,
-  HttpApiIntegration,
-  LambdaFunction,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-
-export default defineConfig(({ stage }) => {
-  const database = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'id', type: 'string' } }
-  });
-
-  const api = new HttpApiGateway({
-    cors: { enabled: true },
-    customDomains: [{ domainName: stage === 'production' ? 'acme.com' : stage + '-acme.com' }]
-  });
-
-  const myFunction = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
-    events: [new HttpApiIntegration({ httpApiGatewayName: api, method: 'GET', path: '/' })],
-    connectTo: [database],
-    environment: { TABLE_NAME: database.name }
-  });
-
-  return { resources: { api, myFunction, database } };
-});
-`
-  }]}
-/>
-
-Run `stacktape deploy` and you get a live API Gateway endpoint with your custom domain, a DynamoDB table, and a Lambda with the table name injected and IAM scoped to exactly what it needs — no console clicking, no IAM JSON.
-
-## Override & extend
-
-Need more control? Override or transform any AWS resource:
-
-<CodeBlock
-  configExample="fragment"
-  intellisense
-  tabs={[{
-    label: 'stacktape.ts',
-    lang: 'typescript',
-    code: `import { LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-
-const myFunction = new LambdaFunction({
-    // ... standard config
-    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
-    overrides: {
-      lambda: { Description: 'Overridden description' }
-    },
-    transforms: {
-      lambda: (props: any) => ({ ...props, MemorySize: (props.MemorySize ?? 128) * 2 })
-    }
-});
-`
-  }]}
-/>
-
-You can also add [raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) and [AWS CDK constructs](/resources/advanced/aws-cdk-constructs) next to your Stacktape resources.
+<Testimonials />
 
 ## Open-source CLI, optional Console
 
 The CLI is open source (MIT) and works without an account. Add the hosted Console when your team wants deploy history, costs, alerts and Git deployments; it is free up to $200 a month of managed AWS spend. See [Billing and subscription](/stacktape-console/billing-and-subscription).
 
 <PricingColumns />
-
-## Loved by teams shipping on AWS
-
-<Testimonials />
-
-<CTASection
-  title="Ready to simplify your AWS deployments?"
-  subtitle="From scratch to production-grade AWS infra in a day — no DevOps knowledge required."
->
-  <CTAButton href="/getting-started/configure-your-stack/" variant="primary" icon="arrow">Get started</CTAButton>
-  <CTAButton href="/getting-started/starter-projects/" variant="ghost">Browse examples</CTAButton>
-</CTASection>
