@@ -16190,7 +16190,6 @@ Run init in your app directory. The wizard proposes the AWS setup, shows its mon
 Steps: Start, Analyze, Review, Deploy.
 
 - [Deploy an existing app](/getting-started/deploy-an-existing-app)
-- [Moving from Heroku, Render, Fly.io, SST or Serverless](/getting-started/evaluate/move-to-stacktape)
 
 ### Start a new project
 

@@ -1180,6 +1180,8 @@
       gap: var(--docs-space-32);
       margin-top: var(--docs-space-24);
     }
+    /* The grid's own margin sets the space, so the first group starts on the same line as the second. */
+    .is-picker .docs-directory-body > .docs-dir-group,
     .is-picker .docs-directory-body > .docs-dir-group > p {
       margin-top: 0;
     }
