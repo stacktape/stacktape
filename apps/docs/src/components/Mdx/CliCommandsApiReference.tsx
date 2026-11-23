@@ -1,5 +1,6 @@
 import type { ApiTypeInfo } from '@/utils/api-reference-dto';
 import { cliCommandReference } from 'virtual:stacktape/cli-command-reference';
+import { Search } from 'react-feather';
 import { renderDocsMarkdown } from '@/utils/docs-markdown';
 import { stripHtml } from '@/utils/api-reference-text';
 import { AllowedValues } from './api-reference';
@@ -16,9 +17,8 @@ export type CliCommandArg = {
   allowedTypes: string[];
 };
 
-/** Enums longer than this list their first values and fold the rest. */
-/** Commands with more options than this get a row of jump links above the list. */
-const JUMP_LIST_MIN = 8;
+/** Commands with more options than this get a filter above the list. */
+const FILTER_MIN = 8;
 
 const buildTypeInfo = (allowedTypes?: string[], allowedValues?: string[]): ApiTypeInfo => {
   const types = Array.isArray(allowedTypes) && allowedTypes.length > 0 ? allowedTypes : ['string'];
@@ -53,8 +53,18 @@ export function CliCommandsApiReference({ command }: { command: string }) {
     })
     .join('')}`;
 
+  const hasFilter = args.length > FILTER_MIN;
+
+  // The filter is the lookup lists' filter (`directory-filter.ts`, loaded by the island wrapper): it matches a flag by
+  // its name, alias or first sentence, and Enter jumps to the first match.
   return (
-    <section id={`api-ref-${command}`} className="docs-ref" aria-label={`${usage} options`}>
+    <section
+      id={`api-ref-${command}`}
+      className="docs-ref"
+      aria-label={`${usage} options`}
+      data-directory={hasFilter ? '' : undefined}
+      data-directory-items="li.docs-prop"
+    >
       <div className="docs-ref-header">
         <div className="docs-ref-title">
           <code>{usage}</code>
@@ -62,18 +72,22 @@ export function CliCommandsApiReference({ command }: { command: string }) {
             {args.length} {args.length === 1 ? 'option' : 'options'}
           </span>
         </div>
+        {hasFilter && (
+          <label className="docs-ref-search">
+            <Search size={14} aria-hidden />
+            <input
+              type="search"
+              placeholder="Filter options"
+              aria-label={`Filter ${usage} options`}
+              autoComplete="off"
+              spellCheck={false}
+              data-directory-filter
+            />
+          </label>
+        )}
       </div>
-      {args.length > JUMP_LIST_MIN && (
-        <nav className="docs-ref-jump" aria-label={`${usage} options`}>
-          {args.map((arg) => (
-            <a key={arg.name} href={`#${optionId(command, arg)}`} className="docs-unstyled-link">
-              --{arg.flag}
-            </a>
-          ))}
-        </nav>
-      )}
       {args.length > 0 ? (
-        <ul className="docs-ref-list">
+        <ul className="docs-ref-list" data-directory-body>
           {args.map((arg) => {
             const [short = '', ...long] = (arg.description || '').split('---');
             const shortHtml = renderDocsMarkdown(short.trim().replace(/^#{1,6}\s+/, ''));
@@ -82,7 +96,12 @@ export function CliCommandsApiReference({ command }: { command: string }) {
             const allowedValues = getAllowedValues(typeInfo);
             const id = optionId(command, arg);
             return (
-              <li key={arg.name} id={id} className="docs-prop">
+              <li
+                key={arg.name}
+                id={id}
+                className="docs-prop"
+                data-directory-key={`--${arg.flag} ${arg.alias ? `-${arg.alias} ` : ''}${stripHtml(shortHtml)}`}
+              >
                 <div className="docs-prop-main">
                   <div className="docs-prop-head">
                     <a href={`#${id}`} className="docs-unstyled-link">
@@ -112,6 +131,11 @@ export function CliCommandsApiReference({ command }: { command: string }) {
         </ul>
       ) : (
         <p className="docs-ref-empty">This command has no options.</p>
+      )}
+      {hasFilter && (
+        <p className="docs-ref-empty" data-directory-empty hidden>
+          No option matches.
+        </p>
       )}
     </section>
   );

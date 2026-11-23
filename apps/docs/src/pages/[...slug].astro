@@ -2,6 +2,7 @@
 import { getCollection, render } from 'astro:content';
 
 import ApiReference from '@/components/mdx-islands/ApiReference.astro';
+import CliCommandsApiReference from '@/components/mdx-islands/CliCommandsApiReference.astro';
 import CodeBlock from '@/components/mdx-islands/CodeBlock.astro';
 import Directory from '@/components/mdx-islands/Directory.astro';
 import StarterProjectGallery from '@/components/mdx-islands/StarterProjectGallery.astro';
@@ -60,6 +61,7 @@ const seo: DocsSeo = {
 const components = {
   ...reactMdxComponents,
   ApiReference,
+  CliCommandsApiReference,
   CodeBlock,
   Directory,
   StarterProjectGallery,

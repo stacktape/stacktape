@@ -12,8 +12,10 @@ const setUp = (root: HTMLElement) => {
   if (!input || input.closest('[hidden]') || !body || root.dataset.directoryReady) return;
   root.dataset.directoryReady = '';
 
-  const items = [...body.querySelectorAll<HTMLElement>(ITEMS)];
-  const searchable = new Map(items.map((item) => [item, normalize(item.textContent)]));
+  const itemSelector = root.dataset.directoryItems ?? ITEMS;
+  const items = [...body.querySelectorAll<HTMLElement>(itemSelector)];
+  // An item may name what it is found by (a flag's name, alias and first sentence); otherwise its whole text.
+  const searchable = new Map(items.map((item) => [item, normalize(item.dataset.directoryKey ?? item.textContent)]));
   const blocks = [...body.children] as HTMLElement[];
 
   const apply = () => {
@@ -25,7 +27,7 @@ const setUp = (root: HTMLElement) => {
     const shown = new Map<HTMLElement, boolean>();
     for (const block of blocks) {
       if (/^H[2-4]$/.test(block.tagName)) continue;
-      const rows = [...block.querySelectorAll<HTMLElement>(ITEMS)];
+      const rows = block.matches(itemSelector) ? [block] : [...block.querySelectorAll<HTMLElement>(itemSelector)];
       shown.set(block, !filtering || rows.some((row) => !row.hidden));
     }
     // A heading shows while any block in its section (up to the next heading of its level or above) shows.

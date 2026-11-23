@@ -1,4 +1,3 @@
-import { CliCommandsApiReference } from '@/components/Mdx/CliCommandsApiReference';
 import { ConsoleScreenshot } from '@/components/Mdx/ConsoleScreenshot';
 import { FlowDiagram, ProjectStructure } from '@/components/Mdx/DecisionTree';
 import { FeatureComparisonTable } from '@/components/Mdx/FeatureComparisonTable';
@@ -27,7 +26,6 @@ const reactMdxComponents = {
   img: MdxImage,
   PreviousNext,
   ReferenceableParams,
-  CliCommandsApiReference,
   ConsoleScreenshot,
   Warning,
   Info,

@@ -1,0 +1,12 @@
+---
+import { CliCommandsApiReference } from '@/components/Mdx/CliCommandsApiReference';
+
+// Static HTML; the script below is the option filter, shared with the lookup lists.
+const { command } = Astro.props as { command: string };
+---
+
+<CliCommandsApiReference command={command} />
+
+<script>
+import './directory-filter.ts';
+</script>

@@ -439,29 +439,6 @@
     outline: 2px solid var(--docs-accent-muted);
     outline-offset: 0;
   }
-  .docs-ref-jump {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: var(--docs-space-12) var(--docs-space-16);
-    border-bottom: 1px solid var(--docs-border);
-  }
-  .docs-ref-jump a {
-    padding: 1px 7px;
-    border: 1px solid var(--docs-border);
-    border-radius: var(--docs-radius-sm);
-    color: var(--docs-text-muted);
-    font-family: var(--docs-font-mono);
-    font-size: var(--docs-text-xs);
-    line-height: 1.6;
-    transition:
-      color var(--docs-duration-fast) var(--docs-ease),
-      border-color var(--docs-duration-fast) var(--docs-ease);
-  }
-  .docs-ref-jump a:hover {
-    border-color: var(--docs-border-strong);
-    color: var(--docs-text-strong);
-  }
   .docs-ref-list {
     margin: 0;
     padding: 0;
@@ -477,7 +454,7 @@
     margin: 0;
     padding: 0;
   }
-  .docs-ref-list > .docs-prop + .docs-prop,
+  .docs-ref-list > .docs-prop:not([hidden]) ~ .docs-prop:not([hidden]),
   .docs-prop-children > .docs-ref-list > .docs-prop + .docs-prop {
     border-top: 1px solid var(--docs-border);
   }
@@ -1034,7 +1011,7 @@
   .docs-directory {
     margin-block: var(--docs-flow-block);
   }
-  .docs-directory [hidden] {
+  [data-directory] [hidden] {
     display: none !important;
   }
   .docs-directory-search {
