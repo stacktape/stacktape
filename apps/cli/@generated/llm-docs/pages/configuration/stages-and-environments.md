@@ -492,7 +492,7 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Each stage creates its own CloudFormation stack with its own databases, Lambda functions and buckets. New non-production stages in the same AWS account and region share a VPC by default. AWS credentials with account-wide access can reach every stage in that account. Use a separate AWS account to isolate production access.
+Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. Stacktape provisions each stage's resources independently and does not share data between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). New non-production stages that need a VPC and support shared networking use the same VPC in each AWS account and region by default. AWS credentials with account-wide access can reach every stage in that account. Use a separate AWS account to isolate production access.
 
 ### What happens when I deploy to an existing stage?
 

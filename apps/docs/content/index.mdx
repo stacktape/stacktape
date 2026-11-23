@@ -95,7 +95,7 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
     ]} />
     Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The
     installer picks the build for your processor, including Apple silicon, ARM64 and Alpine Linux. Leave out `init` to
-    only install.
+    only install. For a new project, pass `init --starter-project`.
     <CodeBlock tabs={[
       { label: 'macOS', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init` },
       { label: 'Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init` },
@@ -103,13 +103,19 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
     ]} />
   </Step>
   <Step title="Initialize a project">
-    If the standalone installer already started init, skip this command. Otherwise, run it in your existing repository. For a new project, add `--starter-project` to the init command, including when you pass it to the standalone installer.
-    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `npx stacktape@latest init` }]} />
+    If the standalone installer already started init, skip this step. Otherwise, run init in your existing repository. For a new project, add `--starter-project`. Open a new terminal if the installer added Stacktape to your PATH.
+    <CodeBlock tabs={[
+      { label: 'npm', lang: 'bash', code: `npx stacktape init` },
+      { label: 'Standalone', lang: 'bash', code: `stacktape init` }
+    ]} />
   </Step>
   <Step title="Deploy to AWS">
     Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
     local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
-    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape deploy --stage dev --region us-east-1 --project {your-project-name}` }]} />
+    <CodeBlock tabs={[
+      { label: 'npm', lang: 'bash', code: `npx stacktape deploy --stage dev --region us-east-1 --project {your-project-name}` },
+      { label: 'Standalone', lang: 'bash', code: `stacktape deploy --stage dev --region us-east-1 --project {your-project-name}` }
+    ]} />
   </Step>
 </Steps>
 
@@ -157,7 +163,7 @@ export default defineConfig(() => ({
   ]}
 />
 
-Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `stacktape deploy --config stacktape.json --stage dev --region us-east-1`.
+Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `npx stacktape deploy --config stacktape.json --stage dev --region us-east-1`. With the standalone CLI, omit `npx`.
 
 ## A development workflow built for speed
 
@@ -165,7 +171,10 @@ Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `s
 
 Run your services in development mode to iterate faster — your code runs locally, connected to real cloud resources, so you can test changes without redeploying every time.
 
-<CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape dev --stage local --region us-east-1` }]} />
+<CodeBlock tabs={[
+  { label: 'npm', lang: 'bash', code: `npx stacktape dev --stage local --region us-east-1` },
+  { label: 'Standalone', lang: 'bash', code: `stacktape dev --stage local --region us-east-1` }
+]} />
 
 ### Scripts & migrations
 
@@ -199,7 +208,10 @@ export default defineConfig(() => {
   }]}
 />
 
-<CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape script run migrate --stage dev --region us-east-1` }]} />
+<CodeBlock tabs={[
+  { label: 'npm', lang: 'bash', code: `npx stacktape script run migrate --stage dev --region us-east-1` },
+  { label: 'Standalone', lang: 'bash', code: `stacktape script run migrate --stage dev --region us-east-1` }
+]} />
 
 ## Private networking
 

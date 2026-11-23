@@ -154,7 +154,7 @@ stacktape diff --stage production --region us-east-1
 ## Free plan cost limit
 
 Deploys pause when a Free organization’s managed AWS costs for the current calendar month (UTC) are above $200
-and its one-time seven-day grace period has ended. The CLI stops before changing your stack and prints a
+and its grace period no longer applies. The one-time grace lasts up to seven days and applies only in the UTC month it starts. The CLI stops before changing your stack and prints a
 `Free Plan Limit Reached` error with this month’s costs, the limit and the link to upgrade.
 
 ```text

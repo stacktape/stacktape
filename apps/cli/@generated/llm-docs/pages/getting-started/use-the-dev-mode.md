@@ -110,7 +110,7 @@ With this config, running `stacktape dev --stage local --region eu-west-1 --reso
 Now edit `./src/handler.ts`, save, and either:
 
 - **With `--watch` flag**: Stacktape detects the change and automatically repackages and updates the Lambda code
-- **Without `--watch`**: Press Ctrl+R to rebuild a workload or Ctrl+A to rebuild all workloads
+- **Without `--watch`**: From Overview, press Ctrl+R to rebuild a workload or Ctrl+A to rebuild all workloads
 
 For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly through the framework's built-in hot module replacement — no rebuild step needed.
 
@@ -162,8 +162,8 @@ Use these shortcuts in the interactive dev dashboard.
 
 | Key | Action |
 |---|---|
-| Ctrl+R | Rebuild a workload. If there are several, pick one by number. |
-| Ctrl+A | Rebuild all workloads |
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
 | Tab | Switch between the dashboard and logs |
 | Ctrl+C | Stop dev mode |
 

@@ -29,19 +29,19 @@ Run [`stacktape dev`](/cli/dev) to start dev mode. Lambda functions appear as se
 Run all dev-compatible resources in your config:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources all
+stacktape dev --stage local --region eu-west-1 --resources all
 ```
 
 Run only specific Lambda functions by name (comma-separated):
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources myApi,myWorker
+stacktape dev --stage local --region eu-west-1 --resources myApi,myWorker
 ```
 
 Run everything except specific resources:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --skip-resources myWorker
+stacktape dev --stage local --region eu-west-1 --skip-resources myWorker
 ```
 
 Without `--resources` or `--skip-resources`, Stacktape displays an interactive multi-select picker listing all dev-compatible resources. All resources are pre-selected by default — deselect any you don't need and confirm to start.
@@ -218,7 +218,7 @@ The first session in an account and region creates the dev network with CloudFor
 Dev mode uses an isolated dev stack and emulates supported databases locally. When a function needs a real deployed database or Redis resource, pass its name through `--remote-resources`:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --remote-resources myDatabase
+stacktape dev --stage local --region eu-west-1 --remote-resources myDatabase
 ```
 
 This keeps the dev stack isolated while wiring the selected resource to its deployed AWS counterpart.
@@ -243,7 +243,7 @@ Dev mode does not change deployed functions at session start or exit: they are d
 For AI-assisted debugging workflows, dev mode supports an `--agent` flag that starts a background daemon with an HTTP API. Agent mode registers rebuild handlers and keeps workload and local-resource state updated for the agent server. See [agent mode in dev](/using-with-ai/agent-mode-in-dev) for the supported API surface.
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --agent
+stacktape dev --stage local --region eu-west-1 --agent
 ```
 
 The agent daemon starts on port 7331 when available. If you do not pass `--agent-port`, Stacktape finds an available port starting at 7331. Use `--agent-port` to request a specific agent port. Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):

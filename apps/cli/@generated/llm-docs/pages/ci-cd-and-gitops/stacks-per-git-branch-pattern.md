@@ -66,7 +66,7 @@ Create a Git deployment with the **Pull request opened** trigger and choose the 
 
 1. **Pull request opened** — Stacktape deploys the stage `pr-<number>`, for example `pr-42`, and comments on the pull request. The comment is updated with the result.
 2. **New commits pushed to the pull request** — Stacktape redeploys `pr-<number>` with the latest commit.
-3. **Pull request merged or closed** — if the Git deployment has **Delete stack after pull request is merged or closed?** turned on, Stacktape runs delete for the preview stage and comments on the pull request. Otherwise the stage keeps running.
+3. **Pull request merged or closed** — if the Git deployment has **Delete stack after pull request is merged or closed?** turned on, Stacktape starts deleting the preview stack and comments on the pull request. Otherwise the stage keeps running.
 
 Pull requests from forks never get a preview, so code from outside the repository does not run with your project's credentials.
 
@@ -104,7 +104,7 @@ For GitHub Actions, you can run this workflow on GitHub-hosted compute or enable
 
 Turn on **Delete stack after pull request is merged or closed?** in the Git deployment, or add a delete step to your custom CI pipeline, so preview stages don't keep running databases, load balancers or containers after the pull request closes.
 
-Init currently enables deletion protection on the databases it adds, including in preview stages. Stacktape refuses to delete a stage with a protected database, so its AWS charges continue. Before the preview deploys, configure its database with `deletionProtection: false` for that stage. If the preview already exists, deploy that change before deleting it.
+When init analyzes an existing repository, it enables deletion protection on the RDS databases it adds, including in preview stages. A protected database blocks cleanup, and AWS charges continue. Set `deletionProtection: false` for that database in the preview stage. If the preview is already deployed, deploy that change before deleting it. If the stack is in `DELETE_FAILED`, turn off protection on the database in AWS and retry [`stacktape delete`](/cli/delete).
 
 Keep previews after merge only when you have a specific reason, such as:
 

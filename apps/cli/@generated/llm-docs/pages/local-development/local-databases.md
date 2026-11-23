@@ -191,13 +191,13 @@ By default, supported databases run locally. To connect to the real deployed AWS
 To switch a single resource to remote at runtime:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --remote-resources mainDb
+stacktape dev --stage local --region eu-west-1 --remote-resources mainDb
 ```
 
 To switch multiple resources, separate names with commas:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --remote-resources mainDb,cache
+stacktape dev --stage local --region eu-west-1 --remote-resources mainDb,cache
 ```
 
 Alternatively, set `dev.remote: true` on the resource in your config for a persistent setting:
@@ -244,7 +244,7 @@ Local emulation avoids AWS database service charges and isolates test data. Depl
 Data persists across sessions in host directories mounted into the containers. Use `--fresh-db` to reset databases that startup prepares:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --fresh-db
+stacktape dev --stage local --region eu-west-1 --fresh-db
 ```
 
 `--fresh-db` deletes data, schema and local password/identity files when startup prepares a database. This includes selected databases and databases prepared for deployed-workload relay connections, which can include unselected resources. Databases never prepared are untouched; this is not a stage-wide wipe. The stage password can be reused, so it does not promise a new password.

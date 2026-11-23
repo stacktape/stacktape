@@ -36,7 +36,7 @@ The [`stacktape logs`](/cli/logs) command fetches CloudWatch log events for a de
 Fetch the last hour of logs for a resource:
 
 ```bash
-stacktape logs api --project myProject --stage prod --region eu-west-1
+stacktape logs api --project my-project --stage prod --region eu-west-1
 ```
 
 ### Time range
@@ -46,7 +46,7 @@ Use `--since` with relative notation (`1h`, `30m`, `1d`, `5s`) or an ISO timesta
 Fetch the last 30 minutes:
 
 ```bash
-stacktape logs api --stage production --region eu-west-1 --since 30m
+stacktape logs api --project my-project --stage prod --region eu-west-1 --since 30m
 ```
 
 For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--until` is used as the reference point when parsing relative `--since`; Logs Insights queries pass both `startTime` and `endTime`.
@@ -58,13 +58,13 @@ Use `--filter` to pass a CloudWatch Logs filter pattern.
 Filter for lines containing "ERROR":
 
 ```bash
-stacktape logs api --stage production --region eu-west-1 --filter "ERROR"
+stacktape logs api --project my-project --stage prod --region eu-west-1 --filter "ERROR"
 ```
 
 Filter JSON structured logs by a field:
 
 ```bash
-stacktape logs api --stage production --region eu-west-1 --filter '{ $.level = "error" }'
+stacktape logs api --project my-project --stage prod --region eu-west-1 --filter '{ $.level = "error" }'
 ```
 
 ### CloudWatch Logs Insights queries
@@ -72,13 +72,13 @@ stacktape logs api --stage production --region eu-west-1 --filter '{ $.level = "
 Use `--query` to run a full CloudWatch Logs Insights query against the resource's log group. Logs Insights supports aggregations, sorting, field extraction, and explicit time bounds via `--since` and `--until`.
 
 ```bash
-stacktape logs api --stage production --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
+stacktape logs api --project my-project --stage prod --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
 
 Fetch Logs Insights results between two absolute timestamps:
 
 ```bash
-stacktape logs api --stage production --region eu-west-1 --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --until "2025-01-15T11:00:00Z"
+stacktape logs api --project my-project --stage prod --region eu-west-1 --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --until "2025-01-15T11:00:00Z"
 ```
 
 ### Output format
@@ -130,7 +130,7 @@ The metrics command checks the resource's type from the deployed stack. If the t
 View Lambda invocations over the last hour:
 
 ```bash
-stacktape metrics api Invocations --stage production --region eu-west-1
+stacktape metrics api Invocations --project my-project --stage prod --region eu-west-1
 ```
 
 ### Customizing the query
@@ -143,7 +143,7 @@ stacktape metrics api Invocations --stage production --region eu-west-1
 View database CPU over the last 24 hours with 1-hour granularity:
 
 ```bash
-stacktape metrics mainDb CPUUtilization --stage production --region eu-west-1 --since 1d --period 3600
+stacktape metrics mainDb CPUUtilization --project my-project --stage prod --region eu-west-1 --since 1d --period 3600
 ```
 
 ### Terminal output

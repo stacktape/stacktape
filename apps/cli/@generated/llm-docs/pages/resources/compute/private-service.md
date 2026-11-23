@@ -194,7 +194,7 @@ With Service Connect, other containers in the stack can reach this service via b
 
 ### Using an Application Load Balancer
 
-An ALB without a custom domain or listener certificate needs a Console-provided domain. Without the Console, that deploy stops with `CONFIG_NEEDS_CONSOLE`.
+This mode requires the Console. Without it, the deploy stops with `CONFIG_NEEDS_CONSOLE`.
 
 
 Example (TypeScript):

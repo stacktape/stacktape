@@ -23,15 +23,15 @@ In the Console, these rules are called **Git deployments**. Each one maps a Git 
 - **Stage** — the stage to deploy, such as `production` or `staging`; pull request previews always use `pr-<number>`
 - **AWS account and region** — where the stage deploys
 - **Config path** — the Stacktape config file in the repository
-- **Delete stack after pull request is merged or closed?** — for previews, runs delete when the pull request closes
+- **Delete stack after pull request is merged or closed?** — for previews, starts deleting the preview stack when the pull request closes
 
 You can create several Git deployments per project — for example, one that deploys `main` to `production` and another that creates preview environments for every pull request.
 
 ### PR preview environments
 
-When you configure a pull request trigger, Stacktape creates an isolated stage for each pull request (merge request on GitLab), named `pr-<number>`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape runs delete if you turned on deletion. Without it, the stage keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
+When you configure a pull request trigger, Stacktape creates a separate stack for each pull request (merge request on GitLab), named `pr-<number>`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape starts deleting the preview stack if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
 
-If init added a database to your config, [disable database deletion protection for preview stages](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) so cleanup can delete them.
+If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
 If several pushes arrive close together, deployments of the same stage run one after another, never at the same time.
 

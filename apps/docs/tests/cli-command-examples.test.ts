@@ -61,6 +61,7 @@ function codeExamples(source: string): CodeExample[] {
 
 // Keep quoted values, GitHub Actions expressions and documentation placeholders together.
 const shellTokens = /(?:\$\{\{[^}]*\}\}|'[^']*'|"(?:\\.|[^"\\])*"|<[\w-]+>|\\.|[^\s'"\\|&;<>])+|[|&;<>]+/g;
+const redirect = /^(?:[<>](?:[<>&|])?|&>>?)$/;
 const commandPrefix =
   /^(?:(?:env\s+)?(?:\w+=(?:"[^"]*"|'[^']*'|\S+)\s+)*)(?:npx\s+(?:--yes\s+|-y\s+)?|npm\s+exec\s+(?:--\s+)?|(?:pnpm\s+(?:exec|dlx)|yarn\s+dlx|bunx)\s+)?(?:stacktape(?:@[^\s]+)?|stp|\.\/node_modules\/\.bin\/stacktape)(?=\s|$)/;
 
@@ -80,21 +81,41 @@ function invocations(code: string) {
       const shell = installArgs
         ? `stacktape ${installArgs}`
         : line
-            .replace(/^(?:-\s+)?(?:(?:run|command):\s*|\$ )?/, '')
+            .replace(/^(?:-\s+)?(?:(?:run|command):\s*|(?:\$|→)\s+)?/, '')
             .replace(/^(['"])((?:npx |stacktape |stp ).*)\1$/, '$2');
-      const tokens = shell.match(shellTokens) ?? [];
       const commands: { args: string[]; offset: number }[] = [];
-      let start = 0;
-      while (start < tokens.length) {
-        let end = start;
-        while (end < tokens.length && !/^[|&;<>]+$/.test(tokens[end]) && !tokens[end].startsWith('#')) end++;
-        const segment = tokens.slice(start, end).join(' ');
+      const addCommand = (segment: string) => {
         const prefix = segment.match(commandPrefix)?.[0];
         if (prefix)
           commands.push({ args: segment.slice(prefix.length).trim().match(shellTokens) ?? [], offset: lineOffset });
-        if (tokens[end]?.startsWith('#')) break;
-        start = end + 1;
-      }
+      };
+      const scan = (commandLine: string) => {
+        const tokens = [...commandLine.matchAll(shellTokens)];
+        let segment: string[] = [];
+        for (let index = 0; index < tokens.length; index++) {
+          const { 0: token, index: tokenOffset } = tokens[index];
+          if (token.startsWith('#')) break;
+          if (redirect.test(token)) {
+            const previous = tokens[index - 1];
+            // A descriptor adjacent to the operator belongs to the redirect, as in 2> or 2>&1.
+            if (previous && /^\d+$/.test(previous[0]) && previous.index + previous[0].length === tokenOffset)
+              segment.pop();
+            index++;
+          } else if (/^[|&;]+$/.test(token)) {
+            addCommand(segment.join(' '));
+            segment = [];
+          } else {
+            segment.push(token);
+          }
+        }
+        addCommand(segment.join(' '));
+      };
+      const outer = shell.replace(/'[^']*'|\$\(([^()]*)\)/g, (match, inner: string | undefined) => {
+        if (inner === undefined) return match;
+        scan(inner);
+        return '{value}';
+      });
+      scan(outer);
       return commands;
     });
 }
@@ -109,6 +130,8 @@ const extraFlags = new Map([
   ['--json', true],
   ['--debug', true],
   ['--agent', true],
+  ['--quiet', true],
+  ['--log-level', false],
   ['--output-format', false]
 ]);
 
@@ -138,17 +161,16 @@ function commandErrors(input: string[], commands: Map<string, CommandReference>,
     ])
   );
   const problems: string[] = [];
-  const present = new Set(defaults);
+  const present = new Set<string>();
+  const positionalArgs: string[] = [];
   let positional = 0;
   for (let index = 0; index < args.length; index++) {
     if (index >= startsAt && index < startsAt + words) continue;
     const token = args[index];
     if (!/^-(?!\d)/.test(token)) {
       const argument = command.positionals[positional++];
-      if (argument) {
-        if (present.has(argument)) problems.push(`duplicate argument: ${argument}`);
-        present.add(argument);
-      } else if (name !== 'help') problems.push(`unexpected positional argument: ${token}`);
+      if (argument) positionalArgs.push(argument);
+      else if (name !== 'help') problems.push(`unexpected positional argument: ${token}`);
       continue;
     }
     const [flag] = token.split('=', 1);
@@ -173,9 +195,14 @@ function commandErrors(input: string[], commands: Map<string, CommandReference>,
     }
     if (arg) present.add(arg.name);
   }
+  for (const argument of positionalArgs) {
+    if (present.has(argument)) problems.push(`duplicate argument: ${argument}`);
+    present.add(argument);
+  }
   if (!isHelp) {
     for (const arg of command.args) {
-      if (arg.required && !present.has(arg.name)) problems.push(`missing required argument: --${arg.flag}`);
+      if (arg.required && !present.has(arg.name) && !defaults.includes(arg.name))
+        problems.push(`missing required argument: --${arg.flag}`);
     }
   }
   return problems;
@@ -207,14 +234,35 @@ test('recognizes commands in fences, workflow steps, tabs and installer argument
   ]);
 });
 
-test('Stacktape commands in docs code examples match the current CLI', (context) => {
+function readCommandReference() {
   const reference = JSON.parse(readFileSync(CLI_COMMAND_REFERENCE_DATA, 'utf8')) as Record<string, CommandReference>;
-  const commands = new Map(
+  return new Map(
     Object.entries(reference).flatMap(([id, command]) => [
       [id, command],
       [command.publicName, command]
     ])
   );
+}
+
+test('recognizes prompt hints and substitutions, and validates arguments after redirects', () => {
+  const commands = readCommandReference();
+  const check = (line: string) => invocations(line).map(({ args }) => commandErrors(args, commands, []));
+
+  assert.deepEqual(check('→ stacktape --log-level info deploy --stage dev --region eu-west-1'), [[]]);
+  assert.deepEqual(check('result=$(stacktape deploy --region us-east-1 --stage dev 2> run.log --bogus)'), [
+    ['unknown flag: --bogus']
+  ]);
+  assert.deepEqual(check('stacktape deploy 2>&1 --region us-east-1 > run.log --stage dev && echo done'), [[]]);
+  assert.deepEqual(check('stacktape logs api --resource-name api --stage dev --region us-east-1'), [
+    ['duplicate argument: resourceName']
+  ]);
+  assert.deepEqual(check('stacktape logs --resource-name api api --stage dev --region us-east-1'), [
+    ['duplicate argument: resourceName']
+  ]);
+});
+
+test('Stacktape commands in docs code examples match the current CLI', (context) => {
+  const commands = readCommandReference();
   const problems: string[] = [];
   let checked = 0;
   for (const file of contentFiles()) {

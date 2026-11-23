@@ -1,6 +1,6 @@
 # diff
 
-The `diff` command shows what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with your current configuration. It packages workloads, uploads the synthesized CloudFormation template, and creates a change set against the live stack to print a summary of new, updated, replaced, and removed resources. CloudFormation leaves the live stack in place. The command can create missing secrets and SSM parameters or restore secrets scheduled for deletion, and writes a temporary S3 template and CloudFormation change set.
+The `diff` command shows what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with your current configuration. It packages workloads, uploads the synthesized CloudFormation template, and creates a change set against the live stack to print a summary of new, updated, replaced, and removed resources. The change set is not executed. The command can create missing secrets and SSM parameters or restore secrets scheduled for deletion.
 
 ## Usage
 
@@ -140,7 +140,7 @@ Meaningful Stacktape resource changes
 
 ### Does diff make any changes to my stack?
 
-CloudFormation leaves the live stack in place. `diff` can create missing secrets and SSM parameters or restore secrets scheduled for deletion. It uploads the synthesized template to S3 and creates a CloudFormation change set, then attempts to remove both preview artifacts.
+The change set is not executed and no stack updates are applied. `diff` can create missing secrets and SSM parameters or restore secrets scheduled for deletion.
 
 ### What does "no meaningful Stacktape resource changes" mean?
 

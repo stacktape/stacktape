@@ -67,7 +67,7 @@ export default defineConfig(() => {
 ```
 
 
-The `memory` value (in MB) sets Lambda memory and proportional CPU allocation, while `timeout` (in seconds) caps execution time — tune both for your handler. The gradual deployment behavior depends only on the `deployment.strategy` block. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes, the remaining 90% shifts over if CodeDeploy has not stopped the deployment. Application errors alone do not stop the rollout. Use a `beforeAllowTrafficFunction` hook to run a validation step that can stop the deployment and trigger rollback before traffic shifts. To make errors trigger a rollback, configure a CloudWatch alarm and attach it to the CodeDeploy deployment group.
+The `memory` value (in MB) sets Lambda memory and proportional CPU allocation, while `timeout` (in seconds) caps execution time — tune both for your handler. The gradual deployment behavior depends only on the `deployment.strategy` block. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes, the remaining 90% shifts over if CodeDeploy has not stopped the deployment. Application errors alone do not stop the rollout. Use a `beforeAllowTrafficFunction` hook to run a validation step that can stop the deployment and trigger rollback before traffic shifts. To make errors trigger a CodeDeploy rollback, customize the deployment group to attach a CloudWatch alarm.
 
 ### Lambda lifecycle hooks
 
@@ -291,7 +291,7 @@ The API reference above covers **Lambda deployment configuration only**. Contain
 
 ### What happens if my deployment fails during the canary window?
 
-For Lambda functions, CodeDeploy restores the previous version when the deployment fails, a configured rollback alarm fires, or the deployment is stopped. For container workloads, the `beforeAllowTrafficFunction` hook can block traffic from shifting to the new version. Lambda rollback restores the alias weights. Timing depends on AWS routing and any active connections.
+For Lambda functions, CodeDeploy restores the previous version when the deployment fails, a configured rollback alarm fires, or the deployment is stopped. For container workloads, the `beforeAllowTrafficFunction` hook can block traffic from shifting to the new version. CodeDeploy restores the old Lambda version by resetting the alias weights.
 
 ### Can I use gradual deployments with HTTP API Gateway?
 

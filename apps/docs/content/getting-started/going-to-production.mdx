@@ -112,7 +112,7 @@ export default defineConfig(() => {
   ]}
 />
 
-For managed DNS, run [`stacktape domain add`](/cli/domain-add) even if the Route 53 hosted zone already exists. Wait for the certificate to show **Issued** in ACM before deploying. Resources behind CloudFront need the certificate in `us-east-1`. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
+For managed DNS, run [`stacktape domain add`](/cli/domain-add) even if the Route 53 hosted zone already exists. Wait for the certificate to show **Issued** in ACM before deploying. A CloudFront distribution needs its viewer certificate in `us-east-1`. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
 
 Custom domains add no Stacktape cost, but Route53 hosted-zone and DNS-query charges apply in AWS. For production, custom domains are worth the cost — they give users a branded URL instead of an auto-generated AWS hostname, and TLS certificates are provisioned and renewed automatically.
 
