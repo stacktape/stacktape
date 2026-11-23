@@ -14,13 +14,13 @@ can switch back until the last step.
 `stacktape init` reads the other platform's files together with your code. It writes the services, workers and
 databases they describe into the Stacktape config, and you review it before anything is deployed.
 
-| From | Files | What init takes | What you set yourself |
-|---|---|---|---|
-| Heroku | `Procfile`, `app.json` | Web and worker processes, the port, the `release` command as the migration, add-ons such as Heroku Postgres and Redis, variable names | Dyno sizes and counts. `heroku.yml` isn't read |
-| Render | `render.yaml` | Web, worker and private services, cron jobs on their schedule, databases, Key Value, build and start commands, Dockerfiles, variables that point at databases and services | Plans, instance counts, region, health check path, pre-deploy command |
-| Fly.io | `fly.toml` | The app, its Dockerfile, each process as a service, the internal port, variable names | Region, VM sizes, health checks, volumes, release command |
-| SST (v3) | `sst.config.ts` | Databases, Redis, buckets, queues, topics, DynamoDB tables with sizes and versions, Next.js and other sites, functions, cron jobs, API routes, queue subscribers and `link` | `environment` values. SST v2 apps are recognized but not imported |
-| Serverless Framework | `serverless.yml` | Functions with runtime, memory, timeout and environment, `http`, `httpApi`, `schedule`, `sqs`, `sns` and `s3` events, DynamoDB, SQS, SNS, S3, ElastiCache and RDS from `resources` | Plugins, layers, Step Functions, `custom` and `params`. Keys init doesn't know are listed as import notes |
+| From | What init takes | What you set yourself |
+|---|---|---|
+| Heroku: `Procfile`, `app.json` | Web and worker processes, the port, the `release` command as the migration, add-ons such as Heroku Postgres and Redis, variable names | Dyno sizes and counts. `heroku.yml` isn't read |
+| Render: `render.yaml` | Web, worker and private services, cron jobs on their schedule, databases, Key Value, build and start commands, Dockerfiles, variables that point at databases and services | Plans, instance counts, region, health check path, pre-deploy command |
+| Fly.io: `fly.toml` | The app, its Dockerfile, each process as a service, the internal port, variable names | Region, VM sizes, health checks, volumes, release command |
+| SST (v3): `sst.config.ts` | Databases, Redis, buckets, queues, topics, DynamoDB tables with sizes and versions, Next.js and other sites, functions, cron jobs, API routes, queue subscribers and `link` | `environment` values. SST v2 apps are recognized but not imported |
+| Serverless Framework: `serverless.yml` | Functions with runtime, memory, timeout and environment, `http`, `httpApi`, `schedule`, `sqs`, `sns` and `s3` events, DynamoDB, SQS, SNS, S3, ElastiCache and RDS from `resources` | Plugins, layers, Step Functions, `custom` and `params`. Keys init doesn't know are listed as import notes |
 
 It also reads Docker Compose files, AWS SAM templates, CDK apps in TypeScript or JavaScript, and the databases,
 caches, queues and buckets in Terraform files. For all of them:
@@ -92,7 +92,7 @@ Until you retire the old app, switching back is a DNS change. If you moved the d
 exist only in the new database, so plan how you would copy them back. When traffic has moved and the old DNS records
 have expired, take a last backup of the old database and delete the old app.
 
-## From SST or the Serverless Framework
+## From SST or Serverless Framework
 
 Both already run in your AWS account. Stacktape creates its own stack next to theirs and doesn't adopt their
 resources, so the new stack starts with new tables, buckets and databases.

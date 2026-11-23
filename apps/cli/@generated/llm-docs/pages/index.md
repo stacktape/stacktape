@@ -163,7 +163,7 @@ AWS resources are created in your account, one CloudFormation stack per stage. M
 
 ### What leaves your account
 
-Without the Console, nothing about your app. The CLI sends usage telemetry, which you can turn off. With the Console: alarm state changes, uptime results, monthly cost breakdowns, security findings and errors. Application logs stay in CloudWatch; each recorded error sends a masked copy of its log line. AI features send data to the provider of your own key, and only when you use them. [What each feature sends](/observability/overview#what-leaves-your-aws-account)
+Without the Console: anonymous CLI telemetry, which you can turn off, and the config init sends for its price estimate. With the Console: alarm state changes, uptime results, monthly cost breakdowns, security findings and errors. Application logs stay in CloudWatch; each recorded error sends a masked copy of its log line. AI features send data to the provider of your own key, and only when you use them. [What each feature sends](/observability/overview#what-leaves-your-aws-account)
 
 ### How you would leave
 

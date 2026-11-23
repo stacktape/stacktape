@@ -13981,7 +13981,7 @@ Kubernetes and no runtime of its own between your code and AWS. When the catalog
 |---|---|---|
 | Your app: functions, containers, databases, buckets, CDN | Your AWS account, one CloudFormation stack per stage | You pay AWS |
 | MongoDB Atlas and Upstash resources, if you use them | The provider's account | You pay the provider |
-| The CLI, builds and deploys | Your machine or your CI | |
+| The CLI, builds and deploys | Your machine or your CI | Free |
 | Git deployment build runners | An EC2 instance in your AWS account | You pay AWS |
 | Uptime check probes and the error detector | Small Lambda functions in your AWS account | You pay AWS |
 | The Console and its database | Stacktape's AWS account, in `eu-west-1` (Ireland) | Stacktape |
@@ -13993,7 +13993,7 @@ Your stacks keep running if you stop using the CLI or the Console. See [Stop usi
 
 Take an API container with a Postgres database, as in the [example on the home page](/).
 
-- **AWS** runs the servers, patches the Fargate hosts and the database engine in its maintenance window, and replaces
+- **AWS** runs the servers under Fargate and RDS, applies database maintenance in the maintenance window and replaces
   failed hardware.
 - **Stacktape** turns your config into the stack: network, security groups, IAM roles, the load balancer or API
   gateway, logs and the alarms you configure. It builds your code and deploys it. With the Console, it also groups
@@ -14006,8 +14006,9 @@ Take an API container with a Postgres database, as in the [example on the home p
 
 ## What leaves your AWS account
 
-Without the Console, nothing about your app leaves your account. The CLI sends anonymous usage telemetry, which one
-environment variable turns off, and `stacktape init` sends the generated config to Stacktape's price estimator.
+Without the Console, Stacktape receives two things: anonymous CLI usage telemetry, which one environment variable
+turns off, and the generated config that `stacktape init` sends to the price estimator. A coding agent you pick in init
+sends the files it reads to its own provider.
 
 With the Console, some features send operational data to Stacktape: errors with their masked log line, alarm state
 changes, uptime results, monthly cost reports and security findings. Application logs, build artifacts and secrets
@@ -14023,7 +14024,7 @@ retention period.
   that allows only what its config declares. See [AWS permissions](/stacktape-console/aws-permissions).
 - **People.** Members are Owners, Admins, Developers or Viewers. Developers and Viewers see only the projects and AWS
   accounts you give them. See [Team and access control](/stacktape-console/team-and-access-control).
-- **Sign-in.** Owners can require two-factor sign-in on every plan. Single sign-on (SAML or OIDC) and SCIM come with
+- **Sign-in.** Owners and Admins can require two-factor sign-in on every plan. Single sign-on (SAML or OIDC) and SCIM come with
   the Flexible plan. See [Single sign-on](/stacktape-console/single-sign-on).
 - **Audit.** The audit log keeps Stacktape events for 400 days and shows AWS CloudTrail events from the last 90 days.
   Every AWS call the Console makes for a person carries their identity. See [Audit log](/stacktape-console/audit-log).
@@ -14086,8 +14087,8 @@ databases and URLs. Three things matter when you plan accounts:
 - **Source.** The CLI's code and history are public on [GitHub](https://github.com/stacktape/stacktape), under the MIT
   license. Version 4 is the current major version; [Upgrading from v3](/getting-started/upgrading-from-v3) describes
   the changes.
-- **Status.** [status.stacktape.com](https://status.stacktape.com) shows the Console's current state and past
-  incidents.
+- **Status.** [status.stacktape.com](https://status.stacktape.com) shows current incidents and maintenance, and their
+  history.
 - **Support.** Every plan can write to [support@stacktape.com](mailto:support@stacktape.com). The Flexible plan adds a
   shared Slack channel with the founders. Enterprise adds up to 24x7 premium support, with response times agreed in
   advance. No plan comes with a published SLA.
@@ -14127,13 +14128,13 @@ can switch back until the last step.
 `stacktape init` reads the other platform's files together with your code. It writes the services, workers and
 databases they describe into the Stacktape config, and you review it before anything is deployed.
 
-| From | Files | What init takes | What you set yourself |
-|---|---|---|---|
-| Heroku | `Procfile`, `app.json` | Web and worker processes, the port, the `release` command as the migration, add-ons such as Heroku Postgres and Redis, variable names | Dyno sizes and counts. `heroku.yml` isn't read |
-| Render | `render.yaml` | Web, worker and private services, cron jobs on their schedule, databases, Key Value, build and start commands, Dockerfiles, variables that point at databases and services | Plans, instance counts, region, health check path, pre-deploy command |
-| Fly.io | `fly.toml` | The app, its Dockerfile, each process as a service, the internal port, variable names | Region, VM sizes, health checks, volumes, release command |
-| SST (v3) | `sst.config.ts` | Databases, Redis, buckets, queues, topics, DynamoDB tables with sizes and versions, Next.js and other sites, functions, cron jobs, API routes, queue subscribers and `link` | `environment` values. SST v2 apps are recognized but not imported |
-| Serverless Framework | `serverless.yml` | Functions with runtime, memory, timeout and environment, `http`, `httpApi`, `schedule`, `sqs`, `sns` and `s3` events, DynamoDB, SQS, SNS, S3, ElastiCache and RDS from `resources` | Plugins, layers, Step Functions, `custom` and `params`. Keys init doesn't know are listed as import notes |
+| From | What init takes | What you set yourself |
+|---|---|---|
+| Heroku: `Procfile`, `app.json` | Web and worker processes, the port, the `release` command as the migration, add-ons such as Heroku Postgres and Redis, variable names | Dyno sizes and counts. `heroku.yml` isn't read |
+| Render: `render.yaml` | Web, worker and private services, cron jobs on their schedule, databases, Key Value, build and start commands, Dockerfiles, variables that point at databases and services | Plans, instance counts, region, health check path, pre-deploy command |
+| Fly.io: `fly.toml` | The app, its Dockerfile, each process as a service, the internal port, variable names | Region, VM sizes, health checks, volumes, release command |
+| SST (v3): `sst.config.ts` | Databases, Redis, buckets, queues, topics, DynamoDB tables with sizes and versions, Next.js and other sites, functions, cron jobs, API routes, queue subscribers and `link` | `environment` values. SST v2 apps are recognized but not imported |
+| Serverless Framework: `serverless.yml` | Functions with runtime, memory, timeout and environment, `http`, `httpApi`, `schedule`, `sqs`, `sns` and `s3` events, DynamoDB, SQS, SNS, S3, ElastiCache and RDS from `resources` | Plugins, layers, Step Functions, `custom` and `params`. Keys init doesn't know are listed as import notes |
 
 It also reads Docker Compose files, AWS SAM templates, CDK apps in TypeScript or JavaScript, and the databases,
 caches, queues and buckets in Terraform files. For all of them:
@@ -14205,7 +14206,7 @@ Until you retire the old app, switching back is a DNS change. If you moved the d
 exist only in the new database, so plan how you would copy them back. When traffic has moved and the old DNS records
 have expired, take a last backup of the old database and delete the old app.
 
-## From SST or the Serverless Framework
+## From SST or Serverless Framework
 
 Both already run in your AWS account. Stacktape creates its own stack next to theirs and doesn't adopt their
 resources, so the new stack starts with new tables, buckets and databases.
@@ -14234,14 +14235,14 @@ You can step back in two ways: leave the Console and keep deploying with the ope
 and manage the CloudFormation stacks yourself. Your app keeps running in both cases. Some steps only work while
 Stacktape can still deploy, so read the whole page before you start.
 
-This page is written from the CLI's source code. Nobody has run the full takeover on a live stack yet. Before you rely
-on it for production, try it on a disposable stage: take it over, ship one code change with your own tooling, then
-delete it.
+We wrote this page from the CLI's source code and haven't run the full takeover on a live stack yet. Before you rely on
+it for production, try it on a disposable stage: take it over, ship one code change with your own tooling, then delete
+it.
 
 ## Leave the Console, keep the CLI
 
-1. **Remove what only the Console provides.** Uptime checks, alarm channels of type `console-channel` and
-   `slack-app`, and `deploymentConfig.errorTracking`. Give each resource on a default `*.stacktape-app.com` domain a
+1. **Remove what only the Console provides.** Take uptime checks, alarm channels of type `console-channel` and
+   `slack-app`, and `deploymentConfig.errorTracking` out of the config. Give each resource on a default `*.stacktape-app.com` domain a
    [custom domain](/resources/networking/custom-domains), then deploy each stage while you're still signed in. The
    default domain's DNS record is in Stacktape's zone, so only a signed-in deploy can remove it.
 2. **Sign out.** Run [`stacktape logout`](/cli/logout). In CI, remove `STACKTAPE_API_KEY` from the pipeline.
@@ -16510,7 +16511,7 @@ AWS resources are created in your account, one CloudFormation stack per stage. M
 
 ### What leaves your account
 
-Without the Console, nothing about your app. The CLI sends usage telemetry, which you can turn off. With the Console: alarm state changes, uptime results, monthly cost breakdowns, security findings and errors. Application logs stay in CloudWatch; each recorded error sends a masked copy of its log line. AI features send data to the provider of your own key, and only when you use them. [What each feature sends](/observability/overview#what-leaves-your-aws-account)
+Without the Console: anonymous CLI telemetry, which you can turn off, and the config init sends for its price estimate. With the Console: alarm state changes, uptime results, monthly cost breakdowns, security findings and errors. Application logs stay in CloudWatch; each recorded error sends a masked copy of its log line. AI features send data to the provider of your own key, and only when you use them. [What each feature sends](/observability/overview#what-leaves-your-aws-account)
 
 ### How you would leave
 

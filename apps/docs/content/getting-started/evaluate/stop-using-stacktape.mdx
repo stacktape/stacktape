@@ -9,14 +9,14 @@ You can step back in two ways: leave the Console and keep deploying with the ope
 and manage the CloudFormation stacks yourself. Your app keeps running in both cases. Some steps only work while
 Stacktape can still deploy, so read the whole page before you start.
 
-This page is written from the CLI's source code. Nobody has run the full takeover on a live stack yet. Before you rely
-on it for production, try it on a disposable stage: take it over, ship one code change with your own tooling, then
-delete it.
+We wrote this page from the CLI's source code and haven't run the full takeover on a live stack yet. Before you rely on
+it for production, try it on a disposable stage: take it over, ship one code change with your own tooling, then delete
+it.
 
 ## Leave the Console, keep the CLI
 
-1. **Remove what only the Console provides.** Uptime checks, alarm channels of type `console-channel` and
-   `slack-app`, and `deploymentConfig.errorTracking`. Give each resource on a default `*.stacktape-app.com` domain a
+1. **Remove what only the Console provides.** Take uptime checks, alarm channels of type `console-channel` and
+   `slack-app`, and `deploymentConfig.errorTracking` out of the config. Give each resource on a default `*.stacktape-app.com` domain a
    [custom domain](/resources/networking/custom-domains), then deploy each stage while you're still signed in. The
    default domain's DNS record is in Stacktape's zone, so only a signed-in deploy can remove it.
 2. **Sign out.** Run [`stacktape logout`](/cli/logout). In CI, remove `STACKTAPE_API_KEY` from the pipeline.

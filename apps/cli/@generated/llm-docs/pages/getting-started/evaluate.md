@@ -24,7 +24,7 @@ Kubernetes and no runtime of its own between your code and AWS. When the catalog
 |---|---|---|
 | Your app: functions, containers, databases, buckets, CDN | Your AWS account, one CloudFormation stack per stage | You pay AWS |
 | MongoDB Atlas and Upstash resources, if you use them | The provider's account | You pay the provider |
-| The CLI, builds and deploys | Your machine or your CI | |
+| The CLI, builds and deploys | Your machine or your CI | Free |
 | Git deployment build runners | An EC2 instance in your AWS account | You pay AWS |
 | Uptime check probes and the error detector | Small Lambda functions in your AWS account | You pay AWS |
 | The Console and its database | Stacktape's AWS account, in `eu-west-1` (Ireland) | Stacktape |
@@ -36,7 +36,7 @@ Your stacks keep running if you stop using the CLI or the Console. See [Stop usi
 
 Take an API container with a Postgres database, as in the [example on the home page](/).
 
-- **AWS** runs the servers, patches the Fargate hosts and the database engine in its maintenance window, and replaces
+- **AWS** runs the servers under Fargate and RDS, applies database maintenance in the maintenance window and replaces
   failed hardware.
 - **Stacktape** turns your config into the stack: network, security groups, IAM roles, the load balancer or API
   gateway, logs and the alarms you configure. It builds your code and deploys it. With the Console, it also groups
@@ -49,8 +49,9 @@ Take an API container with a Postgres database, as in the [example on the home p
 
 ## What leaves your AWS account
 
-Without the Console, nothing about your app leaves your account. The CLI sends anonymous usage telemetry, which one
-environment variable turns off, and `stacktape init` sends the generated config to Stacktape's price estimator.
+Without the Console, Stacktape receives two things: anonymous CLI usage telemetry, which one environment variable
+turns off, and the generated config that `stacktape init` sends to the price estimator. A coding agent you pick in init
+sends the files it reads to its own provider.
 
 With the Console, some features send operational data to Stacktape: errors with their masked log line, alarm state
 changes, uptime results, monthly cost reports and security findings. Application logs, build artifacts and secrets
@@ -66,7 +67,7 @@ retention period.
   that allows only what its config declares. See [AWS permissions](/stacktape-console/aws-permissions).
 - **People.** Members are Owners, Admins, Developers or Viewers. Developers and Viewers see only the projects and AWS
   accounts you give them. See [Team and access control](/stacktape-console/team-and-access-control).
-- **Sign-in.** Owners can require two-factor sign-in on every plan. Single sign-on (SAML or OIDC) and SCIM come with
+- **Sign-in.** Owners and Admins can require two-factor sign-in on every plan. Single sign-on (SAML or OIDC) and SCIM come with
   the Flexible plan. See [Single sign-on](/stacktape-console/single-sign-on).
 - **Audit.** The audit log keeps Stacktape events for 400 days and shows AWS CloudTrail events from the last 90 days.
   Every AWS call the Console makes for a person carries their identity. See [Audit log](/stacktape-console/audit-log).
@@ -129,8 +130,8 @@ databases and URLs. Three things matter when you plan accounts:
 - **Source.** The CLI's code and history are public on [GitHub](https://github.com/stacktape/stacktape), under the MIT
   license. Version 4 is the current major version; [Upgrading from v3](/getting-started/upgrading-from-v3) describes
   the changes.
-- **Status.** [status.stacktape.com](https://status.stacktape.com) shows the Console's current state and past
-  incidents.
+- **Status.** [status.stacktape.com](https://status.stacktape.com) shows current incidents and maintenance, and their
+  history.
 - **Support.** Every plan can write to [support@stacktape.com](mailto:support@stacktape.com). The Flexible plan adds a
   shared Slack channel with the founders. Enterprise adds up to 24x7 premium support, with response times agreed in
   advance. No plan comes with a published SLA.
