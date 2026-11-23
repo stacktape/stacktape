@@ -24,7 +24,7 @@ The stage must already be deployed. For a stage that does not exist yet there is
 - It creates [secrets](/configuration/secrets) and SSM parameters that the config references but that do not exist yet. In a terminal it asks for their values; in a pipeline it fails and lists them, like `deploy`.
 - It builds your functions and container images on your machine, using the build cache.
 - It uploads the template to the deployment bucket and deletes it when done.
-- It creates a CloudFormation change set and leaves it unexecuted.
+- It creates a CloudFormation change set, reads it and deletes it without executing it.
 
 Change sets are free; the main cost is the build time.
 

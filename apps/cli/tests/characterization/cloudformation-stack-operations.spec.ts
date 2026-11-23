@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { CloudFormationClient } from '@aws-sdk/client-cloudformation';
-import { ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
+import { DeleteChangeSetCommand, ListStackResourcesCommand } from '@aws-sdk/client-cloudformation';
 import { AwsCloudFormationStacks } from '../../src/aws/cloudformation-stacks';
 
 type Send = CloudFormationClient['send'];
@@ -48,14 +48,20 @@ describe('CloudFormation stack operations', () => {
     });
   });
 
-  /** Answers the change-set requests with a FAILED set; a regression that keeps polling fails instead of hanging. */
-  const failedChangeSet = (StatusReason: string) => {
+  /** Answers the change-set requests with one status; a regression that keeps polling fails instead of hanging. */
+  const changeSetWith = (status: { Status: 'FAILED'; StatusReason: string } | { Status: 'CREATE_COMPLETE' }) => {
     let describeCalls = 0;
-    return capabilityWith((async (command: { input: object }) => {
+    const deleted: unknown[] = [];
+    const cloudFormation = capabilityWith((async (command: { input: object }) => {
+      if (command instanceof DeleteChangeSetCommand) {
+        deleted.push(command.input);
+        return {};
+      }
       if ('TemplateBody' in command.input) return { Id: 'change-set', StackId: 'stack' };
       if (++describeCalls > 3) throw new Error('Still polling a failed change set.');
-      return { Status: 'FAILED', StatusReason };
+      return { ...status, Changes: status.Status === 'CREATE_COMPLETE' ? [{ Type: 'Resource' }] : undefined };
     }) as Send);
+    return { cloudFormation, deleted };
   };
   const preview = { StackName: 'example', ChangeSetName: 'preview', TemplateBody: '{}' };
 
@@ -63,13 +69,31 @@ describe('CloudFormation stack operations', () => {
     "The submitted information didn't contain changes. Submit different information to create a change set.",
     'No updates are to be performed.'
   ])('treats a change set CloudFormation failed for having no changes as an empty preview: %s', async (reason) => {
-    await expect(failedChangeSet(reason).createChangeSet(preview)).resolves.toMatchObject({ changes: [] });
+    const { cloudFormation, deleted } = changeSetWith({ Status: 'FAILED', StatusReason: reason });
+    await expect(cloudFormation.createChangeSet(preview)).resolves.toMatchObject({ changes: [] });
+    expect(deleted).toEqual([{ ChangeSetName: 'change-set' }]);
   });
 
   test('reports why CloudFormation failed a change set instead of waiting for it', async () => {
-    await expect(failedChangeSet('No export named shared-vpc-id found.').createChangeSet(preview)).rejects.toThrow(
-      'No export named shared-vpc-id found.'
-    );
+    const { cloudFormation, deleted } = changeSetWith({
+      Status: 'FAILED',
+      StatusReason: 'No export named shared-vpc-id found.'
+    });
+    await expect(cloudFormation.createChangeSet(preview)).rejects.toThrow('No export named shared-vpc-id found.');
+    expect(deleted).toEqual([{ ChangeSetName: 'change-set' }]);
+  });
+
+  test('deletes the preview change set after reading its changes, and a failed delete does not fail the preview', async () => {
+    const { cloudFormation, deleted } = changeSetWith({ Status: 'CREATE_COMPLETE' });
+    await expect(cloudFormation.createChangeSet(preview)).resolves.toMatchObject({ changes: [{ Type: 'Resource' }] });
+    expect(deleted).toEqual([{ ChangeSetName: 'change-set' }]);
+
+    const failingDelete = capabilityWith((async (command: { input: object }) => {
+      if (command instanceof DeleteChangeSetCommand) throw new Error('AccessDenied');
+      if ('TemplateBody' in command.input) return { Id: 'change-set', StackId: 'stack' };
+      return { Status: 'CREATE_COMPLETE', Changes: [] };
+    }) as Send);
+    await expect(failingDelete.createChangeSet(preview)).resolves.toMatchObject({ changes: [] });
   });
 
   test('follows every stack-resource page in service order', async () => {

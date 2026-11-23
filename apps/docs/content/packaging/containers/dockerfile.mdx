@@ -21,7 +21,7 @@ Choose `dockerfile` packaging when:
 - You need a specific base image (e.g., distroless, or a base image reachable by the build environment).
 - The [`buildpack`](/packaging/containers/buildpack) type does not detect your project, or its overrides are not enough.
 
-## When NOT to use
+## When not to use
 
 If your service is a JavaScript or TypeScript entry file, [`js-bundle`](/packaging/containers/js-bundle) builds the image for you. For other languages and frameworks, [`buildpack`](/packaging/containers/buildpack) detects the project and builds the image without a Dockerfile. A Dockerfile adds maintenance work: you own base image updates, layer ordering and security patching.
 

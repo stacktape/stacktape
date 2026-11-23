@@ -1,6 +1,6 @@
 # deployment-script run
 
-The `deployment-script run` command re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, updates the existing Lambda with it, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
+`stacktape deployment-script run` re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, updates the existing Lambda with it, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
 
 
 > **Warning:** This command updates the script's **source code** and resolves `parameters` from your local configuration. Changes to environment variables, memory, timeout, VPC settings, or other Lambda configuration require a full [`deploy`](/cli/deploy).

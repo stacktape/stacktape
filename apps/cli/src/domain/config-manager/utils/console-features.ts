@@ -27,8 +27,10 @@ const loadBalancersNeedingDefaultDomain = (configManager: ConfigManager) => [
       !customDomains?.length &&
       listeners.some(({ protocol, customCertificateArns }) => protocol === 'TLS' && !customCertificateArns?.length)
   ),
+  // The dashboard needs a domain only while it is enabled; a dashboard domain is rejected when it is off.
   ...configManager.convexes.filter(
-    ({ customDomains }) => !customDomains?.cloud || !customDomains?.site || !customDomains?.dashboard
+    ({ customDomains, dashboard }) =>
+      !customDomains?.cloud || !customDomains?.site || (dashboard?.enabled !== false && !customDomains?.dashboard)
   )
 ];
 

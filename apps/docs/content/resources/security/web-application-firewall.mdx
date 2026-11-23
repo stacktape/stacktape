@@ -73,10 +73,10 @@ Managed rule groups are rule sets maintained by AWS or by vendors on AWS Marketp
       lang: 'typescript',
       code: `import { defineConfig, WebAppFirewall } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const firewall = new WebAppFirewall({
+  const firewall = new WebAppFirewall({ // [!code focus]
     scope: 'regional',
+    // [!code focus-start]
     rules: [
       {
         type: 'managed-rule-group',
@@ -104,12 +104,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { firewall }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -141,10 +141,10 @@ A rate-based rule limits how many requests one IP address can send in a rolling 
       lang: 'typescript',
       code: `import { defineConfig, WebAppFirewall } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const firewall = new WebAppFirewall({
+  const firewall = new WebAppFirewall({ // [!code focus]
     scope: 'regional',
+    // [!code focus-start]
     rules: [
       {
         type: 'managed-rule-group',
@@ -165,12 +165,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { firewall }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -196,10 +196,10 @@ maintains. It takes `overrideAction` like a managed group.
       lang: 'typescript',
       code: `import { defineConfig, WebAppFirewall } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const firewall = new WebAppFirewall({
+  const firewall = new WebAppFirewall({ // [!code focus]
     scope: 'regional',
+    // [!code focus-start]
     rules: [
       {
         type: 'custom-rule-group',
@@ -211,12 +211,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { firewall }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -240,10 +240,10 @@ for an API or an HTML page for a website. `contentType` is `application/json`, `
       lang: 'typescript',
       code: `import { defineConfig, WebAppFirewall } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const firewall = new WebAppFirewall({
+  const firewall = new WebAppFirewall({ // [!code focus]
     scope: 'regional',
+    // [!code focus-start]
     customResponseBodies: {
       blockedResponse: {
         contentType: 'application/json',
@@ -251,12 +251,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { firewall }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -282,3 +282,9 @@ be set on the firewall and on each rule.
 ## Referenceable parameters
 
 <ReferenceableParams resource="web-app-firewall" />
+
+## Next steps
+
+- [CDN](/resources/networking/cdn): attach the firewall to a distribution.
+- [Application load balancer](/resources/networking/application-load-balancer): attach it to a load balancer.
+- [User auth pool](/resources/security/user-auth-pool): protect sign-in and sign-up.

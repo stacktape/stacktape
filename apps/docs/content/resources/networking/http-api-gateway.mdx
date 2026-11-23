@@ -95,14 +95,14 @@ When a framework such as Hono, Express or FastAPI does the routing, send every r
   JsBundleLambdaPackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
-  const api = new LambdaFunction({
+  const api = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts'
     }),
+    // [!code focus-start]
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'myApi',
@@ -111,12 +111,12 @@ export default defineConfig(() => {
       })
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi, api }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -155,8 +155,8 @@ requests itself and replaces any CORS headers your code sets.
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cors: {
       enabled: true,
@@ -165,12 +165,12 @@ export default defineConfig(() => {
       maxAge: 86400
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -194,17 +194,17 @@ attach it to the gateway:
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     customDomains: [{ domainName: 'api.example.com' }]
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -225,20 +225,20 @@ public data or users are far from your region. For personalized responses it onl
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
       cloudfrontPriceClass: 'PriceClass_100'
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -265,20 +265,20 @@ days. Read them with [`stacktape logs`](/cli/logs).
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     logging: {
       format: 'JSON',
       retentionDays: 90
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -301,17 +301,17 @@ adapter handles both. All HTTP events of one function must use the same format.
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     payloadFormat: '2.0'
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -329,8 +329,8 @@ triggers.
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     alarms: [
       {
@@ -350,12 +350,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -371,3 +371,9 @@ and notification channels.
 ## Referenceable parameters
 
 <ReferenceableParams resource="http-api-gateway" />
+
+## Next steps
+
+- [HTTP triggers](/resources/triggers/http-triggers): route requests to Lambda functions.
+- [User auth pool](/resources/security/user-auth-pool): require sign-in on routes.
+- [CDN](/resources/networking/cdn): cache responses close to your users.

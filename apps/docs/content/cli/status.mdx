@@ -7,7 +7,7 @@ seoDescription: 'Use stacktape status to view deployed stack details — outputs
 
 # status
 
-The `status` command displays detailed information about a deployed stack, including its outputs (URLs, endpoints, resource identifiers) and the list of AWS resources in the stack. Use it after [deploying](/cli/deploy) to discover endpoints, verify resource creation, or feed stack data into scripts and CI pipelines. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. It reads the stage's record in the Console. Without an account, open the stack `<project>-<stage>` in the AWS CloudFormation console, in the stage's region, to see its outputs and resources.
+`stacktape status` displays detailed information about a deployed stack, including its outputs (URLs, endpoints, resource identifiers) and the list of AWS resources in the stack. Use it after [deploying](/cli/deploy) to discover endpoints, verify resource creation, or feed stack data into scripts and CI pipelines. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. It reads the stage's record in the Console. Without an account, open the stack `<project>-<stage>` in the AWS CloudFormation console, in the stage's region, to see its outputs and resources.
 
 ## Usage
 

@@ -91,9 +91,7 @@ stacktape dev --stage dev --region eu-west-1 --skip-resources myDatabase
 
 A skipped Lambda function stays in the dev stack without its triggers, so it does not run on queue messages, schedules, stream records or HTTP requests during the session.
 
-
-> **Tip:** If you misspell a resource name, Stacktape suggests the closest matches using fuzzy matching. The error message also lists all available resource names in your config.
-
+If a name is wrong, the error shows the available resource names.
 
 ### Keep deployed functions away from local databases
 

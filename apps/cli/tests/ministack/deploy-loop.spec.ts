@@ -13,7 +13,7 @@ import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { GetFunctionConfigurationCommand, InvokeCommand } from '@aws-sdk/client-lambda';
-import { CloudFormationClient, type StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import { CloudFormationClient, ListChangeSetsCommand, type StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import { parseYaml } from '../../src/utils/yaml';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { getCfTemplateS3Key } from '../../src/domain/deployment-artifact-manager/artifact-names';
@@ -674,7 +674,7 @@ test('shared-stack upgrades preserve ownership, customer data and newer contract
 }, 60_000);
 
 // CloudFormation fails a change set that contains no changes instead of completing it empty.
-test('a preview without changes is empty rather than an endless wait', async () => {
+test('a preview without changes is empty rather than an endless wait, and no preview leaves its change set', async () => {
   const { AwsCloudFormationStacks } = await import('../../src/aws/cloudformation-stacks');
   const sdk = new CloudFormationClient(ministack.clientConfig());
   // Each poll asks for a client, so a regression ends in a failed test instead of an endless wait.
@@ -703,6 +703,16 @@ test('a preview without changes is empty rather than an endless wait', async () 
       TemplateBody: JSON.stringify(template)
     });
     expect(preview.changes).toEqual([]);
+    const changed = await cf.createChangeSet({
+      StackName: stackName,
+      ChangeSetName: `${stackName}-changed`,
+      TemplateBody: JSON.stringify({
+        Resources: { ...template.Resources, Topic: { Type: 'AWS::SNS::Topic' as const } }
+      })
+    });
+    expect(changed.changes?.map(({ ResourceChange }) => ResourceChange?.LogicalResourceId)).toEqual(['Topic']);
+    // A preview deletes its change set; `stacktape diff` used to leave one on the stack after every run.
+    expect((await sdk.send(new ListChangeSetsCommand({ StackName: stackName }))).Summaries ?? []).toEqual([]);
   } finally {
     pollUntil = Infinity;
     await cf.delete(stackName, {});

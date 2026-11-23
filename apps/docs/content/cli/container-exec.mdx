@@ -38,7 +38,7 @@ Changes the command makes in the container, such as written files, are lost when
 
 ## Pick the task and the container
 
-A service scaled to several tasks runs the command in the first running task. Pick another with `--task-arn`, the full ARN or only the task ID:
+A service scaled to several tasks runs the command in the first running task of the service. One-off tasks, such as a running [release command](/deployment-and-lifecycle/release-commands), are never picked. Pick another task with `--task-arn`, the full ARN or only the task ID:
 
 ```bash
 stacktape container exec apiService "ps aux" --stage prod --region eu-west-1 --task-arn abc123def

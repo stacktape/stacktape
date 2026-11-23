@@ -1,6 +1,8 @@
 # Agent mode in dev
 
-Stacktape [dev mode](/local-development/dev-mode-overview) can start an HTTP API next to your local workloads and databases. This **agent mode** lets a coding agent, or any HTTP client, check workload status, trigger rebuilds, read logs, query local databases and call read-only AWS operations, so it can edit, test and fix code in a loop. Agent mode is in preview: `GET /` on the running agent lists the endpoints it has.
+`stacktape dev --agent` runs [dev mode](/local-development/dev-mode-overview) as a background session with a local HTTP API. A coding agent, or any HTTP client, uses it to check workload status, rebuild workloads, read logs, query local databases and call read-only AWS operations, so it can edit, test and fix code in a loop. This page calls that session agent mode. On other commands, `--agent` only switches the output to JSONL and turns off prompts.
+
+Agent mode is in preview: `GET /` on the running agent lists the endpoints it has.
 
 ## When to use
 
@@ -10,7 +12,7 @@ Agent mode is designed for workflows where an AI coding assistant drives the edi
 - **Automated test harnesses** — You want a script to verify application behavior during development by hitting the status, env, or database endpoints.
 - **Database inspection without client tools** — You need to run SQL queries, check Redis keys, scan DynamoDB items, or search OpenSearch indices against local dev databases without installing separate database clients.
 
-## When NOT to use
+## When not to use
 
 - **Manual development** — If you're editing code yourself and checking results in a browser, standard [dev mode](/local-development/dev-mode-overview) without `--agent` is simpler. The TUI output is optimized for human reading.
 - **Production observability** — Agent mode runs locally. For deployed stacks, use [`stacktape logs`](/cli/logs), [`stacktape metrics`](/cli/metrics), or the [Stacktape Console](/stacktape-console/console-overview).

@@ -1,6 +1,6 @@
 # container shell
 
-The `container shell` command starts an interactive session inside a running container in your deployed stack. The session is established using ECS Exec and an SSM (Systems Manager) connection, giving you direct terminal access to debug, inspect files, or troubleshoot issues in a running container.
+`stacktape container shell` starts an interactive session inside a running container in your deployed stack. The session is established using ECS Exec and an SSM (Systems Manager) connection, giving you direct terminal access to debug, inspect files, or troubleshoot issues in a running container.
 
 ## Usage
 
@@ -10,7 +10,7 @@ Open a session by specifying the target stage, region, and resource name.
 stacktape container shell myService --stage production --region eu-west-1
 ```
 
-This opens an interactive session inside the container running in the specified resource. The target workload must be a deployed workload with an ECS task definition. Stacktape looks for running ECS tasks before opening the session. When multiple tasks are running, Stacktape prompts you to choose one.
+This opens an interactive session inside the container running in the specified resource. The target workload must be a deployed workload with an ECS task definition. Stacktape looks for running ECS tasks before opening the session. When multiple tasks are running, Stacktape prompts you to choose one. Only the service's own tasks count; one-off tasks, such as a running [release command](/deployment-and-lifecycle/release-commands), are left out.
 
 
 > **Info:** This command does not require a Stacktape configuration file. It connects directly to the deployed stack using the resource name argument (`container shell <resource-name>`) and the `--stage` and `--region` flags. Use optional stack arguments such as `--project`, `--aws-account`, or `--profile` when your local defaults are not enough to identify the target stack or AWS credentials.

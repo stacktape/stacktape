@@ -62,19 +62,19 @@ For internal tools, B2B dashboards, or any app where you do not want public sign
       lang: 'typescript',
       code: `import { defineConfig, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const auth = new UserAuthPool({
+  const auth = new UserAuthPool({ // [!code focus]
     userVerificationType: 'email-code',
+    // [!code focus-start]
     allowOnlyAdminsToCreateAccount: true,
     unusedAccountValidityDays: 7
   });
+  // [!code focus-end]
 
   return {
     resources: { auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -163,7 +163,6 @@ runs, and answers `401` when it's missing or invalid.
   JsBundleLambdaPackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code'
@@ -171,11 +170,12 @@ export default defineConfig(() => {
 
   const gateway = new HttpApiGateway({});
 
-  const api = new LambdaFunction({
+  const api = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
     connectTo: [auth],
+    // [!code focus-start]
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'gateway',
@@ -190,12 +190,12 @@ export default defineConfig(() => {
       })
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { auth, gateway, api }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -247,28 +247,28 @@ Every provider needs a `clientId` and a `clientSecret`. For social and OIDC prov
       lang: 'typescript',
       code: `import { defineConfig, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const auth = new UserAuthPool({
+  const auth = new UserAuthPool({ // [!code focus]
     userVerificationType: 'email-code',
     enableHostedUi: true,
     hostedUiDomainPrefix: 'myapp-login',
+    callbackURLs: ['https://myapp.com/auth/callback'],
+    logoutURLs: ['https://myapp.com/logged-out'],
+    // [!code focus-start]
     identityProviders: [
       {
         type: 'Google',
         clientId: "$Secret('google-credentials', 'clientId')",
         clientSecret: "$Secret('google-credentials', 'clientSecret')"
       }
-    ],
-    callbackURLs: ['https://myapp.com/auth/callback'],
-    logoutURLs: ['https://myapp.com/logged-out']
+    ]
   });
+  // [!code focus-end]
 
   return {
     resources: { auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -311,7 +311,6 @@ Each hook value must be a Lambda function ARN. Stacktape maps the configured hoo
   JsBundleLambdaPackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const createProfile = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({
@@ -319,18 +318,19 @@ export default defineConfig(() => {
     })
   });
 
-  const auth = new UserAuthPool({
+  const auth = new UserAuthPool({ // [!code focus]
     userVerificationType: 'email-code',
+    // [!code focus-start]
     hooks: {
       postConfirmation: "$ResourceParam('createProfile', 'arn')"
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { createProfile, auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -357,21 +357,21 @@ The `mfaConfiguration.status` property controls enforcement: `ON` requires MFA f
       lang: 'typescript',
       code: `import { defineConfig, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const auth = new UserAuthPool({
+  const auth = new UserAuthPool({ // [!code focus]
     userVerificationType: 'email-code',
+    // [!code focus-start]
     mfaConfiguration: {
       status: 'OPTIONAL',
       enabledTypes: ['SOFTWARE_TOKEN']
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -390,8 +390,8 @@ Cognito provides a pre-built, hosted login and registration page so you do not h
       lang: 'typescript',
       code: `import { defineConfig, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const auth = new UserAuthPool({
     enableHostedUi: true,
     hostedUiDomainPrefix: 'myapp-auth',
@@ -401,12 +401,12 @@ export default defineConfig(() => {
     allowedOAuthFlows: ['code'],
     allowedOAuthScopes: ['email', 'openid', 'profile']
   });
+  // [!code focus-end]
 
   return {
     resources: { auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -427,23 +427,23 @@ By default, the Hosted UI is served from a Cognito-managed subdomain. To use you
       lang: 'typescript',
       code: `import { defineConfig, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const auth = new UserAuthPool({
+  const auth = new UserAuthPool({ // [!code focus]
     enableHostedUi: true,
     userVerificationType: 'email-code',
+    callbackURLs: ['https://example.com/auth/callback'],
+    logoutURLs: ['https://example.com/logged-out'],
+    // [!code focus-start]
     customDomain: {
       domainName: 'auth.example.com'
-    },
-    callbackURLs: ['https://example.com/auth/callback'],
-    logoutURLs: ['https://example.com/logged-out']
+    }
   });
+  // [!code focus-end]
 
   return {
     resources: { auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -481,10 +481,10 @@ Stacktape lets you configure password strength requirements through the `passwor
       lang: 'typescript',
       code: `import { defineConfig, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const auth = new UserAuthPool({
+  const auth = new UserAuthPool({ // [!code focus]
     userVerificationType: 'email-code',
+    // [!code focus-start]
     passwordPolicy: {
       minimumLength: 12,
       requireNumbers: true,
@@ -493,12 +493,12 @@ export default defineConfig(() => {
       temporaryPasswordValidityDays: 3
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -544,20 +544,20 @@ Stacktape lets you control how long tokens issued by the user pool remain valid:
       lang: 'typescript',
       code: `import { defineConfig, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const auth = new UserAuthPool({
+  const auth = new UserAuthPool({ // [!code focus]
     userVerificationType: 'email-code',
+    // [!code focus-start]
     accessTokenValiditySeconds: 3600,
     idTokenValiditySeconds: 3600,
     refreshTokenValidityDays: 30
   });
+  // [!code focus-end]
 
   return {
     resources: { auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -593,10 +593,10 @@ The `schema` property lets you define custom attributes stored on each user reco
       lang: 'typescript',
       code: `import { defineConfig, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const auth = new UserAuthPool({
+  const auth = new UserAuthPool({ // [!code focus]
     userVerificationType: 'email-code',
+    // [!code focus-start]
     schema: [
       {
         name: 'role',
@@ -620,12 +620,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { auth }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -690,3 +690,9 @@ The `inviteMessageConfig` property customizes the email and SMS sent when an adm
 <ReferenceableParams resource="user-auth-pool" />
 
 `connectTo` auto-injects `STP_[RESOURCE_NAME]_ID`, `STP_[RESOURCE_NAME]_CLIENT_ID`, and `STP_[RESOURCE_NAME]_ARN` as environment variables. The remaining parameters (`providerUrl`, `domain`, `clientSecret`) are accessible via [`$ResourceParam`](/configuration/referenceable-parameters).
+
+## Next steps
+
+- [HTTP API Gateway](/resources/networking/http-api-gateway): the API whose routes the pool protects.
+- [AppSync API](/resources/networking/appsync-api): authorize GraphQL requests with the pool.
+- [Secrets](/configuration/secrets): store identity provider client secrets.

@@ -211,9 +211,9 @@ of `eventBusName`, `eventBusArn` or `useDefaultBus`:
       lang: 'typescript',
       code: `import { defineConfig, SqsQueue, EventBus } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const orderBus = new EventBus({});
+  // [!code focus-start]
   const orderQueue = new SqsQueue({
     events: [
       {
@@ -228,12 +228,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { orderBus, orderQueue }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />

@@ -96,6 +96,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, EfsFilesystem } from 'stacktape';
+
 export default defineConfig(() => {
   const videoStorage = new EfsFilesystem({
     throughputMode: 'provisioned',
@@ -125,6 +126,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, EfsFilesystem } from 'stacktape';
+
 export default defineConfig(() => {
   const sharedStorage = new EfsFilesystem({
     backupEnabled: true
@@ -158,3 +160,9 @@ EFS filesystems expose the following parameter for use with [`$ResourceParam`](/
 | Parameter | Description | Usage |
 |---|---|---|
 | `arn` | ARN of the EFS filesystem | `$ResourceParam('myEfs', 'arn')` |
+
+## Next steps
+
+- [Web service](/resources/compute/web-service#efs-storage): mount the file system in a container.
+- [Lambda function](/resources/compute/lambda-function#storage): mount it in a function.
+- [S3 bucket](/resources/storage/s3-bucket): for files your app reads by key, not as a file system.

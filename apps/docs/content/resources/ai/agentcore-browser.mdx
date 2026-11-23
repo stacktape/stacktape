@@ -62,10 +62,10 @@ The browser runs in AgentCore's public network mode, so it can open any site on 
       lang: 'typescript',
       code: `import { defineConfig, AgentCoreBrowser, Bucket, $ResourceParam } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const recordings = new Bucket({});
 
+  // [!code focus-start]
   const browser = new AgentCoreBrowser({
     recording: {
       enabled: true,
@@ -73,12 +73,12 @@ export default defineConfig(() => {
       prefix: 'sessions/'
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { recordings, browser }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />

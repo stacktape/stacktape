@@ -2238,11 +2238,13 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
    */
   dbName?: string;
   /**
-   * #### Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM.
+   * #### Minimum ACUs (0-128 in 0.5 increments). 0 pauses the database when it is idle. ~1 ACU ≈ 2 GB RAM.
    *
    * ---
    *
-   * Set low (0.5) for dev/staging to minimize cost. The database scales up instantly under load.
+   * With the default 0, the database pauses after about 5 idle minutes and costs nothing for compute while paused; the
+   * first connection after a pause waits about 15 seconds for it to resume. Set 0.5 or more to keep it running. The
+   * database scales up instantly under load.
    *
  *
  * **Example (YAML):**
@@ -2287,7 +2289,7 @@ export interface AuroraServerlessV2EngineProperties extends SharedEngineProperti
  * });
  * ```
    *
-   * @default 0.5
+   * @default 0
    */
   minCapacity?: number;
   /**

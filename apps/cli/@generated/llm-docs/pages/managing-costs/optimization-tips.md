@@ -107,7 +107,7 @@ Set `timeout` to the lowest value your function needs. Timeouts don't affect cos
 
 ## Right-size container resources
 
-For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or in CloudWatch. If utilization is consistently below 30%, you're paying for capacity you don't use.
+For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics), with [`stacktape metrics`](/cli/metrics) (`CPUUtilization`, `MemoryUtilization`) or in CloudWatch. If utilization is consistently below 30%, you're paying for capacity you don't use.
 
 Start at the smallest CPU/memory combination that keeps your application responsive and scale up only when metrics justify it. See the [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), and [worker service](/resources/compute/worker-service) pages for the supported CPU and memory values on each resource.
 

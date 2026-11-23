@@ -40,10 +40,8 @@ The command supports these resource types:
 |---|---|
 | [Lambda function](/resources/compute/lambda-function) | `Invocations`, `Errors`, `Duration`, `Throttles`, `ConcurrentExecutions` |
 | [Relational database](/resources/databases/relational-database) | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadLatency`, `WriteLatency` |
-| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `Latency`, `IntegrationLatency` |
-
-For web services, worker services and other containers, and for an HTTP API's error counts, use the Console. The
-CLI's queries for those currently return no data or are refused; see [`stacktape metrics`](/cli/metrics).
+| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `4xx`, `5xx`, `Latency`, `IntegrationLatency` |
+| Web, private and worker services, multi-container workloads | `CPUUtilization`, `MemoryUtilization` |
 
 ## Read the common metrics
 

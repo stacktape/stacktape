@@ -100,6 +100,11 @@ database or a rate-limited API. Messages wait in the queue while the cap is reac
 new SqsIntegration({ sqsQueueName: 'orderQueue', maximumConcurrency: 5 })
 ```
 
+To see that the queue is falling behind, watch `ApproximateNumberOfMessagesVisible` (backlog) and
+`ApproximateAgeOfOldestMessage` (lag) in CloudWatch. The queue can alarm on its backlog with the
+`sqs-queue-received-messages-count` or `sqs-queue-not-empty` [alarm](/observability/alarms). When the backlog keeps
+growing, raise `batchSize` or remove a `maximumConcurrency` cap.
+
 ## Failures and retries
 
 If the function throws, the whole batch goes back to the queue. It becomes visible again when the queue's visibility
@@ -210,20 +215,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `sqsQueueArn` | no | `string` | - |
 | `sqsQueueName` | no | `string` | - |
 
-
-## SQS events FAQ
-
-### What is the largest message I can send?
-
-A new queue accepts messages up to 1 MiB (1,048,576 bytes), the SQS maximum. Lower it with `maxMessageSizeBytes` on
-the queue. For larger payloads, upload the data to an [S3 bucket](/resources/storage/s3-bucket) and send the object key
-in the message.
-
-### How do I see that the queue is falling behind?
-
-Watch `ApproximateNumberOfMessagesVisible` (backlog) and `ApproximateAgeOfOldestMessage` (lag) in CloudWatch. A queue
-can alarm on its backlog with the `sqs-queue-received-messages-count` or `sqs-queue-not-empty`
-[alarm](/observability/alarms). Raise `batchSize`, or remove a `maximumConcurrency` cap, when the backlog keeps growing.
 
 ## Next steps
 

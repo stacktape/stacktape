@@ -207,3 +207,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
+
+
+## Next steps
+
+- [CDN](/resources/networking/cdn): attach the function to a distribution's routes.
+- [Logs](/observability/logs): read what the function prints.
+- [Lambda function](/resources/compute/lambda-function): for work that doesn't need to run at the edge.

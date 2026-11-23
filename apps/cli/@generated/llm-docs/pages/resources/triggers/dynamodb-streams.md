@@ -108,6 +108,9 @@ Changes to the same item always arrive in the order they were made. With `parall
 processes up to 10 batches per shard at the same time. Changes to one item stay in order, but changes to different
 items can be processed in any order.
 
+Lambda reads DynamoDB streams for free. You pay for the function's invocations and run time, so a larger `batchSize` or
+a batching window lowers the bill on busy tables.
+
 ## Failures and retries
 
 If the function throws, Lambda retries the whole batch, including records it already processed, and doesn't move past
@@ -191,13 +194,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `reportBatchItemFailures` | no | `boolean` | `false` |
 | `startingPosition` | no | `string` | `TRIM_HORIZON` |
 
-
-## DynamoDB streams FAQ
-
-### What does a stream cost?
-
-Lambda reads DynamoDB streams for free. You pay for the function's invocations and run time, so a larger `batchSize`
-or a batching window lowers the bill on busy tables.
 
 ## Next steps
 

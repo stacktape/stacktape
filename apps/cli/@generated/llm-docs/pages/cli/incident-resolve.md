@@ -1,6 +1,6 @@
 # incident resolve
 
-The `incident resolve` command resolves an incident manually. Use it after you deployed and verified a fix for signals that cannot observe their own recovery, such as production error groups: no new error is not proof that the defect is gone, so Stacktape leaves that judgement to you. A recurring signal reopens the incident automatically, so a wrong resolution is caught rather than hidden. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape incident resolve` resolves an incident manually. Use it after you deployed and verified a fix for signals that cannot observe their own recovery, such as production error groups: no new error is not proof that the defect is gone, so Stacktape leaves that judgement to you. A recurring signal reopens the incident automatically, so a wrong resolution is caught rather than hidden. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 Stateful signals (uptime checks, synthetic tests, alarms) resolve on their own once their recovery criteria are met, and the incident resolves automatically when all of its stateful signals have recovered. Prefer that path; use manual resolution only when a signal cannot recover by itself.
 

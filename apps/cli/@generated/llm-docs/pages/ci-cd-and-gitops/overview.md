@@ -43,9 +43,10 @@ that should deploy. A Git deployment either deploys a fixed stage on every push 
 `pr-<number>` for every pull request into a branch.
 
 A project's first Git deployment in an AWS account and region creates a [build runner](/ci-cd-and-gitops/build-runners)
-there. Each project gets its own runner, and the project's other Git deployments to that account and region share it.
-AWS bills its compute while it builds and its disks while it is stopped, about $8.80 a month per runner in Ireland for
-the default disks. The runner and its disks are removed with the last Git deployment that uses them.
+for that project there. More Git deployments of the same project, account and region share it. AWS bills each runner's
+compute while it builds and its disks while it is stopped: the default disks cost about $8.80 a month per runner in
+Ireland, so ten projects deploying to one account and region cost about $88 a month in disks. A runner and its disks
+are removed with the last Git deployment that uses them.
 
 After the first successful deploy of a new stage, a CLI signed in to the Console offers to set this up: it asks whether
 pushes to your current branch should deploy that stage.
@@ -89,5 +90,5 @@ your own pipeline does it with a `stacktape delete` job.
 By default, a failed deploy keeps what it changed, and the next run continues from there. Fix the problem and push
 again. If the deploy finished but the new code is broken, push a revert commit, or return to the previous version with
 [`stacktape rollback`](/cli/rollback). If CloudFormation left the stack in a failed state, recover it with
-[`stacktape stack recover`](/cli/stack-recover). [Rollbacks](/deployment-and-lifecycle/rollbacks) explains which to use
+[`stacktape stack recover`](/cli/cf-rollback). [Rollbacks](/deployment-and-lifecycle/rollbacks) explains which to use
 when.

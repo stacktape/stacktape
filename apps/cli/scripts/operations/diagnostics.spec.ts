@@ -213,6 +213,80 @@ test('metrics and alarms include every AWS page, preserve zero values, and repor
   }
 }, 60_000);
 
+test('metrics query container services by cluster and service, and HTTP APIs by the metric names AWS publishes', async () => {
+  const fixture = await createOperationsFixture(cli.path);
+  try {
+    await seedDeployedStack(fixture, {
+      web: {
+        ...lambda,
+        resourceType: 'web-service',
+        _nestedResources: {
+          containerWorkload: {
+            ...lambda,
+            resourceType: 'multi-container-workload',
+            cloudformationChildResources: { WebEcsService: { cloudformationResourceType: 'AWS::ECS::Service' } }
+          }
+        }
+      },
+      api: {
+        ...lambda,
+        resourceType: 'http-api-gateway',
+        referencableParams: { apiId: { value: 'j9api', showDuringPrint: true } }
+      }
+    });
+    fixture.aws.on('cloudformation.ListStackResources', () =>
+      xml('ListStackResources', {
+        StackResourceSummaries: [
+          {
+            LogicalResourceId: 'WebEcsService',
+            PhysicalResourceId: 'arn:aws:ecs:eu-west-1:111122223333:service/j9-web-cluster/j9-web-service',
+            ResourceType: 'AWS::ECS::Service',
+            ResourceStatus: 'CREATE_COMPLETE'
+          }
+        ]
+      })
+    );
+    fixture.aws.on('ecs.DescribeServices', () => ({
+      kind: 'json' as const,
+      body: {
+        services: [
+          {
+            clusterArn: 'arn:aws:ecs:eu-west-1:111122223333:cluster/j9-web-cluster',
+            serviceName: 'j9-web-service',
+            deployments: [{ status: 'PRIMARY', rolloutState: 'COMPLETED', taskDefinition: 'j9-web:1' }]
+          }
+        ]
+      }
+    }));
+    fixture.aws.on('ecs.DescribeTaskDefinition', () => ({
+      kind: 'json' as const,
+      body: { taskDefinition: { containerDefinitions: [{ name: 'main' }] } }
+    }));
+    fixture.aws.on('monitoring.GetMetricData', () => ({ kind: 'json' as const, body: { MetricDataResults: [] } }));
+    type MetricQuery = {
+      MetricStat: { Metric: { MetricName: string; Dimensions: { Name: string; Value: string }[] } };
+    };
+    const lastMetric = () =>
+      (fixture.aws.callsTo('monitoring.GetMetricData').at(-1).input.MetricDataQueries as MetricQuery[])[0].MetricStat
+        .Metric;
+
+    await run(fixture, ['metrics', '--resourceName', 'web', '--metric', 'CPUUtilization']);
+    expect(lastMetric()).toMatchObject({
+      MetricName: 'CPUUtilization',
+      Dimensions: [
+        { Name: 'ClusterName', Value: 'j9-web-cluster' },
+        { Name: 'ServiceName', Value: 'j9-web-service' }
+      ]
+    });
+    await run(fixture, ['metrics', '--resourceName', 'api', '--metric', '5xx']);
+    expect(lastMetric()).toMatchObject({ MetricName: '5xx', Dimensions: [{ Name: 'ApiId', Value: 'j9api' }] });
+    const restApiName = await run(fixture, ['metrics', '--resourceName', 'api', '--metric', '5XXError'], false);
+    expect(restApiName.result.code).toBe('METRICS_METRIC_UNSUPPORTED');
+  } finally {
+    await fixture.close();
+  }
+}, 60_000);
+
 test('logs read stored streams from the intended stack and expose readable plain output', async () => {
   const fixture = await createOperationsFixture(cli.path);
   const logs = new CloudWatchLogsClient(fixture.clientConfig());

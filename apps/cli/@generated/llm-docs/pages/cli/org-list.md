@@ -1,6 +1,6 @@
 # org list
 
-The `org list` command displays all organizations accessible with your current Stacktape API key. Use it to see which organizations you belong to, your role in each, and which one is currently active for CLI operations.
+`stacktape org list` displays all organizations accessible with your current Stacktape API key. Use it to see which organizations you belong to, your role in each, and which one is currently active for CLI operations.
 
 ## Usage
 

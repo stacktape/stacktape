@@ -16424,17 +16424,7 @@
         "page:/cli/domain-add#domain-add",
         "page:/cli/domain-add#usage",
         "page:/cli/domain-add#what-it-does",
-        "page:/cli/domain-add#dns-ownership-scenarios",
-        "page:/cli/domain-add#dns-already-verified",
-        "page:/cli/domain-add#dns-managed-outside-aws",
-        "page:/cli/domain-add#tls-certificates",
         "page:/cli/domain-add#examples",
-        "page:/cli/domain-add#faq",
-        "page:/cli/domain-add#can-i-add-a-subdomain-instead-of-a-root-domain",
-        "page:/cli/domain-add#what-happens-if-my-domain-is-not-yet-registered",
-        "page:/cli/domain-add#do-i-need-to-run-this-command-in-every-region",
-        "page:/cli/domain-add#is-there-a-cost-for-adding-a-domain",
-        "page:/cli/domain-add#can-i-use-a-domain-registered-outside-aws",
         "page:/cli/domain-add#options",
         "page:/cli/domain-add#cli-options-stacktape-domain-add",
         "page:/cli/domain-add#related-commands"
@@ -16782,12 +16772,7 @@
         "page:/cli/logs#how-log-group-resolution-works",
         "page:/cli/logs#examples",
         "page:/cli/logs#faq",
-        "page:/cli/logs#how-do-i-filter-logs-for-errors-only",
-        "page:/cli/logs#what-is-the-difference-between-filter-and-query",
-        "page:/cli/logs#how-far-back-can-i-fetch-logs",
-        "page:/cli/logs#does-stacktape-logs-live-tail",
         "page:/cli/logs#how-much-does-cloudwatch-logs-cost",
-        "page:/cli/logs#what-is-the-difference-between-raw-and-agent",
         "page:/cli/logs#options",
         "page:/cli/logs#cli-options-stacktape-logs",
         "page:/cli/logs#related-commands"
@@ -16973,9 +16958,7 @@
         "page:/cli/package#usage",
         "page:/cli/package#examples",
         "page:/cli/package#faq",
-        "page:/cli/package#when-should-i-use-package-instead-of-just-running-deploy",
         "page:/cli/package#how-is-package-different-from-validate-with-package",
-        "page:/cli/package#does-package-use-caching",
         "page:/cli/package#does-package-require-aws-credentials",
         "page:/cli/package#can-i-package-only-specific-workloads",
         "page:/cli/package#what-is-the-difference-between-package-and-synth",
@@ -17240,7 +17223,6 @@
       ],
       "chunks": [
         "page:/cli/rollback#rollback",
-        "page:/cli/rollback#when-to-use",
         "page:/cli/rollback#usage",
         "page:/cli/rollback#important-flags",
         "page:/cli/rollback#target-version",
@@ -17253,16 +17235,10 @@
         "page:/cli/rollback#version-availability",
         "page:/cli/rollback#bucket-synced-content",
         "page:/cli/rollback#examples",
-        "page:/cli/rollback#quick-rollback-after-a-bad-deploy",
-        "page:/cli/rollback#inspect-available-versions-first",
         "page:/cli/rollback#rollback-in-ci-cd",
         "page:/cli/rollback#faq",
         "page:/cli/rollback#what-is-the-difference-between-rollback-and-stack-recover",
-        "page:/cli/rollback#does-rollback-rebuild-my-code",
-        "page:/cli/rollback#does-rollback-affect-my-database",
         "page:/cli/rollback#how-far-back-can-i-roll-back",
-        "page:/cli/rollback#can-i-roll-forward-after-a-rollback",
-        "page:/cli/rollback#will-my-after-deploy-hooks-run-during-rollback",
         "page:/cli/rollback#options",
         "page:/cli/rollback#cli-options-stacktape-rollback",
         "page:/cli/rollback#related-commands"
@@ -17502,7 +17478,6 @@
         "page:/cli/synth#faq",
         "page:/cli/synth#why-are-stage-and-region-required-if-nothing-is-deployed",
         "page:/cli/synth#can-i-feed-the-synthesized-template-into-cloudformation-linting-or-policy-tools",
-        "page:/cli/synth#the-synthesized-template-doesn-t-match-what-i-expected-how-do-i-debug-it",
         "page:/cli/synth#options",
         "page:/cli/synth#cli-options-stacktape-synth",
         "page:/cli/synth#related-commands"
@@ -17555,10 +17530,7 @@
         "page:/cli/validate#important-flags",
         "page:/cli/validate#examples",
         "page:/cli/validate#faq",
-        "page:/cli/validate#how-is-validate-different-from-synth",
         "page:/cli/validate#do-i-need-aws-credentials-to-run-validate-in-ci",
-        "page:/cli/validate#what-errors-does-thorough-catch-that-the-default-level-misses",
-        "page:/cli/validate#can-i-use-validate-with-ai-agents-or-in-scripts",
         "page:/cli/validate#options",
         "page:/cli/validate#cli-options-stacktape-validate",
         "page:/cli/validate#related-commands"
@@ -18901,7 +18873,7 @@
       "chunks": [
         "page:/local-development/local-databases#local-databases",
         "page:/local-development/local-databases#when-to-use-local-databases",
-        "page:/local-development/local-databases#when-not-to-use-local-databases",
+        "page:/local-development/local-databases#when-to-use-a-deployed-database",
         "page:/local-development/local-databases#supported-databases",
         "page:/local-development/local-databases#how-it-works",
         "page:/local-development/local-databases#relational-databases",
@@ -20091,7 +20063,8 @@
         "page:/resources/compute/batch-job#configuration-reference",
         "page:/resources/compute/batch-job#definition-batchjobprops",
         "page:/resources/compute/batch-job#referenceable-parameters",
-        "page:/resources/compute/batch-job#referenceable-parameters-batch-job"
+        "page:/resources/compute/batch-job#referenceable-parameters-batch-job",
+        "page:/resources/compute/batch-job#next-steps"
       ]
     },
     {
@@ -20128,7 +20101,8 @@
         "page:/resources/compute/convex#configuration-reference",
         "page:/resources/compute/convex#definition-convexprops",
         "page:/resources/compute/convex#referenceable-parameters",
-        "page:/resources/compute/convex#referenceable-parameters-convex"
+        "page:/resources/compute/convex#referenceable-parameters-convex",
+        "page:/resources/compute/convex#next-steps"
       ]
     },
     {
@@ -20160,7 +20134,8 @@
         "page:/resources/compute/edge-function#configuration-reference",
         "page:/resources/compute/edge-function#definition-edgelambdafunctionprops",
         "page:/resources/compute/edge-function#referenceable-parameters",
-        "page:/resources/compute/edge-function#referenceable-parameters-edge-lambda-function"
+        "page:/resources/compute/edge-function#referenceable-parameters-edge-lambda-function",
+        "page:/resources/compute/edge-function#next-steps"
       ]
     },
     {
@@ -20206,7 +20181,8 @@
         "page:/resources/compute/lambda-function#configuration-reference",
         "page:/resources/compute/lambda-function#definition-lambdafunctionprops",
         "page:/resources/compute/lambda-function#referenceable-parameters",
-        "page:/resources/compute/lambda-function#referenceable-parameters-function"
+        "page:/resources/compute/lambda-function#referenceable-parameters-function",
+        "page:/resources/compute/lambda-function#next-steps"
       ]
     },
     {
@@ -20248,7 +20224,8 @@
         "page:/resources/compute/multi-container-workload#configuration-reference",
         "page:/resources/compute/multi-container-workload#definition-containerworkloadprops",
         "page:/resources/compute/multi-container-workload#referenceable-parameters",
-        "page:/resources/compute/multi-container-workload#referenceable-parameters-multi-container-workload"
+        "page:/resources/compute/multi-container-workload#referenceable-parameters-multi-container-workload",
+        "page:/resources/compute/multi-container-workload#next-steps"
       ]
     },
     {
@@ -20292,7 +20269,8 @@
         "page:/resources/compute/private-service#configuration-reference",
         "page:/resources/compute/private-service#definition-privateserviceprops",
         "page:/resources/compute/private-service#referenceable-parameters",
-        "page:/resources/compute/private-service#referenceable-parameters-private-service"
+        "page:/resources/compute/private-service#referenceable-parameters-private-service",
+        "page:/resources/compute/private-service#next-steps"
       ]
     },
     {
@@ -20336,7 +20314,8 @@
         "page:/resources/compute/web-service#configuration-reference",
         "page:/resources/compute/web-service#definition-webserviceprops",
         "page:/resources/compute/web-service#referenceable-parameters",
-        "page:/resources/compute/web-service#referenceable-parameters-web-service"
+        "page:/resources/compute/web-service#referenceable-parameters-web-service",
+        "page:/resources/compute/web-service#next-steps"
       ]
     },
     {
@@ -20376,7 +20355,8 @@
         "page:/resources/compute/worker-service#configuration-reference",
         "page:/resources/compute/worker-service#definition-workerserviceprops",
         "page:/resources/compute/worker-service#referenceable-parameters",
-        "page:/resources/compute/worker-service#referenceable-parameters-worker-service"
+        "page:/resources/compute/worker-service#referenceable-parameters-worker-service",
+        "page:/resources/compute/worker-service#next-steps"
       ]
     },
     {
@@ -20408,7 +20388,8 @@
         "page:/resources/databases/dsql#configuration-reference",
         "page:/resources/databases/dsql#definition-dsqldatabaseprops",
         "page:/resources/databases/dsql#referenceable-parameters",
-        "page:/resources/databases/dsql#referenceable-parameters-dsql-database"
+        "page:/resources/databases/dsql#referenceable-parameters-dsql-database",
+        "page:/resources/databases/dsql#next-steps"
       ]
     },
     {
@@ -20446,7 +20427,8 @@
         "page:/resources/databases/dynamodb#configuration-reference",
         "page:/resources/databases/dynamodb#definition-dynamodbtableprops",
         "page:/resources/databases/dynamodb#referenceable-parameters",
-        "page:/resources/databases/dynamodb#referenceable-parameters-dynamo-db-table"
+        "page:/resources/databases/dynamodb#referenceable-parameters-dynamo-db-table",
+        "page:/resources/databases/dynamodb#next-steps"
       ]
     },
     {
@@ -20483,7 +20465,8 @@
         "page:/resources/databases/mongodb-atlas#configuration-reference",
         "page:/resources/databases/mongodb-atlas#definition-mongodbatlasclusterprops",
         "page:/resources/databases/mongodb-atlas#referenceable-parameters",
-        "page:/resources/databases/mongodb-atlas#referenceable-parameters-mongo-db-atlas-cluster"
+        "page:/resources/databases/mongodb-atlas#referenceable-parameters-mongo-db-atlas-cluster",
+        "page:/resources/databases/mongodb-atlas#next-steps"
       ]
     },
     {
@@ -20524,7 +20507,8 @@
         "page:/resources/databases/opensearch#configuration-reference",
         "page:/resources/databases/opensearch#definition-opensearchdomainprops",
         "page:/resources/databases/opensearch#referenceable-parameters",
-        "page:/resources/databases/opensearch#referenceable-parameters-open-search-domain"
+        "page:/resources/databases/opensearch#referenceable-parameters-open-search-domain",
+        "page:/resources/databases/opensearch#next-steps"
       ]
     },
     {
@@ -20568,7 +20552,8 @@
         "page:/resources/databases/redis#configuration-reference",
         "page:/resources/databases/redis#definition-redisprops",
         "page:/resources/databases/redis#referenceable-parameters",
-        "page:/resources/databases/redis#referenceable-parameters-redis"
+        "page:/resources/databases/redis#referenceable-parameters-redis",
+        "page:/resources/databases/redis#next-steps"
       ]
     },
     {
@@ -20609,9 +20594,7 @@
         "page:/resources/databases/relational-database#definition-relationaldatabaseprops",
         "page:/resources/databases/relational-database#referenceable-parameters",
         "page:/resources/databases/relational-database#referenceable-parameters-relational-database",
-        "page:/resources/databases/relational-database#faq",
-        "page:/resources/databases/relational-database#how-do-i-run-database-migrations",
-        "page:/resources/databases/relational-database#can-i-change-the-engine-or-instance-size-later"
+        "page:/resources/databases/relational-database#next-steps"
       ]
     },
     {
@@ -20642,7 +20625,8 @@
         "page:/resources/databases/upstash-redis#configuration-reference",
         "page:/resources/databases/upstash-redis#definition-upstashredisprops",
         "page:/resources/databases/upstash-redis#referenceable-parameters",
-        "page:/resources/databases/upstash-redis#referenceable-parameters-upstash-redis"
+        "page:/resources/databases/upstash-redis#referenceable-parameters-upstash-redis",
+        "page:/resources/databases/upstash-redis#next-steps"
       ]
     },
     {
@@ -20977,8 +20961,6 @@
         "page:/resources/messaging/event-bus#definition-eventbusprops",
         "page:/resources/messaging/event-bus#referenceable-parameters",
         "page:/resources/messaging/event-bus#referenceable-parameters-event-bus",
-        "page:/resources/messaging/event-bus#event-bus-faq",
-        "page:/resources/messaging/event-bus#can-a-container-consume-events",
         "page:/resources/messaging/event-bus#next-steps"
       ]
     },
@@ -21070,9 +21052,6 @@
         "page:/resources/messaging/sns-topic#definition-snstopicprops",
         "page:/resources/messaging/sns-topic#referenceable-parameters",
         "page:/resources/messaging/sns-topic#referenceable-parameters-sns-topic",
-        "page:/resources/messaging/sns-topic#sns-topic-faq",
-        "page:/resources/messaging/sns-topic#what-does-a-topic-cost",
-        "page:/resources/messaging/sns-topic#what-is-the-largest-message",
         "page:/resources/messaging/sns-topic#next-steps"
       ]
     },
@@ -21143,7 +21122,8 @@
         "page:/resources/networking/application-load-balancer#configuration-reference",
         "page:/resources/networking/application-load-balancer#definition-applicationloadbalancerprops",
         "page:/resources/networking/application-load-balancer#referenceable-parameters",
-        "page:/resources/networking/application-load-balancer#referenceable-parameters-application-load-balancer"
+        "page:/resources/networking/application-load-balancer#referenceable-parameters-application-load-balancer",
+        "page:/resources/networking/application-load-balancer#next-steps"
       ]
     },
     {
@@ -21170,7 +21150,8 @@
         "page:/resources/networking/appsync-api#custom-domains",
         "page:/resources/networking/appsync-api#configuration-reference",
         "page:/resources/networking/appsync-api#definition-appsyncapiprops",
-        "page:/resources/networking/appsync-api#referenceable-parameters"
+        "page:/resources/networking/appsync-api#referenceable-parameters",
+        "page:/resources/networking/appsync-api#next-steps"
       ]
     },
     {
@@ -21211,7 +21192,8 @@
         "page:/resources/networking/cdn#document-defaults",
         "page:/resources/networking/cdn#configuration-reference",
         "page:/resources/networking/cdn#definition-cdnconfiguration",
-        "page:/resources/networking/cdn#referenceable-parameters"
+        "page:/resources/networking/cdn#referenceable-parameters",
+        "page:/resources/networking/cdn#next-steps"
       ]
     },
     {
@@ -21240,7 +21222,8 @@
         "page:/resources/networking/custom-domains#multiple-domains",
         "page:/resources/networking/custom-domains#cost",
         "page:/resources/networking/custom-domains#configuration-reference",
-        "page:/resources/networking/custom-domains#definition-domainconfiguration"
+        "page:/resources/networking/custom-domains#definition-domainconfiguration",
+        "page:/resources/networking/custom-domains#next-steps"
       ]
     },
     {
@@ -21276,7 +21259,8 @@
         "page:/resources/networking/http-api-gateway#configuration-reference",
         "page:/resources/networking/http-api-gateway#definition-httpapigatewayprops",
         "page:/resources/networking/http-api-gateway#referenceable-parameters",
-        "page:/resources/networking/http-api-gateway#referenceable-parameters-http-api-gateway"
+        "page:/resources/networking/http-api-gateway#referenceable-parameters-http-api-gateway",
+        "page:/resources/networking/http-api-gateway#next-steps"
       ]
     },
     {
@@ -21307,7 +21291,8 @@
         "page:/resources/networking/network-load-balancer#configuration-reference",
         "page:/resources/networking/network-load-balancer#definition-networkloadbalancerprops",
         "page:/resources/networking/network-load-balancer#referenceable-parameters",
-        "page:/resources/networking/network-load-balancer#referenceable-parameters-network-load-balancer"
+        "page:/resources/networking/network-load-balancer#referenceable-parameters-network-load-balancer",
+        "page:/resources/networking/network-load-balancer#next-steps"
       ]
     },
     {
@@ -21345,7 +21330,8 @@
         "page:/resources/networking/websocket-api-gateway#definition-websocketapigatewayprops",
         "page:/resources/networking/websocket-api-gateway#definition-websocketapiintegrationprops",
         "page:/resources/networking/websocket-api-gateway#referenceable-parameters",
-        "page:/resources/networking/websocket-api-gateway#referenceable-parameters-websocket-api-gateway"
+        "page:/resources/networking/websocket-api-gateway#referenceable-parameters-websocket-api-gateway",
+        "page:/resources/networking/websocket-api-gateway#next-steps"
       ]
     },
     {
@@ -21379,7 +21365,8 @@
         "page:/resources/orchestration/state-machine#configuration-reference",
         "page:/resources/orchestration/state-machine#definition-statemachineprops",
         "page:/resources/orchestration/state-machine#referenceable-parameters",
-        "page:/resources/orchestration/state-machine#referenceable-parameters-state-machine"
+        "page:/resources/orchestration/state-machine#referenceable-parameters-state-machine",
+        "page:/resources/orchestration/state-machine#next-steps"
       ]
     },
     {
@@ -21409,7 +21396,8 @@
         "page:/resources/security/bastion-host#startup-commands",
         "page:/resources/security/bastion-host#logging",
         "page:/resources/security/bastion-host#configuration-reference",
-        "page:/resources/security/bastion-host#definition-bastionprops"
+        "page:/resources/security/bastion-host#definition-bastionprops",
+        "page:/resources/security/bastion-host#next-steps"
       ]
     },
     {
@@ -21451,7 +21439,8 @@
         "page:/resources/security/user-auth-pool#configuration-reference",
         "page:/resources/security/user-auth-pool#definition-userauthpoolprops",
         "page:/resources/security/user-auth-pool#referenceable-parameters",
-        "page:/resources/security/user-auth-pool#referenceable-parameters-user-auth-pool"
+        "page:/resources/security/user-auth-pool#referenceable-parameters-user-auth-pool",
+        "page:/resources/security/user-auth-pool#next-steps"
       ]
     },
     {
@@ -21486,7 +21475,8 @@
         "page:/resources/security/web-application-firewall#configuration-reference",
         "page:/resources/security/web-application-firewall#definition-webappfirewallprops",
         "page:/resources/security/web-application-firewall#referenceable-parameters",
-        "page:/resources/security/web-application-firewall#referenceable-parameters-web-app-firewall"
+        "page:/resources/security/web-application-firewall#referenceable-parameters-web-app-firewall",
+        "page:/resources/security/web-application-firewall#next-steps"
       ]
     },
     {
@@ -21516,7 +21506,8 @@
         "page:/resources/storage/efs-filesystem#backups",
         "page:/resources/storage/efs-filesystem#configuration-reference",
         "page:/resources/storage/efs-filesystem#definition-efsfilesystemprops",
-        "page:/resources/storage/efs-filesystem#referenceable-parameters"
+        "page:/resources/storage/efs-filesystem#referenceable-parameters",
+        "page:/resources/storage/efs-filesystem#next-steps"
       ]
     },
     {
@@ -21552,7 +21543,8 @@
         "page:/resources/storage/s3-bucket#configuration-reference",
         "page:/resources/storage/s3-bucket#definition-bucketprops",
         "page:/resources/storage/s3-bucket#referenceable-parameters",
-        "page:/resources/storage/s3-bucket#referenceable-parameters-bucket"
+        "page:/resources/storage/s3-bucket#referenceable-parameters-bucket",
+        "page:/resources/storage/s3-bucket#next-steps"
       ]
     },
     {
@@ -21633,8 +21625,6 @@
         "page:/resources/triggers/dynamodb-streams#dev-mode",
         "page:/resources/triggers/dynamodb-streams#configuration-reference",
         "page:/resources/triggers/dynamodb-streams#definition-dynamodbintegrationprops",
-        "page:/resources/triggers/dynamodb-streams#dynamodb-streams-faq",
-        "page:/resources/triggers/dynamodb-streams#what-does-a-stream-cost",
         "page:/resources/triggers/dynamodb-streams#next-steps"
       ]
     },
@@ -21663,8 +21653,6 @@
         "page:/resources/triggers/event-bus-events#failures-and-retries",
         "page:/resources/triggers/event-bus-events#configuration-reference",
         "page:/resources/triggers/event-bus-events#definition-eventbusintegrationprops",
-        "page:/resources/triggers/event-bus-events#event-bus-events-faq",
-        "page:/resources/triggers/event-bus-events#what-does-it-cost",
         "page:/resources/triggers/event-bus-events#next-steps"
       ]
     },
@@ -21756,9 +21744,6 @@
         "page:/resources/triggers/kinesis-events#failures-and-retries",
         "page:/resources/triggers/kinesis-events#configuration-reference",
         "page:/resources/triggers/kinesis-events#definition-kinesisintegrationprops",
-        "page:/resources/triggers/kinesis-events#kinesis-events-faq",
-        "page:/resources/triggers/kinesis-events#how-do-i-tell-that-the-function-can-t-keep-up",
-        "page:/resources/triggers/kinesis-events#can-a-container-consume-the-stream",
         "page:/resources/triggers/kinesis-events#next-steps"
       ]
     },
@@ -21782,10 +21767,7 @@
         "page:/resources/triggers/overview#feature-comparison",
         "page:/resources/triggers/overview#basic-example",
         "page:/resources/triggers/overview#how-events-are-delivered",
-        "page:/resources/triggers/overview#filtering-events",
-        "page:/resources/triggers/overview#triggers-faq",
-        "page:/resources/triggers/overview#why-can-t-a-web-service-consume-an-sqs-queue-directly",
-        "page:/resources/triggers/overview#http-api-gateway-or-application-load-balancer"
+        "page:/resources/triggers/overview#filtering-events"
       ]
     },
     {
@@ -21813,8 +21795,6 @@
         "page:/resources/triggers/s3-events#failures-and-retries",
         "page:/resources/triggers/s3-events#configuration-reference",
         "page:/resources/triggers/s3-events#definition-s3integrationprops",
-        "page:/resources/triggers/s3-events#s3-events-faq",
-        "page:/resources/triggers/s3-events#can-several-functions-react-to-the-same-bucket",
         "page:/resources/triggers/s3-events#next-steps"
       ]
     },
@@ -21871,9 +21851,6 @@
         "page:/resources/triggers/sns-events#fifo-topics",
         "page:/resources/triggers/sns-events#configuration-reference",
         "page:/resources/triggers/sns-events#definition-snsintegrationprops",
-        "page:/resources/triggers/sns-events#sns-events-faq",
-        "page:/resources/triggers/sns-events#does-the-sns-trigger-support-batching",
-        "page:/resources/triggers/sns-events#what-does-it-cost",
         "page:/resources/triggers/sns-events#next-steps"
       ]
     },
@@ -21903,9 +21880,6 @@
         "page:/resources/triggers/sqs-events#retry-only-the-failed-messages",
         "page:/resources/triggers/sqs-events#configuration-reference",
         "page:/resources/triggers/sqs-events#definition-sqsintegrationprops",
-        "page:/resources/triggers/sqs-events#sqs-events-faq",
-        "page:/resources/triggers/sqs-events#what-is-the-largest-message-i-can-send",
-        "page:/resources/triggers/sqs-events#how-do-i-see-that-the-queue-is-falling-behind",
         "page:/resources/triggers/sqs-events#next-steps"
       ]
     },
@@ -22071,14 +22045,10 @@
         "page:/stacktape-console/connecting-your-aws-account#checking-which-regions-an-account-uses",
         "page:/stacktape-console/connecting-your-aws-account#troubleshooting",
         "page:/stacktape-console/connecting-your-aws-account#account-stuck-in-connecting-or-setup-not-finished",
-        "page:/stacktape-console/connecting-your-aws-account#cannot-delete-a-connected-aws-account",
+        "page:/stacktape-console/connecting-your-aws-account#cannot-disconnect-an-aws-account",
         "page:/stacktape-console/connecting-your-aws-account#account-shows-no-access",
         "page:/stacktape-console/connecting-your-aws-account#you-do-not-have-permission-to-manage-aws-accounts",
-        "page:/stacktape-console/connecting-your-aws-account#related-features",
-        "page:/stacktape-console/connecting-your-aws-account#faq",
-        "page:/stacktape-console/connecting-your-aws-account#do-i-need-to-create-aws-access-keys-for-stacktape",
-        "page:/stacktape-console/connecting-your-aws-account#can-i-deploy-to-any-aws-region-after-connecting",
-        "page:/stacktape-console/connecting-your-aws-account#is-connecting-my-aws-account-free"
+        "page:/stacktape-console/connecting-your-aws-account#related-features"
       ]
     },
     {
@@ -22117,7 +22087,6 @@
         "page:/stacktape-console/console-overview#sidebar-items-are-missing",
         "page:/stacktape-console/console-overview#related-pages",
         "page:/stacktape-console/console-overview#faq",
-        "page:/stacktape-console/console-overview#do-i-need-the-console-to-use-stacktape",
         "page:/stacktape-console/console-overview#does-stacktape-deploy-into-my-own-aws-account"
       ]
     },

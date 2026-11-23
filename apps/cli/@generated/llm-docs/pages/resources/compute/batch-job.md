@@ -317,3 +317,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `jobDefinitionArn` | Arn of the job definition resource | `$ResourceParam("<<resource-name>>", "jobDefinitionArn")` |
 | `stateMachineArn` | Arn of the state machine controlling the execution flow of the batch job | `$ResourceParam("<<resource-name>>", "stateMachineArn")` |
 | `logGroupArn` | Arn of the log group aggregating logs from the batch job | `$ResourceParam("<<resource-name>>", "logGroupArn")` |
+
+
+## Next steps
+
+- [Schedule triggers](/resources/triggers/schedule-triggers): run the job on a schedule.
+- [S3 events](/resources/triggers/s3-events): start a job for each uploaded file.
+- [Logs](/observability/logs): check the first run's output with `stacktape logs`.

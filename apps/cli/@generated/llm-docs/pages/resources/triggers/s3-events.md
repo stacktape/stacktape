@@ -112,6 +112,11 @@ new S3Integration({
 
 S3 filters only on the key. To skip objects by size or content type, check them at the start of the handler.
 
+Several functions can react to the same bucket if their filters don't overlap: S3 rejects two notifications for the
+same event type whose prefix and suffix can match the same key. When several consumers need every event, set
+`enableEventBusNotifications: true` on the bucket and give each one an
+[event bus trigger](/resources/triggers/event-bus-events) on the default bus with `source: ['aws.s3']`.
+
 ## Avoid loops
 
 If the function writes its output to the same bucket and the trigger matches that output, every write runs the
@@ -145,15 +150,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `s3EventType` | yes | `string: "s3:ObjectCreated:*" \| "s3:ObjectCreated:CompleteMultipartUpload" \| "s3:ObjectCreated:Copy" \| "s3:ObjectCreated:Post" \| "s3:ObjectCreated:Put" \| "s3:ObjectRemoved:*" \| "s3:ObjectRemoved:Delete" \| "s3:ObjectRemoved:DeleteMarkerCreated" \| "s3:ObjectRestore:*" \| "s3:ObjectRestore:Completed" \| "s3:ObjectRestore:Post" \| "s3:ReducedRedundancyLostObject" \| "s3:Replication:*" \| "s3:Replication:OperationFailedReplication" \| "s3:Replication:OperationMissedThreshold" \| "s3:Replication:OperationNotTracked" \| "s3:Replication:OperationReplicatedAfterThreshold"` | - |
 | `filterRule` | no | `S3FilterRule` | - |
 
-
-## S3 events FAQ
-
-### Can several functions react to the same bucket?
-
-Yes, if their triggers don't overlap. S3 rejects two notifications for the same event type whose prefix and suffix
-filters can match the same key. When several consumers need every event, set `enableEventBusNotifications: true` on the
-bucket and give each consumer an [event bus trigger](/resources/triggers/event-bus-events) on the default bus with
-`source: ['aws.s3']`.
 
 ## Next steps
 

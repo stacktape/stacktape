@@ -1,6 +1,6 @@
 # whoami
 
-The `stacktape whoami` command shows the current user, organization, connected AWS accounts, and accessible projects for your configured API key. Use it to verify your authentication is set up correctly and confirm which organization and projects you can access.
+`stacktape whoami` shows the current user, organization, connected AWS accounts, and accessible projects for your configured API key. Use it to verify your authentication is set up correctly and confirm which organization and projects you can access.
 
 ## Usage
 

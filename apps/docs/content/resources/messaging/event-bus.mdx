@@ -12,7 +12,9 @@ who listens, and a new consumer doesn't need a change to the producer. You pay $
 East.
 
 For one consumer working through jobs, an [SQS queue](/resources/messaging/sqs-queue) is simpler. When every subscriber
-needs every message, an [SNS topic](/resources/messaging/sns-topic) is enough.
+needs every message, an [SNS topic](/resources/messaging/sns-topic) is enough. A container can't be a rule's target:
+deliver the events to an [SQS queue](/resources/messaging/sqs-queue#deliver-eventbridge-events-to-the-queue) and let a
+[worker service](/resources/compute/worker-service) poll it.
 
 ## Basic example
 
@@ -136,13 +138,6 @@ new EventBus({ eventSourceName: 'aws.partner/example.com/1234567890/my-integrati
 ## Referenceable parameters
 
 <ReferenceableParams resource="event-bus" />
-
-## Event bus FAQ
-
-### Can a container consume events?
-
-Not as a trigger. Deliver the events to an [SQS queue](/resources/messaging/sqs-queue#deliver-eventbridge-events-to-the-queue)
-with the queue's `events` property, and let a [worker service](/resources/compute/worker-service) poll that queue.
 
 ## Next steps
 

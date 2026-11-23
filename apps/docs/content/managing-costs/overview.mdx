@@ -20,7 +20,9 @@ This section answers four questions:
 
 ## Estimate before you deploy
 
-[`stacktape init`](/cli/init) prices the setup it proposes: its Review step shows the monthly price of each resource and the total, for the region you pick. `stacktape init --headless` prints the same estimate without the browser.
+[`stacktape init`](/cli/init) prices the setup it proposes: its Review step shows the monthly price of each resource and the total, for the region you pick. `stacktape init --headless` prints the same estimate in the terminal. Both also write a config file; in a project that already has one, init writes `stacktape.generated.yml` beside it and leaves yours alone.
+
+Init doesn't price changes you make to your config later. For those, add up the pricing notes on the resource pages, or use the [AWS Pricing Calculator](https://calculator.aws/). For example, a [worker service](/resources/compute/worker-service) with 0.5 vCPU and 1 GB adds about $18 a month on x86 Fargate in us-east-1, whether or not it has work.
 
 What makes a bill large is mostly what runs all the time:
 

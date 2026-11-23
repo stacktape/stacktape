@@ -23,7 +23,7 @@ Use the MCP server when your AI coding assistant supports the [Model Context Pro
 - **Configuration help** — the assistant searches Stacktape's bundled documentation index for resource types, config syntax, and deployment patterns without opening a browser.
 - **Dev mode** — start, monitor, rebuild, and stop [dev mode](/local-development/dev-mode-overview) sessions from within your AI conversation.
 
-## When NOT to use
+## When not to use
 
 Skip the MCP server if your AI client does not support the Model Context Protocol — use the [Stacktape CLI](/cli/deploy) directly or the [Stacktape Console](/stacktape-console/console-overview) instead. For long-running deployments, prefer the CLI when you want to watch the command directly in your own terminal. MCP command responses are consolidated and may be truncated. The MCP server runs CLI commands as subprocesses and returns a consolidated response; if an optional caller-specified timeout is exceeded, the subprocess is terminated and an error is returned.
 
@@ -338,7 +338,7 @@ The MCP server classifies every CLI command into a safety level and enforces per
 | `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion shell` |
 
-`diff` needs your approval like a deploy. It never applies its changes, but before the preview it restores secrets scheduled for deletion, stores generated database passwords as new secrets, uploads a template and creates a CloudFormation change set in your account. See [what diff changes](/cli/diff#what-diff-changes-in-aws).
+`diff` needs your approval like a deploy. It never applies its changes, but before the preview it restores secrets scheduled for deletion, stores generated database passwords as new secrets, uploads a template and creates a temporary CloudFormation change set in your account. See [what diff changes](/cli/diff#what-diff-changes-in-aws).
 
 For destructive commands, the MCP server asks the user directly through their AI client's confirmation form: an input-required round trip on the `2026-07-28` revision, a standard elicitation request on the 2025 revisions. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
 

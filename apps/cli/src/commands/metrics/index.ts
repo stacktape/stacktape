@@ -6,7 +6,14 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { printMetricsChart } from '../_utils/debug-formatters';
+import { resolveDeployedEcsService } from '../_utils/deployed-ecs-service';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+
+const CONTAINER_METRICS = {
+  namespace: 'AWS/ECS',
+  dimensionName: 'ServiceName',
+  metrics: ['CPUUtilization', 'MemoryUtilization']
+};
 
 // Metric configurations by resource type
 const METRIC_CONFIGS: Record<string, { namespace: string; dimensionName: string; metrics: string[] }> = {
@@ -15,20 +22,20 @@ const METRIC_CONFIGS: Record<string, { namespace: string; dimensionName: string;
     dimensionName: 'FunctionName',
     metrics: ['Invocations', 'Errors', 'Duration', 'Throttles', 'ConcurrentExecutions']
   },
-  'multi-container-workload': {
-    namespace: 'AWS/ECS',
-    dimensionName: 'ServiceName',
-    metrics: ['CPUUtilization', 'MemoryUtilization']
-  },
+  'web-service': CONTAINER_METRICS,
+  'private-service': CONTAINER_METRICS,
+  'worker-service': CONTAINER_METRICS,
+  'multi-container-workload': CONTAINER_METRICS,
   'relational-database': {
     namespace: 'AWS/RDS',
     dimensionName: 'DBInstanceIdentifier',
     metrics: ['CPUUtilization', 'DatabaseConnections', 'FreeStorageSpace', 'ReadLatency', 'WriteLatency']
   },
+  // HTTP APIs publish `4xx` and `5xx`; `4XXError` and `5XXError` are REST API metrics.
   'http-api-gateway': {
     namespace: 'AWS/ApiGateway',
     dimensionName: 'ApiId',
-    metrics: ['Count', '4XXError', '5XXError', 'Latency', 'IntegrationLatency']
+    metrics: ['Count', '4xx', '5xx', 'Latency', 'IntegrationLatency']
   }
 };
 
@@ -80,19 +87,26 @@ export const commandMetrics = async () => {
     });
   }
 
-  // Determine dimension value (AWS resource name)
+  // Determine dimensions (AWS resource names)
   const params = resource.referencableParams as Record<string, { value?: string }> | undefined;
-  let dimensionValue: string;
-  if (resourceType === 'function') {
-    dimensionValue = `${stackName}-${resourceName}`;
-  } else if (resourceType === 'multi-container-workload') {
-    dimensionValue = `${stackName}-${resourceName}`;
-  } else if (resourceType === 'relational-database') {
-    dimensionValue = params?.instanceId?.value || `${stackName}-${resourceName}`;
-  } else if (resourceType === 'http-api-gateway') {
-    dimensionValue = params?.apiId?.value || '';
+  let dimensions: { Name: string; Value: string }[];
+  if (metricConfig === CONTAINER_METRICS) {
+    // ECS publishes service metrics per cluster, so a query needs both dimensions.
+    const { clusterName, serviceName } = resolveDeployedEcsService(resourceName);
+    dimensions = [
+      { Name: 'ClusterName', Value: clusterName },
+      { Name: 'ServiceName', Value: serviceName }
+    ];
   } else {
-    dimensionValue = `${stackName}-${resourceName}`;
+    let dimensionValue: string;
+    if (resourceType === 'relational-database') {
+      dimensionValue = params?.instanceId?.value || `${stackName}-${resourceName}`;
+    } else if (resourceType === 'http-api-gateway') {
+      dimensionValue = params?.apiId?.value || '';
+    } else {
+      dimensionValue = `${stackName}-${resourceName}`;
+    }
+    dimensions = [{ Name: metricConfig.dimensionName, Value: dimensionValue }];
   }
 
   // Parse time range
@@ -119,7 +133,7 @@ export const commandMetrics = async () => {
       Metric: {
         Namespace: metricConfig.namespace,
         MetricName: metric,
-        Dimensions: [{ Name: metricConfig.dimensionName, Value: dimensionValue }]
+        Dimensions: dimensions
       },
       Period: period,
       Stat: stat

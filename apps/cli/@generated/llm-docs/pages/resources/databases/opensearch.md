@@ -52,16 +52,17 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
-    version: '2.17',
     clusterConfig: {
       instanceType: 't3.medium.search',
       instanceCount: 1
     },
     storage: {
       size: 20
-    }
+    },
+    version: '2.17'
   });
 
   return {
@@ -99,6 +100,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     version: '2.17',
@@ -148,6 +150,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     clusterConfig: {
@@ -256,6 +259,7 @@ import {
   LambdaFunction,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     clusterConfig: {
@@ -302,6 +306,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     clusterConfig: {
@@ -341,6 +346,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const authPool = new UserAuthPool({});
 
@@ -400,3 +406,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `domainEndpoint` | Endpoint used for communicating with your opensearch-domain | `$ResourceParam("<<resource-name>>", "domainEndpoint")` |
 | `arn` | Arn of the domain | `$ResourceParam("<<resource-name>>", "arn")` |
+
+
+## Next steps
+
+- [Local databases](/local-development/local-databases): run OpenSearch on your machine in dev mode.
+- [`stacktape query opensearch`](/cli/query-opensearch): search the domain from your terminal.
+- [Bastion host](/resources/security/bastion-host): reach a domain inside the VPC from your machine.

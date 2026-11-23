@@ -115,18 +115,18 @@ idle. You can change it any time.
       lang: 'typescript',
       code: `import { defineConfig, EfsFilesystem } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const videoStorage = new EfsFilesystem({
     throughputMode: 'provisioned',
     provisionedThroughputInMibps: 100
   });
+  // [!code focus-end]
 
   return {
     resources: { videoStorage }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -150,17 +150,17 @@ changed here.
       lang: 'typescript',
       code: `import { defineConfig, EfsFilesystem } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const sharedStorage = new EfsFilesystem({
     backupEnabled: true
   });
+  // [!code focus-end]
 
   return {
     resources: { sharedStorage }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -175,3 +175,9 @@ EFS filesystems expose the following parameter for use with [`$ResourceParam`](/
 | Parameter | Description | Usage |
 |---|---|---|
 | `arn` | ARN of the EFS filesystem | `$ResourceParam('myEfs', 'arn')` |
+
+## Next steps
+
+- [Web service](/resources/compute/web-service#efs-storage): mount the file system in a container.
+- [Lambda function](/resources/compute/lambda-function#storage): mount it in a function.
+- [S3 bucket](/resources/storage/s3-bucket): for files your app reads by key, not as a file system.

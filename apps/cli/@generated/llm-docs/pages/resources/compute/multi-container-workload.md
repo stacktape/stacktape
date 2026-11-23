@@ -697,3 +697,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
+
+
+## Next steps
+
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations before new containers take traffic.
+- [Debugging containers](/observability/debugging-containers): open a shell or run a command in a running container.
+- [Web service](/resources/compute/web-service): the simpler choice for one container with a public URL.

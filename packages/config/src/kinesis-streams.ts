@@ -303,12 +303,13 @@ export interface KinesisStreamProps {
    */
   encryption?: KinesisStreamEncryption;
   /**
-   * #### Give each consumer its own dedicated 2 MB/s read throughput (instead of sharing).
+   * #### Deprecated: has no effect. Set `autoCreateConsumer: true` on a function's trigger instead.
    *
    * ---
    *
-   * Use when you have multiple consumers reading from the same stream and need low latency.
-   * Enhanced fan-out consumers are auto-created when a Lambda uses `autoCreateConsumer: true`.
+   * This property never changed the deployed stream and is ignored; Stacktape prints a deprecation warning when it is
+   * set. To give a function its own enhanced fan-out consumer with dedicated 2 MB/s read throughput per shard, set
+   * `autoCreateConsumer: true` (or `consumerArn`) on its `kinesis-stream` trigger, as in the examples below.
    *
    *
    * ---
@@ -376,6 +377,7 @@ export interface KinesisStreamProps {
    * ```
    *
    * @default false
+   * @deprecated Has no effect. Set `autoCreateConsumer: true` on the function's `kinesis-stream` trigger instead.
    */
   enableEnhancedFanOut?: boolean;
 }

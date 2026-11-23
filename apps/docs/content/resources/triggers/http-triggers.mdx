@@ -46,14 +46,14 @@ Define the gateway as a resource and point the function's integration at it:
   JsBundleLambdaPackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const api = new HttpApiGateway({});
 
-  const app = new LambdaFunction({
+  const app = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
+    // [!code focus-start]
     events: [
       new HttpApiIntegration({
         httpApiGatewayName: 'api',
@@ -62,12 +62,12 @@ export default defineConfig(() => {
       })
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { api, app }
   };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -123,14 +123,14 @@ An `authorizer` checks the request before the function runs:
   JsBundleLambdaPackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const alb = new ApplicationLoadBalancer({});
 
-  const usersApi = new LambdaFunction({
+  const usersApi = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/users.ts'
     }),
+    // [!code focus-start]
     events: [
       new ApplicationLoadBalancerIntegration({
         loadBalancerName: 'alb',
@@ -140,12 +140,12 @@ export default defineConfig(() => {
       })
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { alb, usersApi }
   };
 });
-// [!code focus-end]
 `
     }
   ]}

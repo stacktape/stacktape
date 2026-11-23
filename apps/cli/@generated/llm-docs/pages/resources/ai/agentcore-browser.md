@@ -48,9 +48,9 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, AgentCoreBrowser, Bucket, $ResourceParam } from 'stacktape';
+
 export default defineConfig(() => {
   const recordings = new Bucket({});
-
   const browser = new AgentCoreBrowser({
     recording: {
       enabled: true,

@@ -1,6 +1,6 @@
 # bastion shell
 
-The `bastion shell` command starts an interactive shell on a deployed [bastion host](/resources/security/bastion-host). The session is established over SSM, so no SSH keys or open inbound ports are required.
+`stacktape bastion shell` starts an interactive shell on a deployed [bastion host](/resources/security/bastion-host). The session is established over SSM, so no SSH keys or open inbound ports are required.
 
 ## Usage
 

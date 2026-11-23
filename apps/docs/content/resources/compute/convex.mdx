@@ -69,8 +69,8 @@ Stacktape generates the admin key, stores it in AWS Secrets Manager and passes i
 
 Without custom domains, the backend is served on a `*.stacktape-app.com` domain, on ports 3210 (client API), 3211
 (HTTP actions) and 6791 (dashboard). That domain comes from the [Stacktape Console](/getting-started/add-the-console).
-Without the Console connected, set [custom domains](#custom-domains) for all three origins, or the deploy stops and
-asks for them.
+Without the Console connected, set [custom domains](#custom-domains) for `cloud` and `site`, and for `dashboard` unless
+you turn the dashboard off, or the deploy stops and asks for them.
 
 ## Custom domains
 
@@ -94,8 +94,8 @@ first deploy, so that issued certificates exist for these names.
       lang: 'typescript',
       code: `import { defineConfig, Convex } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myConvex = new Convex({
     appDirectory: './convex',
     backend: {
@@ -124,12 +124,12 @@ export default defineConfig(() => {
       automatedBackupRetentionDays: 7
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -150,7 +150,6 @@ environment variable for the `convex-js` client:
       lang: 'typescript',
       code: `import { defineConfig, Convex, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -168,20 +167,21 @@ export default defineConfig(() => {
     }
   });
 
-  const api = new LambdaFunction({
+  const api = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
+    // [!code focus-start]
     environment: {
       CONVEX_URL: "$ResourceParam('myConvex', 'url')"
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex, api }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -201,9 +201,8 @@ changes the command (for example to use `pnpm`), the directory (`workingDirector
       lang: 'typescript',
       code: `import { defineConfig, Convex } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myConvex = new Convex({
+  const myConvex = new Convex({ // [!code focus]
     appDirectory: './convex',
     backend: {
       resources: { cpu: 1, memory: 2048 }
@@ -211,16 +210,17 @@ export default defineConfig(() => {
     dashboard: {
       resources: { cpu: 0.25, memory: 512 }
     },
+    // [!code focus-start]
     functionsDeployment: {
       command: 'pnpm convex deploy --codegen disable'
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -248,26 +248,26 @@ exactly one backend task, so you scale it up, not out. Sizes from Convex's self-
       lang: 'typescript',
       code: `import { defineConfig, Convex } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myConvex = new Convex({
+  const myConvex = new Convex({ // [!code focus]
     appDirectory: './convex',
+    dashboard: {
+      resources: { cpu: 0.25, memory: 512 }
+    },
+    // [!code focus-start]
     backend: {
       resources: {
         cpu: 2,
         memory: 4096
       }
-    },
-    dashboard: {
-      resources: { cpu: 0.25, memory: 512 }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -283,26 +283,26 @@ For EC2 instead of Fargate, set `instanceTypes` (Graviton types such as `c6g.lar
       lang: 'typescript',
       code: `import { defineConfig, Convex } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myConvex = new Convex({
+  const myConvex = new Convex({ // [!code focus]
     appDirectory: './convex',
+    dashboard: {
+      resources: { cpu: 0.25, memory: 512 }
+    },
+    // [!code focus-start]
     backend: {
       resources: {
         instanceTypes: ['c6g.large'],
         enableWarmPool: true
       }
-    },
-    dashboard: {
-      resources: { cpu: 0.25, memory: 512 }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -329,24 +329,24 @@ addresses with `allowedIpRanges`, especially on production stages:
       lang: 'typescript',
       code: `import { defineConfig, Convex } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myConvex = new Convex({
+  const myConvex = new Convex({ // [!code focus]
     appDirectory: './convex',
     backend: {
       resources: { cpu: 1, memory: 2048 }
     },
+    // [!code focus-start]
     dashboard: {
       resources: { cpu: 0.25, memory: 512 },
       allowedIpRanges: ['203.0.113.0/24', '198.51.100.42/32']
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -362,23 +362,23 @@ with the `npx convex` CLI. `dashboard.image` pins the dashboard image.
       lang: 'typescript',
       code: `import { defineConfig, Convex } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myConvex = new Convex({
+  const myConvex = new Convex({ // [!code focus]
     appDirectory: './convex',
     backend: {
       resources: { cpu: 1, memory: 2048 }
     },
+    // [!code focus-start]
     dashboard: {
       enabled: false
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -408,9 +408,8 @@ can expire old exports.
       lang: 'typescript',
       code: `import { defineConfig, Convex } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myConvex = new Convex({
+  const myConvex = new Convex({ // [!code focus]
     appDirectory: './convex',
     backend: {
       resources: { cpu: 1, memory: 2048 }
@@ -418,16 +417,17 @@ export default defineConfig(() => {
     dashboard: {
       resources: { cpu: 0.25, memory: 512 }
     },
+    // [!code focus-start]
     storage: {
       versioning: true
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -460,9 +460,8 @@ use the deployed backend instead, for example to work with real data; the stage 
       lang: 'typescript',
       code: `import { defineConfig, Convex } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myConvex = new Convex({
+  const myConvex = new Convex({ // [!code focus]
     appDirectory: './convex',
     backend: {
       resources: { cpu: 1, memory: 2048 }
@@ -470,16 +469,17 @@ export default defineConfig(() => {
     dashboard: {
       resources: { cpu: 0.25, memory: 512 }
     },
+    // [!code focus-start]
     dev: {
       remote: true
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myConvex }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -494,3 +494,9 @@ export default defineConfig(() => {
 Manager. Pass them to other workloads through `environment`.
 
 <ReferenceableParams resource="convex" />
+
+## Next steps
+
+- [Next.js](/resources/frontend/nextjs): host the frontend that calls Convex.
+- [Dev mode](/local-development/dev-mode-overview): run the app locally against your stack.
+- [Alarms](/observability/alarms): get told when the backend misbehaves.

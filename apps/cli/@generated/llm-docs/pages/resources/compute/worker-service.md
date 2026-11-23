@@ -84,7 +84,8 @@ export default defineConfig(() => {
 | 8 | 16384–61440 MB |
 | 16 | 32768–122880 MB |
 
-Check real CPU and memory use on the Console's [Metrics](/observability/metrics) page or in CloudWatch, and resize from there.
+Check real CPU and memory use on the Console's [Metrics](/observability/metrics) page or with
+[`stacktape metrics`](/cli/metrics), and resize from there.
 
 ### EC2
 
@@ -203,13 +204,14 @@ export default defineConfig(() => {
 This worker gets `STP_JOBS_QUEUE_URL`, `STP_JOBS_QUEUE_ARN` and `STP_JOBS_QUEUE_NAME` for the queue, and
 `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, `STP_MAIN_DATABASE_PORT` and the other database
 variables. [Connecting resources](/configuration/connecting-resources) lists them per resource type. For AWS services
-that `connectTo` doesn't cover, such as Bedrock, add `iamRoleStatements`.
+that `connectTo` doesn't cover, such as Bedrock, add `iamRoleStatements`. For an API key or another secret, see
+[Use a secret in a container](/configuration/secrets#use-it-in-a-container).
 
 ### Consuming an SQS queue
 
 A container reads the queue itself: it asks for messages, processes them and deletes each one it finished. A message it
 doesn't delete comes back after the queue's visibility timeout and is processed again, so make the processing safe to
-repeat.
+repeat. This is `src/worker.ts` from the config above; add `@aws-sdk/client-sqs` to your dependencies.
 
 ```ts
 import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
@@ -224,15 +226,32 @@ while (running) {
     new ReceiveMessageCommand({ QueueUrl: queueUrl, MaxNumberOfMessages: 10, WaitTimeSeconds: 20 })
   );
   for (const message of Messages) {
-    await handleJob(JSON.parse(message.Body!));
+    await handleJob(JSON.parse(message.Body!)); // your processing
     await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: message.ReceiptHandle! }));
+    console.log(`processed message ${message.MessageId}`);
   }
 }
 ```
 
-`WaitTimeSeconds: 20` makes each request wait for messages instead of polling an empty queue. To test it, send one
-message from the SQS console and watch `stacktape logs worker --stage dev`. If you'd rather not run a loop, a
-[Lambda function with an SQS trigger](/resources/triggers/sqs-events) receives and deletes messages for you.
+`WaitTimeSeconds: 20` makes each request wait for messages instead of polling an empty queue. If you'd rather not run a
+loop, a [Lambda function with an SQS trigger](/resources/triggers/sqs-events) receives and deletes messages for you.
+
+To test it after a deploy, print the queue URL, send one message and read the worker's logs:
+
+```bash
+stacktape param get jobsQueue url --stage dev --region eu-west-1
+```
+
+```bash
+aws sqs send-message --queue-url "<queue-url>" --message-body '{"job":"test"}' --region eu-west-1
+```
+
+```bash
+stacktape logs worker --stage dev --region eu-west-1
+```
+
+The send command prints a `MessageId`, and within a few seconds the logs show `processed message <MessageId>` with the
+same ID. If the line doesn't appear, the worker isn't receiving: check that `jobsQueue` is in its `connectTo`.
 
 ## Health checks
 
@@ -481,3 +500,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
+
+
+## Next steps
+
+- [SQS queue](/resources/messaging/sqs-queue): give the worker its jobs.
+- [Logs](/observability/logs): follow what the worker processes.
+- [Debugging containers](/observability/debugging-containers): open a shell in a running container.

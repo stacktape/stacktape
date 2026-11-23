@@ -359,11 +359,11 @@ export default defineConfig(() => {
 
   const api = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    memory: 1024,
+    timeout: 30,
     connectTo: [database],
     joinDefaultVpc: true,
-    environment: { LOG_LEVEL: 'info' },
-    memory: 1024,
-    timeout: 30
+    environment: { LOG_LEVEL: 'info' }
   });
 
   return { resources: { database, api } };
@@ -745,3 +745,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `arn` | Arn of the function | `$ResourceParam("<<resource-name>>", "arn")` |
 | `logGroupArn` | Arn of the log group aggregating logs from the function | `$ResourceParam("<<resource-name>>", "logGroupArn")` |
+
+
+## Next steps
+
+- [Triggers](/resources/triggers/overview): pick what starts the function.
+- [Dev mode](/local-development/dev-mode-overview): run and debug functions against your stack.
+- [Logs](/observability/logs): read and follow what the function prints.

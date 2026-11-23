@@ -113,24 +113,24 @@ says otherwise.
       lang: 'typescript',
       code: `import { defineConfig, NextjsWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
     credentials: { masterUserPassword: $Secret('main-database-password') }
   });
 
-  const web = new NextjsWeb({
+  const web = new NextjsWeb({ // [!code focus]
     appDirectory: '.',
+    // [!code focus-start]
     connectTo: [mainDatabase],
     serverLambda: { joinDefaultVpc: true }
   });
+  // [!code focus-end]
 
   return {
     resources: { mainDatabase, web }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />

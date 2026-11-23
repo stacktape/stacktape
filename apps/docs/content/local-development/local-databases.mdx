@@ -13,9 +13,11 @@ Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databa
 
 Local databases are the default for day-to-day development and isolate each developer's data. Local clients connect on your machine. Lambda and Batch clients in AWS reach them through the dev network and incur a cloud-to-machine round trip. Use local databases for application logic, migrations and prototypes; test cloud-specific behavior against deployed resources.
 
-## When NOT to use local databases
+## When to use a deployed database
 
-Switch to [remote (deployed) databases](#using-remote-databases) when your work depends on behavior that local emulation cannot replicate: Aurora multi-AZ failover, DynamoDB Streams, OpenSearch security plugins, or engine-specific query plan differences. Also prefer remote databases when you need to test against a realistic data volume or share state across a team. Set `dev.remote: true` on the resource to connect to the deployed AWS resource instead.
+<span id="when-not-to-use-local-databases" />
+
+Switch to a [deployed database](#using-remote-databases) when your work depends on behavior that local emulation cannot replicate: Aurora multi-AZ failover, DynamoDB Streams, OpenSearch security plugins, or engine-specific query plan differences. Also prefer remote databases when you need to test against a realistic data volume or share state across a team. Set `dev.remote: true` on the resource to connect to the deployed AWS resource instead.
 
 ## Supported databases
 

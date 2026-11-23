@@ -142,13 +142,13 @@ If the stack doesn't exist, it creates a new one. If it already exists, it updat
   dev: {
     description: `Runs your application locally for development and debugging.
 
-- Deploys a minimal "dev stack" to AWS with only essential infrastructure (IAM roles, secrets).
-- Runs workloads (containers, functions) locally on your machine.
+- Deploys a minimal "dev stack" to AWS with only essential infrastructure (IAM roles, secrets) and your functions.
+- Runs containers locally on your machine; functions run in AWS and are redeployed when you rebuild them.
 - Emulates databases (PostgreSQL, MySQL, DynamoDB) and Redis locally using Docker.
 - Connects deployed Lambda functions to your local databases through the dev box, a small EC2 instance shared by the account and region (see \`dev network\`).
 - No need for a pre-deployed stack - creates one automatically if needed.
 - Interactive resource picker (or use \`--resources\` to specify).
-- Hot-reload: type a number + enter to rebuild a workload, or \`a\` + enter to rebuild all.
+- Rebuild: press Ctrl+R to rebuild a workload (pick it by number when there are several) or Ctrl+A to rebuild all. Tab switches between the overview and the logs.
 - Automatic file watching with \`--watch\` flag.
 - Injects environment variables, secrets, and AWS credentials into local workloads.
 - Streams logs from all running workloads to the console.`,
@@ -495,10 +495,10 @@ Filter by resource name or alarm state.`,
     description: `Fetch CloudWatch metrics for a deployed resource.
 
 Supported metrics by resource type:
-- Lambda: Invocations, Errors, Duration, Throttles
-- ECS: CPUUtilization, MemoryUtilization
-- RDS: CPUUtilization, DatabaseConnections, FreeStorageSpace
-- API Gateway: Count, 4XXError, 5XXError, Latency`,
+- Functions: Invocations, Errors, Duration, Throttles, ConcurrentExecutions
+- Web, private and worker services and multi-container workloads: CPUUtilization, MemoryUtilization
+- Relational databases: CPUUtilization, DatabaseConnections, FreeStorageSpace, ReadLatency, WriteLatency
+- HTTP API Gateways: Count, 4xx, 5xx, Latency, IntegrationLatency`,
     args: {
       ...universalArgs,
       ...stackArgs,
