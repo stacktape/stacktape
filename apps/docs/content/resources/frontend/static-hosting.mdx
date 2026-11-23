@@ -141,7 +141,9 @@ export default defineConfig(() => {
 
 ## Custom domains
 
-A hosting-bucket can serve static content from custom domains such as `www.example.com`. By default, Stacktape creates DNS records and provisions TLS certificates for configured domains; set `disableDnsRecordCreation` when DNS is managed elsewhere. The domain must already be added as a Route53 hosted zone in the AWS account.
+A hosting-bucket can serve static content from custom domains such as `www.example.com`. By default, Stacktape creates DNS records and uses the certificates `stacktape domain add` requested; set `disableDnsRecordCreation` when DNS is managed elsewhere. The domain must already be added as a Route53 hosted zone in the AWS account.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
 
 <CodeBlock
   intellisense
@@ -170,6 +172,8 @@ export default defineConfig(() => {
 />
 
 For most sites, prefer the default DNS-record and certificate behavior because it keeps the Stacktape config small. Set `customCertificateArn` only when you need to use a specific ACM certificate, and set `disableDnsRecordCreation` when DNS records are managed outside Stacktape, such as through another DNS provider.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 ## Environment injection
 
@@ -264,7 +268,7 @@ Use `single-page-app` for React, Vue, Angular, Vite, or Webpack apps with client
 
 ### Why does my custom domain fail to provision?
 
-`customDomains` only works if the domain already exists as a Route53 hosted zone in the AWS account — Stacktape creates the DNS records and TLS certificate but does not register the zone for you. If DNS is managed elsewhere, set `disableDnsRecordCreation`, and set `customCertificateArn` to use a specific ACM certificate. For broader domain concepts, see [custom domains](/resources/networking/custom-domains).
+`customDomains` only works if the domain already exists as a Route53 hosted zone in the AWS account and has an issued certificate in `us-east-1`. Stacktape creates the DNS records at deploy time but does not create the zone or the certificate: run `stacktape domain add` and wait for **Issued** first. If DNS is managed elsewhere, set `disableDnsRecordCreation`, and set `customCertificateArn` to a certificate you requested in `us-east-1`. For broader domain concepts, see [custom domains](/resources/networking/custom-domains).
 
 ### Can static hosting inject environment variables without rebuilding?
 

@@ -19,7 +19,7 @@ You should have a `stacktape.ts` from [step 1](/getting-started/configure-your-s
 
 - **Docker** running on your machine — needed for container workloads and local database emulation. Not required if your config only has Lambda functions without locally emulated databases
 - **Stacktape CLI** installed (`npm install -g stacktape`)
-- An AWS account connected — dev mode initializes AWS credentials and deploys a dev stack when one does not already exist
+- AWS credentials for your AWS account on your machine (see [Set up AWS credentials](/getting-started/deploy-your-first-stage#step-1-set-up-aws-credentials)) — dev mode deploys a dev stack when one does not already exist
 
 ## Start dev mode
 
@@ -61,7 +61,7 @@ Stacktape dev mode splits your stack between local execution and AWS, depending 
 | Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
 | Databases (PostgreSQL, MySQL, Redis, DynamoDB, OpenSearch) | Docker-backed local emulators | Persistent data in `.stacktape/dev-data/{stage}/` |
 
-Lambda functions have their code built and pushed to AWS, where they run. They reach the databases running on your machine through the dev box of your account's dev network (see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases)); use `--remote-resources` to connect them to deployed databases instead. Logs from Lambda invocations stream directly to your terminal.
+Lambda functions have their code built and pushed to AWS, where they run. They reach the databases running on your machine through the dev box of your account's dev network (see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases)); use `--remote-resources` to run a database in AWS, as part of the dev stack, instead. Logs from Lambda invocations stream directly to your terminal.
 
 A container workload counts as running once its port accepts connections, so a test started when dev mode reports it ready reaches the app. All local DynamoDB tables run in one DynamoDB Local, and workloads, local scripts and frontends connected to them get `AWS_ENDPOINT_URL_DYNAMODB`, so unchanged AWS SDK code uses the local tables.
 
@@ -118,7 +118,7 @@ The `version` property selects the PostgreSQL engine version and the local Docke
 With this config, running `stacktape dev --stage local --region eu-west-1 --resources all`:
 
 1. Starts a local PostgreSQL emulator (Docker container on your machine)
-2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use the deployed database instead, run with `--remote-resources myDatabase`: the dev stack then includes the database, and the function connects to it
+2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use a database in AWS instead, run with `--remote-resources myDatabase`: the dev stack then includes the database (a new one if the stack doesn't have it yet), and the function connects to it
 3. Injects environment variables so your code can connect — for a database resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`
 
 Now edit `./src/handler.ts`, save, and either:
@@ -158,7 +158,7 @@ To reset databases prepared at startup, including relay dependencies (DynamoDB L
 stacktape dev --stage local --region eu-west-1 --fresh-db
 ```
 
-To skip local emulation and connect to an already-deployed database on AWS:
+To skip local emulation and use a real database in AWS, list it in `--remote-resources`. Dev mode then deploys the database as part of the dev stage's own stack (`local` here), not another stage's database. If that stack doesn't have it yet, dev mode creates a new, empty database in your AWS account, which can take several minutes and costs money until you delete the stage:
 
 ```bash
 stacktape dev --stage local --region eu-west-1 --remote-resources myDatabase

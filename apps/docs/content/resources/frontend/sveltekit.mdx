@@ -114,6 +114,10 @@ Set `buildCommand` when the default `vite build` command is not the command your
 
 A Stacktape SvelteKitWeb resource can attach custom domains and let Stacktape manage the DNS record and TLS certificate. The domain must have a Route 53 hosted zone in the AWS account, and the domain name should be written without the `https://` protocol prefix.
 
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
+
 <CodeBlock
   intellisense
   tabs={[
@@ -216,7 +220,7 @@ Use SvelteKitWeb when your app needs server-side rendering or runtime endpoints;
 
 ### Why does my custom domain fail to provision?
 
-Custom domains for SvelteKitWeb require a Route 53 hosted zone in the AWS account. If your registrar is not Route 53, the registrar must still point the domain at the Route 53 hosted zone nameservers. Write `domainName` without the `https://` prefix; Stacktape then creates the DNS record and provisions a TLS certificate. See [custom domains](/resources/networking/custom-domains) for the broader model.
+Custom domains for SvelteKitWeb require a Route 53 hosted zone in the AWS account. If your registrar is not Route 53, the registrar must still point the domain at the Route 53 hosted zone nameservers. Write `domainName` without the `https://` prefix; Run `stacktape domain add` first and wait for the `us-east-1` certificate to be issued; Stacktape then creates the DNS record and uses that certificate. See [custom domains](/resources/networking/custom-domains) for the broader model.
 
 ### How do SvelteKit environment variables and database access work?
 

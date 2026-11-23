@@ -107,7 +107,7 @@ creates a **Push to branch** Git deployment for that stage.
 | **Deploy to AWS account** | The connected AWS account. |
 | **Deploy to region** | The AWS region. |
 | **Config path** | The Stacktape config file in the repository. |
-| **Delete stack after pull request is merged or closed?** | Shown only for **Pull request opened**. Starts deleting the preview stack when the pull request closes. |
+| **Delete the preview when the pull request closes** | Shown only for **Pull request opened**. Starts deleting the preview stack when the pull request closes. |
 
 5. Click **Create Git deployment**.
 
@@ -177,7 +177,7 @@ already running finishes first. If the project's GitHub Actions runner uses the 
 stays.
 
 Pull request previews also cost whatever their AWS resources cost, until the preview stage is deleted. Turn on
-**Delete stack after pull request is merged or closed?** unless you need previews after merge, for example for
+**Delete the preview when the pull request closes** unless you need previews after merge, for example for
 post-merge QA.
 
 ## Provider permissions for security fix pull requests

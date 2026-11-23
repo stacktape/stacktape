@@ -30,7 +30,7 @@ In the Console, these rules are called **Git deployments**. Each one maps a Git 
 - **Stage** — the stage to deploy, such as `production` or `staging`; pull request previews always use `pr-<number>`
 - **AWS account and region** — where the stage deploys
 - **Config path** — the Stacktape config file in the repository
-- **Delete stack after pull request is merged or closed?** — for previews, starts deleting the preview stack when the pull request closes
+- **Delete the preview when the pull request closes** — for previews, starts deleting the preview stack when the pull request closes
 
 You can create several Git deployments per project — for example, one that deploys `main` to `production` and another that creates preview environments for every pull request.
 

@@ -27,7 +27,7 @@ You can manage organizations from the CLI with [`stacktape org create`](/cli/org
 
 ### Projects
 
-A Stacktape project represents a single application and usually maps 1:1 to a Git repository. Each project can have multiple stages — fully isolated deployments like `production`, `staging`, or `dev`.
+A Stacktape project represents a single application and usually maps 1:1 to a Git repository. Each project can have multiple stages — separate deployments like `production`, `staging`, or `dev`.
 
 The Projects page lists all projects in the selected organization. Each project card shows:
 
@@ -40,7 +40,7 @@ Projects are sorted by most recently updated stage, so active projects appear fi
 
 ### Stages
 
-A stage is a running deployment of a project — a complete, isolated set of AWS resources. Common stage names include `production`, `staging`, `dev`, or `testing`. Stages are fully isolated and do not share resources with each other; examples include containers, functions, databases, and other deployed resources.
+A stage is a running deployment of a project — its own set of AWS resources. Common stage names include `production`, `staging`, `dev`, or `testing`. Stages don't share containers, functions, databases or other application resources. Non-production stages in one account and region usually share a VPC, and anyone with the account's credentials can reach every stage in it; see [Are stages fully isolated from each other?](/configuration/stages-and-environments#are-stages-fully-isolated-from-each-other).
 
 To deploy a stage, you need a Stacktape configuration that describes which resources (containers, functions, databases, etc.) to deploy. You can share the same Stacktape configuration across all stages of a project (most common), or maintain separate configurations per stage when environments need different resource shapes.
 

@@ -77,7 +77,7 @@ If your team operates across many regions intentionally — for example, deployi
 
 ## Command restriction
 
-Command restriction defines infrastructure-changing commands that are blocked. Supported values are `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. Read-only `diff` and `validate` intentionally remain available so a developer can inspect and diagnose a policy violation.
+Command restriction defines infrastructure-changing commands that are blocked. Supported values are `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. `diff` and `validate` can't be blocked, so a developer can always inspect and diagnose a policy violation. `validate` changes no stack. Its only write is with `--thorough`: a template larger than 51,200 bytes goes to a temporary object in the stack's deployment bucket, which is deleted after the check (see [validation levels](/cli/validate#validation-levels)). A read-only IAM role can't run that check. `diff` does write to AWS; [diff](/cli/diff) lists what it changes.
 
 Command restriction is most useful for protecting production stacks from destructive operations by policy. Listing `delete` in `blockedCommands` is a way to signal that stack removal is not an allowed action under the active guardrail.
 

@@ -98,7 +98,11 @@ Use [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/
 
 A Stacktape SolidStart resource can attach custom domains to the CloudFront CDN and associate a Web Application Firewall. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a [`web-app-firewall`](/resources/security/web-application-firewall) resource whose `scope` must be `cdn`.
 
-Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape creates DNS records and provisions free TLS certificates automatically; set `customCertificateArn` only when you have specific certificate requirements, and `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare).
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape creates DNS records and uses the `us-east-1` certificate that `stacktape domain add` requested; set `customCertificateArn` only when you have specific certificate requirements, and `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare).
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 
 Example (TypeScript):
@@ -256,7 +260,7 @@ Set `appDirectory` to the directory containing `app.config.ts`. It defaults to `
 
 ### Can I use a custom domain with SolidStart?
 
-Yes. Set `customDomains` on the SolidStart resource and ensure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape then creates the DNS records and provisions and renews free TLS certificates automatically. Use a bare hostname like `www.example.com` (no `https://`). Set `customCertificateArn` to supply your own certificate, or `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare). See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Yes. Set `customDomains` on the SolidStart resource and ensure a Route 53 hosted zone for the domain exists in your AWS account. Run `stacktape domain add` first and wait for the certificates to be issued. Stacktape then creates the DNS records and uses the `us-east-1` certificate that `stacktape domain add` requested. Use a bare hostname like `www.example.com` (no `https://`). Set `customCertificateArn` to supply your own certificate, or `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare). See [custom domains](/resources/networking/custom-domains) for the broader domain model.
 
 ### How do I connect to a database from SolidStart server functions?
 

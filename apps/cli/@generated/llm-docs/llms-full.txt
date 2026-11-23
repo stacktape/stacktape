@@ -668,7 +668,7 @@ creates a **Push to branch** Git deployment for that stage.
 | **Deploy to AWS account** | The connected AWS account. |
 | **Deploy to region** | The AWS region. |
 | **Config path** | The Stacktape config file in the repository. |
-| **Delete stack after pull request is merged or closed?** | Shown only for **Pull request opened**. Starts deleting the preview stack when the pull request closes. |
+| **Delete the preview when the pull request closes** | Shown only for **Pull request opened**. Starts deleting the preview stack when the pull request closes. |
 
 5. Click **Create Git deployment**.
 
@@ -738,7 +738,7 @@ already running finishes first. If the project's GitHub Actions runner uses the 
 stays.
 
 Pull request previews also cost whatever their AWS resources cost, until the preview stage is deleted. Turn on
-**Delete stack after pull request is merged or closed?** unless you need previews after merge, for example for
+**Delete the preview when the pull request closes** unless you need previews after merge, for example for
 post-merge QA.
 
 ## Provider permissions for security fix pull requests
@@ -1332,7 +1332,7 @@ Create a Git deployment with the **Pull request opened** trigger and choose the 
 
 1. **Pull request opened** — Stacktape deploys the stage `pr-<number>`, for example `pr-42`, and comments on the pull request. The comment is updated with the result.
 2. **New commits pushed to the pull request** — Stacktape redeploys `pr-<number>` with the latest commit.
-3. **Pull request merged or closed** — if the Git deployment has **Delete stack after pull request is merged or closed?** turned on, Stacktape starts deleting the preview stack and comments on the pull request. Otherwise the stage keeps running.
+3. **Pull request merged or closed** — if the Git deployment has **Delete the preview when the pull request closes** turned on, Stacktape starts deleting the preview stack and comments on the pull request. Otherwise the stage keeps running.
 
 Pull requests from forks never get a preview, so code from outside the repository does not run with your project's credentials.
 
@@ -1355,20 +1355,20 @@ npx stacktape deploy --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1
 Delete on PR close (GitHub Actions — add as a separate job triggered on PR close; see [`delete` CLI reference](/cli/delete)):
 
 ```bash
-npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region eu-west-1
+npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region eu-west-1 --yes
 ```
 
 Delete on merge request close (GitLab CI):
 
 ```bash
-npx stacktape delete --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1
+npx stacktape delete --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1 --yes
 ```
 
 For GitHub Actions, you can run this workflow on GitHub-hosted compute or enable Stacktape's [self-hosted EC2 runner](/ci-cd-and-gitops/self-hosted-github-actions-runners).
 
 ### Auto-delete on PR close
 
-Turn on **Delete stack after pull request is merged or closed?** in the Git deployment, or add a delete step to your custom CI pipeline, so preview stages don't keep running databases, load balancers or containers after the pull request closes.
+Turn on **Delete the preview when the pull request closes** in the Git deployment, or add a delete step to your custom CI pipeline, so preview stages don't keep running databases, load balancers or containers after the pull request closes.
 
 When init analyzes an existing repository, it enables deletion protection on the RDS databases it adds, including in preview stages. A protected database blocks cleanup, and AWS charges continue. Set `deletionProtection: false` for that database in the preview stage. If the preview is already deployed, deploy that change before deleting it. If the stack is in `DELETE_FAILED`, turn off protection on the database in AWS and retry [`stacktape delete`](/cli/delete).
 
@@ -1442,7 +1442,7 @@ Deploying to a stage runs a Stacktape deploy operation for the selected project,
 
 **Right-size preview resources.** Use [stage-specific configuration](/configuration/stages-and-environments) to give preview stages smaller database instances, lower container counts, or fewer replicas than production.
 
-**Auto-delete PR previews.** Turn on **Delete stack after pull request is merged or closed?** in the preview Git deployment, or add a deletion step in your custom CI pipeline. Stale previews running unused databases or containers are the most common source of unexpected bills.
+**Auto-delete PR previews.** Turn on **Delete the preview when the pull request closes** in the preview Git deployment, or add a deletion step in your custom CI pipeline. Stale previews running unused databases or containers are the most common source of unexpected bills.
 
 **Use serverless resources in previews.** [Lambda functions](/resources/compute/lambda-function) and [DynamoDB tables](/resources/databases/dynamodb) have pay-per-use pricing with generous free tiers. A preview stage with only serverless resources costs nearly nothing when idle. [Container workloads](/resources/compute/web-service) and [relational databases](/resources/databases/relational-database) incur costs whether traffic is flowing or not.
 
@@ -1456,7 +1456,7 @@ Stale stages are the primary risk of the stacks-per-branch pattern. A forgotten 
 
 | Strategy | How | Best for |
 |----------|-----|----------|
-| **Git deployment cleanup** | Turn on **Delete stack after pull request is merged or closed?** in the preview Git deployment | PR previews |
+| **Git deployment cleanup** | Turn on **Delete the preview when the pull request closes** in the preview Git deployment | PR previews |
 | **CI pipeline step** | Add a [`stacktape delete`](/cli/delete) step triggered on PR close or branch deletion | Custom CI/CD setups |
 | **Manual cleanup** | Run `stacktape delete --stage {name}` | Feature branches, one-off stages |
 | **Periodic audit** | Schedule a script that lists stacks and deletes those older than N days | Teams with many developers |
@@ -5188,13 +5188,15 @@ Route: `/cli/init`
 It opens a wizard in your browser and reads your code **on your machine** using a coding agent you
 already have installed — Claude Code or Codex. It does not interview you: where your code does not say,
 it picks the sensible answer, then shows you what it picked and the line behind every resource it
-proposes, so you can change any of it. No source, filenames, or configuration contents are sent to
-Stacktape, and no account is needed.
+proposes, so you can change any of it. No source code is sent to Stacktape, and no account is needed.
+To price the Review step, init sends the generated configuration and the region to Stacktape's price
+estimator. That configuration can include file paths from your project, such as a Dockerfile.
 
 To be precise about where your code goes: an agent works the way it always does — it sends the file
 contents it chooses to read to its own model provider, under the account you already have with it, with
 read-only tools (it cannot run scripts or install anything). If you would rather no AI read the code at
-all, pick **Files only** — the built-in scanner reads manifests locally and sends nothing anywhere.
+all, pick **Files only** — the built-in scanner reads manifests locally and sends no code anywhere. The
+price estimate still receives the generated configuration, file paths included.
 
 ## Usage
 
@@ -5208,30 +5210,30 @@ with Ctrl+C.
 
 ## What happens, in order
 
+The wizard has four steps:
+
 1. **Start.** The wizard opens with nothing read yet. It shows which directory it will read and which
-   agents it found, and waits. Reading starts when you press the button — never before.
-2. **Read.** The agent opens files and you watch it happen: every file it reads appears as it reads it.
-   Only the *names* of your environment variables are ever kept or shown. Before the agent starts, a
-   deterministic pass has already read the manifests that state the deployment most clearly:
+   agents it found, and waits. Reading starts when you click **Analyze my project** — never before.
+2. **Analyze.** A deterministic pass first reads the manifests that state the deployment most clearly:
    Docker Compose, Dockerfiles and Procfiles; Render, Fly.io and Heroku app manifests; and literal
    declarations in Serverless Framework, SAM, SST, CDK and Terraform. It also notices when one of
-   those tools already deploys the project.
+   those tools already deploys the project. If that answers everything, the agent is not called.
+   Otherwise the agent opens files and you watch it happen: every file it reads appears as it reads it.
+   Only the *names* of your environment variables are ever kept or shown.
 3. **Review.** Every resource, with the reason it exists, the line of your code behind it, and what it
-   costs — a real monthly estimate per resource and in total, priced from AWS list prices. Anything
-   the code could not settle was decided for you, listed under "Decided for you", and can be changed
-   with one click — the configuration is rebuilt from your choice, and the price updates with it.
-   Nothing blocks. You choose YAML or TypeScript, and the file is written.
-4. **Try it locally (optional).** With your explicit click, the wizard can build and start supported
-   services in Docker. Building may download dependencies and run their install hooks. The started
-   app receives throwaway settings and has no network. Every result says whether the service passed,
-   failed, was inconclusive, or could not be checked. A proven startup failure holds the Deploy
-   button until you fix it or explicitly set the result aside; a skipped check is never shown as a
-   pass.
-5. **Deploy.** No Stacktape account is needed: without one, the wizard deploys with your local AWS
-   credentials. The first click is read-only:
+   costs — a real monthly estimate per resource and in total, priced from AWS list prices. To get the
+   price, init sends the generated configuration and the region to Stacktape's price estimator. The
+   configuration holds resource names and settings, which can include file paths such as
+   `dockerfilePath` or `entryfilePath`, start commands and environment variable names, but not your
+   code. Anything the code could not settle was decided for you, listed under "Decided for you", and
+   can be changed with one click — the
+   configuration is rebuilt from your choice, and the price updates with it. Nothing blocks. You choose
+   YAML or TypeScript, and the file is written when you click **Save … & continue**.
+4. **Deploy.** No Stacktape account is needed: without one, the wizard deploys with your local AWS
+   credentials. The first click, **Check exact AWS target**, is read-only:
    a short-lived CLI process resolves the same AWS credentials or connected AWS account that deploy will use,
-   then shows the exact account, region and stack name. You separately confirm creating a new stack or
-   updating a specific existing Stacktape stack. Foreign, mismatched and unsafe stacks are blocked. The
+   then shows the exact account, region and stack name. You separately confirm **Create new stack** or
+   **Update existing stack**. Foreign, mismatched and unsafe stacks are blocked. The
    deploy child checks that target again before it creates secrets or changes AWS, then reports progress,
    warnings and typed HTTPS URLs. This step is optional and clearly marked as the one that costs money.
    If you are signed in and your Stacktape organization has multiple connected AWS accounts and no saved default, start with
@@ -5241,6 +5243,13 @@ with Ctrl+C.
    command, a missing build step — the agent re-reads the project against the actual error, the
    configuration is rebuilt, and the deploy runs again. At most twice, and never for problems with the
    AWS account itself.
+
+The Deploy step also has an optional **Try it on this machine first** check. With your explicit click
+(**Build and start it here**), the wizard builds and starts supported services in Docker. Building may
+download dependencies and run their install hooks. The started app receives placeholder settings and
+has no network. Every result says whether the service passed, failed, was inconclusive, or could not be
+checked. A proven startup failure holds the deploy until you fix it or explicitly set the result aside;
+a skipped check is never shown as a pass.
 
 ## Who reads your code
 
@@ -5279,8 +5288,10 @@ stacktape init --coding-agent none          # static analysis only
 
 ### `--headless`
 
-Runs the whole thing in the terminal instead of opening a browser. Use it over SSH, in a container, or in
-CI. Nothing prompts: the terminal prints what was decided for you, and the configuration is written.
+Runs init in the terminal instead of opening a browser. Use it over SSH, in a container, or in CI. It
+reads the project, prints the resources, what was decided for you and the monthly estimate, and writes
+the configuration. Nothing prompts, and it doesn't deploy. Init also runs this way on its own in CI and
+on Linux without a display.
 
 ```bash
 stacktape init --headless
@@ -5330,6 +5341,9 @@ stacktape init --project-directory ./my-app
 ### `--starter-id`, `--starter-project`
 
 Initialize from a ready-made project instead of reading yours. These skip the wizard entirely.
+`--starter-project` shows the list of starters; `--starter-id` takes the ID of one from
+[Starter projects](/getting-started/starter-projects). Init downloads the starter, prints its resources
+with their estimated price, and prints the commands that run it in dev mode and deploy it.
 
 ```bash
 stacktape init --starter-id expressjs-api-postgres
@@ -5340,7 +5354,8 @@ stacktape init --starter-id expressjs-api-postgres
 Where a starter project's files are placed.
 
 
-> **Warning:** If the directory is not empty, its contents are deleted first. Point it at a new or empty directory.
+> **Warning:** If the directory is not empty, the CLI warns and asks `Continue?`. Answering yes deletes its contents.
+Point it at a new or empty directory.
 
 
 ## Existing and generated configuration files
@@ -5354,6 +5369,10 @@ stacktape deploy \
   --stage dev \
   --region eu-west-1
 ```
+
+Init doesn't detect an existing `stacktape.js`. It writes a new `stacktape.yml` or `stacktape.ts` next to it, and
+commands then stop because the directory has two config files. Move or delete the old file, or pass `--config` every
+time.
 
 ## Examples
 
@@ -5380,8 +5399,11 @@ stacktape init --headless --coding-agent none --infrastructure-type low-cost
 ### Does my code leave my machine?
 
 If you choose Claude Code or Codex, that local agent sends the file contents it selects to its own
-model provider under your account, just as it normally does. Stacktape receives no source, file names,
-or configuration contents. If you choose **Files only**, no AI provider receives code either.
+model provider under your account, just as it normally does. Stacktape receives no source code. To
+price the Review step, init sends the generated configuration and the region to Stacktape's price
+estimator. The configuration can include file paths, start commands and environment variable names from
+your project. If you choose **Files only**, no AI provider receives code either, and the price request
+is the same.
 
 Stacktape does receive anonymous outcome statistics — which frameworks were detected, whether the
 deploy succeeded, how long the analysis took — so we can see where generation fails and fix it. Set
@@ -5405,7 +5427,8 @@ deploy command will use and shows the exact account, region and stack target for
 
 ### Do I need a Stacktape account?
 
-No. Analyzing your project and writing the file happen on your machine, with nothing sent to us.
+No. Analyzing your project and writing the file happen on your machine. Only the generated
+configuration and the region go to Stacktape's price estimator.
 The deploy uses your local AWS credentials. After a successful deploy, the wizard offers the
 Stacktape Console (free up to $200 a month of AWS spend) for deploy history, costs, alerts and team
 access. You can connect it there or later with `stacktape connect`, or skip it. If this machine is
@@ -5414,7 +5437,7 @@ the Console.
 
 ### What does “Try it here first” run?
 
-Only after you click it, `init` runs your project's build and start commands using disposable Docker
+The check is called **Try it on this machine first** in the Deploy step. Only after you click it, `init` runs your project's build and start commands using disposable Docker
 images and containers. The image build may access the network to download dependencies and may run
 package-manager install hooks from the project. The started application receives throwaway values
 instead of your secrets and has no network access. This is not supported for every packaging and
@@ -15844,7 +15867,7 @@ In the Console, these rules are called **Git deployments**. Each one maps a Git 
 - **Stage** — the stage to deploy, such as `production` or `staging`; pull request previews always use `pr-<number>`
 - **AWS account and region** — where the stage deploys
 - **Config path** — the Stacktape config file in the repository
-- **Delete stack after pull request is merged or closed?** — for previews, starts deleting the preview stack when the pull request closes
+- **Delete the preview when the pull request closes** — for previews, starts deleting the preview stack when the pull request closes
 
 You can create several Git deployments per project — for example, one that deploys `main` to `production` and another that creates preview environments for every pull request.
 
@@ -16617,9 +16640,10 @@ The stack goes to the AWS account those credentials belong to. Resources get AWS
 | Alarms in your configuration, with `slack`, `ms-teams`, `discord`, `email` or `webhook` channels | Works | CloudWatch alarms live in your AWS account, and the stack delivers these notifications itself |
 | Deploy history, costs and team access | Needs the Console | Stored by Stacktape and shared by your team |
 | Alarm channels of type `console-channel` and `slack-app`, and deploy notifications | Needs the Console | The Console delivers these alerts |
-| Uptime checks and synthetic tests | Needs the Console | Uptime probes run in your AWS account. The Console shows the results. |
+| Synthetic tests | Works | CloudWatch Synthetics runs them in your AWS account |
+| Uptime checks | Needs the Console | Uptime probes run in your AWS account. The Console shows the results. |
 | Error tracking, incidents and incident AI | Needs the Console | Stacktape stores and groups the events |
-| Default `*.stacktape-app.com` domains, including the one a load balancer without its own domain needs for HTTPS | Needs the Console | Stacktape owns that domain |
+| Default `*.stacktape-app.com` domains, including the one a load balancer, a CDN in front of a load balancer, or a Convex backend without its own domain needs for HTTPS | Needs the Console | Stacktape owns that domain |
 | PR preview deploys from your own CI | Works | The CI job deploys and deletes stages with your AWS credentials |
 | Console Git deployments and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |
 | Organization-wide guardrails, security reports and the audit log | Needs the Console | They apply to, and are shared by, the whole organization |
@@ -16631,8 +16655,7 @@ Commands that are Console features by nature, such as `stacktape org list`, `sta
 When a configuration uses something only the Console provides, validation stops before anything is deployed. The error names the property and how to fix it, for example:
 
 ```
-uptimeChecks needs the Stacktape Console (free up to $200/month of AWS spend).
-Run: stacktape connect — your stacks are added as they are, no redeploy. Or remove uptimeChecks.
+Uptime checks (`apiHealth`) need the Stacktape Console (free up to $200/month of AWS spend). Run: stacktape connect — your stacks are added as they are, no redeploy. Or remove the uptime-check resources.
 ```
 
 ## Connect the Console later
@@ -17847,7 +17870,7 @@ You should have a `stacktape.ts` from [step 1](/getting-started/configure-your-s
 
 - **Docker** running on your machine — needed for container workloads and local database emulation. Not required if your config only has Lambda functions without locally emulated databases
 - **Stacktape CLI** installed (`npm install -g stacktape`)
-- An AWS account connected — dev mode initializes AWS credentials and deploys a dev stack when one does not already exist
+- AWS credentials for your AWS account on your machine (see [Set up AWS credentials](/getting-started/deploy-your-first-stage#step-1-set-up-aws-credentials)) — dev mode deploys a dev stack when one does not already exist
 
 ## Start dev mode
 
@@ -17889,7 +17912,7 @@ Stacktape dev mode splits your stack between local execution and AWS, depending 
 | Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
 | Databases (PostgreSQL, MySQL, Redis, DynamoDB, OpenSearch) | Docker-backed local emulators | Persistent data in `.stacktape/dev-data/{stage}/` |
 
-Lambda functions have their code built and pushed to AWS, where they run. They reach the databases running on your machine through the dev box of your account's dev network (see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases)); use `--remote-resources` to connect them to deployed databases instead. Logs from Lambda invocations stream directly to your terminal.
+Lambda functions have their code built and pushed to AWS, where they run. They reach the databases running on your machine through the dev box of your account's dev network (see [Connecting to local databases](/local-development/debugging-lambda-functions#connecting-to-local-databases)); use `--remote-resources` to run a database in AWS, as part of the dev stack, instead. Logs from Lambda invocations stream directly to your terminal.
 
 A container workload counts as running once its port accepts connections, so a test started when dev mode reports it ready reaches the app. All local DynamoDB tables run in one DynamoDB Local, and workloads, local scripts and frontends connected to them get `AWS_ENDPOINT_URL_DYNAMODB`, so unchanged AWS SDK code uses the local tables.
 
@@ -17939,7 +17962,7 @@ The `version` property selects the PostgreSQL engine version and the local Docke
 With this config, running `stacktape dev --stage local --region eu-west-1 --resources all`:
 
 1. Starts a local PostgreSQL emulator (Docker container on your machine)
-2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use the deployed database instead, run with `--remote-resources myDatabase`: the dev stack then includes the database, and the function connects to it
+2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use a database in AWS instead, run with `--remote-resources myDatabase`: the dev stack then includes the database (a new one if the stack doesn't have it yet), and the function connects to it
 3. Injects environment variables so your code can connect — for a database resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`
 
 Now edit `./src/handler.ts`, save, and either:
@@ -17979,7 +18002,7 @@ To reset databases prepared at startup, including relay dependencies (DynamoDB L
 stacktape dev --stage local --region eu-west-1 --fresh-db
 ```
 
-To skip local emulation and connect to an already-deployed database on AWS:
+To skip local emulation and use a real database in AWS, list it in `--remote-resources`. Dev mode then deploys the database as part of the dev stage's own stack (`local` here), not another stage's database. If that stack doesn't have it yet, dev mode creates a new, empty database in your AWS account, which can take several minutes and costs money until you delete the stage:
 
 ```bash
 stacktape dev --stage local --region eu-west-1 --remote-resources myDatabase
@@ -18394,7 +18417,7 @@ If your team operates across many regions intentionally — for example, deployi
 
 ## Command restriction
 
-Command restriction defines infrastructure-changing commands that are blocked. Supported values are `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. Read-only `diff` and `validate` intentionally remain available so a developer can inspect and diagnose a policy violation.
+Command restriction defines infrastructure-changing commands that are blocked. Supported values are `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. `diff` and `validate` can't be blocked, so a developer can always inspect and diagnose a policy violation. `validate` changes no stack. Its only write is with `--thorough`: a template larger than 51,200 bytes goes to a temporary object in the stack's deployment bucket, which is deleted after the check (see [validation levels](/cli/validate#validation-levels)). A read-only IAM role can't run that check. `diff` does write to AWS; [diff](/cli/diff) lists what it changes.
 
 Command restriction is most useful for protecting production stacks from destructive operations by policy. Listing `delete` in `blockedCommands` is a way to signal that stack removal is not an allowed action under the active guardrail.
 
@@ -18544,7 +18567,7 @@ Deployment restriction guardrails control allowed stages, allowed AWS regions, a
 
 - **Stage restriction** — Only allow deployments to specific stages. Configure an `allowedStages` list (e.g., `["production", "staging"]`); operations targeting any other stage name fail. Useful for enforcing naming conventions or limiting which stages can exist.
 - **Region restriction** — Only allow deployments to specific AWS regions. Configure an `allowedRegions` list (e.g., `["eu-west-1", "us-east-1"]`); operations targeting other regions fail. Essential for data residency compliance and cost control.
-- **Command restriction** — Block selected infrastructure-changing commands: `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. Read-only `diff` and `validate` stay available so developers can diagnose a blocked configuration.
+- **Command restriction** — Block selected infrastructure-changing commands: `deploy`, `delete`, `dev`, `deployment-script run`, `script run`, `rollback`, and `stack recover`. `diff` and `validate` can't be blocked, so developers can always diagnose a blocked configuration.
 - **Require custom domain** — Require web services and hosting buckets to use a domain your organization controls. This is a delivery standard rather than a security boundary.
 
 For full details, see [Deployment guardrails](/guardrails/deployment).
@@ -20092,33 +20115,19 @@ If your config includes `beforeDev` [hooks](/configuration/hooks-and-scripts) wi
 
 ## Rebuilds
 
-After changing your function code, trigger a rebuild from the dev TUI. Stacktape runs the rebuild handler for the workload without exiting the dev session.
+After changing your function code, rebuild it from the dev TUI without leaving the session, or start dev mode with `--watch` to rebuild on save.
 
-Rebuild all running workloads by typing `rs` and pressing Enter:
+The dev TUI supports these keys:
 
-```
-rs
-```
-
-Rebuild a specific function by name:
-
-```
-rs myApi
-```
-
-If the workload name doesn't match any running resource, the dev TUI prints a warning. This helps catch typos — use the exact resource name from your config.
-
-The dev TUI supports these keyboard commands:
-
-| Command | Action |
+| Key | Action |
 |---------|--------|
-| `rs` | Rebuild all workloads |
-| `rs <name>` | Rebuild a specific workload by name |
-| `c` or `clear` | Clear the log output |
-| `q` or `quit` | Stop dev mode and exit |
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode and exit |
 
 
-> **Tip:** When iterating on a single function, use `rs <functionName>` instead of `rs` to skip rebuilding other workloads. This keeps the feedback loop tight when you're focused on one function.
+> **Tip:** When iterating on a single function, press Ctrl+R and pick that function instead of rebuilding everything. This keeps the feedback loop tight when you're focused on one function.
 
 
 ## Viewing logs
@@ -20303,7 +20312,7 @@ For Lambda functions with [HTTP API Gateway triggers](/resources/triggers/http-t
 
 ### Narrowing the feedback loop
 
-When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. Unselected functions are not built: they keep the code they run until you select them again. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
+When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. Unselected functions are not built: they keep the code they run until you select them again. Rebuild just that function with Ctrl+R. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
 
 ## Dev mode vs deployed-stack debugging
 
@@ -20312,9 +20321,9 @@ Stacktape offers two distinct workflows for investigating Lambda function behavi
 | Aspect | Dev mode (`stacktape dev`) | Deployed stack (`logs`) |
 |--------|---------------------------|-------------------------------|
 | Log delivery | Streamed in the dev TUI | Follows CloudWatch logs in a terminal by default; `--follow=false` takes a snapshot |
-| Code iteration | Rebuild from TUI with `rs` | Requires full [`stacktape deploy`](/cli/deploy) |
+| Code iteration | Ctrl+R in the TUI, or `--watch` | Requires full [`stacktape deploy`](/cli/deploy) |
 | Database access | Local databases through the dev box, or deployed ones via `--remote-resources` | AWS-deployed databases |
-| Interaction model | Interactive TUI with keyboard commands | Follows until stopped, or exits after a snapshot |
+| Interaction model | Interactive TUI with keyboard shortcuts | Follows until stopped, or exits after a snapshot |
 | Infrastructure | Dev stack | Full production stack |
 | Local resources | Docker-based databases on your machine | Not applicable |
 | Best for | Active development and rapid iteration | Investigating issues in deployed stages |
@@ -20325,7 +20334,7 @@ Use dev mode for active development — the rebuild-and-test loop from the TUI i
 
 ### Can I set breakpoints in Lambda functions during dev mode?
 
-Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local machine. The debugging path documented here is log streaming in the dev TUI combined with targeted rebuilds using `rs <name>`. The tradeoff is high-fidelity testing against the real Lambda runtime on AWS. Add targeted `console.info(JSON.stringify(...))` statements at key points and rebuild quickly after changes.
+Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local machine. The debugging path documented here is log streaming in the dev TUI combined with targeted rebuilds (Ctrl+R). The tradeoff is high-fidelity testing against the real Lambda runtime on AWS. Add targeted `console.info(JSON.stringify(...))` statements at key points and rebuild quickly after changes.
 
 ### Do my Lambda function's event sources work in dev mode?
 
@@ -20443,7 +20452,7 @@ Auto-rebuild workloads when source files change:
 stacktape dev --stage dev --region us-east-1 --resources all --watch
 ```
 
-Without `--watch`, you trigger rebuilds manually from the dev mode terminal using the `rs` command (see [Rebuilding workloads](#rebuilding-workloads)).
+Without `--watch`, you trigger rebuilds manually from the dev mode terminal with Ctrl+R (see [Rebuilding workloads](#rebuilding-workloads)).
 
 Watch mode also watches the Stacktape configuration file. A rebuild cannot apply a configuration change, so dev mode tells you to restart it instead.
 
@@ -20516,16 +20525,16 @@ Code on your machine talks to the dev stack, and deployed functions talk to your
 
 ## Rebuilding workloads
 
-The dev mode terminal accepts commands while running. Type a command and press Enter:
+The dev mode terminal accepts these keys while running:
 
-| Command | Action |
+| Key | Action |
 |---|---|
-| `rs` | Rebuild all workloads |
-| `rs <name>` | Rebuild a specific workload by name |
-| `c` or `clear` | Clear the log output |
-| `q` or `quit` | Stop dev mode and exit |
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode and exit |
 
-When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, use `rs` after editing code to see changes. Use `rs <name>` to rebuild a single workload without restarting others — useful when iterating on one service in a multi-resource config.
+When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, press Ctrl+R after editing code to see changes. Pick a single workload to rebuild it without restarting others — useful when iterating on one service in a multi-resource config.
 
 A workload whose rebuild fails, for example because of a syntax error, shows the error and stays failed until a rebuild succeeds. A Lambda function keeps its previous code until then. A rebuild deploys code only: after a change to the configuration file, stop dev mode and start it again.
 
@@ -36895,7 +36904,9 @@ Set `joinDefaultVpc` only when the SSR function must connect to VPC resources su
 
 ## Custom domains
 
-Astro custom domains attach your own hostnames to the CloudFront-backed app with Stacktape-managed DNS records and TLS certificates. A Route 53 hosted zone for the domain must already exist in your AWS account, and the domain registrar's nameservers must point to that hosted zone so that DNS resolution reaches Route 53. If DNS is managed outside Route 53 (for example, through Cloudflare), set `disableDnsRecordCreation` on the domain entry instead — Stacktape will still provision the TLS certificate but will not create DNS records. Use custom domains for production hostnames; skip custom domains for preview stages unless those stages need stable branded hostnames.
+Astro custom domains attach your own hostnames to the CloudFront-backed app with Stacktape-managed DNS records and TLS certificates. A Route 53 hosted zone for the domain must already exist in your AWS account, and the domain registrar's nameservers must point to that hosted zone so that DNS resolution reaches Route 53. If DNS is managed outside Route 53 (for example, through Cloudflare), set `disableDnsRecordCreation` and a `customCertificateArn` from `us-east-1` on the domain entry instead, and Stacktape will not create DNS records. Use custom domains for production hostnames; skip custom domains for preview stages unless those stages need stable branded hostnames.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
 
 
 Example (TypeScript):
@@ -36917,7 +36928,7 @@ return { resources: { site } };
 ```
 
 
-`domainName` must not include `https://`. By default, Stacktape creates the DNS record and provisions a free TLS certificate. Set `customCertificateArn` only when you need to use your own ACM certificate (for example, an EV or OV certificate).
+`domainName` must not include `https://`. By default, Stacktape creates the DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. Set `customCertificateArn` only when you need to use your own ACM certificate (for example, an EV or OV certificate).
 
 ## CDN and firewall
 
@@ -37014,7 +37025,7 @@ Use the Astro resource only for SSR apps that render routes on the server. For s
 
 ### Can I use a custom domain with Astro?
 
-Yes. Add `customDomains` to the Astro resource and provide a domain name backed by a Route 53 hosted zone in your AWS account, with the domain registrar's nameservers pointing to that hosted zone. By default, Stacktape creates the DNS record and provisions a free TLS certificate. Provide `customCertificateArn` only when you need your own ACM certificate. If DNS is managed outside Route 53, set `disableDnsRecordCreation` so Stacktape provisions the certificate without creating DNS records. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Yes. Add `customDomains` to the Astro resource and provide a domain name backed by a Route 53 hosted zone in your AWS account, with the domain registrar's nameservers pointing to that hosted zone. Run `stacktape domain add` first and wait for the certificates to be issued. By default, Stacktape then creates the DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. Provide `customCertificateArn` only when you need your own ACM certificate. If DNS is managed outside Route 53, set `disableDnsRecordCreation` and a `customCertificateArn` from `us-east-1`, so Stacktape uses your certificate without creating DNS records. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
 
 ### Can I protect an Astro app with AWS WAF?
 
@@ -37136,7 +37147,7 @@ export default defineConfig(() => {
 ```
 
 
-`streamingEnabled` and `warmServerInstances` cannot be combined with `useEdgeLambda`. `customDomains` requires a Route 53 hosted zone for the domain in your AWS account. See [custom domains](/resources/networking/custom-domains) for DNS setup details.
+`streamingEnabled` and `warmServerInstances` cannot be combined with `useEdgeLambda`. `customDomains` requires a Route 53 hosted zone for the domain in your AWS account and an issued certificate in `us-east-1`. See [custom domains](/resources/networking/custom-domains) for DNS setup details.
 
 ### Next.js connected to a DynamoDB table
 
@@ -37288,7 +37299,11 @@ export default defineConfig(() => {
 
 A Stacktape Next.js resource can attach custom domains to the app's CDN and can associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
 
-Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in the AWS account. By default, Stacktape automatically creates a DNS record and provisions a free TLS certificate. Use `customCertificateArn` to supply your own ACM certificate when you have specific certificate requirements, or set `disableDnsRecordCreation: true` when you manage DNS records outside Stacktape.
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in the AWS account. By default, Stacktape automatically creates a DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. Use `customCertificateArn` to supply your own ACM certificate when you have specific certificate requirements, or set `disableDnsRecordCreation: true` when you manage DNS records outside Stacktape.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 
 Example (TypeScript):
@@ -37531,7 +37546,11 @@ When the SSR function needs to reach VPC-protected resources such as [relational
 
 A Stacktape Nuxt resource can attach custom domains to the app's CDN and associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` must be `cdn`.
 
-Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape automatically creates a DNS record and provisions and renews a free TLS certificate. `customCertificateArn` is only needed for specific certificate requirements (such as EV/OV certs), and `disableDnsRecordCreation` is for teams managing DNS through another provider like Cloudflare.
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape automatically creates a DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. `customCertificateArn` is only needed for specific certificate requirements (such as EV/OV certs), and `disableDnsRecordCreation` is for teams managing DNS through another provider like Cloudflare.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 
 Example (TypeScript):
@@ -37691,7 +37710,7 @@ Stacktape builds the Nuxt app with the Nitro `aws-lambda` preset and splits the 
 
 ### Can I use a custom domain with Nuxt?
 
-Yes. Configure `customDomains` on the Nuxt resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape automatically creates the DNS record and provisions a free TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Yes. Configure `customDomains` on the Nuxt resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Run `stacktape domain add` first and wait for the certificates to be issued. Stacktape then creates the DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested, unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
 
 ### Can I use Nuxt API routes (Nitro server routes)?
 
@@ -37847,7 +37866,11 @@ Skip CDN customization for early-stage apps; revisit when traffic and caching re
 
 A Stacktape Remix resource can attach custom domains to the app's CDN and associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
 
-Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account, and your domain registrar's nameservers must point to that hosted zone. Stacktape creates the DNS record by default and provisions a free TLS certificate. Each `customDomains` entry requires `domainName` (the domain without protocol); optionally set `customCertificateArn` to use an existing ACM certificate instead of the auto-provisioned one, or `disableDnsRecordCreation` to skip DNS record creation when you manage DNS outside Route 53 (e.g. through Cloudflare).
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account, and your domain registrar's nameservers must point to that hosted zone. Stacktape creates the DNS record by default and uses the `us-east-1` certificate that `stacktape domain add` requested. Each `customDomains` entry requires `domainName` (the domain without protocol); optionally set `customCertificateArn` to use an existing ACM certificate instead of the auto-provisioned one, or `disableDnsRecordCreation` to skip DNS record creation when you manage DNS outside Route 53 (e.g. through Cloudflare).
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 
 Example (TypeScript):
@@ -37961,7 +37984,7 @@ export default defineConfig(() => {
 
 ### Can I use a custom domain with Remix?
 
-Yes. Configure `customDomains` on the Remix resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account with your registrar's nameservers pointing to it. Stacktape creates the DNS record by default and provisions a free TLS certificate. Provide `customCertificateArn` to use your own certificate; set `disableDnsRecordCreation` only when you manage DNS records yourself. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Yes. Configure `customDomains` on the Remix resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account with your registrar's nameservers pointing to it. Run `stacktape domain add` first and wait for the certificates to be issued. Stacktape creates the DNS record by default and uses the `us-east-1` certificate that `stacktape domain add` requested. Provide `customCertificateArn` to use your own certificate; set `disableDnsRecordCreation` only when you manage DNS records yourself. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
 
 ### Can I protect a Remix app with AWS WAF?
 
@@ -38106,7 +38129,11 @@ Use [`stacktape logs`](/cli/logs) or the [Stacktape Console](/stacktape-console/
 
 A Stacktape SolidStart resource can attach custom domains to the CloudFront CDN and associate a Web Application Firewall. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a [`web-app-firewall`](/resources/security/web-application-firewall) resource whose `scope` must be `cdn`.
 
-Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape creates DNS records and provisions free TLS certificates automatically; set `customCertificateArn` only when you have specific certificate requirements, and `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare).
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape creates DNS records and uses the `us-east-1` certificate that `stacktape domain add` requested; set `customCertificateArn` only when you have specific certificate requirements, and `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare).
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 
 Example (TypeScript):
@@ -38264,7 +38291,7 @@ Set `appDirectory` to the directory containing `app.config.ts`. It defaults to `
 
 ### Can I use a custom domain with SolidStart?
 
-Yes. Set `customDomains` on the SolidStart resource and ensure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape then creates the DNS records and provisions and renews free TLS certificates automatically. Use a bare hostname like `www.example.com` (no `https://`). Set `customCertificateArn` to supply your own certificate, or `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare). See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Yes. Set `customDomains` on the SolidStart resource and ensure a Route 53 hosted zone for the domain exists in your AWS account. Run `stacktape domain add` first and wait for the certificates to be issued. Stacktape then creates the DNS records and uses the `us-east-1` certificate that `stacktape domain add` requested. Use a bare hostname like `www.example.com` (no `https://`). Set `customCertificateArn` to supply your own certificate, or `disableDnsRecordCreation` when you manage DNS elsewhere (for example through Cloudflare). See [custom domains](/resources/networking/custom-domains) for the broader domain model.
 
 ### How do I connect to a database from SolidStart server functions?
 
@@ -38429,7 +38456,9 @@ export default defineConfig(() => {
 
 ## Custom domains
 
-A hosting-bucket can serve static content from custom domains such as `www.example.com`. By default, Stacktape creates DNS records and provisions TLS certificates for configured domains; set `disableDnsRecordCreation` when DNS is managed elsewhere. The domain must already be added as a Route53 hosted zone in the AWS account.
+A hosting-bucket can serve static content from custom domains such as `www.example.com`. By default, Stacktape creates DNS records and uses the certificates `stacktape domain add` requested; set `disableDnsRecordCreation` when DNS is managed elsewhere. The domain must already be added as a Route53 hosted zone in the AWS account.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
 
 
 Example (TypeScript):
@@ -38453,6 +38482,8 @@ export default defineConfig(() => {
 
 
 For most sites, prefer the default DNS-record and certificate behavior because it keeps the Stacktape config small. Set `customCertificateArn` only when you need to use a specific ACM certificate, and set `disableDnsRecordCreation` when DNS records are managed outside Stacktape, such as through another DNS provider.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 ## Environment injection
 
@@ -38537,7 +38568,7 @@ Use `single-page-app` for React, Vue, Angular, Vite, or Webpack apps with client
 
 ### Why does my custom domain fail to provision?
 
-`customDomains` only works if the domain already exists as a Route53 hosted zone in the AWS account — Stacktape creates the DNS records and TLS certificate but does not register the zone for you. If DNS is managed elsewhere, set `disableDnsRecordCreation`, and set `customCertificateArn` to use a specific ACM certificate. For broader domain concepts, see [custom domains](/resources/networking/custom-domains).
+`customDomains` only works if the domain already exists as a Route53 hosted zone in the AWS account and has an issued certificate in `us-east-1`. Stacktape creates the DNS records at deploy time but does not create the zone or the certificate: run `stacktape domain add` and wait for **Issued** first. If DNS is managed elsewhere, set `disableDnsRecordCreation`, and set `customCertificateArn` to a certificate you requested in `us-east-1`. For broader domain concepts, see [custom domains](/resources/networking/custom-domains).
 
 ### Can static hosting inject environment variables without rebuilding?
 
@@ -38699,6 +38730,10 @@ Set `buildCommand` when the default `vite build` command is not the command your
 
 A Stacktape SvelteKitWeb resource can attach custom domains and let Stacktape manage the DNS record and TLS certificate. The domain must have a Route 53 hosted zone in the AWS account, and the domain name should be written without the `https://` protocol prefix.
 
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
+
 
 Example (TypeScript):
 
@@ -38790,7 +38825,7 @@ Use SvelteKitWeb when your app needs server-side rendering or runtime endpoints;
 
 ### Why does my custom domain fail to provision?
 
-Custom domains for SvelteKitWeb require a Route 53 hosted zone in the AWS account. If your registrar is not Route 53, the registrar must still point the domain at the Route 53 hosted zone nameservers. Write `domainName` without the `https://` prefix; Stacktape then creates the DNS record and provisions a TLS certificate. See [custom domains](/resources/networking/custom-domains) for the broader model.
+Custom domains for SvelteKitWeb require a Route 53 hosted zone in the AWS account. If your registrar is not Route 53, the registrar must still point the domain at the Route 53 hosted zone nameservers. Write `domainName` without the `https://` prefix; Run `stacktape domain add` first and wait for the `us-east-1` certificate to be issued; Stacktape then creates the DNS record and uses that certificate. See [custom domains](/resources/networking/custom-domains) for the broader model.
 
 ### How do SvelteKit environment variables and database access work?
 
@@ -39046,7 +39081,7 @@ Leave `fileOptions` unset initially — TanStack Start and Stacktape already rou
 
 ## Custom domains and firewall
 
-The `customDomains` property attaches branded domain names to the app's CloudFront distribution. When the domain has a Route 53 hosted zone in your AWS account and the registrar's nameservers point to it, Stacktape creates the DNS record and provisions a free TLS certificate automatically. Set `customCertificateArn` to use your own ACM certificate when you have specific requirements (such as EV or OV certificates). Set `disableDnsRecordCreation` to `true` if you manage DNS records through an external provider like Cloudflare.
+The `customDomains` property attaches branded domain names to the app's CloudFront distribution. When the domain has a Route 53 hosted zone in your AWS account and the registrar's nameservers point to it, Stacktape creates the DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. Set `customCertificateArn` to use your own ACM certificate when you have specific requirements (such as EV or OV certificates). Set `disableDnsRecordCreation` to `true` if you manage DNS records through an external provider like Cloudflare.
 
 The `useFirewall` property references a [`web-app-firewall`](/resources/security/web-application-firewall) resource whose `scope` must be `cdn`. This protects the CloudFront distribution path for the TanStack Start app.
 
@@ -39072,6 +39107,10 @@ export default defineConfig(() => {
 
 
 Use `customDomains` for production and shared staging apps where users need a stable branded URL. Skip it for throwaway review or development stages where the default CloudFront URL is sufficient.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 Enable `useFirewall` when the public TanStack Start app needs CDN-level WAF protection — for example, a customer-facing portal exposed to the internet. Skip it for internal prototypes or early development stages where WAF rules add configuration work before there is a clear threat model. Load-balancer-scoped firewalls are a separate attachment path used by [compute resources](/resources/compute/web-service).
 
@@ -41185,7 +41224,7 @@ The `priority` values determine evaluation order. Requests to `/users/123` match
 
 When `listeners` is omitted, an Application Load Balancer creates two default listeners: HTTPS on port 443 and HTTP on port 80 (redirecting to HTTPS). Custom listeners let you change ports, add IP restrictions, or define redirect behavior for unmatched requests.
 
-When you provide custom listener objects, each requires an explicit `protocol` (`HTTP` or `HTTPS`) and `port`. Any HTTPS listener requires a TLS certificate: Stacktape provisions one automatically when you configure `customDomains`, or you supply your own ACM certificates via the listener's `customCertificateArns`. If neither is set, an HTTPS listener cannot be created.
+When you provide custom listener objects, each requires an explicit `protocol` (`HTTP` or `HTTPS`) and `port`. Any HTTPS listener requires a TLS certificate. Stacktape uses the listener's `customCertificateArns` when you set them. Otherwise, with `customDomains`, it uses each domain's `customCertificateArn` or the certificate [`stacktape domain add`](/cli/domain-add) issued. With neither, the listener gets the certificate of the `*.stacktape-app.com` default domain, which needs the [Stacktape Console](/getting-started/open-source-cli) connected.
 
 **When to configure custom listeners:** You need a non-standard port, want to restrict access by IP address, or need a custom redirect for unmatched requests.
 
@@ -41220,7 +41259,7 @@ export default defineConfig(() => {
 ```
 
 
-The `protocol` is either `HTTP` or `HTTPS`. HTTPS listeners require a TLS certificate — Stacktape provisions one automatically when you use `customDomains`, or you can supply your own via `customCertificateArns`.
+The `protocol` is either `HTTP` or `HTTPS`. HTTPS listeners require a TLS certificate — Stacktape uses the issued certificate for your domain when you use `customDomains`, or you can supply your own via `customCertificateArns`.
 
 The `whitelistIps` property restricts access to specific IP addresses or CIDR ranges. When set, requests from other IPs are rejected at the load balancer level before reaching your application.
 
@@ -41228,7 +41267,7 @@ The optional `defaultAction` property on a custom listener configures a redirect
 
 ## Custom domains
 
-Stacktape can attach your own domain (e.g., `api.example.com`) to an Application Load Balancer. By default, Stacktape creates DNS records and TLS certificates for each domain. The domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
+Stacktape can attach your own domain (e.g., `api.example.com`) to an Application Load Balancer. By default, Stacktape creates the DNS record for each domain and uses the TLS certificate that `stacktape domain add` issued. The domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up. Run it again after the nameservers point at Route 53, and wait until the certificate is issued: without an issued certificate in the stack's region, the deploy stops with an error.
 
 
 Example (TypeScript):
@@ -41247,7 +41286,7 @@ export default defineConfig(() => {
 ```
 
 
-You can list multiple domain configurations. By default, Stacktape creates DNS records and TLS certificates for the configured domains. These options can be configured independently: set `disableDnsRecordCreation: true` if you manage DNS records yourself (Stacktape still provisions the TLS certificate), or provide `customCertificateArn` to use your own ACM certificate instead of the auto-generated one.
+You can list multiple domain configurations. By default, Stacktape creates DNS records for the configured domains in Route 53 and uses the certificates that `stacktape domain add` issued. Provide `customCertificateArn` to use your own ACM certificate instead. If you manage DNS records outside Route 53, set `disableDnsRecordCreation: true` together with `customCertificateArn`: without a domain in Route 53 there is no issued certificate to use, and the deploy rejects `disableDnsRecordCreation` on its own.
 
 Prefer the object form (`{ domainName: 'api.example.com' }`) because it also supports certificate and DNS options; Stacktape still accepts the backward-compatible `string[]` form for domain names.
 
@@ -41898,7 +41937,9 @@ If you have a pre-existing CloudFront origin request policy, pass its ID via `or
 
 ## Custom domains
 
-Stacktape can attach your own domain (e.g., `cdn.example.com`) to the CDN distribution. Stacktape can automatically create DNS records and provision a free TLS certificate. Set `disableDnsRecordCreation: true` if you manage DNS records yourself, or provide `customCertificateArn` to use your own ACM certificate. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
+Stacktape can attach your own domain (e.g., `cdn.example.com`) to the CDN distribution. Stacktape can automatically create DNS records and use the certificate that [`stacktape domain add`](/cli/domain-add) requested. Set `disableDnsRecordCreation: true` if you manage DNS records yourself, or provide `customCertificateArn` to use your own ACM certificate. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
+
+Run `stacktape domain add` before the first deploy that uses the domain, and run it again after the nameservers point at Route 53 until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
 
 **When to use a custom domain:** Production and customer-facing stages where a branded, stable URL matters (e.g., `api.yourproduct.com` or `app.yourproduct.com`). Custom domains also make it easier to switch infrastructure behind the scenes without breaking client integrations. **When the default CloudFront URL is fine:** Development stages, internal tools, and early validation where a generated `d1234.cloudfront.net` URL is acceptable. Custom domains add DNS propagation and certificate provisioning overhead that slows down initial deploys. For full domain management details, see [Custom domains](/resources/networking/custom-domains).
 
@@ -42155,7 +42196,7 @@ Yes, using `routeRewrites`. Each rewrite matches a URL path pattern (wildcards s
 
 ### Why does my custom domain certificate fail to attach?
 
-AWS CloudFront requires the viewer TLS certificate to live in ACM `us-east-1`, regardless of where your origin resources are deployed. If you pass `customCertificateArn`, make sure that certificate is in `us-east-1`. When you let Stacktape provision the certificate automatically it handles this for you, but your domain must still have a [Route53 hosted zone](/resources/networking/custom-domains) — set one up with [`stacktape domain add`](/cli/domain-add).
+AWS CloudFront requires the viewer TLS certificate to live in ACM `us-east-1`, regardless of where your origin resources are deployed. If you pass `customCertificateArn`, make sure that certificate is in `us-east-1`. [`stacktape domain add`](/cli/domain-add) requests the `us-east-1` certificate for you, but your domain must still have a [Route53 hosted zone](/resources/networking/custom-domains), and the certificate must show **Issued** before you deploy.
 
 ---
 
@@ -42203,7 +42244,7 @@ An API Gateway custom domain cannot contain both WebSocket and HTTP/REST API map
 
 For Stacktape-managed DNS, point your registrar's nameservers at a public Route 53 hosted zone in your AWS account. The zone for `example.com` holds records for names such as `api.example.com` and `app.example.com`. If the domain is already in use, follow the [AWS migration steps](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/migrate-dns-domain-in-use.html) before changing nameservers.
 
-Use [`stacktape domain add --region eu-west-1`](/cli/domain-add) to set up the zone and request its certificates. Replace `eu-west-1` with the region you deploy to. Enter the domain when prompted. Once the nameservers point at Route 53, run the command again to finish setup. If you started in the Console, run the command after the DNS change so the CLI can find the domain during deployment. Repeat the setup for each deployment region and wait for the certificates you need to show **Issued** in ACM.
+Use [`stacktape domain add --region eu-west-1`](/cli/domain-add) to set up the zone and request its certificates. Replace `eu-west-1` with the region you deploy to. Enter the domain when prompted. Once the nameservers point at Route 53, run the command again to finish setup. If you started in the Console, run the command after the DNS change so the CLI can find the domain during deployment. The command requests a certificate in your deploy region and one in `us-east-1`, which anything behind CloudFront needs. Repeat the setup for each deployment region and wait for the certificates you need to show **Issued** in ACM. Without an issued certificate, the deploy stops with an error.
 
 The Console requests certificates for the domain and a wildcard one level below it. For example, `*.example.com` covers `app.example.com`. Check the names on the certificate you use. For `api.dev.example.com`, enter that full name in `stacktape domain add` to set up a matching certificate. The CLI still uses the `example.com` zone.
 
@@ -42328,7 +42369,7 @@ export default defineConfig(() => {
 
 Each array entry can include its own `domainName`, `customCertificateArn`, and `disableDnsRecordCreation` values. You can mix auto-managed DNS with external DNS, and auto-provisioned certificates with custom certificates, within the same resource.
 
-Each domain whose DNS Stacktape manages needs its own Route 53 hosted zone.
+Each root domain whose DNS Stacktape manages needs one Route 53 hosted zone. The zone for `example.com` also serves `api.example.com` and `app.example.com`.
 
 ## API Reference
 
@@ -49120,23 +49161,37 @@ API keys are useful for non-interactive automation where you do not want to rely
 
 Use API keys when you need non-interactive authentication. For local development where a browser is available, [`stacktape login`](/cli/login) handles authentication for you, so you do not need to create and rotate a Console API key manually.
 
+The page has two kinds of key:
 
-> **Tip:** The keys on this page are personal: they act as you, with your role, projects and AWS accounts, and they stop working
-when you leave the organization. For CI, Owners and Admins create an
-[organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) on the Members page instead.
-It belongs to the organization and keeps working when people leave.
+| You need | Use |
+|---|---|
+| A pipeline or tool your team shares | An **organization key**. It belongs to the organization and keeps working when people leave. Owners and Admins create it. |
+| Your own script or server | A **personal key**. It acts as you, with your role, projects and AWS accounts, and stops working if you leave the organization. |
 
+A personal organization has only personal keys. CI that a team shares belongs in a team organization, with an organization key.
 
 ## Creating an API key
 
-Open **API keys** from the profile menu in the Stacktape Console. Click **New API key** to open the creation form.
+Open **API keys** in the Organization group of the Stacktape Console navigation.
 
-The creation form has two fields — only the API key name is required:
+For CI, Owners and Admins create an organization key:
+
+1. Click **New organization key**.
+2. Name it after where it runs, for example `github-actions`.
+3. Pick its role: **Developer** with the projects and AWS accounts the pipeline deploys, or **Admin** for everything.
+4. Pick when it expires: 30 days, 90 days, 180 days or 1 year.
+5. Click **Create key** and copy the key from the next dialog. Store it as the `STACKTAPE_API_KEY` secret of your CI.
+
+For your own scripts, click **New personal key** (in a personal organization, **New API key**), give it a name and an
+expiry, and create it. The key uses your role and access in the organization that is open.
 
 | Field | Description |
 |-------|-------------|
-| **API Key name** | A human-readable label to identify this key (e.g. `github-actions-prod`, `dev-laptop`). Required. |
-| **Expiration** | How long the key remains valid. Manual API keys expire by default and cannot exceed 365 days. |
+| **Name** | A human-readable label to identify this key (e.g. `github-actions-production`, `laptop`). Required. |
+| **Role** | Organization keys only. **Developer** or **Admin**. |
+| **Scopes** | What the key may do inside its role: a preset for a common job, or No access, Read or Write for each area. Full access by default. A key never does more than its role allows. |
+| **Expiration** | How long the key remains valid: 30 days, 90 days, 180 days or 1 year. |
+| **Description** | Optional. What the key is for. |
 
 After creation, copy the key immediately and store it in your CI/CD platform's secrets manager. Manual API keys are bearer secrets and are shown only once. Do not paste them into chat transcripts, issue trackers, source code, shell history, or plain-text config files.
 
@@ -50062,7 +50117,7 @@ You can manage organizations from the CLI with [`stacktape org create`](/cli/org
 
 ### Projects
 
-A Stacktape project represents a single application and usually maps 1:1 to a Git repository. Each project can have multiple stages — fully isolated deployments like `production`, `staging`, or `dev`.
+A Stacktape project represents a single application and usually maps 1:1 to a Git repository. Each project can have multiple stages — separate deployments like `production`, `staging`, or `dev`.
 
 The Projects page lists all projects in the selected organization. Each project card shows:
 
@@ -50075,7 +50130,7 @@ Projects are sorted by most recently updated stage, so active projects appear fi
 
 ### Stages
 
-A stage is a running deployment of a project — a complete, isolated set of AWS resources. Common stage names include `production`, `staging`, `dev`, or `testing`. Stages are fully isolated and do not share resources with each other; examples include containers, functions, databases, and other deployed resources.
+A stage is a running deployment of a project — its own set of AWS resources. Common stage names include `production`, `staging`, `dev`, or `testing`. Stages don't share containers, functions, databases or other application resources. Non-production stages in one account and region usually share a VPC, and anyone with the account's credentials can reach every stage in it; see [Are stages fully isolated from each other?](/configuration/stages-and-environments#are-stages-fully-isolated-from-each-other).
 
 To deploy a stage, you need a Stacktape configuration that describes which resources (containers, functions, databases, etc.) to deploy. You can share the same Stacktape configuration across all stages of a project (most common), or maintain separate configurations per stage when environments need different resource shapes.
 
@@ -50710,12 +50765,12 @@ Source: `apps/docs/content/stacktape-console/team-and-access-control.mdx`
 Route: `/stacktape-console/team-and-access-control`
 
 The **Members** page in the Organization group of the Stacktape Console controls who can use your organization and
-what they reach. Invite people, choose their role, projects and AWS accounts, require two-factor sign-in, give CI an
-organization key that does not belong to a person, and see what stops working before you remove someone.
+what they reach. Invite people, choose their role, projects and AWS accounts, require two-factor sign-in, and see what
+stops working before you remove someone. Keys for CI are on the [API keys](/stacktape-console/api-keys) page.
 
 ## Overview
 
-The page has up to four parts:
+The page has up to three parts:
 
 - **Two-factor sign-in** (Owners and Admins): whether members who sign in with a password must also use an
   authenticator app.
@@ -50723,7 +50778,6 @@ The page has up to four parts:
   they were last active and when they joined. Search by name or email, filter by role, or show only members without
   two-factor or inactive for 30 days or more.
 - **Invitations**: invitations that have not been accepted yet, who sent them, and when they expire.
-- **Organization keys** (Owners and Admins): API keys that belong to the organization, for CI.
 
 Click a member's name to open their page. Owners and Admins can open anyone's page; Developers and Viewers can open
 their own.
@@ -50781,12 +50835,8 @@ without an invitation, by signing in through your identity provider or being add
 
 A personal [API key](/stacktape-console/api-keys) acts as the person who created it and stops working when they leave
 the organization. CI that uses one breaks when that person is removed. An organization key belongs to the
-organization instead:
-
-1. In **Organization keys**, click **New organization key**.
-2. Name it after where it runs, for example `github-actions`.
-3. Choose **Developer** with the projects and AWS accounts the pipeline deploys, or **Admin** for everything.
-4. Copy the key from the next dialog; it is shown only once. Store it as the `STACKTAPE_API_KEY` secret of your CI.
+organization instead and has a role of its own. Owners and Admins create it on the **API keys** page with
+**New organization key**; see [Creating an API key](/stacktape-console/api-keys#creating-an-api-key).
 
 The list shows who created each key and when it was last used. Revoking a key stops every pipeline that uses it at
 once. Organization keys cannot create organizations or connect AI subscriptions, which belong to people.
@@ -50851,7 +50901,7 @@ Its 14 days passed. Choose **Resend invitation**; the person can sign up for 14 
 - [Account Settings](/stacktape-console/account-settings): password and two-factor authentication
 - [Single sign-on](/stacktape-console/single-sign-on): sign-in through your identity provider, and SCIM
 - [Audit log](/stacktape-console/audit-log): member, key and access changes, and AWS events
-- [API Keys](/stacktape-console/api-keys): personal keys for the CLI
+- [API Keys](/stacktape-console/api-keys): organization keys for CI and personal keys
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account): what Stacktape can do in an account
 - [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages)
 

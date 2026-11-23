@@ -1,12 +1,12 @@
 # Team and Access Control
 
 The **Members** page in the Organization group of the Stacktape Console controls who can use your organization and
-what they reach. Invite people, choose their role, projects and AWS accounts, require two-factor sign-in, give CI an
-organization key that does not belong to a person, and see what stops working before you remove someone.
+what they reach. Invite people, choose their role, projects and AWS accounts, require two-factor sign-in, and see what
+stops working before you remove someone. Keys for CI are on the [API keys](/stacktape-console/api-keys) page.
 
 ## Overview
 
-The page has up to four parts:
+The page has up to three parts:
 
 - **Two-factor sign-in** (Owners and Admins): whether members who sign in with a password must also use an
   authenticator app.
@@ -14,7 +14,6 @@ The page has up to four parts:
   they were last active and when they joined. Search by name or email, filter by role, or show only members without
   two-factor or inactive for 30 days or more.
 - **Invitations**: invitations that have not been accepted yet, who sent them, and when they expire.
-- **Organization keys** (Owners and Admins): API keys that belong to the organization, for CI.
 
 Click a member's name to open their page. Owners and Admins can open anyone's page; Developers and Viewers can open
 their own.
@@ -72,12 +71,8 @@ without an invitation, by signing in through your identity provider or being add
 
 A personal [API key](/stacktape-console/api-keys) acts as the person who created it and stops working when they leave
 the organization. CI that uses one breaks when that person is removed. An organization key belongs to the
-organization instead:
-
-1. In **Organization keys**, click **New organization key**.
-2. Name it after where it runs, for example `github-actions`.
-3. Choose **Developer** with the projects and AWS accounts the pipeline deploys, or **Admin** for everything.
-4. Copy the key from the next dialog; it is shown only once. Store it as the `STACKTAPE_API_KEY` secret of your CI.
+organization instead and has a role of its own. Owners and Admins create it on the **API keys** page with
+**New organization key**; see [Creating an API key](/stacktape-console/api-keys#creating-an-api-key).
 
 The list shows who created each key and when it was last used. Revoking a key stops every pipeline that uses it at
 once. Organization keys cannot create organizations or connect AI subscriptions, which belong to people.
@@ -142,6 +137,6 @@ Its 14 days passed. Choose **Resend invitation**; the person can sign up for 14 
 - [Account Settings](/stacktape-console/account-settings): password and two-factor authentication
 - [Single sign-on](/stacktape-console/single-sign-on): sign-in through your identity provider, and SCIM
 - [Audit log](/stacktape-console/audit-log): member, key and access changes, and AWS events
-- [API Keys](/stacktape-console/api-keys): personal keys for the CLI
+- [API Keys](/stacktape-console/api-keys): organization keys for CI and personal keys
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account): what Stacktape can do in an account
 - [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages)

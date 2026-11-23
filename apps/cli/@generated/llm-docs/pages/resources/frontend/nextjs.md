@@ -71,7 +71,7 @@ export default defineConfig(() => {
 ```
 
 
-`streamingEnabled` and `warmServerInstances` cannot be combined with `useEdgeLambda`. `customDomains` requires a Route 53 hosted zone for the domain in your AWS account. See [custom domains](/resources/networking/custom-domains) for DNS setup details.
+`streamingEnabled` and `warmServerInstances` cannot be combined with `useEdgeLambda`. `customDomains` requires a Route 53 hosted zone for the domain in your AWS account and an issued certificate in `us-east-1`. See [custom domains](/resources/networking/custom-domains) for DNS setup details.
 
 ### Next.js connected to a DynamoDB table
 
@@ -223,7 +223,11 @@ export default defineConfig(() => {
 
 A Stacktape Next.js resource can attach custom domains to the app's CDN and can associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
 
-Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in the AWS account. By default, Stacktape automatically creates a DNS record and provisions a free TLS certificate. Use `customCertificateArn` to supply your own ACM certificate when you have specific certificate requirements, or set `disableDnsRecordCreation: true` when you manage DNS records outside Stacktape.
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in the AWS account. By default, Stacktape automatically creates a DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. Use `customCertificateArn` to supply your own ACM certificate when you have specific certificate requirements, or set `disableDnsRecordCreation: true` when you manage DNS records outside Stacktape.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 
 Example (TypeScript):

@@ -15,25 +15,37 @@ API keys are useful for non-interactive automation where you do not want to rely
 
 Use API keys when you need non-interactive authentication. For local development where a browser is available, [`stacktape login`](/cli/login) handles authentication for you, so you do not need to create and rotate a Console API key manually.
 
-<Tip>
+The page has two kinds of key:
 
-The keys on this page are personal: they act as you, with your role, projects and AWS accounts, and they stop working
-when you leave the organization. For CI, Owners and Admins create an
-[organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) on the Members page instead.
-It belongs to the organization and keeps working when people leave.
+| You need | Use |
+|---|---|
+| A pipeline or tool your team shares | An **organization key**. It belongs to the organization and keeps working when people leave. Owners and Admins create it. |
+| Your own script or server | A **personal key**. It acts as you, with your role, projects and AWS accounts, and stops working if you leave the organization. |
 
-</Tip>
+A personal organization has only personal keys. CI that a team shares belongs in a team organization, with an organization key.
 
 ## Creating an API key
 
-Open **API keys** from the profile menu in the Stacktape Console. Click **New API key** to open the creation form.
+Open **API keys** in the Organization group of the Stacktape Console navigation.
 
-The creation form has two fields — only the API key name is required:
+For CI, Owners and Admins create an organization key:
+
+1. Click **New organization key**.
+2. Name it after where it runs, for example `github-actions`.
+3. Pick its role: **Developer** with the projects and AWS accounts the pipeline deploys, or **Admin** for everything.
+4. Pick when it expires: 30 days, 90 days, 180 days or 1 year.
+5. Click **Create key** and copy the key from the next dialog. Store it as the `STACKTAPE_API_KEY` secret of your CI.
+
+For your own scripts, click **New personal key** (in a personal organization, **New API key**), give it a name and an
+expiry, and create it. The key uses your role and access in the organization that is open.
 
 | Field | Description |
 |-------|-------------|
-| **API Key name** | A human-readable label to identify this key (e.g. `github-actions-prod`, `dev-laptop`). Required. |
-| **Expiration** | How long the key remains valid. Manual API keys expire by default and cannot exceed 365 days. |
+| **Name** | A human-readable label to identify this key (e.g. `github-actions-production`, `laptop`). Required. |
+| **Role** | Organization keys only. **Developer** or **Admin**. |
+| **Scopes** | What the key may do inside its role: a preset for a common job, or No access, Read or Write for each area. Full access by default. A key never does more than its role allows. |
+| **Expiration** | How long the key remains valid: 30 days, 90 days, 180 days or 1 year. |
+| **Description** | Optional. What the key is for. |
 
 After creation, copy the key immediately and store it in your CI/CD platform's secrets manager. Manual API keys are bearer secrets and are shown only once. Do not paste them into chat transcripts, issue trackers, source code, shell history, or plain-text config files.
 

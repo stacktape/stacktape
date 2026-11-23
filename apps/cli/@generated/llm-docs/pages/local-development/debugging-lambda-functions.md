@@ -82,33 +82,19 @@ If your config includes `beforeDev` [hooks](/configuration/hooks-and-scripts) wi
 
 ## Rebuilds
 
-After changing your function code, trigger a rebuild from the dev TUI. Stacktape runs the rebuild handler for the workload without exiting the dev session.
+After changing your function code, rebuild it from the dev TUI without leaving the session, or start dev mode with `--watch` to rebuild on save.
 
-Rebuild all running workloads by typing `rs` and pressing Enter:
+The dev TUI supports these keys:
 
-```
-rs
-```
-
-Rebuild a specific function by name:
-
-```
-rs myApi
-```
-
-If the workload name doesn't match any running resource, the dev TUI prints a warning. This helps catch typos — use the exact resource name from your config.
-
-The dev TUI supports these keyboard commands:
-
-| Command | Action |
+| Key | Action |
 |---------|--------|
-| `rs` | Rebuild all workloads |
-| `rs <name>` | Rebuild a specific workload by name |
-| `c` or `clear` | Clear the log output |
-| `q` or `quit` | Stop dev mode and exit |
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode and exit |
 
 
-> **Tip:** When iterating on a single function, use `rs <functionName>` instead of `rs` to skip rebuilding other workloads. This keeps the feedback loop tight when you're focused on one function.
+> **Tip:** When iterating on a single function, press Ctrl+R and pick that function instead of rebuilding everything. This keeps the feedback loop tight when you're focused on one function.
 
 
 ## Viewing logs
@@ -293,7 +279,7 @@ For Lambda functions with [HTTP API Gateway triggers](/resources/triggers/http-t
 
 ### Narrowing the feedback loop
 
-When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. Unselected functions are not built: they keep the code they run until you select them again. Combine with `rs <name>` in the TUI for targeted rebuilds. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
+When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. Unselected functions are not built: they keep the code they run until you select them again. Rebuild just that function with Ctrl+R. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
 
 ## Dev mode vs deployed-stack debugging
 
@@ -302,9 +288,9 @@ Stacktape offers two distinct workflows for investigating Lambda function behavi
 | Aspect | Dev mode (`stacktape dev`) | Deployed stack (`logs`) |
 |--------|---------------------------|-------------------------------|
 | Log delivery | Streamed in the dev TUI | Follows CloudWatch logs in a terminal by default; `--follow=false` takes a snapshot |
-| Code iteration | Rebuild from TUI with `rs` | Requires full [`stacktape deploy`](/cli/deploy) |
+| Code iteration | Ctrl+R in the TUI, or `--watch` | Requires full [`stacktape deploy`](/cli/deploy) |
 | Database access | Local databases through the dev box, or deployed ones via `--remote-resources` | AWS-deployed databases |
-| Interaction model | Interactive TUI with keyboard commands | Follows until stopped, or exits after a snapshot |
+| Interaction model | Interactive TUI with keyboard shortcuts | Follows until stopped, or exits after a snapshot |
 | Infrastructure | Dev stack | Full production stack |
 | Local resources | Docker-based databases on your machine | Not applicable |
 | Best for | Active development and rapid iteration | Investigating issues in deployed stages |
@@ -315,7 +301,7 @@ Use dev mode for active development — the rebuild-and-test loop from the TUI i
 
 ### Can I set breakpoints in Lambda functions during dev mode?
 
-Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local machine. The debugging path documented here is log streaming in the dev TUI combined with targeted rebuilds using `rs <name>`. The tradeoff is high-fidelity testing against the real Lambda runtime on AWS. Add targeted `console.info(JSON.stringify(...))` statements at key points and rebuild quickly after changes.
+Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local machine. The debugging path documented here is log streaming in the dev TUI combined with targeted rebuilds (Ctrl+R). The tradeoff is high-fidelity testing against the real Lambda runtime on AWS. Add targeted `console.info(JSON.stringify(...))` statements at key points and rebuild quickly after changes.
 
 ### Do my Lambda function's event sources work in dev mode?
 

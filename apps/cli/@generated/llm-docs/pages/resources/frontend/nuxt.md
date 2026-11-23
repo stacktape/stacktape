@@ -102,7 +102,11 @@ When the SSR function needs to reach VPC-protected resources such as [relational
 
 A Stacktape Nuxt resource can attach custom domains to the app's CDN and associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a [web application firewall](/resources/security/web-application-firewall) resource whose `scope` must be `cdn`.
 
-Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape automatically creates a DNS record and provisions and renews a free TLS certificate. `customCertificateArn` is only needed for specific certificate requirements (such as EV/OV certs), and `disableDnsRecordCreation` is for teams managing DNS through another provider like Cloudflare.
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape automatically creates a DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. `customCertificateArn` is only needed for specific certificate requirements (such as EV/OV certs), and `disableDnsRecordCreation` is for teams managing DNS through another provider like Cloudflare.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 
 Example (TypeScript):
@@ -262,7 +266,7 @@ Stacktape builds the Nuxt app with the Nitro `aws-lambda` preset and splits the 
 
 ### Can I use a custom domain with Nuxt?
 
-Yes. Configure `customDomains` on the Nuxt resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Stacktape automatically creates the DNS record and provisions a free TLS certificate unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Yes. Configure `customDomains` on the Nuxt resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account. Run `stacktape domain add` first and wait for the certificates to be issued. Stacktape then creates the DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested, unless you provide `customCertificateArn` or set `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
 
 ### Can I use Nuxt API routes (Nitro server routes)?
 
