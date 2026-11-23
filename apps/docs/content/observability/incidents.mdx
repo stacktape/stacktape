@@ -27,6 +27,14 @@ Stacktape can open incidents from:
 Signals are grouped by project, stage, region, release, resource and time. An incident keeps all its signals and its
 history, including signals that already recovered.
 
+<ConsoleScreenshot
+  src="/static/screenshots/console-incident.webp"
+  alt="A critical incident in the Console: its title, project and stage, Acknowledge and Resolve buttons, its status and likely cause, and a chart of the five signals that started failing around a failed deploy"
+  caption="One incident groups the alarm, errors, uptime check and synthetic test that failed after the same deploy."
+  width={1026}
+  height={599}
+/>
+
 A new runtime error enters the incident queue without alerting anyone. An error that returns after you resolved it, or
 that occurs 20 times, alerts the incident's channels. Uptime, synthetic and alarm signals alert when they open the
 incident. Which channels receive incident alerts is set by [notification rules](/observability/notifications).

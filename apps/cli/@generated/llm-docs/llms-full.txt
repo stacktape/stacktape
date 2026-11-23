@@ -504,6 +504,10 @@ and creates the Git deployment.
 4. Check the sentence at the bottom of the form, for example "Every push to main deploys production in eu-west-1",
    and click **Create Git deployment**.
 
+
+> Screenshot: The New Git deployment dialog: Push to a branch, branch main, stage staging, the target AWS account and region, the sentence Every push to main deploys staging in eu-west-1, and the Create Git deployment button Caption: The sentence above the buttons says what every matching push will deploy, and where.
+
+
 The form also says what the build costs. The first Git deployment in an AWS account and region starts a runner there:
 AWS bills it by the hour while it builds and bills its disks while it is stopped, about $8.80 a month in Ireland. A
 second Git deployment in the same place shares that runner. See [Runner cost](#runner-cost).
@@ -11126,7 +11130,7 @@ The command asks for the value without showing it. Use the region you deploy to.
 You can also create, view, edit and delete secrets on the **Secrets** page of the [Stacktape Console](/stacktape-console/console-overview), per AWS account and region.
 
 
-> Screenshot: Stacktape Console Secrets page with a table of secrets, their dates and descriptions, and view, edit and delete actions Caption: The Secrets page lists the secrets of the selected AWS account and region.
+> Screenshot: The New secret dialog in the Console: name, AWS account, region, value, optional description and the Create secret button Caption: New secret creates the secret in the AWS account and region shown in the dialog.
 
 
 ## Use it in a container
@@ -13182,6 +13186,10 @@ for the rates and examples.
 
 After a successful deploy, the wizard shows **Add dev to the Stacktape Console** below the live address.
 
+
+> Screenshot: Add dev to the Stacktape Console, free up to $200 a month of AWS spend, with Connect to the Console and Not now, and a note that the stack is not redeployed Caption: The Console offer in the init wizard after a successful deploy.
+
+
 1. Click **Connect to the Console**. A new tab opens the Stacktape sign-in.
 2. Sign in, or create an account. Check that the tab shows the same code as the wizard, and approve.
 3. If your account belongs to more than one organization, pick one.
@@ -13530,6 +13538,10 @@ Under **Options** you choose what reads the code:
   and Heroku manifests, and Serverless Framework, SAM, SST, CDK and Terraform declarations. Nothing is sent to an AI
   provider. It takes a second and falls back to defaults more often.
 
+
+> Screenshot: The Start screen with Options open: Claude Code or Files only, no agent, and for Claude Code the model: Your default, Opus, Sonnet or Haiku Caption: Options on the Start screen: the agent that reads your code and, for Claude Code, the model.
+
+
 An installed agent is the default. To skip agent detection, start with `stacktape init --coding-agent none`.
 
 ## 2. Analyze
@@ -13537,6 +13549,10 @@ An installed agent is the default. To skip agent detection, start with `stacktap
 The built-in scan always runs first. If it answers everything, the wizard says your agent was not needed and no tokens
 were spent. Otherwise the agent reads your project and you watch each file it opens. From `.env` files, only the
 variable names are kept.
+
+
+> Screenshot: The Analyze screen: the agent in use, the number of files read so far and a list of each file it read Caption: The Analyze screen lists each file the agent reads.
+
 
 If the analysis finds no server, worker or website, the wizard says so and has nothing to save. Run `stacktape init`
 in the app's own directory, or click **Analyze again with Claude Code** (or Codex) if you started with files only.
@@ -13557,6 +13573,10 @@ Below the tabs:
   how much backup history to keep and who can reach the SQL database. Each option shows what it adds to the price.
 - **Before you deploy** lists what only you can provide: secrets your app reads, settings your code reads with no
   default, and anything else the deploy still needs.
+
+
+> Screenshot: The Review step for a Next.js app with Postgres: the monthly estimate at AWS list prices, the What & why tab with each resource, its price and a Where we saw this link, and Decided for you with one alarm the wizard added Caption: Review shows the monthly estimate, each resource with its price and the reason for it, and what the wizard decided for you.
+
 
 ### What it will cost
 
@@ -13631,6 +13651,10 @@ deploy waits until you fix it or set the result aside. You don't need Docker if 
      wizard says why and, where a command fixes it, gives you the command.
 3. Click **Create new stack** or **Update existing stack**.
 
+
+> Screenshot: What the deploy does after the target check: This will create a new stack, with the stack name, AWS account and region, and the Create new stack button Caption: The target check names the stack, the AWS account and the region before you confirm.
+
+
 The deploy usually takes a few minutes. A first deploy with a new database takes 10 to 15 minutes. The wizard shows
 each phase, warnings and the full log.
 
@@ -13676,6 +13700,10 @@ After a successful deploy, the wizard offers **Add dev to the Stacktape Console*
 team access for the stage, free up to $200 a month of AWS spend. **Connect to the Console** signs you in (or creates an
 account) in a new tab, then connects the AWS account. Your app is not redeployed. **Not now** skips it, and
 `stacktape connect` does the same later. See [Add the Console](/getting-started/add-the-console).
+
+
+> Screenshot: The end of a deploy: the live stage with its public address and an Open button, then Add dev to the Stacktape Console with Connect to the Console and Not now Caption: After the deploy: the live address, then the offer to add the stage to the Console.
+
 
 ## Without a browser
 
@@ -16971,6 +16999,10 @@ The summary shows:
 - **Where it goes**: each project's share of the month, plus **Outside projects** for spend that belongs to no stack, such as AWS Support or resources you created by hand. AWS credits are subtracted at the bottom.
 - **The Stacktape fee**: on Flexible, the fee so far this month; on Free, how close the organization is to the $200 limit. It appears for members who can see billing, and only for all accounts and all projects, because the fee is charged on the whole organization. See [Billing and subscription](/stacktape-console/billing-and-subscription).
 
+
+> Screenshot: The Costs page: month, AWS account and project filters, the month's AWS costs so far with the forecast and the Stacktape fee, a month-by-month chart, and each project's share under Where it goes Caption: The Costs summary for all AWS accounts and projects.
+
+
 Below the summary, two tabs list the details:
 
 - **Stages**: every stage with costs, with its project, its largest AWS charge, the month's cost and the month before. A stage without a report for the month shows **Not reported**.
@@ -18184,6 +18216,10 @@ Open **Observability → Error tracking**.
    failing request, and the version that was deployed when it failed.
 5. Use the row's menu to **Resolve** an error you fixed, **Ignore…** one you don't want to see, or **Reopen** it.
 
+
+> Screenshot: The Error tracking page: the Open, Resolved, Ignored and All tabs with counts, search, project and stage filters, and error rows with their project, stage, function, source line, event count and last seen time Caption: Open errors across projects, newest first, each with its function, source line and count.
+
+
 A resolved error that occurs again goes back to **Open**. An ignored error stays ignored, and its new occurrences are
 not counted.
 
@@ -18500,6 +18536,10 @@ Stacktape can open incidents from:
 
 Signals are grouped by project, stage, region, release, resource and time. An incident keeps all its signals and its
 history, including signals that already recovered.
+
+
+> Screenshot: A critical incident in the Console: its title, project and stage, Acknowledge and Resolve buttons, its status and likely cause, and a chart of the five signals that started failing around a failed deploy Caption: One incident groups the alarm, errors, uptime check and synthetic test that failed after the same deploy.
+
 
 A new runtime error enters the incident queue without alerting anyone. An error that returns after you resolved it, or
 that occurs 20 times, alerts the incident's channels. Uptime, synthetic and alarm signals alert when they open the
@@ -40124,6 +40164,10 @@ The Console is optional. The [CLI](/cli) is open source and deploys without it; 
 1. Open **Projects** at the top of the sidebar and select your project. A project is usually one repository, with stages such as `production` and `dev`. [Organizations, projects and stages](/stacktape-console/organizations-projects-and-stages) explains how they relate.
 2. Select the stage in the row of stages in the project header. Its page has the tabs **Overview**, **Activity**, **Costs**, **Configuration**, **Diagram** and **Danger zone**. Overview lists the stage's endpoints and resources.
 3. Click a resource. Its details show **Logs**, **Logs live tail**, **Metrics**, its **Configuration** and the **AWS resources** behind it. Containers also offer a **Remote session**.
+
+
+> Screenshot: A web service in a stage of the Console: its tabs, including Logs and Metrics, its running tasks, request, error rate, latency and CPU charts, and its latest log lines with an Open logs link Caption: A resource of the storefront production stage, with its latest logs.
+
 
 The **Logs** page in the Observability group searches the logs of the whole organization. From the terminal, [`stacktape logs`](/cli/logs) reads the same logs. See [Logs](/observability/logs).
 

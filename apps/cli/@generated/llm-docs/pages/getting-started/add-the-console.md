@@ -26,6 +26,10 @@ You don't need the Console to deploy. The CLI works without an account; see
 
 After a successful deploy, the wizard shows **Add dev to the Stacktape Console** below the live address.
 
+
+> Screenshot: Add dev to the Stacktape Console, free up to $200 a month of AWS spend, with Connect to the Console and Not now, and a note that the stack is not redeployed Caption: The Console offer in the init wizard after a successful deploy.
+
+
 1. Click **Connect to the Console**. A new tab opens the Stacktape sign-in.
 2. Sign in, or create an account. Check that the tab shows the same code as the wizard, and approve.
 3. If your account belongs to more than one organization, pick one.
