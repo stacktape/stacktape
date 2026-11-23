@@ -3243,7 +3243,7 @@ The `stacktape deploy` command deploys your stack to AWS. If the stack does not 
 stacktape deploy --stage <stage> --region <region>
 ```
 
-Both `--stage` and `--region` are required. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--config`.
+`--stage` is required unless you set a default stage with [`defaults set`](/cli/defaults-configure). `--region` can be left out when the region is set elsewhere: in the config's `region`, in `AWS_DEFAULT_REGION`, with `defaults set` or in your AWS profile, checked in that order. In a terminal, the CLI asks when none is set. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--config`.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
@@ -3251,11 +3251,12 @@ stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktap
 
 ## What happens during deploy
 
-1. **Validate** — Reads your config, validates guardrails, and ensures referenced secrets exist.
+1. **Validate** — Reads your config and validates guardrails. Then it asks every question before it changes anything: whether to go on when an update deletes or replaces stateful resources, and the values of secrets that don't exist yet. Missing database passwords are generated. Without a terminal, a question stops the deploy unless you pass `--yes`, and a missing secret that can't be generated always stops it. Create it first with [`secret set`](/cli/secret-set).
 2. **Build & package** — Packages workloads for deployment. Cached artifacts are reused when possible.
 3. **Upload** — Uploads deployment artifacts for the stack.
-4. **Deploy** — Creates or updates a CloudFormation stack. When only code changed, updates the changed functions and container services directly instead (see [Fast deployments](#fast-deployments)).
-5. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
+4. **Release commands** — Runs your [release commands](/deployment-and-lifecycle/release-commands), such as database migrations, before any workload gets the new code. A failed command stops the deploy.
+5. **Deploy** — Creates or updates a CloudFormation stack. When only code changed, updates the changed functions and container services directly instead (see [Fast deployments](#fast-deployments)).
+6. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
 
 After a successful deploy, Stacktape prints short stack information and completion links, including a Stacktape Console URL for the deployed stack.
 
@@ -3279,6 +3280,10 @@ A deployment uses CloudFormation when:
 
 A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--full`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
+For Node.js and Python web services that meet the [limits](/deployment-and-lifecycle/code-swap#supported-services), `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.
+
+When the build is the slow part, [`--runner ec2`](#--runner) moves it off your machine. In CI, image builds already reuse unchanged Docker layers from a cache in the stack's ECR repository. See [Deployment is slow](/deployment-and-lifecycle/deploying-stacks#deployment-is-slow) for more causes.
+
 ## Common flags
 
 ### `--full`
@@ -3299,7 +3304,7 @@ stacktape deploy --stage production --region eu-west-1 --yes
 
 ### `--auto-rollback`
 
-By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment.
+By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. When `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes` is set, a failed deployment always rolls back. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --auto-rollback
@@ -3326,6 +3331,22 @@ stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktap
 ### `--no-layer-optimization`
 
 By default, Stacktape extracts shared code into Lambda layers to reduce per-function deployment size. Disable this to bundle all code directly into each Lambda function — useful if you need to inspect the full function package or if layer extraction causes issues.
+
+### `--skip-release-command`
+
+Deploys without running the [release commands](/deployment-and-lifecycle/release-commands#skipping-and-interrupting). Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without the flag runs it.
+
+### `--runner`
+
+`--runner ec2` runs the build and deployment on the project's [EC2 runner](/ci-cd-and-gitops/build-runners) in your AWS account instead of your machine. It deploys the current Git commit, so uncommitted changes are left out. It needs a Stacktape Console sign-in and does not accept `--auto-rollback`; set `deploymentConfig.autoRollback` in the config instead.
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --runner ec2
+```
+
+### `--no-remote-cache`
+
+In CI, image builds for an existing stack keep Docker's layer cache in the stack's ECR repository, so a fresh CI machine still reuses unchanged layers. Outside CI, Docker's local cache is used. Pass this flag to build without the ECR cache in CI as well.
 
 ### `--show-secrets`
 
@@ -3397,6 +3418,8 @@ stacktape deploy --stage production --region eu-west-1 --full
 stacktape deploy --stage production --region us-east-1 --yes
 ```
 
+The CI job needs AWS credentials, or a Stacktape API key when you use the Console; see [authentication in CI](/ci-cd-and-gitops/custom-ci-cd#authentication). Database passwords are generated. Create the other secrets the config uses before the first run: a missing one fails the deploy before it changes anything. Two runs that deploy the same stage at once [wait for each other](/ci-cd-and-gitops/custom-ci-cd#concurrent-deploys-to-the-same-stage).
+
 ### Preview changes before deploying
 
 Use [`diff`](/cli/diff) to see what a deploy would modify without actually applying changes:
@@ -3404,6 +3427,8 @@ Use [`diff`](/cli/diff) to see what a deploy would modify without actually apply
 ```bash
 stacktape diff --stage production --region us-east-1
 ```
+
+Stacktape does not currently check CloudFormation resource drift before deploying. Manual changes to stack resources can affect an update; review the proposed changes with [`diff`](/cli/diff).
 
 ## Free plan cost limit
 
@@ -3426,8 +3451,6 @@ Upgrading to the Flexible plan lifts the limit immediately; otherwise deploys re
 
 Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape rejects the deploy with an error. To deploy a production stack, use a different stage name (e.g., `--stage production`). To remove a dev stack, use [`stacktape delete`](/cli/delete).
 
-Stacktape does not currently check CloudFormation resource drift before deploying. Manual changes to stack resources can affect an update; review the proposed changes with [`diff`](/cli/diff).
-
 ## Related commands
 
 | Command | Description |
@@ -3435,8 +3458,6 @@ Stacktape does not currently check CloudFormation resource drift before deployin
 | [`diff`](/cli/diff) | Previews a deploy without updating the live stack. It can write to AWS. |
 | [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
 | [`stack recover`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
-
-For eligible Node.js Fargate web services, `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.
 
 ---
 
