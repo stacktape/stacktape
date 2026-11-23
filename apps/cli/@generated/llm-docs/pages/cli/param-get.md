@@ -17,7 +17,28 @@ Common scenarios for `param get`:
 - Read a resource ARN to pass into another CLI command or CI step.
 - Verify the actual deployed value of a parameter after a deploy completes.
 
-If you need a broader overview of all stack outputs and resources at once, use [`status`](/cli/status) instead.
+If you need a broader overview of all stack outputs and resources at once, use [`status`](/cli/info-stack) instead.
+
+## Arguments reference
+
+
+## CLI Options: `stacktape param get`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--param-name (positional 2)` | yes | `string` | Parameter Name — The name of the resource parameter. | - |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
+
 
 ## Examples
 
@@ -27,7 +48,7 @@ Retrieve a parameter from a deployed resource.
 stacktape param get api url --region us-east-1
 ```
 
-Pass `--stage` when you want to target a specific stage explicitly. Include it unless you have set a default stage via [`defaults set`](/cli/defaults-set).
+Pass `--stage` when you want to target a specific stage explicitly. Include it unless you have set a default stage via [`defaults set`](/cli/defaults-configure).
 
 ```bash
 stacktape param get mainDatabase connectionString --region eu-west-1 --stage production
@@ -71,31 +92,10 @@ Pass `--agent` or `--json` to get machine-readable JSONL output (one JSON object
 
 ### What is the difference between param get and status?
 
-[`param get`](/cli/param-get) retrieves a single parameter value from a single resource — ideal for scripting and automation. [`status`](/cli/status) returns a broader overview of all outputs and AWS resources in the stack — better for exploration and discovery after a deployment.
-
-## Options
-
-
-## CLI Options: `stacktape param get`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--param-name (positional 2)` | yes | `string` | Parameter Name — The name of the resource parameter. | - |
-| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--show-secrets` | no | `boolean` | Show Secrets — If `true`, the command includes secret values in its output: database passwords, connection strings with credentials and other stack parameters Stacktape stores as sensitive, and the value a `secret get` reads. Without it, each of them is `>` in the terminal, in JSON output and in the stack-info file. Use it only where the output stays private, never in shared CI logs. | - |
-| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-
+[`param get`](/cli/param-get) retrieves a single parameter value from a single resource — ideal for scripting and automation. [`status`](/cli/info-stack) returns a broader overview of all outputs and AWS resources in the stack — better for exploration and discovery after a deployment.
 
 ## Related commands
 
-- [`status`](/cli/status) — view all outputs and resources in a deployed stack.
+- [`status`](/cli/info-stack) — view all outputs and resources in a deployed stack.
 - [`synth`](/cli/synth) — compile your Stacktape configuration into a CloudFormation template for inspection before deployment.
-- [`defaults set`](/cli/defaults-set) — set default region and stage so you can omit them from repeated commands.
+- [`defaults set`](/cli/defaults-configure) — set default region and stage so you can omit them from repeated commands.

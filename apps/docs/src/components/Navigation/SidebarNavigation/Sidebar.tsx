@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { ContentTree } from './ContentTree';
 import type { DocsVersion } from '@/site-config';
 import type { DocPage } from '@/utils/docs-data';
@@ -36,16 +37,6 @@ if (typeof window !== 'undefined' && !(window as Window & { stpSidebarScrollInit
 
   let saved = 0;
   let muteSavesUntil = 0;
-
-  // A page opened directly (from search or a link) can sit far below the sidebar's first screen: bring it into view
-  // without moving the page itself.
-  const revealActiveRow = () => {
-    const el = getScroller();
-    const active = el?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!el || !active) return;
-    const rowTop = active.getBoundingClientRect().top - el.getBoundingClientRect().top;
-    if (rowTop < 0 || rowTop > el.clientHeight - 48) el.scrollTop += rowTop - el.clientHeight / 3;
-  };
 
   const applySaved = () => {
     const el = getScroller();
@@ -92,28 +83,40 @@ if (typeof window !== 'undefined' && !(window as Window & { stpSidebarScrollInit
   // First load / hard reload: seed from sessionStorage and restore once laid out.
   document.addEventListener('astro:page-load', () => {
     if (saved === 0) saved = readSavedScroll();
-    requestAnimationFrame(() => {
-      applySaved();
-      revealActiveRow();
-    });
+    requestAnimationFrame(applySaved);
   });
 }
 
 export function SidebarNavigation({
+  showOnSm,
   allDocPages,
   pathname,
   version = 'v4'
 }: {
+  showOnSm: boolean;
   allDocPages: DocPage[];
   pathname?: string;
   version?: DocsVersion;
 }) {
   return (
-    <aside className="docs-sidebar">
-      {/* `data-stp-sidebar-scroller` is the hook the module-level scroll-persistence listeners above use. */}
-      <nav aria-label="Documentation" data-stp-sidebar-scroller className="docs-sidebar-scroller">
+    <nav
+      className={clsx(
+        'flex flex-col sticky top-[54px] left-0 right-0 h-[calc(100vh-54px)] w-[295px] min-w-[295px] overflow-x-hidden',
+        'max-[795px]:top-[unset] max-[795px]:w-full max-[795px]:h-auto max-[795px]:border-r-0 max-[795px]:relative',
+        showOnSm ? 'max-[795px]:block' : 'max-[795px]:hidden'
+      )}
+    >
+      {/* `auto` reserves no space when content fits; `scroll` always reserved a track even when
+          there was nothing to scroll, and the legacy `overlay`-on-hover swap caused the scrollbar
+          to disappear when you tried to grab it. `data-stp-sidebar-scroller` is the hook the
+          module-level scroll-persistence listeners above use to save/restore this offset. */}
+      <div
+        data-stp-sidebar-scroller
+        className="stp-pretty-scrollbar block self-end w-full m-0 pt-5 overflow-y-auto border-r border-r-border-light [align-content:right] [-webkit-overflow-scrolling:touch] max-[795px]:w-full max-[795px]:bg-[unset] max-[795px]:px-3 max-[795px]:animate-grow-down"
+      >
         <ContentTree allDocPages={allDocPages} pathname={pathname} version={version} />
-      </nav>
-    </aside>
+        <div className="h-[25px]" />
+      </div>
+    </nav>
   );
 }

@@ -1,10 +1,14 @@
-# Cost optimization tips
+# Cost Optimization Tips
 
-These are the changes that lower an AWS bill the most without making your app less reliable. Before you change anything, find where the money goes on the [Costs page](/managing-costs/dashboards). Prices below are rough figures for `us-east-1`; check the AWS pricing page of each service for your region.
+AWS bills go directly to your AWS account — Stacktape's subscription fee is separate. Many deployed AWS resources can incur cost, and always-on resources compound over time. This page covers the highest-impact levers for reducing what you pay without sacrificing reliability.
+
+
+> **Info:** Use the [cost dashboards](/managing-costs/dashboards) and [per-resource breakdown](/managing-costs/per-resource-breakdown) in the Stacktape Console to identify where your spend is concentrated before optimizing. Set up [budget alerts](/managing-costs/budgets) so you catch cost spikes early.
+
 
 ## Choose the right compute model
 
-The biggest cost lever is choosing the right compute model for your workload. [Lambda functions](/resources/compute/lambda-function), container services, and [batch jobs](/resources/compute/batch-job) bill in different ways: per invocation, per hour or per job run. With the wrong one you pay for idle capacity, or per request where a flat rate would be cheaper.
+The biggest cost lever is choosing the right compute model for your workload. [Lambda functions](/resources/compute/lambda-function), container services, and [batch jobs](/resources/compute/batch-job) have fundamentally different pricing structures — picking the wrong one can cost you 5–10x more than necessary.
 
 ### Lambda functions: pay-per-invocation
 
@@ -79,7 +83,7 @@ export default defineConfig(() => {
 
 `resources.cpu` sets the vCPU count and `resources.memory` sets memory in MB. The value `7680` MB is intentionally below 8 GB because AWS reserves memory for system processes — requesting exactly 8,192 MB may provision a larger instance than needed.
 
-In this example, `attempts: 3` means three runs in total: the first run and up to two retries. The default is `1`, no retry. `retryIntervalSeconds: 30` and `retryIntervalMultiplier: 2` wait 30 seconds before the second run and 60 seconds before the third. `timeout: 3600` stops a run after one hour, so a stuck job doesn't keep billing. See [Batch job](/resources/compute/batch-job) for the retry options.
+In this example, `attempts: 3` sets the maximum retry attempts before the job is marked failed; the default is `1`. `retryIntervalSeconds: 30` sets the initial wait between retries (default is `0`). `retryIntervalMultiplier: 2` creates exponential backoff — waits of 30s, 60s, 120s (default is `1` — constant interval). The `timeout: 3600` kills the job after 1 hour if it hasn't completed, preventing runaway costs.
 
 Do not use spot instances for jobs with non-idempotent side effects (sending emails, charging payments) or strict completion deadlines.
 
@@ -87,14 +91,14 @@ Do not use spot instances for jobs with non-idempotent side effects (sending ema
 
 For [web services](/resources/compute/web-service), the load balancing type directly affects monthly cost. The `loadBalancing` property accepts three types:
 
-**`http-api-gateway` (default)** charges about $1 per million requests and has no base cost. At low traffic it is the cheapest option; the cost grows with every request.
+**`http-api-gateway` (default)** charges ~$1 per million requests with no base cost. At low traffic, this is the cheapest option. At high sustained traffic (above ~500k requests/day), the per-request charges add up and a flat-rate load balancer becomes more cost-effective.
 
-**`application-load-balancer`** charges about $16 a month per load balancer in us-east-1 even with no traffic, plus capacity units for connections, requests and bytes. For small requests, it becomes the cheaper option somewhere around 500,000 requests a day; large responses or many long connections move that point. See [API Gateway pricing](https://aws.amazon.com/api-gateway/pricing/) and [Elastic Load Balancing pricing](https://aws.amazon.com/elasticloadbalancing/pricing/). It's required for [gradual deployments](/deployment-and-lifecycle/gradual-deployments), top-level [firewalls](/resources/security/web-application-firewall), and WebSocket support.
+**`application-load-balancer`** has a flat base cost of ~$18/month plus usage-based charges. It becomes more cost-effective than API Gateway at higher traffic volumes. It's required for [gradual deployments](/deployment-and-lifecycle/gradual-deployments), top-level [firewalls](/resources/security/web-application-firewall), and WebSocket support.
 
 **`network-load-balancer`** is for non-HTTP traffic (TCP/TLS) like MQTT, game servers, or custom protocols — use it only when you need raw TCP. It does not support CDN, top-level firewall, or gradual deployments.
 
 
-> **Tip:** Most teams should start with the default `http-api-gateway`. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your request volume makes its hourly cost cheaper than per-request pricing.
+> **Tip:** Most teams should start with the default `http-api-gateway`. Switch to `application-load-balancer` only when you need its specific features (gradual deployments, WebSockets, firewall) or when your request volume makes the flat monthly cost cheaper than per-request pricing.
 
 
 ## Right-size Lambda memory
@@ -107,7 +111,7 @@ Set `timeout` to the lowest value your function needs. Timeouts don't affect cos
 
 ## Right-size container resources
 
-For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics), with [`stacktape metrics`](/cli/metrics) (`CPUUtilization`, `MemoryUtilization`) or in CloudWatch. If utilization is consistently below 30%, you're paying for capacity you don't use.
+For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or with [`stacktape metrics`](/cli/metrics) — if utilization is consistently below 30%, you're paying for capacity you don't use.
 
 Start at the smallest CPU/memory combination that keeps your application responsive and scale up only when metrics justify it. See the [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), and [worker service](/resources/compute/worker-service) pages for the supported CPU and memory values on each resource.
 
@@ -141,7 +145,7 @@ export default defineConfig(() => {
 ```
 
 
-In this example, `cpu: 0.5` requests half a vCPU and `memory: 1024` requests 1,024 MB — the smallest values that keep this service responsive. `minInstances: 1` is the always-on floor (you always pay for at least one instance), while `maxInstances: 4` caps how many instances run, and with it this service's compute cost. It doesn't limit the cost of anything else, such as the load balancer, data transfer or the database. `keepAvgCpuUtilizationUnder: 70` tells the auto-scaler to add instances when average CPU exceeds 70% — adjust this threshold based on observed metrics. See the [web service](/resources/compute/web-service) page for all available scaling options and supported CPU/memory values.
+In this example, `cpu: 0.5` requests half a vCPU and `memory: 1024` requests 1,024 MB — the smallest values that keep this service responsive. `minInstances: 1` is the always-on floor (you always pay for at least one instance), while `maxInstances: 4` caps horizontal scale-out and acts as your cost ceiling. `keepAvgCpuUtilizationUnder: 70` tells the auto-scaler to add instances when average CPU exceeds 70% — adjust this threshold based on observed metrics. See the [web service](/resources/compute/web-service) page for all available scaling options and supported CPU/memory values.
 
 ## Choose the right database engine
 
@@ -149,9 +153,9 @@ In this example, `cpu: 0.5` requests half a vCPU and `memory: 1024` requests 1,0
 
 ### Aurora Serverless v2 for variable workloads
 
-Aurora Serverless v2 scales capacity with demand, between `minCapacity` and `maxCapacity` in ACUs (about 2 GB of memory each). With `minCapacity` left out, Stacktape sets 0: the database pauses after about five minutes without connections, you pay only for storage, and the first connection after a pause waits about 15 seconds. At 0.5 ACU or more it keeps running and costs money while idle. Keep the default for dev and staging, and set `maxCapacity` to cap what a spike can cost. See [Aurora Serverless v2](/resources/databases/relational-database#aurora-serverless-v2).
+Aurora Serverless v2 scales capacity automatically based on demand. You pay only for the capacity you consume at any moment. Set a low `minCapacity` for dev/staging environments to minimize idle cost, and cap `maxCapacity` to control the upper bound of your bill.
 
-It suits variable or unpredictable traffic: it handles spikes without resizing an instance, and at night it shrinks to the floor instead of running at full size.
+Aurora Serverless v2 is the recommended engine for most new projects where traffic is variable or unpredictable. It handles traffic spikes automatically without manual instance resizing and avoids paying for idle capacity during off-hours.
 
 ### Standard RDS for predictable workloads
 
@@ -162,12 +166,12 @@ Standard RDS uses fixed instance sizes with hourly billing. If your traffic is s
 Enabling `multiAz` on a standard RDS instance creates a synchronous standby replica, which roughly doubles the instance cost. Skip it for development and staging stages. For production, enable it only when your uptime requirements justify the extra cost. Aurora clusters replicate across 3 AZs automatically, so multi-AZ resilience is built in without the explicit flag.
 
 
-> **Tip:** For dev/staging stages, use Aurora Serverless v2 and leave `minCapacity` out, so the database pauses when idle. For production, evaluate whether your traffic is stable enough for standard RDS (cheaper per-hour when fully utilized) or variable enough to benefit from Aurora Serverless v2 (cheaper at low or fluctuating utilization).
+> **Tip:** For dev/staging stages, use Aurora Serverless v2 with a low `minCapacity`. This gives you a real database that costs very little when idle. For production, evaluate whether your traffic is stable enough for standard RDS (cheaper per-hour when fully utilized) or variable enough to benefit from Aurora Serverless v2 (cheaper at low or fluctuating utilization).
 
 
 ## Use serverless databases where possible
 
-For key-value and document workloads, [DynamoDB](/resources/databases/dynamodb) in on-demand mode charges per read and write, so with no traffic you pay only for the data stored. This makes it ideal for applications with unpredictable or spiky access patterns. Switch to provisioned throughput only when your traffic is steady and predictable enough to forecast capacity needs.
+For key-value and document workloads, [DynamoDB](/resources/databases/dynamodb) in on-demand mode costs nothing at zero traffic. You pay per read and write operation with no idle cost. This makes it ideal for applications with unpredictable or spiky access patterns. Switch to provisioned throughput only when your traffic is steady and predictable enough to forecast capacity needs.
 
 For Redis use cases that don't require sub-millisecond latency from a dedicated cluster, consider [Upstash Redis](/resources/databases/upstash-redis) — a serverless, pay-per-request Redis with no idle cost. [Redis caches](/resources/databases/redis) bill per-hour for always-on instances regardless of utilization, so they're only cost-effective when you need consistent low-latency access under sustained load.
 
@@ -215,7 +219,7 @@ If you need long-term log storage for compliance, consider [forwarding logs](/ob
 
 Every deployed [stage](/configuration/stages-and-environments) consumes AWS resources. Old feature-branch stages, abandoned test stacks, and forgotten staging environments accumulate idle cost — especially for always-on resources like container services, databases, and Redis caches.
 
-Review your stacks regularly in the Stacktape Console or with [`stacktape stack list`](/cli/stack-list). Delete any stage that's no longer needed:
+Review your stacks regularly in the Stacktape Console or with [`stacktape stack list`](/cli/info-stacks). Delete any stage that's no longer needed:
 
 ```bash
 stacktape delete --stage old-feature
@@ -225,7 +229,7 @@ For PR-preview workflows, see the [stacks-per-git-branch pattern](/ci-cd-and-git
 
 ## Avoid unnecessary NAT Gateways
 
-A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting, private subnet egress for a workload that needs it, or internet access for Lambda functions inside the VPC. Most workloads don't need one. When you do need NAT, `stackConfig.nat: ec2` or `ha-ec2` runs small Stacktape-managed instances instead of gateways (about $7 instead of $32 per month per zone, no per-GB fee) at the cost of about a minute of failed outbound calls when an instance dies; see [VPC and networking](/configuration/connecting-resources#vpc-and-networking). Non-production stages with `nat: ec2` share one NAT instance by default, so five preview stages pay about $7.70 per month for NAT in total instead of five times that; see [shared network for non-production stages](/configuration/shared-network).
+A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting, private subnet egress for a workload that needs it, or internet access for Lambda functions inside the VPC. Most workloads don't need one. When you do need NAT, `stackConfig.nat: ec2` or `ha-ec2` runs small Stacktape-managed instances instead of gateways (about $7 instead of $32 per month per zone, no per-GB fee) at the cost of about a minute of failed outbound calls when an instance dies; see [VPC and networking](/configuration/connecting-resources#vpc-and-networking). Non-production stages with `nat: ec2` share one NAT instance by default, so five preview stages pay about $7.70 per month for NAT in total instead of five times that; see [shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
 
 For details on VPC networking and private subnet configuration, see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [multi-container workload](/resources/compute/multi-container-workload) resource pages.
 
@@ -264,7 +268,7 @@ Use this checklist when reviewing a stack's cost profile:
 
 ### How do I see what each resource costs?
 
-The Stacktape Console provides [per-resource cost breakdowns](/managing-costs/dashboards#a-stages-costs) that attribute AWS charges to individual resources, stages, and projects. You can also view overall AWS spend across your organization using the [cost dashboards](/managing-costs/dashboards). AWS bills your AWS account directly — these tools help you understand the bill, but they don't add charges.
+The Stacktape Console provides [per-resource cost breakdowns](/managing-costs/per-resource-breakdown) that attribute AWS charges to individual resources, stages, and projects. You can also view overall AWS spend across your organization using the [cost dashboards](/managing-costs/dashboards). AWS bills your AWS account directly — these tools help you understand the bill, but they don't add charges.
 
 ### Does Stacktape add cost on top of AWS?
 
@@ -276,7 +280,7 @@ No. A [web service](/resources/compute/web-service) is a container running 24/7 
 
 ### When should I use Aurora Serverless v2 vs standard RDS?
 
-Use Aurora Serverless v2 when your database traffic is variable or has long quiet periods: it scales down to `minCapacity` when unused. Use standard RDS when traffic is steady: a fixed-size instance avoids the per-ACU premium. For dev and staging, compare Aurora at 0.5 ACU with the smallest burstable RDS instance in your region.
+Use Aurora Serverless v2 when your database traffic is variable, unpredictable, or has significant idle periods — it scales capacity automatically and you pay only for what you use. Use standard RDS when traffic is steady and predictable — a fixed-size instance avoids the per-ACU premium. For dev/staging, Aurora Serverless v2 at a low `minCapacity` is almost always cheaper since it scales down when unused.
 
 ### How do I reduce Lambda cold start costs without provisioned concurrency?
 
@@ -284,8 +288,8 @@ Provisioned concurrency reduces cold starts but adds idle compute cost, since ea
 
 ### How does DynamoDB on-demand pricing compare to provisioned?
 
-DynamoDB on-demand mode charges per read and write operation, plus storage. Provisioned mode lets you reserve a fixed throughput (reads/writes per second) at a lower per-unit price but bills continuously even at zero traffic. On-demand is cheaper for variable or low-traffic tables. Provisioned with auto-scaling is cheaper when you have sustained, predictable throughput and can accurately forecast capacity.
+DynamoDB on-demand mode charges per read and write operation with no idle cost. Provisioned mode lets you reserve a fixed throughput (reads/writes per second) at a lower per-unit price but bills continuously even at zero traffic. On-demand is cheaper for variable or low-traffic tables. Provisioned with auto-scaling is cheaper when you have sustained, predictable throughput and can accurately forecast capacity.
 
 ### How do I prevent unexpected cost spikes?
 
-Set up [budget alerts](/managing-costs/budgets) with thresholds at 80% and 100% of your expected monthly spend. Cap auto-scaling with `maxInstances` on container services and `maxCapacity` on Aurora Serverless v2 databases. Set `timeout` on batch jobs so stuck jobs are killed. Review the [per-resource breakdown](/managing-costs/dashboards#a-stages-costs) weekly to catch anomalies early. Delete old [stages](/configuration/stages-and-environments) you're no longer using.
+Set up [budget alerts](/managing-costs/budgets) with thresholds at 80% and 100% of your expected monthly spend. Cap auto-scaling with `maxInstances` on container services and `maxCapacity` on Aurora Serverless v2 databases. Set `timeout` on batch jobs so stuck jobs are killed. Review the [per-resource breakdown](/managing-costs/per-resource-breakdown) weekly to catch anomalies early. Delete old [stages](/configuration/stages-and-environments) you're no longer using.

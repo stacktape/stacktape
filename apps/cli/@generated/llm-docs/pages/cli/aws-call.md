@@ -1,6 +1,6 @@
 # aws call
 
-`stacktape aws call` sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
+The `aws call` command sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
 stack. Use it when Stacktape's purpose-built inspection commands do not expose the AWS data you need.
 
 ## Safety model
@@ -110,6 +110,26 @@ resource-specific validation, and usually provide more useful output.
 | Inspect a Stacktape OpenSearch domain   | [`query opensearch`](/cli/query-opensearch) |
 | Call another reviewed read-only AWS API | `aws call`                                  |
 
+## CLI options
+
+
+## CLI Options: `stacktape aws call`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--command (positional 2)` | yes | `string` | AWS SDK Command — AWS SDK command name (e.g., ListFunctions, Scan, GetObject). | - |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--service (positional 1)` | yes | `string` | AWS SDK Service — AWS service name (e.g., lambda, dynamodb, s3, logs). | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--input` | no | `string` | AWS SDK Input — JSON string containing the command input parameters. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
+
+
 ## Troubleshooting
 
 ### The service is not supported
@@ -138,22 +158,3 @@ grant IAM permissions.
 
 No. A local configuration file is optional, but a deployed target stack is not. Use the AWS CLI or an AWS SDK directly
 for resources that are not associated with a deployed Stacktape stack.
-
-## Options
-
-
-## CLI Options: `stacktape aws call`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--command (positional 2)` | yes | `string` | AWS SDK Command — AWS SDK command name (e.g., ListFunctions, Scan, GetObject). | - |
-| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--service (positional 1)` | yes | `string` | AWS SDK Service — AWS service name (e.g., lambda, dynamodb, s3, logs). | - |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--input` | no | `string` | AWS SDK Input — JSON string containing the command input parameters. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |

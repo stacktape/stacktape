@@ -1,23 +1,35 @@
 ---
-title: 'Edge function'
-order: 7
+title: 'Edge Function'
+order: 36
 seoTitle: 'Edge Functions | Stacktape Docs'
 seoDescription: 'Run Lambda code at CloudFront edge locations with Stacktape. Package request and response logic, set edge limits, and manage IAM access.'
 ---
 
-An edge function is a Lambda@Edge function that CloudFront runs on requests and responses of a
-[CDN](/resources/networking/cdn), at locations close to your users. Use it for small decisions before or after the
-origin: redirects, URL rewrites, security headers, A/B routing or a quick token check.
+# Edge Function
 
-It can't use environment variables or reach anything in your VPC, and a viewer-side function gets at most 128 MB and
-5 seconds. Lambda@Edge costs $0.60 per million requests plus run time, with no free tier
-([Lambda@Edge pricing](https://aws.amazon.com/lambda/pricing/)). For rules a CDN can express without code, such as
-caching or path routing, use the [CDN settings](/resources/networking/cdn); for application logic, a
-[Lambda function](/resources/compute/lambda-function).
+A Stacktape edge function is an `EdgeLambdaFunction` resource that packages Lambda code for CloudFront edge events such as viewer request and origin request. Use it to make small request or response decisions close to users: rewrite URLs, adjust headers, run A/B routing, or add lightweight authorization checks before traffic reaches an origin.
+
+## When to use
+
+An edge function is the right choice when the request decision belongs at the CDN layer rather than inside your origin application. Common use cases:
+
+- **Header changes** — add, remove, or normalize request and response headers before CloudFront forwards traffic.
+- **URL rewrites** — route legacy paths, locale prefixes, or experiment paths without changing the origin application.
+- **A/B routing** — choose an origin path or variant at the edge before the request reaches your backend.
+- **Lightweight authorization checks** — reject clearly invalid requests before they consume origin capacity.
+
+## When NOT to use
+
+An edge function is the wrong tool when the logic needs normal application runtime features, VPC networking, or environment-variable configuration. Use a regular [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), or CDN configuration instead when the work does not have to run on CloudFront edge events.
+
+- **General API logic** — use a [Lambda function](/resources/compute/lambda-function) or [web service](/resources/compute/web-service) for business logic, database access, and larger handlers.
+- **VPC resource access** — edge functions cannot connect to VPC resources, so do not use them for direct relational database or Redis access.
+- **Environment-based configuration** — edge functions cannot use environment variables; keep configuration in code or choose another compute resource.
+- **Static caching rules** — use a [CDN](/resources/networking/cdn) when routing or caching can be expressed without code.
 
 ## Basic example
 
-This edge function adds a security header to every response of a bucket's CDN:
+This example defines an edge function packaged from a TypeScript entry file. The function is a standalone Stacktape resource, referenced from CDN `edgeFunctions` configuration on a [CDN](/resources/networking/cdn) resource.
 
 <CodeBlock
   intellisense
@@ -25,27 +37,20 @@ This edge function adds a security header to every response of a bucket's CDN:
     {
       label: 'TypeScript',
       lang: 'typescript',
-      code: `import { defineConfig, Bucket, EdgeLambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+      code: `import { defineConfig, EdgeLambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const securityHeaders = new EdgeLambdaFunction({
+  const edgeAuth = new EdgeLambdaFunction({
     packaging: new JsBundleLambdaPackaging({
-      entryfilePath: './src/edge/security-headers.ts'
-    })
-  });
-
-  const website = new Bucket({
-    cdn: {
-      enabled: true,
-      edgeFunctions: {
-        onResponse: 'securityHeaders'
-      }
-    }
+      entryfilePath: './src/edge-auth.ts',
+      handlerFunction: 'handler'
+    }),
+    runtime: 'nodejs22.x'
   });
 
   return {
-    resources: { securityHeaders, website }
+    resources: { edgeAuth }
   };
 });
 // [!code focus-end]`
@@ -53,29 +58,19 @@ export default defineConfig(() => {
   ]}
 />
 
-The handler gets the CloudFront event and returns the changed response:
-
-```ts
-export const handler = async (event: any) => {
-  const { response } = event.Records[0].cf;
-  response.headers['x-frame-options'] = [{ key: 'X-Frame-Options', value: 'DENY' }];
-  return response;
-};
-```
-
-After the deploy, `curl -I` on the CDN URL of any file in the bucket shows `x-frame-options: DENY`. Stacktape deploys
-edge functions to `us-east-1`, as CloudFront requires, whatever your stack's region.
+`runtime` is optional because Stacktape can auto-detect the Lambda runtime from the file extension. Set it explicitly when you want to pin a supported runtime; edge functions support Node.js (`nodejs24.x`, `nodejs22.x`, `nodejs20.x`, `nodejs18.x`) and Python (`python3.13` through `python3.8`).
 
 ## CDN attachment
 
-A CDN's `edgeFunctions` names the function for one of four hooks: `onRequest` and `onResponse` run between the
-viewer and CloudFront; `onOriginRequest` and `onOriginResponse` run between CloudFront and your origin, only on cache
-misses. Route rewrites can attach their own functions. See [Edge functions on the CDN](/resources/networking/cdn#edge-functions).
+An `EdgeLambdaFunction` resource is designed to be attached from CDN `edgeFunctions` configuration. Define the edge function in `resources`, then attach it from the CDN where you choose the CloudFront event that should invoke the function. The edge event matters because viewer events and origin events have different memory and timeout ceilings.
+
+The source for this resource defines the edge function and its limits, but the CDN attachment shape belongs to the [CDN](/resources/networking/cdn) resource. Keep the edge function focused on request and response manipulation, and put cache behavior, origins, and domain concerns on the CDN.
 
 ## Runtime limits
 
-`memory` defaults to 128 MB and `timeout` to 3 seconds. Viewer hooks (`onRequest`, `onResponse`) allow at most 128 MB
-and 5 seconds; origin hooks allow up to 10,240 MB and 30 seconds. Raise them only for an origin hook that needs it.
+Edge function memory and timeout limits depend on the CloudFront event type that invokes the function. Stacktape defaults to `128` MB of memory and `3` seconds of timeout. Viewer events are limited to `128` MB and `5` seconds; origin events can use up to `10,240` MB and `30` seconds.
+
+Use the viewer-event shape for lightweight request decisions that only need headers or the URL. Use an origin-event attachment only when the edge logic genuinely needs more memory or runtime before CloudFront talks to the origin. If the function starts looking like application logic, use a regional compute resource instead.
 
 <CodeBlock
   intellisense
@@ -103,18 +98,19 @@ export default defineConfig(() => {
   ]}
 />
 
-`runtime` comes from the file extension. Edge functions run Node.js (`nodejs24.x`, `nodejs22.x`, `nodejs20.x`,
-`nodejs18.x`) or Python (`python3.13` to `python3.8`).
+`memory: 128` and `timeout: 3` match the documented Stacktape defaults. Leaving the properties unset is fine for viewer-event functions; set them explicitly when you want the config to document the chosen edge budget or when an origin-event function needs a larger allowance.
 
 ## Packaging
 
-Edge functions use Lambda packaging:
+Edge functions use Lambda packaging, not container packaging. Edge functions run Node.js or Python, so two source-based packaging types apply: `js-bundle` for JavaScript and TypeScript and `buildpack` for Python. `custom-artifact` takes a pre-built deployment package. Most teams should start with source-based packaging and switch only when they already own a separate build pipeline.
 
-| Type | Use it for |
-|---|---|
-| [`js-bundle`](/packaging/function/js-bundle) | A JavaScript or TypeScript entry file (`handlerFunction` names the export) |
-| [`buildpack`](/packaging/function/buildpack) | A Python entry file and its dependencies |
-| [`custom-artifact`](/packaging/function/custom-artifact) | A package your own build produces (`packagePath`, `handler` as `file:function`) |
+| Type | When to use |
+|------|-------------|
+| [`js-bundle`](/packaging/function/js-bundle) | Bundle a JavaScript or TypeScript entry file |
+| [`buildpack`](/packaging/function/buildpack) | Package a Python entry file and its dependencies |
+| [`custom-artifact`](/packaging/function/custom-artifact) | Provide a pre-built Lambda zip, directory, or file from your own build process |
+
+`js-bundle` is the default choice for most teams. Point `entryfilePath` at your source file and optionally set `handlerFunction` to name the exported handler. Stacktape bundles and uploads the package automatically.
 
 <CodeBlock
   intellisense
@@ -139,6 +135,8 @@ export default defineConfig(() => {
     }
   ]}
 />
+
+The custom-artifact mode (`CustomArtifactLambdaPackaging`) is useful when a monorepo build already emits the exact Lambda package you want to deploy. `packagePath` points to the artifact, and `handler` uses the `{{filepath}}:{{functionName}}` syntax documented by the packaging type.
 
 <CodeBlock
   intellisense
@@ -166,8 +164,7 @@ export default defineConfig(() => {
 
 ## Permissions
 
-`connectTo` on an edge function grants IAM permissions only, for example to read a bucket. It injects no
-variables, because edge functions can't have any. Add other AWS permissions with `iamRoleStatements`.
+`connectTo` on an edge function grants IAM permissions only. Unlike regional Lambda functions and container workloads, an edge function cannot use environment variables and cannot connect to VPC resources. Use `connectTo` for IAM-only access where the edge function type supports it; the source examples name S3 bucket access, DynamoDB, and SES. Use `iamRoleStatements` for AWS permissions that are not covered by `connectTo`.
 
 <CodeBlock
   intellisense
@@ -207,21 +204,46 @@ export default defineConfig(() => {
   ]}
 />
 
+The `assets` connection gives the edge function IAM access to the bucket. Edge Lambda functions cannot use environment variables, so `connectTo` on an edge function is IAM-only. Code that needs connection strings or VPC security-group access should run in a regional [Lambda function](/resources/compute/lambda-function) or container resource.
+
 ## Logging
 
-Edge functions write their logs to CloudWatch in the region where CloudFront ran them, which is often not your stack's
-region. Look for them in the region closest to the users who made the requests. `logging` sets retention and
-forwarding.
+Edge function logs are sent to CloudWatch Logs in the AWS region where the function executed, not necessarily the AWS region where your Stacktape stack was deployed. That matters during incident response: a user request served from a different edge location can produce logs outside the stack region you normally inspect.
 
-## Configuration reference
+Use [`stacktape logs`](/cli/logs) for CLI log inspection, and remember that CloudWatch log location follows execution region for edge functions. The `logging` property lets you configure logging for the edge function, while the API reference carries the full option shape.
+
+## FAQ
+
+### How do I attach an edge function to CloudFront?
+
+Define the `EdgeLambdaFunction` resource in `resources`, then reference it from CDN `edgeFunctions` configuration, where you choose the CloudFront event (viewer or origin) that invokes it. The choice of event matters: it determines the function's memory and timeout ceilings. Keep origins, caching, and domains on the [CDN](/resources/networking/cdn) resource itself.
+
+### Why can't my edge function use environment variables or reach my database?
+
+Edge functions run on CloudFront edge events and have two hard limitations: they cannot use environment variables, and they cannot connect to VPC resources (so no direct relational database or Redis access). `connectTo` on an edge function only grants IAM permissions. If your code needs injected config values or VPC-backed services, move that logic to a regional [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), or [private service](/resources/compute/private-service).
+
+### Which runtimes can Stacktape edge functions use?
+
+Edge functions support Node.js (`nodejs24.x`, `nodejs22.x`, `nodejs20.x`, `nodejs18.x`) and Python (`python3.13` through `python3.8`). For broader Lambda runtime coverage, use a regional [Lambda function](/resources/compute/lambda-function).
+
+### What are the memory and timeout limits for an edge function?
+
+Limits depend on the CloudFront event the function is attached to, and the defaults are `128` MB memory and `3` second timeout. Viewer events are capped at `128` MB and `5` seconds; origin events can use up to `10,240` MB and `30` seconds. Use viewer events for lightweight header/URL decisions, and an origin event only when the logic genuinely needs the larger budget. If a handler outgrows these limits, move the work behind the CDN into a [web service](/resources/compute/web-service) or [Lambda function](/resources/compute/lambda-function).
+
+### Why can't I find my edge function's logs in my stack's region?
+
+Edge function logs go to CloudWatch Logs in the AWS region where the request was served, not necessarily the region where your stack was deployed. A request handled at a different edge location produces logs outside the region you normally inspect. Use [`stacktape logs`](/cli/logs) and remember the log location follows the execution region.
+
+### Edge function vs Lambda function vs CDN config: which should I use?
+
+Start with [CDN](/resources/networking/cdn) configuration when caching, origin routing, or domain behavior can be expressed declaratively without code. Use an edge function when request or response manipulation requires code at the CloudFront layer (conditional rewrites, custom header logic, A/B routing). Use a regional [Lambda function](/resources/compute/lambda-function) for everything else: application logic, environment variables, broader integrations, or VPC access.
+
+## API Reference
+
 <ApiReference definitionName="EdgeLambdaFunctionProps" />
 
 ## Referenceable parameters
 
+Edge functions expose `arn`, the Lambda function ARN. Access it with `$ResourceParam('edgeAuth', 'arn')` where `edgeAuth` is the resource name in your config.
+
 <ReferenceableParams resource="edge-lambda-function" />
-
-## Next steps
-
-- [CDN](/resources/networking/cdn): attach the function to a distribution's routes.
-- [Logs](/observability/logs): read what the function prints.
-- [Lambda function](/resources/compute/lambda-function): for work that doesn't need to run at the edge.

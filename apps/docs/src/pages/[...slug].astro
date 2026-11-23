@@ -2,9 +2,7 @@
 import { getCollection, render } from 'astro:content';
 
 import ApiReference from '@/components/mdx-islands/ApiReference.astro';
-import CliCommandsApiReference from '@/components/mdx-islands/CliCommandsApiReference.astro';
 import CodeBlock from '@/components/mdx-islands/CodeBlock.astro';
-import Directory from '@/components/mdx-islands/Directory.astro';
 import StarterProjectGallery from '@/components/mdx-islands/StarterProjectGallery.astro';
 import Tabs from '@/components/mdx-islands/Tabs.astro';
 import reactMdxComponents from '@/components/mdx-react-components';
@@ -37,13 +35,7 @@ const slug = entryToUrlSlug(entry.id);
 const { Content, headings } = await render(entry);
 const allDocPages = await getAllDocPages();
 
-const frontmatter = entry.data as {
-  title?: string;
-  seoTitle?: string;
-  seoDescription?: string;
-  hideTitle?: boolean;
-  lookup?: boolean;
-};
+const frontmatter = entry.data as { title?: string; seoTitle?: string; seoDescription?: string };
 const pageTitle = frontmatter.title || getTitleFromSlug(slug);
 
 const tableOfContents: TableOfContentsItem[] = headings.map((heading) => ({
@@ -67,9 +59,7 @@ const seo: DocsSeo = {
 const components = {
   ...reactMdxComponents,
   ApiReference,
-  CliCommandsApiReference,
   CodeBlock,
-  Directory,
   StarterProjectGallery,
   Tabs
 };
@@ -81,8 +71,6 @@ const components = {
   allDocPages={allDocPages}
   tableOfContents={tableOfContents}
   currentPath={Astro.url.pathname}
-  hideTitle={frontmatter.hideTitle === true}
-  isLookup={frontmatter.lookup === true}
 >
   <Content components={components} />
 </DocsLayout>

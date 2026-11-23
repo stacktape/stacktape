@@ -27,8 +27,7 @@ type SqsIntegrationProps = {
 
 The maximum number of records to process in a single batch.
 
-Maximum is 10,000 for standard queues and 10 for FIFO queues. Above 10, AWS requires `maxBatchWindowSeconds` of at
-least 1.
+Maximum is 10,000.
 
 ## Property: `maxBatchWindowSeconds`
 
@@ -37,8 +36,7 @@ least 1.
 
 The maximum time (in seconds) to wait before invoking the function with a batch of records.
 
-Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available. FIFO queues don't
-support a batching window.
+Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
 
 ## Property: `maximumConcurrency`
 

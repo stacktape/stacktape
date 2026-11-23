@@ -1,6 +1,6 @@
 # org list
 
-`stacktape org list` displays all organizations accessible with your current Stacktape API key. Use it to see which organizations you belong to, your role in each, and which one is currently active for CLI operations.
+The `org list` command displays all organizations accessible with your current Stacktape API key. Use it to see which organizations you belong to, your role in each, and which one is currently active for CLI operations.
 
 ## Usage
 
@@ -36,6 +36,18 @@ Agent mode (JSONL output with no interactive UI):
 stacktape org list --agent
 ```
 
+## Flags reference
+
+
+## CLI Options: `stacktape org list`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
+
 ## Examples
 
 List all organizations with debug-level logging:
@@ -50,21 +62,9 @@ Pipe organization data into another tool:
 stacktape org list --json
 ```
 
-## Options
-
-
-## CLI Options: `stacktape org list`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## Related commands
 
 - [`org create`](/cli/org-create) — create a new organization
 - [`org delete`](/cli/org-delete) — delete the organization of your API key (owner-only, requires no other users or connected AWS accounts)
-- [`whoami`](/cli/whoami) — verify your current user, organization, and connected accounts
+- [`whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
 - [`login`](/cli/login) — configure your Stacktape API key

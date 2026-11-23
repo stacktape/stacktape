@@ -6,12 +6,11 @@ export function MdxImage({ src, alt, style }: { src: string; alt: string; style?
   return (
     <Image
       loading="lazy"
-      decoding="async"
       width={600}
       height={400}
       src={src}
       alt={alt}
-      className="my-[var(--docs-flow-block)] h-auto w-full"
+      className="h-auto w-full shadow-none!"
       style={style}
     />
   );

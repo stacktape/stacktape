@@ -17,7 +17,6 @@ import {
   CLI_LLM_DOCS_DIR,
   LLM_DISCOVERY_FILES
 } from '../src/build/cli-generated-inputs.ts';
-import { MOVED_SECTIONS } from '../src/utils/moved-sections.ts';
 import { entryToUrlSlug } from '../src/utils/route-slugs.ts';
 
 const APP_ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -242,27 +241,6 @@ for (const [filePath, html] of htmlByFile) {
         if (known) archiveFragmentNotices.add(`${shownPath} ${rawReference}`);
         else fail(`${shownPath}: missing fragment ${rawReference}`);
       }
-    }
-  }
-}
-
-// Old section fragments of moved pages: the destination must not have the old ID (the browser would stop there),
-// and the section it now points to must exist.
-for (const [page, sections] of Object.entries(MOVED_SECTIONS)) {
-  const pageFile = outputFileForPath(page);
-  if (!pageFile) {
-    fail(`moved-sections.ts: ${page} is not a built page`);
-    continue;
-  }
-  const pageIds = idsFor(htmlByFile.get(pageFile) ?? readFileSync(pageFile, 'utf8'));
-  for (const [oldId, target] of Object.entries(sections)) {
-    if (pageIds.has(oldId)) fail(`moved-sections.ts: ${page} already has #${oldId}, so the entry never applies`);
-    const url = new URL(target, SITE_ORIGIN);
-    const targetFile = outputFileForPath(url.pathname);
-    const fragment = decodeURIComponent(url.hash.slice(1));
-    if (!targetFile) fail(`moved-sections.ts: ${page}#${oldId} points to ${target}, which is not a built page`);
-    else if (fragment && !idsFor(htmlByFile.get(targetFile) ?? readFileSync(targetFile, 'utf8')).has(fragment)) {
-      fail(`moved-sections.ts: ${page}#${oldId} points to the missing fragment ${target}`);
     }
   }
 }

@@ -1,72 +1,183 @@
-# Organizations, projects and stages
+# Organizations, Projects, and Stages
 
-The Console organizes your work in three levels. An **organization** holds members, connected AWS accounts and projects. A **project** is one application, usually one Git repository. A **stage** is one deployment of that project, such as `production`, `staging` or `dev-alice`, with its own copy of every resource.
+The Stacktape Console organizes work into three levels: organizations contain projects, and projects contain stages. A project represents a single application — typically one Git repository. A stage is an isolated deployment of that project (such as production, staging, or dev), with its own databases, functions, containers, and networking.
 
-## Organizations
+## How the hierarchy works
 
-Everything in the Console belongs to the organization you have open: projects, costs, alarms, members and billing. Switch organizations in the header.
+The Console structures work in three nested levels. An organization sits at the top and contains projects. Each project contains stages — isolated deployments of that application.
 
-Most teams need one organization. Create another for a separate boundary, such as each client of an agency, a business unit, or work that must not share members and AWS accounts. Each organization has its own plan and bill. Your personal organization has only you; to work with others, create a team organization. From the CLI, use [`stacktape org create`](/cli/org-create) and [`stacktape org list`](/cli/org-list).
+1. **Organization** — groups projects, team members, and settings
+2. **Project** — one application, usually one Git repository
+3. **Stage** — an isolated deployment (production, staging, dev)
 
-An organization is not an AWS account. You connect one or more AWS accounts to it, and its stages deploy into them. See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
+### Organizations
 
-## Projects
+An organization groups related projects, team members, and settings. In the Console, everything you see is scoped to the currently selected organization — projects, costs, alarms, and team settings all belong to the active organization. Switching organizations shows a different set of projects.
 
-A project appears in the Console with its first deploy, from the CLI or from a Git push. There's no separate setup: [`stacktape init`](/cli/init) writes a config with `projectName`, and a signed-in deploy creates the project. Stacks you deployed before you had an account appear as projects when you run [`stacktape connect`](/cli/connect). **New project** in the Console shows the commands to run, and [`stacktape project create`](/cli/project-create) creates an empty project.
+An organization's setup commands run before every deployment on a build runner, for every project.
 
-Projects are listed on the **Projects** home, the most recently deployed first.
+You can manage organizations from the CLI with [`stacktape org create`](/cli/org-create) and [`stacktape org list`](/cli/org-list).
 
-## Stages
+### Projects
 
-A stage is one deployment of the project: its own CloudFormation stack, with its own databases, functions and URLs. Non-production stages in an AWS account and region usually share one VPC; [Stages and environments](/configuration/stages-and-environments#are-stages-fully-isolated-from-each-other) explains what that means. Most teams deploy the same config to every stage and change sizes per stage in the config.
+A Stacktape project represents a single application and usually maps 1:1 to a Git repository. Each project can have multiple stages — fully isolated deployments like `production`, `staging`, or `dev`.
 
-Each stage costs money for its always-on resources. Delete stages you no longer use.
+The Projects page lists all projects in the selected organization. Each project card shows:
 
-### Find a stage
+- **Project name** and connected Git URL (if any)
+- **Number of deployed stages** — hovering the stage badge shows counts for alarming alarms, running stages, deployments in progress, errored stages, and not-yet-deployed stages
+- **Last deployment time** (displayed as a relative timestamp like "2 hours ago")
+- **Current month's cost** with a trend label. When previous-month cost is greater than zero, the label is a percentage change or `Flat`; otherwise it shows `No spend` or `New spend`
 
-Open a project. Its stages are a row of buttons in the project header, each with a dot for its state, so you see every stage's health on every page of the project. `production` and `staging` come first. Past five stages, the rest are in the menu at the end of the row, which has a **Find a stage** search and lists pull request previews under **Pull-request previews**. The AWS account and region of the open stage are at the right of the row.
+Projects are sorted by most recently updated stage, so active projects appear first. A filter input at the top narrows results by project name or Git URL using fuzzy search.
 
-Click a stage to open its overview: what is deployed, the resources and their URLs, recent deploys, logs, metrics and costs.
+### Stages
 
-### Create a stage
+A stage is a running deployment of a project — a complete, isolated set of AWS resources. Common stage names include `production`, `staging`, `dev`, or `testing`. Stages are fully isolated and do not share resources with each other; examples include containers, functions, databases, and other deployed resources.
 
-From the CLI, deploy with a new stage name:
+To deploy a stage, you need a Stacktape configuration that describes which resources (containers, functions, databases, etc.) to deploy. You can share the same Stacktape configuration across all stages of a project (most common), or maintain separate configurations per stage when environments need different resource shapes.
+
+
+> **Info:** Stages are sometimes called "environments" in other tools. Stacktape uses "stage" as the canonical term, but they mean the same thing — an isolated deployment of your project. See [Stages and environments](/configuration/stages-and-environments) for configuration patterns.
+
+
+## Getting started
+
+### Step 1 — Create a project
+
+Projects start in the CLI. Run [`stacktape init`](/cli/init) in your repository; the first deploy creates the project, and it appears in the Console. **New project** in the Console shows these commands and opens the project once its first deployment starts.
+
+You can also create an empty project with [`stacktape project create`](/cli/project-create).
+
+### Step 2 — Create a stage
+
+Inside the project view, click the **New stage** button in the left sidebar to open the stage creation form.
+
+Once a stage is created, clicking it in the sidebar navigates to the deployment setup. If the project has a connected Git repository, the Console routes to `/projects/{project}/create-new-stage/{stage}`. If no Git repository is connected, the Console routes to `/projects/{project}/create-new-stage-using-cli/{stage}` instead.
+
+### Step 3 — Deploy
+
+Use [`stacktape deploy`](/cli/deploy) for CLI deployment — see that page for required options — or trigger a deployment through [GitOps](/ci-cd-and-gitops/gitops-with-console).
 
 ```bash
-stacktape deploy --stage staging
+stacktape deploy --project my-app --stage production --region eu-west-1
 ```
 
-In the Console, click **New stage** in the project header. Name the stage and pick the AWS account and region. A project with a connected Git repository also asks for the branch, commit and config, and **Deploy** starts the deploy on your runner. Without a repository, the page shows the CLI command to run. The new stage gets its own copy of every resource, and existing stages don't change.
+Once a stage has been deployed, clicking it in the sidebar navigates to that stage's overview route (`/projects/{project}/{stage}/overview`). The project details query refetches every 6 seconds except on the create-new-stage page, so deployment status updates while the page is open.
 
-### Redeploy, roll back or delete a stage
+## Common tasks
 
-- **Redeploy** a stage from its overview. The Console asks you to confirm the commit, then shows the deploy's logs.
-- **Roll back** with **Roll back to previous** on the stage's latest deploy, **Roll back to this** on an earlier deploy in its activity, or [`stacktape rollback`](/cli/rollback).
-- **Delete** a deployed stage with [`stacktape delete`](/cli/delete). It deletes the stack and its data. A Developer can delete only stages that are not production.
+The Console provides shortcuts for day-to-day project management directly from the Projects page and the project overview sidebar.
 
-A failed first deploy shows as a failed stage until you deploy it again or dismiss it. Dismissing removes its deploy history from the Console; it doesn't touch AWS.
+### Filtering and finding projects
 
-### Project settings
+On the Projects page, use the filter input to search by project name or Git URL. The fuzzy search narrows results as you type. Projects are sorted by the most recently deployed stage, so active projects appear first. When no projects exist yet, the page displays "No projects created yet." The **Create new project** button remains available in the page header.
 
-The gear icon next to the project name opens the settings, for members with the `projects:update-settings` permission:
+### Viewing stage details
 
-| Setting | Shown when | What it does |
+Click a project card to open the project view. The left sidebar orders entries as: operation-only stages (in-progress or recently failed deployments), saved undeployed stages, deployed stages, and undeployed names without saved records. Dev-mode stacks are sorted after regular deployed stages within the deployed-stage portion. Clicking a deployed stage navigates to that stage's overview route (`/projects/{project}/{stage}/overview`).
+
+### Configuring build runners
+
+The **Runners** page lists the build runner of each project. Its **Setup commands** button opens the commands that
+every project's deployments run before building; owners and admins (the `org:manage-runner-settings` permission) edit
+them there. Each runner's **Settings** tab holds the project's own instance size, build cache limit, idle behavior, setup
+commands and GitHub Actions settings.
+
+See [Build runners](/ci-cd-and-gitops/build-runners) for details on runner lifecycle, instance sizing, and caching.
+
+### Configuring project settings
+
+From the project view, click the gear icon next to the project name to open the settings dropdown. This menu is visible only to users with the `projects:update-settings` permission. Available options depend on your project setup:
+
+| Setting | When visible | What it does |
 |---|---|---|
-| **Configure Git deployments** | A repository is connected | Opens [Git deployments](/ci-cd-and-gitops/gitops-with-console) for the project |
-| **Configure Runner** | Always | Sets the project's [build runner](/ci-cd-and-gitops/build-runners) |
-| **Configure GitHub Actions runner** | A repository is connected | Sets up a [self-hosted GitHub Actions runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) |
-| **Delete project** | You also have `projects:delete` | Removes the project from the Console |
+| **Configure Git deployments** | Git repository connected | Opens the project's Git deployments page — see [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for setup |
+| **Configure Runner** | Always (within settings dropdown) | Opens the project runner configuration modal |
+| **Configure GitHub Actions runner** | Git repository connected | Set up a [self-hosted GitHub Actions runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) |
+| **Delete project** | User also has `projects:delete` permission | Remove the project from the organization |
 
-A project created by a CLI deploy has no repository until you click **Connect** on its page, or accept the CLI's offer to deploy on push after a deploy.
+### Redeploying a stage
 
-Deleting a project in the Console removes it from the Console only. Its deployed stages keep running in AWS, so delete them first with `stacktape delete`. [`stacktape project delete`](/cli/project-delete) refuses while stages exist and prints the commands to delete them.
+When a redeploy is initiated from the project overview, the Console asks for confirmation of the target commit. After confirmation, the Console navigates to the deployment detail logs page (`/projects/{project}/{stage}/deployment-detail/{invocationId}?tab=logs`) where you can monitor build output. See [Build runners](/ci-cd-and-gitops/build-runners) for runner configuration.
 
-## Who can do what
+### Deleting a stage or project
 
-Owners and Admins can do everything here. Developers deploy, roll back and delete non-production stages in the projects and AWS accounts chosen for them. Viewers see their projects, deploys, logs and metrics. See [Team and access control](/stacktape-console/team-and-access-control).
+Deployed stages are deleted from the CLI with [`stacktape delete`](/cli/delete) — see that page for exact deletion semantics.
 
-## Organizations, projects and stages FAQ
+To delete a project, open the project settings dropdown (gear icon next to the project name) and select **Delete project**. The settings dropdown requires the `projects:update-settings` permission, and the **Delete project** option within it is shown only to users who also have the `projects:delete` permission. If the project still has deployed stages, the Console warns that it is advised to delete them before continuing and requires explicit confirmation.
 
-### Why does a new stage show $0?
 
-AWS reports costs about a day after they occur, so a stage deployed today shows its costs tomorrow. See [Cost dashboards](/managing-costs/dashboards#when-numbers-are-missing).
+> **Warning:** If a project still has deployed stages when you delete it, the Console warns that it is advised to delete them before continuing and requires explicit confirmation.
+
+
+You can also delete a project from the CLI with [`stacktape project delete`](/cli/project-delete), for example to clean up test projects. Unlike the Console, it refuses while the project still has deployed stages and prints the `stacktape delete` commands for them.
+
+Non-deployed stages (created in the Console but never deployed) can be removed directly from the sidebar. This only removes the Console record — no AWS resources are affected because none were created. Failed stage entries can be dismissed from the sidebar; the confirmation says this removes deployment history for that stage.
+
+## Access control
+
+The Stacktape Console uses roles and permissions to control what team members can do within an organization. Key actions on the Projects and project overview pages are gated by the following permissions:
+
+| Permission | Controls |
+|---|---|
+| `projects:delete` | Deleting a project (shown inside the project settings dropdown, which requires `projects:update-settings`) |
+| `projects:update-settings` | Accessing project settings (Git deployments, runner config, GitHub Actions runner) |
+| `deployments:delete-non-production` | Controls delete and dismiss actions on stage entries in the project sidebar |
+| `org:manage-runner-settings` | Editing the setup commands every project runs |
+
+Users without the required permission do not see the corresponding UI controls — for example, the project settings gear icon is hidden from users who lack `projects:update-settings`.
+
+For a complete breakdown of roles, how permissions map to roles, and how to invite team members, see [Team and access control](/stacktape-console/team-and-access-control).
+
+## Troubleshooting
+
+Common issues when working with projects and stages in the Console.
+
+### Failed stage in the sidebar
+
+If a deployment fails, the stage appears as errored in the sidebar. You can dismiss a failed stage using the context menu on that stage entry. The confirmation says dismissing will remove the deployment history for that stage, then refetches the project and operation lists. If a later deployment succeeds, the stage appears through the normal deployed-stage list.
+
+### Non-deployed stages in the sidebar
+
+Stages created in the Console but never deployed appear in the sidebar as not-yet-deployed entries. You can delete these directly from the sidebar. This removes only the Console record — no AWS resources are affected because none were created.
+
+### Cost shows $0 for active stage
+
+Cost data comes from AWS Cost and Usage Reports, which are generated daily and may take up to a day to appear. Newly deployed stages may show zero cost until daily report data arrives. When previous-month cost is greater than zero, the trend label shows a percentage change or `Flat`; otherwise it shows `No spend` or `New spend`.
+
+### Git repository not connected
+
+A project created by a CLI deploy has no repository until you connect one. Its page shows "Git repository not connected" with a **Connect** button, which lists the repositories of your connected Git providers. Accepting the CLI's offer to deploy on push after a deploy connects the repository as well. Once connected, the project settings dropdown includes **Configure Git deployments**. Without a repository, new stages are deployed from the CLI.
+
+## FAQ
+
+### What is the difference between a project and a stage in Stacktape?
+
+A project represents a single application, usually mapped to one Git repository. A stage is an isolated deployment of that project — like production, staging, or dev. Each project can have multiple stages, and each stage has its own databases, functions, containers, and networking. Think of projects as "what you're building" and stages as "where it's running."
+
+### Should I use one configuration per project or one per stage?
+
+Most teams share a single Stacktape configuration across all stages — the same `stacktape.ts` deploys to production, staging, and dev. This keeps environments consistent and reduces configuration drift. Use separate configurations per stage only when environments genuinely need different resource shapes (for example, a smaller database instance in dev). See [Stages and environments](/configuration/stages-and-environments) for patterns.
+
+### Why does my active stage show $0 cost?
+
+Cost data comes from AWS Cost and Usage Reports, which are generated daily and may take up to a day to appear. A newly deployed stage will show $0/mo until the first daily report arrives, even if it is already running resources. The project card displays the current month's cost alongside a trend label (`No spend`, `New spend`, a percentage change, or `Flat`).
+
+### What is the difference between a Stacktape organization and an AWS account?
+
+A Stacktape organization is a grouping layer for projects, team members, and settings within the Console. An AWS account is where your actual infrastructure runs. You connect one or more AWS accounts to your Stacktape organization so deployments can create resources in those accounts. The two concepts operate at different layers — the organization controls who can do what in the Console, while the AWS account controls where resources are provisioned. See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for setup.
+
+### When should I create multiple organizations?
+
+Create separate organizations when you need distinct team boundaries — for example, separating work between different clients, business units, or teams that should not share projects or settings. Most teams need only one organization. If everyone works on the same set of projects, a single organization with role-based access (see [Team and access control](/stacktape-console/team-and-access-control)) is simpler to manage.
+
+## Related features
+
+- [Team and access control](/stacktape-console/team-and-access-control) — invite members, assign roles, and configure permissions
+- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — auto-deploy stages when you push to connected branches
+- [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) — map branches and PRs to stages dynamically
+- [Build runners](/ci-cd-and-gitops/build-runners) — configure EC2 runners for Console-managed deployments
+- [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) — required before deploying any stage
+- [Billing and subscription](/stacktape-console/billing-and-subscription) — organization-level billing management
+- [Stages and environments](/configuration/stages-and-environments) — how stages work in Stacktape configuration

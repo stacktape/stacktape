@@ -1,6 +1,6 @@
 # dev stop
 
-`stacktape dev stop` gracefully stops a running dev agent that was started with [`stacktape dev --agent`](/cli/dev). Dev agents expose a local HTTP status endpoint, and `dev stop` uses the selected port to stop the matching agent. It can also clean up orphaned Docker containers left behind by crashed dev sessions.
+The `dev stop` command gracefully stops a running dev agent that was started with [`stacktape dev --agent`](/cli/dev). Dev agents expose a local HTTP status endpoint, and `dev stop` uses the selected port to stop the matching agent. It can also clean up orphaned Docker containers left behind by crashed dev sessions.
 
 ## Usage
 
@@ -49,7 +49,9 @@ You can combine `--cleanup-containers` with `--agent-port` to both clean up cont
 stacktape dev stop --cleanup-containers --agent-port 7332
 ```
 
-## Options
+## Flags reference
+
+All flags accepted by `stacktape dev stop`. None are required — the command discovers and stops agents automatically when possible.
 
 
 ## CLI Options: `stacktape dev stop`

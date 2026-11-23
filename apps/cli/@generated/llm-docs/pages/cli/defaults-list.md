@@ -1,6 +1,6 @@
 # defaults list
 
-`stacktape defaults list` prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
+The `defaults list` command prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
 
 ## Usage
 
@@ -8,11 +8,23 @@
 stacktape defaults list
 ```
 
-This command takes no arguments. It reads stored defaults and prints each configured key-value pair. If no defaults are set, it suggests running [`defaults set`](/cli/defaults-set).
+This command takes no arguments. It reads stored defaults and prints each configured key-value pair. If no defaults are set, it suggests running [`defaults set`](/cli/defaults-configure).
+
+## Command reference
+
+
+## CLI Options: `stacktape defaults list`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
 
 ## What gets displayed
 
-The output shows all defaults you've previously set with [`defaults set`](/cli/defaults-set). Configurable defaults include:
+The output shows all defaults you've previously set with [`defaults set`](/cli/defaults-configure). Configurable defaults include:
 
 - `region` — AWS region used for deployments
 - `stage` — default stage name
@@ -28,20 +40,8 @@ Each default appears as a `key: value` pair. Stacktape uses these values as fall
 > **Info:** This command does not require a Stacktape API key. You can run it without being logged in.
 
 
-## Options
-
-
-## CLI Options: `stacktape defaults list`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## Related commands
 
-- [`defaults set`](/cli/defaults-set) — set or update system-wide defaults
-- [`whoami`](/cli/whoami) — verify your current user, organization, and connected accounts
+- [`defaults set`](/cli/defaults-configure) — set or update system-wide defaults
+- [`whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
 - [`login`](/cli/login) — configure your Stacktape API key

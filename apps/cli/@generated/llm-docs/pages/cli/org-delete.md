@@ -1,6 +1,6 @@
 # org delete
 
-`stacktape org delete` deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
+The `stacktape org delete` command deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
 
 An API key acts in one organization, so the command can delete only that organization. To delete another organization you own, run [`login`](/cli/login) with an API key of that organization first.
 
@@ -33,6 +33,22 @@ If any of these conditions are not met, the operation will fail.
 > **Warning:** Deleting the organization cannot be undone. Make sure you have another way to access anything you still need before continuing.
 
 
+## Flags reference
+
+The `org delete` command accepts the following flags. None are required in interactive mode; agent mode requires the organization ID and `--yes`.
+
+
+## CLI Options: `stacktape org delete`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--organization-id (positional 1)` | no | `string` | Organization ID — The ID of the Stacktape organization. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
+
 ## Examples
 
 Check which organization your API key belongs to, then delete it. In a terminal, the command asks for confirmation.
@@ -51,20 +67,6 @@ Non-interactive deletion in CI or agent workflows:
 stacktape org delete "org_abc123" --agent --yes
 ```
 
-## Options
-
-
-## CLI Options: `stacktape org delete`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--organization-id (positional 1)` | no | `string` | Organization ID — The ID of the Stacktape organization. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## Related commands
 
 Other organization management commands and the whoami command for verifying your current context.
@@ -72,4 +74,4 @@ Other organization management commands and the whoami command for verifying your
 - [`org create`](/cli/org-create) — create a new organization
 - [`org list`](/cli/org-list) — list all organizations accessible to your user
 - [`login`](/cli/login) — switch to an API key of another organization
-- [`whoami`](/cli/whoami) — verify your current user, organization, and access
+- [`whoami`](/cli/info-whoami) — verify your current user, organization, and access

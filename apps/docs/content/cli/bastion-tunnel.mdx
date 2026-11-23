@@ -7,7 +7,7 @@ seoDescription: 'Create a secure SSM tunnel through a bastion host to access pri
 
 # bastion tunnel
 
-`stacktape bastion tunnel` creates a secure tunnel through a [bastion host](/resources/security/bastion-host) to reach resources inside a private VPC. Use it to connect local tools — database GUIs, Redis CLIs, or HTTP clients — to resources that have no public endpoint. The command establishes the tunnel through AWS SSM Session Manager.
+The `bastion tunnel` command creates a secure tunnel through a [bastion host](/resources/security/bastion-host) to reach resources inside a private VPC. Use it to connect local tools — database GUIs, Redis CLIs, or HTTP clients — to resources that have no public endpoint. The command establishes the tunnel through AWS SSM Session Manager.
 
 ## Usage
 
@@ -24,6 +24,10 @@ The command opens one or more local ports, prints the local-to-remote mapping, a
 **`--bastion-resource`** — selects which bastion resource to tunnel through. Use this when your stack has multiple bastion hosts.
 
 **`--local-tunneling-port`** — sets the local port passed to the tunneling helper. If not specified, Stacktape automatically selects an available port. If the target resolves to multiple tunnel targets, Stacktape opens one port-forwarding session per target and prints the actual local ports.
+
+## Flags reference
+
+<CliCommandsApiReference command="bastion:tunnel" />
 
 ## Supported resource types
 
@@ -123,12 +127,8 @@ Yes. Each `bastion tunnel` invocation keeps running while its port-forwarding se
 
 You can, but there is no reason to. If a database has a public endpoint, connect to it directly. Bastion tunneling is designed for resources deployed in a private VPC with no public endpoint.
 
-## Options
-
-<CliCommandsApiReference command="bastion:tunnel" />
-
 ## Related commands
 
-- [`bastion shell`](/cli/bastion-shell) — start an interactive shell session on the bastion host itself.
+- [`bastion shell`](/cli/bastion-session) — start an interactive shell session on the bastion host itself.
 - [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastion-resource` for VPC-only databases.
 - [`query redis`](/cli/query-redis) — query a deployed Redis cache. Supports `--bastion-resource` for VPC-only clusters.

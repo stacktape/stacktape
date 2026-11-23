@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, stat } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +7,6 @@ import type { AstroIntegration } from 'astro';
 import {
   STACKTAPE_DECLARATION_FILES,
   STACKTAPE_TYPES_ROUTE,
-  TS_LIB_MANIFEST_ROUTE,
   TS_LIB_ROUTE,
   twoslashLibFileNames
 } from '../components/Mdx/twoslash-types.ts';
@@ -28,7 +27,7 @@ import {
  *  - `/stacktape/*.d.ts` — the `stacktape` declarations the in-browser Twoslash type-checks the
  *    documentation samples against.
  *  - `/ts-lib/lib.*.d.ts` — the standard library of this workspace's own TypeScript, which Twoslash
- *    needs alongside those declarations, and `/ts-lib/files.json`, the list of the files served there.
+ *    needs alongside those declarations.
  *
  * The last two replace what the legacy site fetched from jsDelivr and the TypeScript playground CDN,
  * which is what made its samples describe a published release rather than this checkout. A missing
@@ -48,25 +47,16 @@ const requireNonEmpty = async (sourcePath: string, turboTask: string) => {
 /** Directory holding the workspace TypeScript's `lib.*.d.ts` files. */
 export const typescriptLibDir = () => dirname(createRequire(import.meta.url).resolve('typescript'));
 
-/** The candidate standard-library files this TypeScript release ships: what the site serves under `/ts-lib`. */
-export const servedTypescriptLibFileNames = (): string[] => {
-  const libDir = typescriptLibDir();
-  const names = twoslashLibFileNames().filter((name) => existsSync(join(libDir, name)));
-  if (names.length === 0) {
-    throw new Error(`No TypeScript standard library declarations found in ${libDir}.`);
-  }
-  return names;
-};
-
 const typescriptLibAssets = (): Asset[] => {
   const libDir = typescriptLibDir();
-  return servedTypescriptLibFileNames().map((name) => ({
-    route: `${TS_LIB_ROUTE}/${name}`,
-    sourcePath: join(libDir, name)
-  }));
+  const assets = twoslashLibFileNames()
+    .map((name) => ({ route: `${TS_LIB_ROUTE}/${name}`, sourcePath: join(libDir, name) }))
+    .filter((asset) => existsSync(asset.sourcePath));
+  if (assets.length === 0) {
+    throw new Error(`No TypeScript standard library declarations found in ${libDir}.`);
+  }
+  return assets;
 };
-
-const typescriptLibManifest = () => JSON.stringify(servedTypescriptLibFileNames());
 
 /**
  * Resolve the full asset list, failing closed when a generated input is absent. Used by both dev and
@@ -103,13 +93,7 @@ export const generatedRuntimeAssets = (): AstroIntegration => ({
               async configureServer(server) {
                 const byRoute = new Map((await collectAssets()).map((asset) => [asset.route, asset.sourcePath]));
                 server.middlewares.use((request, response, next) => {
-                  const route = (request.url ?? '').split('?')[0];
-                  if (route === TS_LIB_MANIFEST_ROUTE) {
-                    response.setHeader('content-type', 'application/json; charset=utf-8');
-                    response.end(typescriptLibManifest());
-                    return;
-                  }
-                  const sourcePath = byRoute.get(route);
+                  const sourcePath = byRoute.get((request.url ?? '').split('?')[0]);
                   if (!sourcePath) {
                     next();
                     return;
@@ -143,7 +127,6 @@ export const generatedRuntimeAssets = (): AstroIntegration => ({
         )
       );
       await Promise.all(targets.map((target) => copyFile(target.sourcePath, target.targetPath)));
-      await writeFile(fileURLToPath(new URL(`.${TS_LIB_MANIFEST_ROUTE}`, dir)), typescriptLibManifest());
 
       logger.info(`Copied ${assets.length} generated runtime assets into the built output.`);
     }

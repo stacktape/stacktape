@@ -1,152 +1,401 @@
-# SNS topic
+# SNS Topic
 
-An `sns-topic` is an Amazon SNS topic: you publish a message once and every subscriber gets its own copy. Use it when
-one event needs several independent reactions, such as an order that triggers a receipt, an inventory update and
-analytics. A standard topic costs $0.50 per million publishes in US East after the first million each month, and
-delivery to Lambda and SQS is free.
+A Stacktape SNS topic is a fully managed, serverless pub/sub messaging service built on Amazon SNS. Publish a message once and deliver it to many subscribers — Lambda functions, SQS queues, email addresses, SMS numbers, or HTTP endpoints. You pay per publish with no upfront cost and no infrastructure to manage.
 
-SNS doesn't store messages. With one consumer, an [SQS queue](/resources/messaging/sqs-queue) is simpler and keeps
-messages until they're processed. To route on fields inside the message, use an
-[event bus](/resources/messaging/event-bus).
+SNS is pay-per-publish with no minimum fee. The first 1 million publishes per month are in the AWS Free Tier. SMS and email deliveries have separate per-message charges. Check current AWS SNS pricing for regional details.
+
+## When to use
+
+Use an SNS topic when a single event needs to trigger multiple independent actions. Common scenarios:
+
+- **Fan-out to multiple consumers** — an order-placed event triggers email confirmation, inventory update, and analytics simultaneously. Each subscriber receives its own copy of the message.
+- **Cross-service notifications** — notify multiple [Lambda functions](/resources/compute/lambda-function) or [SQS queues](/resources/messaging/sqs-queue) from a single publish call, without the producer needing to know about each consumer.
+- **Alert distribution** — push notifications to email, SMS, or HTTP webhooks for operational events, user notifications, or system alerts.
+- **Decouple publishers from subscribers** — the publisher sends to one topic; subscribers are added or removed independently without changing the publisher.
+
+## When NOT to use
+
+- **Single consumer processing** — if only one service processes each message, use an [SQS queue](/resources/messaging/sqs-queue) directly. SNS adds overhead when there is only one subscriber.
+- **Message retention and replay** — SNS does not store messages. If a subscriber is offline when a message is published, that message is lost after delivery retries are exhausted. For durable, replayable streams, use a [Kinesis stream](/resources/messaging/kinesis-stream).
+- **Complex event routing** — if you need content-based routing with rich pattern matching beyond simple attribute filters, use an [EventBridge event bus](/resources/messaging/event-bus).
+- **Request-response** — SNS is one-way. If your caller needs a synchronous response, invoke the downstream service directly or use an [HTTP API Gateway](/resources/networking/http-api-gateway).
 
 ## Basic example
 
-A topic needs no properties. Subscribers are Lambda functions with an [SNS event](/resources/triggers/sns-events):
+An SNS topic has no required properties. Because `fifoEnabled` defaults to `false`, omitting all properties creates a standard topic. In Stacktape, Lambda subscriptions are the documented integration path, configured using the `SnsIntegration` trigger (`type: 'sns'`) on the [Lambda function](/resources/compute/lambda-function) — see [SNS triggers](/resources/triggers/sns-events). For other subscription protocols not modeled by Stacktape, you can use [`cloudformationResources`](/resources/advanced/raw-cloudformation-resources) as a raw CloudFormation escape hatch.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, SnsTopic, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+import { defineConfig, SnsTopic } from 'stacktape';
 export default defineConfig(() => {
-  const orderEvents = new SnsTopic({});
-
-  const sendReceipt = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/send-receipt.ts' }),
-    events: [{ type: 'sns', properties: { snsTopicName: 'orderEvents' } }]
-  });
-
-  const recordAnalytics = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/record-analytics.ts' }),
-    events: [{ type: 'sns', properties: { snsTopicName: 'orderEvents' } }]
-  });
+  const notifications = new SnsTopic({});
 
   return {
-    resources: { orderEvents, sendReceipt, recordAnalytics }
+    resources: { notifications }
   };
 });
 ```
 
 
-Each published message runs both functions. Filters, retries and the event shape are on
-[SNS events](/resources/triggers/sns-events).
+## Standard vs FIFO topics
 
-## Publish messages
+Stacktape SNS topics support two modes: **standard** (default) and **FIFO**. The choice affects delivery guarantees, subscriber types, and throughput.
 
-`connectTo` gives a workload permission to publish and injects the topic's `ARN` and `NAME`:
+| | Standard | FIFO |
+|---|---|---|
+| **Ordering** | Best-effort | Strict within each message group |
+| **Delivery** | At-least-once (rare duplicates possible) | Exactly-once |
+| **Subscriber types** | Lambda, SQS, email, SMS, HTTP | FIFO SQS queues only |
+| **Throughput** | Nearly unlimited | ~300 publishes/s (3,000 with batching) |
+| **Use cases** | Notifications, alerts, general fan-out | Financial transactions, sequential workflows |
+
+Standard topics are the right choice for most workloads. Use FIFO only when message ordering or exactly-once delivery is a hard requirement, and your subscribers are all FIFO SQS queues.
+
+### FIFO topic
+
+Set `fifoEnabled: true` to create a FIFO topic. FIFO topics require deduplication — either enable `contentBasedDeduplication` (SNS uses a SHA-256 hash of the message body within a 5-minute window) or provide a `MessageDeduplicationId` on each publish. When publishing, you must also include a `MessageGroupId` to define the ordering scope — messages within the same group are delivered in strict order.
+
+
+Example (TypeScript):
 
 ```typescript
-const api = new LambdaFunction({
-  packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
-  connectTo: [orderEvents]
+import { defineConfig, SnsTopic } from 'stacktape';
+export default defineConfig(() => {
+  const orderEvents = new SnsTopic({
+    fifoEnabled: true,
+    contentBasedDeduplication: true
+  });
+
+  return {
+    resources: { orderEvents }
+  };
 });
 ```
+
+
+> **Warning:** FIFO topics can only deliver to FIFO SQS queues. Email, SMS, and HTTP subscribers are not supported on FIFO topics — this is an AWS limitation.
+
+
+### SMS display name
+
+Set `smsDisplayName` to customize the sender name shown on SMS messages (max 11 characters). SMS is useful for transactional alerts or OTP flows where the recipient is a phone number rather than a service endpoint. SMS carries separate per-message charges that vary by destination country, and new AWS accounts start in an SMS sandbox that requires individual phone number verification before sending. Most teams skip SMS in favor of email or webhook notifications unless the use case specifically requires it. Because FIFO topics can only deliver to FIFO SQS queues, `smsDisplayName` is only relevant for standard topics.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, SnsTopic } from 'stacktape';
+export default defineConfig(() => {
+  const alerts = new SnsTopic({
+    smsDisplayName: 'MyApp'
+  });
+
+  return {
+    resources: { alerts }
+  };
+});
+```
+
+
+## Fan-out pattern
+
+SNS fan-out delivers each published message to every subscriber independently. In Stacktape, the most direct fan-out uses multiple [Lambda functions](/resources/compute/lambda-function), each subscribing to the same topic via an [SNS trigger](/resources/triggers/sns-events). Each function receives its own copy of every message and processes it independently — the publisher does not need to know how many subscribers exist.
+
+This example shows a single `orderEvents` topic with two independent subscribers: one sends email confirmations, the other records analytics. Publishing one message triggers both functions simultaneously.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  SnsTopic,
+  LambdaFunction,
+  JsBundleLambdaPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const orderEvents = new SnsTopic({});
+
+  const emailNotifier = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/email-notifier.ts'
+    }),
+    memory: 256,
+    timeout: 30,
+    events: [
+      {
+        type: 'sns',
+        properties: {
+          snsTopicName: 'orderEvents'
+        }
+      }
+    ]
+  });
+
+  const analyticsProcessor = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/analytics-processor.ts'
+    }),
+    memory: 512,
+    timeout: 60,
+    events: [
+      {
+        type: 'sns',
+        properties: {
+          snsTopicName: 'orderEvents'
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { orderEvents, emailNotifier, analyticsProcessor }
+  };
+});
+```
+
+
+> **Tip:** For subscribers that need buffering and independent retry, the common AWS pattern routes an SNS topic to multiple [SQS queues](/resources/messaging/sqs-queue). Each queue feeds a separate consumer that processes at its own pace. In Stacktape, you can set this up using [raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) as a CloudFormation escape hatch — see the [AWS SNS documentation](https://docs.aws.amazon.com/sns/latest/dg/sns-sqs-as-subscriber.html) for the required subscription and queue policy configuration.
+
+
+## Subscribing a Lambda function
+
+A [Lambda function](/resources/compute/lambda-function) can subscribe to an SNS topic using an [SNS trigger](/resources/triggers/sns-events). When a message is published, AWS invokes the function with the message payload. Configure this using an SNS event on the Lambda function — not on the topic itself.
+
+Key settings on the trigger:
+
+- `snsTopicName` — reference a topic in the same Stacktape config. Use `snsTopicArn` for an external topic not managed by your stack. Specify exactly one.
+- `filterPolicy` — filter messages by attributes so only relevant ones trigger the function. Uses SNS subscription filter policy syntax.
+- `onDeliveryFailure` — route failed deliveries to an SQS queue for inspection. Reference a queue by `sqsQueueName` (same stack) or `sqsQueueArn` (external).
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  SnsTopic,
+  LambdaFunction,
+  JsBundleLambdaPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const notifications = new SnsTopic({});
+
+  const handler = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    memory: 512,
+    timeout: 30,
+    events: [
+      {
+        type: 'sns',
+        properties: {
+          snsTopicName: 'notifications'
+        }
+      }
+    ]
+  });
+
+  return {
+    resources: { notifications, handler }
+  };
+});
+```
+
+
+The Lambda handler receives the message in the `Records` array. Each record wraps the original message inside `Sns.Message`:
+
+```typescript
+export const handler = async (event: { Records: Array<{ Sns: { Message: string; MessageId: string } }> }) => {
+  for (const record of event.Records) {
+    const message = JSON.parse(record.Sns.Message);
+    console.info(`Processing message ${record.Sns.MessageId}:`, message);
+  }
+};
+```
+
+## Connecting to other resources
+
+Workloads that support `connectTo`, such as [Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload), can connect to an SNS topic. For an `SnsTopic`, `connectTo` grants publish and subscribe permissions and injects `ARN` and `NAME` environment variables.
+
+For a topic named `notifications`, the injected environment variables are:
+
+| Environment variable | Description |
+|---|---|
+| `STP_NOTIFICATIONS_ARN` | The topic's Amazon Resource Name (use this with the AWS SDK to publish messages) |
+| `STP_NOTIFICATIONS_NAME` | The topic name |
+
+For more details on `connectTo`, see [Connecting resources](/configuration/connecting-resources).
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  SnsTopic,
+  LambdaFunction,
+  JsBundleLambdaPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const notifications = new SnsTopic({});
+
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    connectTo: [notifications],
+    memory: 512,
+    timeout: 30
+  });
+
+  return {
+    resources: { notifications, api }
+  };
+});
+```
+
+
+Publishing a message from the connected Lambda function:
 
 ```typescript
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 
 const sns = new SNSClient({});
 
-await sns.send(
-  new PublishCommand({
-    TopicArn: process.env.STP_ORDER_EVENTS_ARN,
-    Message: JSON.stringify({ type: 'order-placed', orderId: '456' })
-  })
-);
+export const handler = async (event: any) => {
+  await sns.send(new PublishCommand({
+    TopicArn: process.env.STP_NOTIFICATIONS_ARN,
+    Message: JSON.stringify({ type: 'order-placed', orderId: '456' }),
+    Subject: 'New Order'
+  }));
+
+  return { statusCode: 200, body: 'Notification sent' };
+};
 ```
 
-For a topic named `orderEvents`, the variables are `STP_ORDER_EVENTS_ARN` and `STP_ORDER_EVENTS_NAME`. Containers
-publish the same way. See [Connecting resources](/configuration/connecting-resources).
+## Examples
 
-A message can be up to 256 KB. For a larger payload, upload the data to an [S3 bucket](/resources/storage/s3-bucket)
-and publish the object key.
+### Lambda fan-out
 
-## Fan out to SQS queues
-
-A Lambda subscriber loses a message after Lambda's retries run out. When each consumer needs a buffer, its own retries
-and a dead-letter queue, subscribe an SQS queue per consumer. Stacktape has no property for this subscription, so add it
-as a [raw CloudFormation resource](/resources/advanced/raw-cloudformation-resources), and allow the topic to send to
-the queue:
+A single SNS topic with two independent Lambda subscribers. Publishing one message triggers both functions simultaneously — one sends email confirmations, the other records analytics. Each function processes its own copy of the message independently.
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, SnsTopic, SqsQueue, $ResourceParam } from 'stacktape';
+import {
+  defineConfig,
+  SnsTopic,
+  LambdaFunction,
+  JsBundleLambdaPackaging
+} from 'stacktape';
 export default defineConfig(() => {
   const orderEvents = new SnsTopic({});
 
-  const billingQueue = new SqsQueue({
-    policyStatements: [
+  const emailNotifier = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/email-notifier.ts'
+    }),
+    memory: 256,
+    timeout: 30,
+    events: [
       {
-        Effect: 'Allow',
-        Principal: { Service: 'sns.amazonaws.com' },
-        Action: ['sqs:SendMessage'],
-        Condition: { ArnEquals: { 'aws:SourceArn': $ResourceParam('orderEvents', 'arn') } }
+        type: 'sns',
+        properties: {
+          snsTopicName: 'orderEvents'
+        }
+      }
+    ]
+  });
+
+  const analyticsProcessor = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/analytics-processor.ts'
+    }),
+    memory: 512,
+    timeout: 60,
+    events: [
+      {
+        type: 'sns',
+        properties: {
+          snsTopicName: 'orderEvents'
+        }
       }
     ]
   });
 
   return {
-    resources: { orderEvents, billingQueue },
-    cloudformationResources: {
-      BillingQueueSubscription: {
-        Type: 'AWS::SNS::Subscription',
-        Properties: {
-          TopicArn: $ResourceParam('orderEvents', 'arn'),
-          Protocol: 'sqs',
-          Endpoint: $ResourceParam('billingQueue', 'arn'),
-          RawMessageDelivery: true
-        }
-      }
-    }
+    resources: { orderEvents, emailNotifier, analyticsProcessor }
   };
 });
 ```
 
 
-`RawMessageDelivery: true` puts the published message in the SQS body as is, without the SNS envelope. Consume each
-queue with an [SQS event](/resources/triggers/sqs-events) or a worker.
+### Publishing from a connected Lambda
 
-## Standard or FIFO
+A [Lambda function](/resources/compute/lambda-function) connected to an SNS topic via `connectTo` receives the `STP_ALERTS_ARN` and `STP_ALERTS_NAME` environment variables along with IAM permissions to publish. The function uses the AWS SDK to publish messages to the topic.
 
-|  | Standard | FIFO |
-|---|---|---|
-| Order | Best effort | Kept within each message group |
-| Duplicates | A message is sometimes delivered twice | Duplicate publishes within 5 minutes are dropped |
-| Subscribers | Lambda, SQS, HTTP, email, SMS | SQS queues only |
-| Throughput | Practically unlimited | Limited per topic, see the [AWS quotas](https://docs.aws.amazon.com/general/latest/gr/sns.html) |
 
-A standard topic bills per publish, and each 64 KB of a message counts as one. Delivery to Lambda and SQS is free;
-HTTP, email and SMS deliveries are charged. A FIFO topic bills per published and delivered message and per GB of
-payload, so each extra subscriber adds cost. See [SNS pricing](https://aws.amazon.com/sns/pricing/).
-
-Use a standard topic unless the order matters. `fifoEnabled: true` creates a FIFO topic. Each publish then needs a
-`MessageGroupId` and a deduplication ID, or set `contentBasedDeduplication: true` to use a hash of the body.
+Example (TypeScript):
 
 ```typescript
-new SnsTopic({ fifoEnabled: true, contentBasedDeduplication: true })
+import {
+  defineConfig,
+  SnsTopic,
+  LambdaFunction,
+  JsBundleLambdaPackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const alerts = new SnsTopic({});
+
+  const api = new LambdaFunction({
+    packaging: new JsBundleLambdaPackaging({
+      entryfilePath: './src/api.ts'
+    }),
+    connectTo: [alerts],
+    memory: 512,
+    timeout: 30
+  });
+
+  return {
+    resources: { alerts, api }
+  };
+});
 ```
 
-A FIFO topic can't invoke Lambda. Subscribe FIFO queues and consume them with [SQS events](/resources/triggers/sqs-events)
-to keep the order. It can also deliver to standard queues, but those don't keep the order or drop duplicates.
 
-## SMS sender name
+The handler publishes a message using the injected `STP_ALERTS_ARN` environment variable:
 
-`smsDisplayName` (up to 11 characters) is the sender name on SMS messages sent through the topic. SMS has its own price
-per message by country, and new AWS accounts start in an SMS sandbox that only sends to verified numbers.
+```typescript
+import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 
-## Configuration reference
+const sns = new SNSClient({});
+
+export const handler = async (event: any) => {
+  await sns.send(new PublishCommand({
+    TopicArn: process.env.STP_ALERTS_ARN,
+    Message: JSON.stringify({ type: 'threshold-exceeded', metric: 'cpu', value: 92 }),
+    Subject: 'High CPU Alert'
+  }));
+
+  return { statusCode: 200, body: 'Alert sent' };
+};
+```
+
+## Referenceable parameters
+
+SNS topic parameters can be referenced in your config using [`$ResourceParam`](/configuration/referenceable-parameters). For a topic named `notifications`:
+
+| Parameter | Example usage | Description |
+|---|---|---|
+| `arn` | `$ResourceParam('notifications', 'arn')` | The topic's Amazon Resource Name |
+| `name` | `$ResourceParam('notifications', 'name')` | The topic name |
+
+## API Reference
 
 
 ### Definition: `SnsTopicProps`
@@ -160,18 +409,28 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `smsDisplayName` | no | `string` | - |
 
 
-## Referenceable parameters
+## FAQ
 
+### When should I use an SNS topic vs an SQS queue?
 
-## Referenceable Parameters: `sns-topic`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+Use an SNS topic when you need fan-out — multiple subscribers each receiving a copy of every message. Use an [SQS queue](/resources/messaging/sqs-queue) when you have one consumer processing messages at its own pace. A common pattern combines both: SNS fans out to multiple SQS queues, giving each consumer its own buffer and independent retry behavior.
 
-| Parameter | Description | Usage |
-| --- | --- | --- |
+### How does Amazon SNS pricing work?
 
+SNS is pay-per-publish with no minimum fee — the first 1 million publishes per month are in the AWS Free Tier, and after that you pay per million publishes. SMS and email deliveries carry separate per-message charges that vary by destination country, so they cost more than fanning out to Lambda or SQS subscribers. Check current AWS SNS pricing for exact regional rates.
 
-## Next steps
+### What is the maximum message size for SNS?
 
-- [SNS events](/resources/triggers/sns-events): subscribe functions, filter messages and handle failures.
-- [SQS queue](/resources/messaging/sqs-queue): buffer messages for one consumer.
-- [Event bus](/resources/messaging/event-bus): route events by their content.
+The maximum SNS message size is 256 KB. For larger payloads, store the data in an [S3 bucket](/resources/storage/s3-bucket) and include the S3 key in the SNS message body. Both standard and FIFO topics share this 256 KB limit.
+
+### How do I filter messages so subscribers only receive relevant ones?
+
+Use `filterPolicy` on the [SNS trigger](/resources/triggers/sns-events) to filter messages by their attributes. Only messages whose attributes match the filter policy are delivered to that subscriber. This reduces unnecessary Lambda invocations and processing costs. For richer content-based routing with nested pattern matching, consider an [EventBridge event bus](/resources/messaging/event-bus).
+
+### Can I use SNS with container services?
+
+Yes. Use `connectTo` on a [web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service), or [multi-container workload](/resources/compute/multi-container-workload) to get SNS permissions and the topic ARN injected as environment variables. Your container publishes messages using the AWS SDK. For subscribing containers to SNS messages, route them through an [SQS queue](/resources/messaging/sqs-queue) and poll from the container.
+
+### What happens if a subscriber is offline when a message is published?
+
+For Lambda subscribers, Amazon SNS retries delivery with exponential backoff. For SQS and HTTP/S subscribers, Amazon SNS follows its delivery retry policy — retrying over a period of time before giving up. SNS does not store messages, so if all retries fail the message is lost. For Stacktape SNS triggers on Lambda functions, you can configure `onDeliveryFailure` to send messages that fail delivery to an SQS queue for later inspection. If you need durable, replayable delivery, route the topic through an [SQS queue](/resources/messaging/sqs-queue) or use a [Kinesis stream](/resources/messaging/kinesis-stream) instead.

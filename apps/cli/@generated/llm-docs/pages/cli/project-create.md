@@ -1,20 +1,22 @@
 # project create
 
-`stacktape project create` creates a project in your organization in the Stacktape Console. You rarely need it: a signed-in deploy creates a missing project itself, and asks first when the name comes from `--project` rather than the config. Use it to set up a project before its first deploy, for example from a script. It needs a Console sign-in ([`stacktape login`](/cli/login) or `STACKTAPE_API_KEY`).
+The `project create` command creates a new project in the current Stacktape organization. Use it before deploying stages under a new project name, or in automation when you need to create the project non-interactively. You must be logged in with a valid API key before running this command.
 
 ## Usage
 
 ```bash
-stacktape project create payments-service
+stacktape project create
 ```
 
-Names use lowercase letters, numbers and dashes. In a terminal you can leave the name out and the CLI asks for it. With `--agent` there is no prompt, so the name is required.
+In interactive mode, you are prompted for the project name. Project names must use lowercase letters, numbers, and dashes only. To skip the prompt, pass the name directly.
 
 ```bash
-stacktape project create payments-service --region eu-west-1 --agent
+stacktape project create my-api
 ```
 
-## Options
+In agent mode (`--agent`), you must provide the project name as an argument (`project create <project>`). You can also pass an optional `--region` when creating the project.
+
+## CLI reference
 
 
 ## CLI Options: `stacktape project create`
@@ -28,8 +30,28 @@ stacktape project create payments-service --region eu-west-1 --agent
 | `-r, --region` | no | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 
 
+## Examples
+
+Create a project interactively (you will be prompted for the name):
+
+```bash
+stacktape project create
+```
+
+Create a project non-interactively:
+
+```bash
+stacktape project create payments-service
+```
+
+Create a project with a region and machine-readable output:
+
+```bash
+stacktape project create payments-service --region eu-west-1 --agent
+```
+
 ## Related commands
 
-- [`project list`](/cli/project-list) lists the projects of your organization with their stages.
-- [`deploy`](/cli/deploy) deploys a stage of a project.
-- [`project delete`](/cli/project-delete) removes a project without stages.
+- [`project list`](/cli/project-list) — List all projects in your organization with their stages and costs.
+- [`org create`](/cli/org-create) — Create a new organization (projects live inside organizations).
+- [`deploy`](/cli/deploy) — Deploy a stage to a project.

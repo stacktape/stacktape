@@ -9,7 +9,6 @@
     "preview": "astro preview --port 9001",
     "test": "node --import=tsx --test tests/*.test.ts",
     "test:build-contracts": "node scripts/test-build-contracts.ts",
-    "test:e2e": "turbo run build --filter=@stacktape/docs && playwright test",
     "typecheck": "astro check",
     "validate:site": "node scripts/validate-built-site.ts"
   },
@@ -48,9 +47,6 @@
   },
   "devDependencies": {
     "@astrojs/check": "catalog:",
-    "@aws-sdk/client-cloudfront-keyvaluestore": "3.1121.0",
-    "@aws-sdk/signature-v4a": "3.1138.0",
-    "@playwright/test": "1.62.1",
     "@posthog/rollup-plugin": "^1.5.1",
     "@tailwindcss/vite": "4.3.3",
     "@types/node": "catalog:",

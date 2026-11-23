@@ -1,6 +1,6 @@
 # ai connect
 
-`stacktape ai connect` connects your own AI subscription to Stacktape for the hosted AI incident runs you request ([Investigate with AI and Fix with AI](/observability/incident-ai)). It first asks which provider to connect (unless you pass `--ai-provider`) and explains what will happen, then, in a terminal, waits for your confirmation. It stores the sign-in with Stacktape under your user and the organization of your API key, and never prints it. Only runs you request use it, and they run the provider's coding agent.
+The `stacktape ai connect` command connects your own AI subscription to Stacktape for the hosted AI incident runs you request ([Investigate with AI and Fix with AI](/observability/incident-ai)). It first asks which provider to connect (unless you pass `--ai-provider`) and explains what will happen, then, in a terminal, waits for your confirmation. It stores the sign-in with Stacktape under your user and the organization of your API key, and never prints it. Only runs you request use it, and they run the provider's coding agent.
 
 ## Usage
 
@@ -9,7 +9,7 @@ stacktape ai connect
 stacktape ai connect codex
 ```
 
-In a terminal you can leave out the provider and the command asks; a non-interactive run must pass it. The command needs a valid API key for your own user (run [`stacktape login`](/cli/login) first) and the provider's own CLI on your `PATH`. Without it, the command stops and tells you how to install it.
+This command needs a valid API key for your own user (run [`stacktape login`](/cli/login) first) and the provider's own CLI on your `PATH`. Without it, the command stops and tells you how to install it.
 
 ## Providers
 
@@ -48,14 +48,10 @@ XDG_DATA_HOME=~/.local/share/opencode-stacktape stacktape ai connect opencode
 
 A Claude token from `claude setup-token` does not refresh, so this does not apply to it.
 
-## Options
+## Flags reference
 
-
-## CLI Options: `stacktape ai connect`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--ai-provider (positional 1)` | no | `string` | AI Provider — The AI provider whose subscription to connect for hosted incident runs, and so the coding agent those runs use: `claude` (a Claude subscription for Claude Code, through `claude setup-token`), `codex` (a ChatGPT plan for Codex, from `codex login`), `grok` (a Grok sign-in, from `grok login`) or `opencode` (what OpenCode is signed in to, from `opencode auth login`). When omitted in a terminal, the command asks which provider to use; a non-interactive run must pass it. | `claude`, `codex`, `grok`, `opencode` |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| Flag | Description |
+|---|---|
+| `<ai-provider>` | Positional argument. The provider whose subscription to connect: `claude`, `codex`, `grok` or `opencode`. When omitted in a terminal, the command asks; a non-interactive run must pass it. |
+| `--output-format` | `jsonl`, `plain` or `tty`. Auto-detected when omitted. |
+| `--log-level` | Log verbosity. |

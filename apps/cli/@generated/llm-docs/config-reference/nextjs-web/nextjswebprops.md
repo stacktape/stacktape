@@ -30,7 +30,7 @@ type NextjsWebProps = {
   releaseCommand?: NextjsWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: NextjsServerLambdaProperties;
-  /** Stream SSR responses for a faster Time to First Byte and responses larger than the 6 MB buffered limit. */
+  /** Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). */
   streamingEnabled?: boolean;
   /** Run SSR at CloudFront edge locations for lower latency worldwide. */
   useEdgeLambda?: boolean;
@@ -537,7 +537,7 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Stream SSR responses for a faster Time to First Byte and responses larger than the 6 MB buffered limit.
+Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default).
 
 Not compatible with `useEdgeLambda: true`.
 

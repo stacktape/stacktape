@@ -1,24 +1,24 @@
 # validate
 
-`stacktape validate` checks your configuration and builds the CloudFormation template in memory, without deploying. Run it before a deploy or as a CI step to catch config errors early.
+The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also packages workloads and asks CloudFormation to validate the template. Add `--out` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
 
 ## Usage
 
-The command needs a stage and a region. It checks the configuration file, resolves every resource, reports [security findings](#security-findings-by-stage-purpose) and builds the template in memory. It doesn't load your organization's [guardrails](/guardrails/overview); `deploy`, `diff` and the other commands that change a stack check them.
+The `validate` command requires a stage and region. It checks your configuration file, resolves all resource definitions, validates configured [guardrails](/guardrails/overview), and synthesizes the CloudFormation template in memory.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1
 ```
 
-The command does not require a deployed stack and doesn't change your stack. Its only write to AWS is the temporary template object that [`--thorough`](#validation-levels) can upload, deleted after the check.
+The command does not create, update, or delete any AWS resources and does not require a deployed stack.
 
 ## Validation levels
 
-Each level adds checks to the one before it. The default needs no packaging, `--with-package` builds your workloads, and `--thorough` also asks CloudFormation to check the template.
+The `validate` command supports three levels of thoroughness, each building on the previous one. Choose the level that matches how much confidence you need before proceeding.
 
 ### Default — config, resources, and template
 
-Stacktape loads the configuration, resolves all resources and builds the template in memory. This is the fastest level. It catches broken resource references, invalid property values and missing secrets.
+Stacktape loads the configuration, resolves all resources, validates [guardrails](/guardrails/overview), and synthesizes the CloudFormation template in memory. This is the fastest option and catches most configuration-level mistakes — broken resource references, invalid property values, and guardrail violations.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1
@@ -114,7 +114,7 @@ Use [`synth`](/cli/synth) when you only need the faster, un-packaged template co
 | `--stage` | Required. The stage name used for template synthesis (e.g., `dev`, `staging`, `production`). |
 | `--region` | Required. The AWS region used for template synthesis. |
 | `--config` | Path to your Stacktape configuration file if it is not in the default location. |
-| `--agent` | Prints JSONL (one JSON object per line) and turns off prompts, for CI and coding agents. |
+| `--agent` | Optimizes CLI output for programmatic/LLM consumption. Uses JSONL/NDJSON output and disables the interactive terminal UI. |
 
 ## Examples
 
@@ -142,13 +142,7 @@ Use JSONL output for CI or AI-agent consumption.
 stacktape validate --stage dev --region eu-west-1 --agent
 ```
 
-## FAQ
-
-### Do I need AWS credentials to run validate in CI?
-
-Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API, and for a template over 51,200 bytes writes and deletes a temporary object in the stack's deployment bucket. Use a CI profile scoped to the intended account that can read the stack and write to that bucket.
-
-## Options
+## Flags reference
 
 
 ## CLI Options: `stacktape validate`
@@ -176,3 +170,25 @@ Stacktape normally needs an AWS identity because the account id participates in 
 - [`diff`](/cli/diff) — shows a preview of changes that would be applied to a deployed stack. Requires a deployed stack, unlike `validate`.
 - [`deploy`](/cli/deploy) — deploys or updates a stack. Running `validate` before `deploy` catches errors before they reach CloudFormation.
 - [`package`](/cli/package) — packages workloads and writes artifacts to disk. The `--with-package` flag on `validate` runs workload packaging as part of validation, while `package` is the dedicated command for preparing packaged outputs for inspection or deployment.
+
+## FAQ
+
+### Does validate create or modify any AWS resources?
+
+No. The `validate` command does not create, update, or delete any AWS resources and does not require a deployed stack. Initialization can read AWS identity or metadata used during synthesis. With `--thorough`, CloudFormation's read-only `ValidateTemplate` API checks the template without creating a stack. A template over 51,200 bytes is first uploaded as a temporary object to the stack's existing deployment bucket and deleted after the check; for a stack that was never deployed, there is no bucket and the check is skipped with a warning.
+
+### How is validate different from synth?
+
+Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--out` is supplied; with `--with-package` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
+
+### Do I need AWS credentials to run validate in CI?
+
+Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API, and for a template over 51,200 bytes writes and deletes a temporary object in the stack's deployment bucket. Use a CI profile scoped to the intended account that can read the stack and write to that bucket.
+
+### What errors does --thorough catch that the default level misses?
+
+Default validation catches configuration errors and synthesis failures. `--thorough` also catches packaging errors, then asks CloudFormation to check the template. Only a template over 51,200 bytes of a stack that was never deployed skips that check; the result then has `checked.cloudformation: false` and a warning. Even an AWS-checked template can fail during provisioning; verify deployment behavior in a deployed stage.
+
+### Can I use validate with AI agents or in scripts?
+
+Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. This flag uses JSONL/NDJSON output (one JSON object per line) and disables the interactive terminal UI. You can also use `--json` for machine-readable output without the other `--agent` behaviors.

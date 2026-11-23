@@ -1,0 +1,86 @@
+---
+title: 'alarm list'
+order: 159
+seoTitle: 'View CloudWatch Alarm States | stacktape alarm list CLI | Stacktape Docs'
+seoDescription: 'Check CloudWatch alarm states for your deployed Stacktape stack from the CLI. Filter by resource or state (OK, ALARM, INSUFFICIENT_DATA) and get JSON output for automation.'
+---
+
+# alarm list
+
+The `stacktape alarm list` command displays the current state of CloudWatch alarms for a deployed stack. Use it to check which alarms are firing, which are healthy, and when each alarm last changed state — without opening the AWS Console.
+
+## Usage
+
+```bash
+stacktape alarm list --stage prod --region eu-west-1
+```
+
+This queries CloudWatch alarms whose names start with the stack name and prints the matching alarms. Each alarm is mapped to its name, matched Stacktape resource (when identified), current state, metric, threshold, comparison operator, and last state change time. Alarms in the `ALARM` state also include the reason they triggered.
+
+## Filtering
+
+### Filter by resource
+
+Use `--resource-name` to narrow results to alarms belonging to a single Stacktape resource. The resource name must match the key used in your Stacktape configuration.
+
+```bash
+stacktape alarm list --stage prod --region eu-west-1 --resource-name myApi
+```
+
+### Filter by state
+
+Use `--state` to show only alarms in a specific state. Accepted values are `OK`, `ALARM`, and `INSUFFICIENT_DATA`.
+
+Show only alarms that are currently firing:
+
+```bash
+stacktape alarm list --stage prod --region eu-west-1 --state ALARM
+```
+
+Show only healthy alarms:
+
+```bash
+stacktape alarm list --stage prod --region eu-west-1 --state OK
+```
+
+You can combine both filters to check whether a specific resource has any firing alarms:
+
+```bash
+stacktape alarm list --stage prod --region eu-west-1 --resource-name myApi --state ALARM
+```
+
+## Agent mode
+
+Pass `--agent` for machine-readable output. For the `alarm list` command, agent mode emits a JSON object with an `alarms` array. Each entry contains the alarm's `name`, matched `resource` (if any), `state`, `metric`, `threshold`, `comparison`, `lastUpdated`, and (for alarms in the `ALARM` state) `reason`.
+
+```bash
+stacktape alarm list --stage prod --region eu-west-1 --agent
+```
+
+## Flags reference
+
+<CliCommandsApiReference command="alarms" />
+
+## Related commands
+
+- [`stacktape logs`](/cli/logs) — fetch and search logs from a deployed resource.
+- [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics for a deployed resource.
+- [`stacktape error list`](/cli/errors-list) — list detected runtime issues (errors) across your deployed functions and containers.
+
+## FAQ
+
+### What alarms does this command show?
+
+The `alarm list` command queries all CloudWatch alarms whose name starts with the stack name. In practice, this targets alarms associated with the Stacktape stack. It does not show alarms created outside of Stacktape unless they happen to share the stack name prefix. For details on configuring alarm rules, see [Alarms](/observability/alarms).
+
+### What do the alarm states mean?
+
+CloudWatch alarms have three states. `OK` means the metric is within the configured threshold. `ALARM` means the metric has breached the threshold for the required number of evaluation periods. `INSUFFICIENT_DATA` means there is not enough data to evaluate the alarm — this is common for newly created alarms or resources with no recent traffic.
+
+### How do I check from a script whether any alarms are firing?
+
+Combine `--state ALARM` with `--agent`. The `--state` filter limits results to firing alarms, and `--agent` emits a JSON object with an `alarms` array instead of interactive output — so an empty array means nothing is firing. This makes it straightforward to gate a deployment in CI on whether a production stage has any active alarms.
+
+### How is this different from `stacktape metrics`?
+
+The [`metrics`](/cli/metrics) command fetches CloudWatch metrics for a deployed resource, with support for metrics like Lambda Invocations, ECS CPUUtilization, RDS DatabaseConnections, and API Gateway 5XXError. The `alarms` command shows the evaluated state of alarm rules — whether configured thresholds have been breached. Use `metrics` to investigate trends; use `alarms` to check whether anything is currently broken.

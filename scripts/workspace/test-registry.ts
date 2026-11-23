@@ -3099,7 +3099,6 @@ export const lanes: readonly Lane[] = [
       'apps/docs/tests/cdn-redirects.test.ts',
       'apps/docs/tests/config-conversion.test.ts',
       'apps/docs/tests/mdx-components.test.ts',
-      'apps/docs/tests/navigation.test.ts',
       'apps/docs/tests/routes.test.ts',
       'apps/docs/tests/twoslash-types.test.ts',
       'apps/docs/tests/v3-archive.test.ts',
@@ -3314,18 +3313,6 @@ export const lanes: readonly Lane[] = [
     requires: [],
     release: 'every-candidate',
     proves: 'Documentation source compiles and renders through its application build.',
-    selections: ['docs']
-  },
-  {
-    id: 'docs-browser',
-    command: ['pnpm', '--filter', '@stacktape/docs', 'run', 'test:e2e'],
-    level: 'browser',
-    tier: 'change',
-    tests: ['apps/docs/e2e/navigation.spec.ts'],
-    requires: ['chromium'],
-    release: 'every-candidate',
-    proves:
-      'On the built docs site, the phone drawer keeps keyboard focus, the outline follows the command filter and old heading fragments land on their current sections.',
     selections: ['docs']
   },
   {
@@ -5481,18 +5468,16 @@ export const slices: readonly Slice[] = [
     journeys: ['J12'],
     paths: ['apps/docs/**'],
     tests: [
-      'apps/docs/e2e/navigation.spec.ts',
       'apps/docs/scripts/test-build-contracts.ts',
       'apps/docs/tests/api-reference-data.test.ts',
       'apps/docs/tests/cdn-redirects.test.ts',
       'apps/docs/tests/config-conversion.test.ts',
       'apps/docs/tests/mdx-components.test.ts',
-      'apps/docs/tests/navigation.test.ts',
       'apps/docs/tests/routes.test.ts',
       'apps/docs/tests/twoslash-types.test.ts',
       'apps/docs/tests/v3-archive.test.ts'
     ],
-    lanes: ['docs', 'docs-2', 'docs-3', 'docs-browser', 'docs-test']
+    lanes: ['docs', 'docs-2', 'docs-3', 'docs-test']
   },
   {
     id: 'S38',

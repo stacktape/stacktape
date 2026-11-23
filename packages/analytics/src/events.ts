@@ -38,7 +38,7 @@ export const getCommonEventProperties = ({
 
 export type MarketingAnalyticsEventMap = {
   [ANALYTICS_EVENTS.marketingCtaClicked]: {
-    cta: 'sign_up' | 'console' | 'github';
+    cta: 'sign_up' | 'github';
     placement: 'docs_header' | 'website';
   };
 };

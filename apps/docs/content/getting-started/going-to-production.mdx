@@ -1,21 +1,21 @@
 ---
-title: 'Going to production'
-order: 9
+title: 'Going to Production'
+order: 7
 seoTitle: 'Going to Production Checklist | Stacktape Docs'
-seoDescription: 'Production-readiness checklist for Stacktape: alarms with notifications, database backups, budget alerts, custom domains with Route 53 or your own DNS, gradual deployments and guardrails.'
+seoDescription: 'Production-readiness checklist for Stacktape: configure alarms with notifications, set budget alerts, add custom domains, enable gradual deployments, and enforce guardrails.'
 ---
 
-# Going to production
+# Going to Production
 
-Your app is deployed. Before real users arrive, add alarms, database backups, a budget, your own domain, gradual rollouts and, for a team, guardrails. Each section says what to configure and links to the full guide.
+Your stack is deployed and CI/CD pushes changes automatically. Before real users hit it, harden the deployment with alarms, budgets, custom domains, gradual rollouts, and policy guardrails. Each topic below covers what to configure, why it matters, and links to its dedicated deep-dive.
 
-Most of it is configuration that works with the CLI alone. Budgets and guardrails are [Console](/getting-started/add-the-console) features; each section says so, and what to use without the Console.
-
-Deploy production as its own stage, for example `--stage production`, ideally in a separate AWS account from development.
+<Info>
+Already hardened? Skip ahead to [Resources](/configuration/resources) to configure individual resource types, [Observability](/observability/overview) for monitoring, or [Managing Costs](/managing-costs/overview) for spend control.
+</Info>
 
 ## Alarms
 
-Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms on individual resources in your stack config and deploy to apply them. They are CloudWatch alarms in your AWS account. The [Stacktape Console](/stacktape-console/console-overview) also shows their state and history.
+Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds are breached. Define alarms on individual resources in your stack config and deploy to apply them. The [Stacktape Console](/getting-started/using-console-ui) shows deployed alarm state and history.
 
 Alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS received-message count and not-empty alarms. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
 
@@ -72,17 +72,11 @@ This alarm fires when more than 5% of invocations fail in at least 2 out of 3 co
 
 For production, most teams use Slack (`type: 'slack'` with `conversationId` and `accessToken`) or a custom webhook. See [Alarms](/observability/alarms) for all trigger types, notification channel configuration, and migration of legacy Console rules.
 
-## Database backups
-
-AWS takes a daily backup of a [relational database](/resources/databases/relational-database). `automatedBackupRetentionDays` sets how many days are kept: `1` by default, up to `35`. For production, keep at least `7`, so you can still recover from a problem you find days later. Set `deletionProtection: true` so a deploy or a delete can't remove the database. A database added by `stacktape init` has deletion protection on, and **Keep recovery copies** on the Review step sets 7 days of backups. See [Backups and maintenance](/resources/databases/relational-database#backups-and-maintenance).
-
 ## Budgets
 
-Budgets catch surprise AWS bills. In the [Stacktape Console](/getting-started/add-the-console), a budget sets a monthly spending limit for one connected AWS account and alerts your [alert channels](/observability/alert-channels) when the account's spend crosses percentages of it (80% and 100% by default). Forecast alerts, on by default, also warn you when AWS forecasts that the month's spend will cross a percentage.
+Budgets catch surprise AWS bills. In the [Stacktape Console](/getting-started/using-console-ui), a budget sets a monthly spending limit for one connected AWS account and alerts your [alert channels](/observability/alert-channels) when the account's spend crosses percentages of it (80% and 100% by default). Forecast alerts, on by default, also warn you when AWS forecasts that the month's spend will cross a percentage.
 
 A budget watches the whole AWS account. It cannot filter by project or stage. If you want separate limits for production and development, run them in separate AWS accounts. See [Budgets](/managing-costs/budgets) for setup details.
-
-Without the Console, create a budget in the AWS console under **Billing and Cost Management** → **Budgets**. It can email you when actual or forecast spend crosses a threshold.
 
 <Tip>
 Create a budget for every AWS account that runs production stages. Even a generous limit catches mistakes such as a runaway Lambda loop or an oversized database instance before they become expensive. Set the limit to your expected monthly bill and keep the default 80% and 100% alerts.
@@ -90,7 +84,7 @@ Create a budget for every AWS account that runs production stages. Even a genero
 
 ## Custom domains
 
-Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. When the domain's DNS is in Route 53 in your AWS account, Stacktape creates the DNS records and the TLS certificate for you. The example below shows the most common case, a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
+Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. Provide your domain name, and Stacktape creates DNS records in Route53 and provisions TLS certificates automatically. The example below shows the most common case — a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
 
 <CodeBlock
   intellisense
@@ -118,12 +112,9 @@ export default defineConfig(() => {
   ]}
 />
 
-There are two ways to set up the domain:
+Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain add`](/cli/domain-add) command to register a domain, or add the hosted zone manually in the AWS Console. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
 
-- **DNS in Route 53.** Run [`stacktape domain add`](/cli/domain-add) for a domain you already own. It checks the domain, can move its DNS to a Route 53 hosted zone in your account and requests the TLS certificates. After that, `customDomains` is all a resource needs.
-- **DNS at your current provider**, such as Cloudflare. Request a certificate in AWS Certificate Manager, set `customCertificateArn` and `disableDnsRecordCreation: true`, deploy, and add a CNAME record at your provider. See [External DNS](/resources/networking/custom-domains#external-dns).
-
-Custom domains add no Stacktape cost. In AWS, a Route 53 hosted zone and its DNS queries cost a little each month, and the certificates are free.
+Custom domains add no Stacktape cost, but Route53 hosted-zone and DNS-query charges apply in AWS. For production, custom domains are worth the cost — they give users a branded URL instead of an auto-generated AWS hostname, and TLS certificates are provisioned and renewed automatically.
 
 ## Gradual deployments
 
@@ -195,7 +186,7 @@ export default defineConfig(() => {
   ]}
 />
 
-Container gradual deployments require `loadBalancing` set to `application-load-balancer` — the default `http-api-gateway` does not support traffic shifting. The ALB costs about $16 a month in us-east-1 plus usage, but enables gradual rollouts, WebSocket support, and top-level firewalls. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for strategy comparisons.
+Container gradual deployments require `loadBalancing` set to `application-load-balancer` — the default `http-api-gateway` does not support traffic shifting. The ALB adds a flat base cost (~$18/month), but enables gradual rollouts, WebSocket support, and top-level firewalls. See [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) for strategy comparisons.
 
 ## Multi-region deployments
 
@@ -205,7 +196,7 @@ Multi-region adds operational complexity and cost — you manage separate deploy
 
 ## Guardrails
 
-Guardrails are a [Console](/getting-started/add-the-console) feature. They define organization-wide policy rules that restrict what deployments can do — which stages and regions are allowed, what resource types and sizes are permitted, and which security settings are required. They prevent teams from deploying configurations that violate your standards.
+Guardrails define organization-wide policy rules that restrict what deployments can do — which stages and regions are allowed, what resource types and sizes are permitted, and which security settings are required. They prevent teams from deploying configurations that violate your standards.
 
 Available guardrail types cover four categories:
 
@@ -224,28 +215,22 @@ Before sending real traffic, run through these concrete checks:
 
 1. **Confirm alarms notify correctly.** Trigger a test error in your function or service and verify the notification reaches your on-call channel. An alarm without `notificationChannels` fires silently in CloudWatch — check that every production alarm has at least one target configured. Use [`stacktape logs`](/cli/logs) to confirm CloudWatch is receiving log data.
 
-2. **Check database backups.** Confirm `deletionProtection: true` and at least 7 days of `automatedBackupRetentionDays` on every production database. In the AWS console, **RDS** → your database → **Maintenance & backups** shows the latest backup.
+2. **Set a budget.** Open **Budgets** in the [Stacktape Console](/getting-started/using-console-ui) and create a budget for your production AWS account with a monthly limit matching your expected spend. Keep the default alerts at 80% and 100%, and keep forecast alerts on so you hear about spend trends before they reach the limit.
 
-3. **Set a budget.** Create a budget for your production AWS account with a monthly limit matching your expected spend: under **Budgets** in the Stacktape Console, or in AWS Budgets without it. Keep alerts at 80% and 100% of the limit, and turn on forecast alerts so you hear about a trend before it reaches the limit.
+3. **Verify your custom domain resolves.** Open your custom domain in a browser and confirm the TLS certificate is valid (lock icon, no warnings). If you registered the domain with [`stacktape domain add`](/cli/domain-add), the DNS records are managed automatically. If you manage DNS externally, verify the CNAME or alias record points to the correct AWS endpoint.
 
-4. **Verify your custom domain resolves.** Open your custom domain in a browser and confirm the TLS certificate is valid (lock icon, no warnings). With DNS in Route 53, Stacktape creates the records. With external DNS, check that the CNAME record points to the AWS hostname.
+4. **Test a gradual deployment.** Push a small change and monitor the deployment in the [Stacktape Console](/getting-started/using-console-ui). Confirm that traffic shifts gradually according to your chosen strategy. Use [`stacktape logs`](/cli/logs) to verify the new version is handling requests correctly.
 
-5. **Test a gradual deployment.** Deploy a small change and watch the CLI output, or the deployment in the Console. Confirm that traffic shifts according to your chosen strategy, and use [`stacktape logs`](/cli/logs) to check that the new version handles requests.
-
-6. **Review guardrails (Console).** Confirm deletion protection is required for production databases, VPC-only access is enforced where needed, and resource limits match your team's standards. See [Guardrails](/guardrails/overview) for the full list of policy rules.
+5. **Review guardrails.** Confirm deletion protection is required for production databases, VPC-only access is enforced where needed, and resource limits match your team's standards. See [Guardrails](/guardrails/overview) for the full list of policy rules.
 
 ## What's next
 
-From here:
+You've completed the Getting Started guide. Your stack is deployed, monitored, automated, and hardened. From here:
 
 - [Resources](/configuration/resources) — the full resource catalogue with configuration guides
 - [Observability](/observability/overview) — logs, metrics, alarms, and alerting in depth
 - [Managing Costs](/managing-costs/overview) — dashboards, budgets, and optimization
 - [Guardrails](/guardrails/overview) — deployment, security, and resource-limit policies
 - [Deploying & Lifecycle](/deployment-and-lifecycle/deploying-stacks) — deploys, previews, rollbacks, and multi-region patterns
-- [CI/CD](/ci-cd-and-gitops/overview) — deploy production from your pipeline or from Git
 
-<PreviousNext
-  left={{ title: 'Use the CLI without an account', url: '/getting-started/open-source-cli' }}
-  right={{ title: 'Custom domains', url: '/resources/networking/custom-domains' }}
-/>
+<PreviousNext left={{ title: 'CI/CD', url: '/getting-started/ci-cd' }} />

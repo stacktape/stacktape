@@ -48,9 +48,7 @@ export function Tabs({ children }: { children?: ReactNode }) {
   }, [activeIndex, labels, tabsId]);
 
   return (
-    <div className="my-[var(--docs-flow-block)]">
-      {/* Before hydration the labels are unknown: keep the tab bar's height so the panel does not jump. */}
-      {labels.length === 0 && <div className="stp-doc-tabs-placeholder" aria-hidden />}
+    <div className="mt-[20px] mr-0 mb-[24px] ml-0">
       {labels.length > 0 && (
         <SharedTabs
           appearance="underline"

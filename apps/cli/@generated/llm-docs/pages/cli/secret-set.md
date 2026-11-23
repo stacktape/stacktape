@@ -1,6 +1,6 @@
 # secret set
 
-`stacktape secret set` creates or updates a secret stored in AWS Secrets Manager. Once stored, you can reference the secret in your Stacktape configuration using the [`$Secret('secret-name')`](/configuration/directives) directive — keeping sensitive values like API keys, database passwords, and third-party tokens out of your config files and version control.
+The `secret set` command creates or updates a secret stored in AWS Secrets Manager. Once stored, you can reference the secret in your Stacktape configuration using the [`$Secret('secret-name')`](/configuration/directives) directive — keeping sensitive values like API keys, database passwords, and third-party tokens out of your config files and version control.
 
 ## Usage
 
@@ -10,7 +10,7 @@ In interactive mode (the default), the command walks you through a guided flow �
 stacktape secret set --region eu-west-1
 ```
 
-With `--agent` the command prints JSONL and asks nothing, so CI and coding agents pass every value as a flag:
+In agent mode (for CI/CD pipelines or AI coding assistants), provide all values as flags:
 
 ```bash
 stacktape secret set my-api-key --region eu-west-1 --value sk-abc123 --agent
@@ -32,7 +32,7 @@ The command operates in two modes depending on whether `--agent` is set.
 2. How to provide the value — either by typing it directly (masked input) or by specifying a file path.
 3. If a secret with the same name already exists, confirmation before overwriting.
 
-**Agent mode** (`--agent`) prints JSONL and never prompts. It requires the secret name and either `--value` or `--file`. If the secret already exists, the command fails unless you pass `--force-update`.
+**Agent mode** (`--agent`) is designed for non-interactive environments. It requires the secret name and either `--value` or `--file`. If the secret already exists, the command fails unless you pass `--force-update`. Agent mode outputs structured JSONL and skips all prompts.
 
 ## Updating existing secrets
 
@@ -84,7 +84,7 @@ stacktape secret set my-api-key --region eu-west-1 --value "$NEW_API_KEY" --forc
 
 The `--force-update` flag ensures the pipeline does not fail when the secret already exists.
 
-## Options
+## Flags reference
 
 
 ## CLI Options: `stacktape secret set`

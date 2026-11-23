@@ -1,6 +1,6 @@
 # bastion tunnel
 
-`stacktape bastion tunnel` creates a secure tunnel through a [bastion host](/resources/security/bastion-host) to reach resources inside a private VPC. Use it to connect local tools — database GUIs, Redis CLIs, or HTTP clients — to resources that have no public endpoint. The command establishes the tunnel through AWS SSM Session Manager.
+The `bastion tunnel` command creates a secure tunnel through a [bastion host](/resources/security/bastion-host) to reach resources inside a private VPC. Use it to connect local tools — database GUIs, Redis CLIs, or HTTP clients — to resources that have no public endpoint. The command establishes the tunnel through AWS SSM Session Manager.
 
 ## Usage
 
@@ -17,6 +17,28 @@ The command opens one or more local ports, prints the local-to-remote mapping, a
 **`--bastion-resource`** — selects which bastion resource to tunnel through. Use this when your stack has multiple bastion hosts.
 
 **`--local-tunneling-port`** — sets the local port passed to the tunneling helper. If not specified, Stacktape automatically selects an available port. If the target resolves to multiple tunnel targets, Stacktape opens one port-forwarding session per target and prints the actual local ports.
+
+## Flags reference
+
+
+## CLI Options: `stacktape bastion tunnel`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
+| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `--bastion-resource` | no | `string` | Bastion Resource Name — The name of the bastion resource as defined in your Stacktape configuration. | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--local-tunneling-port` | no | `number` | Local Tunneling Port — Specifies the local port for tunneling when using the `bastion tunnel` command. If not specified, Stacktape automatically selects an available port. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
 
 ## Supported resource types
 
@@ -116,30 +138,8 @@ Yes. Each `bastion tunnel` invocation keeps running while its port-forwarding se
 
 You can, but there is no reason to. If a database has a public endpoint, connect to it directly. Bastion tunneling is designed for resources deployed in a private VPC with no public endpoint.
 
-## Options
-
-
-## CLI Options: `stacktape bastion tunnel`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--resource-name (positional 1)` | yes | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
-| `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--bastion-resource` | no | `string` | Bastion Resource Name — The name of the bastion resource as defined in your Stacktape configuration. | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
-| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--local-tunneling-port` | no | `number` | Local Tunneling Port — Specifies the local port for tunneling when using the `bastion tunnel` command. If not specified, Stacktape automatically selects an available port. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## Related commands
 
-- [`bastion shell`](/cli/bastion-shell) — start an interactive shell session on the bastion host itself.
+- [`bastion shell`](/cli/bastion-session) — start an interactive shell session on the bastion host itself.
 - [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastion-resource` for VPC-only databases.
 - [`query redis`](/cli/query-redis) — query a deployed Redis cache. Supports `--bastion-resource` for VPC-only clusters.

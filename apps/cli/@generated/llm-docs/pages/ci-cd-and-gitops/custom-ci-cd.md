@@ -1,204 +1,234 @@
 # Custom CI/CD
 
-This page sets up a pipeline that runs [`stacktape deploy`](/cli/deploy) after your own steps, such as tests or a
-manual approval. Any CI that runs shell commands works. If a push should simply deploy, with no steps before it,
-[Git deployments](/ci-cd-and-gitops/gitops-with-console) need no pipeline file.
+Stacktape integrates with any CI/CD system that can run shell commands — GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Jenkins, or custom scripts. Give the pipeline AWS credentials, or a Stacktape API key if you use the Console, then run [`deploy`](/cli/deploy) or [`delete`](/cli/delete) as a pipeline step to deploy and manage your AWS infrastructure from existing workflows.
 
-## Authenticate the pipeline
+## When to use custom CI/CD
+
+Choose custom CI/CD when your deployment workflow needs steps beyond "push triggers deploy." Typical reasons:
+
+- **Pre-deploy validation** — run tests, type checks, or lint before allowing a deployment
+- **Approval gates** — require manual approval or status checks before production deploys
+- **Multi-step pipelines** — build artifacts, run integration tests, deploy staging, run smoke tests, then deploy production
+- **Notifications and reporting** — post deploy status to Slack, update issue trackers, or trigger downstream jobs
+- **Non-git triggers** — deploy on schedule, on a webhook from another system, or from a monorepo filter
+
+Custom CI/CD gives you full control over what happens before, during, and after a Stacktape deployment.
+
+## When NOT to use custom CI/CD
+
+If you want push-to-deploy with zero pipeline code, use [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) instead. GitOps handles branch pushes and PR previews automatically — no workflow files to write or maintain. Writing a CI pipeline purely to call `stacktape deploy` on every push adds maintenance for no benefit.
+
+You can combine both: GitOps for staging and PR previews, custom CI for production where you need test gates.
+
+## Authentication
 
 ### Without a Stacktape account
 
-Give the job AWS credentials and don't set `STACKTAPE_API_KEY`. The CLI deploys to the AWS account the credentials
-belong to. On GitHub Actions, use an IAM role that trusts GitHub's OIDC provider, so no AWS key is stored. See
-[CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account) for a complete workflow.
+The open-source CLI deploys with the AWS credentials the job has. Set them before running Stacktape, for example with `aws-actions/configure-aws-credentials` and an IAM role that trusts GitHub's OIDC provider, and don't set `STACKTAPE_API_KEY`. Deploys go to the AWS account the credentials belong to. Console features such as deploy history and alert channels are not available in this mode. See [CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account) for an example workflow.
 
 ### With the Console
 
-Set `STACKTAPE_API_KEY` in the job. Deploys are then recorded in the Console, and Console features in your config work.
+Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. You can authenticate the CLI in two ways:
 
-Use an organization key, not a personal one. A personal key acts as the person who created it and stops working when
-they leave the organization. Owners and Admins create an organization key in the Console under **API keys** →
-**Organization keys** → **New organization key**, with the Developer role limited to the projects and AWS accounts the
-pipeline deploys. See [Organization keys for CI](/stacktape-console/api-keys#create-an-organization-key).
+- **Explicit login step** — run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying. The login command verifies the key and saves it for subsequent CLI commands.
+- **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The CI examples on this page use this approach for brevity.
 
-The CLI deploys into an AWS account connected to your organization:
+If the pipeline also sets AWS credentials, for example with `aws-actions/configure-aws-credentials`, Stacktape deploys to the connected account they belong to. Pass `--aws-account <name>` to choose the account explicitly; the AWS credentials must then belong to it. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
 
-- With one connected account, it uses that one.
-- With several, pass `--aws-account <name>`.
-- If the job also has AWS credentials, the CLI uses the connected account they belong to.
+| Provider | Where to store the secret |
+|----------|--------------------------|
+| GitHub Actions | Repository Settings → Secrets and variables → Actions |
+| GitLab CI | Settings → CI/CD → Variables (masked) |
+| Bitbucket Pipelines | Repository Settings → Pipeline → Repository variables |
+| CircleCI | Project Settings → Environment Variables |
 
-See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
 
-Store the key, or the AWS credentials, in your CI's secret store:
+> **Tip:** Create a dedicated API key for CI/CD rather than reusing a personal key. This makes it easy to rotate without disrupting developer workflows.
 
-| CI | Where |
-|---|---|
-| GitHub Actions | Repository **Settings → Secrets and variables → Actions** |
-| GitLab CI | **Settings → CI/CD → Variables**, masked |
-| Bitbucket Pipelines | **Repository settings → Repository variables**, secured |
-| CircleCI | **Project Settings → Environment Variables** |
 
-## The deploy command
+## Essential CLI flags for CI
+
+### --yes
+
+The [`deploy`](/cli/deploy) and [`delete`](/cli/delete) commands can prompt for confirmation before modifying infrastructure. The `--yes` flag skips these prompts. Always include this flag in automated pipelines — without it, the CLI may wait for confirmation before modifying infrastructure, which is unsuitable for automated CI jobs. See the [`deploy` CLI reference](/cli/deploy) for details.
+
+### --stage and --region
+
+CI commands should pass `--stage` and `--region` explicitly so the deployment target is unambiguous. Set the stage to match your environment (e.g. `production`, `staging`, or a dynamic PR name). If the combined project name and stage name produces a stack name that's too long, Stacktape warns that some AWS resource names will be obfuscated to stay within CloudFormation naming limits — keep stage names short when deriving them from PR numbers or branch names.
+
+A full deploy command in CI:
 
 ```bash
-npx stacktape deploy --stage production --region eu-west-1 --yes
+npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
-- **`--stage` and `--region`** pick the target. Pass both, so the target never depends on the worker's defaults. If
-  the pipeline deploys more than one project, also pass `--project` or set the project name in each config.
-- **`--yes`** approves what the CLI would otherwise ask about: an update that deletes or replaces a database or another
-  stateful resource, a Console project that doesn't exist yet, and every `delete`. A CI job can't answer, so without
-  `--yes` such a run stops with an error and changes nothing. A routine deploy never asks.
-- **`--auto-rollback`** returns the stack to its last successful deployment when the deploy fails. By default a failed
-  deploy keeps what it changed, and the next run continues from there. See [Rollbacks](/deployment-and-lifecycle/rollbacks).
+A delete command (for PR cleanup):
 
-The deploy installs your JavaScript dependencies from the lockfile itself (`npm ci`, `pnpm install --frozen-lockfile`
-and so on), so it needs no install step of its own. npm comes with Node.js. For pnpm, Yarn or Bun, install the package
-manager in the job first.
+```bash
+npx stacktape delete --stage pr-42 --region us-east-1 --yes
+```
 
-To deploy to several regions, run the command once per region. Each region gets its own stack.
 
-### Docker in the job
+> **Info:** If your CI pipeline deploys more than one Stacktape project, make the project selection explicit — set the project name in each configuration file or pass it as a CLI argument.
 
-Building a container image needs the Docker CLI with Buildx and a running Docker daemon. Every container workload needs
-one (`js-bundle`, `buildpack` and `dockerfile` packaging), and so do Lambda functions with `buildpack` packaging and
-some native dependencies of `js-bundle` functions. GitHub's hosted Ubuntu runners have Docker. The GitLab, Bitbucket
-and CircleCI examples below run in a plain Node.js container without it, so as written they deploy only stacks that
-need no Docker build. For anything else, give the job Docker the way your CI documents it:
-[GitLab Docker-in-Docker](https://docs.gitlab.com/ci/docker/using_docker_build/),
-[the Bitbucket Docker service](https://support.atlassian.com/bitbucket-cloud/docs/run-docker-commands-in-bitbucket-pipelines/)
-or [CircleCI's machine executor or remote Docker](https://circleci.com/docs/guides/execute/building-docker-images/).
+
+### --full
+
+When only code changed, `stacktape deploy` updates the changed [Lambda functions](/resources/compute/lambda-function) and container workloads directly, without CloudFormation (see [Fast deployments](/cli/deploy#fast-deployments)). The `--full` flag deploys every change through CloudFormation instead.
+
+```bash
+npx stacktape deploy --stage staging --region us-east-1 --full --yes
+```
+
+### --auto-rollback
+
+By default, a failed deployment keeps what it created or updated, and the next pipeline run continues from the failure. The `--auto-rollback` flag makes CloudFormation undo a failed deployment instead, so the stack returns to the last successful deployment (or, for a first deployment, is deleted). When a deploy is rolled back (outside of stack-monitoring errors, where the actual stack outcome is unknown), Stacktape removes deployment artifacts from the rolled-back attempt. See the [`deploy` CLI reference](/cli/deploy) for details.
+
+```bash
+npx stacktape deploy --stage production --region us-east-1 --auto-rollback --yes
+```
+
+Use automatic rollback for production pipelines that must never leave a stack between two versions. To set it for every deployment of a stage, use `deploymentConfig.autoRollback` with `$Stage()`.
 
 ## GitHub Actions
 
-Create `.github/workflows/deploy.yml`. The deploy job runs only after the tests pass:
+A GitHub Actions workflow can run the Stacktape CLI from a Node.js runner with a single `run` step. Create `.github/workflows/deploy.yml` in your repository:
 
 ```yaml
 name: Deploy
 on:
   push:
     branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Deploy to production
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+        run: npx stacktape deploy --stage production --region us-east-1 --yes
+```
 
-# Deploys of production run one at a time.
-concurrency:
-  group: deploy-production
+Store `STACKTAPE_API_KEY` in your repository's Actions secrets. The `npx stacktape` invocation downloads and caches the CLI on first run.
 
+### Adding tests before deploy
+
+```yaml
+name: Test and Deploy
+on:
+  push:
+    branches: [main]
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - run: npm ci
       - run: npm test
-
   deploy:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - name: Deploy
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Deploy to production
         env:
           STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape deploy --stage production --region eu-west-1 --yes
+        run: npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
-With the `concurrency` group, a new run waits while another one deploys. GitHub keeps only the newest waiting run and
-cancels older waiting ones, so after three quick pushes the middle one never deploys. That is usually what you want,
-because the newest commit includes the others. To deploy every commit in order, add `queue: max` to the group.
+The `needs: test` dependency ensures the deploy only runs when tests pass.
 
-To pin the CLI version the pipeline uses, replace `npx stacktape` with `npx stacktape@4.0.0`, or the version you
-tested. Then a Stacktape release never changes what the pipeline does.
+### PR preview environments
 
-### Pull request previews
-
-One workflow deploys a stage for every pull request and deletes it when the pull request closes. It needs no
-Stacktape account: both jobs get AWS credentials from an IAM role through GitHub's OIDC provider.
+Deploy an isolated stage for each pull request and tear it down on close. Each PR stage creates real AWS resources for whatever your Stacktape config defines — delete preview stages promptly to avoid accumulating unused infrastructure.
 
 ```yaml
-name: Preview
+name: PR Preview
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
-
-permissions:
-  id-token: write
-  contents: read
-
-# One group per pull request keeps its deploys and the delete in order.
-concurrency:
-  group: preview-${{ github.event.pull_request.number }}
-
+    types: [opened, synchronize, reopened]
 jobs:
-  deploy:
-    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+  deploy-preview:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/github-preview
-          aws-region: eu-west-1
-      - name: Deploy preview
-        run: npx stacktape deploy --project my-app --stage pr-${{ github.event.pull_request.number }} --region eu-west-1 --yes
+          node-version: '20'
+      - name: Deploy PR preview
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+        run: npx stacktape deploy --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
+```
 
-  delete:
-    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+Add a cleanup workflow that runs when the PR is closed:
+
+```yaml
+name: Cleanup PR Preview
+on:
+  pull_request:
+    types: [closed]
+jobs:
+  delete-preview:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/github-preview
-          aws-region: eu-west-1
-      - name: Delete preview
-        run: npx stacktape delete --project my-app --stage pr-${{ github.event.pull_request.number }} --region eu-west-1 --yes
+          node-version: '20'
+      - name: Delete PR preview
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+        run: npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
 ```
 
-Both commands name the project and the stage, so the stack name never depends on the runner or on the checkout. The
-delete job runs on the base branch after a merge, and its config may differ from the one the preview was deployed with.
 
-The role's trust policy must accept pull request jobs. GitHub sends one of two subject formats: repositories created
-after July 15, 2026 (and older ones that opted in) include the owner and repository IDs. Trusting both exact values
-works either way:
+> **Warning:** Delete preview stages on PR close to avoid unused infrastructure and costs. Each preview stage provisions the full set of resources defined in your config — databases, functions, containers, and networking — all of which incur AWS charges while running.
 
-```json
-"Condition": {
-  "StringEquals": {
-    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-    "token.actions.githubusercontent.com:sub": [
-      "repo:my-org/my-app:pull_request",
-      "repo:my-org@123456/my-app@456789:pull_request"
-    ]
-  }
-}
+
+For more on the branch-to-stage mapping pattern, see [stacks per git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
+
+### Concurrency control
+
+Stacktape deploys use CloudFormation, which serializes updates to a single stack. If two CI runs deploy to the same stage simultaneously, one fails because the stack is in an `UPDATE_IN_PROGRESS` state. Add a concurrency group to prevent parallel deploys:
+
+```yaml
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 ```
 
-`gh api repos/my-org/my-app --jq '.owner.id, .id'` prints the two IDs. A role that trusts only
-`...:ref:refs/heads/main` refuses pull request jobs. Keep previews in an AWS account without production.
-
-With the Console, drop the `configure-aws-credentials` steps and set `STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}`
-in the `env` of both Stacktape steps, as in the deploy workflow above.
-
-The shared group matters. Without it, a delete that runs before a queued deploy leaves that deploy to create the
-preview again after the pull request closed. With it, closing the pull request replaces any deploy that hasn't started
-yet, and the delete runs after the one that is running.
-
-The `if` conditions skip pull requests from forks, but a fork can edit its copy of the workflow, and the trust policy
-can't tell a fork's run from yours. What keeps forks out is that GitHub gives fork pull request runs read-only
-permissions, so they can't request the OIDC token. Keep **Send write tokens to workflows from pull requests** turned
-off in the repository's **Settings → Actions → General**.
-
-A database that `stacktape init` added has deletion protection on every stage. The delete job then fails, and the
-preview keeps running and costing money. Turn the protection off for previews as described in
-[Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests). After your first preview,
-close the pull request and check that the stage is gone.
-
-[Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) covers naming and the cost of previews.
+Place this at the job level in your GitHub Actions workflow. The `cancel-in-progress: false` setting queues new runs instead of cancelling them, so no deploy is silently dropped.
 
 ## GitLab CI
 
-Add `.gitlab-ci.yml`. Staging deploys on every push to `develop`, and production waits for someone to click **Run** on
-`main`:
+A GitLab CI pipeline can run the Stacktape CLI from a Node.js Docker image. Add to `.gitlab-ci.yml`:
+
+```yaml
+deploy:
+  image: node:20
+  stage: deploy
+  only:
+    - main
+  script:
+    - npx stacktape deploy --stage production --region us-east-1 --yes
+  variables:
+    STACKTAPE_API_KEY: $STACKTAPE_API_KEY
+```
+
+Store `STACKTAPE_API_KEY` as a masked CI/CD variable in your GitLab project settings.
+
+### Multi-stage pipeline with tests
 
 ```yaml
 stages:
@@ -206,41 +236,42 @@ stages:
   - deploy
 
 test:
-  image: node:24
+  image: node:20
   stage: test
   script:
     - npm ci
     - npm test
 
 deploy-staging:
-  image: node:24
+  image: node:20
   stage: deploy
-  resource_group: deploy-staging
-  rules:
-    - if: $CI_COMMIT_BRANCH == "develop"
+  only:
+    - develop
   script:
-    - npx stacktape deploy --stage staging --region eu-west-1 --yes
+    - npx stacktape deploy --stage staging --region us-east-1 --yes
+  variables:
+    STACKTAPE_API_KEY: $STACKTAPE_API_KEY
 
 deploy-production:
-  image: node:24
+  image: node:20
   stage: deploy
-  resource_group: deploy-production
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
-      when: manual
+  only:
+    - main
   script:
-    - npx stacktape deploy --stage production --region eu-west-1 --yes
+    - npx stacktape deploy --stage production --region us-east-1 --yes
+  variables:
+    STACKTAPE_API_KEY: $STACKTAPE_API_KEY
+  when: manual
 ```
 
-`STACKTAPE_API_KEY` or the AWS credentials come from the project's CI/CD variables. A `resource_group` runs one job at
-a time per group. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
+The `when: manual` on production requires a developer to click "Run" in the GitLab UI — an approval gate without additional tooling. Use GitLab resource groups if you need to prevent parallel deploys to the same stage.
 
 ## Bitbucket Pipelines
 
-Add `bitbucket-pipelines.yml`:
+Add to `bitbucket-pipelines.yml`:
 
 ```yaml
-image: node:24
+image: node:20
 
 pipelines:
   branches:
@@ -248,26 +279,26 @@ pipelines:
       - step:
           name: Deploy to production
           script:
-            - npx stacktape deploy --stage production --region eu-west-1 --yes
+            - npx stacktape deploy --stage production --region us-east-1 --yes
 ```
 
-Store `STACKTAPE_API_KEY` or the AWS credentials as secured repository variables. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
+Store `STACKTAPE_API_KEY` as a repository variable in Bitbucket Pipeline settings.
 
 ## CircleCI
 
-Add `.circleci/config.yml`:
+Add to `.circleci/config.yml`:
 
 ```yaml
 version: 2.1
 jobs:
   deploy:
     docker:
-      - image: cimg/node:lts
+      - image: cimg/node:20.0
     steps:
       - checkout
       - run:
           name: Deploy to production
-          command: npx stacktape deploy --stage production --region eu-west-1 --yes
+          command: npx stacktape deploy --stage production --region us-east-1 --yes
 workflows:
   deploy-on-push:
     jobs:
@@ -277,54 +308,90 @@ workflows:
               only: main
 ```
 
-Store `STACKTAPE_API_KEY` or the AWS credentials as project environment variables. To build container images, add Docker to the job; see [Docker in the job](#docker-in-the-job).
+Store `STACKTAPE_API_KEY` as a project environment variable in CircleCI.
 
-## Review changes before an approval
+## Choosing CI runner capacity
 
-In a pipeline with a manual approval, run [`stacktape diff`](/cli/diff) before the approval step, so the reviewer sees
-which resources the deploy adds, changes or replaces:
+| Scenario | Recommended command |
+|----------|-------------------|
+| Small to medium project, CI runner has enough CPU/RAM | `stacktape deploy` (default `--runner local`) |
+| Large dependencies or container builds | [`deploy`](/cli/deploy) on a larger CI worker |
+| Need a consistent build environment | Pin the CI image and tool versions |
+| Need AWS-hosted GitHub Actions compute | [`deploy`](/cli/deploy) on a [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) |
+| Want fastest possible deploy from CI | `stacktape deploy` with caching |
+
+The default `deploy` command runs the build and deployment on your CI worker. Configure CPU, memory, disk, Docker support, and dependency caches in the CI provider. For GitHub Actions, Stacktape can manage an EC2-based [self-hosted runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) in your AWS account.
+
+## Multi-environment patterns
+
+A common pattern maps branches to stages:
+
+| Branch | Stage | Region | Trigger |
+|--------|-------|--------|---------|
+| `main` | `production` | `us-east-1` | Push (after tests pass) |
+| `develop` | `staging` | `us-east-1` | Push |
+| PR branch | `pr-{number}` | `us-east-1` | PR opened/updated |
+
+Implement this with separate workflow triggers or CI stages. The core command stays the same — only the `--stage` value changes.
+
+### Passing config-level variables per environment
+
+Stacktape supports deploy-time parameterization so you can keep one configuration file across all environments while varying database sizes, instance counts, or feature flags. See [deploy-time parameters](/deployment-and-lifecycle/deploy-time-parameters) and [directives](/configuration/directives) for the available patterns.
+
+## Previewing changes before deploying
+
+In workflows with approval gates, use [`diff`](/cli/diff) as an earlier pipeline step to inspect what a deployment would change before approving it. This gives reviewers a chance to see the planned infrastructure diff without actually applying changes.
 
 ```bash
-npx stacktape diff --stage production --region eu-west-1
+npx stacktape diff --stage production --region us-east-1
 ```
 
-`diff` needs the same credentials as the deploy, and it isn't free of side effects. It packages your code, and before
-it compares, it creates the missing secrets and SSM parameters a deploy would create, such as generated database
-passwords.
-
-## When two deploys of a stage run at once
-
-A stack runs one deploy, rollback or delete at a time, including fast code-only deploys. A second deploy waits for the
-first, prints who holds the stage while it waits, and then deploys on top of what the first one left. If a CI job is
-killed mid-deploy, its hold on the stage expires within two minutes and the waiting deploy continues.
-
-Waiting deploys don't keep the order of their commits, so an older commit can finish last. A GitHub Actions
-`concurrency` group fixes that: it keeps only the newest waiting run, so the stage ends on the newest commit, and no
-runner time is spent waiting. A GitLab `resource_group` runs one job at a time; set its process mode to `newest_first`
-to get the same result.
-
-The first deploy of a new stage is the exception. If two first deploys of the same stage run at once, the second stops
-without changing anything. Run it again.
+This is useful in production pipelines where a reviewer needs to see the infrastructure diff before approving. Pair it with a manual approval step so the team can review changes before the deploy job runs. See the [`diff` CLI reference](/cli/diff) for details on its output.
 
 ## Troubleshooting
 
-### "needs confirmation, and this run cannot ask for it"
+### CLI hangs or throws an error waiting for input
 
-The deploy would delete or replace a stateful resource, or the command is a `delete`. The error lists the resources.
-If the change is intended, run it again with `--yes`.
-
-### "Missing 2 secret(s)"
-
-The config references secrets that don't exist in the target region, and a CI job can't prompt for their values.
-Create them once with [`stacktape secret set`](/cli/secret-set) and run the pipeline again.
+Add `--yes` to your [`deploy`](/cli/deploy) or [`delete`](/cli/delete) command. Without this flag, the CLI may wait for confirmation before modifying infrastructure, which is unsuitable for automated CI jobs.
 
 ### Authentication fails
 
-Without an account, check that the step that sets AWS credentials runs before the deploy and that the role or keys are
-valid. With the Console, check that `STACKTAPE_API_KEY` is set in the deploy step (the name is case-sensitive) and that
-the key isn't revoked or expired under **API keys** in the Console.
+Without a Stacktape account, check that the job has AWS credentials before the Stacktape step runs and that they have not expired.
 
-### The stack name is too long
+With the Console, verify that you have authenticated — either by setting the `STACKTAPE_API_KEY` environment variable (case-sensitive) or by running [`stacktape login --api-key <key>`](/cli/login) before the deploy step. Check that the API key hasn't been revoked in the Console under [API keys](/stacktape-console/api-keys), and rotate it if necessary.
 
-The stack name is the project name, a dash and the stage, and CloudFormation allows 128 characters. The error says how
-long the stage can be for your project. Shorten generated stage names: `pr-42`, not the full branch name.
+### Stack name too long or resource names obfuscated
+
+If the combined project name and stage name produces a stack name that exceeds CloudFormation naming limits, Stacktape warns that some AWS resource names will be obfuscated. When deriving stage names from PR numbers or branch names, keep them short — `pr-42` is fine, but a long descriptive name combined with a long project name may trigger obfuscation.
+
+### Concurrent deploys to the same stage
+
+A stack runs one deploy, rollback or delete at a time. If two CI runs deploy to the same stage simultaneously, the second waits for the first to finish, names it while it waits, and then deploys on top of what the first one deployed. If a CI job is killed, its lock expires within two minutes and the waiting deploy continues. If the killed job was running a [release command](/deployment-and-lifecycle/release-commands), the waiting deploy also waits for that command to finish. Runs wait in no particular order, so a run of an older commit can finish last. To always end on the newest commit, use CI concurrency controls (a GitHub Actions `concurrency` group or a GitLab resource group), which also save the runner time spent waiting.
+
+The first deploy of a new stage is the exception: until the stage exists, it has nowhere to keep the lock. If two first deploys of the same stage run at once, the second stops without changing anything; run it again.
+
+## FAQ
+
+### How do I authenticate Stacktape in a CI pipeline?
+
+Without a Stacktape account, give the job AWS credentials; nothing else is needed. With the Console, run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
+
+### When should I use custom CI/CD vs GitOps?
+
+Use [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) when you want zero-maintenance push-to-deploy with PR previews and no workflow files. Use custom CI/CD when you need pre-deploy test gates, manual approval steps, multi-step pipelines, or non-git triggers. You can combine both — GitOps for staging branches and custom CI for production.
+
+### Where does the deployment build run?
+
+The standard [`deploy`](/cli/deploy) command builds on the CI worker that invokes it. Size that worker for your workload and configure provider-level caches for package managers and Docker. If you use Stacktape's self-hosted GitHub Actions integration, the workflow runs on the project's EC2 runner in your AWS account.
+
+### What happens when a deploy fails in CI?
+
+By default, the stack keeps what the failed deployment created or updated and stays in `CREATE_FAILED` or `UPDATE_FAILED`. Fix the issue and run the pipeline again; the deploy continues from the failure. With `--auto-rollback` or `deploymentConfig.autoRollback`, CloudFormation rolls the deployment back instead, and Stacktape removes deployment artifacts from the rolled-back attempt (except after stack-monitoring errors, where the actual stack outcome is unknown). See [Rollbacks](/deployment-and-lifecycle/rollbacks) for the full options.
+
+### How do I deploy to multiple AWS regions from CI?
+
+Run the deploy command once per region with the same stage name but different `--region` values. Each region creates an independent stack. You can run these as parallel jobs in your CI pipeline. See [multi-region deployments](/deployment-and-lifecycle/multi-region-deployments) for patterns and considerations.
+
+### What happens when two deploys to the same stage run at once?
+
+A stack runs one deploy, rollback or delete at a time, including deploys that skip CloudFormation. The second deploy waits for the first to finish and then deploys on top of its result. A killed run blocks the next one for at most two minutes. To control the order of runs, use a GitHub Actions `concurrency` group (with `cancel-in-progress: false` to queue rather than drop runs) or a GitLab resource group.

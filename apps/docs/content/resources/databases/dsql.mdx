@@ -1,27 +1,17 @@
 ---
 title: 'Aurora DSQL'
-order: 2
+order: 47
 seoTitle: 'Amazon Aurora DSQL Database | Stacktape Docs'
 seoDescription: 'Deploy a serverless Amazon Aurora DSQL database with IAM authentication, automatic connection metadata, deletion protection, and TypeScript config.'
 ---
 
-A `dsql-database` is an Amazon Aurora DSQL cluster: a serverless, PostgreSQL-compatible database with no instances,
-passwords or network rules to configure. It scales on its own, and your code connects over TLS with a short-lived IAM
-token.
+# Aurora DSQL
 
-You pay for the work done (distributed processing units, $8 per million) and $0.33 per GB-month of storage, with a
-monthly free allowance of 100,000 units and 1 GB ([DSQL pricing](https://aws.amazon.com/rds/aurora/dsql/pricing/)). An
-idle database costs only its storage.
+The `dsql-database` resource creates an Amazon Aurora DSQL cluster with no instances, capacity, passwords, or network rules to configure. DSQL is a serverless, PostgreSQL-compatible database that scales automatically. Connections use TLS and a short-lived IAM authentication token.
 
-DSQL supports a subset of PostgreSQL. Check the
-[compatibility guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-migration-guide.html)
-before moving an existing app, especially one that uses extensions, uncommon data types or long-running sessions. For
-full PostgreSQL, MySQL and the other engines, password sign-in or backup settings in your config, use a
-[relational database](/resources/databases/relational-database).
+## When to use
 
-## Basic example
-
-A DSQL database needs no properties:
+DSQL is a good fit for a new application that needs relational transactions and SQL but does not want to size database instances, manage credentials, or operate failover. A resource can be created with no properties:
 
 <CodeBlock
   intellisense
@@ -46,6 +36,12 @@ export default defineConfig(() => {
     }
   ]}
 />
+
+## When not to use
+
+DSQL implements a PostgreSQL-compatible subset rather than running ordinary PostgreSQL. Check the [Aurora DSQL PostgreSQL compatibility documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-migration-guide.html) before migrating an existing application, especially if it depends on PostgreSQL extensions, unsupported data types, long-running sessions, or engine-specific administration.
+
+Use a [relational database](/resources/databases/relational-database) when you require full PostgreSQL, MySQL, MariaDB, Oracle, or SQL Server compatibility; a private VPC-only endpoint configured directly by Stacktape; conventional password authentication; or built-in Stacktape backup and restore settings.
 
 ## Connect a workload
 
@@ -171,15 +167,10 @@ CloudFormation with the valid choices in the error.
 
 For CloudFormation properties not exposed above, use the `cluster` child through [overrides and transforms](/configuration/overrides-and-escape-hatches).
 
-## Configuration reference
-<ApiReference definitionName="DsqlDatabaseProps" />
-
 ## Referenceable parameters
 
 <ReferenceableParams resource="dsql-database" />
 
-## Next steps
+## API Reference
 
-- [Release commands](/deployment-and-lifecycle/release-commands): run schema migrations during each deploy.
-- [Connecting resources](/configuration/connecting-resources#aurora-dsql): the variables `connectTo` injects.
-- [Relational database](/resources/databases/relational-database): when you need full PostgreSQL or MySQL.
+<ApiReference definitionName="DsqlDatabaseProps" />

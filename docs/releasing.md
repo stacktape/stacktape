@@ -343,7 +343,8 @@ aws sts get-caller-identity --query Account --output text   # 977946299200
 ### Documentation site
 
 [`apps/docs/stacktape.ts`](../apps/docs/stacktape.ts) deploys the stack `docs-<stage>` in `eu-west-1`: a bucket behind
-CloudFront, the Route 53 record, and the redirects. A deploy builds the site from the checkout
+CloudFront, the Route 53 record, and a CloudFront Function that answers the old URLs in
+[`site-redirects.ts`](../apps/docs/src/utils/site-redirects.ts) with a 301. A deploy builds the site from the checkout
 (`turbo run build --filter @stacktape/docs`, which includes CLI generation and the built-site validators), uploads
 `dist` (files missing from the build are deleted), and invalidates the CDN. The source CLI runs in dev mode with the dev
 Console API key in `apps/cli/.env.local`, so the operation is recorded in the dev Console.
@@ -353,58 +354,14 @@ Console API key in `apps/cli/.env.local`, so the operation is recorded in the de
 | `pnpm deploy:docs:preview` | `docs-preview`    | `https://preview-docs.stacktape.com` |
 | `pnpm deploy:docs`         | `docs-production` | `https://docs.stacktape.com`         |
 
-The old URLs in [`site-redirects.ts`](../apps/docs/src/utils/site-redirects.ts) get a 301 from three parts:
-
-- a CloudFront KeyValueStore `docs-<stage>-redirects` that holds the table: old path without the trailing slash → new
-  URL;
-- a CloudFront Function of the same name that looks every request up in the store and answers a match with a 301. Its
-  code does not change with the table;
-- the `writeRedirects` `afterDeploy` hook ([`write-redirect-store.ts`](../apps/docs/scripts/write-redirect-store.ts)),
-  which makes the store hold this checkout's table. It changes only the keys that differ, so it is safe to run again.
-
-The store and the function are in the CloudFormation template. The hook runs on your machine after the CLI has uploaded
-`dist` and invalidated the CDN, so a new redirect never points at a page the bucket does not hold yet. Until it has run,
-old URLs that are new in this release get the bucket's meta-refresh page, which still redirects.
-
-The hook takes its AWS credentials from the deploying shell, not from the Console connection:
-`--awsAccount stacktape-dev` gives the CLI its credentials but does not pass them to local scripts. The hook's SDK
-client uses the default credential chain: exported `AWS_*` variables, then `AWS_PROFILE`, then the `[default]` profile.
-Export the stacktape-dev credentials as shown above, or make sure the `[default]` profile is that account. Otherwise the
-hook fails on the store ARN, the deploy reports the failed `afterDeploy` hook, and you rerun it as described under
-**When a deploy fails**.
-
-The build checks the store's limits (keys up to 512 bytes, values up to 1 KB, 5 MB in total). The site also renders
-every redirect as a meta-refresh page, which local previews and any request the function lets through still follow.
-
-**First deploy with the store.** The first deploy of this setup to a stage creates the empty store and switches the
-function to read it. The hook then fills it. In between, old URLs get the meta-refresh pages.
-
 Publish to the preview first and check it:
 
 - an old URL answers 301: `curl -sI <site>/compute-resources/functions` points to `/resources/compute/lambda-function/`;
-  `/cli/commands/debug-logs` points to `/v3/cli/commands/logs/`; a redirect added in this checkout answers 301 too;
-- the store holds the table: `aws cloudfront-keyvaluestore describe-key-value-store --kvs-arn <arn>` reports the
-  `ItemCount` that the hook printed ("N redirects").
-  `aws cloudfront describe-key-value-store --name docs-<stage>-redirects` prints the ARN. The first command needs AWS
-  CLI v2, which signs with SigV4A;
+  `/cli/commands/debug-logs` points to `/v3/cli/commands/logs/`;
 - `/getting-started/upgrading-from-v3/`, `/v3/` and `/v3/compute-resources/functions/` return 200, and the v3 page is
   `noindex`;
 - an unknown path returns 404 with the site's error page;
 - `/llms.txt`, `/llms-full.txt` and `/llms-api-reference.txt` are byte-identical to `apps/cli/@generated/llm-docs/`.
-
-**When a deploy fails.** The docs deploys do not turn on automatic rollback, so CloudFormation does not undo anything.
-
-- The CloudFormation update fails: the stack stays in `UPDATE_FAILED` with the resources that did update. The upload and
-  the hook have not run, so the bucket and the table are as before. Fix the cause and deploy again (the CLI continues
-  the failed update), or run
-  `pnpm dev:cli stack recover --stage <stage> --configPath ../docs/stacktape.ts --awsAccount stacktape-dev` to roll the
-  stack back.
-- The hook fails (missing credentials, a network error, or someone edited the store meanwhile): the new site is live and
-  the CLI reports that the `afterDeploy` hook failed. The store writes 50 keys per request, so it can hold part of the
-  new table. Every old URL still redirects through its meta-refresh page. Export the stacktape-dev credentials and check
-  them (`aws sts get-caller-identity` prints 977946299200), then run the hook again:
-  `pnpm dev:cli script run --scriptName writeRedirects --stage <stage> --configPath ../docs/stacktape.ts --awsAccount stacktape-dev`.
-  It prints the number of redirects; compare it with the store's `ItemCount` as above.
 
 **Rollback.** Copy the bucket before a production publish, keeping the listing:
 
@@ -413,25 +370,12 @@ aws s3 sync s3://docs-production-webbucket-aaa125e6 <backup directory>
 ```
 
 `DOCS_RESTORE_DIRECTORY=<absolute backup directory> pnpm deploy:docs` uploads that copy instead of building, removes the
-redirect function and its store (their targets are pages the old site lacks) and invalidates the CDN. The meta-refresh
-pages in the copy still redirect the URLs that site knew. The next normal deploy creates the redirect resources again,
-as on the first deploy above.
-
-Browsers keep a 301 for an hour (`cache-control: public, max-age=3600`). For up to an hour after a restore, a reader
-whose browser followed a redirect that the restored site does not have still goes to the new URL. If the restored site
-lacks that page, they get the 404 page and its search. The restore does not shorten this; wait it out.
-
-`stacktape rollback` can also restore an earlier release's files when that release's bucket manifest and object versions
-still exist (Stacktape keeps earlier versions for 30 days). It leaves the redirect table as it is, so use the backup
-copy for the docs.
+redirect function (its targets are pages the old site lacks) and invalidates the CDN. Bucket versioning is off, so this
+copy is the only record of the previous site.
 
 **Search.** The Algolia DocSearch crawler (index `Docs crawler`, app `PFTWPISD3F`) is configured in the Algolia
-dashboard, not in this repository. After publishing, run a crawl so that stale URLs and headings disappear. Then search
-for `deploy` on the live site, open its **Options** result and check that the page scrolls to that heading. Old
-fragments that search or bookmarks still use land on the current section through
-[`moved-sections.ts`](../apps/docs/src/utils/moved-sections.ts); add an entry there when a change renames or removes a
-heading. `/v3/` pages are `noindex` and absent from the sitemap, which is now `/sitemap-index.xml` (`/sitemap.xml`
-redirects to it).
+dashboard, not in this repository. After publishing, run a crawl so that stale URLs disappear. `/v3/` pages are
+`noindex` and absent from the sitemap, which is now `/sitemap-index.xml` (`/sitemap.xml` redirects to it).
 
 ### Config schema
 

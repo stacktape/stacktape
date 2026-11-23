@@ -23,7 +23,7 @@ Remove Stacktape from Cursor only:
 stacktape mcp remove --coding-agents cursor
 ```
 
-## Options
+## Flags reference
 
 
 ## CLI Options: `stacktape mcp remove`

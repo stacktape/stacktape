@@ -1,6 +1,6 @@
 # version
 
-`stacktape version` prints the currently installed version of Stacktape. It requires no arguments, no configuration file, and no API key. Use it to verify your installation or check whether you need to [upgrade](/cli/upgrade).
+The `stacktape version` command prints the currently installed version of Stacktape. It requires no arguments, no configuration file, and no API key. Use it to verify your installation or check whether you need to [upgrade](/cli/upgrade).
 
 ## Usage
 
@@ -12,17 +12,7 @@ The command outputs the installed version number and exits. No AWS credentials, 
 
 `stacktape --version` and `stacktape -v` print the same output.
 
-## FAQ
-
-### Does `stacktape version` require an API key or login?
-
-No. The `version` command runs entirely locally and does not contact the Stacktape API. You can run it before logging in or configuring any credentials.
-
-### How do I check if my Stacktape version is out of date?
-
-Run `stacktape version` to see what you have installed, then run [`stacktape upgrade`](/cli/upgrade) to move to the latest release (or `stacktape upgrade 4.0.1` for a specific version). Re-run `stacktape version` afterward to confirm the new version is active.
-
-## Options
+## Flags reference
 
 
 ## CLI Options: `stacktape version`
@@ -38,4 +28,14 @@ Run `stacktape version` to see what you have installed, then run [`stacktape upg
 
 - [`upgrade`](/cli/upgrade) — upgrade Stacktape to the latest version or a specific version.
 - [`help`](/cli/help) — display help information for any Stacktape command.
-- [`whoami`](/cli/whoami) — verify your API key, organization, and connected AWS accounts.
+- [`whoami`](/cli/info-whoami) — verify your API key, organization, and connected AWS accounts.
+
+## FAQ
+
+### Does `stacktape version` require an API key or login?
+
+No. The `version` command runs entirely locally and does not contact the Stacktape API. You can run it before logging in or configuring any credentials.
+
+### How do I check if my Stacktape version is out of date?
+
+Run `stacktape version` to see what you have installed, then run [`stacktape upgrade`](/cli/upgrade) to move to the latest release (or `stacktape upgrade 4.0.1` for a specific version). Re-run `stacktape version` afterward to confirm the new version is active.

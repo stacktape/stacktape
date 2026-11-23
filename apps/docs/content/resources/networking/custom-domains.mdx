@@ -1,45 +1,54 @@
 ---
-title: 'Custom domains'
-order: 7
+title: 'Custom Domains'
+order: 58
 seoTitle: 'Custom Domains - Attach Your Own Domains | Stacktape Docs'
-seoDescription: 'Serve Stacktape API gateways, load balancers and CDNs at your own domain: Route 53 setup with stacktape domain add, free ACM certificates, external DNS such as Cloudflare, and several domains per resource.'
+seoDescription: 'Attach custom domain names to Stacktape API Gateways, Load Balancers, and CDNs with free TLS certificates from AWS Certificate Manager and Route53 DNS records.'
 ---
 
-A custom domain serves a resource at your own address, such as `api.example.com`, instead of the hostname AWS
-generates. You need a domain you already own. With its DNS in Route 53, Stacktape finds the certificate and creates the
-DNS record on every deploy. You can also [keep DNS at your current provider](#external-dns).
+# Custom Domains
 
-Without a custom domain, API Gateways, CDNs and the frontends still get an HTTPS URL from AWS, which is enough for
-development stages. Load balancers don't. Stacktape serves an application load balancer, or a network load balancer's
-TLS listener, on a `*.stacktape-app.com` domain that the [Stacktape Console](/getting-started/add-the-console)
-provides. Without the Console, give it a custom domain or your own certificate, or the deploy stops and asks for one. A
-network load balancer's TCP listeners use the AWS hostname without TLS.
+Use a custom domain such as `api.example.com` to serve a resource at your own address. With DNS in Route 53, Stacktape can create the record for you. You can also [keep DNS at your current provider](#external-dns).
 
-## Set up the domain
+## When to use
 
-Do this once per root domain and AWS region, before the first deploy that uses the domain.
+Custom domains are essential for any production-facing resource. Use them when you need:
 
-1. Run `stacktape domain add` with the region you deploy to and enter the domain when it asks:
+- **Branded URLs** — serve your API at `api.yourcompany.com` instead of a random AWS-generated hostname
+- **Stable endpoint names** — clients call your chosen DNS name instead of an AWS-generated hostname
+- **Multi-stage routing** — use subdomains to separate stages: `api.example.com` for production, `api-staging.example.com` for staging
+- **Shared root domain** — route `app.example.com` to your frontend and `api.example.com` to your API, both under one root domain
 
-   ```bash
-   stacktape domain add --region eu-west-1
-   ```
+## When NOT to use
 
-   If the domain's DNS isn't in Route 53 yet, the command offers to create a hosted zone for the root domain and prints
-   its name servers.
+- **Development and testing stages** — auto-generated AWS URLs work fine for stages only your team uses. Adding custom domains to throwaway stages adds setup overhead without benefit.
+- **Internal-only services** — [private services](/resources/compute/private-service) reachable only within your stack or VPC don't need public custom domains. Use service discovery instead.
+- **Rapid prototyping** — if you haven't registered a domain yet, start without custom domains. Add them later without rebuilding your stack.
 
-2. If the domain already serves traffic, copy its existing DNS records into the new hosted zone first (see the
-   [AWS migration steps](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/migrate-dns-domain-in-use.html)).
-   Then set the printed name servers at your registrar. Your registrar keeps the registration.
-3. When the name servers have changed, run `stacktape domain add` again. It requests free ACM certificates in your
-   region and in `us-east-1` (CDNs and AppSync use `us-east-1`) and adds their validation records to the zone.
-4. Wait until the certificates show **Issued** in ACM, usually a few minutes after the validation records exist.
+## Supported resources
 
-For a two-part root domain such as `example.com`, the certificates cover `example.com` and `*.example.com`. A wildcard
-covers one level only, so for `api.dev.example.com` enter that full name in `stacktape domain add` to get a certificate
-for it. The command still uses the `example.com` zone. For a longer root domain, such as `example.co.uk`, the command
-requests no wildcard, so enter each hostname you use, such as `api.example.co.uk`. Check the names a certificate covers
-in ACM before you deploy.
+Custom domains attach directly to five networking resources Stacktape exposes:
+
+| Resource | Typical use case |
+|----------|-----------------|
+| [HTTP API Gateway](/resources/networking/http-api-gateway) | `api.example.com` for Lambda-backed APIs |
+| [WebSocket API Gateway](/resources/networking/websocket-api-gateway) | `realtime.example.com` for Lambda-backed real-time APIs |
+| [Application Load Balancer](/resources/networking/application-load-balancer) | `app.example.com` for container workloads |
+| [Network Load Balancer](/resources/networking/network-load-balancer) | TCP/TLS services at a custom domain |
+| [CDN](/resources/networking/cdn) | `cdn.example.com` for cached content delivery |
+
+A [CDN](/resources/networking/cdn) can target a [bucket](/resources/storage/s3-bucket), [Application Load Balancer](/resources/networking/application-load-balancer), [HTTP API Gateway](/resources/networking/http-api-gateway), or [Lambda function](/resources/compute/lambda-function), which is how you can put a custom domain in front of those origins. For [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), and SSR frontends, see each resource's page for how custom domains are configured through the underlying networking layer.
+
+Each entry in a resource's `customDomains` array is a `DomainConfiguration` object with three fields: `domainName` (required), `customCertificateArn` (optional), and `disableDnsRecordCreation` (optional, defaults to `false`). The structure is identical across every resource type that accepts custom domains.
+
+An API Gateway custom domain cannot contain both WebSocket and HTTP/REST API mappings. Use different hostnames, such as `api.example.com` and `realtime.example.com`; Stacktape rejects duplicate attachment before deployment.
+
+## Prerequisites
+
+For Stacktape-managed DNS, point your registrar's nameservers at a public Route 53 hosted zone in your AWS account. The zone for `example.com` holds records for names such as `api.example.com` and `app.example.com`. If the domain is already in use, follow the [AWS migration steps](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/migrate-dns-domain-in-use.html) before changing nameservers.
+
+Use [`stacktape domain add --region eu-west-1`](/cli/domain-add) to set up the zone and request its certificates. Replace `eu-west-1` with the region you deploy to. Enter the domain when prompted. Once the nameservers point at Route 53, run the command again to finish setup. If you started in the Console, run the command after the DNS change so the CLI can find the domain during deployment. Repeat the setup for each deployment region and wait for the certificates you need to show **Issued** in ACM.
+
+The Console requests certificates for the domain and a wildcard one level below it. For example, `*.example.com` covers `app.example.com`. Check the names on the certificate you use. For `api.dev.example.com`, enter that full name in `stacktape domain add` to set up a matching certificate. The CLI still uses the `example.com` zone.
 
 ## Basic example
 
@@ -66,42 +75,13 @@ export default defineConfig(() => {
   ]}
 />
 
-The deploy attaches the issued certificate that covers `api.example.com` and creates the DNS record in the
-`example.com` zone. Open `https://api.example.com` after the deploy finishes. If no issued certificate covers the name,
-the deploy stops before changing anything and says which certificate is missing.
+After setup, a deploy with just `domainName` uses the matching certificate and creates the DNS record in Route 53.
 
-Write `domainName` without a protocol: `api.example.com`, not `https://api.example.com`.
-
-To give each stage its own hostname, build the name from the stage, for example `api-staging.example.com` for staging
-and `api.example.com` for production. Every hostname must be covered by a certificate.
-
-## Supported resources
-
-These resources take a `customDomains` list with the same three fields: `domainName`, `customCertificateArn` and
-`disableDnsRecordCreation`.
-
-| Resource | Typical hostname |
-|---|---|
-| [HTTP API Gateway](/resources/networking/http-api-gateway) | `api.example.com` for Lambda APIs |
-| [WebSocket API Gateway](/resources/networking/websocket-api-gateway) | `realtime.example.com` |
-| [Application Load Balancer](/resources/networking/application-load-balancer) | `app.example.com` for containers |
-| [Network Load Balancer](/resources/networking/network-load-balancer) | TCP or TLS services |
-| [CDN](/resources/networking/cdn) | `www.example.com` in front of a bucket, a load balancer, an API or a function |
-
-[Web services](/resources/compute/web-service), [static hosting](/resources/frontend/static-hosting) and the SSR
-frontends accept `customDomains` on the resource itself. [AppSync APIs](/resources/networking/appsync-api) and
-[user auth pools](/resources/security/user-auth-pool) take a single `customDomain`.
-
-One API Gateway hostname can't serve both a WebSocket API and an HTTP API. Use two names, such as `api.example.com` and
-`realtime.example.com`; Stacktape rejects the config before deploying.
+The `domainName` value should not include a protocol prefix (`https://`). Use the bare domain: `api.example.com`, not `https://api.example.com`.
 
 ## TLS certificates
 
-Leave out `customCertificateArn` and Stacktape picks the most specific certificate that covers the hostname, issued or
-still pending validation: an exact match first, then a wildcard. If it picks a pending certificate, the deploy stops
-until that certificate is issued, even when an issued wildcard also covers the name. Wait for validation to finish, or
-set `customCertificateArn` to the issued certificate. Set `customCertificateArn` also to use a certificate you manage
-yourself, for example one from a certificate authority your company requires.
+Stacktape can request free public certificates from AWS Certificate Manager (ACM) during managed DNS setup. Use `customCertificateArn` if you keep DNS at another provider or need to use an existing certificate, for example one issued by a certificate authority your organization requires.
 
 <CodeBlock
   intellisense
@@ -111,63 +91,53 @@ yourself, for example one from a certificate authority your company requires.
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
+// [!code focus-start]
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
-    // [!code focus-start]
     customDomains: [
       {
         domainName: 'api.example.com',
         customCertificateArn: 'arn:aws:acm:eu-west-1:123456789012:certificate/abc-def-123'
       }
     ]
-    // [!code focus-end]
   });
 
   return {
     resources: { myApi }
   };
-});`
+});
+// [!code focus-end]`
     }
   ]}
 />
 
-The certificate must be in ACM in your AWS account and cover `domainName`. CDNs, AppSync and user pool domains need it
-in `us-east-1`. API gateways and load balancers need it in the stack's region.
-
-ACM renews DNS-validated certificates on its own while they're in use, as long as the validation records stay in DNS.
-Imported certificates you renew yourself. See
-[ACM renewal](https://docs.aws.amazon.com/acm/latest/userguide/dns-renewal-validation.html).
+The certificate must be in ACM in your AWS account and cover the hostname in `domainName`. For CloudFront, AppSync custom domains and Cognito user-pool custom domains, use `us-east-1`. For a regional API Gateway or load balancer, use the resource's region.
 
 ## External DNS
 
-Keep DNS at your current provider, such as Cloudflare, when you want to keep managing records there or keep its proxy
-and firewall. With `customCertificateArn` and `disableDnsRecordCreation: true`, Stacktape doesn't look for a Route 53
-zone for that hostname.
+Keep DNS at your current provider if you want to keep editing records there or keep using features such as Cloudflare's proxy and firewall. With both `customCertificateArn` and `disableDnsRecordCreation: true`, Stacktape skips its managed hosted-zone lookup for this hostname.
 
-1. Request a public certificate in ACM. For anything served through CloudFront (a CDN, Next.js and the other frontend
-   resources, static hosting), AppSync or a user pool domain, request it in `us-east-1`. For an API gateway or a load
-   balancer, request it in the stack's region. Include every hostname you'll serve: a certificate for `example.com`
-   alone doesn't cover `app.example.com`.
-2. Add the validation CNAME records that ACM shows at your DNS provider, and wait for **Issued**.
-3. Set `customCertificateArn` and `disableDnsRecordCreation: true`, then deploy.
-4. At your DNS provider, add a CNAME from your hostname to the AWS hostname:
-   - **Load balancer**: **DNS name** in EC2 → Load Balancers.
-   - **API Gateway**: **API Gateway domain name** in API Gateway → Custom domain names.
-   - **CDN**: the CloudFront distribution's domain name.
+1. Request a public certificate in ACM in the region your resource needs. Include each hostname you'll use. A certificate for `example.com` alone cannot serve `app.example.com`.
+2. Add the validation CNAME records ACM gives you at your DNS provider. Wait for ACM to show **Issued**.
+3. Set `customCertificateArn` to the certificate ARN, set `disableDnsRecordCreation: true`, and deploy.
+4. At your DNS provider, point a CNAME for `app.example.com` to the AWS target hostname. Use the AWS hostname even if the application URL already shows your custom name.
+   - **Load balancer**. Find **DNS name** in EC2 → Load Balancers.
+   - **Regional API Gateway**. Find **Regional domain name** in API Gateway → Custom domain names.
+   - **CDN**. Use the CloudFront distribution's domain name.
 
-A plain CNAME doesn't work on the bare `example.com`. Use your provider's ALIAS record or CNAME flattening there.
+For the bare `example.com`, use an alias or CNAME flattening if your DNS provider supports it for that target. A standard CNAME only works below the root.
 
 <CodeBlock
   intellisense
   tabs={[
     {
-      label: 'Load balancer (stack region)',
+      label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
 
+// [!code focus-start]
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
-    // [!code focus-start]
     customDomains: [
       {
         domainName: 'app.example.com',
@@ -175,50 +145,22 @@ export default defineConfig(() => {
         disableDnsRecordCreation: true
       }
     ]
-    // [!code focus-end]
   });
 
   return {
     resources: { myAlb }
   };
-});`
-    },
-    {
-      label: 'Next.js on CloudFront (us-east-1)',
-      lang: 'typescript',
-      code: `import { defineConfig, NextjsWeb } from 'stacktape';
-
-export default defineConfig(() => {
-  const web = new NextjsWeb({
-    appDirectory: '.',
-    // [!code focus-start]
-    customDomains: [
-      {
-        domainName: 'www.example.com',
-        customCertificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/abc-def-123',
-        disableDnsRecordCreation: true
-      }
-    ]
-    // [!code focus-end]
-  });
-
-  return {
-    resources: { web }
-  };
-});`
+});
+// [!code focus-end]`
     }
   ]}
 />
 
-For a user pool domain, the parent domain needs an
-[A record](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-add-custom-domain.html) before
-the deploy; point the CNAME at the alias target Cognito shows. For AppSync, use the target AppSync shows.
-
-If you bought the domain through Cloudflare Registrar, its DNS must stay at Cloudflare, so use this external DNS path.
+For Cognito, [check the parent domain's A record](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-add-custom-domain.html) before deploying and use the alias target Cognito displays. For AppSync, use the domain target shown in AppSync.
 
 ## Multiple domains
 
-A resource can serve several hostnames. Each entry has its own certificate and DNS settings:
+You can attach multiple custom domains to a single resource by adding entries to the `customDomains` array. This is useful for serving the same backend under different brands or domain names.
 
 <CodeBlock
   intellisense
@@ -228,9 +170,9 @@ A resource can serve several hostnames. Each entry has its own certificate and D
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
+// [!code focus-start]
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
-    // [!code focus-start]
     customDomains: [
       { domainName: 'api.example.com' },
       { domainName: 'api.mycompany.io' },
@@ -240,37 +182,51 @@ export default defineConfig(() => {
         disableDnsRecordCreation: true
       }
     ]
-    // [!code focus-end]
   });
 
   return {
     resources: { myApi }
   };
-});`
+});
+// [!code focus-end]`
     }
   ]}
 />
 
-Stacktape uses one hosted zone per root domain. Here `api.example.com` uses the `example.com` zone, and
-`api.mycompany.io` needs a `mycompany.io` zone with its own `stacktape domain add` setup. `api-legacy.example.com` uses
-external DNS, so Stacktape creates no record for it.
+Each array entry can include its own `domainName`, `customCertificateArn`, and `disableDnsRecordCreation` values. You can mix auto-managed DNS with external DNS, and auto-provisioned certificates with custom certificates, within the same resource.
 
-To send different paths of one hostname to different backends, attach the domain to one
-[Application Load Balancer](/resources/networking/application-load-balancer) or
-[HTTP API Gateway](/resources/networking/http-api-gateway) and route by path there.
+Each domain whose DNS Stacktape manages needs its own Route 53 hosted zone.
 
-## Cost
-
-A Route 53 hosted zone costs $0.50 a month, plus $0.40 per million DNS queries. Queries for alias records that point
-at AWS resources are free. ACM public certificates are free. See
-[Route 53 pricing](https://aws.amazon.com/route53/pricing/).
-
-## Configuration reference
+## API Reference
 
 <ApiReference definitionName="DomainConfiguration" />
 
-## Next steps
+## FAQ
 
-- [Going to production](/getting-started/going-to-production): the rest of the production checklist.
-- [CDN](/resources/networking/cdn): cache responses close to your users.
-- [`stacktape domain add`](/cli/domain-add): the command's steps and options.
+### Which Stacktape resources support custom domains?
+
+Custom domains attach directly to [HTTP API Gateways](/resources/networking/http-api-gateway), [WebSocket API Gateways](/resources/networking/websocket-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn), using the same `DomainConfiguration` structure. [AppSync APIs](/resources/networking/appsync-api) and [Cognito user pools](/resources/security/user-auth-pool) use one `customDomain` entry. To put a custom domain in front of a [bucket](/resources/storage/s3-bucket) or [Lambda function](/resources/compute/lambda-function), front it with a [CDN](/resources/networking/cdn) and attach the domain there.
+
+### Can I use a domain registered outside AWS?
+
+Yes. Most registrars let you change the nameservers while keeping the registration there. If your registrar requires you to use its DNS, you can follow the [external DNS setup](#external-dns) or transfer the registration to a registrar that lets you change nameservers.
+
+### Does Stacktape handle TLS certificate renewal?
+
+ACM can renew eligible DNS-validated certificates while they're in use, including certificates you requested yourself. Leave the validation CNAME records in place. Renew imported certificates yourself. See [ACM renewal rules](https://docs.aws.amazon.com/acm/latest/userguide/dns-renewal-validation.html).
+
+### How much do custom domains cost on AWS?
+
+Route53 hosted zones have a small monthly cost per zone, plus a per-query fee for DNS resolution. ACM certificates provisioned by Stacktape are free. Since one hosted zone covers all subdomains of a root domain, your zone count is driven by the number of distinct root domains, not the number of subdomains. See [AWS Route53 pricing](https://aws.amazon.com/route53/pricing/) for current rates.
+
+### How long does it take for a custom domain to start working?
+
+DNS answers can stay cached after you change records or nameservers. Keep your old DNS service running while you switch to Route 53. Check the nameservers and wait for ACM to show **Issued** before deploying.
+
+### Can I use Cloudflare with Stacktape custom domains?
+
+Yes. You can [keep DNS at Cloudflare](#external-dns) and add the records yourself. If you bought the domain through [Cloudflare Registrar](https://developers.cloudflare.com/registrar/faq/#can-i-use-my-own-third-party-nameservers), keep DNS there or transfer the registration before moving DNS to Route 53. If you use Cloudflare only for DNS, check whether your registrar lets you change nameservers.
+
+### Can I route one domain to multiple backends?
+
+For path-based routing under one domain, attach the custom domain to an [Application Load Balancer](/resources/networking/application-load-balancer) or [HTTP API Gateway](/resources/networking/http-api-gateway) and route requests to different backends using their routing integrations. See [HTTP triggers](/resources/triggers/http-triggers) for the available matching options.

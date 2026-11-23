@@ -1,6 +1,6 @@
-# Referenceable parameters
+# Referenceable Parameters
 
-The `$ResourceParam` [directive](/configuration/directives) retrieves deployment-time outputs (URLs, ARNs, hostnames, ports, and connection strings) from supported resource types listed on this page. Use it in environment variables, stack outputs, or any string-valued config property to wire resources together when [`connectTo`](/configuration/connecting-resources) doesn't cover your specific use case.
+The `$ResourceParam` [directive](/configuration/directives) retrieves deployment-time outputs — URLs, ARNs, hostnames, ports, and connection strings — from supported resource types listed on this page. Use it in environment variables, stack outputs, or any string-valued config property to wire resources together when [`connectTo`](/configuration/connecting-resources) doesn't cover your specific use case.
 
 ## Syntax
 
@@ -35,13 +35,13 @@ export default defineConfig(() => {
 ```
 
 
-The `$ResourceParam` directive resolves at deploy time. The resulting value is a string: suitable for environment variables, script inputs, stack outputs, or anywhere a string value is accepted in your Stacktape configuration.
+The `$ResourceParam` directive resolves at deploy time. The resulting value is a string — suitable for environment variables, script inputs, stack outputs, or anywhere a string value is accepted in your Stacktape configuration.
 
 
 > **Info:** Some parameters are only available when a resource is configured a certain way. Each resource's parameter table below notes the conditions under which a given parameter is exposed.
 
 
-The sections below list the available parameters for each resource type. Not all resource types expose referenceable parameters: those that do are grouped by category.
+The sections below list the available parameters for each resource type. Not all resource types expose referenceable parameters — those that do are grouped by category.
 
 ## Compute resources
 
@@ -105,23 +105,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 Worker services do not currently expose referenceable parameters. Use [`connectTo`](/configuration/connecting-resources) for workload-to-resource wiring.
 
-### Edge function
-
-
-## Referenceable Parameters: `edge-lambda-function`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-
-
 ### Multi-container workload
 
 Multi-container workloads do not currently expose referenceable parameters. Use [`connectTo`](/configuration/connecting-resources) for workload-to-resource wiring.
 
 ## Frontend resources
 
-The following frontend resources expose referenceable parameters. Static [hosting buckets](/resources/frontend/static-hosting) additionally expose bucket identifiers and (when a CDN is attached) CDN-related parameters. See each resource's parameter table for the exact set of available values.
+The following frontend resources expose referenceable parameters. Static [hosting buckets](/resources/frontend/static-hosting) additionally expose bucket identifiers and — when a CDN is attached — CDN-related parameters. See each resource's parameter table for the exact set of available values.
 
 A website's `url` is always one URL: the first of its `customDomains`, or its default Stacktape URL when it has none. `customDomainUrls` lists every custom domain URL, comma-separated, in the order they are configured. It exists only when the website has custom domains.
 
@@ -220,7 +210,7 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 ## Databases
 
-Stacktape database resources expose connection strings, hostnames, ports, and identifiers via `$ResourceParam`. These are especially useful when `connectTo` doesn't cover your wiring need: for example, passing a reader connection string to a specific environment variable.
+Stacktape database resources expose connection strings, hostnames, ports, and identifiers via `$ResourceParam`. These are especially useful when `connectTo` doesn't cover your wiring need — for example, passing a reader connection string to a specific environment variable.
 
 ### Relational database
 
@@ -243,23 +233,6 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `readReplicaHosts` | Comma-separated list of read replica hostnames (only available if read replicas are configured). Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaHosts")` |
 | `readReplicaConnectionStrings` | Comma-separated list of connection strings (URLs) used to connect to read replicas (only available when read replicas are configured). Read replicas can only be used for read operations. | `$ResourceParam("<<resource-name>>", "readReplicaConnectionStrings")` |
 | `readReplicaJdbcConnectionStrings` | Same as **readReplicaConnectionStrings** but in JDBC format (only available when read replicas are configured). | `$ResourceParam("<<resource-name>>", "readReplicaJdbcConnectionStrings")` |
-
-
-### Aurora DSQL
-
-
-## Referenceable Parameters: `dsql-database`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `endpoint` | TLS endpoint of the DSQL cluster. | `$ResourceParam("<<resource-name>>", "endpoint")` |
-| `port` | PostgreSQL port (5432). | `$ResourceParam("<<resource-name>>", "port")` |
-| `databaseName` | Default database name (postgres). | `$ResourceParam("<<resource-name>>", "databaseName")` |
-| `username` | Built-in database role used by connectTo (admin). | `$ResourceParam("<<resource-name>>", "username")` |
-| `region` | AWS region containing the cluster. | `$ResourceParam("<<resource-name>>", "region")` |
-| `id` | DSQL cluster ID. | `$ResourceParam("<<resource-name>>", "id")` |
-| `arn` | DSQL cluster ARN. | `$ResourceParam("<<resource-name>>", "arn")` |
 
 
 ### DynamoDB table
@@ -331,7 +304,7 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 ## Storage
 
-Stacktape storage resources expose bucket names, ARNs, and (when a CDN is attached) CDN-related domain and URL parameters via `$ResourceParam`.
+Stacktape storage resources expose bucket names, ARNs, and — when a CDN is attached — CDN-related domain and URL parameters via `$ResourceParam`.
 
 ### Bucket
 
@@ -400,62 +373,9 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
 
 
-### WebSocket API Gateway
-
-
-## Referenceable Parameters: `websocket-api-gateway`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `apiId` | API Gateway ID | `$ResourceParam("<<resource-name>>", "apiId")` |
-| `url` | WebSocket client URL | `$ResourceParam("<<resource-name>>", "url")` |
-| `managementEndpoint` | HTTPS endpoint for sending messages to connected clients | `$ResourceParam("<<resource-name>>", "managementEndpoint")` |
-| `canonicalDomain` | AWS DNS target | `$ResourceParam("<<resource-name>>", "canonicalDomain")` |
-| `customDomains` | Comma-separated list of custom domain names | `$ResourceParam("<<resource-name>>", "customDomains")` |
-| `customDomainUrls` | Comma-separated list of custom domain URLs | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
-| `customDomainUrl` | URL of the first custom domain | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
-
-
-### AppSync API
-
-
-## Referenceable Parameters: `appsync-api`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `apiId` | AppSync API ID | `$ResourceParam("<<resource-name>>", "apiId")` |
-| `arn` | AppSync API ARN | `$ResourceParam("<<resource-name>>", "arn")` |
-| `url` | GraphQL endpoint URL | `$ResourceParam("<<resource-name>>", "url")` |
-| `realtimeUrl` | GraphQL subscriptions endpoint URL | `$ResourceParam("<<resource-name>>", "realtimeUrl")` |
-| `customDomainUrl` | Custom GraphQL endpoint URL | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
-| `apiKey` | Sensitive API key value (only for API key authentication) | `$ResourceParam("<<resource-name>>", "apiKey")` |
-
-
 ## Messaging and orchestration
 
-Messaging and orchestration resources expose ARNs, names and URLs, such as a queue URL or the brokers of a Kafka cluster.
-
-### SQS queue
-
-
-## Referenceable Parameters: `sqs-queue`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-
-
-### SNS topic
-
-
-## Referenceable Parameters: `sns-topic`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-
+Stacktape messaging and orchestration resources expose ARNs and names via `$ResourceParam`, letting you pass event bus, state machine, and stream identifiers into workloads or stack outputs.
 
 ### Event bus
 
@@ -493,37 +413,9 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `name` | AWS (physical) name of the Kinesis stream. | `$ResourceParam("<<resource-name>>", "name")` |
 
 
-### Kafka cluster
-
-
-## Referenceable Parameters: `kafka-cluster`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `arn` | Amazon MSK cluster ARN | `$ResourceParam("<<resource-name>>", "arn")` |
-| `name` | Physical MSK cluster name | `$ResourceParam("<<resource-name>>", "name")` |
-| `bootstrapServers` | Comma-separated IAM bootstrap broker addresses | `$ResourceParam("<<resource-name>>", "bootstrapServers")` |
-
-
-### Email sender
-
-
-## Referenceable Parameters: `email-sender`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `identity` | Canonical SES sender identity | `$ResourceParam("<<resource-name>>", "identity")` |
-| `identityArn` | SES identity ARN | `$ResourceParam("<<resource-name>>", "identityArn")` |
-| `region` | AWS region containing the identity | `$ResourceParam("<<resource-name>>", "region")` |
-| `configurationSetName` | SES configuration set used by default | `$ResourceParam("<<resource-name>>", "configurationSetName")` |
-| `feedbackTopicArn` | Shared SNS topic ARN for bounce and complaint events | `$ResourceParam("<<resource-name>>", "feedbackTopicArn")` |
-
-
 ## Security
 
-Stacktape security resources expose identifiers and ARNs via `$ResourceParam`: user pool IDs, client IDs, and firewall ARNs.
+Stacktape security resources expose identifiers and ARNs via `$ResourceParam` — user pool IDs, client IDs, and firewall ARNs.
 
 ### User auth pool
 
@@ -554,20 +446,11 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 ### EFS filesystem
 
-`connectTo` injects these values but does not mount the [filesystem](/resources/storage/efs-filesystem); configure a volume mount when the workload needs its files.
-
-
-## Referenceable Parameters: `efs-filesystem`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `arn` | Arn of the EFS filesystem. | `$ResourceParam("<<resource-name>>", "arn")` |
-
+An [EFS filesystem](/resources/storage/efs-filesystem) exposes both `id` and `arn`. `connectTo` injects both values but does not mount the filesystem; configure an explicit EFS volume mount when the workload needs filesystem access.
 
 ### Convex
 
-[Convex](/resources/compute/convex) exposes backend URLs, dashboard URL, and sensitive credentials via `$ResourceParam`. The `adminKey` and `instanceSecret` parameters are sensitive and are never auto-injected by `connectTo`: reference them explicitly with `$ResourceParam` when needed.
+[Convex](/resources/compute/convex) exposes backend URLs, dashboard URL, and sensitive credentials via `$ResourceParam`. The `adminKey` and `instanceSecret` parameters are sensitive and are never auto-injected by `connectTo` — reference them explicitly with `$ResourceParam` when needed.
 
 
 ## Referenceable Parameters: `convex`
@@ -582,68 +465,15 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `instanceSecret` | Sensitive boot secret stored in AWS Secrets Manager. Almost never needed by user code. | `$ResourceParam("<<resource-name>>", "instanceSecret")` |
 
 
-### AgentCore Runtime
+### AgentCore
 
+Stacktape [AgentCore](/resources/ai/agentcore-runtime) resources expose referenceable parameters for wiring AI agent infrastructure. The following AgentCore resource types expose `id` and `arn` parameters via `$ResourceParam`:
 
-## Referenceable Parameters: `agentcore-runtime`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `id` | AgentCore runtime ID | `$ResourceParam("<<resource-name>>", "id")` |
-| `arn` | AgentCore runtime ARN | `$ResourceParam("<<resource-name>>", "arn")` |
-| `endpointName` | Default runtime endpoint name | `$ResourceParam("<<resource-name>>", "endpointName")` |
-| `endpointArn` | Default runtime endpoint ARN | `$ResourceParam("<<resource-name>>", "endpointArn")` |
-
-
-### AgentCore Memory
-
-
-## Referenceable Parameters: `agentcore-memory`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `id` | AgentCore memory ID | `$ResourceParam("<<resource-name>>", "id")` |
-| `arn` | AgentCore memory ARN | `$ResourceParam("<<resource-name>>", "arn")` |
-
-
-### AgentCore Gateway
-
-
-## Referenceable Parameters: `agentcore-gateway`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `id` | AgentCore gateway ID | `$ResourceParam("<<resource-name>>", "id")` |
-| `arn` | AgentCore gateway ARN | `$ResourceParam("<<resource-name>>", "arn")` |
-| `url` | AgentCore gateway URL | `$ResourceParam("<<resource-name>>", "url")` |
-
-
-### AgentCore Browser
-
-
-## Referenceable Parameters: `agentcore-browser`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `id` | AgentCore browser ID | `$ResourceParam("<<resource-name>>", "id")` |
-| `arn` | AgentCore browser ARN | `$ResourceParam("<<resource-name>>", "arn")` |
-
-
-### AgentCore Code Interpreter
-
-
-## Referenceable Parameters: `agentcore-code-interpreter`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `id` | AgentCore code interpreter ID | `$ResourceParam("<<resource-name>>", "id")` |
-| `arn` | AgentCore code interpreter ARN | `$ResourceParam("<<resource-name>>", "arn")` |
-
+- **AgentCore Runtime** — `id`, `arn`, `endpointName`, `endpointArn`. See [AgentCore Runtime](/resources/ai/agentcore-runtime).
+- **AgentCore Memory** — `id`, `arn`. See [AgentCore Memory](/resources/ai/agentcore-memory).
+- **AgentCore Gateway** — `id`, `arn`, `url`. See [AgentCore Gateway](/resources/ai/agentcore-gateway).
+- **AgentCore Browser** — `id`, `arn`. See [AgentCore Browser](/resources/ai/agentcore-browser).
+- **AgentCore Code Interpreter** — `id`, `arn`. See [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter).
 
 ## Using parameters in practice
 
@@ -713,7 +543,7 @@ Stack outputs can be exported for cross-stack use by setting `export: true`. Exp
 
 [`connectTo`](/configuration/connecting-resources) is a higher-level abstraction for wiring resources together. For supported resource types (databases, buckets, queues, Lambda functions, and others documented on the [connecting resources](/configuration/connecting-resources) page), `connectTo` grants IAM permissions, opens security group rules for network-accessible resources like databases and Redis, and injects a predefined set of environment variables automatically.
 
-`$ResourceParam` gives you access to individual parameters without side effects: no permissions are granted and no security groups are modified. Use `$ResourceParam` when you want to:
+`$ResourceParam` gives you access to individual parameters without side effects — no permissions are granted and no security groups are modified. Use `$ResourceParam` when you want to:
 
 - Choose your own environment variable name for a resource parameter
 - Use a resource parameter outside an environment variable (e.g. in stack outputs or other resource properties)
@@ -725,11 +555,11 @@ Use `connectTo` when you want Stacktape's documented IAM, networking, and enviro
 
 ### How is $ResourceParam different from connectTo?
 
-[`connectTo`](/configuration/connecting-resources) is a higher-level abstraction that, for supported resource types, grants IAM permissions, opens security group rules, and injects a predefined set of environment variables. `$ResourceParam` gives you access to individual parameters without any side effects: no permissions are granted and no security groups are modified. Use `connectTo` for standard access patterns; use `$ResourceParam` for specific values, non-standard wiring, or resource types not covered by `connectTo`.
+[`connectTo`](/configuration/connecting-resources) is a higher-level abstraction that, for supported resource types, grants IAM permissions, opens security group rules, and injects a predefined set of environment variables. `$ResourceParam` gives you access to individual parameters without any side effects — no permissions are granted and no security groups are modified. Use `connectTo` for standard access patterns; use `$ResourceParam` for specific values, non-standard wiring, or resource types not covered by `connectTo`.
 
 ### Can I reference resources from other stacks?
 
-`$ResourceParam` references resources defined in the same Stacktape configuration. To share a value with another stack, add it to `stackConfig.outputs` with `export: true` and read it there with `$CfStackOutput()`. [Stages and environments](/configuration/stages-and-environments#sharing-resources-across-stages) shows a full example.
+`$ResourceParam` references resources defined in the same Stacktape configuration. To share values across stacks, use [stack outputs](/configuration/configuration-files) with `export: true`. The source stack's exported values can then be referenced from other stacks using the `$CfStackOutput()` directive, as documented on the `StackOutput` type's `export` property.
 
 ### What happens if I reference a parameter that doesn't exist?
 
@@ -737,12 +567,12 @@ If you reference a resource name not defined in your config, or a parameter name
 
 ### Are CDN parameters always available?
 
-CDN-related parameters (`cdnDomain`, `cdnUrl`, `cdnCustomDomains`, `cdnCustomDomainUrls`) are only available on resources that have a `cdn` configuration block attached. Several resource types expose CDN parameters when configured: including [buckets](/resources/storage/s3-bucket), [hosting buckets](/resources/frontend/static-hosting), [web services](/resources/compute/web-service), [Application Load Balancers](/resources/networking/application-load-balancer), and [HTTP API Gateways](/resources/networking/http-api-gateway). Check the per-resource parameter table above for the exact CDN parameter names exposed by each type.
+CDN-related parameters (`cdnDomain`, `cdnUrl`, `cdnCustomDomains`, `cdnCustomDomainUrls`) are only available on resources that have a `cdn` configuration block attached. Several resource types expose CDN parameters when configured — including [buckets](/resources/storage/s3-bucket), [hosting buckets](/resources/frontend/static-hosting), [web services](/resources/compute/web-service), [Application Load Balancers](/resources/networking/application-load-balancer), and [HTTP API Gateways](/resources/networking/http-api-gateway). Check the per-resource parameter table above for the exact CDN parameter names exposed by each type.
 
 ### How do relational database parameters differ between engine types?
 
-Standard RDS engines (Postgres, MySQL, MariaDB) expose core parameters: host, port, connection string, JDBC connection string, and database name. Aurora engines (Aurora PostgreSQL, Aurora MySQL) additionally expose reader endpoints (reader host and reader connection strings) for distributing read traffic. Read replica parameters are a separate set, available only when read replicas are explicitly configured. See the [relational database](/resources/databases/relational-database) resource page and the parameter table above for the full list.
+Standard RDS engines (Postgres, MySQL, MariaDB) expose core parameters: host, port, connection string, JDBC connection string, and database name. Aurora engines (Aurora PostgreSQL, Aurora MySQL) additionally expose reader endpoints — reader host and reader connection strings — for distributing read traffic. Read replica parameters are a separate set, available only when read replicas are explicitly configured. See the [relational database](/resources/databases/relational-database) resource page and the parameter table above for the full list.
 
 ### Can I use $ResourceParam in hooks and scripts?
 
-Yes. [Scripts](/configuration/hooks-and-scripts) and lifecycle hooks can use `$ResourceParam` to reference resource outputs: the `environment` and `parameters` properties of a script accept directives like `$ResourceParam()`, which resolve at deploy time. A common pattern is passing a database connection string into a seeding script. A service's [`releaseCommand`](/deployment-and-lifecycle/release-commands) gets the service's own environment variables.
+Yes. [Scripts](/configuration/hooks-and-scripts) and lifecycle hooks can use `$ResourceParam` to reference resource outputs — the `environment` and `parameters` properties of a script accept directives like `$ResourceParam()`, which resolve at deploy time. A common pattern is passing a database connection string into a seeding script. A service's [`releaseCommand`](/deployment-and-lifecycle/release-commands) gets the service's own environment variables.

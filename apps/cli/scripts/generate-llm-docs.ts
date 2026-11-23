@@ -572,6 +572,12 @@ const flowDiagramToMarkdown = (stepsRaw: string): string | undefined => {
   return `${lines.join('\n')}\n\n`;
 };
 
+const featureGridToMarkdown = (itemsRaw: string): string | undefined => {
+  const items = parseJsLiteral<Array<{ title?: string; text?: string }>>(itemsRaw);
+  if (!items) return undefined;
+  return `\n\n${items.map((item) => `- **${item.title || 'Feature'}:** ${item.text || ''}`).join('\n')}\n\n`;
+};
+
 const propStringValue = (propsRaw: string, propName: string): string | undefined => {
   const match = propsRaw.match(new RegExp(`\\b${propName}="([^"]*)"`));
   return match?.[1];
@@ -658,241 +664,6 @@ const replaceSelfClosingMdxComponent = (
   return result;
 };
 
-/**
- * Reads the attributes of a JSX opening tag (`propsRaw` is everything between the tag name and its end) as plain
- * values: string attributes as strings, `{...}` expressions through `parseJsLiteral`. Returns undefined if any
- * attribute is not a static value.
- */
-const parseMdxProps = (propsRaw: string): Record<string, unknown> | undefined => {
-  const source = ts.createSourceFile(
-    'llm-docs-mdx-props.tsx',
-    `const __element = <Element ${propsRaw} />;`,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TSX
-  );
-  let element: ts.JsxSelfClosingElement | undefined;
-  const find = (node: ts.Node) => {
-    if (!element && ts.isJsxSelfClosingElement(node)) element = node;
-    else ts.forEachChild(node, find);
-  };
-  find(source);
-  if (!element) return undefined;
-
-  const props: Record<string, unknown> = {};
-  for (const attribute of element.attributes.properties) {
-    if (!ts.isJsxAttribute(attribute)) return undefined;
-    const name = attribute.name.getText(source);
-    const initializer = attribute.initializer;
-    if (!initializer) {
-      props[name] = true;
-    } else if (ts.isStringLiteral(initializer)) {
-      props[name] = initializer.text;
-    } else if (ts.isJsxExpression(initializer) && initializer.expression) {
-      const value = parseJsLiteral(initializer.expression.getText(source));
-      if (value === undefined) return undefined;
-      props[name] = value;
-    } else {
-      return undefined;
-    }
-  }
-  return props;
-};
-
-/** Like `replaceSelfClosingMdxComponent`, for a component with children: `<Name ...>children</Name>`. */
-const replaceMdxComponentWithChildren = (
-  source: string,
-  componentName: string,
-  render: (propsRaw: string, children: string) => string
-): string => {
-  const opening = `<${componentName}`;
-  const closing = `</${componentName}>`;
-  let cursor = 0;
-  let result = '';
-
-  while (cursor < source.length) {
-    const start = source.indexOf(opening, cursor);
-    if (start === -1) return result + source.slice(cursor);
-    const boundary = source[start + opening.length];
-    if (boundary && !/[\s>]/.test(boundary)) {
-      result += source.slice(cursor, start + opening.length);
-      cursor = start + opening.length;
-      continue;
-    }
-
-    let index = start + opening.length;
-    let braceDepth = 0;
-    let quote: '"' | "'" | '`' | undefined;
-    let tagEnd = -1;
-    for (; index < source.length; index++) {
-      const char = source[index];
-      if (quote) {
-        if (char === '\\') index++;
-        else if (char === quote) quote = undefined;
-        continue;
-      }
-      if (char === '"' || char === "'" || char === '`') quote = char;
-      else if (char === '{') braceDepth++;
-      else if (char === '}') braceDepth = Math.max(0, braceDepth - 1);
-      else if (braceDepth === 0 && char === '>') {
-        tagEnd = index;
-        break;
-      }
-    }
-    const end = tagEnd === -1 ? -1 : source.indexOf(closing, tagEnd);
-    if (tagEnd === -1 || source[tagEnd - 1] === '/' || end === -1) {
-      throw new Error(`${componentName} must have children and a closing tag`);
-    }
-
-    const propsRaw = source.slice(start + opening.length, tagEnd);
-    result += source.slice(cursor, start) + render(propsRaw, source.slice(tagEnd + 1, end));
-    cursor = end + closing.length;
-  }
-
-  return result;
-};
-
-type HomeLink = { label: string; href: string };
-
-/** Links to a section of the same page do not resolve in the corpus, which drops them. */
-const homeLinksToMarkdown = (links: HomeLink[]): string =>
-  links
-    .filter((link) => !link.href.startsWith('#'))
-    .map((link) => `- [${link.label}](${link.href})`)
-    .join('\n');
-
-const homeProps = <T>(componentName: string, propsRaw: string): T => {
-  const props = parseMdxProps(propsRaw);
-  if (!props) throw new Error(`${componentName} props could not be parsed: ${propsRaw.slice(0, 120)}`);
-  return props as T;
-};
-
-const homeHeroToMarkdown = (propsRaw: string): string => {
-  const props = homeProps<{
-    title: string;
-    lead: string;
-    commandLabel: string;
-    commands: Array<{ label: string; code: string }>;
-    commandNote?: string;
-    links?: HomeLink[];
-  }>('HomeHero', propsRaw);
-  return [
-    `# ${props.title}`,
-    props.lead,
-    `${props.commandLabel}:`,
-    props.commands.map((command) => `- ${command.label}: \`${command.code}\``).join('\n'),
-    props.commandNote,
-    homeLinksToMarkdown(props.links ?? [])
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-};
-
-const homePathsToMarkdown = (propsRaw: string): string => {
-  const props = homeProps<{
-    title: string;
-    items: Array<{
-      title: string;
-      href: string;
-      text: string;
-      command?: string;
-      steps?: string[];
-      topics?: string[];
-      links?: HomeLink[];
-    }>;
-  }>('HomePaths', propsRaw);
-  return [
-    `## ${props.title}`,
-    ...props.items.map((item) =>
-      [
-        `### ${item.title}`,
-        item.text,
-        item.steps && `Steps: ${item.steps.join(', ')}.`,
-        item.topics && `Covers: ${item.topics.join(', ')}.`,
-        item.command && `\`\`\`bash\n${item.command}\n\`\`\``,
-        homeLinksToMarkdown([{ label: item.title, href: item.href }, ...(item.links ?? [])])
-      ]
-        .filter(Boolean)
-        .join('\n\n')
-    )
-  ].join('\n\n');
-};
-
-const homeExampleToMarkdown = (propsRaw: string, children: string): string => {
-  const props = homeProps<{
-    title: string;
-    lead: string;
-    stack: string;
-    resources: Array<{
-      name: string;
-      kind: string;
-      via: string;
-      services: Array<{ service: string; detail: string }>;
-    }>;
-    extras: string[];
-    deployTitle: string;
-    deploy: Array<{ label: string; command: string }>;
-  }>('HomeExample', propsRaw);
-  const resources = props.resources.map((resource) =>
-    [
-      `- \`${resource.name}\` (${resource.kind}), connected by ${resource.via}:`,
-      ...resource.services.map((service) => `  - ${service.service}: ${service.detail}`)
-    ].join('\n')
-  );
-  return [
-    `## ${props.title}`,
-    props.lead,
-    children.trim(),
-    `What it creates in your AWS account, in the stack \`${props.stack}\`:`,
-    [...resources, ...props.extras.map((extra) => `- ${extra}`)].join('\n'),
-    `${props.deployTitle}:`,
-    props.deploy.map((step, index) => `${index + 1}. ${step.label}: \`${step.command}\``).join('\n')
-  ].join('\n\n');
-};
-
-const homeOffersToMarkdown = (propsRaw: string): string => {
-  const props = homeProps<{
-    title: string;
-    lead?: string;
-    offers: Array<{ name: string; price: string; items: string[] }>;
-    pricing: string;
-    pricingLink: HomeLink;
-  }>('HomeOffers', propsRaw);
-  return [
-    `## ${props.title}`,
-    props.lead,
-    ...props.offers.map((offer) =>
-      [`### ${offer.name}`, offer.price, offer.items.map((item) => `- ${item}`).join('\n')].join('\n\n')
-    ),
-    `${props.pricing} [${props.pricingLink.label}](${props.pricingLink.href})`
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-};
-
-const homeTeamsToMarkdown = (propsRaw: string): string => {
-  const props = homeProps<{
-    title: string;
-    lead?: string;
-    items: Array<{ title: string; text: string; link: HomeLink }>;
-  }>('HomeTeams', propsRaw);
-  return [
-    `## ${props.title}`,
-    props.lead,
-    ...props.items.map((item) => `### ${item.title}\n\n${item.text} [${item.link.label}](${item.link.href})`)
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-};
-
-const homeMapToMarkdown = (propsRaw: string): string => {
-  const props = homeProps<{ title: string; groups: Array<{ title: string; links: HomeLink[] }> }>('HomeMap', propsRaw);
-  return [
-    `## ${props.title}`,
-    ...props.groups.map((group) => `### ${group.title}\n\n${homeLinksToMarkdown(group.links)}`)
-  ].join('\n\n');
-};
-
 const cliCommandReferenceToMarkdown = (
   command: string,
   reference: { publicName: string; positionals: readonly string[]; args: GeneratedCliArg[] }
@@ -947,39 +718,22 @@ const cliCommandReferenceData = Object.fromEntries(
 const transformComponents = (body: string): string => {
   let result = body;
 
-  // The docs home page. Each component becomes the Markdown a reader of the corpus needs.
-  result = replaceSelfClosingMdxComponent(
-    result,
-    'HomeHero',
-    (_, propsRaw) => `\n\n${homeHeroToMarkdown(propsRaw)}\n\n`
-  );
-  result = replaceSelfClosingMdxComponent(
-    result,
-    'HomePaths',
-    (_, propsRaw) => `\n\n${homePathsToMarkdown(propsRaw)}\n\n`
-  );
-  result = replaceMdxComponentWithChildren(
-    result,
-    'HomeExample',
-    (propsRaw, children) => `\n\n${homeExampleToMarkdown(propsRaw, children)}\n\n`
-  );
-  result = replaceSelfClosingMdxComponent(
-    result,
-    'HomeOffers',
-    (_, propsRaw) => `\n\n${homeOffersToMarkdown(propsRaw)}\n\n`
-  );
-  result = replaceSelfClosingMdxComponent(
-    result,
-    'HomeTeams',
-    (_, propsRaw) => `\n\n${homeTeamsToMarkdown(propsRaw)}\n\n`
-  );
-  result = replaceSelfClosingMdxComponent(result, 'HomeMap', (_, propsRaw) => `\n\n${homeMapToMarkdown(propsRaw)}\n\n`);
-  // A lookup list's filter only matters in the browser; its Markdown is the content. Lists can nest, and each pass
-  // pairs an opening tag with the first closing tag after it, so unwrap until none is left.
-  while (/<Directory[\s>]/.test(result)) {
-    result = replaceMdxComponentWithChildren(result, 'Directory', (_, children) => `\n\n${children.trim()}\n\n`);
-  }
-  result = result.replaceAll('</Directory>', '');
+  result = result.replace(/<LandingHero\b([^>]*)>([\s\S]*?)<\/LandingHero>/g, (_, props, children) => {
+    const title = propStringValue(props, 'title');
+    const accent = propStringValue(props, 'accent');
+    const subtitle = propStringValue(props, 'subtitle');
+    return ['', `# ${[title, accent].filter(Boolean).join(' ') || 'Stacktape'}`, '', subtitle, '', children.trim(), '']
+      .filter((line) => line !== undefined)
+      .join('\n');
+  });
+
+  result = result.replace(/<CTASection\b([^>]*)>([\s\S]*?)<\/CTASection>/g, (_, props, children) => {
+    const title = propStringValue(props, 'title');
+    const subtitle = propStringValue(props, 'subtitle');
+    return ['\n\n', title ? `## ${title}` : undefined, subtitle, children.trim(), '\n\n']
+      .filter((line) => line !== undefined)
+      .join('\n\n');
+  });
 
   result = result.replace(/<ApiReference\s+definitionName="([^"]+)"\s*\/>/g, (_, definitionName) =>
     apiReferenceSummaryToMarkdown(definitionName)
@@ -1020,7 +774,15 @@ const transformComponents = (body: string): string => {
     return markdown;
   });
 
+  result = result.replace(/<FeatureGrid\s+items=\{(\[[\s\S]*?\])\}\s*\/>/g, (fullMatch, itemsRaw) => {
+    const markdown = featureGridToMarkdown(itemsRaw);
+    if (!markdown) throw new Error(`FeatureGrid could not be parsed: ${fullMatch.slice(0, 120)}`);
+    return markdown;
+  });
+
   result = result
+    .replace(/<\/?ButtonRow>/g, '')
+    .replace(/^[ \t]*<CTAButton\s+[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/CTAButton>[ \t]*$/gm, '- [$2]($1)')
     .replace(/<\/?Steps>/g, '')
     .replace(/<Step\s+title="([^"]+)">/g, '\n\n### $1\n\n')
     .replace(/<\/Step>/g, '');
@@ -1087,10 +849,18 @@ const cleanMdxForLlms = async (body: string): Promise<string> => {
 
   result = result
     .replace(/<\/?(?:Divider|PreviousNext|NegativeMargin)[^>]*>/g, '')
+    // Decorative landing-page art has no textual meaning for the LLM corpus.
+    .replace(/<LandingCover\s*\/>/g, '')
     .replace(
       /<StarterProjectGallery\s*\/>/g,
       '\n\nBrowse the current starter projects at https://docs.stacktape.com/getting-started/starter-projects or scaffold one with `stacktape init --starter-id <starter-id>`.\n\n'
     )
+    .replace(
+      /<OpenSourceBanner\s*\/>/g,
+      '\n\nStacktape is open source. Browse the source at https://github.com/stacktape/stacktape.\n\n'
+    )
+    .replace(/<PricingColumns\s*\/>/g, '\n\nSee current pricing at https://stacktape.com/pricing.\n\n')
+    .replace(/<Testimonials\s*\/>/g, '')
     .replace(/<br\s*\/?>/g, '\n')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{4,}/g, '\n\n\n')
@@ -1302,17 +1072,15 @@ const writeLlmsFiles = async (pages: LlmDocPage[], outputDirectory: string) => {
   const docsPages = pages.filter((page) => page.docKind === 'docs-page');
   const configReferencePages = pages.filter((page) => page.docKind === 'config-reference');
   const curatedPages = [
-    ['/getting-started', 'Install the CLI and run stacktape init in your app: the shortest path to a first deploy.'],
-    ['/getting-started/deploy-an-existing-app', 'Deploy an existing app to your own AWS account with the init wizard.'],
-    ['/resources', 'Pick a resource: every resource with the AWS service it creates and what it is for.'],
-    ['/configuration/resources', 'Understand how resources are declared, named and connected.'],
+    ['/getting-started/configure-your-stack', 'Define your first Stacktape project and resources.'],
+    ['/getting-started/deploy-your-first-stage', 'Deploy a stage to your own AWS account.'],
+    ['/configuration/resources', 'Understand resource syntax and the available resource catalog.'],
     ['/configuration/connecting-resources', 'Wire resources together with IAM permissions and environment variables.'],
     ['/resources/compute/lambda-function', 'Configure and deploy AWS Lambda functions.'],
     ['/resources/compute/web-service', 'Run containerized HTTP services on AWS.'],
     ['/local-development/dev-mode-overview', 'Develop locally while connected to cloud resources.'],
     ['/deployment-and-lifecycle/deploying-stacks', 'Understand deployments, stages, and lifecycle behavior.'],
     ['/using-with-ai/mcp-server-setup', 'Connect an AI coding assistant to Stacktape tools using MCP.'],
-    ['/cli', 'Look up a CLI command: every command grouped by task.'],
     ['/getting-started/going-to-production', 'Review production readiness, security, cost, and reliability.']
   ] as const;
   const lines = [

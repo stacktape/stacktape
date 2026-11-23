@@ -2,31 +2,53 @@
 title: 'project create'
 order: 183
 seoTitle: 'project create CLI Command | Stacktape Docs'
-seoDescription: 'Create a project in your Stacktape Console organization from the CLI, in a terminal or non-interactively in scripts and coding agents.'
+seoDescription: 'Create a new Stacktape project in your organization using the project create CLI command. Supports interactive and agent modes with project naming validation.'
 ---
 
 # project create
 
-`stacktape project create` creates a project in your organization in the Stacktape Console. You rarely need it: a signed-in deploy creates a missing project itself, and asks first when the name comes from `--project` rather than the config. Use it to set up a project before its first deploy, for example from a script. It needs a Console sign-in ([`stacktape login`](/cli/login) or `STACKTAPE_API_KEY`).
+The `project create` command creates a new project in the current Stacktape organization. Use it before deploying stages under a new project name, or in automation when you need to create the project non-interactively. You must be logged in with a valid API key before running this command.
 
 ## Usage
+
+```bash
+stacktape project create
+```
+
+In interactive mode, you are prompted for the project name. Project names must use lowercase letters, numbers, and dashes only. To skip the prompt, pass the name directly.
+
+```bash
+stacktape project create my-api
+```
+
+In agent mode (`--agent`), you must provide the project name as an argument (`project create <project>`). You can also pass an optional `--region` when creating the project.
+
+## CLI reference
+
+<CliCommandsApiReference command="project:create" />
+
+## Examples
+
+Create a project interactively (you will be prompted for the name):
+
+```bash
+stacktape project create
+```
+
+Create a project non-interactively:
 
 ```bash
 stacktape project create payments-service
 ```
 
-Names use lowercase letters, numbers and dashes. In a terminal you can leave the name out and the CLI asks for it. With `--agent` there is no prompt, so the name is required.
+Create a project with a region and machine-readable output:
 
 ```bash
 stacktape project create payments-service --region eu-west-1 --agent
 ```
 
-## Options
-
-<CliCommandsApiReference command="project:create" />
-
 ## Related commands
 
-- [`project list`](/cli/project-list) lists the projects of your organization with their stages.
-- [`deploy`](/cli/deploy) deploys a stage of a project.
-- [`project delete`](/cli/project-delete) removes a project without stages.
+- [`project list`](/cli/project-list) — List all projects in your organization with their stages and costs.
+- [`org create`](/cli/org-create) — Create a new organization (projects live inside organizations).
+- [`deploy`](/cli/deploy) — Deploy a stage to a project.

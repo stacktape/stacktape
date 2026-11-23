@@ -1,6 +1,6 @@
 # aws-profile delete
 
-`stacktape aws-profile delete` removes an AWS profile from your system. It reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`), deduplicates them, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine. If no profiles exist, the command exits with an error.
+The `aws-profile delete` command removes an AWS profile from your system. It reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`), deduplicates them, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine. If no profiles exist, the command exits with an error.
 
 ## Usage
 
@@ -14,15 +14,7 @@ The command is fully interactive — it reads all profiles configured in your AW
 > **Warning:** This command modifies your local AWS profile configuration by deleting the selected profile. The deleted profile will no longer be available to Stacktape or any other AWS tooling on your system.
 
 
-## Examples
-
-Delete a profile with debug logging enabled:
-
-```bash
-stacktape aws-profile delete --debug
-```
-
-## Options
+## Arguments reference
 
 
 ## CLI Options: `stacktape aws-profile delete`
@@ -33,6 +25,14 @@ stacktape aws-profile delete --debug
 | `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
+
+## Examples
+
+Delete a profile with debug logging enabled:
+
+```bash
+stacktape aws-profile delete --debug
+```
 
 ## Related commands
 

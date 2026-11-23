@@ -1,0 +1,143 @@
+---
+title: 'CI/CD'
+order: 6
+seoTitle: 'Set Up CI/CD for Stacktape | GitOps & Custom Pipelines'
+seoDescription: 'Automate Stacktape deployments with GitOps push-to-deploy and PR previews, or integrate with GitHub Actions, GitLab CI, and other custom pipelines using the CLI.'
+---
+
+# CI/CD
+
+Stacktape offers two paths to automated deployments: **GitOps via the Stacktape Console** (recommended) and **custom CI pipelines** using the CLI. GitOps gives you push-to-deploy and PR preview environments for GitHub, GitLab and Bitbucket repositories without writing a pipeline file. Custom CI gives full control when you already have an established workflow.
+
+<Info>
+Already have CI/CD running? Skip ahead to [Going to production](/getting-started/going-to-production).
+</Info>
+
+## GitOps via the Stacktape Console
+
+GitOps is the recommended path for most teams. You connect your repository once, then Stacktape manages the deployment trigger — every push to the configured branch deploys automatically.
+
+### CLI prompt after first deploy
+
+When the CLI is signed in to the Console, after a successful deploy that creates a new stack, it asks whether to deploy automatically on pushes to your current branch (only in an interactive terminal). If you accept, it opens the browser to connect GitHub, GitLab or Bitbucket when needed, and creates a Git deployment for the stage you just deployed. If you skip the prompt, you can set up Git deployments at any time in the Stacktape Console.
+
+### What you can configure
+
+In the Console, these rules are called **Git deployments**. Each one maps a Git event to a deployment. You set:
+
+- **Deployment trigger** — **Push to branch**, or **Pull request opened** into a branch
+- **Branch** — the branch that is pushed to, or that pull requests merge into
+- **Stage** — the stage to deploy, such as `production` or `staging`; pull request previews always use `pr-<number>`
+- **AWS account and region** — where the stage deploys
+- **Config path** — the Stacktape config file in the repository
+- **Delete stack after pull request is merged or closed?** — for previews, deletes the preview stage when the pull request closes
+
+You can create several Git deployments per project — for example, one that deploys `main` to `production` and another that creates preview environments for every pull request.
+
+### PR preview environments
+
+When you configure a pull request trigger, Stacktape creates an isolated stage for each pull request (merge request on GitLab), named `pr-<number>`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape deletes the stage if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
+
+If several pushes arrive close together, deployments of the same stage run one after another, never at the same time.
+
+### Connecting your repository
+
+Git deployments work with GitHub (through the Stacktape GitHub App), GitLab (gitlab.com groups) and Bitbucket Cloud (through the Stacktape app for Bitbucket). An organization owner or admin connects the provider under **Git connections** in the Console's profile menu. Then link the project to its repository. See [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) for the steps for each provider.
+
+## Custom CI/CD integration
+
+If you prefer managing your own pipeline — or need pre-deploy steps like tests and lint — use the Stacktape CLI directly. Any CI system that can run shell commands works: GitHub Actions, GitLab CI, CircleCI, and others.
+
+### Credentials
+
+The pipeline needs one of these:
+
+| Credentials | When to use |
+|----------|---------|
+| AWS credentials only | Without a Stacktape account. Set AWS credentials in the job, for example with an IAM role your CI provider assumes through OIDC. The CLI deploys to the AWS account they belong to. See [CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account). |
+| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Create a key in the Console under [API keys](/stacktape-console/api-keys). The CLI deploys into the AWS account you connected to your Stacktape organization. |
+
+Store credentials in your CI provider's secret store and expose them to the CLI as environment variables. The examples below use an API key.
+
+### GitHub Actions example
+
+Create `.github/workflows/deploy.yml` in your repository:
+
+```yaml
+name: Deploy
+on:
+  push:
+    branches: [main]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Deploy to production
+        env:
+          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+        run: |
+          npx stacktape deploy --project my-project --stage production --region us-east-1 --yes
+```
+
+Replace `my-project` with your Stacktape project name. Store `STACKTAPE_API_KEY` in your repository's secrets settings. The `--yes` flag skips the interactive confirmation prompt that would block CI.
+
+### GitLab CI example
+
+Add to `.gitlab-ci.yml`:
+
+```yaml
+deploy:
+  image: node:20
+  stage: deploy
+  only:
+    - main
+  script:
+    - npx stacktape deploy --project my-project --stage production --region us-east-1 --yes
+  variables:
+    STACKTAPE_API_KEY: $STACKTAPE_API_KEY
+```
+
+### PR previews in custom CI
+
+Use dynamic stage names based on the PR number to create isolated preview environments.
+
+Deploy when the PR opens or updates:
+
+```bash
+npx stacktape deploy --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
+```
+
+Clean up when the PR closes:
+
+```bash
+npx stacktape delete --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
+```
+
+For more detail on custom pipelines, see [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd).
+
+## Which path to choose
+
+Use this comparison to decide between Console-managed GitOps and a self-managed CI pipeline.
+
+<FeatureComparisonTable
+  columns={["GitOps (Console)", "Custom CI/CD"]}
+  features={[
+    { name: "Setup effort", values: { "GitOps (Console)": "Minutes, no files", "Custom CI/CD": "Write workflow file" } },
+    { name: "Pipeline maintenance", values: { "GitOps (Console)": "Stacktape manages the deploy trigger", "Custom CI/CD": "You own it" } },
+    { name: "PR previews", values: { "GitOps (Console)": "Built-in with auto-delete", "Custom CI/CD": "Manual setup with dynamic stage names" } },
+    { name: "Custom steps (tests, lint, gates)", values: { "GitOps (Console)": "Not supported", "Custom CI/CD": "Full control" } },
+    { name: "Repository source", values: { "GitOps (Console)": "Connected git repository", "Custom CI/CD": "Any CI system" } }
+  ]}
+/>
+
+**Recommendation:** Start with GitOps. It takes minutes to set up and handles PR previews automatically. If you need custom test steps, approval gates, or multi-stage pipelines that run before or after the deploy, switch to custom CI or combine both — use GitOps for staging and custom CI for branches that need extra validation before deploying to production.
+
+## Next step
+
+Your deployments are now automated. The final step covers production hardening — alarms, budgets, custom domains, and guardrails.
+
+<PreviousNext left={{ title: 'Using Console UI', url: '/getting-started/using-console-ui' }} right={{ title: 'Going to Production', url: '/getting-started/going-to-production' }} />

@@ -1,31 +1,42 @@
-# Git deployments
+# GitOps with Console
 
-A Git deployment makes the Stacktape Console deploy a stage when someone pushes to a branch, or deploy a preview stage
-for every pull request. It works with GitHub, GitLab and Bitbucket, and there is no pipeline file to maintain.
-Deployments build and run on a [runner](/ci-cd-and-gitops/build-runners) in your AWS account.
+Stacktape Console can deploy a stage whenever someone pushes to a branch, and create a preview stage for every pull
+request. It works with GitHub, GitLab and Bitbucket. You connect the Git provider once, link a project to its
+repository and choose which branches deploy which stages. There is no pipeline file to maintain. Deployments run on a
+[runner](/ci-cd-and-gitops/build-runners) in your own AWS account.
 
-There are two kinds:
+In the Console, these rules are called **Git deployments**. There are two kinds:
 
-- **Push to a branch** deploys a fixed stage, such as `production`, on every push to one branch.
-- **Pull request opened** deploys the stage `pr-<number>` for every pull request (merge request on GitLab) into one
-  branch, redeploys it on new commits and deletes it when the pull request closes.
+- **Push to branch** deploys a fixed stage, such as `production`, on every push to one branch.
+- **Pull request opened** deploys a preview stage named `pr-<number>` for every pull request (merge request on GitLab)
+  into one branch, redeploys it when new commits arrive, and can delete it when the pull request closes.
 
-A Git deployment deploys on every matching event. If tests or an approval must pass first, require them in your Git
-provider before merge, or deploy from [your own pipeline](/ci-cd-and-gitops/custom-ci-cd).
+## When to use
+
+Use Git deployments when you want push-to-deploy and pull request previews without writing CI configuration.
+
+Use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) instead when you need tests, approval gates or other steps to run
+before the deploy, when your repository is on another Git host, or when you deploy only occasionally. You can also
+keep tests in your provider's CI and use branch protection, so only tested code reaches a branch that deploys.
 
 ## Before you start
 
+You need:
+
 1. **An AWS account connected** to your Stacktape organization. See
    [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
-2. **A Git connection** for the provider that hosts the repository. An Owner or Admin creates it once for the
-   organization; the steps are below.
-3. **The project linked to its repository.** Owners, Admins and Developers can link a repository and manage Git
+2. **A Git connection** for the provider that hosts the repository. An organization owner or admin creates it; the
+   steps for each provider are below.
+3. **A project linked to its repository.** Owners, admins and developers can link a repository and manage Git
    deployments.
 
 ## Connect your Git provider
 
-In the Console sidebar, open **Configuration → Git connections**, click **Connect Git provider** and pick the
-provider.
+Open the profile menu in the Console header and choose **Git connections**. Click **Connect Git provider** and pick
+the provider. Each connection appears in the list with a status. **Connected** means pushes are received.
+**Needs attention** on a GitLab or Bitbucket connection means Stacktape cannot use it, and pushes are not deployed
+until an owner or admin clicks **Reconnect**. On a GitHub connection it means the GitHub App's repository write
+permissions are not approved yet; deployments keep working, and approving the permissions in GitHub clears it.
 
 ### GitHub
 
@@ -35,8 +46,8 @@ provider.
    authorization afterwards.
 
 You are returned to the Console, and the connection appears in the list. One GitHub App installation can be connected
-to only one Stacktape organization. Disconnecting GitHub in the Console also uninstalls the app from that GitHub
-account.
+to only one Stacktape organization. Disconnecting GitHub in the Console also uninstalls the Stacktape GitHub App from
+that GitHub account.
 
 ### GitLab
 
@@ -46,8 +57,9 @@ GitLab connections work with groups on gitlab.com.
 2. In **Choose a GitLab group**, select the group and click **Connect group**. Only groups you own are listed.
    Repositories in its subgroups are included.
 
-Runners clone repositories with a read-only group deploy token named `Stacktape read-only …`, which Stacktape replaces
-before it expires.
+Stacktape keeps the connection's credentials up to date. Runners clone repositories with a read-only group deploy
+token named `Stacktape read-only …`, which Stacktape replaces before it expires. If the group owner revokes Stacktape's
+access, the connection shows **Needs attention**; reconnect it.
 
 ### Bitbucket
 
@@ -57,27 +69,19 @@ Bitbucket connects through the Stacktape app for Bitbucket Cloud. A workspace ad
    the permissions it requests.
 2. In Bitbucket, open **Workspace settings**. Under **Forge Apps**, select **Stacktape deployments** and click
    **Continue to Stacktape**.
-3. In the Console, choose the Stacktape organization and click **Connect workspace**. A Stacktape Owner or Admin must
+3. In the Console, choose the Stacktape organization and click **Connect workspace**. A Stacktape owner or admin must
    finish this step.
 
 If the Console says the connection link has expired, repeat step 2. A Bitbucket workspace can be connected to only one
-Stacktape organization. Disconnecting Bitbucket in the Console doesn't remove the app from Bitbucket; uninstall it in
-your workspace settings.
-
-### Connection status
-
-| Status | What it means |
-|---|---|
-| **Connected** | Pushes deploy. |
-| **Needs approval** (GitHub) | Stacktape asked for write access, which it uses only to open security fix pull requests. Pushes still deploy. An owner of the GitHub account approves it in GitHub. |
-| **Not deploying** (GitLab, Bitbucket) | The provider no longer accepts Stacktape's access, for example because the group owner revoked it. Pushes don't deploy until an Owner or Admin clicks **Reconnect**. |
+Stacktape organization. Disconnecting Bitbucket in the Console does not remove the app from Bitbucket; uninstall
+Stacktape in your workspace settings to do that.
 
 ### Connections from Stacktape v3
 
-GitLab connections made with a personal or group access token, and Bitbucket connections made with the older OAuth
-flow, are removed in v4. Projects that used them no longer deploy on push. Connect GitLab or Bitbucket again with the
-steps above. If a project still doesn't deploy after that, email [support@stacktape.com](mailto:support@stacktape.com).
-GitHub App connections keep working.
+GitLab connections made with a personal or group access token, and Bitbucket connections made with the older
+Bitbucket OAuth flow, are removed in v4. Projects that used them are no longer linked to a Git connection, so their
+pushes do not deploy. Connect GitLab or Bitbucket again with the steps above. If an existing project still does not
+deploy on push after you reconnect, email [support@stacktape.com](mailto:support@stacktape.com). GitHub App connections continue to work.
 
 ## Link a project to its repository
 
@@ -85,126 +89,151 @@ A project created by `stacktape deploy` from your machine has no repository yet.
 **Connect** next to "No Git repository". Choose the repository from your Git connections and click **Connect**.
 Deployments use the Stacktape config committed in the repository.
 
-After the first successful deploy of a new stage, a CLI signed in to the Console offers to set this up. It asks
-whether pushes to your current branch should deploy that stage, opens the browser to connect the provider if needed,
-and creates the Git deployment.
+After the first successful deploy of a new stage from an interactive terminal, the CLI also offers to set this up. It
+asks whether to set up automatic deployments on pushes to your current branch, opens the browser to connect the provider if needed, and
+creates a **Push to branch** Git deployment for that stage.
 
 ## Create a Git deployment
 
 1. Open the project, click the gear icon next to its name and choose **Configure Git deployments**.
-2. With no Git deployments yet, the page offers two starting points: **Deploy production on every push to main** and
-   **Preview every pull request into main** (with your stage and default branch). Click **Set up** on one, or click
-   **New Git deployment**.
-3. Choose **Push to a branch** or **Pull request opened**, and fill in the form:
+2. Click **New Git deployment**.
+3. Choose the **Deployment trigger**: **Push to branch** or **Pull request opened**.
+4. Fill in the form:
 
 | Field | What it does |
-|---|---|
-| **Branch** / **Pull requests into** | The branch that is pushed to, or that pull requests merge into. The name must match exactly; patterns are not supported. |
-| **Deploys stage** | The stage to deploy, such as `production`. Only for pushes. Previews always use `pr-<number>`. |
-| **Delete the preview when the pull request closes** | Only for pull requests, on by default. The delete stops if the stage has a database with deletion protection, which `stacktape init` turns on; see [Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests). |
-| **Stacktape config** | Shown only when the repository has more than one Stacktape config. |
-| **Deploys to** | The AWS account and region, preset to where the project's newest stage runs. Click **Change** to pick others. |
+|-------|--------------|
+| **Trigger on push to branch** / **Trigger on pull requests to branch** | The branch to watch. For pull requests, this is the branch the pull request merges into. The name must match exactly; patterns are not supported. |
+| **Deploy to stage** | The stage to deploy, such as `production` or `staging`. Shown only for **Push to branch**. Pull request previews always use `pr-<number>`. |
+| **Deploy to AWS account** | The connected AWS account. |
+| **Deploy to region** | The AWS region. |
+| **Config path** | The Stacktape config file in the repository. |
+| **Delete stack after pull request is merged or closed?** | Shown only for **Pull request opened**. Deletes the preview stage when the pull request closes. |
 
-4. Check the sentence at the bottom of the form, for example "Every push to main deploys production in eu-west-1",
-   and click **Create Git deployment**.
+5. Click **Create Git deployment**.
 
-
-> Screenshot: The New Git deployment dialog: Push to a branch, branch main, stage staging, the target AWS account and region, the sentence Every push to main deploys staging in eu-west-1, and the Create Git deployment button Caption: The sentence above the buttons says what every matching push will deploy, and where.
-
-
-The form also says what the build costs. The first Git deployment in an AWS account and region starts a runner there:
-AWS bills it by the hour while it builds and bills its disks while it is stopped, about $8.80 a month in Ireland. A
-second Git deployment in the same place shares that runner. See [Runner cost](#runner-cost).
-
-To change a Git deployment, open the row's menu and choose **Edit**. You can change the trigger, branch, stage, config
-and preview deletion; for another AWS account or region, create a new one. **Delete** stops future deploys. Stages it
-already deployed keep running; remove them with [`stacktape delete`](/cli/delete) or in the Console.
+The **Git deployments** page lists each rule with its trigger, branch, stage, region and AWS account. To change a rule,
+delete it and create a new one. Deleting a Git deployment stops future automatic deploys; stages it already deployed
+keep running. To remove a stage, delete it in the Console or run [`stacktape delete`](/cli/delete).
 
 ## What triggers a deployment
 
 | Event | Result |
-|---|---|
-| Push to a branch with a **Push to a branch** rule | Deploys the rule's stage with the pushed commit. Creates the stage if it doesn't exist. |
-| Pull request opened (or reopened) into a branch with a **Pull request opened** rule | Deploys `pr-<number>`. |
+|-------|--------|
+| Push to a branch with a **Push to branch** rule | Deploys the rule's stage with the pushed commit. Creates the stage if it does not exist. |
+| Pull request opened (or reopened) into a branch with a **Pull request opened** rule | Deploys the preview stage `pr-<number>`. |
 | New commits pushed to that pull request | Redeploys `pr-<number>` with the latest commit. |
 | Pull request merged or closed | Deletes `pr-<number>` if the rule deletes previews. Otherwise the stage keeps running. |
 
-These events don't deploy anything:
+These events do not deploy anything:
 
 - pushes of tags, and branch deletions;
 - pull requests from forks, so code from outside the repository never runs with your project's credentials;
-- on GitLab, merge request changes that add no commits, such as a new title or reviewer;
-- on GitHub, pull requests that Stacktape opens from `stacktape/fix-` branches.
+- on GitLab, merge request changes that do not add commits, such as a new title or reviewer.
 
 On Bitbucket, any update to an open pull request, including a title change, redeploys its preview.
 
-One event can match several rules. For example, two **Push to a branch** rules for `main` can deploy to two regions
-or two AWS accounts, and each starts its own deployment.
+On GitHub, pull requests that Stacktape opens from `stacktape/fix-` branches do not get previews.
 
-A runner runs up to two deployments at once; more wait for a free slot. Deploys of one stage never overlap: if you push
-again while a stage deploys, the new deployment waits for the current one.
+### Several rules and several pushes
+
+- One event can match several rules. For example, two **Push to branch** rules for `main` can deploy to two regions or
+  two AWS accounts. Each matching rule starts its own deployment at the same time.
+- Each project has one runner per AWS account and region. It runs up to two deployments at once. More deployments wait
+  until a slot is free.
+- Two operations never run on the same stage at the same time. If you push again while a stage is deploying, the new
+  deployment waits for the current one to finish.
 
 ## Following a deployment
 
 Git deployments appear in the Console with their logs, like any other deployment.
 
-- **Pull request previews:** Stacktape comments on the pull request when the preview deploy starts and updates the
-  comment with the result. It comments the same way when it deletes a preview. If a preview can't start, for example
-  because the AWS account is no longer connected, the comment says so.
+- **Pull request previews:** Stacktape comments on the pull request (merge request on GitLab) when the preview deploy
+  starts and updates the comment with the result. It comments the same way when a preview is deleted.
 - **GitHub:** each deployment also appears in the repository's **Deployments**, marked successful or failed.
-- **Alerts:** to get a message in Slack, email or another channel, create a
-  [notification rule](/observability/notifications) for the **Git deployments** events.
+- **Alerts:** to get an alert in Slack, email or another channel, create a
+  [notification rule](/observability/notifications) for the **Git deployments** events (preview deploy and Git push
+  deploy, succeeded or failed).
+
+If a preview deployment cannot start, for example because the AWS account is no longer connected, Stacktape updates
+the pull request comment to say that it failed.
 
 ## Runner cost
 
-Creating the first Git deployment for an AWS account and region prepares a runner in the background. It installs its
-tools and stops until the first push arrives. It doesn't clone your repository during this preparation.
+Creating the first Git deployment for an AWS account and region prepares a runner in the background. The runner starts
+its installed tools, then stops until the first push arrives. It does not clone your repository or install project
+dependencies during this preparation. A push that arrives during preparation uses the same runner. If you set the
+runner to keep running when idle, it stays running instead.
 
-A stopped runner has no EC2 compute charge, but its disks are billed. The default 50 GiB system disk and 50 GiB build
-cache disk cost about **$8.80 a month in Ireland** at gp3 rates. The cache disk grows with the build cache, up to the
-limit set on the runner. The Console's **Runners** page shows the estimate for each runner. See
-[AWS EBS pricing](https://aws.amazon.com/ebs/pricing/).
+Stopped runners have no EC2 compute charge, but their disks remain billable. The default 50 GiB root disk and 50 GiB
+cache disk cost about **$8.80/month in Ireland**, using gp3's included IOPS and throughput. Prices vary by region, and
+a growing cache costs more. Preparing a runner also incurs a short, one-time EC2 charge. The Console's **Runners** page
+shows regional cost estimates. See [AWS EBS pricing](https://aws.amazon.com/ebs/pricing/).
 
-Stacktape removes the runner, with its disks, build cache and IAM role, when you delete the project or the last Git
-deployment that uses its AWS account and region. A deployment that is already running finishes first. If the project's
-[GitHub Actions runner](/ci-cd-and-gitops/self-hosted-github-actions-runners) uses the same account and region, the
-runner stays.
+The disks are billed until the runner is removed. Stacktape removes the runner, with its disks, build cache and IAM
+role, when you delete the project or the last Git deployment that uses its AWS account and region. A deployment that is
+already running finishes first. If the project's GitHub Actions runner uses the same account and region, the runner
+stays.
 
-Previews also cost whatever their AWS resources cost, until they are deleted. Keep **Delete the preview when the pull
-request closes** on unless you need previews after merge, for example for QA. A database that `stacktape init` added
-has deletion protection on every stage, and the delete stops at it, so the preview keeps running. Turn the protection
-off for previews as described in [Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests),
-then close one test pull request and check that its stage is gone.
+Pull request previews also cost whatever their AWS resources cost, until the preview stage is deleted. Turn on
+**Delete stack after pull request is merged or closed?** unless you need previews after merge, for example for
+post-merge QA.
 
 ## Provider permissions for security fix pull requests
 
 When you ask Stacktape to prepare a security fix, it creates a `stacktape/*` branch, commits the selected file changes
-and opens a pull request. It never force-pushes, writes to the default branch, closes pull requests or sets commit
-statuses. Starting a fix needs `security:manage` access to the project.
+and opens a pull request. It never force-pushes, writes directly to the repository's default branch, closes pull
+requests or sets commit statuses. The Console requires `security:manage` access to that project before it can start these
+writes.
 
-The connection must allow these writes:
+The provider connection must allow these writes:
 
-- **GitHub:** read and write access to repository Contents, Pull requests and Commit statuses. When Stacktape asks for
-  new permissions, an owner of the GitHub account approves them on the existing installation. Until then the
-  connection shows **Needs approval**.
+- **GitHub:** the app needs read and write access to repository Contents, Pull requests and Commit statuses. When
+  Stacktape asks for new permissions, a GitHub account owner must approve them on the existing installation. Until
+  then, the connection shows **Needs attention** with a **Reconnect** action.
 - **GitLab:** the group connection's `api` scope covers the branch, commit and merge request. The read-only deploy
-  token is used only for cloning.
-- **Bitbucket:** read and write access to repositories and pull requests. When the app's permissions change, a
-  workspace admin approves the app upgrade in Bitbucket.
+  token is used only for cloning. Reconnect the group if its access has expired or been revoked.
+- **Bitbucket:** the app needs read and write access to repositories and pull requests. When the app's permissions
+  change, a workspace admin must approve the app upgrade in Bitbucket.
 
-Deployments keep working while new permissions wait for approval. Only security fix pull requests wait.
+Deployments keep working while new permissions wait for approval, but Stacktape cannot open a security fix pull request
+until they are approved.
 
-## A push did not deploy
+## Typical setup
 
-Check, in this order:
+| Rule | Trigger | Branch | Stage | Purpose |
+|------|---------|--------|-------|---------|
+| Production | Push to branch | `main` | `production` | Deploys every merge to `main` |
+| Staging | Push to branch | `develop` | `staging` | Deploys every push to `develop` |
+| Previews | Pull request opened | `main` | `pr-<number>` | A preview for every pull request into `main`, deleted when it closes |
 
-1. **Configuration → Git connections**: the provider's connection. **Not deploying** on GitLab or Bitbucket stops all
-   pushes; reconnect it. **Needs approval** on GitHub does not stop pushes, so look further.
+For naming, cost and cleanup advice for preview stages, see
+[Stacks per Git branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
+
+## FAQ
+
+### How is this different from custom CI/CD?
+
+Git deployments need no pipeline file: you configure them in the Console, and Stacktape deploys on the runner in your
+AWS account. [Custom CI/CD](/ci-cd-and-gitops/custom-ci-cd) means you write the pipeline yourself (GitHub Actions,
+GitLab CI, Bitbucket Pipelines or another system) and call the Stacktape CLI as a step. Custom CI/CD gives you control
+over tests, approvals and extra build steps.
+
+### Can I run tests before deploying?
+
+Not inside a Git deployment. It deploys on every matching event. Run tests in your provider's CI and require them to
+pass before merging, or use [custom CI/CD](/ci-cd-and-gitops/custom-ci-cd).
+
+### Can one push deploy to several accounts or regions?
+
+Yes. Create one **Push to branch** rule for each AWS account and region, all watching the same branch. A push starts
+all of them at once.
+
+### A push did not deploy. What should I check?
+
+1. In **Git connections**, the connection shows **Connected**, not **Needs attention**.
 2. The project page shows the repository, not "No Git repository".
 3. A Git deployment of the project watches exactly the branch you pushed to, or, for previews, the branch the pull
    request merges into.
 4. The event is one that deploys: not a tag, a branch deletion or a pull request from a fork.
-5. On GitHub, the Stacktape GitHub App can access the repository. Check the app's repository access in your GitHub
+5. On GitHub, the Stacktape GitHub App has access to the repository. Check the app's repository access in your GitHub
    account or organization settings.
-
-If the deployment started and failed, its log in the Console shows why.

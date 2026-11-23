@@ -1,6 +1,6 @@
 # bucket sync
 
-`stacktape bucket sync` synchronizes the contents of a local directory with an S3 bucket. It mirrors the source directory into the bucket, removing any files from the bucket that no longer exist locally. Use it when you need a local build directory mirrored into an S3 bucket, either by resolving a bucket resource from a deployed Stacktape stack or by passing a bucket ID directly.
+The `bucket sync` command synchronizes the contents of a local directory with an S3 bucket. It mirrors the source directory into the bucket, removing any files from the bucket that no longer exist locally. Use it when you need a local build directory mirrored into an S3 bucket, either by resolving a bucket resource from a deployed Stacktape stack or by passing a bucket ID directly.
 
 ## Usage
 
@@ -20,6 +20,30 @@ stacktape bucket sync --bucket-id my-app-assets-bucket --source-path ./dist --re
 
 
 > **Warning:** Files in the destination bucket that are not present in the source directory are deleted. This is a one-way mirror sync, not an additive upload.
+
+
+## Argument reference
+
+
+## CLI Options: `stacktape bucket sync`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
+| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
+| `--bucket-id` | no | `string` | Bucket ID — The identifier of the destination bucket (either the AWS physical resource ID or the bucket name). | - |
+| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
+| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
+| `--headers-preset` | no | `string` | Headers Preset — Configures HTTP headers of uploaded files based on a selected preset. • `static-website`: Caches all content on the CDN but never in the browser. • `gatsby-static-website`: Optimized for static websites built with Gatsby. • `single-page-app`: Optimized for Single-Page Applications. `index.html` is never cached, while all other assets are cached indefinitely. • `astro-static-website`: Optimized for Astro static sites. `_astro/**` assets are immutable. • `sveltekit-static-website`: Optimized for SvelteKit static sites. `_app/**` assets are immutable. • `nuxt-static-website`: Optimized for Nuxt static sites. `_nuxt/**` assets are immutable. | `static-website`, `gatsby-static-website`, `single-page-app`, `astro-static-website`, `sveltekit-static-website`, `nuxt-static-website` |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--invalidate-cdn-cache` | no | `boolean` | Invalidate CDN Cache — If `true`, invalidates the cache of the CDN connected to the bucket. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `--resource-name (positional 1)` | no | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
+| `--source-path` | no | `string` | Source Path — The path to the directory to synchronize with the bucket. This can be an absolute path or relative to the current working directory. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
 
 
 ## Important flags
@@ -82,30 +106,6 @@ Sync with a specific AWS profile:
 ```bash
 stacktape bucket sync assets --stage staging --region eu-central-1 --profile my-aws-profile
 ```
-
-## Options
-
-
-## CLI Options: `stacktape bucket sync`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
-| `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
-| `--bucket-id` | no | `string` | Bucket ID — The identifier of the destination bucket (either the AWS physical resource ID or the bucket name). | - |
-| `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
-| `--cwd` | no | `string` | Current Working Directory — The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file. | - |
-| `--headers-preset` | no | `string` | Headers Preset — Configures HTTP headers of uploaded files based on a selected preset. • `static-website`: Caches all content on the CDN but never in the browser. • `gatsby-static-website`: Optimized for static websites built with Gatsby. • `single-page-app`: Optimized for Single-Page Applications. `index.html` is never cached, while all other assets are cached indefinitely. • `astro-static-website`: Optimized for Astro static sites. `_astro/**` assets are immutable. • `sveltekit-static-website`: Optimized for SvelteKit static sites. `_app/**` assets are immutable. • `nuxt-static-website`: Optimized for Nuxt static sites. `_nuxt/**` assets are immutable. | `static-website`, `gatsby-static-website`, `single-page-app`, `astro-static-website`, `sveltekit-static-website`, `nuxt-static-website` |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--invalidate-cdn-cache` | no | `boolean` | Invalidate CDN Cache — If `true`, invalidates the cache of the CDN connected to the bucket. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `-p, --profile` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults set`. For commands that use a connected AWS account, `--profile` (or `AWS_PROFILE`) selects the connected account the profile belongs to, unless `--aws-account` is set. The command fails if that account is not connected. | - |
-| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-| `--resource-name (positional 1)` | no | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
-| `--source-path` | no | `string` | Source Path — The path to the directory to synchronize with the bucket. This can be an absolute path or relative to the current working directory. | - |
-| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-
 
 ## Related commands
 

@@ -8,17 +8,17 @@ The packaging type has two property variants. The container workload variant (`D
 
 Choose `dockerfile` packaging when:
 
-- You need system-level dependencies: native libraries or tools like `ffmpeg` or `wkhtmltopdf`.
+- You need system-level dependencies — native libraries or tools like `ffmpeg` or `wkhtmltopdf`.
 - Your application requires a multi-stage build to keep the final image small.
 - You already have a working Dockerfile and want to reuse it as-is.
 - You need a specific base image (e.g., distroless, or a base image reachable by the build environment).
 - The [`buildpack`](/packaging/containers/buildpack) type does not detect your project, or its overrides are not enough.
 
-## When not to use
+## When NOT to use
 
 If your service is a JavaScript or TypeScript entry file, [`js-bundle`](/packaging/containers/js-bundle) builds the image for you. For other languages and frameworks, [`buildpack`](/packaging/containers/buildpack) detects the project and builds the image without a Dockerfile. A Dockerfile adds maintenance work: you own base image updates, layer ordering and security patching.
 
-If you already have a built and pushed image in a registry, use [prebuilt image](/packaging/containers/prebuilt-image) instead: Stacktape skips the build step entirely.
+If you already have a built and pushed image in a registry, use [prebuilt image](/packaging/containers/prebuilt-image) instead — Stacktape skips the build step entirely.
 
 Stacktape has four container packaging types, each with container-workload and batch-job property variants. Start with `js-bundle` or `buildpack`, and switch to `dockerfile` when you need precise control.
 
@@ -31,7 +31,7 @@ Stacktape has four container packaging types, each with container-workload and b
 
 ## Basic example
 
-The only required packaging property is `buildContextPath`: the directory sent to `docker build` as context, relative to your Stacktape config file. The `dockerfilePath` property is optional; when set, it specifies the Dockerfile path relative to `buildContextPath`. Examples below include a `resources` property) this belongs to the resource configuration (e.g., `WebService`, `BatchJob`), not the packaging type. See each resource's dedicated page for supported CPU and memory values.
+The only required packaging property is `buildContextPath` — the directory sent to `docker build` as context, relative to your Stacktape config file. The `dockerfilePath` property is optional; when set, it specifies the Dockerfile path relative to `buildContextPath`. Examples below include a `resources` property — this belongs to the resource configuration (e.g., `WebService`, `BatchJob`), not the packaging type. See each resource's dedicated page for supported CPU and memory values.
 
 
 Example (TypeScript):
@@ -107,7 +107,7 @@ dist
 *.md
 ```
 
-For monorepos, point `buildContextPath` to the service subdirectory rather than the repo root. If you need files from outside the build context (shared libraries, workspace lockfiles), restructure so they fall within the context: Docker cannot access files above the context directory.
+For monorepos, point `buildContextPath` to the service subdirectory rather than the repo root. If you need files from outside the build context (shared libraries, workspace lockfiles), restructure so they fall within the context — Docker cannot access files above the context directory.
 
 ## Build arguments
 
@@ -138,12 +138,13 @@ export default defineConfig(() => {
 ```
 
 
-In the Dockerfile, declare a matching `ARG` in the stage that uses it, after `FROM`:
+In the Dockerfile, declare matching `ARG` instructions to receive the values:
 
 ```dockerfile
-FROM node:20-alpine
 ARG NODE_ENV=development
 ARG APP_VERSION=latest
+
+FROM node:20-alpine
 ENV NODE_ENV=${NODE_ENV}
 LABEL version=${APP_VERSION}
 WORKDIR /app
@@ -152,18 +153,18 @@ RUN npm ci
 CMD ["node", "src/server.js"]
 ```
 
-An `ARG` declared before `FROM` is visible only to the `FROM` line itself, so `ENV` and `LABEL` would get empty values; each stage of a multi-stage build needs its own `ARG`. The default after `=` applies when no `buildArgs` value is passed, so the Dockerfile also builds on its own.
+The `ARG` instruction can provide a default value that applies when no `buildArgs` override is supplied. Use this pattern so the Dockerfile works standalone (with defaults) and in Stacktape (with overrides).
 
 
-> **Warning:** Do not pass secrets through `buildArgs`: they are visible in the image layer history. Use runtime configuration for secrets instead. See [secrets](/configuration/secrets) for details.
+> **Warning:** Do not pass secrets through `buildArgs` — they are visible in the image layer history. Use runtime configuration for secrets instead. See [secrets](/configuration/secrets) for details.
 
 
 ## Overriding CMD and ENTRYPOINT
 
 You can override the Dockerfile's `CMD` and `ENTRYPOINT` instructions in the Stacktape config without modifying the Dockerfile itself.
 
-- **`command`** overrides `CMD`: the default arguments passed to the entry point.
-- **`entryPoint`** overrides `ENTRYPOINT`: the executable that runs when the container starts.
+- **`command`** overrides `CMD` — the default arguments passed to the entry point.
+- **`entryPoint`** overrides `ENTRYPOINT` — the executable that runs when the container starts.
 
 
 Example (TypeScript):
@@ -192,7 +193,7 @@ This is useful when you use a generic base image and want to swap the start comm
 
 ## Multi-stage builds
 
-Multi-stage Dockerfiles separate the build environment (compilers, dev dependencies) from the runtime image. This produces smaller, more secure containers by excluding build tools from the final layer. No special Stacktape configuration is needed: multi-stage builds work with the same `buildContextPath` and `dockerfilePath` setup.
+Multi-stage Dockerfiles separate the build environment (compilers, dev dependencies) from the runtime image. This produces smaller, more secure containers by excluding build tools from the final layer. No special Stacktape configuration is needed — multi-stage builds work with the same `buildContextPath` and `dockerfilePath` setup.
 
 ```dockerfile
 # Build stage
@@ -202,7 +203,6 @@ COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
-RUN npm prune --omit=dev
 
 # Production stage
 FROM node:20-alpine
@@ -212,7 +212,7 @@ COPY --from=builder /app/node_modules ./node_modules
 CMD ["node", "dist/server.js"]
 ```
 
-The builder stage installs all dependencies, compiles the application, then removes the development dependencies with `npm prune --omit=dev`. The production stage copies only the compiled output and the remaining production `node_modules`, keeping the final image small. For even smaller images, replace the production base with a distroless image and copy only the compiled artifacts.
+The builder stage installs all dependencies and compiles the application. The production stage copies only the compiled output and production `node_modules`, keeping the final image small. For even smaller images, replace the production base with a distroless image and copy only the compiled artifacts.
 
 Multi-stage builds are the recommended approach for production containers. The overhead of maintaining a longer Dockerfile is repaid by faster deploys and a smaller attack surface.
 
@@ -237,7 +237,7 @@ COPY . .
 CMD ["node", "src/server.js"]
 ```
 
-By copying `package.json` and running `npm ci` before copying the rest of the source, Docker reuses the cached dependency layer whenever only application code changes. This is standard Dockerfile hygiene and helps whenever the build environment has a warm cache. Stacktape's `dockerfile` packaging controls only the Dockerfile, build context, args, command, and entry point: caching behavior depends on Docker itself.
+By copying `package.json` and running `npm ci` before copying the rest of the source, Docker reuses the cached dependency layer whenever only application code changes. This is standard Dockerfile hygiene and helps whenever the build environment has a warm cache. Stacktape's `dockerfile` packaging controls only the Dockerfile, build context, args, command, and entry point — caching behavior depends on Docker itself.
 
 On your machine, Stacktape builds with Docker's local build cache. In CI, where a runner usually starts without that cache, Stacktape also stores the layer cache in the stack's ECR repository and reuses it in the next CI build. `--no-remote-cache` turns the ECR cache off.
 
@@ -273,7 +273,7 @@ export default defineConfig(() => {
 
 ## Using with multi-container workloads
 
-A [multi-container workload](/resources/compute/multi-container-workload) defines multiple containers, each with its own packaging. This example uses `DockerfilePackaging` for both containers, each pointing to a separate build context. You can also mix packaging modes: for example, one container built from a Dockerfile and another with a [prebuilt image](/packaging/containers/prebuilt-image). See [multi-container workload](/resources/compute/multi-container-workload) for the full resource configuration.
+A [multi-container workload](/resources/compute/multi-container-workload) defines multiple containers, each with its own packaging. This example uses `DockerfilePackaging` for both containers, each pointing to a separate build context. You can also mix packaging modes — for example, one container built from a Dockerfile and another with a [prebuilt image](/packaging/containers/prebuilt-image). See [multi-container workload](/resources/compute/multi-container-workload) for the full resource configuration.
 
 
 Example (TypeScript):
@@ -310,7 +310,7 @@ export default defineConfig(() => {
 
 ## Best practices
 
-These are general Docker best practices that apply to any Dockerfile used with Stacktape. The Stacktape-specific properties are `buildContextPath`, `dockerfilePath`, `buildArgs`, `command`, and `entryPoint`: everything else is standard Dockerfile authoring.
+These are general Docker best practices that apply to any Dockerfile used with Stacktape. The Stacktape-specific properties are `buildContextPath`, `dockerfilePath`, `buildArgs`, `command`, and `entryPoint` — everything else is standard Dockerfile authoring.
 
 **Keep images small.** Use Alpine-based or distroless base images. Multi-stage builds prevent build tools from bloating the final layer. Smaller images deploy faster and reduce ECR storage costs.
 
@@ -327,17 +327,17 @@ RUN addgroup -S app && adduser -S app -G app
 USER app
 ```
 
-**Combine related `RUN` instructions.** Each `RUN` creates a new image layer. Combine related commands with `&&` to reduce layer count. Clean up package manager caches in the same `RUN` instruction that installs packages: otherwise the cache persists in an earlier layer even after deletion.
+**Combine related `RUN` instructions.** Each `RUN` creates a new image layer. Combine related commands with `&&` to reduce layer count. Clean up package manager caches in the same `RUN` instruction that installs packages — otherwise the cache persists in an earlier layer even after deletion.
 
 ## FAQ
 
 ### What base images can I use?
 
-Your Dockerfile can use the same `FROM` syntax as a normal Docker build (official language images (`node:20-alpine`, `python:3.12-slim`), distroless images, or any base reachable by the build environment. Note that the packaging properties expose no setting for private-registry build-time credentials. If you need Stacktape to pull an already-built image from a private registry, use [prebuilt image](/packaging/containers/prebuilt-image) packaging instead) it exposes `repositoryCredentialsSecretArn` for that purpose.
+Your Dockerfile can use the same `FROM` syntax as a normal Docker build — official language images (`node:20-alpine`, `python:3.12-slim`), distroless images, or any base reachable by the build environment. Note that the packaging properties expose no setting for private-registry build-time credentials. If you need Stacktape to pull an already-built image from a private registry, use [prebuilt image](/packaging/containers/prebuilt-image) packaging instead — it exposes `repositoryCredentialsSecretArn` for that purpose.
 
 ### How do I pass runtime secrets to the container?
 
-Do not use `buildArgs` for secrets: they are visible in image layer history. Instead, use runtime configuration for secrets so they are not baked into the image. See [secrets](/configuration/secrets) for details on referencing secrets at runtime.
+Do not use `buildArgs` for secrets — they are visible in image layer history. Instead, use runtime configuration for secrets so they are not baked into the image. See [secrets](/configuration/secrets) for details on referencing secrets at runtime.
 
 ### How does `dockerfile` differ from `buildpack`?
 
@@ -345,17 +345,17 @@ Do not use `buildArgs` for secrets: they are visible in image layer history. Ins
 
 ### What is the maximum container image size?
 
-AWS ECR does not enforce a hard image size limit. However, larger images increase deploy time because more data must be pulled when a new task starts. As a general guideline, keep web-facing images small: teams often target a few hundred MB so tasks spend less time pulling layers. Batch jobs can tolerate larger images because startup latency is less critical.
+AWS ECR does not enforce a hard image size limit. However, larger images increase deploy time because more data must be pulled when a new task starts. As a general guideline, keep web-facing images small — teams often target a few hundred MB so tasks spend less time pulling layers. Batch jobs can tolerate larger images because startup latency is less critical.
 
 ### How do I debug a failing Docker build?
 
-Run `docker build` locally with the same build context path and Dockerfile to reproduce the error outside Stacktape. A common cause is a `COPY` instruction referencing a file that lives outside `buildContextPath` or is excluded by `.dockerignore`: Docker cannot access files above the context directory. During deployment, check the deployment output for the Docker build step to identify the failure.
+Run `docker build` locally with the same build context path and Dockerfile to reproduce the error outside Stacktape. A common cause is a `COPY` instruction referencing a file that lives outside `buildContextPath` or is excluded by `.dockerignore` — Docker cannot access files above the context directory. During deployment, check the deployment output for the Docker build step to identify the failure.
 
 ### Can I override CMD or ENTRYPOINT without modifying the Dockerfile?
 
 Yes. Set the `command` property to override the Dockerfile's `CMD` and `entryPoint` to override `ENTRYPOINT`. This lets you change the container's start command per stage or environment without rebuilding. The batch job packaging variant supports `command` but not `entryPoint`. See [Overriding CMD and ENTRYPOINT](#overriding-cmd-and-entrypoint) for usage.
 
-The API reference below covers the container workload variant (`DockerfileCwImagePackagingProps`), used by [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload). The batch job variant (`DockerfileBjImagePackagingProps`) shares the same properties (`buildContextPath`, `dockerfilePath`, `buildArgs`, and `command`) but does not include `entryPoint`.
+The API reference below covers the container workload variant (`DockerfileCwImagePackagingProps`), used by [web services](/resources/compute/web-service), [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service), and [multi-container workloads](/resources/compute/multi-container-workload). The batch job variant (`DockerfileBjImagePackagingProps`) shares the same properties — `buildContextPath`, `dockerfilePath`, `buildArgs`, and `command` — but does not include `entryPoint`.
 
 
 ### Definition: `DockerfileCwImagePackagingProps`

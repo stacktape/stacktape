@@ -33807,7 +33807,7 @@ The ARN of the DynamoDB table stream.
 
 The maximum number of records to process in a single batch.
 
-Maximum is 10,000.
+Maximum is 1,000.
 
 ## Property: `bisectBatchOnFunctionError`
 
@@ -34693,7 +34693,7 @@ This cannot be used with `consumerArn`.
 
 - Required: no
 - Type: `number`
-- Default: `100`
+- Default: `10`
 
 The maximum number of records to process in a single batch.
 
@@ -35598,8 +35598,7 @@ type SqsIntegrationProps = {
 
 The maximum number of records to process in a single batch.
 
-Maximum is 10,000 for standard queues and 10 for FIFO queues. Above 10, AWS requires `maxBatchWindowSeconds` of at
-least 1.
+Maximum is 10,000.
 
 ## Property: `maxBatchWindowSeconds`
 
@@ -35608,8 +35607,7 @@ least 1.
 
 The maximum time (in seconds) to wait before invoking the function with a batch of records.
 
-Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available. FIFO queues don't
-support a batching window.
+Maximum is 300 seconds. If not set, the function is invoked as soon as messages are available.
 
 ## Property: `maximumConcurrency`
 
@@ -53358,7 +53356,7 @@ type NextjsWebProps = {
   releaseCommand?: NextjsWebReleaseCommand;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: NextjsServerLambdaProperties;
-  /** Stream SSR responses for a faster Time to First Byte and responses larger than the 6 MB buffered limit. */
+  /** Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default). */
   streamingEnabled?: boolean;
   /** Run SSR at CloudFront edge locations for lower latency worldwide. */
   useEdgeLambda?: boolean;
@@ -53865,7 +53863,7 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Stream SSR responses for a faster Time to First Byte and responses larger than the 6 MB buffered limit.
+Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default).
 
 Not compatible with `useEdgeLambda: true`.
 
@@ -65644,7 +65642,7 @@ type SqsQueueProps = {
   fifoHighThroughput?: boolean;
   /** Seconds the queue waits for messages before returning an empty response. Range: 0–20. */
   longPollingSeconds?: number;
-  /** Maximum message size in bytes. Range: 1,024 (1 KiB) to 1,048,576 (1 MiB). */
+  /** Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB). */
   maxMessageSizeBytes?: number;
   /** How long unprocessed messages stay in the queue before being deleted. Range: 60s to 1,209,600s (14 days). */
   messageRetentionPeriodSeconds?: number;
@@ -66152,11 +66150,11 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number`
-- Default: `1048576`
+- Default: `262144`
 
-Maximum message size in bytes. Range: 1,024 (1 KiB) to 1,048,576 (1 MiB).
+Maximum message size in bytes. Range: 1,024 (1 KB) to 262,144 (256 KB).
 
-Messages larger than this limit are rejected. For larger payloads, store the data in S3 and send the reference.
+Messages larger than this limit are rejected. For payloads over 256 KB, store the data in S3 and send the reference.
 
 ### Example 1 (yaml)
 

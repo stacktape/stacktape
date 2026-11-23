@@ -2,16 +2,19 @@
 
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Check, Copy, Maximize2, Minimize2 } from 'react-feather';
-import { Tabs as SharedTabs } from '@stacktape/ui-react/tabs';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { BiCheck, BiCopy } from 'react-icons/bi';
+import { IconButton } from '@stacktape/ui-react/icon-button';
 import type { InstallPlatform } from '@stacktape/ui-react/install-platform';
 import { detectInstallPlatform } from '@stacktape/ui-react/install-platform';
+import { colors } from '@/styles/variables';
 import { marked } from 'marked';
 import { convertYamlToTypescript } from '@/utils/yaml-to-typescript';
 import { loadTwoslashFsMap, TWOSLASH_COMPILER_OPTIONS } from './twoslash-types';
-import { type CommandSegment, isCommandBlock, pathBreaks, segmentCommand } from './command-words';
 import { computeYamlHovers } from './yaml-hover';
+
+// useLayoutEffect logs a warning during SSR; fall back to useEffect on the server.
+const useIsomorphicLayoutEffect = typeof document !== 'undefined' ? useLayoutEffect : useEffect;
 
 const SHIKI_THEME = 'catppuccin-mocha';
 
@@ -226,14 +229,11 @@ const formatTypescriptConfigSnippet = (code: string) => {
 const preprocessCode = ({
   code,
   lang,
-  formatStacktapeConfig = false,
-  showAll = false
+  formatStacktapeConfig = false
 }: {
   code: string;
   lang: string;
   formatStacktapeConfig?: boolean;
-  /** Ignore focus markers and show every line (the reader expanded a focused excerpt). */
-  showAll?: boolean;
 }): ProcessedCode => {
   const normalizedCode = formatStacktapeConfig ? formatTypescriptConfigSnippet(code) : code;
   const rawLines = normalizedCode.replace(/\r\n/g, '\n').split('\n');
@@ -337,7 +337,7 @@ const preprocessCode = ({
   };
 
   for (const state of fullStates) {
-    const isFocused = showAll || !anyFocusMarker || state.focused;
+    const isFocused = !anyFocusMarker || state.focused;
     if (!isFocused) {
       pendingHide.push(state);
       continue;
@@ -358,10 +358,9 @@ const preprocessCode = ({
   }
   pendingHide = [];
 
-  const displayLines =
-    anyFocusMarker && !showAll
-      ? dedentLinesForDisplay(focusedLineSpecs.map((spec) => spec.text))
-      : focusedLineSpecs.map((spec) => spec.text);
+  const displayLines = anyFocusMarker
+    ? dedentLinesForDisplay(focusedLineSpecs.map((spec) => spec.text))
+    : focusedLineSpecs.map((spec) => spec.text);
   const displayFocusedLineSpecs = focusedLineSpecs.map((spec): FocusedLineSpec => {
     const displayText = displayLines.shift() ?? spec.text;
     return spec.kind === 'line'
@@ -519,74 +518,6 @@ const getShikiRuntime = () => {
   return shikiRuntimePromise;
 };
 
-type HastNode = { type: string; tagName?: string; value?: string; properties?: object; children?: HastNode[] };
-
-/**
- * Groups each word of a command line (across Shiki's colour tokens) into one span. On a phone the spans wrap as whole
- * words, so `--region` moves to the next line instead of breaking after its hyphens. See `.docs-code-word`.
- */
-const wordClass = (segment: CommandSegment) => (segment.long ? ['docs-code-word', 'is-long'] : ['docs-code-word']);
-
-const tokenText = (token: HastNode) =>
-  token.type === 'text' ? (token.value ?? '') : (token.children ?? []).map((child) => child.value ?? '').join('');
-
-/** A piece of a Shiki colour token: the same element (and colour) with only `text` in it. */
-const tokenPiece = (token: HastNode, text: string): HastNode =>
-  token.type === 'text' ? { type: 'text', value: text } : { ...token, children: [{ type: 'text', value: text }] };
-
-/**
- * Regroups a command line's Shiki colour tokens into the units of `segmentCommand`, one span per unit. On a phone the
- * units wrap whole (see `.docs-code-word`), so `--region eu-west-1` never breaks after its hyphens.
- */
-const commandWordsTransformer = {
-  name: 'stacktape:command-words',
-  line(node: HastNode) {
-    const tokens = node.children ?? [];
-    const segments = segmentCommand(tokens.map(tokenText).join(''));
-    const children: HastNode[] = [];
-    let tokenIndex = 0;
-    let tokenOffset = 0;
-    for (const segment of segments) {
-      const pieces: HastNode[] = [];
-      let remaining = segment.text.length;
-      while (remaining > 0 && tokenIndex < tokens.length) {
-        const token = tokens[tokenIndex];
-        const text = tokenText(token);
-        const take = Math.min(remaining, text.length - tokenOffset);
-        pieces.push(tokenPiece(token, text.slice(tokenOffset, tokenOffset + take)));
-        remaining -= take;
-        tokenOffset += take;
-        if (tokenOffset >= text.length) {
-          tokenIndex++;
-          tokenOffset = 0;
-        }
-      }
-      if (segment.space) {
-        children.push(...pieces);
-        continue;
-      }
-      // A long unit may break after a path `/`: a `<wbr>` after each piece that ends with one.
-      const withBreaks = segment.long
-        ? pieces.flatMap((piece) => {
-            const parts = pathBreaks(tokenText(piece));
-            return parts.flatMap((part, index): HastNode[] =>
-              index === 0
-                ? [tokenPiece(piece, part)]
-                : [{ type: 'element', tagName: 'wbr', properties: {}, children: [] }, tokenPiece(piece, part)]
-            );
-          })
-        : pieces;
-      children.push({
-        type: 'element',
-        tagName: 'span',
-        properties: { className: wordClass(segment) },
-        children: withBreaks
-      });
-    }
-    node.children = children;
-  }
-};
-
 const renderWithShiki = async ({
   runtime,
   code,
@@ -666,53 +597,80 @@ const getDisplayTabLabel = (label: ReactNode) => {
   return label;
 };
 
-/** What a block without its own label is called in its header. Shell commands get no header at all. */
-const LANGUAGE_LABELS: Record<string, string> = {
-  typescript: 'TypeScript',
-  tsx: 'TSX',
-  javascript: 'JavaScript',
-  jsx: 'JSX',
-  json: 'JSON',
-  jsonc: 'JSON',
-  yaml: 'YAML',
-  dockerfile: 'Dockerfile',
-  toml: 'TOML',
-  python: 'Python',
-  sql: 'SQL',
-  hcl: 'HCL'
-};
+function TabSwitcher({
+  tabs,
+  activeIndex,
+  onTabClick
+}: {
+  tabs: { label: ReactNode }[];
+  activeIndex: number;
+  onTabClick: (index: number) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, top: 3, width: 0, height: 0 });
+  const [hydrated, setHydrated] = useState(false);
 
-const SHELL_LANGUAGES = new Set(['bash', 'shell', 'sh', 'zsh', 'powershell', 'ps1', 'console', 'text', 'txt', '']);
+  const updateIndicator = useCallback(() => {
+    const activeButton = buttonRefs.current[activeIndex];
+    if (!activeButton) return;
+    // offset* keeps the pill aligned with the container's positioning context (no getBoundingClientRect
+    // rounding drift), matching the console app's Tabs. The top follows the active tab onto a wrapped row.
+    setIndicatorStyle({
+      left: activeButton.offsetLeft,
+      top: activeButton.offsetTop,
+      width: activeButton.offsetWidth,
+      height: activeButton.offsetHeight
+    });
+  }, [activeIndex]);
 
-/** Languages whose lines are commands a reader types. Output (`text`) keeps its columns. */
-const COMMAND_LANGUAGES = new Set(['bash', 'shell', 'sh', 'zsh', 'powershell', 'ps1', 'console']);
+  // Measure before paint so the hand-off from the static CSS pill to the sliding indicator is seamless.
+  useIsomorphicLayoutEffect(() => {
+    updateIndicator();
+    setHydrated(true);
+  }, [updateIndicator, tabs.length]);
 
-/**
- * Commands may wrap on a phone, so the whole command is readable without scrolling. Copy still takes the original
- * text. A block with indented lines (a heredoc, a script body) keeps its layout, except the continuation line of a
- * command split with `\` or a PowerShell backtick.
- */
-const wrapsOnPhone = (code: string, lang: string) => COMMAND_LANGUAGES.has(lang) && isCommandBlock(code);
+  useEffect(() => {
+    window.addEventListener('resize', updateIndicator);
+    return () => window.removeEventListener('resize', updateIndicator);
+  }, [updateIndicator]);
 
-/** The plain (not yet highlighted) form of a command line, with the same units as `commandWordsTransformer`. */
-function CommandLine({ line }: { line: string }) {
-  let offset = 0;
-  return segmentCommand(line).map((segment) => {
-    const key = offset;
-    offset += segment.text.length;
-    if (segment.space) return segment.text;
-    return (
-      <span key={key} className={wordClass(segment).join(' ')}>
-        {pathBreaks(segment.text).map((piece, index) => (
-          // eslint-disable-next-line react/no-array-index-key -- pieces of one unit have no identity besides position
-          <span key={index}>
-            {index > 0 && <wbr />}
-            {piece}
-          </span>
-        ))}
-      </span>
-    );
-  });
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => updateIndicator());
+    observer.observe(container);
+    const activeButton = buttonRefs.current[activeIndex];
+    if (activeButton) observer.observe(activeButton);
+    return () => observer.disconnect();
+  }, [activeIndex, updateIndicator]);
+
+  if (tabs.length <= 1) return null;
+
+  return (
+    <div className="flex mb-2">
+      <div ref={containerRef} className={clsx('stp-tab-container', hydrated && 'is-hydrated')}>
+        <div className="stp-tab-indicator" style={indicatorStyle} />
+        {tabs.map((tab, index) => {
+          const isActive = activeIndex === index;
+          return (
+            <button
+              key={String(tab.label)}
+              ref={(el) => {
+                buttonRefs.current[index] = el;
+              }}
+              type="button"
+              className={clsx('stp-tab-button', isActive && 'is-active')}
+              onClick={() => onTabClick(index)}
+            >
+              {getDisplayTabLabel(tab.label)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function MdxCodeBlockNew({
@@ -756,7 +714,6 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
   const resolvedTabs = tabs;
   const [activeTabLabel, setActiveTabLabel] = useState(() => String(resolvedTabs[0]?.label ?? ''));
   const [isCopiedShown, setIsCopiedShown] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
   const [renderedHtml, setRenderedHtml] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -777,11 +734,11 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
     return preprocessCode({
       code: activeTabCode,
       lang: activeLanguage,
-      formatStacktapeConfig: shouldEnableIntellisense && activeTabIsStacktapeConfig,
-      showAll
+      formatStacktapeConfig: shouldEnableIntellisense && activeTabIsStacktapeConfig
     });
-  }, [activeTabCode, activeTabIsStacktapeConfig, activeTabLang, lang, shouldEnableIntellisense, showAll]);
+  }, [activeTabCode, activeTabIsStacktapeConfig, activeTabLang, lang, shouldEnableIntellisense]);
 
+  const amountOfLines = processedCode.renderCode.split('\n').length;
   const activeIndex = resolvedTabs.findIndex((tab) => tab.label === activeTab.label);
 
   useEffect(() => {
@@ -819,7 +776,6 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
         const twoslashTransformer = shouldUseTwoslash ? await getTwoslashTransformer() : undefined;
 
         const extraTransformers: unknown[] = [];
-        if (wrapsOnPhone(processedCode.renderCode, normalizedLanguage)) extraTransformers.push(commandWordsTransformer);
         if (shouldUseIntellisense && normalizedLanguage === 'yaml') {
           // Parse the ORIGINAL code (still valid YAML) and translate hover positions
           // through `lineMap` to match the rendered (possibly focus-filtered) output.
@@ -959,111 +915,52 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
   }, [renderedHtml]);
 
   const handleCopyClick = async () => {
-    try {
-      await copyToClipboard(processedCode.copyCode);
-      setIsCopiedShown(true);
-      setTimeout(() => setIsCopiedShown(false), 1500);
-    } catch {
-      setIsCopiedShown(false);
-    }
+    setIsCopiedShown(true);
+    setTimeout(() => setIsCopiedShown(false), 1000);
+    await copyToClipboard(processedCode.copyCode);
   };
 
-  const handleTabChange = (index: number) => {
+  const handleTabClick = (index: number) => {
     tabChosen.current = true;
     setActiveTabLabel(String(resolvedTabs[index].label));
     setAnimationKey((value) => value + 1);
   };
 
-  const blockId = useId();
-  const normalizedActiveLanguage = normalizeLanguage(activeTab.lang || lang || 'text');
-  const singleLabel = resolvedTabs.length === 1 ? getDisplayTabLabel(resolvedTabs[0].label) : null;
-  const headerLabel = singleLabel || LANGUAGE_LABELS[normalizedActiveLanguage] || null;
-  const hasTabs = resolvedTabs.length > 1;
-  const hasHeader =
-    hasTabs || (headerLabel !== null && !SHELL_LANGUAGES.has(normalizedActiveLanguage)) || !!singleLabel;
-
-  const isCommand = wrapsOnPhone(processedCode.renderCode, normalizedActiveLanguage);
-
-  const copyButton = (
-    <button
-      type="button"
-      className={clsx('docs-code-copy', isCopiedShown && 'is-copied', !hasHeader && 'is-lane')}
-      aria-label={isCopiedShown ? 'Copied' : 'Copy code'}
-      onClick={handleCopyClick}
-    >
-      {isCopiedShown ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-      {hasHeader && <span>{isCopiedShown ? 'Copied' : 'Copy'}</span>}
-    </button>
-  );
-
-  // A focused excerpt keeps the rest of the file one click away. Copy always takes the whole file.
-  const expandButton = processedCode.hasFocusMarkers && (
-    <button
-      type="button"
-      className="docs-code-copy"
-      aria-pressed={showAll}
-      aria-controls={`code-${blockId}-panel`}
-      onClick={() => setShowAll((value) => !value)}
-    >
-      {showAll ? <Minimize2 size={14} aria-hidden /> : <Maximize2 size={14} aria-hidden />}
-      <span>{showAll ? 'Show less' : 'Show all'}</span>
-    </button>
-  );
-
   return (
-    <div className={clsx('docs-code', !hasHeader && 'is-bare', isCommand && 'is-command')}>
-      {hasHeader && (
-        <div className="docs-code-header">
-          {hasTabs ? (
-            <SharedTabs
-              appearance="underline"
-              ariaLabel="Code example variant"
-              className="docs-code-tabs"
-              id={`code-${blockId}`}
-              onValueChange={handleTabChange}
-              size="small"
-              tabs={resolvedTabs.map((tab, index) => ({
-                label: getDisplayTabLabel(tab.label),
-                value: index,
-                panelId: `code-${blockId}-panel`
-              }))}
-              value={activeIndex >= 0 ? activeIndex : 0}
-              width="fit"
-            />
-          ) : (
-            <span className="docs-code-label">{headerLabel}</span>
-          )}
-          <span className="docs-code-actions">
-            {expandButton}
-            {copyButton}
-          </span>
-        </div>
-      )}
-      <div id={`code-${blockId}-panel`} role={hasTabs ? 'tabpanel' : undefined} className="docs-code-scroll">
-        {renderError && <p className="docs-code-status">{renderError}</p>}
-        {renderedHtml && !renderError ? (
+    <div className="mt-[25px] mb-[30px] overflow-visible w-full text-[13.5px] leading-[1.5]">
+      <TabSwitcher tabs={resolvedTabs} activeIndex={activeIndex >= 0 ? activeIndex : 0} onTabClick={handleTabClick} />
+
+      <div className="stacktape-code-block-shell stp-box stp-pretty-scrollbar group relative overflow-x-auto overflow-y-hidden pt-4 pb-[14px] px-0 max-[500px]:mt-[3.5px]">
+        <IconButton
+          className="copy-button absolute right-[14px] z-20 opacity-0 group-hover:opacity-100 [transition:all_250ms_ease,opacity_0.2s_ease-in-out]"
+          style={{ top: amountOfLines <= 2 ? '7px' : '14px' }}
+          label={isCopiedShown ? 'Code copied' : 'Copy code'}
+          icon={
+            isCopiedShown ? (
+              <BiCheck size={18} color={colors.fontColorPrimary} />
+            ) : (
+              <BiCopy size={18} color={colors.fontColorPrimary} />
+            )
+          }
+          onClick={handleCopyClick}
+        />
+
+        {renderError ? (
+          <div className="pt-0 px-[18px] pb-[10px]">
+            <p className="text-fc-light text-[0.8rem] mb-2">{renderError}</p>
+            <pre className="m-0 text-fc-primary font-mono">{processedCode.renderCode}</pre>
+          </div>
+        ) : renderedHtml ? (
           <div
             key={animationKey}
             ref={codeContainerRef}
-            className="stacktape-code-block twoslash animate-code-fade-in"
+            className="stacktape-code-block twoslash block animate-code-fade-in"
             dangerouslySetInnerHTML={{ __html: renderedHtml }}
           />
         ) : (
-          // Before highlighting arrives: the same lines, font and spacing, so nothing moves when colour appears.
-          <pre className="docs-code-plain">
-            <code>
-              {processedCode.renderCode.split('\n').map((line, index) => (
-                // eslint-disable-next-line react/no-array-index-key -- lines have no identity besides position
-                <span key={index} className="line">
-                  {isCommand ? <CommandLine line={line} /> : line}
-                </span>
-              ))}
-            </code>
-          </pre>
+          <pre className="m-0 px-[18px] text-fc-primary font-mono whitespace-pre-wrap">{processedCode.renderCode}</pre>
         )}
       </div>
-      {/* A block without a header keeps Copy in its own column, so it never covers the end of a command. */}
-      {!hasHeader && copyButton}
     </div>
   );
 }
