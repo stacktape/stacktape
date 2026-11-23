@@ -16353,7 +16353,7 @@
         "page:/cli/deploy#deploy-a-new-production-stage",
         "page:/cli/deploy#deploy-to-the-account-of-an-aws-profile",
         "page:/cli/deploy#deploy-to-a-named-connected-account",
-        "page:/cli/deploy#deploy-everything-through-cloudformation",
+        "page:/cli/deploy#deploy-through-cloudformation",
         "page:/cli/deploy#non-interactive-deploy-in-ci-cd",
         "page:/cli/deploy#preview-changes-before-deploying",
         "page:/cli/deploy#free-plan-cost-limit",
