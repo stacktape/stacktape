@@ -863,3 +863,41 @@ test('a new function connected to Aurora is created while the instances are; con
     'Fn::Join': [',', [instanceAddress('OrdersDbInstance0'), derivedAddress('data-test-orders-1')]]
   });
 });
+
+test('the deprecated enableEnhancedFanOut flag leaves event source mappings and consumers unchanged', async () => {
+  const config = (streamProperties: string) => `resources:
+  fanout:
+    type: kinesis-stream${streamProperties}
+  reader:
+    type: function
+    properties:
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: handler.ts
+      events:
+        - type: kinesis-stream
+          properties:
+            kinesisStreamName: fanout
+`;
+  const streamResources = (template: Awaited<ReturnType<typeof synthesize>>) =>
+    Object.fromEntries(
+      Object.entries(template.Resources).filter(([, { Type }]) =>
+        ['AWS::Lambda::EventSourceMapping', 'AWS::Kinesis::StreamConsumer'].includes(Type)
+      )
+    );
+  const withFlag = streamResources(
+    await synthesize(
+      config(`
+    properties:
+      enableEnhancedFanOut: true`)
+    )
+  );
+  const withoutFlag = streamResources(await synthesize(config('')));
+  // An existing mapping keeps reading the stream directly: a new EventSourceArn would replace it and reset its position.
+  expect(withFlag).toEqual(withoutFlag);
+  expect(Object.values(withFlag).map(({ Type }) => Type)).toEqual(['AWS::Lambda::EventSourceMapping']);
+  expect(withFlag.ReaderEvent0EventSourceMapping).toMatchObject({
+    Properties: { EventSourceArn: { 'Fn::GetAtt': ['FanoutStream', 'Arn'] } }
+  });
+});

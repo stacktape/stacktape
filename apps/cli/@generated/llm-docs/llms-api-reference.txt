@@ -46359,7 +46359,7 @@ import type { KinesisStreamEncryption } from 'stacktape';
 type KinesisStreamProps = {
   /** How the stream scales. */
   capacityMode?: "ON_DEMAND" | "PROVISIONED";
-  /** Give each consumer its own dedicated 2 MB/s read throughput (instead of sharing). */
+  /** Deprecated: has no effect. Set `autoCreateConsumer: true` on a function's trigger instead. */
   enableEnhancedFanOut?: boolean;
   /** Encrypt data at rest using a KMS key. */
   encryption?: KinesisStreamEncryption;
@@ -46445,10 +46445,11 @@ export default defineConfig(() => {
 - Type: `boolean`
 - Default: `false`
 
-Give each consumer its own dedicated 2 MB/s read throughput (instead of sharing).
+Deprecated: has no effect. Set `autoCreateConsumer: true` on a function's trigger instead.
 
-Use when you have multiple consumers reading from the same stream and need low latency.
-Enhanced fan-out consumers are auto-created when a Lambda uses `autoCreateConsumer: true`.
+This property never changed the deployed stream and is ignored; Stacktape prints a deprecation warning when it is
+set. To give a function its own enhanced fan-out consumer with dedicated 2 MB/s read throughput per shard, set
+`autoCreateConsumer: true` (or `consumerArn`) on its `kinesis-stream` trigger, as in the examples below.
 
 ### Example 1 (yaml)
 
@@ -59819,7 +59820,7 @@ type AuroraServerlessV2EngineProperties = {
   disableAutoMinorVersionUpgrade?: boolean;
   /** Maximum ACUs (0.5-128 in 0.5 increments). Caps your scaling and cost. */
   maxCapacity?: number;
-  /** Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM. */
+  /** Minimum ACUs (0-128 in 0.5 increments). 0 pauses the database when it is idle. ~1 ACU ≈ 2 GB RAM. */
   minCapacity?: number;
   /** Number of reader instances in the Aurora Serverless v2 cluster. */
   serverlessReadersCount?: number;
@@ -60022,11 +60023,13 @@ return { resources: { mainDatabase } };
 
 - Required: no
 - Type: `number`
-- Default: `0.5`
+- Default: `0`
 
-Minimum ACUs (0.5-128 in 0.5 increments). ~1 ACU ≈ 2 GB RAM.
+Minimum ACUs (0-128 in 0.5 increments). 0 pauses the database when it is idle. ~1 ACU ≈ 2 GB RAM.
 
-Set low (0.5) for dev/staging to minimize cost. The database scales up instantly under load.
+With the default 0, the database pauses after about 5 idle minutes and costs nothing for compute while paused; the
+first connection after a pause waits about 15 seconds for it to resume. Set 0.5 or more to keep it running. The
+database scales up instantly under load.
 
 ### Example 1 (yaml)
 

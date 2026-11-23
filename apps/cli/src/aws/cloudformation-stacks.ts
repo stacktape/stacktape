@@ -17,6 +17,7 @@ import {
   ContinueUpdateRollbackCommand,
   CreateChangeSetCommand,
   CreateStackCommand,
+  DeleteChangeSetCommand,
   DeleteStackCommand,
   DescribeChangeSetCommand,
   DescribeEventsCommand,
@@ -305,6 +306,10 @@ export class AwsCloudFormationStacks {
     };
   };
 
+  /**
+   * Creates a change set to preview the changes and deletes it once it is described: nothing executes it, and a kept
+   * change set would stay on the stack after every preview.
+   */
   createChangeSet = async (input: CreateChangeSetInput & { includePropertyValues?: boolean }) => {
     const handleError = this.#getErrorHandler('Failed to fetch change-set details.');
     const { includePropertyValues, ...createChangeSetInput } = input;
@@ -312,28 +317,35 @@ export class AwsCloudFormationStacks {
       .send(new CreateChangeSetCommand(createChangeSetInput))
       .catch(this.#getErrorHandler('Failed to initiate creation of changes set.'));
 
-    let changeSet = await this.#createClient()
-      .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
-      .catch(handleError);
-    while (changeSet.Status !== 'CREATE_COMPLETE') {
-      if (changeSet.Status === 'FAILED') {
-        // CloudFormation fails a change set that contains no changes instead of completing it empty.
-        if (NO_CHANGE_REASONS.some((reason) => changeSet.StatusReason?.includes(reason))) {
-          return { changes: [], changeSetId: Id, stackId: StackId };
-        }
-        throw new CliError({
-          category: 'CLOUDFORMATION',
-          code: 'CLOUDFORMATION_CHANGE_SET_FAILED',
-          message: `CloudFormation could not calculate the changes: ${changeSet.StatusReason}`
-        });
-      }
-      await wait(750);
-      changeSet = await this.#createClient()
+    try {
+      let changeSet = await this.#createClient()
         .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
         .catch(handleError);
-    }
+      while (changeSet.Status !== 'CREATE_COMPLETE') {
+        if (changeSet.Status === 'FAILED') {
+          // CloudFormation fails a change set that contains no changes instead of completing it empty.
+          if (NO_CHANGE_REASONS.some((reason) => changeSet.StatusReason?.includes(reason))) {
+            return { changes: [], changeSetId: Id, stackId: StackId };
+          }
+          throw new CliError({
+            category: 'CLOUDFORMATION',
+            code: 'CLOUDFORMATION_CHANGE_SET_FAILED',
+            message: `CloudFormation could not calculate the changes: ${changeSet.StatusReason}`
+          });
+        }
+        await wait(750);
+        changeSet = await this.#createClient()
+          .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
+          .catch(handleError);
+      }
 
-    return { changes: changeSet.Changes, changeSetId: Id, stackId: StackId };
+      return { changes: changeSet.Changes, changeSetId: Id, stackId: StackId };
+    } finally {
+      // The preview already has its result; a change set left behind is only clutter, not a reason to fail it.
+      await this.#createClient()
+        .send(new DeleteChangeSetCommand({ ChangeSetName: Id }))
+        .catch(() => undefined);
+    }
   };
 
   setTerminationProtection = async (enabled: boolean, stackName: string) => {

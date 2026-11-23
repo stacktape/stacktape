@@ -757,10 +757,9 @@ export const getDatabaseName = ({ resource }: { resource: StpRelationalDatabase 
     return undefined;
   }
   if (
-    resource.engine.type === 'oracle-ee' ||
-    (resource.engine.type === 'oracle-se2' &&
-      resource.engine.properties?.dbName &&
-      resource.engine.properties.dbName.length > 8)
+    (resource.engine.type === 'oracle-ee' || resource.engine.type === 'oracle-se2') &&
+    resource.engine.properties?.dbName &&
+    resource.engine.properties.dbName.length > 8
   ) {
     throw new ExpectedError(
       'CONFIG_VALIDATION',
