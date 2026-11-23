@@ -40,6 +40,10 @@ Open **Observability → Error tracking**.
    failing request, and the version that was deployed when it failed.
 5. Use the row's menu to **Resolve** an error you fixed, **Ignore…** one you don't want to see, or **Reopen** it.
 
+
+> Screenshot: The Error tracking page: the Open, Resolved, Ignored and All tabs with counts, search, project and stage filters, and error rows with their project, stage, function, source line, event count and last seen time Caption: Open errors across projects, newest first, each with its function, source line and count.
+
+
 A resolved error that occurs again goes back to **Open**. An ignored error stays ignored, and its new occurrences are
 not counted.
 

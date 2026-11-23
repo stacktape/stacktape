@@ -40,6 +40,10 @@ Under **Options** you choose what reads the code:
   and Heroku manifests, and Serverless Framework, SAM, SST, CDK and Terraform declarations. Nothing is sent to an AI
   provider. It takes a second and falls back to defaults more often.
 
+
+> Screenshot: The Start screen with Options open: Claude Code or Files only, no agent, and for Claude Code the model: Your default, Opus, Sonnet or Haiku Caption: Options on the Start screen: the agent that reads your code and, for Claude Code, the model.
+
+
 An installed agent is the default. To skip agent detection, start with `stacktape init --coding-agent none`.
 
 ## 2. Analyze
@@ -47,6 +51,10 @@ An installed agent is the default. To skip agent detection, start with `stacktap
 The built-in scan always runs first. If it answers everything, the wizard says your agent was not needed and no tokens
 were spent. Otherwise the agent reads your project and you watch each file it opens. From `.env` files, only the
 variable names are kept.
+
+
+> Screenshot: The Analyze screen: the agent in use, the number of files read so far and a list of each file it read Caption: The Analyze screen lists each file the agent reads.
+
 
 If the analysis finds no server, worker or website, the wizard says so and has nothing to save. Run `stacktape init`
 in the app's own directory, or click **Analyze again with Claude Code** (or Codex) if you started with files only.
@@ -67,6 +75,10 @@ Below the tabs:
   how much backup history to keep and who can reach the SQL database. Each option shows what it adds to the price.
 - **Before you deploy** lists what only you can provide: secrets your app reads, settings your code reads with no
   default, and anything else the deploy still needs.
+
+
+> Screenshot: The Review step for a Next.js app with Postgres: the monthly estimate at AWS list prices, the What & why tab with each resource, its price and a Where we saw this link, and Decided for you with one alarm the wizard added Caption: Review shows the monthly estimate, each resource with its price and the reason for it, and what the wizard decided for you.
+
 
 ### What it will cost
 
@@ -141,6 +153,10 @@ deploy waits until you fix it or set the result aside. You don't need Docker if 
      wizard says why and, where a command fixes it, gives you the command.
 3. Click **Create new stack** or **Update existing stack**.
 
+
+> Screenshot: What the deploy does after the target check: This will create a new stack, with the stack name, AWS account and region, and the Create new stack button Caption: The target check names the stack, the AWS account and the region before you confirm.
+
+
 The deploy usually takes a few minutes. A first deploy with a new database takes 10 to 15 minutes. The wizard shows
 each phase, warnings and the full log.
 
@@ -186,6 +202,10 @@ After a successful deploy, the wizard offers **Add dev to the Stacktape Console*
 team access for the stage, free up to $200 a month of AWS spend. **Connect to the Console** signs you in (or creates an
 account) in a new tab, then connects the AWS account. Your app is not redeployed. **Not now** skips it, and
 `stacktape connect` does the same later. See [Add the Console](/getting-started/add-the-console).
+
+
+> Screenshot: The end of a deploy: the live stage with its public address and an Open button, then Add dev to the Stacktape Console with Connect to the Console and Not now Caption: After the deploy: the live address, then the offer to add the stage to the Console.
+
 
 ## Without a browser
 

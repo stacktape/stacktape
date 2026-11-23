@@ -15,6 +15,10 @@ The Console is optional. The [CLI](/cli) is open source and deploys without it; 
 2. Select the stage in the row of stages in the project header. Its page has the tabs **Overview**, **Activity**, **Costs**, **Configuration**, **Diagram** and **Danger zone**. Overview lists the stage's endpoints and resources.
 3. Click a resource. Its details show **Logs**, **Logs live tail**, **Metrics**, its **Configuration** and the **AWS resources** behind it. Containers also offer a **Remote session**.
 
+
+> Screenshot: A web service in a stage of the Console: its tabs, including Logs and Metrics, its running tasks, request, error rate, latency and CPU charts, and its latest log lines with an Open logs link Caption: A resource of the storefront production stage, with its latest logs.
+
+
 The **Logs** page in the Observability group searches the logs of the whole organization. From the terminal, [`stacktape logs`](/cli/logs) reads the same logs. See [Logs](/observability/logs).
 
 ## The Projects home
