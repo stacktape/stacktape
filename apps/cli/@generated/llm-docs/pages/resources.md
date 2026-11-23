@@ -4,24 +4,37 @@ A resource is one part of your stack: a service, a database, a bucket, a queue. 
 
 ## Pick by what you are building
 
-| You want to | Use |
-|---|---|
-| Run an API or a web app in a container, with a public HTTPS URL | [Web service](/resources/compute/web-service) |
-| Run code on demand: an API handler, a webhook, a queue or schedule consumer | [Lambda function](/resources/compute/lambda-function) |
-| Run a background worker or queue consumer that stays on | [Worker service](/resources/compute/worker-service) |
-| Run an internal service that only your other resources can call | [Private service](/resources/compute/private-service) |
-| Run a job to completion, with GPUs or a long run time | [Batch job](/resources/compute/batch-job) |
-| Deploy a Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start or Remix app | The framework page under [Frontend](#frontend) |
-| Host a static site or a single-page app | [Static hosting](/resources/frontend/static-hosting) |
-| Store relational data in PostgreSQL or MySQL | [Relational database](/resources/databases/relational-database) |
-| Store key-value data without managing servers | [DynamoDB](/resources/databases/dynamodb) |
-| Cache data or keep sessions | [Redis](/resources/databases/redis), or [Upstash Redis](/resources/databases/upstash-redis) for Lambda-heavy apps |
-| Store files and uploads | [S3 bucket](/resources/storage/s3-bucket) |
-| Queue work between services | [SQS queue](/resources/messaging/sqs-queue) |
-| Run code on a schedule, a file upload or a queue message | A [trigger](/resources/triggers/overview) on a Lambda function |
-| Send email from your app | [Email sender](/resources/messaging/email-sender) |
-| Sign users up and in | [User authentication pool](/resources/security/user-auth-pool) |
-| Use an AWS service that has no resource here | [Raw CloudFormation](/resources/advanced/raw-cloudformation-resources) or an [AWS CDK construct](/resources/advanced/aws-cdk-constructs) |
+
+**Run code**
+
+- [Web service](/resources/compute/web-service): An API or a web app in a container
+- [Lambda function](/resources/compute/lambda-function): Code that runs per request or event
+- [Worker service](/resources/compute/worker-service): A background worker that stays on
+- [Private service](/resources/compute/private-service): A service only your other resources can call
+- [Batch job](/resources/compute/batch-job): A job that runs to completion, with GPUs if needed
+- [Triggers](/resources/triggers/overview): Code on a schedule, a file upload or a queue message
+
+**Serve a frontend**
+
+- [Framework pages](#frontend): A Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start or Remix app
+- [Static hosting](/resources/frontend/static-hosting): A static site or a single-page app
+
+**Store data**
+
+- [Relational database](/resources/databases/relational-database): PostgreSQL or MySQL
+- [DynamoDB](/resources/databases/dynamodb): Key-value data with no servers to manage
+- [Redis](/resources/databases/redis): A cache or user sessions
+- [Upstash Redis](/resources/databases/upstash-redis): A cache for Lambda-heavy apps, paid per request
+- [S3 bucket](/resources/storage/s3-bucket): Files and uploads
+
+**Connect and extend**
+
+- [SQS queue](/resources/messaging/sqs-queue): A queue between services
+- [Email sender](/resources/messaging/email-sender): Email from your app
+- [User authentication pool](/resources/security/user-auth-pool): Sign-up and sign-in for your users
+- [Raw CloudFormation](/resources/advanced/raw-cloudformation-resources): An AWS service with no resource here
+- [AWS CDK constructs](/resources/advanced/aws-cdk-constructs): An existing CDK construct
+
 
 ## Choose a compute resource
 
@@ -41,6 +54,7 @@ Compute resources run your code. Pick by how it runs and whether it may cost mon
 Containers are packaged with [container packaging](/packaging/overview#container-packaging) and Lambda functions with [function packaging](/packaging/overview#function-packaging).
 
 ## All resources
+
 
 ### Compute
 
@@ -160,6 +174,7 @@ Triggers are not resources of their own. You add them to a Lambda function, and 
 | [Custom resources](/resources/advanced/custom-resources) | Lambda | Provisioning, with your own code, what AWS templates do not support |
 | [AWS CDK constructs](/resources/advanced/aws-cdk-constructs) | Any | Adding an existing CDK construct to the stack |
 | [Raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) | Any | Declaring any AWS resource directly |
+
 
 ## What else goes in a stack
 

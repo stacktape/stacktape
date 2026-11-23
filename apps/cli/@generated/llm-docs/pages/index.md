@@ -121,10 +121,10 @@ resources:
 
 What it creates in your AWS account, in the stack `my-api-dev`:
 
-- `api` (WebService), connected by HTTPS requests from the internet:
+- `api` (WebService), connected by HTTPS requests:
   - HTTP API Gateway: The public URL
   - ECS on Fargate: Your container, 0.25 vCPU and 512 MB, in the VPC
-- `database` (RelationalDatabase), connected by `connectTo`: a private connection inside the VPC:
+- `database` (RelationalDatabase), connected by `connectTo`: private, inside the VPC:
   - RDS Postgres 18: db.t4g.micro, reachable only from `api`
 - `STP_DATABASE_CONNECTION_STRING` in the container environment
 - Security groups, an IAM role and CloudWatch logs

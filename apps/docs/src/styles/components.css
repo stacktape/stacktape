@@ -115,6 +115,15 @@
   .docs-table code {
     white-space: nowrap;
   }
+  @media (max-width: 799px) {
+    .docs-table th,
+    .docs-table td {
+      min-width: 6rem;
+    }
+    .docs-table thead th {
+      white-space: normal;
+    }
+  }
   .docs-table td > p:first-child {
     margin-top: 0;
   }
@@ -1027,5 +1036,214 @@
   }
   .docs-button.is-primary:hover {
     background: color-mix(in oklab, var(--docs-accent-solid) 85%, white);
+  }
+
+  /* ── Directory: lookup lists (command index, resource catalog) ────────────────────────────────────── */
+  .docs-directory {
+    margin-block: var(--docs-flow-block);
+  }
+  .docs-directory [hidden] {
+    display: none !important;
+  }
+  .docs-directory-search {
+    display: block;
+    max-width: 22rem;
+    margin-bottom: var(--docs-space-8);
+  }
+  .docs-directory-search input {
+    height: 38px;
+    font-size: var(--docs-text-ui);
+  }
+  .docs-directory-body > :first-child {
+    margin-top: var(--docs-space-24);
+  }
+  .docs-directory-empty {
+    color: var(--docs-text-muted);
+    font-size: var(--docs-text-ui);
+  }
+
+  /* Rows: name, description and an optional tag in fixed columns. The whole row opens the page. */
+  .mdx-content ul:has(> .docs-dir-row) {
+    margin: var(--docs-space-12) 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--docs-border);
+  }
+  .mdx-content .docs-dir-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 13.5rem minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 2px var(--docs-space-16);
+    margin: 0;
+    padding: 9px var(--docs-space-8);
+    border-bottom: 1px solid var(--docs-border);
+    border-radius: 0;
+    line-height: 1.5;
+    transition: background var(--docs-duration-fast) var(--docs-ease);
+  }
+  .mdx-content .docs-dir-row:has(.is-stretched):hover {
+    background: var(--docs-bg-hover);
+  }
+  .docs-dir-name {
+    min-width: 0;
+    color: var(--docs-accent-text);
+    font-size: var(--docs-text-ui);
+    font-weight: var(--docs-weight-medium);
+    overflow-wrap: anywhere;
+  }
+  .docs-dir-name code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  .docs-dir-row:hover .docs-dir-name {
+    color: var(--docs-accent-text-hover);
+  }
+  .docs-dir-name.is-stretched::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  .docs-dir-name:focus-visible {
+    outline: none;
+  }
+  .docs-dir-name:focus-visible::after {
+    outline: 2px solid var(--docs-focus);
+    outline-offset: -2px;
+    border-radius: var(--docs-radius-sm);
+  }
+  .docs-dir-text {
+    min-width: 0;
+    grid-column: 2;
+    color: var(--docs-text-muted);
+    font-size: var(--docs-text-ui);
+  }
+  .docs-dir-tag {
+    grid-column: 3;
+    padding: 1px 7px;
+    border: 1px solid var(--docs-border-strong);
+    border-radius: 999px;
+    color: var(--docs-text-muted);
+    font-size: var(--docs-text-xs);
+    font-weight: var(--docs-weight-medium);
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+  /* Task first: what you want to do on the left, the page to use on the right. Wide screens set the groups in two
+     columns so the whole picker fits on one screen. */
+  .is-picker .docs-dir-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .is-picker .docs-dir-name {
+    text-align: right;
+  }
+  @media (min-width: 1100px) {
+    .is-picker .docs-directory-body {
+      column-count: 2;
+      column-gap: var(--docs-space-32);
+    }
+    .is-picker .docs-directory-body > p {
+      break-after: avoid;
+    }
+    .is-picker .docs-directory-body > ul {
+      break-inside: avoid;
+    }
+    .is-picker .docs-directory-body > :first-child {
+      margin-top: 0;
+    }
+  }
+  .is-picker .docs-dir-text {
+    grid-column: 1;
+    grid-row: 1;
+    color: var(--docs-text);
+  }
+  .is-picker .docs-dir-name {
+    grid-column: 2;
+    font-family: var(--docs-font-sans);
+  }
+  .is-picker p + ul:has(> .docs-dir-row) {
+    margin-top: var(--docs-space-8);
+  }
+  .is-picker p:has(+ ul > .docs-dir-row) {
+    margin: var(--docs-space-24) 0 0;
+    color: var(--docs-text-strong);
+    font-size: var(--docs-text-ui);
+    font-weight: var(--docs-weight-heading);
+  }
+
+  @media (max-width: 799px) {
+    .mdx-content .docs-dir-row,
+    .is-picker .docs-dir-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 10px var(--docs-space-4);
+    }
+    .docs-dir-name,
+    .is-picker .docs-dir-name {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .docs-dir-tag {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .docs-dir-text,
+    .is-picker .docs-dir-text {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+    .is-picker .docs-dir-text {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .is-picker .docs-dir-name {
+      grid-column: 2;
+      grid-row: 1;
+      max-width: 9.5rem;
+    }
+
+    /* Directory tables read as rows on a phone: the name and its service on one line, the use below. */
+    .docs-directory .docs-table-wrap {
+      overflow: visible;
+    }
+    .docs-directory .docs-table,
+    .docs-directory .docs-table tbody {
+      display: block;
+    }
+    .docs-directory .docs-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    .docs-directory .docs-table tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 2px var(--docs-space-12);
+      padding: 10px var(--docs-space-12);
+    }
+    .docs-directory .docs-table tbody tr + tr {
+      border-top: 1px solid var(--docs-border);
+    }
+    .docs-directory .docs-table tbody tr + tr > * {
+      border-top: 0;
+    }
+    .docs-directory .docs-table td {
+      min-width: 0;
+      padding: 0;
+    }
+    .docs-directory .docs-table td:nth-child(2):not(:last-child) {
+      color: var(--docs-text-faint);
+      font-size: var(--docs-text-sm);
+      text-align: right;
+    }
+    .docs-directory .docs-table td:last-child:not(:first-child) {
+      grid-column: 1 / -1;
+      color: var(--docs-text-muted);
+    }
   }
 }

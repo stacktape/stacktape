@@ -3,6 +3,7 @@ import { getCollection, render } from 'astro:content';
 
 import ApiReference from '@/components/mdx-islands/ApiReference.astro';
 import CodeBlock from '@/components/mdx-islands/CodeBlock.astro';
+import Directory from '@/components/mdx-islands/Directory.astro';
 import StarterProjectGallery from '@/components/mdx-islands/StarterProjectGallery.astro';
 import Tabs from '@/components/mdx-islands/Tabs.astro';
 import reactMdxComponents from '@/components/mdx-react-components';
@@ -60,6 +61,7 @@ const components = {
   ...reactMdxComponents,
   ApiReference,
   CodeBlock,
+  Directory,
   StarterProjectGallery,
   Tabs
 };

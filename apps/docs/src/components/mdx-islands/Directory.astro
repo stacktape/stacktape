@@ -1,0 +1,36 @@
+---
+import { Search } from 'react-feather';
+
+/**
+ * A lookup list: the Markdown inside becomes aligned rows (see `rehype-directory.ts`) under a filter field, modelled
+ * on the property filter of the configuration reference. Typing hides rows that do not match and the sections left
+ * empty; Enter opens the first match.
+ */
+type Props = {
+  /** The filter's placeholder and accessible name, such as "Filter commands". Without it there is no filter. */
+  label?: string;
+  /** `picker` reads each row task first: the description on the left, the page to use on the right. */
+  layout?: 'rows' | 'picker';
+};
+const { label, layout = 'rows' } = Astro.props;
+---
+
+<div class:list={['docs-directory', `is-${layout}`]} data-directory>
+  <label class="docs-ref-search docs-directory-search" hidden={!label}>
+    <Search size={14} aria-hidden="true" />
+    <input
+      type="search"
+      placeholder={label}
+      aria-label={label}
+      autocomplete="off"
+      spellcheck="false"
+      data-directory-filter
+    />
+  </label>
+  <div class="docs-directory-body" data-directory-body><slot /></div>
+  <p class="docs-directory-empty" data-directory-empty hidden>Nothing here matches. Search the docs instead: Ctrl+K.</p>
+</div>
+
+<script>
+import './directory-filter.ts';
+</script>
