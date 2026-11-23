@@ -549,6 +549,7 @@
   }
   .docs-prop-values summary {
     display: inline;
+    margin-left: var(--docs-space-4);
     color: var(--docs-text-muted);
     cursor: pointer;
     text-decoration: underline;
@@ -575,6 +576,13 @@
   }
   .docs-prop-toggle:hover {
     color: var(--docs-text-strong);
+  }
+  .docs-prop-toggle code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-family: var(--docs-font-mono);
   }
   .docs-prop-toggle svg {
     flex: none;
@@ -1016,7 +1024,6 @@
   }
   .docs-directory-search {
     display: block;
-    max-width: 22rem;
     margin-bottom: var(--docs-space-8);
   }
   .docs-directory-search input {
@@ -1039,6 +1046,22 @@
   }
   .docs-directory-search-all:hover {
     color: var(--docs-accent-text-hover);
+  }
+
+  /* Directory tables share one column grid, so the service column starts at the same place in every category. */
+  @media (min-width: 800px) {
+    .docs-directory .docs-table {
+      table-layout: fixed;
+    }
+    .docs-directory .docs-table th:first-child {
+      width: 23%;
+    }
+    .docs-directory .docs-table th:nth-child(2):not(:last-child) {
+      width: 26%;
+    }
+    .docs-directory .docs-table th:nth-child(4) {
+      width: 16%;
+    }
   }
 
   /* Rows: name, description and an optional tag in fixed columns. The whole row opens the page. */
@@ -1220,9 +1243,14 @@
       font-size: var(--docs-text-sm);
       text-align: right;
     }
-    .docs-directory .docs-table td:last-child:not(:first-child) {
+    .docs-directory .docs-table td:nth-child(2):last-child,
+    .docs-directory .docs-table td:nth-child(n + 3) {
       grid-column: 1 / -1;
       color: var(--docs-text-muted);
+    }
+    .docs-directory .docs-table td:nth-child(4) {
+      color: var(--docs-text-faint);
+      font-size: var(--docs-text-sm);
     }
   }
 }

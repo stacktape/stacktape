@@ -36,6 +36,19 @@ const optionName = (arg: CliCommandArg) =>
 const optionId = (command: string, arg: CliCommandArg) => `option-${command}-${arg.flag}`;
 
 /**
+ * An option's description from the CLI metadata is a title (`#### AWS Region`), `---`, then the explanation. The row
+ * shows the explanation's first sentence, which says more than a title that repeats the flag, and folds the rest.
+ */
+const splitDescription = (description: string) => {
+  const [title = '', ...body] = description.split('---');
+  const label = title.trim().replace(/^#{1,6}\s+/, '');
+  const text = body.join('---').trim();
+  const sentence = /^([^\n]+?[.!?])(?=\s+[A-Z`*[(]|\s*$)/.exec(text);
+  if (!sentence) return { label, lead: '', rest: text };
+  return { label, lead: sentence[1], rest: text.slice(sentence[0].length).trim() };
+};
+
+/**
  * The options of one CLI command, from the generated command metadata: a static list (no client JavaScript) with a
  * stable link per option, and jump links when the command has many.
  */
@@ -89,9 +102,9 @@ export function CliCommandsApiReference({ command }: { command: string }) {
       {args.length > 0 ? (
         <ul className="docs-ref-list" data-directory-body>
           {args.map((arg) => {
-            const [short = '', ...long] = (arg.description || '').split('---');
-            const shortHtml = renderDocsMarkdown(short.trim().replace(/^#{1,6}\s+/, ''));
-            const longHtml = renderDocsMarkdown(long.join('---').trim());
+            const { label, lead, rest } = splitDescription(arg.description || '');
+            const shortHtml = renderDocsMarkdown(lead || label);
+            const longHtml = renderDocsMarkdown(rest);
             const typeInfo = buildTypeInfo(arg.allowedTypes, arg.allowedValues);
             const allowedValues = getAllowedValues(typeInfo);
             const id = optionId(command, arg);
@@ -100,7 +113,7 @@ export function CliCommandsApiReference({ command }: { command: string }) {
                 key={arg.name}
                 id={id}
                 className="docs-prop"
-                data-directory-key={`--${arg.flag} ${arg.alias ? `-${arg.alias} ` : ''}${stripHtml(shortHtml)}`}
+                data-directory-key={`--${arg.flag} ${arg.alias ? `-${arg.alias} ` : ''}${label} ${stripHtml(shortHtml)}`}
               >
                 <div className="docs-prop-main">
                   <div className="docs-prop-head">
@@ -120,7 +133,9 @@ export function CliCommandsApiReference({ command }: { command: string }) {
                   )}
                   {stripHtml(longHtml) && (
                     <details className="docs-prop-more">
-                      <summary className="docs-prop-toggle">More about --{arg.flag}</summary>
+                      <summary className="docs-prop-toggle">
+                        More about <code>--{arg.flag}</code>
+                      </summary>
                       <div className="docs-prop-details" dangerouslySetInnerHTML={{ __html: longHtml }} />
                     </details>
                   )}

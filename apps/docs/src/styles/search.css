@@ -202,13 +202,66 @@
 .DocSearch-Hit[aria-selected='true'] .DocSearch-Hit-Tree {
   color: var(--docs-text-muted);
 }
+/* Matched words: the accent and a heavier weight, no underline (results read as links, not as underlined text). */
 .DocSearch-Hit-title mark,
 .DocSearch-Hit-path mark,
 .DocSearch-Hit[aria-selected='true'] mark {
+  background: none;
   color: var(--docs-accent-text);
-  text-decoration: underline;
-  text-decoration-color: var(--docs-accent-line);
-  text-underline-offset: 0.2em;
+  font-weight: var(--docs-weight-heading);
+  text-decoration: none;
+}
+/* A heading result under its page already sits below the page's own row: no repeated page name. */
+.DocSearch-Hit--Child .docs-search-heading-hit .DocSearch-Hit-path {
+  display: none;
+}
+/* The first-use suggestions (see DocSearch.tsx). The hint above them lines up with the list. */
+.DocSearch-StartScreen:has(.docs-search-start) {
+  width: 100%;
+  text-align: left;
+}
+.DocSearch-StartScreen:has(.docs-search-start) .DocSearch-Help {
+  margin: 0;
+  padding: var(--docs-space-16) 12px 0;
+}
+.docs-search-start {
+  margin: 0;
+  padding: var(--docs-space-8) 0 var(--docs-space-16);
+  text-align: left;
+}
+.docs-search-start-title {
+  margin: var(--docs-space-16) 0 var(--docs-space-4);
+  padding: 0 12px;
+  color: var(--docs-text-faint);
+  font-size: var(--docs-text-xs);
+  font-weight: var(--docs-weight-heading);
+  letter-spacing: 0.02em;
+}
+.docs-search-start ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.docs-search-start a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--docs-space-12);
+  padding: 9px 12px;
+  border-radius: var(--docs-radius);
+  color: var(--docs-text-strong);
+  font-size: var(--docs-text-ui);
+  font-weight: var(--docs-weight-medium);
+}
+.docs-search-start a span {
+  color: var(--docs-text-muted);
+  font-size: var(--docs-text-sm);
+  font-weight: var(--docs-weight-body);
+  text-align: right;
+}
+.docs-search-start a:hover,
+.docs-search-start a:focus-visible {
+  background: var(--docs-accent-soft);
 }
 .DocSearch-Hit[aria-selected='true'] mark {
   color: var(--docs-accent-text-hover);

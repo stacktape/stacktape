@@ -974,8 +974,12 @@ const transformComponents = (body: string): string => {
     (_, propsRaw) => `\n\n${homeTeamsToMarkdown(propsRaw)}\n\n`
   );
   result = replaceSelfClosingMdxComponent(result, 'HomeMap', (_, propsRaw) => `\n\n${homeMapToMarkdown(propsRaw)}\n\n`);
-  // A lookup list's filter only matters in the browser; its Markdown is the content.
-  result = replaceMdxComponentWithChildren(result, 'Directory', (_, children) => `\n\n${children.trim()}\n\n`);
+  // A lookup list's filter only matters in the browser; its Markdown is the content. Lists can nest, and each pass
+  // pairs an opening tag with the first closing tag after it, so unwrap until none is left.
+  while (/<Directory[\s>]/.test(result)) {
+    result = replaceMdxComponentWithChildren(result, 'Directory', (_, children) => `\n\n${children.trim()}\n\n`);
+  }
+  result = result.replaceAll('</Directory>', '');
 
   result = result.replace(/<ApiReference\s+definitionName="([^"]+)"\s*\/>/g, (_, definitionName) =>
     apiReferenceSummaryToMarkdown(definitionName)

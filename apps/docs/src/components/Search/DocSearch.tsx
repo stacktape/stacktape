@@ -1,7 +1,7 @@
 import type { DocSearchHit, DocSearchTransformClient } from '@docsearch/react';
 import * as docSearchNs from '@docsearch/react';
 import { navigate } from 'astro:transitions/client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import config from '@/site-config';
 import { isV3Path } from '@/utils/v3-archive-routes';
@@ -51,6 +51,65 @@ const transformSearchClient = (client: DocSearchTransformClient): DocSearchTrans
   }) as DocSearchTransformClient['search']
 });
 
+/** Where a reader with no recent searches is likely headed. Shown in the empty search dialog. */
+const START_DESTINATIONS = [
+  { title: 'Quickstart', text: 'Install the CLI and deploy', href: '/getting-started/' },
+  { title: 'Resource catalog', text: 'Every resource, with a filter', href: '/resources/' },
+  { title: 'Command index', text: 'Every CLI command, with a filter', href: '/cli/' },
+  { title: 'Secrets', text: 'Keep keys and passwords out of the config', href: '/configuration/secrets/' },
+  {
+    title: 'Deploy an existing app',
+    text: 'The init wizard, step by step',
+    href: '/getting-started/deploy-an-existing-app/'
+  }
+];
+
+/**
+ * DocSearch's start screen without recent searches is a single sentence. While it shows, the dialog lists a few
+ * destinations under it. DocSearch has no slot for this, so the list is added to its DOM and removed with it.
+ */
+const useStartDestinations = (isOpen: boolean, close: () => void) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const addDestinations = () => {
+      const start = document.querySelector('.DocSearch-StartScreen');
+      if (!start || start.querySelector('.docs-search-start') || !start.querySelector('.DocSearch-Help')) return;
+      const nav = document.createElement('nav');
+      nav.className = 'docs-search-start';
+      nav.setAttribute('aria-label', 'Suggested pages');
+      const title = document.createElement('p');
+      title.className = 'docs-search-start-title';
+      title.textContent = 'Or go to';
+      const list = document.createElement('ul');
+      for (const destination of START_DESTINATIONS) {
+        const item = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = destination.href;
+        link.textContent = destination.title;
+        const text = document.createElement('span');
+        text.textContent = destination.text;
+        link.append(text);
+        link.addEventListener('click', close);
+        item.append(link);
+        list.append(item);
+      }
+      nav.append(title, list);
+      start.append(nav);
+    };
+    addDestinations();
+    const observer = new MutationObserver(addDestinations);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [isOpen, close]);
+};
+
+/** Heading results get a class, so a heading listed under its page does not repeat the page name. */
+const SearchHit = ({ hit, children }: { hit: { url: string; type: string }; children: ReactNode }) => (
+  <a href={hit.url} className={hit.type === 'content' ? undefined : 'docs-search-heading-hit'}>
+    {children}
+  </a>
+);
+
 const translations = {
   button: { buttonText: 'Search docs', buttonAriaLabel: 'Search docs' },
   modal: {
@@ -83,6 +142,7 @@ export function DocSearch() {
     setInitialQuery(event.key);
   }, []);
   useDocSearchKeyboardEvents({ isOpen, onOpen, onClose, onInput, searchButtonRef: buttonRef });
+  useStartDestinations(isOpen, onClose);
 
   useEffect(() => {
     const open = (event: Event) => {
@@ -109,6 +169,7 @@ export function DocSearch() {
             onClose={onClose}
             maxResultsPerGroup={6}
             transformSearchClient={transformSearchClient}
+            hitComponent={SearchHit}
             navigator={{
               navigate: ({ itemUrl }) => void navigate(itemUrl),
               navigateNewTab: ({ itemUrl }) => window.open(itemUrl, '_blank', 'noopener'),

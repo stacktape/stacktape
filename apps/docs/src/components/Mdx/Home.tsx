@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
-import { LuArrowDown, LuArrowRight, LuCheck, LuChevronRight, LuCopy } from 'react-icons/lu';
+import { LuArrowDown, LuArrowRight, LuCheck, LuCopy } from 'react-icons/lu';
+import { pathBreaks, segmentCommand } from './command-words';
 
 /*
  * The docs home page (`content/index.mdx`). Every component here renders static HTML. The only script is the
@@ -63,22 +64,12 @@ const COPY_SCRIPT = `(() => {
   document.addEventListener('astro:page-load', preselect);
 })();`;
 
+/** The code blocks' Copy button (`.docs-code-copy`), driven by `COPY_SCRIPT` instead of React state. */
 function CopyButton({ text, labelClassName }: { text: string; labelClassName?: string }) {
   return (
-    <button
-      type="button"
-      data-home-copy={text}
-      aria-label={`Copy: ${text}`}
-      className={clsx(
-        'group/copy inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border border-line bg-surface-raised px-2.5 py-1.5',
-        'font-sans text-[12.5px] font-semibold text-ink-muted cursor-pointer',
-        '[transition:color_150ms_ease,border-color_150ms_ease] hover:text-ink hover:border-line-strong',
-        'data-[copied]:text-accent-text data-[copied]:border-accent',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent'
-      )}
-    >
-      <LuCopy size={13} aria-hidden="true" className="group-data-[copied]/copy:hidden" />
-      <LuCheck size={13} aria-hidden="true" className="hidden group-data-[copied]/copy:block" />
+    <button type="button" data-home-copy={text} aria-label={`Copy: ${text}`} className="docs-code-copy group/copy">
+      <LuCopy size={14} aria-hidden="true" className="group-data-[copied]/copy:hidden" />
+      <LuCheck size={14} aria-hidden="true" className="hidden group-data-[copied]/copy:block" />
       <span data-copy-label aria-live="polite" className={labelClassName}>
         Copy
       </span>
@@ -96,34 +87,53 @@ const withOffsets = (parts: string[], separatorLength: number) => {
   });
 };
 
+const OPERATOR_WORD = /^(?:\||\|\||&&|;)$/;
+
 /**
- * A shell command that wraps as whole words with a hanging indent, so `--stage` never breaks after its hyphens and a
- * continuation line never reads as a second command. A URL or a long word may wrap inside, after a path `/`.
+ * A shell command in the code blocks' colours (Catppuccin, as Shiki renders bash): the command names, then its
+ * arguments. It wraps between the units of `segmentCommand` with a hanging indent, so a flag stays with its value and
+ * a wrapped pipeline breaks before the pipe.
  */
 function Command({ code, size = 'large' }: { code: string; size?: 'large' | 'small' }) {
+  let atCommand = true;
+  let offset = 0;
   return (
     <code
       className={clsx(
-        'block min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 pl-[2ch] -indent-[2ch] font-mono text-ink break-normal whitespace-normal',
-        size === 'large' ? 'text-[14px] leading-[1.65] @min-[560px]:text-[14.5px]' : 'text-[13px] leading-[1.55]'
+        'block min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 pl-[2ch] -indent-[2ch] font-mono break-normal whitespace-normal text-[color:var(--docs-syntax-string)]',
+        size === 'large' ? 'text-[14px] leading-[1.65]' : 'text-[13px] leading-[1.55]'
       )}
     >
-      <span className="select-none text-accent-text" aria-hidden="true">
-        ${' '}
-      </span>
-      {withOffsets(code.split(' '), 1).map(({ part, offset }) => (
-        <span key={offset}>
-          {offset > 0 && ' '}
-          <span className={part.includes('/') || part.length > 28 ? '[overflow-wrap:anywhere]' : 'whitespace-nowrap'}>
-            {withOffsets(part.split(/(?<=[^/]\/)(?!\/)/), 0).map(({ part: segment, offset: at }) => (
-              <span key={at}>
-                {at > 0 && <wbr />}
-                {segment}
-              </span>
-            ))}
+      {segmentCommand(code).map((segment) => {
+        const key = offset;
+        offset += segment.text.length;
+        if (segment.space) return ' ';
+        return (
+          <span key={key} className={segment.long ? 'indent-0 [overflow-wrap:anywhere]' : 'indent-0 whitespace-nowrap'}>
+            {withOffsets(segment.text.split(/(\s+)/), 0).map(({ part: word, offset: at }) => {
+              if (/^\s+$/.test(word)) return ' ';
+              const isOperator = OPERATOR_WORD.test(word);
+              const isCommand = atCommand && !isOperator;
+              atCommand = isOperator;
+              const tone = isOperator
+                ? 'text-[color:var(--docs-syntax-punct)]'
+                : isCommand
+                  ? 'italic text-[color:var(--docs-syntax-primitive)]'
+                  : undefined;
+              return (
+                <span key={at} className={tone}>
+                  {withOffsets(pathBreaks(word), 0).map(({ part: piece, offset: pieceAt }) => (
+                    <span key={pieceAt}>
+                      {pieceAt > 0 && <wbr />}
+                      {piece}
+                    </span>
+                  ))}
+                </span>
+              );
+            })}
           </span>
-        </span>
-      ))}
+        );
+      })}
     </code>
   );
 }
@@ -304,13 +314,16 @@ type Path = {
 };
 
 /**
- * Three goals, one card each, built the same way: the title links to the guide, one sentence says what happens,
- * one detail line (the wizard steps, the command, or the questions answered) and an optional second link.
+ * Three goals, one card each, built the same way: the title links to the guide, one sentence says what happens, and a
+ * sunken strip at the bottom holds one detail (the wizard steps, the command, or the questions answered).
  */
 export function HomePaths({ title, items }: { title: string; items: Path[] }) {
   return (
     <section className="@container font-sans mb-16" aria-labelledby="home-paths">
-      <h2 id="home-paths" className="m-0 mb-4 text-[20px] font-semibold leading-[1.3] tracking-[-0.01em] text-ink">
+      <h2
+        id="home-paths"
+        className="m-0 mb-5 text-[24px] font-semibold leading-[1.25] tracking-[-0.015em] text-ink @min-[560px]:text-[26px]"
+      >
         {title}
       </h2>
       <ol className="m-0 grid list-none gap-3 p-0 @min-[760px]:grid-cols-3">
@@ -322,57 +335,45 @@ export function HomePaths({ title, items }: { title: string; items: Path[] }) {
             <h3 className="m-0 text-[17px] font-semibold leading-[1.35]">
               <ArrowLink
                 link={{ label: item.title, href: item.href }}
-                tone="accent"
                 className="text-ink-strong hover:text-accent-text"
               />
             </h3>
-            <p className="m-0 mt-2 text-[14px] leading-[1.6] text-ink-muted">{item.text}</p>
-            <div className="mt-auto pt-4">
+            <p className="m-0 mt-2 mb-4 text-[14px] leading-[1.6] text-ink-muted">{item.text}</p>
+            <div className="mt-auto flex min-h-[46px] items-center gap-2 rounded-lg border border-line bg-surface-sunken py-1.5 pr-1.5 pl-3">
               {item.steps && (
-                <ol className="m-0 flex list-none flex-wrap items-center gap-x-1 gap-y-1 p-0" aria-label="Wizard steps">
+                <ol className="m-0 flex list-none flex-wrap items-center gap-x-3 gap-y-1 p-0" aria-label="Wizard steps">
                   {item.steps.map((step, index) => (
                     <li
                       key={step}
-                      className="before:hidden m-0 flex items-center gap-1 p-0 text-[13px] leading-[1.5] font-medium text-ink"
+                      className="before:hidden m-0 flex items-center gap-1.5 p-0 text-[13px] leading-[1.5] font-medium text-ink"
                     >
+                      <span className="text-[12px] font-semibold text-accent-text tabular-nums" aria-hidden="true">
+                        {index + 1}
+                      </span>
                       {step}
-                      {index < (item.steps?.length ?? 0) - 1 && (
-                        <LuChevronRight size={13} aria-hidden="true" className="text-ink-faint" />
-                      )}
                     </li>
                   ))}
                 </ol>
               )}
               {item.command && (
-                <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-sunken py-1.5 pr-1.5 pl-3">
+                <>
                   <span className="min-w-0 flex-1">
                     <Command code={item.command} size="small" />
                   </span>
                   <CopyButton text={item.command} labelClassName="sr-only" />
-                </div>
+                </>
               )}
               {item.topics && (
-                <ul className="m-0 flex list-none flex-wrap gap-x-1.5 p-0 text-[13px] leading-[1.6] font-medium text-ink">
-                  {item.topics.map((topic, index) => (
-                    <li key={topic} className="before:hidden m-0 p-0 whitespace-nowrap">
-                      {topic}
-                      {index < (item.topics?.length ?? 0) - 1 && (
-                        <span className="pl-1.5 text-ink-faint" aria-hidden="true">
-                          ·
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {item.links && item.links.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[13.5px]">
-                  {item.links.map((link) => (
-                    <ArrowLink key={link.href} link={link} tone="muted" />
-                  ))}
-                </div>
+                <p className="m-0 py-1 text-[13px] leading-[1.5] font-medium text-ink">{item.topics.join(', ')}</p>
               )}
             </div>
+            {item.links && item.links.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[13.5px]">
+                {item.links.map((link) => (
+                  <ArrowLink key={link.href} link={link} tone="muted" />
+                ))}
+              </div>
+            )}
           </li>
         ))}
       </ol>
@@ -504,7 +505,7 @@ export function HomeExample({
 }) {
   return (
     <Section id="example" title={title} lead={lead}>
-      <div className="grid gap-4 [grid-template-areas:'diagram'_'config'_'deploy'] @min-[900px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] @min-[900px]:grid-rows-[auto_1fr] @min-[900px]:[grid-template-areas:'config_diagram'_'config_deploy']">
+      <div className="grid gap-4 [grid-template-areas:'diagram'_'config'_'deploy'] @min-[900px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] @min-[900px]:items-start @min-[900px]:[grid-template-areas:'config_diagram'_'deploy_deploy']">
         {/* The code block brings its own vertical margins; the grid sets the spacing here. */}
         <div className="min-w-0 [grid-area:config] [&_astro-island>div]:my-0">{children}</div>
         <figure className="m-0 min-w-0 rounded-xl border border-line bg-surface-sunken p-4 [grid-area:diagram]">
@@ -530,9 +531,9 @@ export function HomeExample({
             ))}
           </ul>
         </figure>
-        <div className="min-w-0 rounded-xl border border-line p-4 [grid-area:deploy] @min-[900px]:self-start">
+        <div className="min-w-0 rounded-xl border border-line p-4 [grid-area:deploy]">
           <h3 className="m-0 text-[13px] font-semibold text-ink">{deployTitle}</h3>
-          <ol className="m-0 mt-3 flex list-none flex-col gap-3 p-0">
+          <ol className="m-0 mt-3 grid list-none gap-3 p-0 @min-[900px]:grid-cols-2">
             {deploy.map((step) => (
               <li key={step.command} className="before:hidden m-0 p-0">
                 <p className="m-0 mb-1.5 text-[12.5px] leading-[1.5] text-ink-muted">{step.label}</p>

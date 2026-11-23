@@ -24,7 +24,10 @@ function ContentTreeNodeInner({ item, depth }: { item: NavItem; depth: number })
   const isExpanded = useIsExpanded(item.key);
   const isActive = useIsActiveUrl(item.url);
   const childrenId = `${useContext(NavIdPrefixContext)}-${item.key.replace(/[^a-z0-9]+/gi, '-')}`;
-  const icon = item.icon ? <span className="docs-nav-icon">{createElement(item.icon, { size: 15 })}</span> : null;
+  // Top-level rows (the docs home) use the section icons' size, so their labels line up with the sections'.
+  const icon = item.icon ? (
+    <span className="docs-nav-icon">{createElement(item.icon, { size: depth === 0 ? 16 : 15 })}</span>
+  ) : null;
   const chevron = <ChevronRight size={14} className="docs-nav-chevron" aria-hidden />;
 
   let row;
@@ -32,7 +35,7 @@ function ContentTreeNodeInner({ item, depth }: { item: NavItem; depth: number })
     row = (
       <a
         href={ensureTrailingSlash(item.url || '/')}
-        className="docs-nav-row"
+        className={depth === 0 ? 'docs-nav-row is-root' : 'docs-nav-row'}
         aria-current={isActive ? 'page' : undefined}
         style={navIndentStyle(depth)}
       >

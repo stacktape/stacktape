@@ -10,6 +10,7 @@ import { detectInstallPlatform } from '@stacktape/ui-react/install-platform';
 import { marked } from 'marked';
 import { convertYamlToTypescript } from '@/utils/yaml-to-typescript';
 import { loadTwoslashFsMap, TWOSLASH_COMPILER_OPTIONS } from './twoslash-types';
+import { type CommandSegment, isCommandBlock, pathBreaks, segmentCommand } from './command-words';
 import { computeYamlHovers } from './yaml-hover';
 
 const SHIKI_THEME = 'catppuccin-mocha';
@@ -520,51 +521,68 @@ const getShikiRuntime = () => {
 
 type HastNode = { type: string; tagName?: string; value?: string; properties?: object; children?: HastNode[] };
 
-/** Splits a command line into words and the whitespace between them. */
-const commandWords = (line: string) => line.split(/(\s+)/).filter(Boolean);
-
-/** Text with a break opportunity after each path `/` (not inside `https://`), so a URL wraps at a path boundary. */
-const pathBreaks = (text: string) => text.split(/(?<=[^/]\/)(?!\/)/);
-
-/** A word that may wrap inside (a URL, a path, anything near a phone's line length). Shorter words never do. */
-const wordClass = (word: string) =>
-  word.includes('/') || word.length > 28 ? ['docs-code-word', 'is-long'] : ['docs-code-word'];
-
 /**
  * Groups each word of a command line (across Shiki's colour tokens) into one span. On a phone the spans wrap as whole
  * words, so `--region` moves to the next line instead of breaking after its hyphens. See `.docs-code-word`.
  */
+const wordClass = (segment: CommandSegment) => (segment.long ? ['docs-code-word', 'is-long'] : ['docs-code-word']);
+
+const tokenText = (token: HastNode) =>
+  token.type === 'text' ? (token.value ?? '') : (token.children ?? []).map((child) => child.value ?? '').join('');
+
+/** A piece of a Shiki colour token: the same element (and colour) with only `text` in it. */
+const tokenPiece = (token: HastNode, text: string): HastNode =>
+  token.type === 'text' ? { type: 'text', value: text } : { ...token, children: [{ type: 'text', value: text }] };
+
+/**
+ * Regroups a command line's Shiki colour tokens into the units of `segmentCommand`, one span per unit. On a phone the
+ * units wrap whole (see `.docs-code-word`), so `--region eu-west-1` never breaks after its hyphens.
+ */
 const commandWordsTransformer = {
   name: 'stacktape:command-words',
   line(node: HastNode) {
+    const tokens = node.children ?? [];
+    const segments = segmentCommand(tokens.map(tokenText).join(''));
     const children: HastNode[] = [];
-    let word: HastNode | null = null;
-    for (const token of node.children ?? []) {
-      const text =
-        token.type === 'text' ? (token.value ?? '') : (token.children ?? []).map((c) => c.value ?? '').join('');
-      for (const part of commandWords(text)) {
-        if (/^\s/.test(part)) {
-          if (word) children.push(word);
-          word = null;
-          children.push(
-            token.type === 'text'
-              ? { type: 'text', value: part }
-              : { ...token, children: [{ type: 'text', value: part }] }
-          );
-          continue;
-        }
-        word ??= { type: 'element', tagName: 'span', properties: { className: wordClass(part) }, children: [] };
-        for (const [index, piece] of pathBreaks(part).entries()) {
-          if (index > 0) word.children!.push({ type: 'element', tagName: 'wbr', properties: {}, children: [] });
-          word.children!.push(
-            token.type === 'text'
-              ? { type: 'text', value: piece }
-              : { ...token, children: [{ type: 'text', value: piece }] }
-          );
+    let tokenIndex = 0;
+    let tokenOffset = 0;
+    for (const segment of segments) {
+      const pieces: HastNode[] = [];
+      let remaining = segment.text.length;
+      while (remaining > 0 && tokenIndex < tokens.length) {
+        const token = tokens[tokenIndex];
+        const text = tokenText(token);
+        const take = Math.min(remaining, text.length - tokenOffset);
+        pieces.push(tokenPiece(token, text.slice(tokenOffset, tokenOffset + take)));
+        remaining -= take;
+        tokenOffset += take;
+        if (tokenOffset >= text.length) {
+          tokenIndex++;
+          tokenOffset = 0;
         }
       }
+      if (segment.space) {
+        children.push(...pieces);
+        continue;
+      }
+      // A long unit may break after a path `/`: a `<wbr>` after each piece that ends with one.
+      const withBreaks = segment.long
+        ? pieces.flatMap((piece) => {
+            const parts = pathBreaks(tokenText(piece));
+            return parts.flatMap((part, index): HastNode[] =>
+              index === 0
+                ? [tokenPiece(piece, part)]
+                : [{ type: 'element', tagName: 'wbr', properties: {}, children: [] }, tokenPiece(piece, part)]
+            );
+          })
+        : pieces;
+      children.push({
+        type: 'element',
+        tagName: 'span',
+        properties: { className: wordClass(segment) },
+        children: withBreaks
+      });
     }
-    if (word) children.push(word);
     node.children = children;
   }
 };
@@ -674,23 +692,19 @@ const COMMAND_LANGUAGES = new Set(['bash', 'shell', 'sh', 'zsh', 'powershell', '
  * text. A block with indented lines (a heredoc, a script body) keeps its layout, except the continuation line of a
  * command split with `\` or a PowerShell backtick.
  */
-const wrapsOnPhone = (code: string, lang: string) => {
-  if (!COMMAND_LANGUAGES.has(lang)) return false;
-  const lines = code.split('\n');
-  return lines.every((line, index) => !/^\s/.test(line) || /[\\`]\s*$/.test(lines[index - 1] ?? ''));
-};
+const wrapsOnPhone = (code: string, lang: string) => COMMAND_LANGUAGES.has(lang) && isCommandBlock(code);
 
-/** The plain (not yet highlighted) form of a command line, with the same word spans as `commandWordsTransformer`. */
+/** The plain (not yet highlighted) form of a command line, with the same units as `commandWordsTransformer`. */
 function CommandLine({ line }: { line: string }) {
   let offset = 0;
-  return commandWords(line).map((part) => {
+  return segmentCommand(line).map((segment) => {
     const key = offset;
-    offset += part.length;
-    if (/^\s/.test(part)) return part;
+    offset += segment.text.length;
+    if (segment.space) return segment.text;
     return (
-      <span key={key} className={wordClass(part).join(' ')}>
-        {pathBreaks(part).map((piece, index) => (
-          // eslint-disable-next-line react/no-array-index-key -- pieces of one word have no identity besides position
+      <span key={key} className={wordClass(segment).join(' ')}>
+        {pathBreaks(segment.text).map((piece, index) => (
+          // eslint-disable-next-line react/no-array-index-key -- pieces of one unit have no identity besides position
           <span key={index}>
             {index > 0 && <wbr />}
             {piece}

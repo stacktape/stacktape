@@ -1,3 +1,4 @@
+import { LuHouse } from 'react-icons/lu';
 import config, { type DocsVersion, type SidebarIcon, type SidebarSubgroup } from '@/site-config';
 import type { DocPage } from '@/utils/docs-data';
 
@@ -170,12 +171,13 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
   for (const page of allDocPages) {
     const url = page.url;
     if (url === (basePath || '/')) {
+      // The docs home sits above the sections and reads like one of them: same icon column, same weight.
       const node: NavItem = {
         url,
         key: url,
         title: page.title,
         order: page.order ?? 999,
-        icon: null,
+        icon: LuHouse,
         children: []
       };
       rootGroup.children.push(node);

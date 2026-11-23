@@ -2,6 +2,7 @@
 
 A resource is one part of your stack: a service, a database, a bucket, a queue. You declare it in the `resources` of your configuration, and Stacktape creates the AWS services it needs in your AWS account. [Declaring resources](/configuration/resources) explains the syntax. This page helps you pick the right resource.
 
+
 ## Pick by what you are building
 
 
@@ -36,38 +37,24 @@ A resource is one part of your stack: a service, a database, a bucket, a queue. 
 - [AWS CDK constructs](/resources/advanced/aws-cdk-constructs): An existing CDK construct
 
 
-## Choose a compute resource
-
-Compute resources run your code. Pick by how it runs and whether it may cost money with no traffic.
-
-| Resource | How it runs | Costs while idle |
-|---|---|---|
-| [Web service](/resources/compute/web-service) | Always on, in containers, with a public HTTPS URL | Yes |
-| [Private service](/resources/compute/private-service) | Always on, in containers. Only resources in the stack can call it. | Yes |
-| [Worker service](/resources/compute/worker-service) | Always on, in containers, with no URL. It polls queues or runs loops. | Yes |
-| [Multi-container workload](/resources/compute/multi-container-workload) | Always on, several containers in one task | Yes |
-| [Lambda function](/resources/compute/lambda-function) | Per event from a [trigger](/resources/triggers/overview), such as a request, a queue message or a schedule, for up to 15 minutes | No |
-| [Batch job](/resources/compute/batch-job) | From a trigger until the job finishes | No |
-| [Edge function](/resources/compute/edge-function) | Per CloudFront request or response | No |
-| [Convex](/resources/compute/convex) | Always on, as a self-hosted Convex backend | Yes |
-
-Containers are packaged with [container packaging](/packaging/overview#container-packaging) and Lambda functions with [function packaging](/packaging/overview#function-packaging).
-
 ## All resources
-
 
 ### Compute
 
-| Resource | AWS service | Use it for |
-|---|---|---|
-| [Web service](/resources/compute/web-service) | ECS on Fargate or EC2 | Public APIs and web apps in a container |
-| [Lambda function](/resources/compute/lambda-function) | Lambda | Code that runs per event and scales to zero |
-| [Private service](/resources/compute/private-service) | ECS on Fargate or EC2 | Internal services reachable only inside the stack |
-| [Worker service](/resources/compute/worker-service) | ECS on Fargate or EC2 | Background workers and queue consumers |
-| [Batch job](/resources/compute/batch-job) | AWS Batch | Jobs that run to completion, with CPU, memory or GPU needs |
-| [Multi-container workload](/resources/compute/multi-container-workload) | ECS on Fargate or EC2 | Containers that start together and share a network |
-| [Edge function](/resources/compute/edge-function) | Lambda@Edge | Small request and response changes at the CDN |
-| [Convex](/resources/compute/convex) | ECS, RDS, S3 and a load balancer | A self-hosted Convex backend |
+Compute resources run your code. Always-on resources bill by the hour even with no traffic; the others scale to zero.
+
+| Resource | AWS service | How it runs | When idle |
+|---|---|---|---|
+| [Web service](/resources/compute/web-service) | ECS on Fargate or EC2 | Always on, in containers, with a public HTTPS URL | Bills by the hour |
+| [Lambda function](/resources/compute/lambda-function) | Lambda | Per event from a [trigger](/resources/triggers/overview), for up to 15 minutes | Scales to zero |
+| [Private service](/resources/compute/private-service) | ECS on Fargate or EC2 | Always on, in containers that only the stack can call | Bills by the hour |
+| [Worker service](/resources/compute/worker-service) | ECS on Fargate or EC2 | Always on, with no URL: it polls queues or runs loops | Bills by the hour |
+| [Batch job](/resources/compute/batch-job) | AWS Batch | From a trigger until the job finishes, with CPUs, memory or GPUs | Scales to zero |
+| [Multi-container workload](/resources/compute/multi-container-workload) | ECS on Fargate or EC2 | Always on, several containers in one task | Bills by the hour |
+| [Edge function](/resources/compute/edge-function) | Lambda@Edge | Per CloudFront request or response | Scales to zero |
+| [Convex](/resources/compute/convex) | ECS, RDS, S3 and a load balancer | Always on, as a self-hosted Convex backend | Bills by the hour |
+
+Containers are packaged with [container packaging](/packaging/overview#container-packaging) and Lambda functions with [function packaging](/packaging/overview#function-packaging).
 
 ### Frontend
 

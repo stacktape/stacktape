@@ -32,7 +32,8 @@
   --docs-bg-sunken: color-mix(in oklab, var(--docs-bg) 70%, black);
   /* Dialogs, menus, popovers. */
   --docs-bg-overlay: color-mix(in oklab, var(--docs-bg) 93%, white);
-  --docs-bg-header: color-mix(in oklab, var(--docs-bg) 96%, transparent);
+  /* The sticky header and outline bar: opaque, so text never shows through them on phones. */
+  --docs-bg-header: var(--docs-bg);
   --docs-bg-hover: rgb(255 255 255 / 0.045);
   --docs-bg-active: rgb(255 255 255 / 0.07);
   --docs-scrim: rgb(0 0 0 / 0.6);

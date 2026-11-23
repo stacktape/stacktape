@@ -30,8 +30,6 @@
     height: var(--docs-header-h);
     border-bottom: 1px solid var(--docs-border);
     background: var(--docs-bg-header);
-    -webkit-backdrop-filter: saturate(140%) blur(14px);
-    backdrop-filter: saturate(140%) blur(14px);
   }
   .docs-header-inner {
     display: grid;
@@ -322,6 +320,10 @@
     color: var(--docs-text-strong);
     font-weight: var(--docs-weight-heading);
   }
+  .docs-nav-row.is-root {
+    color: var(--docs-text-strong);
+    font-weight: var(--docs-weight-heading);
+  }
   .docs-nav-row.is-branch {
     color: var(--docs-text);
     font-weight: var(--docs-weight-medium);
@@ -537,8 +539,6 @@
     padding: 0 var(--docs-gutter);
     border-bottom: 1px solid var(--docs-border);
     background: var(--docs-bg-header);
-    -webkit-backdrop-filter: saturate(140%) blur(14px);
-    backdrop-filter: saturate(140%) blur(14px);
   }
   @media (max-width: 799px) {
     .docs-toc-bar {

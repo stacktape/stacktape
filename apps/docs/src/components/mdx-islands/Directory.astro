@@ -11,11 +11,16 @@ type Props = {
   label?: string;
   /** `picker` reads each row task first: the description on the left, the page to use on the right. */
   layout?: 'rows' | 'picker';
+  /**
+   * What the filter searches, as a CSS selector. Defaults to the rows and table rows. Everything else steps aside while
+   * the reader filters, such as a nested picker above a filterable list.
+   */
+  items?: string;
 };
-const { label, layout = 'rows' } = Astro.props;
+const { label, layout = 'rows', items } = Astro.props;
 ---
 
-<div class:list={['docs-directory', `is-${layout}`]} data-directory>
+<div class:list={['docs-directory', `is-${layout}`]} data-directory data-directory-items={items}>
   <label class="docs-ref-search docs-directory-search" hidden={!label}>
     <Search size={14} aria-hidden="true" />
     <input

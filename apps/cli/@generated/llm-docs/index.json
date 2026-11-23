@@ -19696,7 +19696,6 @@
       "chunks": [
         "page:/resources#resource-catalog",
         "page:/resources#pick-by-what-you-are-building",
-        "page:/resources#choose-a-compute-resource",
         "page:/resources#all-resources",
         "page:/resources#compute",
         "page:/resources#frontend",

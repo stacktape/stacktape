@@ -34,13 +34,12 @@ npx stacktape@latest init --starter-project
 ```
 
 - [Start a new project](/getting-started/start-a-new-project)
-- [Browse starters](/getting-started/starter-projects)
 
 ### Evaluate Stacktape for your team
 
 Short answers for a team lead or CTO before a pilot.
 
-Covers: Where it runs, Data, Lock-in, Networking, CI/CD, Costs, Access.
+Covers: Where it runs, data, lock-in, networking, CI/CD, costs, access.
 
 
 ## A config and what it creates

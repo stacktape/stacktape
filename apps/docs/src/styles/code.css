@@ -91,7 +91,8 @@
     background: var(--docs-bg-active);
     color: var(--docs-text-strong);
   }
-  .docs-code-copy.is-copied {
+  .docs-code-copy.is-copied,
+  .docs-code-copy[data-copied] {
     color: var(--docs-success);
   }
   /* A block without a header (shell commands, output) puts Copy in a column of its own next to the code. */
