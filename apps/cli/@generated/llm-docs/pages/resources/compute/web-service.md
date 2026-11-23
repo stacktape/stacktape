@@ -2,7 +2,7 @@
 
 A Stacktape web service runs one always-on container with a public HTTPS URL. Use the `WebService` resource for APIs, backend web apps, and internet-facing container services that need TLS, horizontal scaling, and deployment behavior managed through Stacktape instead of hand-wired AWS networking.
 
-**Pricing context:** Fargate bills for every running task; approximate us-east-1 monthly compute starts around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB memory. HTTP API Gateway load balancing is about ~$1/million requests; Application Load Balancer starts around ~$18/month plus usage.
+**Pricing context:** Fargate bills for every running task; approximate us-east-1 monthly compute starts around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB memory, and each running task pays ~$3.60/month for its public IPv4 address. HTTP API Gateway load balancing is about ~$1/million requests; Application Load Balancer starts around ~$18/month plus usage. The [basic example](#basic-example) (0.5 vCPU, 1 GB, one task) costs ~$21/month plus requests.
 
 ## When to use
 
@@ -406,9 +406,13 @@ adds a small `stp-cloudmap-drain` container to tasks behind an HTTP API:
 - Upgrade the CLI for your whole team and on Console runners before you deploy with this helper. Older CLIs can delete
   its cached images during image retention.
 
+## In-place code swap
+
+Set `codeSwap: true` to opt into [in-place code swaps](/deployment-and-lifecycle/code-swap). It supports Node.js and Python on x86 Fargate behind an HTTP API or an application load balancer within the ten-task cap, including production. Old and new processes share memory; a sudden increase can fail in-flight requests. Unsupported services and failed memory screens use image deploys. Node.js needs `js-bundle` packaging and Python a hash-locked `requirements.txt` with `buildpack`; the app must listen on `PORT`. A service with an `internalHealthCheck` or side containers always uses image deploys.
+
 ## Side containers
 
-A Stacktape web service can run helper containers alongside the main container through `sideContainers`. Each side container has a `containerType` of either `run-on-init` or `always-running`. Use `run-on-init` for setup work such as database migrations — the helper must exit with code 0 before the main container starts. Use `always-running` for agents or companion processes that run for the entire task lifecycle; they can reach the main container via `localhost`, and if they crash, the whole task fails.
+A Stacktape web service can run helper containers alongside the main container through `sideContainers`. Each side container has a `containerType` of either `run-on-init` or `always-running`. Use `run-on-init` for setup work that every task needs before it starts — the helper must exit with code 0 before the main container starts. Use `always-running` for agents or companion processes that run for the entire task lifecycle; they can reach the main container via `localhost`, and if they crash, the whole task fails.
 
 
 Example (TypeScript):
@@ -427,10 +431,10 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 },
     sideContainers: [
       {
-        name: 'migrations',
+        name: 'setup',
         containerType: 'run-on-init',
         packaging: new DockerfilePackaging({
-          buildContextPath: './migrations',
+          buildContextPath: './setup',
           dockerfilePath: './Dockerfile'
         })
       }
@@ -442,7 +446,7 @@ export default defineConfig(() => {
 ```
 
 
-The example above shows a `run-on-init` side container for migrations. For an `always-running` side container such as a log forwarder or monitoring agent, set `containerType: 'always-running'` instead — the container runs for the entire task lifetime and shares the network namespace (`localhost`) with the main container. Choose `run-on-init` when the helper is a one-time setup step; choose `always-running` when the helper must stay up alongside the main process.
+The example above shows a `run-on-init` side container for a setup step. A `run-on-init` container runs in every task, on every start and scale-out. For database migrations, use [`releaseCommand`](/deployment-and-lifecycle/release-commands) instead: it runs once per deploy, before any container gets the new code. For an `always-running` side container such as a log forwarder or monitoring agent, set `containerType: 'always-running'` instead — the container runs for the entire task lifetime and shares the network namespace (`localhost`) with the main container. Choose `run-on-init` when the helper is a one-time setup step; choose `always-running` when the helper must stay up alongside the main process.
 
 Use the built-in web service side-container model when one main public container owns the endpoint and helpers are secondary. Use a [multi-container-workload](/resources/compute/multi-container-workload) instead when you need a workload model centered on multiple containers with their own integrations and lifecycle configuration.
 
@@ -546,7 +550,17 @@ With `ha-ec2` and `gateway`, `stackConfig.nat.availabilityZones` controls whethe
 
 Container output (`stdout` and `stderr`) is automatically sent to CloudWatch Logs and retained for 90 days by default. The `logging` property controls the logging configuration. Use [log forwarding](/observability/log-forwarding) when logs need to reach external observability tools.
 
-Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`stacktape logs`](/cli/logs) CLI command.
+Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`stacktape logs`](/cli/logs) CLI command:
+
+```bash
+stacktape logs api --stage prod --region eu-west-1
+```
+
+To keep logs for a different period, set `logging: { retentionDays: 30 }`.
+
+## Alarms
+
+`alarms` adds alarms to this service: HTTP API Gateway error rate and latency with the default load balancing, or the Application Load Balancer triggers with `application-load-balancer`. They are merged with the global alarms set in the Stacktape Console, and `disabledGlobalAlarms` turns off the ones you don't want here. See [alarms](/observability/alarms).
 
 ## Remote sessions
 
@@ -572,6 +586,10 @@ export default defineConfig(() => {
 
 Keep remote sessions disabled by default for routine services and enable them deliberately when production debugging requires shell access. Prefer logs, metrics, and repeatable diagnostic scripts first; an interactive session is strongest for inspecting a live process, filesystem state, or network reachability that cannot be reproduced locally.
 
+## Overrides
+
+When you need an AWS setting the web service doesn't expose, set it on the CloudFormation resources Stacktape generates with `overrides`. [Overrides and escape hatches](/configuration/overrides-and-escape-hatches) shows how to find those resources and what to override.
+
 ## FAQ
 
 ### Does a Stacktape web service scale to zero?
@@ -592,7 +610,7 @@ The `cors` property only takes effect with the default `http-api-gateway` load b
 
 ### How much does an ECS Fargate web service cost?
 
-Fargate bills by allocated vCPU and memory for each running task, so idle web service instances still cost money. The provided Stacktape pricing source lists approximate us-east-1 monthly components starting around ~$7.29 per 0.25 vCPU plus ~$1.60 per 512 MB memory, with ARM tasks about 20% cheaper. For cost monitoring, see [Managing Costs](/managing-costs/overview).
+Fargate bills by allocated vCPU and memory for each running task, so idle web service instances still cost money. Each running task also pays for its public IPv4 address. The pricing line at the top of this page lists the us-east-1 prices; ARM tasks are about 20% cheaper. For cost monitoring, see [Managing Costs](/managing-costs/overview).
 
 ### Web service vs Lambda function: which should I use?
 
@@ -600,7 +618,7 @@ Use a web service when your application is already a long-running container, nee
 
 ### How do I run database migrations for a web service?
 
-Use a `sideContainers` entry with `containerType: 'run-on-init'` when the migration must complete before the main container starts. For more complex multi-container lifecycle and traffic routing, use a [multi-container-workload](/resources/compute/multi-container-workload). For broader deployment automation, see [deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks).
+Set [`releaseCommand`](/deployment-and-lifecycle/release-commands), for example `releaseCommand: 'npx prisma migrate deploy'`. Stacktape runs it once on each deploy in a one-off task with this service's image, environment and network access, and stops the deploy if it fails, so the running version keeps serving. Don't use a `run-on-init` side container for migrations: it runs in every task, on every start and scale-out. For more complex multi-container lifecycle and traffic routing, use a [multi-container-workload](/resources/compute/multi-container-workload). For broader deployment automation, see [deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks).
 
 ### Can I protect a web service with AWS WAF?
 
@@ -659,8 +677,3 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
-
-
-## In-place code swap
-
-Set `properties.codeSwap: true` to opt into [in-place code swaps](/deployment-and-lifecycle/code-swap). It supports Node.js and Python on x86 Fargate behind an HTTP API or an application load balancer within the ten-task cap, including production. Old and new processes share memory; a sudden increase can fail in-flight requests. Unsupported services and failed memory screens use image deploys.
