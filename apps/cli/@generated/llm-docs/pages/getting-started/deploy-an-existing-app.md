@@ -1,7 +1,8 @@
 # Deploy an existing app
 
 `stacktape init` reads your project, works out the AWS setup it needs and writes it to one file. You see every
-resource and its monthly price before the file is saved. Nothing is created in AWS until you confirm the deploy. This
+resource and its estimated monthly cost before the file is saved. Usage charges, such as requests and data transfer,
+come on top. Nothing is created in AWS until you confirm the deploy. This
 guide follows the wizard screen by screen.
 
 ## Before you start
@@ -13,6 +14,8 @@ guide follows the wizard screen by screen.
   updates `package.json`.
 - AWS credentials are needed only for the last step. You can set them up when the wizard asks. See
   [Set up AWS credentials](/getting-started/aws-credentials).
+- Docker, if the deploy builds a container image or a Python, Go or Java function. The wizard reads your app and saves
+  the config without it; only the deploy needs it.
 
 ## Start the wizard
 
@@ -135,7 +138,14 @@ Nothing on the page is lost.
 ### Before you deploy
 
 - **Secrets.** For each secret, the wizard gives you a command such as `stacktape secret set stripe_api_key --region
-  eu-west-1`. Run it in your terminal. It asks for the value, so the value never lands in the file or your shell
+  eu-west-1`. Run it in another terminal, with the same AWS profile you started `init` with. A new terminal doesn't
+  inherit `AWS_PROFILE=...` from the `init` command, so without it the secret can end up in a different account:
+
+  ```bash
+  AWS_PROFILE=my-dev-account stacktape secret set stripe_api_key --region eu-west-1
+  ```
+
+  Use your own profile and region. The command asks for the value, so the value never lands in the file or your shell
   history.
 - **Settings nothing sets yet.** If your app needs one of them to start, add it under `environment` in the saved file.
 
@@ -266,3 +276,8 @@ wizard explains other errors. The identity also needs permission to create the r
 A stack with the same name already exists and belongs to another tool or another Stacktape project, or AWS is still
 working on it. Pick another stage name, or wait and click **Check again**. A failed first deploy can leave a stack that
 AWS only allows deleting; the wizard gives you the delete command.
+
+### The deploy fails
+
+The deploy output says whether the build failed or AWS refused a resource. To find the error and continue, see
+[If a deploy fails](/getting-started/after-the-first-deploy#if-a-deploy-fails).

@@ -364,8 +364,14 @@ The old URLs in [`site-redirects.ts`](../apps/docs/src/utils/site-redirects.ts) 
 
 The store and the function are in the CloudFormation template. The hook runs on your machine after the CLI has uploaded
 `dist` and invalidated the CDN, so a new redirect never points at a page the bucket does not hold yet. Until it has run,
-old URLs that are new in this release get the bucket's meta-refresh page, which still redirects. The hook uses the AWS
-credentials exported into the shell, not the Console connection, which is one more reason to export them first.
+old URLs that are new in this release get the bucket's meta-refresh page, which still redirects.
+
+The hook takes its AWS credentials from the deploying shell, not from the Console connection:
+`--awsAccount stacktape-dev` gives the CLI its credentials but does not pass them to local scripts. The hook's SDK
+client uses the default credential chain: exported `AWS_*` variables, then `AWS_PROFILE`, then the `[default]` profile.
+Export the stacktape-dev credentials as shown above, or make sure the `[default]` profile is that account. Otherwise the
+hook fails on the store ARN, the deploy reports the failed `afterDeploy` hook, and you rerun it as described under
+**When a deploy fails**.
 
 The build checks the store's limits (keys up to 512 bytes, values up to 1 KB, 5 MB in total). The site also renders
 every redirect as a meta-refresh page, which local previews and any request the function lets through still follow.
@@ -395,8 +401,10 @@ Publish to the preview first and check it:
   stack back.
 - The hook fails (missing credentials, a network error, or someone edited the store meanwhile): the new site is live and
   the CLI reports that the `afterDeploy` hook failed. The store writes 50 keys per request, so it can hold part of the
-  new table. Every old URL still redirects through its meta-refresh page. Run the hook again:
+  new table. Every old URL still redirects through its meta-refresh page. Export the stacktape-dev credentials and check
+  them (`aws sts get-caller-identity` prints 977946299200), then run the hook again:
   `pnpm dev:cli script run --scriptName writeRedirects --stage <stage> --configPath ../docs/stacktape.ts --awsAccount stacktape-dev`.
+  It prints the number of redirects; compare it with the store's `ItemCount` as above.
 
 **Rollback.** Copy the bucket before a production publish, keeping the listing:
 
@@ -418,8 +426,12 @@ still exist (Stacktape keeps earlier versions for 30 days). It leaves the redire
 copy for the docs.
 
 **Search.** The Algolia DocSearch crawler (index `Docs crawler`, app `PFTWPISD3F`) is configured in the Algolia
-dashboard, not in this repository. After publishing, run a crawl so that stale URLs disappear. `/v3/` pages are
-`noindex` and absent from the sitemap, which is now `/sitemap-index.xml` (`/sitemap.xml` redirects to it).
+dashboard, not in this repository. After publishing, run a crawl so that stale URLs and headings disappear. Then search
+for `deploy` on the live site, open its **Options** result and check that the page scrolls to that heading. Old
+fragments that search or bookmarks still use land on the current section through
+[`moved-sections.ts`](../apps/docs/src/utils/moved-sections.ts); add an entry there when a change renames or removes a
+heading. `/v3/` pages are `noindex` and absent from the sitemap, which is now `/sitemap-index.xml` (`/sitemap.xml`
+redirects to it).
 
 ### Config schema
 

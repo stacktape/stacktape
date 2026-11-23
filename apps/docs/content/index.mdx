@@ -17,7 +17,7 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
     { label: 'Windows', code: 'iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"' },
     { label: 'npm', code: 'npx stacktape@latest init' }
   ]}
-  commandNote="It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed."
+  commandNote="It opens a wizard in your browser. You review the setup and its estimated monthly AWS cost before usage charges, then deploy. No Stacktape account needed."
   links={[
     { label: 'Quickstart', href: '/getting-started' },
     { label: 'Starting a new project?', href: '/getting-started/start-a-new-project' }
@@ -30,7 +30,7 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
     {
       title: 'Deploy an existing app',
       href: '/getting-started/deploy-an-existing-app',
-      text: 'Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.',
+      text: 'Run init in your app directory. The wizard proposes the AWS setup, estimates its monthly cost and deploys when you confirm.',
       steps: ['Start', 'Analyze', 'Review', 'Deploy']
     },
     {
@@ -223,7 +223,7 @@ export default defineConfig(() => {
     },
     {
       title: 'Costs',
-      text: 'Init estimates the monthly price from AWS list prices before the first deploy. The Console shows what each stage costs and alerts you on budgets.',
+      text: 'Init estimates the monthly cost from AWS list prices before the first deploy. Usage charges, such as requests and data transfer, come on top. The Console shows what each stage costs and alerts you on budgets.',
       link: { label: 'Managing costs', href: '/managing-costs/overview' }
     },
     {
@@ -262,10 +262,10 @@ export default defineConfig(() => {
     {
       title: 'Operate',
       links: [
+        { label: 'Fix a failed deploy', href: '/getting-started/after-the-first-deploy#if-a-deploy-fails' },
         { label: 'Logs', href: '/observability/logs' },
         { label: 'Alarms', href: '/observability/alarms' },
         { label: 'Error tracking', href: '/observability/error-tracking' },
-        { label: 'Costs', href: '/managing-costs/overview' },
         { label: 'Dev mode', href: '/local-development/dev-mode-overview' },
         { label: 'Stacktape Console', href: '/stacktape-console/console-overview' }
       ]

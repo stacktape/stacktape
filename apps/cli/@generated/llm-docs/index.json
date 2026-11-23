@@ -18392,7 +18392,8 @@
         "page:/getting-started/deploy-an-existing-app#if-something-goes-wrong",
         "page:/getting-started/deploy-an-existing-app#the-wizard-found-nothing-to-deploy",
         "page:/getting-started/deploy-an-existing-app#aws-rejects-the-credentials",
-        "page:/getting-started/deploy-an-existing-app#the-target-is-blocked"
+        "page:/getting-started/deploy-an-existing-app#the-target-is-blocked",
+        "page:/getting-started/deploy-an-existing-app#the-deploy-fails"
       ]
     },
     {

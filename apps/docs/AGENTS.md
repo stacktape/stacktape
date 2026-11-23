@@ -20,6 +20,8 @@ move it into `content/`.
 
 `src/pages/[...slug].astro` renders the content collection. `src/utils/route-slugs.ts` owns file-to-URL mapping and
 `tests/expected-routes.txt` is the reviewed public URL contract. Update the manifest deliberately when a route changes.
+When a change renames or removes a heading that readers may have bookmarked or found in search, map the old fragment to
+its new section in `src/utils/moved-sections.ts`.
 
 Turbo materializes the current checkout's CLI-generated inputs before docs tasks run:
 

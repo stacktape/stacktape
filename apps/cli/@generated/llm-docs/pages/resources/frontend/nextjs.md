@@ -14,7 +14,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NextjsWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const web = new NextjsWeb({
     appDirectory: '.'
   });
@@ -26,6 +26,19 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is required: the folder with `next.config.js` (or `.ts`/`.mjs`), relative to the Stacktape config. `.`
 fits an app at the repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
@@ -33,7 +46,8 @@ Next.js image optimization uses `sharp`, which needs a Linux build for Lambda. O
 Stacktape builds it in Docker, so Docker must be running there. On x64 Linux, such as most CI runners, it usually isn't
 needed.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page, a static asset and an optimized image (`/_next/image`).
 
 What Stacktape creates:

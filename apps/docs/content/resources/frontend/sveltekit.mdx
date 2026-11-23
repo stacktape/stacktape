@@ -42,7 +42,7 @@ Without `@sveltejs/adapter-node` in `package.json`, packaging stops with an erro
       code: `import { defineConfig, SvelteKitWeb } from 'stacktape';
 
 // [!code focus-start]
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const web = new SvelteKitWeb({
     appDirectory: '.'
   });
@@ -52,6 +52,18 @@ export default defineConfig(() => {
   };
 });
 // [!code focus-end]`
+    },
+    {
+      label: 'YAML',
+      lang: 'yaml',
+      code: `projectName: my-app
+region: eu-west-1
+resources:
+  web:
+    type: sveltekit-web
+    properties:
+      appDirectory: .
+`
     }
   ]}
 />
@@ -59,7 +71,8 @@ export default defineConfig(() => {
 `appDirectory` is the folder with `svelte.config.js`, relative to the Stacktape config. `.` (the default) fits an app at the
 repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page and a static asset.
 
 ## Build and dev mode

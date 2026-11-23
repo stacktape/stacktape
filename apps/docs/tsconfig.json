@@ -6,6 +6,15 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": [".astro/types.d.ts", "src/**/*", "scripts/**/*", "tests/**/*", "astro.config.mjs", "stacktape.ts"],
+  "include": [
+    ".astro/types.d.ts",
+    "src/**/*",
+    "scripts/**/*",
+    "tests/**/*",
+    "e2e/**/*",
+    "playwright.config.ts",
+    "astro.config.mjs",
+    "stacktape.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

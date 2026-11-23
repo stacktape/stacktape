@@ -36,7 +36,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, AstroWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const site = new AstroWeb({
     appDirectory: '.'
   });
@@ -48,10 +48,24 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  site:
+    type: astro-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is the folder with `astro.config.mjs`, relative to the Stacktape config. `.` (the default) fits an app at the
 repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page and a static asset.
 
 ## Build and dev mode
