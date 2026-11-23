@@ -69,6 +69,7 @@ export const buildNpm = async ({ version }: { version?: string } = {}) => {
     copyPackageJson(versionToUse),
     copyBinWrapper(),
     copy(join(import.meta.dir, '../../../LICENSE'), join(NPM_RELEASE_FOLDER_PATH, 'LICENSE')),
+    copy(join(import.meta.dir, 'release', 'npm-package', 'README.md'), join(NPM_RELEASE_FOLDER_PATH, 'README.md')),
     copyReleaseChecksums({
       required: requireChecksums,
       ...(checksumsSourcePath && { sourcePath: checksumsSourcePath })
