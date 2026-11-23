@@ -18,10 +18,17 @@ it.
 3. **Deploy each stage once more.** A stage deployed while signed in keeps sending errors, alarm state changes and
    uptime results to Stacktape. A deploy without an account removes that. Until you remove the features from step 1,
    the CLI refuses this deploy and says which feature is left.
-4. **Disconnect the AWS account.** In the Console, choose **Disconnect account** on **Configuration → AWS accounts**,
-   then delete the connection stack, `stacktape-<connection ID>` in `eu-west-1`. See
+4. **Stop Git deployments and runners.** If the Console deploys on push, move that to your own pipeline first. Then
+   delete each [Git deployment](/ci-cd-and-gitops/gitops-with-console) that targets the account and turn off any
+   [GitHub Actions runner](/ci-cd-and-gitops/self-hosted-github-actions-runners#turn-it-off). Stacktape then removes
+   the runner and its disks, after a job that is still running finishes. The Console refuses to disconnect the account
+   until that's done.
+5. **Disconnect the AWS account.** In the Console, choose **Disconnect account** on **Configuration → AWS accounts**.
+   The Console then deletes the connection stack, `stacktape-<connection ID>` in `eu-west-1`. Check in the AWS
+   CloudFormation console that it's gone, and delete it yourself if it isn't. Don't delete the stack before you
+   disconnect: the Console needs its role to remove the runners. See
    [Revoke access](/stacktape-console/aws-permissions#revoke-access).
-5. **Remove the uptime probes.** They live outside your stacks, in each region that probed: the
+6. **Remove the uptime probes.** They live outside your stacks, in each region that probed: the
    `stacktape-uptime-prober` function with its role and schedule, a bucket named `stp-uptime-prober-*` and SSM
    parameters under `/stacktape/uptime-checks/`. Nothing deletes them for you.
 

@@ -58,10 +58,11 @@ The role works in every region, but Stacktape deploys only to the regions it sup
 
 ## Revoke access
 
-1. Open **Configuration → AWS accounts** and choose **Disconnect account** in the account's menu. The Console blocks this while [Git deployments](/ci-cd-and-gitops/gitops-with-console) target the account and lists the projects to change first.
-2. Delete the connection stack in the AWS CloudFormation console, in `eu-west-1`. That removes the role and the cost report bucket.
+1. Delete the [Git deployments](/ci-cd-and-gitops/gitops-with-console) that target the account and turn off its [GitHub Actions runner](/ci-cd-and-gitops/self-hosted-github-actions-runners#turn-it-off). Stacktape removes the runner once its last job finishes. Until then, the Console refuses to disconnect the account and says what is left.
+2. Open **Configuration → AWS accounts** and choose **Disconnect account** in the account's menu. The Console deletes the connection stack, which removes the role and the cost report bucket.
+3. Check in the AWS CloudFormation console, in `eu-west-1`, that the stack `stacktape-<connection ID>` is gone. If it isn't, delete it yourself.
 
-Deleting only the stack leaves the account in the Console as **No access**. Your deployed stacks are separate CloudFormation stacks and keep running either way; manage or delete them with the CLI and your own credentials.
+Deleting only the stack leaves the account in the Console as **No access**, and a runner in the account can no longer be removed: its disks stay billed until you delete them yourself. Your deployed stacks are separate CloudFormation stacks and keep running either way; manage or delete them with the CLI and your own credentials.
 
 ## Audit Stacktape's activity
 

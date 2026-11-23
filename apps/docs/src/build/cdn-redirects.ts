@@ -4,7 +4,7 @@
  *
  * The redirect table lives in a CloudFront KeyValueStore (old path → new URL), and a small CloudFront Function looks
  * every request up in it. The function code never changes with the table, so its 10 KB limit no longer caps the number
- * of redirects. `redirect-store-sync.ts` writes the table into the store during a deploy (`stacktape.ts`).
+ * of redirects. `scripts/write-redirect-store.ts` writes the table into the store after each deploy (`stacktape.ts`).
  *
  * Keys are paths without the trailing slash and match with or without it, because Stacktape 3 docs served pages without
  * one. The query string is kept; browsers keep the fragment themselves.

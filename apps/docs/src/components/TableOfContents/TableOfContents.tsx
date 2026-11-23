@@ -29,7 +29,9 @@ const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home
  * scrolls to. Empty while the reader is still above the first section (the title and introduction).
  *
  * A heading the reader asked for (a link with its fragment, or an outline click) stays selected until the reader
- * scrolls by hand, even when it sits too close to the end of the page to reach the line.
+ * scrolls by hand, even when it sits too close to the end of the page to reach the line. Astro's client router changes
+ * the fragment of a same-page link with `history.pushState`, which fires no `hashchange`, so clicks on such links are
+ * followed directly.
  */
 const useActiveHeading = (ids: string[]) => {
   const [activeId, setActiveId] = useState('');
@@ -60,10 +62,21 @@ const useActiveHeading = (ids: string[]) => {
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
-    const followHash = () => {
-      const id = decodeURIComponent(window.location.hash.slice(1));
+    const request = (hash: string) => {
+      const id = decodeURIComponent(hash.slice(1));
       requested = ids.includes(id) ? id : '';
       schedule();
+    };
+    const followHash = () => request(window.location.hash);
+    const followLink = (event: MouseEvent) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!(link instanceof HTMLAnchorElement) || link.target) return;
+      const url = new URL(link.href);
+      const here = window.location;
+      if (!url.hash || url.origin !== here.origin || url.pathname !== here.pathname || url.search !== here.search)
+        return;
+      request(url.hash);
     };
     const release = (event: Event) => {
       if (!requested) return;
@@ -73,6 +86,8 @@ const useActiveHeading = (ids: string[]) => {
     };
     followHash();
     window.addEventListener('hashchange', followHash);
+    window.addEventListener('popstate', followHash);
+    document.addEventListener('click', followLink);
     window.addEventListener('scroll', schedule, { passive: true });
     window.addEventListener('resize', schedule);
     window.addEventListener('wheel', release, { passive: true });
@@ -81,6 +96,8 @@ const useActiveHeading = (ids: string[]) => {
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener('hashchange', followHash);
+      window.removeEventListener('popstate', followHash);
+      document.removeEventListener('click', followLink);
       window.removeEventListener('scroll', schedule);
       window.removeEventListener('resize', schedule);
       window.removeEventListener('wheel', release);

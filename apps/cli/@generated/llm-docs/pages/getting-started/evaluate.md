@@ -62,9 +62,11 @@ retention period.
 ## Access and security
 
 - **AWS access.** Without the Console, Stacktape has no access to your account. Connecting the Console creates an IAM
-  role that only Stacktape's AWS account can assume, with an external ID and sessions of at most 12 hours. The role has
-  `AdministratorAccess`, so the Console can deploy anything a stack contains. Each workload runs with its own role
-  that allows only what its config declares. See [AWS permissions](/stacktape-console/aws-permissions).
+  role that only Stacktape's AWS account can assume, with an external ID and sessions of at most 12 hours. A connection
+  that can deploy gives the role `AdministratorAccess`, so the Console can deploy anything a stack contains. A
+  read-only connection gives it `ReadOnlyAccess`: the Console shows logs, metrics and costs, and deploys, Git
+  deployments and budgets don't work. Each workload runs with its own role that allows only what its config declares.
+  See [AWS permissions](/stacktape-console/aws-permissions#deploy-access-or-read-only).
 - **People.** Members are Owners, Admins, Developers or Viewers. Developers and Viewers see only the projects and AWS
   accounts you give them. See [Team and access control](/stacktape-console/team-and-access-control).
 - **Sign-in.** Owners and Admins can require two-factor sign-in on every plan. Single sign-on (SAML or OIDC) and SCIM come with

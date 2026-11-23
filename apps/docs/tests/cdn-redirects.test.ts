@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { mock, test } from 'node:test';
+import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { CloudFrontKeyValueStoreClient } from '@aws-sdk/client-cloudfront-keyvaluestore';
+import { CloudFrontKeyValueStoreClient, UpdateKeysCommand } from '@aws-sdk/client-cloudfront-keyvaluestore';
 import {
   buildRedirectStoreEntries,
   CLOUDFRONT_FUNCTION_MAX_BYTES,
@@ -13,7 +11,7 @@ import {
   REDIRECT_FUNCTION_CODE,
   REDIRECT_FUNCTION_IMPORT
 } from '../src/build/cdn-redirects.ts';
-import { respondToStackEvent, type RedirectStoreProperties } from '../src/build/redirect-store-sync.ts';
+import { syncRedirectStore } from '../src/build/redirect-store-sync.ts';
 import { CDN_REDIRECTS } from '../src/utils/site-redirects.ts';
 import { APP_ROOT } from './canonical-content.ts';
 
@@ -21,10 +19,6 @@ type QueryString = Record<string, { value: string; multiValue?: { value: string 
 type ViewerRequest = { uri: string; querystring: QueryString };
 type Redirect = { statusCode: number; headers: Record<string, { value: string }> };
 type Handler = (event: { request: ViewerRequest }) => Promise<ViewerRequest | Redirect>;
-
-// The handler logs what it wrote and why it failed; the tests check its responses instead.
-mock.method(console, 'info', () => {});
-mock.method(console, 'error', () => {});
 
 const STORE_ARN = 'arn:aws:cloudfront::123456789012:key-value-store/2f1e3a4b-5c6d-4e7f-8a9b-0c1d2e3f4a5b';
 
@@ -100,44 +94,6 @@ const createFakeStore = (initial: Record<string, string> = {}) => {
   };
 };
 
-/** Receives the response the handler PUTs to CloudFormation's presigned URL. */
-const withResponseUrl = async <T>(run: (url: string) => Promise<T>) => {
-  const responses: { Status: string; Reason: string; PhysicalResourceId: string }[] = [];
-  const server = createServer((request, response) => {
-    let body = '';
-    request.on('data', (chunk) => (body += chunk));
-    request.on('end', () => {
-      responses.push(JSON.parse(body));
-      response.end();
-    });
-  });
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  try {
-    const { port } = server.address() as AddressInfo;
-    await run(`http://127.0.0.1:${port}/response`);
-    return responses;
-  } finally {
-    server.close();
-  }
-};
-
-const stackEvent = (
-  requestType: 'Create' | 'Update' | 'Delete',
-  redirects: Record<string, string>,
-  responseUrl: string
-) => {
-  const properties: RedirectStoreProperties = { storeArn: STORE_ARN, redirects: Object.entries(redirects) };
-  return {
-    RequestType: requestType,
-    ResponseURL: responseUrl,
-    StackId: 'arn:aws:cloudformation:eu-west-1:123456789012:stack/docs-production/1',
-    RequestId: 'request-1',
-    LogicalResourceId: 'RedirectStoreCustomResource',
-    PhysicalResourceId: requestType === 'Create' ? undefined : STORE_ARN,
-    ResourceProperties: properties
-  };
-};
-
 /** Runs the deployed function code with the `cloudfront` module the runtime gives it, backed by `store`. */
 const loadFunction = (store: Map<string, string> | 'unavailable'): Handler => {
   const cf = {
@@ -163,15 +119,12 @@ test('the redirect function is the import and the handler, small and without red
   for (const from of Object.keys(entries)) assert.ok(!REDIRECT_FUNCTION_CODE.includes(`'${from}'`), from);
 });
 
+const sync = (store: ReturnType<typeof createFakeStore>, wanted: Record<string, string>) =>
+  syncRedirectStore({ client: store.client, storeArn: STORE_ARN, wanted });
+
 test('the deploy fills an empty store, and the function answers every redirect from it with a 301', async () => {
   const store = createFakeStore();
-  const responses = await withResponseUrl((url) =>
-    respondToStackEvent(stackEvent('Create', entries, url), store.client)
-  );
-  assert.deepEqual(
-    responses.map(({ Status, PhysicalResourceId }) => ({ Status, PhysicalResourceId })),
-    [{ Status: 'SUCCESS', PhysicalResourceId: STORE_ARN }]
-  );
+  assert.deepEqual(await sync(store, entries), { deleted: 0, put: Object.keys(entries).length });
   assert.deepEqual(Object.fromEntries(store.keys), entries);
   assert.ok(store.updates.every(({ puts, deletes }) => puts + deletes <= 50));
   assert.equal(store.updates.length, Math.ceil(Object.keys(entries).length / 50));
@@ -190,23 +143,39 @@ test('the deploy fills an empty store, and the function answers every redirect f
   });
 });
 
-test('a later deploy changes only the redirects that changed, and a rollback writes the old table back', async () => {
+test('a later deploy changes only the redirects that changed, and an earlier table can be written back', async () => {
   const store = createFakeStore(entries);
   const [firstFrom] = Object.keys(entries);
   const changed = { ...entries, [firstFrom!]: '/getting-started/', '/new/old-page': '/new/page/' };
   delete changed[Object.keys(entries)[1]!];
-  await withResponseUrl((url) => respondToStackEvent(stackEvent('Update', changed, url), store.client));
+  await sync(store, changed);
   assert.deepEqual(Object.fromEntries(store.keys), changed);
   assert.deepEqual(store.updates, [{ puts: 2, deletes: 1 }]);
 
-  await withResponseUrl((url) => respondToStackEvent(stackEvent('Update', entries, url), store.client));
+  await sync(store, entries);
   assert.deepEqual(Object.fromEntries(store.keys), entries);
 
-  await withResponseUrl((url) => respondToStackEvent(stackEvent('Update', entries, url), store.client));
+  await sync(store, entries);
   assert.equal(store.updates.length, 2, 'an unchanged table writes nothing');
 });
 
-test('an edit made during the sync fails the deploy instead of being overwritten', async () => {
+test('a write that stopped partway finishes when it runs again', async () => {
+  const store = createFakeStore();
+  const original = store.client.send.bind(store.client);
+  let updates = 0;
+  store.client.send = ((command: Parameters<typeof original>[0]) => {
+    if (command instanceof UpdateKeysCommand && ++updates === 2) return Promise.reject(new Error('Network failure'));
+    return original(command);
+  }) as typeof store.client.send;
+  await assert.rejects(sync(store, entries), /Network failure/);
+  assert.equal(store.keys.size, 50, 'the first batch stays written');
+
+  store.client.send = original;
+  await sync(store, entries);
+  assert.deepEqual(Object.fromEntries(store.keys), entries);
+});
+
+test('an edit made during the sync fails the write instead of being overwritten', async () => {
   const store = createFakeStore();
   const original = store.client.send.bind(store.client);
   let calls = 0;
@@ -215,24 +184,8 @@ test('an edit made during the sync fails the deploy instead of being overwritten
     if (calls === 2) store.touch();
     return original(command);
   }) as typeof store.client.send;
-  const responses = await withResponseUrl((url) =>
-    respondToStackEvent(stackEvent('Create', entries, url), store.client)
-  );
-  assert.equal(responses[0]?.Status, 'FAILED');
-  assert.match(responses[0]?.Reason ?? '', /ConflictException/);
+  await assert.rejects(sync(store, entries), { name: 'ConflictException' });
   assert.equal(store.keys.size, 0);
-});
-
-test('deleting the resource leaves the store to CloudFormation', async () => {
-  const store = createFakeStore(entries);
-  const responses = await withResponseUrl((url) =>
-    respondToStackEvent(stackEvent('Delete', entries, url), store.client)
-  );
-  assert.deepEqual(
-    responses.map(({ Status, PhysicalResourceId }) => ({ Status, PhysicalResourceId })),
-    [{ Status: 'SUCCESS', PhysicalResourceId: STORE_ARN }]
-  );
-  assert.equal(store.signatures.size, 0, 'no store request');
 });
 
 test('the redirect keeps the query string', async () => {

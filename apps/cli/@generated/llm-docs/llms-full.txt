@@ -13837,9 +13837,11 @@ retention period.
 ## Access and security
 
 - **AWS access.** Without the Console, Stacktape has no access to your account. Connecting the Console creates an IAM
-  role that only Stacktape's AWS account can assume, with an external ID and sessions of at most 12 hours. The role has
-  `AdministratorAccess`, so the Console can deploy anything a stack contains. Each workload runs with its own role
-  that allows only what its config declares. See [AWS permissions](/stacktape-console/aws-permissions).
+  role that only Stacktape's AWS account can assume, with an external ID and sessions of at most 12 hours. A connection
+  that can deploy gives the role `AdministratorAccess`, so the Console can deploy anything a stack contains. A
+  read-only connection gives it `ReadOnlyAccess`: the Console shows logs, metrics and costs, and deploys, Git
+  deployments and budgets don't work. Each workload runs with its own role that allows only what its config declares.
+  See [AWS permissions](/stacktape-console/aws-permissions#deploy-access-or-read-only).
 - **People.** Members are Owners, Admins, Developers or Viewers. Developers and Viewers see only the projects and AWS
   accounts you give them. See [Team and access control](/stacktape-console/team-and-access-control).
 - **Sign-in.** Owners and Admins can require two-factor sign-in on every plan. Single sign-on (SAML or OIDC) and SCIM come with
@@ -13938,8 +13940,8 @@ Source: `apps/docs/content/getting-started/evaluate/move-to-stacktape.mdx`
 Route: `/getting-started/evaluate/move-to-stacktape`
 
 Stacktape deploys your app as a new stack in your own AWS account. It never takes over what another platform or tool
-runs. A move is a copy next to the old app, then the secrets, the data and the DNS, then retiring the old setup. You
-can switch back until the last step.
+runs. A move is a copy next to the old app, then the data and the DNS, then retiring the old setup. You can switch
+back until the last step.
 
 ## What init reads
 
@@ -13970,12 +13972,24 @@ caches, queues and buckets in Terraform files. For all of them:
 
 ## Move a running app
 
-### 1. Deploy a copy
+### 1. Generate the config
 
-Run `stacktape init` in the repository and deploy a stage such as `staging`. See
-[Deploy an existing app](/getting-started/deploy-an-existing-app). The old app keeps serving your users.
+Run `stacktape init` in the repository, go through Review and save the file. Stop there: the deploy is optional, and
+the next steps come first. See [Deploy an existing app](/getting-started/deploy-an-existing-app). The old app keeps
+serving your users until you switch DNS.
 
-### 2. Copy the secrets
+### 2. Decide where the data lives
+
+Decide before the first deploy. It creates the databases in the file and runs the migrations against the database the
+app points at.
+
+- **Keep the old database for now.** Accept the wizard's offer to keep using it, or put its connection string in a
+  secret and use that secret for your app's variable. The old provider must accept connections from AWS, and every
+  query crosses the internet, so expect more latency. This lets you move the app first and the data later. The first
+  deploy runs the new code's pending migrations against your live data.
+- **Move the data.** Keep the new AWS database. It starts empty, and you copy the data in when you switch (step 6).
+
+### 3. Set the secrets
 
 **Before you deploy** lists each secret the app needs. Copy each value from the old platform and store it in your AWS
 account:
@@ -13987,42 +14001,85 @@ stacktape secret set stripe_api_key --region eu-west-1
 Heroku shows values with `heroku config`. Fly.io doesn't show secret values again, so take them from where your team
 keeps them.
 
-### 3. Decide where the data lives
+### 4. Check the migrations
 
-You have two options:
+Open the saved file and find how it runs your migration tool:
 
-- **Keep the old database for now.** Put its connection string in a secret and use that secret for your app's
-  variable. The old provider must accept connections from AWS, and every query crosses the internet, so expect more
-  latency. This lets you move the app first and the data later.
-- **Move the data.** Stop writes on the old app, for example with a maintenance mode. Dump the database with your
-  usual tool, such as `pg_dump`, and restore it into the new one. A database that isn't open to the internet is
-  reachable through a [bastion tunnel](/cli/bastion-tunnel). For a large database, AWS Database Migration Service can
-  copy it continuously, which shortens the pause.
+- **A `releaseCommand` on a service.** It runs during the deploy, before the new code goes live. It runs on the first
+  deploy of each stage, then on each deploy that changes the image. With `runWhenChanged`, which init sets to your
+  migrations directory when it finds one, it runs only when those files change. A `release` line in a Procfile becomes
+  this command.
+- **A script in `hooks.afterDeploy`**, such as `migrateDatabase`. Init writes one when the command can't run in the
+  deployed image. It runs on your machine after every deploy.
+- **Neither.** Init found the tool but not a command it could run on deploy, or your app migrates when it starts.
+  **Before you deploy** says which. Release commands in `fly.toml` and `render.yaml` are not carried over. Set the
+  command yourself, as described in [Release commands](/deployment-and-lifecycle/release-commands).
 
-Files move with `aws s3 sync` or your provider's export. Caches usually start empty.
+### 5. Deploy and test the copy
 
-### 4. Run the migrations
+Deploy a stage such as `staging`:
 
-If init found your migration tool, the config runs it on each deploy, as a `releaseCommand` or a script after the
-deploy. A `release` line in a Procfile becomes that command. Release commands in `fly.toml` and `render.yaml` are not
-carried over: set them as described in [Release commands](/deployment-and-lifecycle/release-commands).
-
-### 5. Test the copy
+```bash
+stacktape deploy --stage staging
+```
 
 Open the AWS address from the end of the deploy. Check a page or an endpoint that reads and writes data, not only a
 health route. Then add a [CI pipeline](/ci-cd-and-gitops/overview) that deploys the new stage.
 
-### 6. Switch DNS
+### 6. Move the data
 
-Add your domain to the new resources with `customDomains` and deploy. Lower the TTL of the old records a day before,
-then point the hostname at the new stack. If you move the domain's DNS to Route 53, copy its existing records first.
-See [Custom domains](/resources/networking/custom-domains).
+Skip this if you kept the old database. Otherwise, do it right before you switch DNS:
 
-### 7. Keep a way back, then retire the old app
+1. Deploy the commit the old app runs, so the copied schema matches the code.
+2. Stop writes on the old app, for example with a maintenance mode.
+3. Dump the database with your usual tool, such as `pg_dump`, and restore it into the new one. The first deploy's
+   migrations already created the tables, so restore with an option that replaces them, such as `pg_restore --clean`.
+   A database that isn't open to the internet is reachable through a [bastion tunnel](/cli/bastion-tunnel).
 
-Until you retire the old app, switching back is a DNS change. If you moved the data, writes made after the switch
-exist only in the new database, so plan how you would copy them back. When traffic has moved and the old DNS records
-have expired, take a last backup of the old database and delete the old app.
+For a large database, AWS Database Migration Service can copy it continuously, which shortens the pause. Files move
+with `aws s3 sync` or your provider's export. Caches usually start empty.
+
+### 7. Switch DNS
+
+Test the copy on a temporary hostname first, such as `new.example.com` in `customDomains`. Lower the TTL of the old
+records a day before the switch. If you move the domain's DNS to Route 53, copy its existing records first. See
+[Custom domains](/resources/networking/custom-domains).
+
+How you move the real hostname depends on what serves it now:
+
+- **Another platform**, such as Heroku, Render or Fly.io: add the hostname to `customDomains`, deploy, then point the
+  record at the new stack. If a record with that name already exists in your Route 53 zone, set
+  `disableDnsRecordCreation: true` on the domain and change the record yourself. Stacktape creates a new record on
+  deploy and fails if one exists.
+- **A CloudFront distribution**, such as one from SST, Serverless Framework or your own stack: a hostname can belong to
+  one distribution only, so adding it to the new stack fails with `CNAMEAlreadyExists`. Move it instead:
+  1. Make sure the new distribution's certificate covers the real hostname too. The certificate from
+     `stacktape domain add` covers `example.com` and `*.example.com`.
+  2. Move the hostname to the new distribution:
+
+     ```bash
+     aws cloudfront update-domain-association \
+       --domain www.example.com \
+       --target-resource DistributionId=<new distribution ID> \
+       --if-match <ETag>
+     ```
+
+     `aws cloudfront get-distribution --id <new distribution ID>` prints the ETag. If the old distribution is in
+     another AWS account, first add a TXT record `_www.example.com` whose value is the new distribution's
+     `dXXXX.cloudfront.net` domain. From then on, the new distribution answers the hostname.
+  3. Add the hostname to `customDomains` with `disableDnsRecordCreation: true` and deploy, so the stack keeps it.
+  4. Point the DNS record at the new distribution's domain.
+
+  See [Move an alternate domain name](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/alternate-domain-names-move.html)
+  in the AWS docs. Don't deploy the old stack after the move: it would try to take the hostname back.
+
+### 8. Keep a way back, then retire the old app
+
+Until you retire the old app, switching back is a DNS change. For a CloudFront hostname, move it back to the old
+distribution with the same command, and remove it from `customDomains` before you deploy the new stack again. If you
+moved the data, writes made after the switch exist only in the new database, so plan how you would copy them back.
+When traffic has moved and the old DNS records have expired, take a last backup of the old database and delete the old
+app.
 
 ## From SST or Serverless Framework
 
@@ -14033,6 +14090,8 @@ resources, so the new stack starts with new tables, buckets and databases.
 - **Or keep using an old resource.** Pass its name to the app in `environment` and allow access with
   [`iamRoleStatements`](/configuration/connecting-resources#custom-permissions-with-iamrolestatements).
 - **Before you remove the old stack**, check which of its resources hold data and whether the old tool deletes them.
+  If it created the DNS record your hostname now uses, removing it deletes that record. Create the record outside the
+  old stack first.
 
 ## What usually takes the time
 
@@ -14067,10 +14126,17 @@ it.
 3. **Deploy each stage once more.** A stage deployed while signed in keeps sending errors, alarm state changes and
    uptime results to Stacktape. A deploy without an account removes that. Until you remove the features from step 1,
    the CLI refuses this deploy and says which feature is left.
-4. **Disconnect the AWS account.** In the Console, choose **Disconnect account** on **Configuration → AWS accounts**,
-   then delete the connection stack, `stacktape-<connection ID>` in `eu-west-1`. See
+4. **Stop Git deployments and runners.** If the Console deploys on push, move that to your own pipeline first. Then
+   delete each [Git deployment](/ci-cd-and-gitops/gitops-with-console) that targets the account and turn off any
+   [GitHub Actions runner](/ci-cd-and-gitops/self-hosted-github-actions-runners#turn-it-off). Stacktape then removes
+   the runner and its disks, after a job that is still running finishes. The Console refuses to disconnect the account
+   until that's done.
+5. **Disconnect the AWS account.** In the Console, choose **Disconnect account** on **Configuration → AWS accounts**.
+   The Console then deletes the connection stack, `stacktape-<connection ID>` in `eu-west-1`. Check in the AWS
+   CloudFormation console that it's gone, and delete it yourself if it isn't. Don't delete the stack before you
+   disconnect: the Console needs its role to remove the runners. See
    [Revoke access](/stacktape-console/aws-permissions#revoke-access).
-5. **Remove the uptime probes.** They live outside your stacks, in each region that probed: the
+6. **Remove the uptime probes.** They live outside your stacks, in each region that probed: the
    `stacktape-uptime-prober` function with its role and schedule, a bucket named `stp-uptime-prober-*` and SSM
    parameters under `/stacktape/uptime-checks/`. Nothing deletes them for you.
 
@@ -40354,10 +40420,11 @@ The role works in every region, but Stacktape deploys only to the regions it sup
 
 ## Revoke access
 
-1. Open **Configuration → AWS accounts** and choose **Disconnect account** in the account's menu. The Console blocks this while [Git deployments](/ci-cd-and-gitops/gitops-with-console) target the account and lists the projects to change first.
-2. Delete the connection stack in the AWS CloudFormation console, in `eu-west-1`. That removes the role and the cost report bucket.
+1. Delete the [Git deployments](/ci-cd-and-gitops/gitops-with-console) that target the account and turn off its [GitHub Actions runner](/ci-cd-and-gitops/self-hosted-github-actions-runners#turn-it-off). Stacktape removes the runner once its last job finishes. Until then, the Console refuses to disconnect the account and says what is left.
+2. Open **Configuration → AWS accounts** and choose **Disconnect account** in the account's menu. The Console deletes the connection stack, which removes the role and the cost report bucket.
+3. Check in the AWS CloudFormation console, in `eu-west-1`, that the stack `stacktape-<connection ID>` is gone. If it isn't, delete it yourself.
 
-Deleting only the stack leaves the account in the Console as **No access**. Your deployed stacks are separate CloudFormation stacks and keep running either way; manage or delete them with the CLI and your own credentials.
+Deleting only the stack leaves the account in the Console as **No access**, and a runner in the account can no longer be removed: its disks stay billed until you delete them yourself. Your deployed stacks are separate CloudFormation stacks and keep running either way; manage or delete them with the CLI and your own credentials.
 
 ## Audit Stacktape's activity
 
