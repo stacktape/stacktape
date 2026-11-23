@@ -268,7 +268,7 @@
     "hasReact": true,
     "isRestApi": false,
     "hasCognito": false,
-    "description": "Full-stack Next.js app with Drizzle ORM and\n  PostgreSQL.\nDeployed serverlessly via the nextjs-web resource —\n  Lambda + S3 + CloudFront CDN. Pay only for traffic you serve.\nIncludes database schema, migrations, and a working CRUD example with Server Actions.\n"
+    "description": "Full-stack Next.js app with Drizzle ORM and\n  PostgreSQL.\nThe web app runs on the Next.js resource (Lambda, S3 and\n  CloudFront), which charges per request. The Postgres database is an RDS db.t3.micro instance, which costs money\n  every hour it runs, with or without traffic.\nIncludes database schema, migrations, and a working CRUD example with Server Actions.\n"
   },
   {
     "name": "Fullstack Todo App",

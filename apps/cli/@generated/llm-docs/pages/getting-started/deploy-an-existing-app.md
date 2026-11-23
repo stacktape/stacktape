@@ -42,6 +42,10 @@ Under **Options** you choose what reads the code:
 
 An installed agent is the default. To skip agent detection, start with `stacktape init --coding-agent none`.
 
+If the app already runs on Heroku, Render, Fly.io, SST or the Serverless Framework, init reads those files too and
+deploys a separate copy. [Move to Stacktape](/getting-started/evaluate/move-to-stacktape) covers the data, secrets and
+DNS that you move yourself.
+
 ## 2. Analyze
 
 The built-in scan always runs first. If it answers everything, the wizard says your agent was not needed and no tokens
@@ -128,7 +132,9 @@ Nothing on the page is lost.
 Under **Optional**, **Try it on this machine first** has a **Build and start it here** button. It builds your services
 in Docker and starts them without network access and with placeholder settings, to catch an app that won't start
 before it reaches AWS. It runs your project's code, including install scripts. If it finds a startup failure, the
-deploy waits until you fix it or set the result aside. You don't need Docker if you skip it.
+deploy waits until you fix it or set the result aside. The check needs Docker. Skipping it doesn't skip Docker for the
+deploy: a config that builds a container image or a Python, Go or Java function builds it with Docker on this
+machine.
 
 ### Check the target, then deploy
 
@@ -151,7 +157,8 @@ are. With files only, there is no repair.
 
 ### It's live
 
-**It's live** lists the public HTTPS address of each resource that has one. Open it to check your app. Below it:
+**It's live** lists the public HTTPS address of each resource that has one. Open it to check your app, then
+[check the database](#check-the-database) if it has one. Below it:
 
 - **Add dev to the Stacktape Console**: optional, see [below](#add-the-console).
 - **Ship a change**: the command that deploys again after you edit your code.
@@ -160,6 +167,27 @@ are. With files only, there is no repair.
 - **Done experimenting? Remove this deployment**: the command that deletes everything the deploy created, including
   any database and its data. Your code and config file stay. A database the wizard added is protected from deletion,
   so turn that off first; see [Delete the stage](/getting-started/after-the-first-deploy#delete-the-stage).
+
+### Check the database
+
+A health route can answer while every database query fails, so check the data path too:
+
+1. **The connection.** In the saved file, find the variable your app reads its database address from. Init sets it
+   from the new database, for example:
+
+   ```yaml
+   environment:
+     - name: DATABASE_URL
+       value: $ResourceParam('mainDatabase', 'connectionString')
+   ```
+
+   If your app reads another name, change `name` and deploy again. [Connecting resources](/configuration/connecting-resources)
+   lists the other values, such as `host` and `port`.
+2. **The schema.** A new database is empty. If init found your migration tool, the file runs it on every deploy: as
+   `releaseCommand` on a container service, or as a script under `hooks.afterDeploy`. If it found the tool but no
+   command, **Before you deploy** asks you to set one. See [Release commands](/deployment-and-lifecycle/release-commands).
+3. **A real query.** Open a page or call an endpoint that reads or writes data. If it fails, the error is in the
+   logs: `stacktape logs <resource name> --stage dev`.
 
 ## Deploy from your terminal instead
 

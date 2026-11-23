@@ -121,6 +121,9 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [After the first deploy](/getting-started/after-the-first-deploy) - source: apps/docs/content/getting-started/after-the-first-deploy.mdx
 - [Set up AWS credentials](/getting-started/aws-credentials) - source: apps/docs/content/getting-started/aws-credentials.mdx
 - [Deploy an existing app](/getting-started/deploy-an-existing-app) - source: apps/docs/content/getting-started/deploy-an-existing-app.mdx
+- [Evaluate Stacktape](/getting-started/evaluate) - source: apps/docs/content/getting-started/evaluate/index.mdx
+- [Move to Stacktape](/getting-started/evaluate/move-to-stacktape) - source: apps/docs/content/getting-started/evaluate/move-to-stacktape.mdx
+- [Stop using Stacktape](/getting-started/evaluate/stop-using-stacktape) - source: apps/docs/content/getting-started/evaluate/stop-using-stacktape.mdx
 - [Going to production](/getting-started/going-to-production) - source: apps/docs/content/getting-started/going-to-production.mdx
 - [Use the CLI without an account](/getting-started/open-source-cli) - source: apps/docs/content/getting-started/open-source-cli.mdx
 - [Start a new project](/getting-started/start-a-new-project) - source: apps/docs/content/getting-started/start-a-new-project.mdx

@@ -101,6 +101,9 @@
 /getting-started/after-the-first-deploy
 /getting-started/aws-credentials
 /getting-started/deploy-an-existing-app
+/getting-started/evaluate
+/getting-started/evaluate/move-to-stacktape
+/getting-started/evaluate/stop-using-stacktape
 /getting-started/going-to-production
 /getting-started/open-source-cli
 /getting-started/start-a-new-project

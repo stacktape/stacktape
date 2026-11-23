@@ -1,0 +1,132 @@
+---
+title: 'Stop using Stacktape'
+order: 2
+seoTitle: 'Stop Using Stacktape: Leave the Console or Take Over Your CloudFormation Stacks | Stacktape Docs'
+seoDescription: 'How to leave the Stacktape Console and keep the CLI, or take over your CloudFormation stacks and stop using Stacktape: the deployed template, code artifacts, helper resources, secrets, domains and what to clean up.'
+---
+
+You can step back in two ways: leave the Console and keep deploying with the open-source CLI, or stop using Stacktape
+and manage the CloudFormation stacks yourself. Your app keeps running in both cases. Some steps only work while
+Stacktape can still deploy, so read the whole page before you start.
+
+This page is written from the CLI's source code. Nobody has run the full takeover on a live stack yet. Before you rely
+on it for production, try it on a disposable stage: take it over, ship one code change with your own tooling, then
+delete it.
+
+## Leave the Console, keep the CLI
+
+1. **Remove what only the Console provides.** Uptime checks, alarm channels of type `console-channel` and
+   `slack-app`, and `deploymentConfig.errorTracking`. Give each resource on a default `*.stacktape-app.com` domain a
+   [custom domain](/resources/networking/custom-domains), then deploy each stage while you're still signed in. The
+   default domain's DNS record is in Stacktape's zone, so only a signed-in deploy can remove it.
+2. **Sign out.** Run [`stacktape logout`](/cli/logout). In CI, remove `STACKTAPE_API_KEY` from the pipeline.
+3. **Deploy each stage once more.** A stage deployed while signed in keeps sending errors, alarm state changes and
+   uptime results to Stacktape. A deploy without an account removes that. Until you remove the features from step 1,
+   the CLI refuses this deploy and says which feature is left.
+4. **Disconnect the AWS account.** In the Console, choose **Disconnect account** on **Configuration → AWS accounts**,
+   then delete the connection stack, `stacktape-<connection ID>` in `eu-west-1`. See
+   [Revoke access](/stacktape-console/aws-permissions#revoke-access).
+5. **Remove the uptime probes.** They live outside your stacks, in each region that probed: the
+   `stacktape-uptime-prober` function with its role and schedule, a bucket named `stp-uptime-prober-*` and SSM
+   parameters under `/stacktape/uptime-checks/`. Nothing deletes them for you.
+
+What the Console already stored stays with Stacktape. Error issues, for example, have no time limit; see
+[where errors are stored](/observability/error-tracking#where-errors-are-stored-and-for-how-long).
+
+## Stop using Stacktape
+
+### Before you leave
+
+Do these while the CLI can still deploy:
+
+1. **Leave the Console first**, if you use it. See the steps above.
+2. **Deploy each stage with `--full`:**
+
+   ```bash
+   stacktape deploy --stage production --full
+   ```
+
+   When only code changes, a normal deploy updates functions and containers directly, without CloudFormation. The
+   stack's template can then still name older code. `--full` sends everything through CloudFormation, so the template
+   describes the code that runs.
+3. **Save the deployed template.** In the AWS console, open **CloudFormation**, the stack `<project>-<stage>` and its
+   **Template** tab, or run:
+
+   ```bash
+   aws cloudformation get-template --stack-name my-app-production --query TemplateBody --output text > template.yaml
+   ```
+
+   Don't use `stacktape synth` for this. It doesn't build your code, so it leaves the code locations empty, and a
+   deploy adds a few resources that synth doesn't write.
+
+### What you take over
+
+**The stack.** Update it with your saved template, with `aws cloudformation deploy` or change sets. It has no
+parameters. Its stack policy refuses to replace or delete databases with deletion protection, and it has termination
+protection if your config set `deploymentConfig.terminationProtection`. The `StpDeploymentVersion` and
+`StpStackInfoMap` outputs and the `stp:*` tags are only for Stacktape.
+
+**Shipping code.** Stacktape built your code and uploaded it. That becomes your build's job:
+
+- Function code is a zip in the deployment bucket, `stp-deployment-bucket-<hash>`. Upload the new zip under a new key
+  and change the function's `Code.S3Key` in the template.
+- Container images are in the ECR repository `<hash>-stp-multi-container-workload-repo`. Push a new tag and change the
+  image in the task definition.
+- Functions at the CDN edge get their code through a custom resource. Change its `artifactS3Key` property.
+
+The bucket and the repository are not part of the stack, so they stay when the stack goes. Untagged images expire after
+a day. Nothing prunes old zips and tagged images any more.
+
+**The service function.** Each stack has a function named `<stack>-stpService-CR`. CloudFormation calls it to create,
+update and delete the stack's custom resources: the `Custom::Stp*` types and the `AWS::CloudFormation::CustomResource`
+entries, such as SQS queues, EventBridge rules and CDN edge functions. It also tags resources every two hours and
+delivers alarm notifications. It runs in your account and its source is on GitHub, under the MIT license. Keep it. To
+remove it, you would replace each custom resource with its native CloudFormation type, and CloudFormation would
+create those resources again.
+
+**Registered resource types.** Blue/green container deployments, MongoDB Atlas and Upstash use CloudFormation types
+that Stacktape registered in your account and region: `Stacktape::ECSBlueGreenV1::Service`, `MongoDB::StpAtlasV1::*`
+and `Upstash::DatabasesV1::Database`, with execution roles named `stp-*`. They stay registered and keep working. Keep
+them while a stack uses them.
+
+**Secrets.** Secrets you created with `stacktape secret set` are ordinary Secrets Manager secrets with the name you
+gave them, outside the stack. The template points at one version of each secret. After you change a value, put the
+new version ID in the template and update the stack. The stack's `<Name>CurrentSecretVersionId` output shows the
+version it uses. Some generated values are SSM SecureString parameters under `/stp/<region>/<stack>/`.
+
+**Domains and certificates.** `stacktape domain add` created the Route 53 hosted zone and the ACM certificates, in
+your region and in `us-east-1`, outside the stack. They stay, and ACM keeps renewing the certificates while their
+validation records exist. The DNS records of your resources are in the stack.
+
+**The shared network.** Non-production stages use the `stacktape-network` stack and, with NAT, `stacktape-network-nat`.
+A function inside the network stack deletes both after 24 hours without stages. It doesn't call Stacktape.
+
+**Your workflow.** Replace the CLI commands with AWS tools:
+
+| Stacktape | AWS |
+|---|---|
+| `stacktape deploy` in CI | Your build, an upload to S3 or ECR, then `aws cloudformation deploy` |
+| `stacktape logs` | `aws logs tail` or CloudWatch Logs Insights |
+| `stacktape secret set` | `aws secretsmanager put-secret-value`, then update the template |
+| `stacktape bastion tunnel`, `stacktape container exec` | `aws ssm start-session`, `aws ecs execute-command` |
+| `stacktape dev` | Your own local setup |
+
+Alarms are CloudWatch alarms in the stack and keep working.
+
+## Delete everything instead
+
+If you don't need the app any more, run [`stacktape delete`](/cli/delete) for each stage while you still have the CLI.
+It empties and removes the deployment bucket and the image repository too. It keeps:
+
+- secrets, hosted zones and ACM certificates;
+- the shared network, which removes itself a day later;
+- CDN edge functions in `us-east-1`, which AWS lets you delete a few hours later;
+- the uptime probes and the registered resource types;
+- the IAM role `stacktape-api-gateway-cloudwatch-logs` and the `stacktape-shared-email-identity-*` stacks, if a stack
+  used them.
+
+Delete those by hand when nothing uses them.
+
+<PreviousNext
+  left={{ title: 'Move to Stacktape', url: '/getting-started/evaluate/move-to-stacktape' }}
+/>

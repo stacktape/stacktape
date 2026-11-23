@@ -42,9 +42,10 @@ You connect your Git provider once, link the project to its repository and creat
 that should deploy. A Git deployment either deploys a fixed stage on every push to a branch, or deploys a preview stage
 `pr-<number>` for every pull request into a branch.
 
-The first Git deployment in an AWS account and region creates a [build runner](/ci-cd-and-gitops/build-runners) there.
-AWS bills its compute while it builds and its disks while it is stopped, about $8.80 a month in Ireland for the default
-disks. The runner and its disks are removed with the last Git deployment that uses them.
+A project's first Git deployment in an AWS account and region creates a [build runner](/ci-cd-and-gitops/build-runners)
+there. Each project gets its own runner, and the project's other Git deployments to that account and region share it.
+AWS bills its compute while it builds and its disks while it is stopped, about $8.80 a month per runner in Ireland for
+the default disks. The runner and its disks are removed with the last Git deployment that uses them.
 
 After the first successful deploy of a new stage, a CLI signed in to the Console offers to set this up: it asks whether
 pushes to your current branch should deploy that stage.
