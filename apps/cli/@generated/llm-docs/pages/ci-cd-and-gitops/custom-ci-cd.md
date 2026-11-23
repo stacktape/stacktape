@@ -152,7 +152,7 @@ The `needs: test` dependency ensures the deploy only runs when tests pass.
 
 Deploy a separate stack for each pull request from a branch in your repository and tear it down on close. Both jobs skip pull requests from forks. Each PR stage creates real AWS resources for whatever your Stacktape config defines — delete preview stages promptly to avoid accumulating unused infrastructure.
 
-The jobs use GitHub OIDC for AWS credentials. Set the repository variable `AWS_PREVIEW_ROLE_ARN` to an IAM role that trusts your repository’s [pull-request OIDC subject](https://docs.github.com/en/actions/reference/security/oidc#filtering-for-pull_request-events) for the deploy job and the subject of the `preview-cleanup` [environment](https://docs.github.com/en/actions/reference/security/oidc#filtering-for-a-specific-environment) for the cleanup job, and can deploy and delete preview stacks. Replace `my-project` with your project name in both jobs. Both workflows use the same [concurrency group](https://docs.github.com/en/actions/concepts/workflows-and-actions/concurrency) per pull request. Each job checks the current PR state so a delayed run can skip a stale open or close event.
+The jobs use GitHub OIDC for AWS credentials. Set the repository variable `AWS_PREVIEW_ROLE_ARN` to an IAM role that trusts your repository’s [pull-request OIDC subject](https://docs.github.com/en/actions/reference/security/oidc#filtering-for-pull_request-events) and can deploy and delete preview stacks. Replace `my-project` with your project name in both jobs. Both workflows use the same [concurrency group](https://docs.github.com/en/actions/concepts/workflows-and-actions/concurrency) per pull request. Each job checks the current PR state so a delayed run can skip a stale open or close event.
 
 ```yaml
 name: PR Preview
@@ -195,12 +195,10 @@ jobs:
 
 Add a cleanup workflow that runs when the PR is closed. Both jobs check out the PR's head commit so cleanup can load delete hooks defined on that branch.
 
-The cleanup workflow uses `pull_request_target`, because GitHub doesn't run `pull_request` workflows for a pull request with merge conflicts, and that includes its close. GitHub runs the copy of this workflow on your default branch. The job names the `preview-cleanup` environment because a `pull_request_target` job otherwise gets the base branch's OIDC subject, not the pull request's. Keep the fork check: `pull_request_target` runs with your repository's permissions even for a pull request from a fork, and this job checks out the pull request's code. From December 2, 2026, GitHub blocks `pull_request_target` in public repositories unless an [Actions event policy](https://docs.github.com/actions/how-tos/administer/control-workflow-execution) allows it. Allow it for this workflow.
-
 ```yaml
 name: Cleanup PR Preview
 on:
-  pull_request_target:
+  pull_request:
     types: [closed]
 concurrency:
   group: pr-preview-${{ github.event.pull_request.number }}
@@ -209,7 +207,6 @@ jobs:
   delete-preview:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    environment: preview-cleanup
     permissions:
       contents: read
       id-token: write
@@ -244,7 +241,7 @@ jobs:
 
 > **Warning:** Delete preview stages on PR close to avoid unused infrastructure and costs. Each preview stage provisions the full set of resources defined in your config — databases, functions, containers, and networking — all of which incur AWS charges while running.
 
-If cleanup doesn't run or fails, use the preview's AWS credentials and run `stacktape delete --project my-project --stage pr-<n> --region us-east-1 --yes` with the PR number in place of `<n>`.
+If GitHub skips cleanup because the PR has merge conflicts, use the preview's AWS credentials and run `stacktape delete --project my-project --stage pr-<n> --region us-east-1 --yes` with the PR number in place of `<n>`.
 
 If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
