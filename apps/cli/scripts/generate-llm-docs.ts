@@ -727,6 +727,37 @@ const transformComponents = (body: string): string => {
       .join('\n');
   });
 
+  // The home page hero without a body.
+  result = result.replace(/<LandingHero\b([^>]*?)\/>/g, (_, props) => {
+    const title = propStringValue(props, 'title');
+    const accent = propStringValue(props, 'accent');
+    const subtitle = propStringValue(props, 'subtitle');
+    return ['', `# ${[title, accent].filter(Boolean).join(' ') || 'Stacktape'}`, '', subtitle, '']
+      .filter((line) => line !== undefined)
+      .join('\n');
+  });
+
+  // The home page's config-to-AWS figure is visual; its caption carries the text.
+  result = result.replace(/<ConfigToAws>([\s\S]*?)<\/ConfigToAws>/g, (_, children) => `\n\n${children.trim()}\n\n`);
+
+  result = result.replace(/<\/?GoalPaths>/g, '');
+  result = result.replace(/<GoalPath\b([^>]*)>([\s\S]*?)<\/GoalPath>/g, (fullMatch, props, children) => {
+    const title = propStringValue(props, 'title');
+    if (!title) throw new Error(`GoalPath is missing title: ${fullMatch.slice(0, 120)}`);
+    const links = [...props.matchAll(/label:\s*'([^']+)',\s*href:\s*'([^']+)'/g)].map(
+      ([, label, href]) => `- [${label}](${href})`
+    );
+    return ['', `### ${title}`, '', children.trim().replace(/\s*\n\s*/g, ' '), '', ...links, ''].join('\n');
+  });
+
+  result = replaceSelfClosingMdxComponent(result, 'DocsMap', (fullMatch, propsRaw) => {
+    const items = [...propsRaw.matchAll(/title:\s*'([^']+)',\s*href:\s*'([^']+)',\s*text:\s*'([^']+)'/g)].map(
+      ([, title, href, text]) => `- [${title}](${href}): ${text}`
+    );
+    if (items.length === 0) throw new Error(`DocsMap could not be parsed: ${fullMatch.slice(0, 120)}`);
+    return `\n\n${items.join('\n')}\n\n`;
+  });
+
   result = result.replace(/<CTASection\b([^>]*)>([\s\S]*?)<\/CTASection>/g, (_, props, children) => {
     const title = propStringValue(props, 'title');
     const subtitle = propStringValue(props, 'subtitle');

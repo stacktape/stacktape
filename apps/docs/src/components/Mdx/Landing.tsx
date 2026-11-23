@@ -248,10 +248,10 @@ export function GoalPaths({ children }: { children: ReactNode }) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Docs map (one card per sidebar section; title and icon come from the sidebar config)
+// Docs map (one card per sidebar section; the icon comes from the sidebar config)
 // ────────────────────────────────────────────────────────────────────────────
 
-type MapItem = { section: string; href: string; text: string };
+type MapItem = { section: string; title: string; href: string; text: string };
 
 export function DocsMap({ items }: { items: MapItem[] }) {
   const groups = siteConfig.sidebar.groups;
@@ -271,7 +271,7 @@ export function DocsMap({ items }: { items: MapItem[] }) {
               <SectionIcon size={17} />
             </span>
             <span className="min-w-0">
-              <span className="block text-[0.9rem] font-[650] text-fc-primary">{group.title}</span>
+              <span className="block text-[0.9rem] font-[650] text-fc-primary">{item.title}</span>
               <span className="block mt-[2px] text-[0.8rem] leading-[1.5] text-fc-light">{item.text}</span>
             </span>
           </a>
