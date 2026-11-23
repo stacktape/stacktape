@@ -23,6 +23,7 @@ import { createHash } from 'node:crypto';
 import { CliError, ExpectedError } from '@utils/errors';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -84,8 +85,8 @@ type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 type FullDeployOperation = {
   deploymentArtifacts: {
     cloudformationTemplateUrl: string;
-    deleteAllObsoleteArtifacts: () => Promise<unknown>;
-    deleteArtifactsFixedDeploy: () => Promise<unknown>;
+    deleteAllObsoleteArtifacts: (input: { deployedTemplate: CloudFormationTemplate }) => Promise<unknown>;
+    deleteArtifactsFixedDeploy: (input: { deployedTemplate: CloudFormationTemplate }) => Promise<unknown>;
     deleteArtifactsRollbackedDeploy: () => Promise<unknown>;
     uploadPreviewTemplate: (input: {
       body: string;
@@ -598,7 +599,11 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
       budget.loadBudgets(),
       globalStateManager.isAccountFree ? undefined : deleteUndeployedStage()
     ]);
-    obsoleteArtifactDeletion = deleteObsoleteArtifacts({ deploymentArtifacts, fixedFailedUpdate });
+    obsoleteArtifactDeletion = deleteObsoleteArtifacts({
+      deploymentArtifacts,
+      fixedFailedUpdate,
+      deployedTemplate: template.getTemplate()
+    });
     obsoleteArtifactDeletion.catch(() => {});
     await deployedStackOverview.refreshStackInfoMap({
       stackDetails: stack.existingStackDetails,
@@ -845,16 +850,19 @@ export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: Ful
 /** Removes the artifacts a successful full deployment no longer needs. */
 export const deleteObsoleteArtifacts = async ({
   deploymentArtifacts,
-  fixedFailedUpdate
+  fixedFailedUpdate,
+  deployedTemplate
 }: {
   deploymentArtifacts: FullDeployOperation['deploymentArtifacts'];
   /** The deployment continued a stack an earlier failed deploy left in CREATE_FAILED or UPDATE_FAILED. */
   fixedFailedUpdate: boolean;
+  /** The template this deployment deployed. Cleanup keeps every artifact it names. */
+  deployedTemplate: CloudFormationTemplate;
 }) => {
   // A deploy that continued a failed stack can leave artifacts of the earlier attempts with the same version. They are
   // cleaned up before old versions are deleted with deleteAllObsoleteArtifacts.
   if (fixedFailedUpdate) {
-    await deploymentArtifacts.deleteArtifactsFixedDeploy();
+    await deploymentArtifacts.deleteArtifactsFixedDeploy({ deployedTemplate });
   }
-  await deploymentArtifacts.deleteAllObsoleteArtifacts();
+  await deploymentArtifacts.deleteAllObsoleteArtifacts({ deployedTemplate });
 };

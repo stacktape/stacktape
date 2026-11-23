@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import type { DeploymentArtifactUsage } from './retention';
-import { keepImagesOfRunningServices, keepLayersOfRetainedReleases, selectObsoleteArtifacts } from './retention';
+import {
+  artifactsNamedByTemplate,
+  keepImagesInUse,
+  keepLayersOfRetainedReleases,
+  selectObsoleteArtifacts
+} from './retention';
 
 const noUsage: DeploymentArtifactUsage = {
   uploadedObjects: [],
@@ -89,7 +94,7 @@ describe('shared layers of retained releases', () => {
   });
 });
 
-describe('images of running services', () => {
+describe('images in use', () => {
   const repositoryUrl = '123456789012.dkr.ecr.eu-west-1.amazonaws.com/repo';
   // After several code swaps the service still runs the v000003 image, now outside the retention window.
   const stored = [
@@ -101,9 +106,9 @@ describe('images of running services', () => {
 
   test('keeps the image a running task revision pulls, including its untagged digest entry', () => {
     expect(
-      keepImagesOfRunningServices({
+      keepImagesInUse({
         obsolete: stored,
-        liveImages: [`${repositoryUrl}:api--v000003--aaa`, 'public.ecr.aws/other:tag'],
+        imagesInUse: [`${repositoryUrl}:api--v000003--aaa`, 'public.ecr.aws/other:tag'],
         repositoryUrl,
         storedImages: stored
       })
@@ -115,15 +120,86 @@ describe('images of running services', () => {
 
   test('keeps an image referenced by digest and deletes everything when nothing runs from the repository', () => {
     expect(
-      keepImagesOfRunningServices({
+      keepImagesInUse({
         obsolete: stored,
-        liveImages: [`${repositoryUrl}@sha256:orphan`],
+        imagesInUse: [`${repositoryUrl}@sha256:orphan`],
         repositoryUrl,
         storedImages: stored
       }).map(({ dockerDigest }) => dockerDigest)
     ).toEqual(['sha256:running', 'sha256:running', 'sha256:old']);
+    expect(keepImagesInUse({ obsolete: stored, imagesInUse: [], repositoryUrl, storedImages: stored })).toEqual(stored);
+  });
+});
+
+describe('artifacts the deployed template names', () => {
+  const repositoryUrl = '123456789012.dkr.ecr.eu-west-1.amazonaws.com/deployment';
+  const template = {
+    Resources: {
+      Api: {
+        Type: 'AWS::Lambda::Function',
+        Properties: { Code: { S3Bucket: 'deployment-bucket', S3Key: 'api/v1.zip' }, Handler: 'index.handler' }
+      },
+      Layer: { Type: 'AWS::Lambda::LayerVersion', Properties: { Content: { S3Key: 'shared-layer-1/v1.zip' } } },
+      Task: {
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: {
+          ContainerDefinitions: [
+            { Image: `${repositoryUrl}:web--v1` },
+            { Image: 'public.ecr.aws/docker/library/busybox:latest' }
+          ]
+        }
+      }
+    }
+  };
+
+  test('names the S3 keys and the images in the stack repository, wherever they sit', () => {
+    const named = artifactsNamedByTemplate({ template, repositoryUrl });
+    expect(named.s3Keys).toEqual(expect.arrayContaining(['api/v1.zip', 'shared-layer-1/v1.zip']));
+    expect(named.images).toEqual([`${repositoryUrl}:web--v1`]);
+  });
+
+  // Fast deployments moved api and web far past the window; CloudFormation still runs the v1 template.
+  test('keeps what the template names once fast deployments pushed it out of the window', () => {
+    const versions = ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'];
+    const named = artifactsNamedByTemplate({ template, repositoryUrl });
+    const obsolete = selectObsoleteArtifacts({
+      artifacts: versions.map((version) => objectArtifact('api', version)),
+      usage: { ...noUsage, reusedS3Keys: named.s3Keys }
+    });
+    expect(namesOf(obsolete)).toEqual(['api/v2.zip', 'api/v3.zip']);
+    const stored = versions.map((version) => ({ ...imageArtifact('web', version), dockerDigest: `sha256:${version}` }));
+    const obsoleteImages = keepImagesInUse({
+      obsolete: selectObsoleteArtifacts({ artifacts: stored, usage: noUsage }),
+      imagesInUse: named.images,
+      repositoryUrl,
+      storedImages: stored
+    });
+    expect(namesOf(obsoleteImages)).toEqual(['web--v2', 'web--v3']);
+  });
+
+  // A prebuilt image pinned by digest; ECR deletes the manifest together with its last tag.
+  test('keeps every tag of an image the template pins by digest', () => {
+    const pinned = {
+      Resources: {
+        Task: {
+          Type: 'AWS::ECS::TaskDefinition',
+          Properties: { ContainerDefinitions: [{ Image: `${repositoryUrl}@sha256:pinned` }] }
+        }
+      }
+    };
+    const stored = [
+      { name: '', version: '', tag: 'stable', dockerDigest: 'sha256:pinned' },
+      { name: '', version: '', tag: 'old', dockerDigest: 'sha256:old' }
+    ];
+    const obsolete = selectObsoleteArtifacts({ artifacts: stored, usage: noUsage });
+    expect(namesOf(obsolete)).toEqual(['old', 'stable']);
     expect(
-      keepImagesOfRunningServices({ obsolete: stored, liveImages: [], repositoryUrl, storedImages: stored })
-    ).toEqual(stored);
+      keepImagesInUse({
+        obsolete,
+        imagesInUse: artifactsNamedByTemplate({ template: pinned, repositoryUrl }).images,
+        repositoryUrl,
+        storedImages: stored
+      }).map(({ tag }) => tag)
+    ).toEqual(['old']);
   });
 });

@@ -20,9 +20,12 @@ export type DeploymentArtifactUsage = {
   uploadedObjects: { s3Key: string; name: string }[];
   /** Images this run pushed to the repository. */
   uploadedImages: { tag: string; name: string }[];
-  /** Objects already present that this run's template references, shared layers among them. */
+  /**
+   * Objects already present that this run's template references, shared layers among them, and the objects the
+   * template CloudFormation runs names (`artifactsNamedByTemplate`).
+   */
   reusedS3Keys: string[];
-  /** Images already present that this run's template references. */
+  /** Images already present that this run's template or the template CloudFormation runs references by tag. */
   reusedImageTags: string[];
   /** Versions to keep per artifact name, including the one being deployed. */
   versionsToKeepPerName: number;
@@ -79,6 +82,42 @@ export const selectObsoleteArtifacts = <Artifact extends StoredArtifact>({
 };
 
 /**
+ * The stored objects and images a template names: S3 keys as written, images as `<repositoryUrl>:<tag>` or
+ * `<repositoryUrl>@<digest>`.
+ *
+ * Cleanup protects what the template CloudFormation runs names. After a full deployment that is the template just
+ * deployed: it can adopt an older image or object that is no longer in the keep window, such as a `prebuilt-image` with
+ * an older tag. After a fast deployment, CloudFormation stays on the template of the last full deployment. A function or
+ * service that changed in more fast deployments than the keep window holds pushes those artifacts out of the window,
+ * yet CloudFormation still needs them: a later update that fails rolls the code back to them, and ECS pulls the image
+ * again whenever it starts a task of the template's revision.
+ *
+ * Every string in the template is a candidate key, wherever it sits (function code, layer content, custom resource
+ * properties); one that names no stored object matches nothing.
+ */
+export const artifactsNamedByTemplate = ({
+  template,
+  repositoryUrl
+}: {
+  template: { Resources?: Record<string, unknown> } | undefined;
+  repositoryUrl: string;
+}) => {
+  const strings = new Set<string>();
+  const visit = (value: unknown) => {
+    if (typeof value === 'string') strings.add(value);
+    else if (Array.isArray(value)) value.forEach(visit);
+    else if (value && typeof value === 'object') Object.values(value).forEach(visit);
+  };
+  visit(template?.Resources);
+  return {
+    s3Keys: [...strings],
+    images: [...strings].filter(
+      (value) => value.startsWith(`${repositoryUrl}:`) || value.startsWith(`${repositoryUrl}@`)
+    )
+  };
+};
+
+/**
  * The obsolete artifacts a retained release still needs. A shared layer's key orders by content hash, not by age, so
  * the window above can select a layer that a release kept for rollback still uses; deleting it would make that release
  * impossible to restore and take its source maps with it. Such a layer stays while a retained template references it.
@@ -108,28 +147,32 @@ export const keepLayersOfRetainedReleases = <Artifact extends { s3Key: string }>
 };
 
 /**
- * The obsolete images a running service still uses. A code swap keeps the service on an older task revision, so its
- * image can fall out of the window; deleting it would make replacement and scale-out tasks fail to pull. A running
- * image is kept by tag, and its manifest digest is kept too, so the untagged entry behind it survives as well.
+ * The obsolete images that are still in use: named by the deployed template, pushed or reused by this deployment, or
+ * run by a service. A code swap keeps a service on an older task revision, so its image can fall out of the window.
+ * Deleting an image in use would make replacement and scale-out tasks fail to pull.
+ *
+ * An image in use is kept by tag and by manifest digest. A reference by tag keeps the untagged entry behind it. A
+ * reference by digest keeps every tag of that manifest, because ECR deletes the manifest with its last tag.
  */
-export const keepImagesOfRunningServices = <Image extends { tag: string; dockerDigest: string }>({
+export const keepImagesInUse = <Image extends { tag: string; dockerDigest: string }>({
   obsolete,
-  liveImages,
+  imagesInUse,
   repositoryUrl,
   storedImages
 }: {
   obsolete: Image[];
-  liveImages: string[];
+  /** Image URIs, by tag or by digest. URIs outside `repositoryUrl` are ignored. */
+  imagesInUse: string[];
   repositoryUrl: string;
   storedImages: { tag: string; dockerDigest: string }[];
 }): Image[] => {
   const liveTags = new Set(
-    liveImages.flatMap((image) =>
+    imagesInUse.flatMap((image) =>
       image.startsWith(`${repositoryUrl}:`) ? [image.slice(repositoryUrl.length + 1)] : []
     )
   );
   const liveDigests = new Set([
-    ...liveImages.flatMap((image) =>
+    ...imagesInUse.flatMap((image) =>
       image.startsWith(`${repositoryUrl}@`) ? [image.slice(repositoryUrl.length + 1)] : []
     ),
     ...storedImages.filter(({ tag }) => tag && liveTags.has(tag)).map(({ dockerDigest }) => dockerDigest)

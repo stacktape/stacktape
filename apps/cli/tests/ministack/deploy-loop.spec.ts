@@ -530,7 +530,11 @@ test('repairing UPDATE_FAILED removes abandoned attempts while retaining the dep
       },
       tui: { info: () => {}, warn: () => {} }
     });
-    await deleteObsoleteArtifacts({ deploymentArtifacts: deploymentArtifactManager, fixedFailedUpdate: true });
+    await deleteObsoleteArtifacts({
+      deploymentArtifacts: deploymentArtifactManager,
+      fixedFailedUpdate: true,
+      deployedTemplate: { Resources: {} } as unknown as CloudFormationTemplate
+    });
     const keys = ((await s3.send(new ListObjectsV2Command({ Bucket: bucket }))).Contents ?? [])
       .map(({ Key }) => Key)
       .toSorted();
