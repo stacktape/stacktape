@@ -992,24 +992,16 @@
   }
 
   /* ── 404 ───────────────────────────────────────────────────────────────────────────────── */
-  .docs-404 {
-    padding-top: var(--docs-space-24);
-  }
-  .docs-404-code {
-    margin: 0 0 var(--docs-space-8);
-    color: var(--docs-accent-text);
-    font-family: var(--docs-font-mono);
-    font-size: var(--docs-text-sm);
-    font-weight: var(--docs-weight-medium);
-  }
-  .docs-404-actions {
+  .docs-404-search {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--docs-space-12);
-    margin-top: var(--docs-space-24);
+    gap: var(--docs-space-8);
+    margin-block: var(--docs-space-24) var(--docs-space-8);
   }
-  .docs-404-links {
-    margin-top: var(--docs-space-32);
+  .docs-404-search .docs-directory-search {
+    flex: 1 1 16rem;
+    max-width: 26rem;
+    margin: 0;
   }
   .docs-button {
     display: inline-flex;
@@ -1060,6 +1052,16 @@
   .docs-directory-empty {
     color: var(--docs-text-muted);
     font-size: var(--docs-text-ui);
+  }
+  .docs-directory-search-all {
+    color: var(--docs-accent-text);
+    font-weight: var(--docs-weight-medium);
+    text-decoration: underline;
+    text-decoration-color: var(--docs-accent-line);
+    text-underline-offset: 0.22em;
+  }
+  .docs-directory-search-all:hover {
+    color: var(--docs-accent-text-hover);
   }
 
   /* Rows: name, description and an optional tag in fixed columns. The whole row opens the page. */

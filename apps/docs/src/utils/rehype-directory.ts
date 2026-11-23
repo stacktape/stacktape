@@ -60,14 +60,11 @@ const toRow = (item: HastNode) => {
  */
 export function rehypeDirectory() {
   return (tree: AstNode) => {
-    visit(
-      tree,
-      (node: AstNode) => node.type === 'mdxJsxFlowElement' && node.name === 'Directory',
-      (directory: AstNode) => {
-        visit(directory, 'element', (node: HastNode) => {
-          if (node.tagName === 'li') toRow(node);
-        });
-      }
-    );
+    visit(tree, 'mdxJsxFlowElement', (directory: AstNode) => {
+      if (directory.name !== 'Directory') return;
+      visit(directory, 'element', (node: HastNode) => {
+        if (node.tagName === 'li') toRow(node);
+      });
+    });
   };
 }

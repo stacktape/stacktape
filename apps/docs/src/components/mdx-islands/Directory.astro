@@ -28,7 +28,11 @@ const { label, layout = 'rows' } = Astro.props;
     />
   </label>
   <div class="docs-directory-body" data-directory-body><slot /></div>
-  <p class="docs-directory-empty" data-directory-empty hidden>Nothing here matches. Search the docs instead: Ctrl+K.</p>
+  <p class="docs-directory-empty" data-directory-empty hidden>
+    Nothing here matches. <button type="button" class="docs-directory-search-all" data-directory-search>
+      Search the docs
+    </button>
+  </p>
 </div>
 
 <script>

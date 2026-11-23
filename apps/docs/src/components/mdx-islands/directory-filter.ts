@@ -1,3 +1,5 @@
+import { openSearch } from '@/components/Search/open-search';
+
 /** The filter of `<Directory>` (Directory.astro): hides rows that do not match and the sections left empty. */
 const normalize = (value: string | null) => (value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 
@@ -53,6 +55,7 @@ const setUp = (root: HTMLElement) => {
         ?.click();
     }
   });
+  root.querySelector('[data-directory-search]')?.addEventListener('click', () => openSearch(input.value.trim()));
   // A value the browser restored on back navigation still filters.
   if (input.value) apply();
 };
