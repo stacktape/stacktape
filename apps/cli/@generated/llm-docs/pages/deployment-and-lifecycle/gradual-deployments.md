@@ -1,6 +1,6 @@
 # Gradual Deployments
 
-Gradual deployments shift traffic from the old version of your code to the new version incrementally — canary or linear — instead of switching all at once. Stacktape supports gradual deployments for [Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), and [multi-container workloads](/resources/compute/multi-container-workload) that use an [application load balancer](/resources/networking/application-load-balancer). For Lambda functions, traffic rolls back to the previous version automatically if issues arise. Container workloads use the `deployment` property with an application load balancer for gradual traffic shifting.
+Gradual deployments shift traffic from the old version of your code to the new version incrementally — canary or linear — instead of switching all at once. Stacktape supports gradual deployments for [Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), and [multi-container workloads](/resources/compute/multi-container-workload) that use an [application load balancer](/resources/networking/application-load-balancer). For Lambda functions, CodeDeploy can restore the previous version when the deployment fails, a configured rollback alarm fires, or the deployment is stopped. Container workloads use the `deployment` property with an application load balancer for gradual traffic shifting.
 
 ## When to use
 
@@ -21,7 +21,7 @@ Gradual deployments add deploy-time complexity and extend total deployment durat
 
 ## Lambda function strategies
 
-Lambda functions support nine deployment strategies through the `deployment` property on [LambdaFunction](/resources/compute/lambda-function). Underneath, AWS CodeDeploy manages the traffic shift between versions. If issues arise during the shift, traffic rolls back to the previous version automatically.
+Lambda functions support nine deployment strategies through the `deployment` property on [LambdaFunction](/resources/compute/lambda-function). Underneath, AWS CodeDeploy manages the traffic shift between versions. CodeDeploy rolls back if the deployment fails, including when a validation hook reports failure.
 
 ### Strategy reference
 
@@ -67,7 +67,7 @@ export default defineConfig(() => {
 ```
 
 
-The `memory` value (in MB) sets Lambda memory and proportional CPU allocation, while `timeout` (in seconds) caps execution time — tune both for your handler. The gradual deployment behavior depends only on the `deployment.strategy` block. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes with no issues, the remaining 90% shifts over. If issues arise during the canary window, traffic rolls back to the previous version automatically. Use a `beforeAllowTrafficFunction` hook to run a validation step that can stop the deployment and trigger rollback before traffic shifts. You can also configure [alarms](/observability/alarms) to monitor error rates during the canary window.
+The `memory` value (in MB) sets Lambda memory and proportional CPU allocation, while `timeout` (in seconds) caps execution time — tune both for your handler. The gradual deployment behavior depends only on the `deployment.strategy` block. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes, the remaining 90% shifts over if CodeDeploy has not stopped the deployment. Application errors alone do not stop the rollout. Use a `beforeAllowTrafficFunction` hook to run a validation step that can stop the deployment and trigger rollback before traffic shifts. To make errors trigger a CodeDeploy rollback, customize the deployment group to attach a CloudWatch alarm.
 
 ### Lambda lifecycle hooks
 
@@ -240,9 +240,9 @@ Gradual deployments extend total deployment time. The minimum overhead equals th
 
 ## Rollback behavior
 
-Stacktape gradual deployment rollback operates at the traffic-routing layer — Lambda alias weights or ALB target group routing are updated to redirect all traffic back to the previous version without a full redeploy. For Lambda functions, if issues arise during traffic shifting, Lambda automatically rolls back by restoring the alias weights to point 100% of traffic to the previous version. The `beforeAllowTrafficFunction` hook can also trigger a rollback by signaling failure — the deployment stops before any user traffic reaches the new code.
+For Lambda functions, CodeDeploy restores the alias weights to point 100% of traffic to the previous version on deployment failure, a configured rollback alarm or a stop request. The `beforeAllowTrafficFunction` hook can also trigger a rollback by signaling failure — the deployment stops before any user traffic reaches the new code.
 
-Container workloads configure the same `beforeAllowTrafficFunction` hook through `ContainerWorkloadDeploymentConfig`. The hook runs a Lambda function before traffic shifts to the new version for validation — see the [web service](/resources/compute/web-service) and [multi-container workload](/resources/compute/multi-container-workload) pages for container-specific deployment details.
+The container CodeDeploy deployment group has automatic rollback disabled. Container workloads configure the same `beforeAllowTrafficFunction` hook through `ContainerWorkloadDeploymentConfig`. The hook runs a Lambda function before traffic shifts to the new version for validation — see the [web service](/resources/compute/web-service) and [multi-container workload](/resources/compute/multi-container-workload) pages for container-specific deployment details.
 
 For rolling back completed deployments to an earlier version of your stack, see [`stacktape rollback`](/cli/rollback).
 
@@ -268,7 +268,7 @@ Gradual deployments themselves don't add AWS costs beyond what you pay for the u
 |--------|-----------------|------------------------------------------|
 | Strategies available | 9 (finer time granularity) | 5 |
 | Load balancer required | No | Yes (`application-load-balancer`) |
-| Auto-rollback | On failure or hook failure | Via hook validation |
+| Auto-rollback | On deployment failure, configured rollback alarm or stop request | Disabled for the CodeDeploy deployment group |
 | Lifecycle hooks | `beforeAllowTrafficFunction`, `afterTrafficShiftFunction` | Same, plus `testListenerPort` |
 | Cost overhead | None | Temporary extra capacity during shift |
 | Linear naming | `Linear10PercentEvery1Minute` (no "s") | `Linear10PercentEvery1Minutes` (with "s") |
@@ -291,7 +291,7 @@ The API reference above covers **Lambda deployment configuration only**. Contain
 
 ### What happens if my deployment fails during the canary window?
 
-For Lambda functions, traffic automatically reverts to the previous version — AWS CodeDeploy restores the alias weights to point 100% of traffic to the previous version. For container workloads, the `beforeAllowTrafficFunction` hook can block traffic from shifting to the new version. Rollback operates at the traffic-routing layer (Lambda alias weights or ALB target group routing) rather than a full redeploy, so it's fast; exact propagation time depends on AWS service behavior and active connections draining from the new version.
+For Lambda functions, CodeDeploy restores the previous version when the deployment fails, a configured rollback alarm fires, or the deployment is stopped. For container workloads, the `beforeAllowTrafficFunction` hook can block traffic from shifting to the new version. CodeDeploy restores the old Lambda version by resetting the alias weights.
 
 ### Can I use gradual deployments with HTTP API Gateway?
 

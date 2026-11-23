@@ -41,7 +41,7 @@ An alarm sends to the `notificationChannels` listed on it, such as Slack, email 
 
 The **Error tracking** page in the Observability group is a built-in error inbox. Stacktape reads runtime errors from the logs of your functions and containers and groups repeated occurrences into one issue per distinct error and resource, with the error message, project, stage, function name, occurrence count and last-seen time.
 
-Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
+With the Console, error tracking is on by default. Without the Console, it defaults to off, and enabling it in config stops the deploy with `CONFIG_NEEDS_CONSOLE`. Deployed workloads that meet the [error tracking requirements](/observability/error-tracking#turning-error-tracking-off-or-limiting-stages) send errors to the Console. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
 
 <ConsoleScreenshot src="/static/screenshots/console-issues-page.png" alt="Stacktape Console Error tracking page showing summary cards (Open/Resolved/Ignored counts), filters, and a table of runtime errors with occurrence counts and status" caption="The Error tracking page groups repeated runtime errors so you don't search logs by hand." />
 

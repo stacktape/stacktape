@@ -2,6 +2,8 @@
 
 A Stacktape CDN attaches a CloudFront distribution to a parent resource — `bucket`, `http-api-gateway`, `application-load-balancer`, and `function` resources are supported. It caches content at edge locations worldwide so users hit the nearest server instead of your origin. Pay-per-use pricing: ~$0.01 per 10,000 requests plus data transfer, no monthly base cost. See [buckets](/resources/storage/s3-bucket), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), and [Lambda functions](/resources/compute/lambda-function) for the parent resource pages.
 
+A CDN attached to an Application Load Balancer needs its own `cdn.customDomains` when you deploy without the Console. Without them, the deploy stops with `CONFIG_NEEDS_CONSOLE`. Bucket, function and API Gateway CDNs can use the CloudFront URL.
+
 ## When to use
 
 CDN is the right choice when your users are geographically distributed and you want lower latency, reduced origin load, or both. It also unlocks multi-origin routing, edge-level request manipulation, and WAF protection at the CloudFront layer.

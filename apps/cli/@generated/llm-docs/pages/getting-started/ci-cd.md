@@ -23,13 +23,15 @@ In the Console, these rules are called **Git deployments**. Each one maps a Git 
 - **Stage** — the stage to deploy, such as `production` or `staging`; pull request previews always use `pr-<number>`
 - **AWS account and region** — where the stage deploys
 - **Config path** — the Stacktape config file in the repository
-- **Delete stack after pull request is merged or closed?** — for previews, deletes the preview stage when the pull request closes
+- **Delete stack after pull request is merged or closed?** — for previews, starts deleting the preview stack when the pull request closes
 
 You can create several Git deployments per project — for example, one that deploys `main` to `production` and another that creates preview environments for every pull request.
 
 ### PR preview environments
 
-When you configure a pull request trigger, Stacktape creates an isolated stage for each pull request (merge request on GitLab), named `pr-<number>`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape deletes the stage if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
+When you configure a pull request trigger, Stacktape creates a separate stage named `pr-<number>` for each pull request (merge request on GitLab). For PR 42 in project `shop`, stage `pr-42` deploys as CloudFormation stack `shop-pr-42`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape starts deleting the preview stack if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
+
+If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
 If several pushes arrive close together, deployments of the same stage run one after another, never at the same time.
 
@@ -48,7 +50,7 @@ The pipeline needs one of these:
 | Credentials | When to use |
 |----------|---------|
 | AWS credentials only | Without a Stacktape account. Set AWS credentials in the job, for example with an IAM role your CI provider assumes through OIDC. The CLI deploys to the AWS account they belong to. See [CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account). |
-| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Create a key in the Console under [API keys](/stacktape-console/api-keys). The CLI deploys into the AWS account you connected to your Stacktape organization. |
+| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. For team CI, create an organization key under [API keys](/stacktape-console/api-keys). The CLI deploys into the AWS account you connected to your Stacktape organization. |
 
 Store credentials in your CI provider's secret store and expose them to the CLI as environment variables. The examples below use an API key.
 

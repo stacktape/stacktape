@@ -39,10 +39,11 @@ The stack goes to the AWS account those credentials belong to. Resources get AWS
 | Alarms in your configuration, with `slack`, `ms-teams`, `discord`, `email` or `webhook` channels | Works | CloudWatch alarms live in your AWS account, and the stack delivers these notifications itself |
 | Deploy history, costs and team access | Needs the Console | Stored by Stacktape and shared by your team |
 | Alarm channels of type `console-channel` and `slack-app`, and deploy notifications | Needs the Console | The Console delivers these alerts |
-| Uptime checks and synthetic tests | Needs the Console | Stacktape runs the probes from outside your account |
+| Uptime checks and synthetic tests | Needs the Console | Uptime probes run in your AWS account. The Console shows the results. |
 | Error tracking, incidents and incident AI | Needs the Console | Stacktape stores and groups the events |
 | Default `*.stacktape-app.com` domains, including the one a load balancer without its own domain needs for HTTPS | Needs the Console | Stacktape owns that domain |
-| Git deployments, PR previews and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |
+| PR preview deploys from your own CI | Works | The CI job deploys and deletes stages with your AWS credentials |
+| Console Git deployments and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |
 | Organization-wide guardrails, security reports and the audit log | Needs the Console | They apply to, and are shared by, the whole organization |
 
 Commands that are Console features by nature, such as `stacktape org list`, `stacktape project create`, `stacktape error list`, `stacktape incident list`, `stacktape whoami` and `stacktape deploy --runner ec2`, ask you to sign in and say why.

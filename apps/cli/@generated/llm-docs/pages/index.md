@@ -119,7 +119,7 @@ pnpm add stacktape
 
     Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The
     installer picks the build for your processor, including Apple silicon, ARM64 and Alpine Linux. Leave out `init` to
-    only install.
+    only install. For a new project, pass `init --starter-project`.
 
 
 Example (macOS):
@@ -146,10 +146,17 @@ iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 ### Initialize a project
 
 
-    Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
+    If the standalone installer already started init, skip this step. Otherwise, run init in your existing repository. For a new project, add `--starter-project`. Open a new terminal if the installer added Stacktape to your PATH.
 
 
-Example (bash):
+Example (npm):
+
+```bash
+npx stacktape init
+```
+
+
+Example (Standalone):
 
 ```bash
 stacktape init
@@ -163,7 +170,14 @@ stacktape init
     local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
 
 
-Example (bash):
+Example (npm):
+
+```bash
+npx stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
+```
+
+
+Example (Standalone):
 
 ```bash
 stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
@@ -227,7 +241,7 @@ Example (stacktape.json):
 ```
 
 
-Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `stacktape deploy --config stacktape.json --stage dev --region us-east-1`.
+Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `npx stacktape deploy --config stacktape.json --stage dev --region us-east-1`. With the standalone CLI, omit `npx`.
 
 ## A development workflow built for speed
 
@@ -236,10 +250,17 @@ Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `s
 Run your services in development mode to iterate faster — your code runs locally, connected to real cloud resources, so you can test changes without redeploying every time.
 
 
-Example (bash):
+Example (npm):
 
 ```bash
-stacktape dev --stage dev --region us-east-1
+npx stacktape dev --stage local --region us-east-1
+```
+
+
+Example (Standalone):
+
+```bash
+stacktape dev --stage local --region us-east-1
 ```
 
 
@@ -273,7 +294,14 @@ export default defineConfig(() => {
 ```
 
 
-Example (bash):
+Example (npm):
+
+```bash
+npx stacktape script run migrate --stage dev --region us-east-1
+```
+
+
+Example (Standalone):
 
 ```bash
 stacktape script run migrate --stage dev --region us-east-1

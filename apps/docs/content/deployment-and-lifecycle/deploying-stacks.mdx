@@ -7,7 +7,7 @@ seoDescription: 'Learn how Stacktape deploys infrastructure to AWS with CloudFor
 
 # Deploying Stacks
 
-The [`stacktape deploy`](/cli/deploy) command prepares your application artifacts, generates a CloudFormation template from your configuration, uploads artifacts, and asks CloudFormation to create or update the stack. Each stage of a project maps to one CloudFormation stack in your AWS account. When auto-rollback is enabled (the default), CloudFormation reverts failed updates and Stacktape cleans up rolled-back deployment artifacts.
+The [`stacktape deploy`](/cli/deploy) command prepares your application artifacts, generates a CloudFormation template from your configuration, uploads artifacts, and asks CloudFormation to create or update the stack. Each stage of a project maps to one CloudFormation stack in your AWS account. By default, a failed deploy keeps the resources it created or updated. See [When a deployment fails](#when-a-deployment-fails) for recovery and rollback options.
 
 ## How deployment works
 
@@ -263,7 +263,7 @@ Run with `--debug` to see detailed timing for each phase.
 If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
 
 ```bash
-stacktape secret set --name mySecret --stage production --region eu-west-1
+stacktape secret set mySecret --region eu-west-1
 ```
 
 ## FAQ

@@ -108,10 +108,10 @@ Open the resource URL printed by the CLI. For a [web service](/resources/compute
 
 If you use the Console, the deploy output also includes a Console URL for the deployed stack. See [Manage your app in the Console](/getting-started/using-console-ui) for what you can do there.
 
-To view logs from the CLI, use [`stacktape logs`](/cli/logs).
+To view logs from the CLI, use [`stacktape logs`](/cli/logs) with the resource name from your config.
 
 ```bash
-stacktape logs
+stacktape logs <resource-name> --project my-app --stage dev --region eu-west-1
 ```
 
 ## Redeploying after changes
@@ -162,7 +162,7 @@ If a resource fails to create, the resources that were already created stay, and
 
 ### Deploy fails during dev mode
 
-You cannot deploy to a stage that currently has an active [dev mode](/getting-started/use-the-dev-mode) session. Stop dev mode first with [`stacktape dev stop`](/cli/dev-stop), or deploy to a different stage name.
+Use a different stage name for `deploy` and [dev mode](/getting-started/use-the-dev-mode). A stage created by dev mode still counts as a dev stack after its session ends.
 
 ## FAQ
 
@@ -188,7 +188,7 @@ CloudFormation continues the deployment on AWS's side regardless of your local c
 
 ### What's the difference between stages and AWS accounts?
 
-Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack with fully isolated resources. You can also deploy different stages to different AWS accounts by using different AWS credentials, or by connecting several AWS accounts in the Console (e.g., production in a separate account). See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
+Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack. New non-production stages that need a VPC and support shared networking share one by default within the same account and region. You can also deploy different stages to different AWS accounts by using different AWS credentials, or by connecting several AWS accounts in the Console (e.g., production in a separate account). See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
 
 ### Can I preview what a deploy will change before running it?
 

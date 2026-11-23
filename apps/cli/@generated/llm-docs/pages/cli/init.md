@@ -149,7 +149,7 @@ stacktape init --project-directory ./my-app
 Initialize from a ready-made project instead of reading yours. These skip the wizard entirely.
 
 ```bash
-stacktape init --starter-id lambda-api-postgres
+stacktape init --starter-id expressjs-api-postgres
 ```
 
 ### `--initialize-project-to`

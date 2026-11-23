@@ -1,7 +1,7 @@
 # Stages and Environments
 
 A Stacktape stage is a named deployment of your project — such as `dev`, `staging`, or `production`. Each stage creates
-a fully isolated set of AWS resources under its own CloudFormation stack. One codebase, multiple stages: develop against
+its own CloudFormation stack. One codebase, multiple stages: develop against
 cheap resources, test against a staging replica, and deploy production with full redundancy — all from the same
 configuration file.
 
@@ -410,7 +410,7 @@ export default defineConfig(({ stage }) => {
 ```
 
 
-This keeps a single database instance serving multiple services within the same stage, reducing cost in development while still allowing full isolation between stages. See [directives](/configuration/directives) for more about cross-stack references.
+This keeps a single database instance serving multiple services within the same stage, reducing cost in development while keeping each stage’s database separate. See [directives](/configuration/directives) for more about cross-stack references.
 
 ## Setting defaults
 
@@ -422,7 +422,7 @@ stacktape defaults set
 
 Once configured, you can deploy without passing `--stage` and `--region`:
 
-```bash
+```bash cli-check=defaults:region,stage
 stacktape deploy
 ```
 
@@ -492,7 +492,7 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. Stacktape provisions each stage's resources independently and does not share data between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). Deploying or deleting one stage has no effect on other stages.
+Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. Stacktape provisions each stage's resources independently and does not share data between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). New non-production stages that need a VPC and support shared networking use the same VPC in each AWS account and region by default. AWS credentials with account-wide access can reach every stage in that account. Use a separate AWS account to isolate production access.
 
 ### What happens when I deploy to an existing stage?
 

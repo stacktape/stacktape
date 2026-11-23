@@ -19,21 +19,21 @@ You should have a `stacktape.ts` from [step 1](/getting-started/configure-your-s
 Start Stacktape dev mode from the directory containing your `stacktape.ts`:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1
+stacktape dev --stage local --region eu-west-1
 ```
 
-On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Unchanged starts reuse it. A restart can update the stack after cloud configuration or cloud-image changes, or when required outputs are missing.
+Use a separate stage such as `local` for dev mode. The `deploy` command refuses stages created by dev mode. On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Unchanged starts reuse it. A restart can update the stack after cloud configuration or cloud-image changes, or when required outputs are missing.
 
 An interactive picker lets you choose which resources to run. To skip the picker and run everything:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources all
+stacktape dev --stage local --region eu-west-1 --resources all
 ```
 
 To run only specific resources:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
+stacktape dev --stage local --region eu-west-1 --resources myApi,myDatabase
 ```
 
 Dev mode watches your `stacktape.ts`. Code changes are rebuilt, but a configuration change (new resources, environment variables, connections) needs a restart: dev mode tells you so and refuses rebuilds until you restart it. The restart updates the dev stack with the new configuration.
@@ -48,7 +48,7 @@ Stacktape dev mode splits your stack between local execution and AWS, depending 
 
 | Resource type | Where it runs | How changes work |
 |---|---|---|
-| Container workloads (web-service, private-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (`rs` command) |
+| Container workloads (web-service, private-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (Ctrl+R or Ctrl+A) |
 | Lambda functions | Packaged locally and code updated on AWS | Repackaged and updated on file change or manual trigger; logs stream to your terminal |
 | SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix) | Local dev server | Automatic hot reload via the framework's built-in HMR |
 | Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
@@ -101,7 +101,7 @@ export default defineConfig(() => {
 
 The `version` property selects the PostgreSQL engine version and the local Docker image, subject to the adapter's supported tag mapping. The AWS `instanceSize` controls the deployed RDS compute tier; it does not size the local Docker database. See [relational databases](/resources/databases/relational-database) for supported versions and sizing.
 
-With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
+With this config, running `stacktape dev --stage local --region eu-west-1 --resources all`:
 
 1. Starts a local PostgreSQL emulator (Docker container on your machine)
 2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use the deployed database instead, run with `--remote-resources myDatabase`: the dev stack then includes the database, and the function connects to it
@@ -110,7 +110,7 @@ With this config, running `stacktape dev --stage dev --region eu-west-1 --resour
 Now edit `./src/handler.ts`, save, and either:
 
 - **With `--watch` flag**: Stacktape detects the change and automatically repackages and updates the Lambda code
-- **Without `--watch`**: Type `rs` and press Enter in the terminal to trigger a rebuild
+- **Without `--watch`**: From Overview, press Ctrl+R to rebuild a workload or Ctrl+A to rebuild all workloads
 
 For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly through the framework's built-in hot module replacement — no rebuild step needed.
 
@@ -119,7 +119,7 @@ For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly throug
 Stacktape dev mode can automatically rebuild workloads when source files change. Add `--watch` to enable this:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources all --watch
+stacktape dev --stage local --region eu-west-1 --resources all --watch
 ```
 
 Container workloads are rebuilt and restarted. Lambda functions are repackaged and updated on AWS. Frontends handle their own watching natively regardless of this flag.
@@ -141,13 +141,13 @@ Database data persists between sessions in `.stacktape/dev-data/{stage}/`. This 
 To reset databases prepared at startup, including relay dependencies (DynamoDB Local tables share storage; see [reset scope](/local-development/local-databases#resetting-local-data)):
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --fresh-db
+stacktape dev --stage local --region eu-west-1 --fresh-db
 ```
 
 To skip local emulation and connect to an already-deployed database on AWS:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --remote-resources myDatabase
+stacktape dev --stage local --region eu-west-1 --remote-resources myDatabase
 ```
 
 ## Environment variables
@@ -158,14 +158,14 @@ For connected resources, dev mode keeps the same `STP_*` environment variable na
 
 ## Terminal commands
 
-Stacktape dev mode accepts interactive commands while running. Type a command and press Enter:
+Use these shortcuts in the interactive dev dashboard.
 
-| Command | Action |
+| Key | Action |
 |---|---|
-| `rs` | Rebuild all workloads |
-| `rs myApi` | Rebuild a specific workload |
-| `c` or `clear` | Clear the log output |
-| `q` or `quit` | Stop dev mode |
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode |
 
 ## Useful flags
 
@@ -189,7 +189,7 @@ The [`stacktape dev`](/cli/dev) command accepts flags to control which resources
 Stacktape dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code, Codex or Cursor. Pass `--agent` to start it as a background daemon:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources all --agent
+stacktape dev --stage local --region eu-west-1 --resources all --agent
 ```
 
 The agent server starts on port 7331 by default (or the next available port). See [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the full endpoint reference and usage guide.
