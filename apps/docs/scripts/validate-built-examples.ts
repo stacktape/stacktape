@@ -68,7 +68,11 @@ for (const file of (await walk(output)).filter((path) => path.endsWith('.html'))
   }
 }
 /* eslint-enable no-await-in-loop */
-for (const page of ['index.html', 'resources/compute/lambda-function/index.html']) {
+// The home page shows its config in the ConfigToAws figure, outside a CodeBlock, so the onboarding page carries the check.
+for (const page of [
+  'getting-started/configure-your-stack/index.html',
+  'resources/compute/lambda-function/index.html'
+]) {
   assert(checkedPages.has(page), `${page}: the build must expose complete config examples`);
 }
 // Configs execute in Node. Compile all virtual samples against the actual declarations served by this build.
