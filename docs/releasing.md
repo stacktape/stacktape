@@ -208,6 +208,15 @@ gh run list --repo stacktape/stacktape --workflow release.yml --limit 1
 gh run watch <run-id> --repo stacktape/stacktape
 ```
 
+To save the verify job's 70 minutes when Public CI already passed on the `main` commit you release, dispatch with
+`skip_verification`. The job then checks for that Public CI run and skips `check:public` and the packaging gate; the
+native install qualification still runs:
+
+```sh
+gh workflow run release.yml --repo stacktape/stacktape --ref main -f channel=stable -f version=4.0.1 \
+  -f skip_verification=true
+```
+
 Every npm version and GitHub release is immutable. Increment the preview sequence instead of attempting to overwrite an
 existing version. Verify a preview with:
 
