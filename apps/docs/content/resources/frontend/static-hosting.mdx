@@ -143,7 +143,7 @@ export default defineConfig(() => {
 
 A hosting-bucket can serve static content from custom domains such as `www.example.com`. By default, Stacktape creates DNS records and uses the certificates `stacktape domain add` requested; set `disableDnsRecordCreation` when DNS is managed elsewhere. The domain must already be added as a Route53 hosted zone in the AWS account.
 
-Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` for the root domain, point your registrar at the Route 53 hosted zone it creates, and run it again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
 
 <CodeBlock
   intellisense

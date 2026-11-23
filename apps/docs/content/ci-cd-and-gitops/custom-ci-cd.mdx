@@ -157,27 +157,30 @@ The `needs: test` dependency ensures the deploy only runs when tests pass.
 
 ### PR preview environments
 
-One workflow deploys a stage for every pull request and deletes it when the pull request closes. It needs no
-Stacktape account: both jobs get AWS credentials from an IAM role through GitHub's OIDC provider. Each PR stage creates
+Two workflows deploy a stage for every pull request and delete it when the pull request closes. They need no
+Stacktape account: both get AWS credentials from an IAM role through GitHub's OIDC provider. Each PR stage creates
 real AWS resources for whatever your Stacktape config defines, so make sure the delete works.
+
+The deploy workflow, for example `.github/workflows/pr-preview.yml`:
 
 ```yaml
 name: PR Preview
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 permissions:
   id-token: write
   contents: read
+  pull-requests: read
 
-# One group per pull request keeps its deploys and the delete in order.
+# One group per pull request runs its deploys one at a time.
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
 
 jobs:
   deploy-preview:
-    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -189,16 +192,52 @@ jobs:
           role-to-assume: arn:aws:iam::123456789012:role/github-preview
           aws-region: us-east-1
       - name: Deploy PR preview
-        run: npx stacktape deploy --project my-app --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # A run that waited in the queue must not recreate the preview of a closed pull request.
+          state=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq .state)
+          if [ "$state" != open ]; then exit 0; fi
+          npx stacktape deploy --project my-app --stage "pr-$PR_NUMBER" --region us-east-1 --yes
+```
 
+The delete workflow, for example `.github/workflows/pr-preview-delete.yml`:
+
+```yaml
+name: PR Preview Delete
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+concurrency:
+  group: preview-delete-${{ github.event.pull_request.number }}
+
+jobs:
   delete-preview:
-    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    environment: preview-cleanup
     steps:
+      # Checks out the default branch. Never check out the pull request's code in this workflow.
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Wait for a preview deploy that is still running
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          for id in $(gh run list --repo "${{ github.repository }}" --workflow "PR Preview" --branch "$HEAD_REF" \
+              --status in_progress --json databaseId --jq '.[].databaseId'); do
+            gh run watch "$id" --repo "${{ github.repository }}" > /dev/null
+          done
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::123456789012:role/github-preview
@@ -208,11 +247,22 @@ jobs:
 ```
 
 Both commands name the project and the stage, so the stack name never depends on the runner or on the checkout. The
-delete job runs on the base branch after a merge, and its config may differ from the one the preview was deployed with.
+delete always runs with the default branch's code, and its config may differ from the one the preview was deployed with.
 
-The role's trust policy must accept pull request jobs. GitHub sends one of two subject formats: repositories created
-after July 15, 2026 (and older ones that opted in) include the owner and repository IDs. Trusting both exact values
-works either way:
+The delete is a separate workflow because GitHub doesn't run `pull_request` workflows for a pull request with merge
+conflicts, and that includes the close. `pull_request_target` runs anyway, with the workflow file and code of your
+default branch. Checking out the pull request's code there would let it run with the delete's AWS credentials. In a
+public repository, GitHub blocks `pull_request_target` by default from December 2, 2026: allow it for this workflow in
+an Actions policy under **Settings → Actions → Policies**.
+
+The two workflows also use separate concurrency groups. In a shared group, a deploy that GitHub queues after the close
+replaces the pending delete. Instead, the delete waits for a deploy that is still running, and a deploy that starts
+after the close finds the pull request closed and stops. Stacktape also makes a delete wait while a deploy of the same
+stage holds the stack.
+
+The role's trust policy must accept the deploy job's pull request subject and the delete job's environment subject.
+GitHub sends one of two subject formats: repositories created after July 15, 2026 (and older ones that opted in)
+include the owner and repository IDs. Trusting all four exact values works either way:
 
 ```json
 "Condition": {
@@ -220,26 +270,27 @@ works either way:
     "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
     "token.actions.githubusercontent.com:sub": [
       "repo:my-org/my-app:pull_request",
-      "repo:my-org@123456/my-app@456789:pull_request"
+      "repo:my-org@123456/my-app@456789:pull_request",
+      "repo:my-org/my-app:environment:preview-cleanup",
+      "repo:my-org@123456/my-app@456789:environment:preview-cleanup"
     ]
   }
 }
 ```
 
-`gh api repos/my-org/my-app --jq '.owner.id, .id'` prints the two IDs. A role that trusts only
-`...:ref:refs/heads/main` refuses pull request jobs. Keep previews in an AWS account without production.
+`gh api repos/my-org/my-app --jq '.owner.id, .id'` prints the two IDs. The delete job names an environment because
+GitHub then puts the environment in the subject, whatever event started the job. A role that trusts only
+`...:ref:refs/heads/main` refuses both jobs. Keep previews in an AWS account without production.
 
 With the Console, drop the `configure-aws-credentials` steps and set `STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}`
 in the `env` of both Stacktape steps, as in the deploy workflow above.
 
-The shared concurrency group matters. Without it, a delete that runs before a queued deploy leaves that deploy to
-create the preview again after the pull request closed. With it, closing the pull request replaces any deploy that
-hasn't started yet, and the delete runs after the one that is running.
-
-The `if` conditions skip pull requests from forks, but a fork can edit its copy of the workflow, and the trust policy
-can't tell a fork's run from yours. What keeps forks out is that GitHub gives fork pull request runs read-only
-permissions, so they can't request the OIDC token. Keep **Send write tokens to workflows from pull requests** turned
-off in the repository's **Settings → Actions → General**.
+The `if` conditions skip pull requests from forks. In the deploy workflow, a fork can edit its copy of the workflow,
+and the trust policy can't tell a fork's run from yours. What keeps forks out there is that GitHub gives fork pull
+request runs read-only permissions, so they can't request the OIDC token. Keep **Send write tokens to workflows from
+pull requests** turned off in the repository's **Settings → Actions → General**. The delete workflow is different:
+`pull_request_target` runs your default branch's copy, with the permissions it asks for, even for a fork's pull
+request, so its `if` condition is what keeps forks out. Don't remove it.
 
 A database that `stacktape init` added has `deletionProtection: true` on every stage. `stacktape delete` then stops
 before it deletes anything, the delete job fails, and the preview keeps running and costing money. Protect only

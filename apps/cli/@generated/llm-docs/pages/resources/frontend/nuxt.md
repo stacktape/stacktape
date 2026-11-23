@@ -104,7 +104,7 @@ A Stacktape Nuxt resource can attach custom domains to the app's CDN and associa
 
 Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account. Stacktape automatically creates a DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. `customCertificateArn` is only needed for specific certificate requirements (such as EV/OV certs), and `disableDnsRecordCreation` is for teams managing DNS through another provider like Cloudflare.
 
-Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` for the root domain, point your registrar at the Route 53 hosted zone it creates, and run it again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
 
 To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 

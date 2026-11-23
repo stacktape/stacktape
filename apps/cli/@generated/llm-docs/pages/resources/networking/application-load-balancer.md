@@ -144,7 +144,7 @@ The `priority` values determine evaluation order. Requests to `/users/123` match
 
 When `listeners` is omitted, an Application Load Balancer creates two default listeners: HTTPS on port 443 and HTTP on port 80 (redirecting to HTTPS). Custom listeners let you change ports, add IP restrictions, or define redirect behavior for unmatched requests.
 
-When you provide custom listener objects, each requires an explicit `protocol` (`HTTP` or `HTTPS`) and `port`. Any HTTPS listener requires a TLS certificate: Stacktape uses the one [`stacktape domain add`](/cli/domain-add) issued when you configure `customDomains`, or you supply your own ACM certificates via the listener's `customCertificateArns`. If neither is set, an HTTPS listener cannot be created.
+When you provide custom listener objects, each requires an explicit `protocol` (`HTTP` or `HTTPS`) and `port`. Any HTTPS listener requires a TLS certificate. Stacktape uses the listener's `customCertificateArns` when you set them. Otherwise, with `customDomains`, it uses each domain's `customCertificateArn` or the certificate [`stacktape domain add`](/cli/domain-add) issued. With neither, the listener gets the certificate of the `*.stacktape-app.com` default domain, which needs the [Stacktape Console](/getting-started/open-source-cli) connected.
 
 **When to configure custom listeners:** You need a non-standard port, want to restrict access by IP address, or need a custom redirect for unmatched requests.
 
@@ -187,7 +187,7 @@ The optional `defaultAction` property on a custom listener configures a redirect
 
 ## Custom domains
 
-Stacktape can attach your own domain (e.g., `api.example.com`) to an Application Load Balancer. By default, Stacktape creates DNS records and TLS certificates for each domain. The domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up. Run it again after the nameservers point at Route 53, and wait until the certificate is issued: without an issued certificate in the stack's region, the deploy stops with an error.
+Stacktape can attach your own domain (e.g., `api.example.com`) to an Application Load Balancer. By default, Stacktape creates the DNS record for each domain and uses the TLS certificate that `stacktape domain add` issued. The domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up. Run it again after the nameservers point at Route 53, and wait until the certificate is issued: without an issued certificate in the stack's region, the deploy stops with an error.
 
 
 Example (TypeScript):
@@ -206,7 +206,7 @@ export default defineConfig(() => {
 ```
 
 
-You can list multiple domain configurations. By default, Stacktape creates DNS records and TLS certificates for the configured domains. These options can be configured independently: set `disableDnsRecordCreation: true` if you manage DNS records yourself (Stacktape still provisions the TLS certificate), or provide `customCertificateArn` to use your own ACM certificate instead of the auto-generated one.
+You can list multiple domain configurations. By default, Stacktape creates DNS records for the configured domains in Route 53 and uses the certificates that `stacktape domain add` issued. Provide `customCertificateArn` to use your own ACM certificate instead. If you manage DNS records outside Route 53, set `disableDnsRecordCreation: true` together with `customCertificateArn`: without a domain in Route 53 there is no issued certificate to use, and the deploy rejects `disableDnsRecordCreation` on its own.
 
 Prefer the object form (`{ domainName: 'api.example.com' }`) because it also supports certificate and DNS options; Stacktape still accepts the backward-compatible `string[]` form for domain names.
 

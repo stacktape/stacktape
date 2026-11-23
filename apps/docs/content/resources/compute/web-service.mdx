@@ -152,7 +152,7 @@ export default defineConfig(() => {
 
 <span id="custom-domain-names" />
 
-A Stacktape web service can attach custom domains directly through `customDomains`. Stacktape can auto-create DNS records and use the certificate that [`stacktape domain add`](/cli/domain-add) requested. The domain must first be added as a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing to that hosted zone. Run `stacktape domain add` before the first deploy that uses the domain and wait until the certificates are issued; without an issued certificate, the deploy stops with an error. Set `disableDnsRecordCreation` when DNS records are managed outside Stacktape.
+A Stacktape web service can attach custom domains directly through `customDomains`. Stacktape can auto-create DNS records and use the certificate that [`stacktape domain add`](/cli/domain-add) requested. The domain must first be added as a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing to that hosted zone. Run `stacktape domain add` before the first deploy that uses the domain and wait until the certificates are issued; without an issued certificate, the deploy stops with an error. When DNS records are managed outside Route 53, set `disableDnsRecordCreation: true` together with `customCertificateArn`, your own ACM certificate; the deploy rejects `disableDnsRecordCreation` on its own.
 
 <CodeBlock
   intellisense
@@ -664,7 +664,7 @@ Use the default `http-api-gateway` mode for most HTTP APIs and web apps. Choose 
 
 ### Why isn't my custom domain working?
 
-The most common cause is missing DNS setup: `customDomains` only works when the domain is already a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing at that zone, and its certificate is issued. Run [`stacktape domain add`](/cli/domain-add) until it reports the certificates as validated. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and point the record yourself, or supply your own ACM certificate via `customCertificateArn`. See [custom domains](/resources/networking/custom-domains).
+The most common cause is missing DNS setup: `customDomains` only works when the domain is already a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing at that zone, and its certificate is issued. Run [`stacktape domain add`](/cli/domain-add) until it reports the certificates as validated. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and your own ACM certificate in `customCertificateArn`, then point the record yourself. Without `customCertificateArn`, the deploy rejects `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains).
 
 ### Why are my `cors` settings being ignored?
 

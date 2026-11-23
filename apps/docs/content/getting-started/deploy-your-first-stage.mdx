@@ -160,7 +160,7 @@ First deploys take longer because every resource must be created from scratch. D
 
 If a resource fails to create, the resources that were already created stay, and the stack is left in `CREATE_FAILED`. Fix the error and deploy again to continue from there, or run `stacktape delete` to remove everything. The CLI displays the specific error. Common causes include IAM permission issues, resource limit quotas, or invalid configuration values. For rollback options, see [`stacktape rollback`](/cli/rollback) for version-based rollback and [`stacktape stack recover`](/cli/cf-rollback) for CloudFormation-level rollback.
 
-### Deploy fails on a dev mode stage
+### Deploy fails during dev mode
 
 You cannot deploy to a stage that [dev mode](/getting-started/use-the-dev-mode) created, even after the dev session has ended. The CLI stops with "is a dev stack and cannot be deployed". Deploy to a different stage name, or delete the dev stage first with `stacktape delete --project my-app --stage <stage> --region eu-west-1`.
 

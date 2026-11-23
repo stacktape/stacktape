@@ -1,6 +1,6 @@
 # diff
 
-The `diff` command shows what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with your current configuration. It packages workloads, uploads the synthesized CloudFormation template, and creates a change set against the live stack to print a summary of new, updated, replaced, and removed resources. The change set is never executed, so your running resources stay as they are. The command is not read-only, though: see [What diff changes in AWS](#what-diff-changes-in-aws).
+The `diff` command shows what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with your current configuration. It packages workloads, uploads the synthesized CloudFormation template, and creates a change set against the live stack to print a summary of new, updated, replaced, and removed resources. The change set is never executed, so your running resources stay as they are. The command is not read-only, though: [How it works](#how-it-works) lists what it writes to AWS.
 
 ## Usage
 
@@ -32,8 +32,6 @@ For resources that will be replaced, the output distinguishes between **will rep
 
 > **Warning:** Replaced resources are destroyed and recreated. For databases or stateful resources, replacement can cause data loss. Always review `diff` output before deploying changes that touch database engines, instance classes, or storage configuration.
 
-
-### What diff changes in AWS
 
 `diff` leaves your running resources alone, but to build the preview it does what a deploy does up to the point of applying it:
 
@@ -150,7 +148,7 @@ Meaningful Stacktape resource changes
 
 ### Does diff make any changes to my stack?
 
-It doesn't update your stack's resources: the change set it creates is never executed and is deleted after the preview. It can still write to AWS. It creates missing secrets and SSM parameters, restores secrets scheduled for deletion, and uploads a temporary template to the deployment bucket. See [What diff changes in AWS](#what-diff-changes-in-aws).
+It doesn't update your stack's resources: the change set it creates is never executed and is deleted after the preview. It can still write to AWS. It creates missing secrets and SSM parameters, restores secrets scheduled for deletion, and uploads a temporary template to the deployment bucket. See [How it works](#how-it-works).
 
 ### What does "no meaningful Stacktape resource changes" mean?
 

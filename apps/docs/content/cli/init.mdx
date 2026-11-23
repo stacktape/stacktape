@@ -12,14 +12,15 @@ seoDescription: 'Read your project with your own coding agent and get a Stacktap
 It opens a wizard in your browser and reads your code **on your machine** using a coding agent you
 already have installed — Claude Code or Codex. It does not interview you: where your code does not say,
 it picks the sensible answer, then shows you what it picked and the line behind every resource it
-proposes, so you can change any of it. No source or filenames are sent to Stacktape, and no account is
-needed. To price the Review step, init sends the generated configuration and the region to Stacktape's
-price estimator.
+proposes, so you can change any of it. No source code is sent to Stacktape, and no account is needed.
+To price the Review step, init sends the generated configuration and the region to Stacktape's price
+estimator. That configuration can include file paths from your project, such as a Dockerfile.
 
 To be precise about where your code goes: an agent works the way it always does — it sends the file
 contents it chooses to read to its own model provider, under the account you already have with it, with
 read-only tools (it cannot run scripts or install anything). If you would rather no AI read the code at
-all, pick **Files only** — the built-in scanner reads manifests locally and sends nothing anywhere.
+all, pick **Files only** — the built-in scanner reads manifests locally and sends no code anywhere. The
+price estimate still receives the generated configuration, file paths included.
 
 ## Usage
 
@@ -46,8 +47,10 @@ The wizard has four steps:
 3. **Review.** Every resource, with the reason it exists, the line of your code behind it, and what it
    costs — a real monthly estimate per resource and in total, priced from AWS list prices. To get the
    price, init sends the generated configuration and the region to Stacktape's price estimator. The
-   configuration holds resource names and settings, not your code. Anything the code could not settle
-   was decided for you, listed under "Decided for you", and can be changed with one click — the
+   configuration holds resource names and settings, which can include file paths such as
+   `dockerfilePath` or `entryfilePath`, start commands and environment variable names, but not your
+   code. Anything the code could not settle was decided for you, listed under "Decided for you", and
+   can be changed with one click — the
    configuration is rebuilt from your choice, and the price updates with it. Nothing blocks. You choose
    YAML or TypeScript, and the file is written when you click **Save … & continue**.
 4. **Deploy.** No Stacktape account is needed: without one, the wizard deploys with your local AWS
@@ -220,9 +223,11 @@ stacktape init --headless --coding-agent none --infrastructure-type low-cost
 ### Does my code leave my machine?
 
 If you choose Claude Code or Codex, that local agent sends the file contents it selects to its own
-model provider under your account, just as it normally does. Stacktape receives no source or file
-names. To price the Review step, init sends the generated configuration and the region to Stacktape's
-price estimator. If you choose **Files only**, no AI provider receives code either.
+model provider under your account, just as it normally does. Stacktape receives no source code. To
+price the Review step, init sends the generated configuration and the region to Stacktape's price
+estimator. The configuration can include file paths, start commands and environment variable names from
+your project. If you choose **Files only**, no AI provider receives code either, and the price request
+is the same.
 
 Stacktape does receive anonymous outcome statistics — which frameworks were detected, whether the
 deploy succeeded, how long the analysis took — so we can see where generation fails and fix it. Set
@@ -254,9 +259,9 @@ access. You can connect it there or later with `stacktape connect`, or skip it. 
 already signed in, the wizard deploys through your Stacktape organization and links to the stage in
 the Console.
 
-### What does “Try it on this machine first” run?
+### What does “Try it here first” run?
 
-Only after you click it, `init` runs your project's build and start commands using disposable Docker
+The check is called **Try it on this machine first** in the Deploy step. Only after you click it, `init` runs your project's build and start commands using disposable Docker
 images and containers. The image build may access the network to download dependencies and may run
 package-manager install hooks from the project. The started application receives throwaway values
 instead of your secrets and has no network access. This is not supported for every packaging and

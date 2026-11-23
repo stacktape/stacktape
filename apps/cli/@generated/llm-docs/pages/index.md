@@ -105,7 +105,9 @@ iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 
 
     The macOS, Linux and Windows lines install the standalone binary, which needs no Node.js, and then start
-    `stacktape init`, so you don't run init again. Leave out `init` to only install.
+    `stacktape init`, so you don't run init again. Leave out `init` to only install. With the standalone binary,
+    run the commands below as `stacktape` instead of `npx stacktape@latest`, which needs Node.js. If the installer
+    added Stacktape to your PATH, open a new terminal first.
 
 
 ### Or start a new project
@@ -114,10 +116,17 @@ iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
     In an empty directory, pick a starter project instead.
 
 
-Example (bash):
+Example (npm):
 
 ```bash
 npx stacktape@latest init --starter-project
+```
+
+
+Example (Standalone binary):
+
+```bash
+stacktape init --starter-project
 ```
 
 
@@ -129,10 +138,17 @@ npx stacktape@latest init --starter-project
     To deploy from the terminal, pick a stage and a region:
 
 
-Example (bash):
+Example (npm):
 
 ```bash
 npx stacktape@latest deploy --stage dev --region us-east-1 --project {your-project-name}
+```
+
+
+Example (Standalone binary):
+
+```bash
+stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
 ```
 
 

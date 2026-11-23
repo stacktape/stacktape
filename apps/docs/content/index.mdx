@@ -93,17 +93,25 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
       { label: 'Windows', lang: 'powershell', code: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"` }
     ]} />
     The macOS, Linux and Windows lines install the standalone binary, which needs no Node.js, and then start
-    `stacktape init`, so you don't run init again. Leave out `init` to only install.
+    `stacktape init`, so you don't run init again. Leave out `init` to only install. With the standalone binary,
+    run the commands below as `stacktape` instead of `npx stacktape@latest`, which needs Node.js. If the installer
+    added Stacktape to your PATH, open a new terminal first.
   </Step>
   <Step title="Or start a new project">
     In an empty directory, pick a starter project instead.
-    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `npx stacktape@latest init --starter-project` }]} />
+    <CodeBlock tabs={[
+      { label: 'npm', lang: 'bash', code: `npx stacktape@latest init --starter-project` },
+      { label: 'Standalone binary', lang: 'bash', code: `stacktape init --starter-project` }
+    ]} />
   </Step>
   <Step title="Deploy to AWS">
     The wizard deploys when you confirm. Stacktape builds, packages and provisions everything into your account with
     your local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
     To deploy from the terminal, pick a stage and a region:
-    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `npx stacktape@latest deploy --stage dev --region us-east-1 --project {your-project-name}` }]} />
+    <CodeBlock tabs={[
+      { label: 'npm', lang: 'bash', code: `npx stacktape@latest deploy --stage dev --region us-east-1 --project {your-project-name}` },
+      { label: 'Standalone binary', lang: 'bash', code: `stacktape deploy --stage dev --region us-east-1 --project {your-project-name}` }
+    ]} />
   </Step>
 </Steps>
 

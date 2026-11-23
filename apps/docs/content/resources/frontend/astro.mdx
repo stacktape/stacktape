@@ -136,7 +136,7 @@ Set `joinDefaultVpc` only when the SSR function must connect to VPC resources su
 
 Astro custom domains attach your own hostnames to the CloudFront-backed app with Stacktape-managed DNS records and TLS certificates. A Route 53 hosted zone for the domain must already exist in your AWS account, and the domain registrar's nameservers must point to that hosted zone so that DNS resolution reaches Route 53. If DNS is managed outside Route 53 (for example, through Cloudflare), set `disableDnsRecordCreation` and a `customCertificateArn` from `us-east-1` on the domain entry instead, and Stacktape will not create DNS records. Use custom domains for production hostnames; skip custom domains for preview stages unless those stages need stable branded hostnames.
 
-Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` for the root domain, point your registrar at the Route 53 hosted zone it creates, and run it again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` and enter the app's full hostname, such as `www.example.com`, unless an issued certificate already covers it. Point your registrar at the Route 53 hosted zone the command creates for the root domain, and run the command again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
 
 <CodeBlock
   intellisense
