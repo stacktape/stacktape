@@ -666,7 +666,7 @@ retention, turns it off or sets up [log forwarding](/observability/log-forwardin
 ## Remote sessions
 
 `enableRemoteSessions: true` lets you open a shell in a running container with
-[`stacktape container shell`](/cli/container-session). It adds a small Systems Manager agent container.
+[`stacktape container shell`](/cli/container-shell). It adds a small Systems Manager agent container.
 
 ## Configuration reference
 

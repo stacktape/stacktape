@@ -77,5 +77,5 @@ stacktape metrics myApi Duration --stage prod --region eu-west-1 --agent \
 ## Related commands
 
 - [`logs`](/cli/logs) shows the requests and errors behind a number.
-- [`alarm list`](/cli/alarms) shows which CloudWatch alarms of the stack are firing.
+- [`alarm list`](/cli/alarm-list) shows which CloudWatch alarms of the stack are firing.
 - [`container exec`](/cli/container-exec) runs a command in a deployed container.

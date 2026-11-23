@@ -72,4 +72,4 @@ Other organization management commands and the whoami command for verifying your
 - [`org create`](/cli/org-create) — create a new organization
 - [`org list`](/cli/org-list) — list all organizations accessible to your user
 - [`login`](/cli/login) — switch to an API key of another organization
-- [`whoami`](/cli/info-whoami) — verify your current user, organization, and access
+- [`whoami`](/cli/whoami) — verify your current user, organization, and access

@@ -78,7 +78,7 @@ Stacktape picks credentials in this order:
 1. `--profile <name>` on the command.
 2. The `AWS_PROFILE` environment variable.
 3. AWS keys in environment variables, such as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-4. A profile saved with [`stacktape defaults set`](/cli/defaults-configure).
+4. A profile saved with [`stacktape defaults set`](/cli/defaults-set).
 5. The `default` profile in `~/.aws`, and the rest of the standard AWS credential chain.
 
 The init wizard takes the profile from the environment, so start it like this:

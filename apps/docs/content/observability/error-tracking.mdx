@@ -8,7 +8,7 @@ seoDescription: 'Monitor and triage runtime errors with Stacktape error tracking
 # Error tracking
 
 Error tracking finds the errors in the logs of your functions and containers, groups repeats of the same error into one
-issue, and lists the issues on the Console's **Error tracking** page and in [`stacktape error list`](/cli/errors-list).
+issue, and lists the issues on the Console's **Error tracking** page and in [`stacktape error list`](/cli/error-list).
 You add no SDK to your code.
 
 It needs the [Stacktape Console](/getting-started/add-the-console) (the Free plan works). Once your AWS account is
@@ -57,8 +57,8 @@ stacktape error list --project my-api --stage production --status OPEN
 ```
 
 The table shows each issue's ID, status, message, type, function, project, stage, count and last occurrence, 25 at a
-time (`--limit` changes that). Change an issue's status with [`error resolve`](/cli/errors-resolve),
-[`error ignore`](/cli/errors-ignore) and [`error reopen`](/cli/errors-reopen). With `--agent`, the commands print JSON
+time (`--limit` changes that). Change an issue's status with [`error resolve`](/cli/error-resolve),
+[`error ignore`](/cli/error-ignore) and [`error reopen`](/cli/error-reopen). With `--agent`, the commands print JSON
 for scripts and coding agents.
 
 ## Turn it off or limit it to some stages

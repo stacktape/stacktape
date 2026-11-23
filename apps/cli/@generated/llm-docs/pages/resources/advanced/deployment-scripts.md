@@ -7,7 +7,7 @@ stack's VPC.
 
 Work that runs on your machine or CI runner, such as builds, belongs in [hooks](/configuration/hooks-and-scripts). Work
 longer than 15 minutes needs a [batch job](/resources/compute/batch-job). The
-[lifecycle guide](/deployment-and-lifecycle/deployment-scripts-and-hooks) compares the options for migrations.
+[lifecycle guide](/configuration/hooks-and-scripts#choose-the-right-tool) compares the options for migrations.
 
 ## Basic example
 
@@ -103,7 +103,7 @@ code runs against the old schema.
 If the script fails, the deploy fails:
 
 - By default, the stack stays in `UPDATE_FAILED` with everything that already updated, including the new code. Fix the
-  script and deploy again, or run [`stacktape stack recover`](/cli/cf-rollback) to return the stack to its previous
+  script and deploy again, or run [`stacktape stack recover`](/cli/stack-recover) to return the stack to its previous
   version.
 - With `deploymentConfig.autoRollback: true`, CloudFormation returns the infrastructure and the code to the previous
   version automatically.
@@ -210,6 +210,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ## Next steps
 
-- [Deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks): pick where a deploy step runs.
+- [Hooks and scripts](/configuration/hooks-and-scripts#choose-the-right-tool): pick where a deploy step runs.
 - [Relational database](/resources/databases/relational-database): the database a migration script connects to.
 - [`deployment-script run`](/cli/deployment-script-run): run a script outside a deploy.

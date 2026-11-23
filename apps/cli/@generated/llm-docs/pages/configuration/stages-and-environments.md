@@ -430,7 +430,7 @@ export default defineConfig(({ stage }) => {
 
 ## Setting defaults
 
-If you always deploy to the same stage and region during development, use [`stacktape defaults set`](/cli/defaults-configure) to set default values for stage and region. See the [CLI reference](/cli/defaults-configure) for details.
+If you always deploy to the same stage and region during development, use [`stacktape defaults set`](/cli/defaults-set) to set default values for stage and region. See the [CLI reference](/cli/defaults-set) for details.
 
 ```bash
 stacktape defaults set
@@ -452,7 +452,7 @@ stacktape deploy --stage production --region us-east-1
 
 ### Listing stacks
 
-Use [`stacktape stack list`](/cli/info-stacks) to list deployed stacks in a region. See the [CLI reference](/cli/info-stacks) for available options.
+Use [`stacktape stack list`](/cli/stack-list) to list deployed stacks in a region. See the [CLI reference](/cli/stack-list) for available options.
 
 ```bash
 stacktape stack list --region eu-west-1
@@ -505,7 +505,7 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Each stage has its own CloudFormation stack and its own resources: databases, functions, buckets and so on. Deploying or deleting one stage does not touch the others. Non-production stages of an account and region do share one VPC, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages), but each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Production stages get a VPC of their own.
+Each stage has its own CloudFormation stack and its own resources: databases, functions, buckets and so on. Deploying or deleting one stage does not touch the others. Non-production stages of an account and region do share one VPC, the [shared network](/configuration/shared-network), but each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Production stages get a VPC of their own.
 
 ### What happens when I deploy to an existing stage?
 

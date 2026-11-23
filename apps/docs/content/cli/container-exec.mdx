@@ -9,7 +9,7 @@ seoDescription: 'Run one command inside a deployed container and get its output 
 
 `stacktape container exec` runs one command inside a running container of a deployed [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service) or [multi-container workload](/resources/compute/multi-container-workload), and prints its output as JSON. Use it to check a file, an environment variable or a process without opening a shell. It needs AWS credentials, connects through AWS ECS Exec and Session Manager (no SSH keys or open ports), and doesn't need a config file.
 
-For an interactive shell, use [`container shell`](/cli/container-session).
+For an interactive shell, use [`container shell`](/cli/container-shell).
 
 ## Usage
 
@@ -32,7 +32,7 @@ stacktape container exec myService "ls -la /app" --stage prod --region eu-west-1
 
 `output` is what the command printed: its standard output, or its error output when it printed nothing else. `exitCode` is the exit code of the Session Manager session, not of your command. `0` means the session ran, so read `output` to see whether the command worked. A non-zero `exitCode` fails the CLI with `CONTAINER_EXEC_FAILED`. A command that runs longer than 60 seconds is stopped.
 
-Outside a project directory, add `--project` or set a default project with [`defaults set`](/cli/defaults-configure).
+Outside a project directory, add `--project` or set a default project with [`defaults set`](/cli/defaults-set).
 
 Changes the command makes in the container, such as written files, are lost when the task is replaced, for example on the next deploy.
 
@@ -87,6 +87,6 @@ The `--task-arn` value doesn't match a running task. The error lists the task ID
 
 ## Related commands
 
-- [`container shell`](/cli/container-session) opens an interactive shell in a running container.
+- [`container shell`](/cli/container-shell) opens an interactive shell in a running container.
 - [`logs`](/cli/logs) shows what the container printed.
 - [`metrics`](/cli/metrics) shows CloudWatch metrics of a deployed resource.

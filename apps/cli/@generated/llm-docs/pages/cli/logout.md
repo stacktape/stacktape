@@ -15,7 +15,7 @@ stacktape logout
 
 ## When to use
 
-Run `logout` when you want the CLI to stop working with the Console, when switching between Stacktape accounts or organizations, when removing local credentials from a shared machine, or before storing a different API key with `login`. If you need to verify which account is currently configured, use [`stacktape whoami`](/cli/info-whoami) before logging out.
+Run `logout` when you want the CLI to stop working with the Console, when switching between Stacktape accounts or organizations, when removing local credentials from a shared machine, or before storing a different API key with `login`. If you need to verify which account is currently configured, use [`stacktape whoami`](/cli/whoami) before logging out.
 
 ## Options
 
@@ -35,4 +35,4 @@ Run `logout` when you want the CLI to stop working with the Console, when switch
 ## Related commands
 
 - [`login`](/cli/login) — configure your Stacktape API key
-- [`whoami`](/cli/info-whoami) — verify which user and organization your current API key belongs to
+- [`whoami`](/cli/whoami) — verify which user and organization your current API key belongs to

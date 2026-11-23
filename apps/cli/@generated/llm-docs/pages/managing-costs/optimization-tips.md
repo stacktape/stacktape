@@ -215,7 +215,7 @@ If you need long-term log storage for compliance, consider [forwarding logs](/ob
 
 Every deployed [stage](/configuration/stages-and-environments) consumes AWS resources. Old feature-branch stages, abandoned test stacks, and forgotten staging environments accumulate idle cost — especially for always-on resources like container services, databases, and Redis caches.
 
-Review your stacks regularly in the Stacktape Console or with [`stacktape stack list`](/cli/info-stacks). Delete any stage that's no longer needed:
+Review your stacks regularly in the Stacktape Console or with [`stacktape stack list`](/cli/stack-list). Delete any stage that's no longer needed:
 
 ```bash
 stacktape delete --stage old-feature
@@ -225,7 +225,7 @@ For PR-preview workflows, see the [stacks-per-git-branch pattern](/ci-cd-and-git
 
 ## Avoid unnecessary NAT Gateways
 
-A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting, private subnet egress for a workload that needs it, or internet access for Lambda functions inside the VPC. Most workloads don't need one. When you do need NAT, `stackConfig.nat: ec2` or `ha-ec2` runs small Stacktape-managed instances instead of gateways (about $7 instead of $32 per month per zone, no per-GB fee) at the cost of about a minute of failed outbound calls when an instance dies; see [VPC and networking](/configuration/connecting-resources#vpc-and-networking). Non-production stages with `nat: ec2` share one NAT instance by default, so five preview stages pay about $7.70 per month for NAT in total instead of five times that; see [shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
+A NAT Gateway is one of the most expensive networking components in AWS — it bills a flat hourly rate plus per-GB data processing fees. Avoid NAT Gateways unless you have a concrete networking requirement, such as static outbound IP allowlisting, private subnet egress for a workload that needs it, or internet access for Lambda functions inside the VPC. Most workloads don't need one. When you do need NAT, `stackConfig.nat: ec2` or `ha-ec2` runs small Stacktape-managed instances instead of gateways (about $7 instead of $32 per month per zone, no per-GB fee) at the cost of about a minute of failed outbound calls when an instance dies; see [VPC and networking](/configuration/connecting-resources#vpc-and-networking). Non-production stages with `nat: ec2` share one NAT instance by default, so five preview stages pay about $7.70 per month for NAT in total instead of five times that; see [shared network for non-production stages](/configuration/shared-network).
 
 For details on VPC networking and private subnet configuration, see the [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), and [multi-container workload](/resources/compute/multi-container-workload) resource pages.
 

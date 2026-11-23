@@ -23,7 +23,7 @@ The CLI reads the config file in the current directory: `stacktape.ts`, `stackta
 stacktape deploy --stage dev
 ```
 
-Flags override the config. The region can also come from `AWS_DEFAULT_REGION`, from a default saved with [`stacktape defaults set`](/cli/defaults-configure), or from your AWS profile. A stage name has at least two characters: lowercase letters, numbers and hyphens. See [Stages and environments](/configuration/stages-and-environments).
+Flags override the config. The region can also come from `AWS_DEFAULT_REGION`, from a default saved with [`stacktape defaults set`](/cli/defaults-set), or from your AWS profile. A stage name has at least two characters: lowercase letters, numbers and hyphens. See [Stages and environments](/configuration/stages-and-environments).
 
 | Flag | What it does |
 | --- | --- |
@@ -91,7 +91,7 @@ By default, a failed deploy keeps everything it created or updated, and the next
 | What failed | State | What to do |
 | --- | --- | --- |
 | The first deploy of a stage | `CREATE_FAILED` | Fix the error and deploy again. It creates what is missing and retries what failed; resources that already exist, such as a database, stay. To remove everything instead, run [`stacktape delete`](/cli/delete). |
-| An update | `UPDATE_FAILED` | Fix the error and deploy again. Or return the whole stack to the last successful deploy with [`stacktape stack recover`](/cli/cf-rollback). |
+| An update | `UPDATE_FAILED` | Fix the error and deploy again. Or return the whole stack to the last successful deploy with [`stacktape stack recover`](/cli/stack-recover). |
 | The deploy succeeded but the app is broken | `UPDATE_COMPLETE` | Return to an earlier release with [`stacktape rollback`](/deployment-and-lifecycle/rollbacks), or deploy a fix. |
 
 After a failed update, the resources that updated keep their new configuration and the ones that failed return to their previous state. The stack can run a mix of old and new configuration, so fix a failed production deploy promptly or recover it. When the next deploy succeeds, Stacktape removes the artifacts the failed attempts left behind.
@@ -102,7 +102,7 @@ CloudFormation can replace a resource (for example a container's task definition
 
 - An update of a healthy stack that replaces resources rolls back if it fails. The CLI says so before it deploys.
 - When the fix for a failed deploy replaces resources that the failed deploy created, such as the task definition of a new service that never started, Stacktape removes them and what depends on them, then deploys the full config, which creates them again. They never served traffic, so nothing is interrupted. It stops instead if this would remove a database or another data store.
-- When the fix would replace resources of the last successful deploy, Stacktape stops before changing anything. Run [`stacktape stack recover`](/cli/cf-rollback) (or [`stacktape delete`](/cli/delete) for a stage that never deployed successfully), then deploy again.
+- When the fix would replace resources of the last successful deploy, Stacktape stops before changing anything. Run [`stacktape stack recover`](/cli/stack-recover) (or [`stacktape delete`](/cli/delete) for a stage that never deployed successfully), then deploy again.
 
 ### Automatic rollback
 
@@ -132,7 +132,7 @@ To deploy on every push without writing a pipeline, use [Git deployments](/ci-cd
 | --- | --- | --- |
 | `CREATE_COMPLETE`, `UPDATE_COMPLETE` | The last deploy succeeded | Deploy, delete |
 | `CREATE_FAILED` | The first deploy failed and kept what it created | Fix and deploy again, or delete |
-| `UPDATE_FAILED` | An update failed and kept what it updated | Fix and deploy again, or [`stack recover`](/cli/cf-rollback) |
+| `UPDATE_FAILED` | An update failed and kept what it updated | Fix and deploy again, or [`stack recover`](/cli/stack-recover) |
 | `UPDATE_ROLLBACK_COMPLETE` | An update failed and rolled back | Fix and deploy again, delete |
 | `ROLLBACK_COMPLETE` | The first deploy failed and rolled back | Delete, then deploy again |
 | `*_IN_PROGRESS` | An operation is running | Wait for it to finish |

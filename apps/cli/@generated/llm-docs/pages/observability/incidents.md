@@ -99,8 +99,8 @@ fix.
 
 ## Related CLI commands
 
-- [`incident list`](/cli/incidents) — list and filter incidents
-- [`incident show`](/cli/incidents-show) — print the agent handoff bundle
-- [`incident ack`](/cli/incidents-ack) — acknowledge ownership
-- [`incident resolve`](/cli/incidents-resolve) — resolve after manual verification
-- [`incident watch`](/cli/incidents-watch) — wait for sustained recovery
+- [`incident list`](/cli/incident-list) — list and filter incidents
+- [`incident show`](/cli/incident-show) — print the agent handoff bundle
+- [`incident ack`](/cli/incident-ack) — acknowledge ownership
+- [`incident resolve`](/cli/incident-resolve) — resolve after manual verification
+- [`incident watch`](/cli/incident-watch) — wait for sustained recovery

@@ -68,7 +68,7 @@ stacktape login --api-key "$STACKTAPE_API_KEY"
 
 ### Verify your identity after login
 
-After logging in, use [`whoami`](/cli/info-whoami) to verify your local Stacktape CLI authentication state and display the current user, organization, connected AWS accounts, and accessible projects.
+After logging in, use [`whoami`](/cli/whoami) to verify your local Stacktape CLI authentication state and display the current user, organization, connected AWS accounts, and accessible projects.
 
 ```bash
 stacktape whoami
@@ -135,6 +135,6 @@ No. Use a separate key per integration point and prefer individual interactive l
 ## Related commands
 
 - [`logout`](/cli/logout) — removes Stacktape authentication state from the current system.
-- [`whoami`](/cli/info-whoami) — displays the current user, organization, and connected AWS accounts.
+- [`whoami`](/cli/whoami) — displays the current user, organization, and connected AWS accounts.
 - [`org create`](/cli/org-create) — creates a new organization and returns organization credentials.
 - [`org list`](/cli/org-list) — lists all organizations accessible with your current user.

@@ -1,13 +1,32 @@
 ---
 title: 'Hooks and scripts'
-order: 9
+order: 10
 seoTitle: 'Hooks and Scripts - Deployment Lifecycle Automation | Stacktape'
 seoDescription: 'Automate deployment tasks with Stacktape hooks and scripts. Run database migrations, build steps, and cleanup commands before or after deploy, delete, and dev lifecycle events.'
 ---
 
 # Hooks and scripts
 
-Scripts are named commands in your config, such as a frontend build or a seed script. Run them with [`stacktape script run`](/cli/script-run), or attach them to hooks so they run before or after `deploy`, `delete`, `dev` and `bucket sync`. Hooks run on your machine or CI runner. For database migrations, use a [release command](/deployment-and-lifecycle/release-commands) instead; [Deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) compares the options.
+Scripts are named commands in your config, such as a frontend build or a seed script. Run them with [`stacktape script run`](/cli/script-run), or attach them to hooks so they run before or after `deploy`, `delete`, `dev` and `bucket sync`. Hooks run on your machine or CI runner. For database migrations, use a [release command](/deployment-and-lifecycle/release-commands) instead.
+
+## Choose the right tool
+
+Stacktape can run your own code at three points of a deploy. Pick by when the code has to run and what should happen when it fails.
+
+| | [Release command](/deployment-and-lifecycle/release-commands) | [Hooks](#hooks) | [Deployment script](/resources/advanced/deployment-scripts) |
+| --- | --- | --- | --- |
+| Runs | In a one-off ECS task in your VPC, with the service's new image | On your machine or CI runner | As a Lambda function in your stack |
+| When | During the deploy, before services and functions get the new code | Before or after `deploy`, `delete`, `dev` and `bucket sync` | After every other resource is deployed (`after:deploy`), or first in a stack delete (`before:delete`) |
+| If it fails | The deploy stops; running code keeps serving | `before*`: the command stops before anything changes. `after*`: the new version stays live and the command exits with an error | The deploy fails; the changes stay unless automatic rollback is on |
+| Use it for | Database migrations | Builds, tests, seeding, notifications | Work that must run in AWS on every deploy, whoever deploys |
+
+### Order within a deploy
+
+1. `beforeDeploy` hooks run on your machine. A failure stops here.
+2. Stacktape packages and uploads your code.
+3. Release commands run, then services and functions get the new code.
+4. `after:deploy` deployment scripts run, once everything else in the stack is deployed.
+5. `afterDeploy` hooks run on your machine.
 
 ## Scripts
 
@@ -288,4 +307,26 @@ Scripts commonly receive environment variables from `connectTo` and `environment
 
 ## Deployment scripts
 
-A [deployment script](/resources/advanced/deployment-scripts) is different: it is a resource, a Lambda function that CloudFormation runs in your stack after every deploy or before a delete, no matter who deploys. [Deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) explains when to use which.
+A [deployment script](/resources/advanced/deployment-scripts) is different: it is a resource, a Lambda function that CloudFormation runs as part of the stack. It runs no matter who or what deploys, and it can reach the VPC without a bastion when you set `joinDefaultVpc: true`.
+
+```yaml
+resources:
+  syncSearchIndex:
+    type: deployment-script
+    properties:
+      trigger: after:deploy
+      packaging:
+        type: js-bundle
+        properties:
+          entryfilePath: ./scripts/sync-search-index.ts
+      connectTo:
+        - search
+      timeout: 300
+```
+
+- **Every deploy runs it.** A stack with an `after:deploy` script always deploys through CloudFormation, so [fast deploys](/deployment-and-lifecycle/deploying-stacks#fast-deployments) are off for it.
+- **A failure fails the deploy.** Without [automatic rollback](/deployment-and-lifecycle/deploying-stacks#automatic-rollback), the stack stays in `UPDATE_FAILED` with the new code running. With `deploymentConfig.autoRollback: true`, CloudFormation returns the whole stack to the previous version.
+- **A `before:delete` failure stops the delete.** The stack ends in `DELETE_FAILED`; fix the script and delete again.
+- **It runs for at most 15 minutes**, the Lambda limit.
+
+Run one by hand with [`stacktape deployment-script run`](/cli/deployment-script-run). Options and examples are on the [Deployment script](/resources/advanced/deployment-scripts) page.

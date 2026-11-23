@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mock, test } from 'node:test';
@@ -14,6 +15,7 @@ import {
 } from '../src/build/cdn-redirects.ts';
 import { respondToStackEvent, type RedirectStoreProperties } from '../src/build/redirect-store-sync.ts';
 import { CDN_REDIRECTS } from '../src/utils/site-redirects.ts';
+import { APP_ROOT } from './canonical-content.ts';
 
 type QueryString = Record<string, { value: string; multiValue?: { value: string }[] }>;
 type ViewerRequest = { uri: string; querystring: QueryString };
@@ -277,4 +279,20 @@ test('store updates hold at most 50 keys, deletes first', () => {
       [0, 30]
     ]
   );
+});
+
+const withoutSlash = (path: string) => (path === '/' ? path : path.replace(/\/$/, ''));
+
+test('every redirect lands on a page in one hop and never hides a page', () => {
+  const routes = new Set(readFileSync(`${APP_ROOT}/tests/expected-routes.txt`, 'utf8').split('\n').filter(Boolean));
+  const sources = new Set(Object.keys(CDN_REDIRECTS).map(withoutSlash));
+  for (const [from, to] of Object.entries(CDN_REDIRECTS)) {
+    // The CDN answers before the bucket, so a redirect from a live URL would make that page unreachable.
+    assert.ok(!routes.has(withoutSlash(from)), `${from} is a page and a redirect`);
+    const target = withoutSlash(to.split('#')[0]!);
+    assert.ok(!sources.has(target), `${from} → ${to} redirects again`);
+    // Archive pages and files are checked by the built-site validator.
+    if (target.startsWith('/v3/') || /\.\w+$/.test(target)) continue;
+    assert.ok(routes.has(target), `${from} → ${to} is not a page`);
+  }
 });

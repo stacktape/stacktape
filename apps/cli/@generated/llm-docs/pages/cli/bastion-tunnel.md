@@ -140,6 +140,6 @@ You can, but there is no reason to. If a database has a public endpoint, connect
 
 ## Related commands
 
-- [`bastion shell`](/cli/bastion-session) — start an interactive shell session on the bastion host itself.
+- [`bastion shell`](/cli/bastion-shell) — start an interactive shell session on the bastion host itself.
 - [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database. Supports `--bastion-resource` for VPC-only databases.
 - [`query redis`](/cli/query-redis) — query a deployed Redis cache. Supports `--bastion-resource` for VPC-only clusters.

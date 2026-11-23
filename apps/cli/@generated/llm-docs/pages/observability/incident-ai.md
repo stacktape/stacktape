@@ -172,7 +172,7 @@ See [Team and access control](/stacktape-console/team-and-access-control#roles) 
 
 ## Using your own coding agent instead
 
-**Copy details for agent** on the incident page, [`stacktape incident show`](/cli/incidents-show) and the MCP server's [`stacktape_incident`](/using-with-ai/mcp-server-setup#incident-tool) tool return the same [handoff](/observability/incidents#agent-handoff-bundle). It holds the incident's signals, evidence, releases, timeline and related incidents, the automatic briefing when there is one, and the reports of hosted runs on the incident. Give it to a coding agent on your own machine when:
+**Copy details for agent** on the incident page, [`stacktape incident show`](/cli/incident-show) and the MCP server's [`stacktape_incident`](/using-with-ai/mcp-server-setup#incident-tool) tool return the same [handoff](/observability/incidents#agent-handoff-bundle). It holds the incident's signals, evidence, releases, timeline and related incidents, the automatic briefing when there is one, and the reports of hosted runs on the incident. Give it to a coding agent on your own machine when:
 
 - the repository is on GitLab or Bitbucket, so Fix with AI is not available;
 - no credential is connected for the agent you want;

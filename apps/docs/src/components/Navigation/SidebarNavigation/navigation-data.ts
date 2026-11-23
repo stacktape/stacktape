@@ -29,6 +29,11 @@ export type NavItem = {
    *  during tree construction. Null for real pages and virtual nodes without a configured icon. */
   icon: SidebarIcon | null;
   children: NavItem[];
+  /**
+   * A link to a page that another group lists (`SidebarSubgroup.links`). It is never the current page's place in the
+   * sidebar, so it does not open its branch.
+   */
+  crossLink?: boolean;
 };
 
 export type NavGroup = {
@@ -62,8 +67,9 @@ export const capitalizeSegment = (segment: string) =>
  * 3. Real pages are slotted into the tree at their full URL. If a real page lands on a path that
  *    a virtual node already occupies, the virtual node is "promoted" — gains the page's url + title.
  * 4. Pages listed in a configured subgroup's `pages` go under that subgroup instead of their URL
- *    path, in list order.
- * 5. Sort siblings by order ASC, then title ASC. Configured subgroups sort by their position in the
+ *    path, in list order. Pages listed in a group's `pages` sit among that group's own pages.
+ * 5. Subgroups with `links` get a link to each of those pages after their own pages.
+ * 6. Sort siblings by order ASC, then title ASC. Configured subgroups sort by their position in the
  *    config, after the group's own pages; other virtual nodes carry min(descendant.order).
  */
 // Sort children recursively. Order is the primary key (lower first), title alphabetic is the
@@ -89,7 +95,8 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
   const subgroupIconByPath = new Map<string, SidebarIcon>();
   const subgroupTitleByPath = new Map<string, string>();
   const subgroupRankByPath = new Map<string, number>();
-  const listedPageParent = new Map<string, { subgroupPath: string; rank: number }>();
+  const listedPageParent = new Map<string, { groupId: string; subgroupPath?: string; rank: number }>();
+  const subgroupLinks: { subgroupPath: string; groupId: string; url: string }[] = [];
   for (const g of sidebar.groups) {
     const id = g.path.replace(/^\//, '');
     groupMap.set(id, {
@@ -101,12 +108,17 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
       defaultOpen: ('defaultOpen' in g && g.defaultOpen) || false,
       children: []
     });
+    const groupPages: { url: string; order: number }[] = 'pages' in g ? (g.pages ?? []) : [];
+    groupPages.forEach(({ url, order }) => listedPageParent.set(url, { groupId: id, rank: order }));
     const subgroups: SidebarSubgroup[] = 'subgroups' in g ? (g.subgroups ?? []) : [];
     subgroups.forEach((sub, index) => {
       if (sub.icon) subgroupIconByPath.set(sub.path, sub.icon);
       if (sub.title) subgroupTitleByPath.set(sub.path, sub.title);
       subgroupRankByPath.set(sub.path, index);
-      sub.pages?.forEach((pageUrl, rank) => listedPageParent.set(pageUrl, { subgroupPath: sub.path, rank }));
+      sub.pages?.forEach((pageUrl, rank) =>
+        listedPageParent.set(pageUrl, { groupId: id, subgroupPath: sub.path, rank })
+      );
+      sub.links?.forEach((url) => subgroupLinks.push({ subgroupPath: sub.path, groupId: id, url }));
     });
   }
 
@@ -186,10 +198,22 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
     const groupId = segments[0];
     const group = groupMap.get(groupId) || rootGroup;
 
+    // A page listed in a group's `pages` sits among that group's own pages whatever its URL.
+    const listed = listedPageParent.get(url);
+    if (listed && listed.subgroupPath === undefined) {
+      ensureNode({
+        pathKey: url,
+        isLeaf: true,
+        realUrl: url,
+        title: page.title,
+        order: listed.rank,
+        parentChildren: groupMap.get(listed.groupId)?.children ?? group.children
+      });
+      continue;
+    }
     // A page listed in a subgroup's `pages` sits under that subgroup whatever its URL, ranked by
     // its position in the list (the CLI keeps flat `/cli/<command>` URLs but groups them by task).
-    const listed = listedPageParent.get(url);
-    if (listed) {
+    if (listed?.subgroupPath !== undefined) {
       const subgroupNode = ensureNode({
         pathKey: listed.subgroupPath,
         isLeaf: false,
@@ -197,7 +221,7 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
         title:
           subgroupTitleByPath.get(listed.subgroupPath) ?? capitalizeSegment(listed.subgroupPath.split('/').pop() ?? ''),
         order: listed.rank,
-        parentChildren: group.children
+        parentChildren: groupMap.get(listed.groupId)?.children ?? group.children
       });
       ensureNode({
         pathKey: url,
@@ -240,6 +264,22 @@ export const getNavigationTree = (allDocPages: DocPage[], version: DocsVersion =
       });
       parentChildren = node.children;
     }
+  }
+
+  // Links to pages that another group lists, after the subgroup's own pages.
+  for (const { subgroupPath, groupId, url } of subgroupLinks) {
+    const page = allDocPages.find((candidate) => candidate.url === url);
+    const parent = nodeMap.get(subgroupPath)?.children ?? groupMap.get(groupId)?.children;
+    if (!page || !parent) continue;
+    parent.push({
+      url,
+      key: `${subgroupPath}->${url}`,
+      title: page.title,
+      order: CONFIGURED_SUBGROUP_ORDER,
+      icon: null,
+      children: [],
+      crossLink: true
+    });
   }
 
   // Configured subgroups keep the position they have in the config, after the group's own pages
@@ -303,6 +343,7 @@ export const computeExpandedState = ({
   const defaultOpenPaths = new Set<string>(config.sidebar.defaultOpenPaths);
 
   const isActiveOrAncestor = (item: NavItem): boolean => {
+    if (item.crossLink) return false;
     if (item.url !== null && normalizedPath === item.url) return true;
     return item.children.some((child) => isActiveOrAncestor(child));
   };
@@ -333,6 +374,11 @@ export const computeExpandedState = ({
 
 /** The section names above a page, as the sidebar shows them: `/resources/compute/web-service` → Resources, Compute. */
 export const getSectionTrail = (pathname: string, allDocPages: DocPage[]): string[] => {
+  const url = pathname.replace(/\/$/, '') || '/';
+  const listingGroup = config.sidebar.groups.find(
+    (group) => 'pages' in group && group.pages?.some((page) => page.url === url)
+  );
+  if (listingGroup) return [listingGroup.title];
   const segments = pathname.split('/').filter(Boolean);
   return segments.slice(0, -1).map((segment, index) => {
     const path = `/${segments.slice(0, index + 1).join('/')}`;

@@ -1,6 +1,6 @@
 # error resolve
 
-The `error resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`error ignore`](/cli/errors-ignore) instead. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+The `error resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`error ignore`](/cli/error-ignore) instead. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -8,7 +8,7 @@ The `error resolve` command marks a runtime issue as resolved. Stacktape marks t
 stacktape error resolve iss_abc123def456
 ```
 
-You need the issue ID. Use [`error list`](/cli/errors-list) to list detected runtime issues before resolving one.
+You need the issue ID. Use [`error list`](/cli/error-list) to list detected runtime issues before resolving one.
 
 ## Examples
 
@@ -33,6 +33,6 @@ stacktape error resolve iss_abc123def456 --agent
 
 ## Related commands
 
-- [`error list`](/cli/errors-list) — list all detected runtime issues with their status and occurrence count
-- [`error ignore`](/cli/errors-ignore) — mark an issue as ignored so new occurrences do not reopen it or generate alerts
-- [`error reopen`](/cli/errors-reopen) — reopen a resolved or ignored issue, setting its status back to open
+- [`error list`](/cli/error-list) — list all detected runtime issues with their status and occurrence count
+- [`error ignore`](/cli/error-ignore) — mark an issue as ignored so new occurrences do not reopen it or generate alerts
+- [`error reopen`](/cli/error-reopen) — reopen a resolved or ignored issue, setting its status back to open

@@ -1,10 +1,3 @@
----
-title: 'error list'
-order: 190
-seoTitle: 'error list CLI Command | Stacktape Docs'
-seoDescription: 'List detected runtime issues across deployed functions and containers with stacktape error list. Filter by status, project, or stage and inspect errors from your terminal.'
----
-
 # error list
 
 The `error list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. [Error tracking](/observability/error-tracking) runs in the Console.
@@ -63,11 +56,23 @@ When no limit is provided, the command requests 25 issues. Omit `--project`, `--
 
 ## Options
 
-<CliCommandsApiReference command="errors:list" />
+
+## CLI Options: `stacktape error list`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--status` | no | `string` | Issue Status Filter — Filter tracked errors by status (OPEN, RESOLVED, IGNORED). | `OPEN`, `RESOLVED`, `IGNORED` |
+| `--limit` | no | `number` | Limit — Maximum number of items to return. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--project` | no | `string` | Project Name — The name of the Stacktape project for this operation. Commands that target a stack take it from `projectName` in the project's config when the flag is absent. | - |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+| `-s, --stage` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
+
 
 ## Related commands
 
-- [`error resolve`](/cli/errors-resolve) — Mark an issue as resolved. The issue reopens automatically if the same error occurs again.
-- [`error ignore`](/cli/errors-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences and do not generate alerts.
-- [`error reopen`](/cli/errors-reopen) — Reopen a resolved or ignored issue, setting its status back to OPEN.
+- [`error resolve`](/cli/error-resolve) — Mark an issue as resolved. The issue reopens automatically if the same error occurs again.
+- [`error ignore`](/cli/error-ignore) — Mark an issue as ignored. Ignored issues do not reopen on new occurrences and do not generate alerts.
+- [`error reopen`](/cli/error-reopen) — Reopen a resolved or ignored issue, setting its status back to OPEN.
 - [`logs`](/cli/logs) — Fetch logs from a deployed resource to investigate root causes of issues.

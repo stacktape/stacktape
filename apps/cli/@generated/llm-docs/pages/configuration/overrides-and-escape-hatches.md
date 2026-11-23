@@ -23,7 +23,7 @@ Run [`stacktape synth`](/cli/synth) to generate the CloudFormation template loca
 stacktape synth --stage dev --region eu-west-1
 ```
 
-This writes a `compiled-template.yaml` file. Use it to verify that your overrides produce the expected CloudFormation properties. For a deployed stack, [`stacktape status`](/cli/info-stack) lists the child resources too:
+This writes a `compiled-template.yaml` file. Use it to verify that your overrides produce the expected CloudFormation properties. For a deployed stack, [`stacktape status`](/cli/status) lists the child resources too:
 
 ```bash
 stacktape status --stage dev --region eu-west-1

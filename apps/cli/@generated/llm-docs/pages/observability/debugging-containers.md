@@ -1,7 +1,7 @@
 # Debugging deployed containers
 
 Two CLI commands get you inside a running container of a deployed stage:
-[`container shell`](/cli/container-session) opens an interactive shell, and [`container exec`](/cli/container-exec)
+[`container shell`](/cli/container-shell) opens an interactive shell, and [`container exec`](/cli/container-exec)
 runs one command and prints its output as JSON. They work for [web services](/resources/compute/web-service),
 [private services](/resources/compute/private-service), [worker services](/resources/compute/worker-service) and
 [multi-container workloads](/resources/compute/multi-container-workload). For functions, see

@@ -22,7 +22,8 @@ function ContentTreeNodeInner({ item, depth }: { item: NavItem; depth: number })
   const hasChildren = item.children.length > 0;
   // Per-key store selectors: only this row re-renders when its own slice changes.
   const isExpanded = useIsExpanded(item.key);
-  const isActive = useIsActiveUrl(item.url);
+  // A link to another group's page is not where the page sits, so it is never marked as the current page.
+  const isActive = useIsActiveUrl(item.crossLink ? null : item.url);
   const childrenId = `${useContext(NavIdPrefixContext)}-${item.key.replace(/[^a-z0-9]+/gi, '-')}`;
   const icon = item.icon ? <span className="docs-nav-icon">{createElement(item.icon, { size: 15 })}</span> : null;
   const chevron = <ChevronRight size={14} className="docs-nav-chevron" aria-hidden />;
