@@ -110,11 +110,15 @@ function invocations(code: string) {
         }
         addCommand(segment.join(' '));
       };
-      const outer = shell.replace(/'[^']*'|\$\(([^()]*)\)/g, (match, inner: string | undefined) => {
-        if (inner === undefined) return match;
-        scan(inner);
-        return '{value}';
-      });
+      // Within a simple substitution, quoted parentheses are part of an argument.
+      const outer = shell.replace(
+        /'[^']*'|\$\(((?:'[^']*'|"(?:\\.|[^"\\])*"|\\.|[^()'"\\])*)\)/g,
+        (match, inner: string | undefined) => {
+          if (inner === undefined) return match;
+          scan(inner);
+          return '{value}';
+        }
+      );
       scan(outer);
       return commands;
     });
@@ -135,6 +139,11 @@ const extraFlags = new Map([
   ['--output-format', false]
 ]);
 
+// These three switches leave a following word in argv, even if it is true or false.
+const bareBooleanFlags = new Set(['--json', '--debug', '--quiet']);
+const takesSeparatedBoolean = (flag: string, next: string | undefined) =>
+  !bareBooleanFlags.has(flag) && (next === 'true' || next === 'false');
+
 function commandErrors(input: string[], commands: Map<string, CommandReference>, defaults: string[]): string[] {
   const args = input.slice(0, input.includes('--') ? input.indexOf('--') : undefined);
   let startsAt = 0;
@@ -142,7 +151,8 @@ function commandErrors(input: string[], commands: Map<string, CommandReference>,
     const [flag, value] = args[startsAt++].split('=', 2);
     const boolean = extraFlags.get(flag);
     const next = args[startsAt];
-    if (value === undefined && next && (boolean === false || (boolean && /^(true|false)$/.test(next)))) startsAt++;
+    if (value === undefined && next && (boolean === false || (boolean && takesSeparatedBoolean(flag, next))))
+      startsAt++;
   }
   const isHelp = args.some((token) => ['--help', '-h', '--version', '-v'].includes(token));
   if (startsAt === args.length && isHelp && args.every((token) => extraFlags.has(token))) return [];
@@ -183,7 +193,12 @@ function commandErrors(input: string[], commands: Map<string, CommandReference>,
     const next = args[index + 1];
     const hasValue = token.includes('=') && token.length > flag.length + 1;
     if (boolean) {
-      if (!hasValue && (next === 'true' || next === 'false') && command.positionals.length === 0) index++;
+      if (
+        !token.includes('=') &&
+        takesSeparatedBoolean(flag, next) &&
+        (index < startsAt || !command.positionals.length)
+      )
+        index++;
     } else if (!hasValue && (next === undefined || /^-(?!\d)/.test(next))) {
       problems.push(`missing value for ${flag}`);
       continue;
@@ -252,6 +267,11 @@ test('recognizes prompt hints and substitutions, and validates arguments after r
   assert.deepEqual(check('result=$(stacktape deploy --region us-east-1 --stage dev 2> run.log --bogus)'), [
     ['unknown flag: --bogus']
   ]);
+  assert.deepEqual(
+    check('result=$(stacktape logs api --stage dev --region us-east-1 --query "stats count(*)" --bogus)'),
+    [['unknown flag: --bogus']]
+  );
+  assert.deepEqual(check("result=$(stacktape logs api --stage dev --region us-east-1 --query 'stats count(*)')"), [[]]);
   assert.deepEqual(check('stacktape deploy 2>&1 --region us-east-1 > run.log --stage dev && echo done'), [[]]);
   assert.deepEqual(check('stacktape logs api --resource-name api --stage dev --region us-east-1'), [
     ['duplicate argument: resourceName']
@@ -259,6 +279,13 @@ test('recognizes prompt hints and substitutions, and validates arguments after r
   assert.deepEqual(check('stacktape logs --resource-name api api --stage dev --region us-east-1'), [
     ['duplicate argument: resourceName']
   ]);
+  assert.deepEqual(check('stacktape --quiet false deploy --stage dev --region us-east-1'), [
+    ['unknown command: false']
+  ]);
+  assert.deepEqual(check('stacktape deploy --quiet false --stage dev --region us-east-1'), [
+    ['unexpected positional argument: false']
+  ]);
+  assert.deepEqual(check('stacktape --agent false logs api --stage dev --region us-east-1'), [[]]);
 });
 
 test('Stacktape commands in docs code examples match the current CLI', (context) => {

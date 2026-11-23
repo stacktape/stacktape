@@ -584,7 +584,7 @@ Use the default `http-api-gateway` mode for most HTTP APIs and web apps. Choose 
 
 ### Why isn't my custom domain working?
 
-For managed DNS, check that your nameservers point to the Route 53 hosted zone, you have run `stacktape domain add`, and ACM shows the certificate as **Issued**. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and point the record yourself, or supply your own ACM certificate via `customCertificateArn`. See [custom domains](/resources/networking/custom-domains).
+For managed DNS, check that your nameservers point to the Route 53 hosted zone, you have run `stacktape domain add`, and ACM shows the certificate as **Issued**. If you manage DNS elsewhere, set `disableDnsRecordCreation: true`, supply an issued ACM certificate via `customCertificateArn`, and point the DNS record yourself. See [custom domains](/resources/networking/custom-domains).
 
 ### Why are my `cors` settings being ignored?
 

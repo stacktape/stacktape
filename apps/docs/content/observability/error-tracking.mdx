@@ -35,7 +35,7 @@ Stacktape error tracking displays recorded runtime errors in the Console and CLI
 
 ## Turning error tracking off or limiting stages
 
-With the Console, error tracking is on by default. Each deployment with error tracking enabled subscribes the stack's Standard function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged. Infrequent Access log groups have no subscription.
+With the Console, error tracking is on by default. It subscribes Standard log groups for application Lambda functions with Stacktape-managed packaging and containers packaged with `js-bundle`, provided the workload uses a supported language and has log forwarding off.
 
 Without the Console, error tracking defaults to off. Setting `errorTracking.enabled: true` or listing stages for enabled tracking stops the deploy with `CONFIG_NEEDS_CONSOLE`.
 

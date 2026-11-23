@@ -294,8 +294,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
-          if [ "$state" = open ]; then
+          head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq 'select(.state == "open") | .head.sha')
+          checkout=$(git rev-parse HEAD)
+          if [ "$head" = "$checkout" ]; then
             npx stacktape deploy --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
           fi
 ```
@@ -336,12 +337,19 @@ jobs:
         run: |
           state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
           if [ "$state" = closed ]; then
-            npx stacktape delete --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
+            status=0
+            output=$(npx stacktape delete --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes --json) || status=$?
+            printf '%s\n' "$output"
+            if [ "$status" -ne 0 ]; then
+              jq -es 'last | .type == "result" and .ok == false and (.code | IN("NON_EXISTING_STACK_E30", "NON_EXISTING_STACK_E32"))' <<< "$output" >/dev/null || exit "$status"
+            fi
           fi
 ```
 
 
 > **Warning:** Delete preview stages on PR close to avoid unused infrastructure and costs. Each preview stage provisions the full set of resources defined in your config — databases, functions, containers, and networking — all of which incur AWS charges while running.
+
+If GitHub skips cleanup because the PR has merge conflicts, use the preview's AWS credentials and run `stacktape delete --project my-project --stage pr-<n> --region us-east-1 --yes` with the PR number in place of `<n>`.
 
 If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
@@ -15842,7 +15850,7 @@ You can create several Git deployments per project — for example, one that dep
 
 ### PR preview environments
 
-When you configure a pull request trigger, Stacktape creates a separate stack for each pull request (merge request on GitLab), named `pr-<number>`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape starts deleting the preview stack if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
+When you configure a pull request trigger, Stacktape creates a separate stage named `pr-<number>` for each pull request (merge request on GitLab). For PR 42 in project `shop`, stage `pr-42` deploys as CloudFormation stack `shop-pr-42`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape starts deleting the preview stack if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
 
 If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
@@ -18052,7 +18060,7 @@ An alarm sends to the `notificationChannels` listed on it, such as Slack, email 
 
 The **Error tracking** page in the Observability group is a built-in error inbox. Stacktape reads runtime errors from the logs of your functions and containers and groups repeated occurrences into one issue per distinct error and resource, with the error message, project, stage, function name, occurrence count and last-seen time.
 
-With the Console, error tracking is on by default. Without the Console, it defaults to off, and enabling it in config stops the deploy with `CONFIG_NEEDS_CONSOLE`. Each deployment with error tracking enabled subscribes the stack's Standard function and container log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
+With the Console, error tracking is on by default. Without the Console, it defaults to off, and enabling it in config stops the deploy with `CONFIG_NEEDS_CONSOLE`. Deployed workloads that meet the [error tracking requirements](/observability/error-tracking#turning-error-tracking-off-or-limiting-stages) send errors to the Console. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
 
 
 > Screenshot: Stacktape Console Error tracking page showing summary cards (Open/Resolved/Ignored counts), filters, and a table of runtime errors with occurrence counts and status Caption: The Error tracking page groups repeated runtime errors so you don't search logs by hand.
@@ -22228,7 +22236,7 @@ Stacktape error tracking displays recorded runtime errors in the Console and CLI
 
 ## Turning error tracking off or limiting stages
 
-With the Console, error tracking is on by default. Each deployment with error tracking enabled subscribes the stack's Standard function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged. Infrequent Access log groups have no subscription.
+With the Console, error tracking is on by default. It subscribes Standard log groups for application Lambda functions with Stacktape-managed packaging and containers packaged with `js-bundle`, provided the workload uses a supported language and has log forwarding off.
 
 Without the Console, error tracking defaults to off. Setting `errorTracking.enabled: true` or listing stages for enabled tracking stops the deploy with `CONFIG_NEEDS_CONSOLE`.
 
@@ -33336,7 +33344,7 @@ Use the default `http-api-gateway` mode for most HTTP APIs and web apps. Choose 
 
 ### Why isn't my custom domain working?
 
-For managed DNS, check that your nameservers point to the Route 53 hosted zone, you have run `stacktape domain add`, and ACM shows the certificate as **Issued**. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and point the record yourself, or supply your own ACM certificate via `customCertificateArn`. See [custom domains](/resources/networking/custom-domains).
+For managed DNS, check that your nameservers point to the Route 53 hosted zone, you have run `stacktape domain add`, and ACM shows the certificate as **Issued**. If you manage DNS elsewhere, set `disableDnsRecordCreation: true`, supply an issued ACM certificate via `customCertificateArn`, and point the DNS record yourself. See [custom domains](/resources/networking/custom-domains).
 
 ### Why are my `cors` settings being ignored?
 
