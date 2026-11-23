@@ -21681,12 +21681,13 @@ Alarms are not the right tool for every monitoring need:
 
 ## Supported resources
 
-Stacktape supports inline alarms on five resource types. Each resource accepts a specific set of trigger types:
+Stacktape supports inline alarms on these resource types. Each resource accepts a specific set of trigger types:
 
 | Resource | Config property | Accepted alarm triggers |
 |---|---|---|
 | [Lambda function](/resources/compute/lambda-function) | `alarms` | `lambda-error-rate`, `lambda-duration` |
 | [Relational database](/resources/databases/relational-database) | `alarms` | `database-cpu-utilization`, `database-connection-count`, `database-read-latency`, `database-write-latency`, `database-free-storage`, `database-free-memory` |
+| [Web service](/resources/compute/web-service) | `alarms` | `http-api-gateway-error-rate`, `http-api-gateway-latency` with the default load balancing; the Application Load Balancer triggers with `application-load-balancer` |
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | `alarms` | `http-api-gateway-error-rate`, `http-api-gateway-latency` |
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `alarms` | `application-load-balancer-error-rate`, `application-load-balancer-unhealthy-targets`, `application-load-balancer-custom` |
 | [SQS queue](/resources/messaging/sqs-queue) | `alarms` | `sqs-queue-received-messages-count`, `sqs-queue-not-empty` |
@@ -32787,7 +32788,9 @@ Route: `/resources/compute/web-service`
 
 A Stacktape web service runs one always-on container with a public HTTPS URL. Use the `WebService` resource for APIs, backend web apps, and internet-facing container services that need TLS, horizontal scaling, and deployment behavior managed through Stacktape instead of hand-wired AWS networking.
 
-**Pricing context:** Fargate bills for every running task; approximate us-east-1 monthly compute starts around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB memory, and each running task pays ~$3.60/month for its public IPv4 address. HTTP API Gateway load balancing is about ~$1/million requests; Application Load Balancer starts around ~$18/month plus usage. The [basic example](#basic-example) (0.5 vCPU, 1 GB, one task) costs ~$21/month plus requests.
+<span id="pricing" />
+
+**Pricing context:** The [basic example](#basic-example) (0.5 vCPU, 1 GB, one task) costs about $21/month in us-east-1, plus API requests. Fargate bills for every running task; approximate us-east-1 monthly compute starts around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB memory. AWS also charges about $3.60/month for the public IPv4 address of each task in a public subnet. HTTP API Gateway load balancing is about ~$1/million requests; Application Load Balancer starts around ~$23/month, including its two public IPv4 addresses, plus usage.
 
 ## When to use
 
@@ -32835,7 +32838,7 @@ export default defineConfig(() => {
 ```
 
 
-`entryfilePath` points to the application entry point that `js-bundle` bundles. The `resources` block sets the Fargate task size for the container — `cpu: 0.5` and `memory: 1024` are explicit task-size selections, not implied defaults. Fargate is the default compute engine for web services unless you choose EC2 instance types through the resource configuration. See the [API reference](#api-reference) for the full resources configuration shape.
+`entryfilePath` points to the application entry point that `js-bundle` bundles. The `resources` block sets the Fargate task size for the container — `cpu: 0.5` and `memory: 1024` are explicit task-size selections, not implied defaults. Fargate is the default compute engine for web services unless you choose EC2 instance types through the resource configuration. See the [API reference](#api-reference) for the full resources configuration shape. Your server must listen on the port in the `PORT` environment variable, `3000` by default; see [Port](#port) to change it.
 
 ## Traffic
 
@@ -33193,7 +33196,9 @@ adds a small `stp-cloudmap-drain` container to tasks behind an HTTP API:
 
 ## In-place code swap
 
-Set `codeSwap: true` to opt into [in-place code swaps](/deployment-and-lifecycle/code-swap). It supports Node.js and Python on x86 Fargate behind an HTTP API or an application load balancer within the ten-task cap, including production. Old and new processes share memory; a sudden increase can fail in-flight requests. Unsupported services and failed memory screens use image deploys. Node.js needs `js-bundle` packaging and Python a hash-locked `requirements.txt` with `buildpack`; the app must listen on `PORT`. A service with an `internalHealthCheck` or side containers always uses image deploys.
+Set `codeSwap: true` (`properties.codeSwap` in YAML) to opt into [in-place code swaps](/deployment-and-lifecycle/code-swap). It supports Node.js and Python on x86 Fargate behind an HTTP API or an application load balancer, including production. The autoscaling maximum plus deployment surge must fit within 10 tasks. Old and new processes share memory; a sudden increase can fail in-flight requests. Unsupported services and failed memory screens use image deploys.
+
+Node.js services need `js-bundle` packaging. Python services need `buildpack` packaging with a hash-locked `requirements.txt`. The app must listen on the port in `PORT`. A service with an `internalHealthCheck` or side containers always uses image deploys.
 
 ## Side containers
 
@@ -33231,7 +33236,7 @@ export default defineConfig(() => {
 ```
 
 
-The example above shows a `run-on-init` side container for a setup step. A `run-on-init` container runs in every task, on every start and scale-out. For database migrations, use [`releaseCommand`](/deployment-and-lifecycle/release-commands) instead: it runs once per deploy, before any container gets the new code. For an `always-running` side container such as a log forwarder or monitoring agent, set `containerType: 'always-running'` instead — the container runs for the entire task lifetime and shares the network namespace (`localhost`) with the main container. Choose `run-on-init` when the helper is a one-time setup step; choose `always-running` when the helper must stay up alongside the main process.
+The example above shows a `run-on-init` side container for a setup step. A `run-on-init` container runs each time a task starts, including when the service scales out. For database migrations, use [`releaseCommand`](/deployment-and-lifecycle/release-commands) instead: it runs in one separate task during the deploy, not in every task. For an `always-running` side container such as a log forwarder or monitoring agent, set `containerType: 'always-running'` instead — the container runs for the entire task lifetime and shares the network namespace (`localhost`) with the main container. Choose `run-on-init` when the helper is a setup step each task needs before it starts; choose `always-running` when the helper must stay up alongside the main process.
 
 Use the built-in web service side-container model when one main public container owns the endpoint and helpers are secondary. Use a [multi-container-workload](/resources/compute/multi-container-workload) instead when you need a workload model centered on multiple containers with their own integrations and lifecycle configuration.
 
@@ -33338,14 +33343,15 @@ Container output (`stdout` and `stderr`) is automatically sent to CloudWatch Log
 Logs are a core operating path for always-on containers. Keep application logs structured enough to debug request failures, startup errors, and health-check failures, then view them through the Stacktape Console or the [`stacktape logs`](/cli/logs) CLI command:
 
 ```bash
-stacktape logs api --stage prod --region eu-west-1
+stacktape logs api --stage prod \
+  --region eu-west-1
 ```
 
 To keep logs for a different period, set `logging: { retentionDays: 30 }`.
 
 ## Alarms
 
-`alarms` adds alarms to this service: HTTP API Gateway error rate and latency with the default load balancing, or the Application Load Balancer triggers with `application-load-balancer`. They are merged with the global alarms set in the Stacktape Console, and `disabledGlobalAlarms` turns off the ones you don't want here. See [alarms](/observability/alarms).
+Set `alarms` on the service, for example `alarms: [{ trigger: { type: 'http-api-gateway-error-rate', properties: { thresholdPercent: 5 } } }]`. The default HTTP API supports error rate and latency triggers. With `application-load-balancer`, use the Application Load Balancer triggers; a trigger that doesn't match the load balancing fails validation. Legacy organization-wide alarm rules from the Stacktape Console also apply; list the ones to skip by their Console name in `disabledGlobalAlarms`. See [alarms](/observability/alarms).
 
 ## Remote sessions
 
@@ -33373,7 +33379,7 @@ Keep remote sessions disabled by default for routine services and enable them de
 
 ## Overrides
 
-When you need an AWS setting the web service doesn't expose, set it on the CloudFormation resources Stacktape generates with `overrides`. [Overrides and escape hatches](/configuration/overrides-and-escape-hatches) shows how to find those resources and what to override.
+When you need an AWS setting the web service doesn't expose, use `overrides` to change it on a CloudFormation resource that Stacktape creates for the service. [Overrides and escape hatches](/configuration/overrides-and-escape-hatches) shows how to find those resources and what to override.
 
 ## FAQ
 
@@ -33395,7 +33401,7 @@ The `cors` property only takes effect with the default `http-api-gateway` load b
 
 ### How much does an ECS Fargate web service cost?
 
-Fargate bills by allocated vCPU and memory for each running task, so idle web service instances still cost money. Each running task also pays for its public IPv4 address. The pricing line at the top of this page lists the us-east-1 prices; ARM tasks are about 20% cheaper. For cost monitoring, see [Managing Costs](/managing-costs/overview).
+Fargate bills by allocated vCPU and memory for each running task, so idle web service instances still cost money. A task in a public subnet also pays for its public IPv4 address. See the [us-east-1 estimate](#pricing) at the top of this page; ARM tasks are about 20% cheaper for compute. For cost monitoring, see [Managing Costs](/managing-costs/overview).
 
 ### Web service vs Lambda function: which should I use?
 
@@ -33403,7 +33409,7 @@ Use a web service when your application is already a long-running container, nee
 
 ### How do I run database migrations for a web service?
 
-Set [`releaseCommand`](/deployment-and-lifecycle/release-commands), for example `releaseCommand: 'npx prisma migrate deploy'`. Stacktape runs it once on each deploy in a one-off task with this service's image, environment and network access, and stops the deploy if it fails, so the running version keeps serving. Don't use a `run-on-init` side container for migrations: it runs in every task, on every start and scale-out. For more complex multi-container lifecycle and traffic routing, use a [multi-container-workload](/resources/compute/multi-container-workload). For broader deployment automation, see [deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks).
+Set [`releaseCommand`](/deployment-and-lifecycle/release-commands), for example `releaseCommand: { command: 'npx prisma migrate deploy', runWhenChanged: ['prisma/migrations'] }`. Stacktape runs the command in a separate task with the service's environment and network access before the service gets the new code. If the command fails, Stacktape stops the deploy and leaves the current tasks running. Without `runWhenChanged`, the command runs only when the service image changes, and a `js-bundle` image can stay the same when only migration files change. Keep each migration compatible with the running version, which uses the database until the rollout finishes. Don't use a `run-on-init` side container for migrations: it runs each time a task starts, including scale-out. For more complex multi-container lifecycle and traffic routing, use a [multi-container-workload](/resources/compute/multi-container-workload). For broader deployment automation, see [deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks).
 
 ### Can I protect a web service with AWS WAF?
 
