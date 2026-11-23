@@ -84,7 +84,8 @@ export default defineConfig(() => {
 | 8 | 16384–61440 MB |
 | 16 | 32768–122880 MB |
 
-Check real CPU and memory use on the Console's [Metrics](/observability/metrics) page or in CloudWatch, and resize from there.
+Check real CPU and memory use on the Console's [Metrics](/observability/metrics) page or with
+[`stacktape metrics`](/cli/metrics), and resize from there.
 
 ### EC2
 

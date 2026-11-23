@@ -108,7 +108,7 @@ permissions. Set `kmsKeyArn` to use your own KMS key. `connectTo` doesn't grant 
 Consumers share each shard's 2 MB/s read throughput. When several consumers read the same stream and latency matters,
 give a Lambda consumer its own throughput with `autoCreateConsumer: true` on its
 [Kinesis event](/resources/triggers/kinesis-events#enhanced-fan-out). AWS charges per consumer-shard hour and per GB
-read.
+read. The stream's own `enableEnhancedFanOut` property is deprecated and does nothing; setting it prints a warning.
 
 ## Configuration reference
 

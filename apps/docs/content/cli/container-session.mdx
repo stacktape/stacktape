@@ -17,7 +17,7 @@ Open a session by specifying the target stage, region, and resource name.
 stacktape container shell myService --stage production --region eu-west-1
 ```
 
-This opens an interactive session inside the container running in the specified resource. The target workload must be a deployed workload with an ECS task definition. Stacktape looks for running ECS tasks before opening the session. When multiple tasks are running, Stacktape prompts you to choose one.
+This opens an interactive session inside the container running in the specified resource. The target workload must be a deployed workload with an ECS task definition. Stacktape looks for running ECS tasks before opening the session. When multiple tasks are running, Stacktape prompts you to choose one. Only the service's own tasks count; one-off tasks, such as a running [release command](/deployment-and-lifecycle/release-commands), are left out.
 
 <Info>
 

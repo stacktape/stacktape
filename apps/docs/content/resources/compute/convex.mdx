@@ -69,8 +69,8 @@ Stacktape generates the admin key, stores it in AWS Secrets Manager and passes i
 
 Without custom domains, the backend is served on a `*.stacktape-app.com` domain, on ports 3210 (client API), 3211
 (HTTP actions) and 6791 (dashboard). That domain comes from the [Stacktape Console](/getting-started/add-the-console).
-Without the Console connected, set [custom domains](#custom-domains) for all three origins, or the deploy stops and
-asks for them.
+Without the Console connected, set [custom domains](#custom-domains) for `cloud` and `site`, and for `dashboard` unless
+you turn the dashboard off, or the deploy stops and asks for them.
 
 ## Custom domains
 

@@ -1,6 +1,6 @@
 # metrics
 
-`stacktape metrics` reads one CloudWatch metric of a deployed resource and draws it as a chart in your terminal. Use it to check invocations, errors, database CPU and connections or API latency without opening the AWS console. It needs AWS credentials for the account and works without a Stacktape account.
+`stacktape metrics` reads one CloudWatch metric of a deployed resource and draws it as a chart in your terminal. Use it to check invocations, errors, container and database CPU, connections or API latency without opening the AWS console. It needs AWS credentials for the account and works without a Stacktape account.
 
 ## Usage
 
@@ -16,11 +16,10 @@ The first argument is the resource name from your config, the second the metric.
 |---|---|
 | [Lambda function](/resources/compute/lambda-function) | `Invocations`, `Errors`, `Duration`, `Throttles`, `ConcurrentExecutions` |
 | [Relational database](/resources/databases/relational-database) | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadLatency`, `WriteLatency` |
-| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `Latency`, `IntegrationLatency` |
+| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `4xx`, `5xx`, `Latency`, `IntegrationLatency` |
+| [Web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), [multi-container workload](/resources/compute/multi-container-workload) | `CPUUtilization`, `MemoryUtilization` |
 
-The command accepts `4XXError` and `5XXError` for an HTTP API Gateway, but AWS publishes those counts for HTTP APIs as `4xx` and `5xx`, so the chart stays empty. Until the CLI is fixed, read API errors in the Console's [Metrics](/observability/metrics) page or in CloudWatch.
-
-Containers don't work yet. Web services, private services and worker services are refused, and a multi-container workload's `CPUUtilization` and `MemoryUtilization` come back empty because the query leaves out the ECS cluster. For containers, use the Console's Metrics page or `stacktape logs`. Another resource type or an unknown metric stops the command with a list of what it accepts.
+Container metrics are per ECS service, so they cover all running containers of the resource; `--stat Maximum` shows the busiest one. Another resource type or an unknown metric stops the command with a list of what it accepts.
 
 ## Examples
 

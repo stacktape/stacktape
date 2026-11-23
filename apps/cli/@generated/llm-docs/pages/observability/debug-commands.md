@@ -10,7 +10,7 @@ the container and bastion sessions, the commands only read.
 | You want to | Command |
 |---|---|
 | Read a function's or container's logs, or follow them live | [`stacktape logs`](/cli/logs) |
-| See a metric of a function, database or HTTP API | [`stacktape metrics`](/cli/metrics) |
+| See a metric of a function, container, database or HTTP API | [`stacktape metrics`](/cli/metrics) |
 | Check which alarms are firing | [`stacktape alarm list`](/cli/alarms) |
 | Run a `SELECT` against a SQL database | [`stacktape query sql`](/cli/query-sql) |
 | Look at items of a DynamoDB table | [`stacktape query dynamodb`](/cli/query-dynamodb) |

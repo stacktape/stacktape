@@ -91,7 +91,7 @@ stacktape synth --stage dev --region eu-west-1 --keep-temp-files --out ./debug-t
 |---------|-------------|---------------|------------------------|
 | [`synth`](/cli/synth) | Writes the CloudFormation template to a file | Nothing | No |
 | [`validate`](/cli/validate) | Checks the config and, with `--thorough`, the template | A temporary template object with `--thorough` | No |
-| [`diff`](/cli/diff) | Shows what a deploy would change | Missing secrets, a template and a change set it never applies | Yes |
+| [`diff`](/cli/diff) | Shows what a deploy would change | Missing secrets, a template and a temporary change set | Yes |
 
 Use `synth` when you need the template file on disk for inspection or downstream tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing artifacts. Use [`diff`](/cli/diff) when you want to compare your current config against what is already deployed.
 

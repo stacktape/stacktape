@@ -81,8 +81,9 @@ it into the new database, and keep `deletionProtection` on so a deploy can't del
 
 Engine types: `postgres`, `mysql`, `mariadb`, `oracle-se2`, `sqlserver-ee`, `sqlserver-ex`, `sqlserver-se` and
 `sqlserver-web` (classes `RdsEnginePostgres`, `RdsEngineMysql`, `RdsEngineMariadb`, `RdsEngineOracleSE2` and the
-`RdsEngineSqlServer*` classes). Oracle and SQL Server run with a license included in the instance price. The
-`oracle-ee` type currently fails validation, so use `oracle-se2` for Oracle.
+`RdsEngineSqlServer*` classes). Oracle and SQL Server run with a license included in the instance price. AWS includes
+the Oracle license only for Standard Edition 2, and Stacktape has no bring-your-own-license option, so use `oracle-se2`
+for Oracle.
 
 `instanceSize` sets CPU and memory. PostgreSQL prices in us-east-1, single-AZ, on-demand
 ([RDS pricing](https://aws.amazon.com/rds/postgresql/pricing/)):

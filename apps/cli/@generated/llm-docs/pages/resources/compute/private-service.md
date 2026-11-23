@@ -195,6 +195,10 @@ export default defineConfig(() => {
 The service gets an internal load balancer with a stable DNS name in the VPC. `connectTo` injects the same
 `STP_<NAME>_ADDRESS` variable.
 
+This mode needs the [Stacktape Console](/getting-started/add-the-console) for now: without an account, the deploy stops
+because the CLI expects the Console's default domain for every load balancer without its own domain or certificate, and
+this one can't have either. Without an account, keep `service-connect`.
+
 ## Packaging
 
 Pick how the image is built:

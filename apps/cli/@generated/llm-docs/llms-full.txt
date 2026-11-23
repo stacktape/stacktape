@@ -2307,7 +2307,7 @@ Changes the command makes in the container, such as written files, are lost when
 
 ## Pick the task and the container
 
-A service scaled to several tasks runs the command in the first running task. Pick another with `--task-arn`, the full ARN or only the task ID:
+A service scaled to several tasks runs the command in the first running task of the service. One-off tasks, such as a running [release command](/deployment-and-lifecycle/release-commands), are never picked. Pick another task with `--task-arn`, the full ARN or only the task ID:
 
 ```bash
 stacktape container exec apiService "ps aux" --stage prod --region eu-west-1 --task-arn abc123def
@@ -2396,7 +2396,7 @@ Open a session by specifying the target stage, region, and resource name.
 stacktape container shell myService --stage production --region eu-west-1
 ```
 
-This opens an interactive session inside the container running in the specified resource. The target workload must be a deployed workload with an ECS task definition. Stacktape looks for running ECS tasks before opening the session. When multiple tasks are running, Stacktape prompts you to choose one.
+This opens an interactive session inside the container running in the specified resource. The target workload must be a deployed workload with an ECS task definition. Stacktape looks for running ECS tasks before opening the session. When multiple tasks are running, Stacktape prompts you to choose one. Only the service's own tasks count; one-off tasks, such as a running [release command](/deployment-and-lifecycle/release-commands), are left out.
 
 
 > **Info:** This command does not require a Stacktape configuration file. It connects directly to the deployed stack using the resource name argument (`container shell <resource-name>`) and the `--stage` and `--region` flags. Use optional stack arguments such as `--project`, `--aws-account`, or `--profile` when your local defaults are not enough to identify the target stack or AWS credentials.
@@ -3422,7 +3422,7 @@ A stateful resource is marked replaced only when the AWS resource that holds its
 
 - **Secrets and SSM parameters.** It restores secrets referenced by the config that are scheduled for deletion. In a terminal, it asks for the values of missing secrets and parameters and creates them. With `--agent` or without a terminal, a missing secret or parameter stops the command instead. Missing database passwords are generated and stored as new secrets, after a confirmation in a terminal.
 - **The template.** It uploads the template to the stage's deployment bucket and deletes it after the preview.
-- **The change set.** It creates a CloudFormation change set on the stack. The change set stays there, unexecuted.
+- **The change set.** It creates a CloudFormation change set on the stack, reads it and deletes it without executing it, also when the change set has no changes or fails. If the delete fails, the preview still succeeds.
 
 That's why coding agents need your approval before they run `diff` through the [MCP server](/using-with-ai/mcp-server-setup#safety-model), the same as for a deploy. [`synth`](/cli/synth) builds the template without changing anything in AWS.
 
@@ -5126,7 +5126,7 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 
 ## Related commands
 
-- [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics of a deployed function, database or HTTP API.
+- [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics of a deployed function, container, database or HTTP API.
 - [`stacktape alarm list`](/cli/alarms) — view CloudWatch alarm states for resources in your stack.
 - [`stacktape container exec`](/cli/container-exec) — run a command inside a deployed container for live debugging.
 - [`stacktape query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database from the command line.
@@ -5371,7 +5371,7 @@ No. The MCP-compatible client spawns the server automatically over stdio when it
 Source: `apps/docs/content/cli/metrics.mdx`
 Route: `/cli/metrics`
 
-`stacktape metrics` reads one CloudWatch metric of a deployed resource and draws it as a chart in your terminal. Use it to check invocations, errors, database CPU and connections or API latency without opening the AWS console. It needs AWS credentials for the account and works without a Stacktape account.
+`stacktape metrics` reads one CloudWatch metric of a deployed resource and draws it as a chart in your terminal. Use it to check invocations, errors, container and database CPU, connections or API latency without opening the AWS console. It needs AWS credentials for the account and works without a Stacktape account.
 
 ## Usage
 
@@ -5387,11 +5387,10 @@ The first argument is the resource name from your config, the second the metric.
 |---|---|
 | [Lambda function](/resources/compute/lambda-function) | `Invocations`, `Errors`, `Duration`, `Throttles`, `ConcurrentExecutions` |
 | [Relational database](/resources/databases/relational-database) | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadLatency`, `WriteLatency` |
-| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `Latency`, `IntegrationLatency` |
+| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `4xx`, `5xx`, `Latency`, `IntegrationLatency` |
+| [Web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), [multi-container workload](/resources/compute/multi-container-workload) | `CPUUtilization`, `MemoryUtilization` |
 
-The command accepts `4XXError` and `5XXError` for an HTTP API Gateway, but AWS publishes those counts for HTTP APIs as `4xx` and `5xx`, so the chart stays empty. Until the CLI is fixed, read API errors in the Console's [Metrics](/observability/metrics) page or in CloudWatch.
-
-Containers don't work yet. Web services, private services and worker services are refused, and a multi-container workload's `CPUUtilization` and `MemoryUtilization` come back empty because the query leaves out the ECS cluster. For containers, use the Console's Metrics page or `stacktape logs`. Another resource type or an unknown metric stops the command with a list of what it accepts.
+Container metrics are per ECS service, so they cover all running containers of the resource; `--stat Maximum` shows the busiest one. Another resource type or an unknown metric stops the command with a list of what it accepts.
 
 ## Examples
 
@@ -7358,7 +7357,7 @@ stacktape synth --stage dev --region eu-west-1 --keep-temp-files --out ./debug-t
 |---------|-------------|---------------|------------------------|
 | [`synth`](/cli/synth) | Writes the CloudFormation template to a file | Nothing | No |
 | [`validate`](/cli/validate) | Checks the config and, with `--thorough`, the template | A temporary template object with `--thorough` | No |
-| [`diff`](/cli/diff) | Shows what a deploy would change | Missing secrets, a template and a change set it never applies | Yes |
+| [`diff`](/cli/diff) | Shows what a deploy would change | Missing secrets, a template and a temporary change set | Yes |
 
 Use `synth` when you need the template file on disk for inspection or downstream tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing artifacts. Use [`diff`](/cli/diff) when you want to compare your current config against what is already deployed.
 
@@ -12751,7 +12750,7 @@ The stage must already be deployed. For a stage that does not exist yet there is
 - It creates [secrets](/configuration/secrets) and SSM parameters that the config references but that do not exist yet. In a terminal it asks for their values; in a pipeline it fails and lists them, like `deploy`.
 - It builds your functions and container images on your machine, using the build cache.
 - It uploads the template to the deployment bucket and deletes it when done.
-- It creates a CloudFormation change set and leaves it unexecuted.
+- It creates a CloudFormation change set, reads it and deletes it without executing it.
 
 Change sets are free; the main cost is the build time.
 
@@ -17126,7 +17125,7 @@ Set `timeout` to the lowest value your function needs. Timeouts don't affect cos
 
 ## Right-size container resources
 
-For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics) or in CloudWatch. If utilization is consistently below 30%, you're paying for capacity you don't use.
+For Fargate-backed container workloads, AWS pricing is tied to requested CPU and memory — over-provisioning wastes money every hour. Check CPU and memory utilization in the Stacktape Console [metrics view](/observability/metrics), with [`stacktape metrics`](/cli/metrics) (`CPUUtilization`, `MemoryUtilization`) or in CloudWatch. If utilization is consistently below 30%, you're paying for capacity you don't use.
 
 Start at the smallest CPU/memory combination that keeps your application responsive and scale up only when metrics justify it. See the [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), and [worker service](/resources/compute/worker-service) pages for the supported CPU and memory values on each resource.
 
@@ -17959,7 +17958,7 @@ the container and bastion sessions, the commands only read.
 | You want to | Command |
 |---|---|
 | Read a function's or container's logs, or follow them live | [`stacktape logs`](/cli/logs) |
-| See a metric of a function, database or HTTP API | [`stacktape metrics`](/cli/metrics) |
+| See a metric of a function, container, database or HTTP API | [`stacktape metrics`](/cli/metrics) |
 | Check which alarms are firing | [`stacktape alarm list`](/cli/alarms) |
 | Run a `SELECT` against a SQL database | [`stacktape query sql`](/cli/query-sql) |
 | Look at items of a DynamoDB table | [`stacktape query dynamodb`](/cli/query-dynamodb) |
@@ -18982,10 +18981,8 @@ The command supports these resource types:
 |---|---|
 | [Lambda function](/resources/compute/lambda-function) | `Invocations`, `Errors`, `Duration`, `Throttles`, `ConcurrentExecutions` |
 | [Relational database](/resources/databases/relational-database) | `CPUUtilization`, `DatabaseConnections`, `FreeStorageSpace`, `ReadLatency`, `WriteLatency` |
-| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `Latency`, `IntegrationLatency` |
-
-For web services, worker services and other containers, and for an HTTP API's error counts, use the Console. The
-CLI's queries for those currently return no data or are refused; see [`stacktape metrics`](/cli/metrics).
+| [HTTP API Gateway](/resources/networking/http-api-gateway) | `Count`, `4xx`, `5xx`, `Latency`, `IntegrationLatency` |
+| Web, private and worker services, multi-container workloads | `CPUUtilization`, `MemoryUtilization` |
 
 ## Read the common metrics
 
@@ -23813,8 +23810,8 @@ Stacktape generates the admin key, stores it in AWS Secrets Manager and passes i
 
 Without custom domains, the backend is served on a `*.stacktape-app.com` domain, on ports 3210 (client API), 3211
 (HTTP actions) and 6791 (dashboard). That domain comes from the [Stacktape Console](/getting-started/add-the-console).
-Without the Console connected, set [custom domains](#custom-domains) for all three origins, or the deploy stops and
-asks for them.
+Without the Console connected, set [custom domains](#custom-domains) for `cloud` and `site`, and for `dashboard` unless
+you turn the dashboard off, or the deploy stops and asks for them.
 
 ## Custom domains
 
@@ -26125,6 +26122,10 @@ export default defineConfig(() => {
 The service gets an internal load balancer with a stable DNS name in the VPC. `connectTo` injects the same
 `STP_<NAME>_ADDRESS` variable.
 
+This mode needs the [Stacktape Console](/getting-started/add-the-console) for now: without an account, the deploy stops
+because the CLI expects the Console's default domain for every load balancer without its own domain or certificate, and
+this one can't have either. Without an account, keep `service-connect`.
+
 ## Packaging
 
 Pick how the image is built:
@@ -27150,7 +27151,8 @@ export default defineConfig(() => {
 | 8 | 16384–61440 MB |
 | 16 | 32768–122880 MB |
 
-Check real CPU and memory use on the Console's [Metrics](/observability/metrics) page or in CloudWatch, and resize from there.
+Check real CPU and memory use on the Console's [Metrics](/observability/metrics) page or with
+[`stacktape metrics`](/cli/metrics), and resize from there.
 
 ### EC2
 
@@ -29559,8 +29561,9 @@ it into the new database, and keep `deletionProtection` on so a deploy can't del
 
 Engine types: `postgres`, `mysql`, `mariadb`, `oracle-se2`, `sqlserver-ee`, `sqlserver-ex`, `sqlserver-se` and
 `sqlserver-web` (classes `RdsEnginePostgres`, `RdsEngineMysql`, `RdsEngineMariadb`, `RdsEngineOracleSE2` and the
-`RdsEngineSqlServer*` classes). Oracle and SQL Server run with a license included in the instance price. The
-`oracle-ee` type currently fails validation, so use `oracle-se2` for Oracle.
+`RdsEngineSqlServer*` classes). Oracle and SQL Server run with a license included in the instance price. AWS includes
+the Oracle license only for Standard Edition 2, and Stacktape has no bring-your-own-license option, so use `oracle-se2`
+for Oracle.
 
 `instanceSize` sets CPU and memory. PostgreSQL prices in us-east-1, single-AZ, on-demand
 ([RDS pricing](https://aws.amazon.com/rds/postgresql/pricing/)):
@@ -32459,7 +32462,7 @@ permissions. Set `kmsKeyArn` to use your own KMS key. `connectTo` doesn't grant 
 Consumers share each shard's 2 MB/s read throughput. When several consumers read the same stream and latency matters,
 give a Lambda consumer its own throughput with `autoCreateConsumer: true` on its
 [Kinesis event](/resources/triggers/kinesis-events#enhanced-fan-out). AWS charges per consumer-shard hour and per GB
-read.
+read. The stream's own `enableEnhancedFanOut` property is deprecated and does nothing; setting it prints a warning.
 
 ## Configuration reference
 
@@ -41956,7 +41959,7 @@ The MCP server classifies every CLI command into a safety level and enforces per
 | `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion shell` |
 
-`diff` needs your approval like a deploy. It never applies its changes, but before the preview it restores secrets scheduled for deletion, stores generated database passwords as new secrets, uploads a template and creates a CloudFormation change set in your account. See [what diff changes](/cli/diff#what-diff-changes-in-aws).
+`diff` needs your approval like a deploy. It never applies its changes, but before the preview it restores secrets scheduled for deletion, stores generated database passwords as new secrets, uploads a template and creates a temporary CloudFormation change set in your account. See [what diff changes](/cli/diff#what-diff-changes-in-aws).
 
 For destructive commands, the MCP server asks the user directly through their AI client's confirmation form: an input-required round trip on the `2026-07-28` revision, a standard elicitation request on the 2025 revisions. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
 
