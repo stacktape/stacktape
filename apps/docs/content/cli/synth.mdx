@@ -9,6 +9,8 @@ seoDescription: 'Use stacktape synth to compile your Stacktape configuration int
 
 `stacktape synth` turns your configuration into a CloudFormation template and writes it to a file, `compiled-template.yaml` by default. Use it to read the template or hand it to other tools. It doesn't create or change a stack.
 
+The file isn't exactly what a deploy sends to CloudFormation. `synth` doesn't build your code, so the code locations are empty, and a deploy adds a few resources that `synth` doesn't write. To take over a deployed stack, save its deployed template instead, as [Stop using Stacktape](/getting-started/evaluate/stop-using-stacktape) shows.
+
 ## Usage
 
 ```bash

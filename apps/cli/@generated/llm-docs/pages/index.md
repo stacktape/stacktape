@@ -11,16 +11,19 @@ Run it in your project directory:
 
 It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed.
 
+- [Quickstart](/getting-started)
+- [Starting a new project?](/getting-started/start-a-new-project)
+
 
 ## Where to start
 
 ### Deploy an existing app
 
-Already have a repository? Follow the wizard from the analysis of your code to the first deploy.
+Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.
 
 Steps: Start, Analyze, Review, Deploy.
 
-- [The wizard, step by step](/getting-started/deploy-an-existing-app)
+- [Deploy an existing app](/getting-started/deploy-an-existing-app)
 - [Moving from Heroku, Render, Fly.io, SST or Serverless](/getting-started/evaluate/move-to-stacktape)
 
 ### Start a new project
@@ -31,14 +34,15 @@ Start from a working starter, such as Express with Postgres, Next.js or FastAPI.
 npx stacktape@latest init --starter-project
 ```
 
-- [Walkthrough](/getting-started/start-a-new-project)
-- [Browse starters](/getting-started/starter-projects)
+- [Start a new project](/getting-started/start-a-new-project)
 
 ### Evaluate Stacktape for your team
 
-What runs where, who owns production, what leaves your AWS account, access, costs, support and how you would leave.
+What a team lead or CTO wants to know before a pilot: what runs where, who owns production and how you would leave.
 
-- [Evaluate Stacktape](/getting-started/evaluate)
+Covers: Where it runs, data, access, stages, costs, support, lock-in.
+
+- [Evaluate Stacktape for your team](/getting-started/evaluate)
 
 
 ## A config and what it creates
@@ -119,9 +123,11 @@ resources:
 
 What it creates in your AWS account, in the stack `my-api-dev`:
 
-- HTTP API Gateway (`api`): Public HTTPS URL for the service
-- ECS on Fargate (`api`, in the VPC): Your container, 0.25 vCPU and 512 MB
-- RDS Postgres 18 (`database`, in the VPC): db.t4g.micro, reachable only from `api`
+- `api` (WebService), connected by HTTPS requests:
+  - HTTP API Gateway: The public URL
+  - ECS on Fargate: Your container, 0.25 vCPU and 512 MB, in the VPC
+- `database` (RelationalDatabase), connected by `connectTo`: private, inside the VPC:
+  - RDS Postgres 18: db.t4g.micro, reachable only from `api`
 - `STP_DATABASE_CONNECTION_STRING` in the container environment
 - Security groups, an IAM role and CloudWatch logs
 - A generated database password, kept in AWS Secrets Manager
@@ -171,7 +177,7 @@ Your stacks are plain CloudFormation in your account and keep running without St
 
 ### Networking
 
-Non-production stages in one account and region share a VPC, each with its own security groups. Production stages get their own. The first deploy decides, so choose before it. Databases accept internet connections with credentials by default: `accessibilityMode` limits who can connect, and `forceDisablePublicIp` removes the public IP. [Shared network](/configuration/connecting-resources#shared-network-for-non-production-stages)
+Non-production stages in one account and region share a VPC, each with its own security groups. Production stages get their own. The first deploy decides, so choose before it. Databases accept internet connections with credentials by default: `accessibilityMode` limits who can connect, and `forceDisablePublicIp` removes the public IP. [Shared network](/configuration/shared-network)
 
 ### CI/CD
 

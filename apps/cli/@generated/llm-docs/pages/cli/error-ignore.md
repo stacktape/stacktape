@@ -1,6 +1,6 @@
 # error ignore
 
-`stacktape error ignore` marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`error reopen`](/cli/errors-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`error resolve`](/cli/errors-resolve) which will automatically reopen if the same error recurs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape error ignore` marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`error reopen`](/cli/error-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`error resolve`](/cli/error-resolve) which will automatically reopen if the same error recurs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -8,7 +8,7 @@
 stacktape error ignore <issue-id>
 ```
 
-You can find issue IDs by running [`error list`](/cli/errors-list). This command requires a Stacktape API key — run [`login`](/cli/login) first if this machine is not yet authenticated.
+You can find issue IDs by running [`error list`](/cli/error-list). This command requires a Stacktape API key — run [`login`](/cli/login) first if this machine is not yet authenticated.
 
 ## Examples
 
@@ -26,9 +26,9 @@ stacktape error ignore iss_abc123def456 --agent
 
 ## When to Ignore vs Resolve
 
-Use `error ignore` for errors you've reviewed and determined are not actionable — for example, recurring runtime errors that you've investigated and confirmed don't require a code fix. Ignored issues stay silent until you explicitly reopen them with [`error reopen`](/cli/errors-reopen).
+Use `error ignore` for errors you've reviewed and determined are not actionable — for example, recurring runtime errors that you've investigated and confirmed don't require a code fix. Ignored issues stay silent until you explicitly reopen them with [`error reopen`](/cli/error-reopen).
 
-Use [`error resolve`](/cli/errors-resolve) when you've fixed the root cause. A resolved issue will automatically reopen if the same error recurs, keeping you informed of regressions.
+Use [`error resolve`](/cli/error-resolve) when you've fixed the root cause. A resolved issue will automatically reopen if the same error recurs, keeping you informed of regressions.
 
 ## Options
 
@@ -45,6 +45,6 @@ Use [`error resolve`](/cli/errors-resolve) when you've fixed the root cause. A r
 
 ## Related commands
 
-- [`error list`](/cli/errors-list) — list detected runtime issues with filtering by status, project, or stage
-- [`error resolve`](/cli/errors-resolve) — mark an issue as resolved (will reopen on recurrence)
-- [`error reopen`](/cli/errors-reopen) — reopen a previously resolved or ignored issue
+- [`error list`](/cli/error-list) — list detected runtime issues with filtering by status, project, or stage
+- [`error resolve`](/cli/error-resolve) — mark an issue as resolved (will reopen on recurrence)
+- [`error reopen`](/cli/error-reopen) — reopen a previously resolved or ignored issue

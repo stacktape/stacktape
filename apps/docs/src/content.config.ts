@@ -15,7 +15,9 @@ const docs = defineCollection({
       category: z.string().optional(),
       seoTitle: z.string().optional(),
       seoDescription: z.string().optional(),
-      hideTitle: z.boolean().optional()
+      hideTitle: z.boolean().optional(),
+      /** A page scanned rather than read (the resource catalog, the command index) gets a wider column. */
+      lookup: z.boolean().optional()
     })
     .passthrough()
 });

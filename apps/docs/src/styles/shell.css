@@ -167,6 +167,9 @@
   .docs-main.is-home {
     grid-template-columns: minmax(0, var(--docs-home-measure));
   }
+  .docs-main.is-lookup {
+    grid-template-columns: minmax(0, var(--docs-lookup-measure));
+  }
   .docs-article-column {
     min-width: 0;
   }
@@ -174,6 +177,9 @@
   @media (min-width: 1300px) {
     .docs-main.has-toc {
       grid-template-columns: minmax(0, var(--docs-measure)) var(--docs-toc-w);
+    }
+    .docs-main.has-toc.is-lookup {
+      grid-template-columns: minmax(0, var(--docs-lookup-measure)) var(--docs-toc-w);
     }
   }
 

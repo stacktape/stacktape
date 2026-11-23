@@ -37,7 +37,13 @@ const slug = entryToUrlSlug(entry.id);
 const { Content, headings } = await render(entry);
 const allDocPages = await getAllDocPages();
 
-const frontmatter = entry.data as { title?: string; seoTitle?: string; seoDescription?: string; hideTitle?: boolean };
+const frontmatter = entry.data as {
+  title?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  hideTitle?: boolean;
+  lookup?: boolean;
+};
 const pageTitle = frontmatter.title || getTitleFromSlug(slug);
 
 const tableOfContents: TableOfContentsItem[] = headings.map((heading) => ({
@@ -76,6 +82,7 @@ const components = {
   tableOfContents={tableOfContents}
   currentPath={Astro.url.pathname}
   hideTitle={frontmatter.hideTitle === true}
+  isLookup={frontmatter.lookup === true}
 >
   <Content components={components} />
 </DocsLayout>

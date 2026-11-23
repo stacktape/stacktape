@@ -3,7 +3,7 @@
 A stage is a named deployment of your project, such as `dev`, `staging` or `production`. Each stage is a separate
 CloudFormation stack with its own application resources: databases, functions, queues and buckets. Non-production
 stages in the same AWS account and region usually share one VPC; see
-[Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
+[Shared network for non-production stages](/configuration/shared-network).
 
 ## Why stages exist
 
@@ -427,7 +427,7 @@ export default defineConfig(({ stage }) => {
 
 ## Setting defaults
 
-If you always deploy to the same stage and region during development, use [`stacktape defaults set`](/cli/defaults-configure) to set default values for stage and region. See the [CLI reference](/cli/defaults-configure) for details.
+If you always deploy to the same stage and region during development, use [`stacktape defaults set`](/cli/defaults-set) to set default values for stage and region. See the [CLI reference](/cli/defaults-set) for details.
 
 ```bash
 stacktape defaults set
@@ -449,7 +449,7 @@ stacktape deploy --stage production --region us-east-1
 
 ### Listing stacks
 
-Use [`stacktape stack list`](/cli/info-stacks) to list deployed stacks in a region. See the [CLI reference](/cli/info-stacks) for available options.
+Use [`stacktape stack list`](/cli/stack-list) to list deployed stacks in a region. See the [CLI reference](/cli/stack-list) for available options.
 
 ```bash
 stacktape stack list --region eu-west-1
@@ -504,7 +504,7 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 Their application resources are separate, and deploying or deleting one stage does not touch the others. Two things are shared:
 
-- **The network.** Non-production stages of an account and region usually run in one VPC, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages). Each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Where a stage runs is decided on its first deploy and doesn't change later, even when the stage becomes production.
+- **The network.** Non-production stages of an account and region usually run in one VPC, the [shared network](/configuration/shared-network). Each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Where a stage runs is decided on its first deploy and doesn't change later, even when the stage becomes production.
 - **The AWS account.** Anyone with deploy credentials for the account can reach every stage in it. To keep production away from people who deploy previews, deploy it to its own AWS account.
 
 ### What happens when I deploy to an existing stage?

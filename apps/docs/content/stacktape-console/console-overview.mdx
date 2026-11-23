@@ -20,7 +20,7 @@ The Console is optional. The [CLI](/cli) is open source and deploys without it; 
 
 1. Open **Projects** at the top of the sidebar and select your project. A project is usually one repository, with stages such as `production` and `dev`. [Organizations, projects and stages](/stacktape-console/organizations-projects-and-stages) explains how they relate.
 2. Select the stage in the row of stages in the project header. Its page has the tabs **Overview**, **Activity**, **Costs**, **Configuration**, **Diagram** and **Danger zone**. Overview lists the stage's endpoints and resources.
-3. Click a resource. Its details show **Logs**, **Logs live tail**, **Metrics**, its **Configuration** and the **AWS resources** behind it. Containers also offer a **Remote session**.
+3. Click a resource. Its tabs depend on its type. A web service has **Overview**, **Tasks**, **Logs**, **Metrics**, **Environment**, **Shell**, **Settings**, **Outputs** and **AWS** (the AWS resources behind it), plus **CDN** when it has one. A function has **Invoke** in place of Tasks and Shell, and a database adds **Backups** and **Queries**.
 
 <ConsoleScreenshot
   src="/static/screenshots/console-resource-logs.webp"

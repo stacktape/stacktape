@@ -84,7 +84,7 @@ in the app's own directory, or click **Analyze again with Claude Code** (or Code
 
 - **Diagram**: the resources and how they connect.
 - **What & why**: each resource, with the line of your code that led to it under **Where we saw this**.
-- **File**: the configuration that will be saved.
+- **stacktape.yml** (or **stacktape.ts**; **File** on a narrow screen): the configuration that will be saved.
 
 Below the tabs:
 
@@ -105,16 +105,16 @@ Below the tabs:
 
 ### What it will cost
 
-Each resource shows a monthly price, and the total is at the top. Prices come from AWS list prices for the region you
-pick. Usage charges, such as requests and data transfer, come on top. A resource without a known price says **Price
-unavailable**.
+The sentence above the tabs gives the monthly total, and each resource shows its own price. Prices come from AWS list
+prices for the region you pick. Usage charges, such as requests and data transfer, come on top. A resource without a
+known price says **Price unavailable**.
 
 To calculate the price, the wizard sends the generated configuration and the region to Stacktape's price estimator.
 The configuration contains no source code and no secret values.
 
 ### Save the file
 
-1. In the **File** tab, choose **YAML** or **TypeScript**. YAML is the default.
+1. In the file tab, choose **YAML** or **TypeScript**. YAML is the default.
 2. Pick the region. It's saved in the file as `region`, and every command in this project deploys there. The wizard
    preselects the region your AWS setup uses, or `eu-west-1`.
 3. Click **Save stacktape.yml & continue**, or **Save stacktape.ts & continue**.

@@ -90,5 +90,5 @@ your own pipeline does it with a `stacktape delete` job.
 By default, a failed deploy keeps what it changed, and the next run continues from there. Fix the problem and push
 again. If the deploy finished but the new code is broken, push a revert commit, or return to the previous version with
 [`stacktape rollback`](/cli/rollback). If CloudFormation left the stack in a failed state, recover it with
-[`stacktape stack recover`](/cli/cf-rollback). [Rollbacks](/deployment-and-lifecycle/rollbacks) explains which to use
+[`stacktape stack recover`](/cli/stack-recover). [Rollbacks](/deployment-and-lifecycle/rollbacks) explains which to use
 when.

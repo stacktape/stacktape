@@ -126,13 +126,15 @@
      section is being read, so a jump and the highlighted section always agree. */
   --docs-anchor-gap: var(--docs-space-24);
   --docs-anchor-offset: calc(var(--docs-header-h) + var(--docs-anchor-gap));
-  --docs-shell-max: 1480px;
+  --docs-shell-max: 1680px;
   --docs-sidebar-w: 280px;
   --docs-toc-w: 232px;
   /* The reading measure: about 80 characters of body text, independent of the rails. */
   --docs-measure: 46rem;
   /* The home page lays out cards in up to three columns, so it gets a wider column than an article. */
   --docs-home-measure: 68rem;
+  /* Lookup pages (resource catalog, command index) are scanned in rows with a tag column, so they get more width. */
+  --docs-lookup-measure: 60rem;
   --docs-gutter: var(--docs-space-48);
   --docs-rail-gap: var(--docs-space-48);
 

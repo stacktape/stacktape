@@ -51,7 +51,7 @@ stacktape deploy --stage staging
 Each stage is its own stack, named `<project>-<stage>`, with its own resources, URLs and data. Non-production stages
 in one AWS account and region share one network (VPC), but each keeps its own security groups. Production stages get a
 network of their own. A stage's first deploy decides which, from its name or `stackConfig.stageType`; see
-[Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
+[Shared network for non-production stages](/configuration/shared-network).
 To vary sizes or settings by stage, see [Stages and environments](/configuration/stages-and-environments).
 
 To keep production in a separate AWS account, deploy it with that account's credentials, for example
@@ -118,7 +118,7 @@ First find the error:
   the stack `<project>-<stage>` and its **Events** tab. The first event with a `FAILED` status has the reason.
 - **The app started and then stopped.** Read its logs: `stacktape logs <resource name> --stage dev`.
 - **With the Console**, each deploy and its error stay in the stage's deploy history, and
-  [`stacktape stack history`](/cli/info-operations) lists them in the terminal.
+  [`stacktape stack history`](/cli/stack-history) lists them in the terminal.
 
 Common causes are a missing IAM permission, an AWS quota and an invalid value in the config.
 

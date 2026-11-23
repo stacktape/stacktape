@@ -24,9 +24,20 @@ type Props = {
   version?: DocsVersion;
   /** The page renders its own H1 (frontmatter `hideTitle: true`), so the layout does not add one. */
   hideTitle?: boolean;
+  /** A lookup page (frontmatter `lookup: true`) gets a wider column than an article. */
+  isLookup?: boolean;
 };
 
-const { title, seo, allDocPages, tableOfContents, currentPath, version = 'v4', hideTitle = false } = Astro.props;
+const {
+  title,
+  seo,
+  allDocPages,
+  tableOfContents,
+  currentPath,
+  version = 'v4',
+  hideTitle = false,
+  isLookup = false
+} = Astro.props;
 // Separate persistence names per version: a v4 sidebar must never survive onto a v3 page or back.
 const persistSuffix = version === 'v4' ? '' : `-${version}`;
 const isHome = currentPath === '/';
@@ -187,7 +198,10 @@ const siteJsonLd = isHome ? [
         pathname={currentPath}
         version={version}
       />
-      <main id="main-content" class:list={['docs-main', hasToc && 'has-toc', isHome && 'is-home']}>
+      <main
+        id="main-content"
+        class:list={['docs-main', hasToc && 'has-toc', isHome && 'is-home', isLookup && 'is-lookup']}
+      >
         <div class="docs-article-column">
           {hasToc && <TableOfContents client:idle variant="bar" tableOfContents={outline} />}
           <slot name="before-title" />
