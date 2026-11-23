@@ -1,18 +1,32 @@
 # DynamoDB
 
-A DynamoDB table is a serverless key-value and document store with single-digit millisecond reads and writes at any
-scale. There are no servers or connections to manage, and in the default on-demand mode you pay per request:
-$0.625 per million writes and $0.125 per million reads in us-east-1, plus $0.25 per GB-month of storage after the
-first 25 GB ([DynamoDB pricing](https://aws.amazon.com/dynamodb/pricing/on-demand/)). An idle table costs nothing
-beyond its storage.
+A Stacktape DynamoDB table is a serverless NoSQL database that delivers single-digit millisecond reads and writes at any scale. It uses AWS DynamoDB underneath — no servers to manage, no capacity planning in the default on-demand mode, and you pay only for actual reads, writes, and storage.
 
-It fits data you read by known keys: users, sessions, carts, device readings, counters. If you need joins, ad-hoc
-queries or reports, use a [relational database](/resources/databases/relational-database); for full-text search, use
-[OpenSearch](/resources/databases/opensearch).
+## When to use
+
+DynamoDB is the right choice when your access patterns are well-defined and key-based. It excels at high-throughput, low-latency workloads where you query by known keys rather than running ad-hoc joins or complex filters.
+
+**Good fits:**
+- User profiles, session stores, shopping carts — single-key lookups at scale
+- IoT telemetry and time-series data (partition by device ID, sort by timestamp)
+- Leaderboards, counters, and real-time analytics where you need fast writes
+- Event sourcing with [DynamoDB Streams](/resources/triggers/dynamodb-streams) to trigger downstream processing
+- Any workload where the access pattern is known upfront and read/write latency matters more than query flexibility
+
+## When NOT to use
+
+DynamoDB is a poor fit when you need relational queries, ad-hoc reporting, or full-text search. If you find yourself needing JOINs, complex aggregations, or frequently changing query patterns, use a [relational database](/resources/databases/relational-database) instead. For search-heavy workloads, consider [OpenSearch](/resources/databases/opensearch). If your data model is document-oriented but you need richer query capabilities than key lookups, [MongoDB Atlas](/resources/databases/mongodb-atlas) may be a better fit.
+
+| Consider DynamoDB when | Consider alternatives when |
+|---|---|
+| Access patterns are known upfront | You need ad-hoc queries or JOINs |
+| Single-digit ms latency is critical | Query flexibility matters more than latency |
+| Traffic is spiky or unpredictable | You need full-text search |
+| You want zero operational overhead | You need complex aggregations or reporting |
 
 ## Basic example
 
-A table needs only its primary key:
+A DynamoDB table requires only a primary key definition. The simplest table uses a single partition key, which uniquely identifies each item.
 
 
 Example (TypeScript):
@@ -36,11 +50,7 @@ export default defineConfig(() => {
 ```
 
 
-The table runs in on-demand mode because `provisionedThroughput` is not set. Check it after the deploy:
-
-```bash
-stacktape query dynamodb postsTable --operation schema --stage dev
-```
+This creates a DynamoDB table in on-demand (pay-per-request) mode — the default when `provisionedThroughput` is omitted. You pay only for actual reads and writes with no upfront capacity commitment.
 
 ## Primary key
 
@@ -48,15 +58,14 @@ Every DynamoDB table needs a primary key that uniquely identifies each item. The
 
 DynamoDB supports two key types:
 
-- **Simple key**: a `partitionKey` alone. Each item must have a unique partition key value. Use when items are accessed individually (e.g., user profiles by `userId`).
-- **Composite key**: a `partitionKey` plus a `sortKey`. Multiple items can share the same partition key, distinguished by the sort key. Use when you need to query groups of related items (e.g., all orders for a user, sorted by date).
+- **Simple key** — a `partitionKey` alone. Each item must have a unique partition key value. Use when items are accessed individually (e.g., user profiles by `userId`).
+- **Composite key** — a `partitionKey` plus a `sortKey`. Multiple items can share the same partition key, distinguished by the sort key. Use when you need to query groups of related items (e.g., all orders for a user, sorted by date).
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
-
 export default defineConfig(() => {
   const ordersTable = new DynamoDbTable({
     primaryKey: {
@@ -78,7 +87,7 @@ export default defineConfig(() => {
 ```
 
 
-The `partitionKey` determines which partition stores the item. Choosing a high-cardinality partition key (like `userId` or `orderId`) distributes data evenly across partitions. A sort key enables range queries within a partition, for example querying all orders for a user between two dates.
+The `partitionKey` determines which partition stores the item. Choosing a high-cardinality partition key (like `userId` or `orderId`) distributes data evenly across partitions. A sort key enables range queries within a partition — for example, querying all orders for a user between two dates.
 
 Each attribute's `type` must be `string`, `number`, or `binary`. Most applications use `string` for identifiers and `number` or `string` for timestamps.
 
@@ -101,7 +110,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
-
 export default defineConfig(() => {
   const sessionsTable = new DynamoDbTable({
     primaryKey: {
@@ -134,9 +142,7 @@ The `readUnits` and `writeUnits` values set the initial (seed) capacity. Without
 
 ### Auto-scaling
 
-`readScaling` and `writeScaling` let DynamoDB adjust capacity between `minUnits` and `maxUnits`. `keepUtilizationUnder`
-is required: the target utilization in percent. A lower target, such as 70, leaves more headroom before requests are
-throttled.
+Add `readScaling` and `writeScaling` to let DynamoDB adjust capacity automatically between `minUnits` and `maxUnits`. The `keepUtilizationUnder` property is required when configuring scaling — it sets the target utilization percentage that DynamoDB uses to decide when to scale. DynamoDB scales up when utilization exceeds this target and scales down when it drops below. Setting a lower target (e.g., 70) gives more headroom before throttling; higher values maximize utilization but leave less margin for traffic spikes. The source types define `keepUtilizationUnder` as a number — 70 is a common starting point, but the types do not document a specific allowed range.
 
 For most provisioned-mode workloads, enable auto-scaling. Without it, a traffic spike throttles requests immediately.
 
@@ -148,14 +154,13 @@ For most provisioned-mode workloads, enable auto-scaling. Without it, a traffic 
 
 ## Secondary indexes
 
-Without secondary indexes, you can only query items by their primary key. A global secondary index (GSI) lets you query by any other attribute, for example looking up users by `email` when the primary key is `userId`. `secondaryIndexes` creates global secondary indexes; local secondary indexes aren't available.
+Without secondary indexes, you can only query items by their primary key. A global secondary index (GSI) lets you query by any other attribute — for example, looking up users by `email` when the primary key is `userId`. In the Stacktape DynamoDB table resource, `secondaryIndexes` configures global secondary indexes; the type does not expose a local secondary index property.
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
-
 export default defineConfig(() => {
   const usersTable = new DynamoDbTable({
     primaryKey: {
@@ -195,7 +200,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
-
 export default defineConfig(() => {
   const productsTable = new DynamoDbTable({
     primaryKey: {
@@ -220,21 +224,17 @@ The `streamType` controls what data each stream record contains:
 | `OLD_IMAGE` | Full item before the change | Undo/restore workflows |
 | `NEW_AND_OLD_IMAGES` | Both before and after | Audit trails, change tracking, diff computation |
 
-With a `streamType` set, the table has a `streamArn` parameter, and a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams)
-on a Lambda function or batch job processes the changes.
+Once streams are enabled, you can set up a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) on a Lambda function or batch job to process changes. Use the table's `streamArn` referenceable parameter when configuring the trigger; it is meaningful when streams are enabled with `streamType`.
 
 ## Backups
 
-`enablePointInTimeRecovery: true` keeps continuous backups, so you can restore the table to any second of the last 35
-days. A restore creates a new table; it doesn't overwrite the existing one. It costs $0.20 per GB-month of table size
-in us-east-1. Turn it on for production tables.
+Enable `enablePointInTimeRecovery` for continuous backups that let you restore the table to any second within the last 35 days. Underneath, AWS DynamoDB creates continuous backups automatically — restores always create a new table rather than overwriting the existing one. This adds approximately 20% to storage costs.
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
-
 export default defineConfig(() => {
   const ordersTable = new DynamoDbTable({
     primaryKey: {
@@ -250,18 +250,11 @@ export default defineConfig(() => {
 ```
 
 
+Enable point-in-time recovery for production tables where data loss would be costly. For development or staging tables, skip it to save money.
+
 ## Connecting to other resources
 
-Add the table to a workload's [`connectTo`](/configuration/connecting-resources). The workload can then read, write,
-query, scan and run batch and transaction operations on the table and its indexes. AWS authorizes a transaction by the
-item operations inside it, so no extra permission is needed. It also gets these variables, for a table named
-`itemsTable`:
-
-| Variable | Value |
-|---|---|
-| `STP_ITEMS_TABLE_NAME` | Table name |
-| `STP_ITEMS_TABLE_ARN` | Table ARN |
-| `STP_ITEMS_TABLE_STREAM_ARN` | Stream ARN, only when the table has a `streamType` |
+Use [connectTo](/configuration/connecting-resources) on workloads or scripts that need access to a DynamoDB table. For DynamoDB tables, `connectTo` grants CRUD plus scan/query IAM permissions and injects environment variables with the table's connection details.
 
 
 Example (TypeScript):
@@ -273,7 +266,6 @@ import {
   LambdaFunction,
   JsBundleLambdaPackaging
 } from 'stacktape';
-
 export default defineConfig(() => {
   const itemsTable = new DynamoDbTable({
     primaryKey: {
@@ -295,7 +287,17 @@ export default defineConfig(() => {
 ```
 
 
-Use the name as `TableName` in SDK calls:
+The `connectTo` injects these environment variables into the consuming workload:
+
+| Environment variable | Description |
+|---|---|
+| `STP_ITEMS_TABLE_NAME` | The DynamoDB table name |
+| `STP_ITEMS_TABLE_ARN` | The table's ARN |
+| `STP_ITEMS_TABLE_STREAM_ARN` | The table's stream ARN |
+
+`connectTo` documents DynamoDB access as CRUD plus scan/query. If your workload needs additional DynamoDB APIs, use [`iamRoleStatements`](/configuration/connecting-resources) on the consuming workload for explicit AWS permissions.
+
+Use `STP_ITEMS_TABLE_NAME` as the `TableName` value in DynamoDB SDK operations:
 
 ```typescript
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -304,7 +306,7 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dyn
 const client = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const TABLE_NAME = process.env.STP_ITEMS_TABLE_NAME!;
 
-export const handler = async () => {
+export const handler = async (event: any) => {
   await client.send(new PutCommand({
     TableName: TABLE_NAME,
     Item: { itemId: '123', title: 'Hello', createdAt: new Date().toISOString() }
@@ -319,45 +321,49 @@ export const handler = async () => {
 };
 ```
 
-For other DynamoDB operations, such as managing backups, add `iamRoleStatements` to the workload.
+You can also reference table parameters directly using the [`$ResourceParam` directive](/configuration/directives) — for example, `$ResourceParam('itemsTable', 'arn')`.
 
 ## Dev mode
 
-In [`stacktape dev`](/local-development/dev-mode-overview), tables run locally in Docker (DynamoDB Local), so you test
-without touching shared data. Set `dev.remote: true` to use the deployed table instead; your local code then writes
-real data.
+During [`stacktape dev`](/local-development/dev-mode-overview), DynamoDB tables run locally in Docker by default. The local emulator gives you isolated development and fast iteration without deploying to AWS — ideal for testing CRUD logic, running integration tests, and iterating on data models without incurring costs or affecting shared data.
 
-## Expiring items (TTL)
+Set `dev.remote: true` to connect to the real deployed AWS table instead. The deployed resource must exist first. Use remote mode when local emulation diverges from AWS behavior in ways that matter to your application, or when you intentionally need to work against real production or staging data. Be careful with remote mode — your local code operates directly against the deployed table, so writes affect real data.
 
-DynamoDB deletes items whose TTL attribute (a Unix timestamp in seconds) is in the past, at no cost. That suits sessions,
-caches and anything with a natural expiry. Turn it on with an [override](/configuration/overrides-and-escape-hatches)
-of the table's CloudFormation resource, `<TableName>GlobalTable`:
+## Overrides
 
+DynamoDB tables expose `overrides` as an escape hatch to modify the underlying CloudFormation resources that Stacktape creates. Use overrides when you need properties not directly exposed by `DynamoDbTableProps` — for example, setting a time-to-live (TTL) attribute so items expire automatically, or enabling server-side encryption with a customer-managed KMS key.
 
-Example (TypeScript):
+The example below enables TTL on an attribute named `expiresAt`. Replace `DynamoDbTableResource` with the actual logical resource name from your stack. The `Properties.TimeToLiveSpecification` path uses dot-notation to target a specific CloudFormation property on that resource:
 
-```typescript
-import { defineConfig, DynamoDbTable } from 'stacktape';
-
-export default defineConfig(() => {
-  const sessions = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'sessionId', type: 'string' } },
-    overrides: {
-      SessionsGlobalTable: {
-        TimeToLiveSpecification: { Enabled: true, AttributeName: 'expiresAt' }
-      }
+```json
+{
+  "DynamoDbTableResource": {
+    "Properties.TimeToLiveSpecification": {
+      "Enabled": true,
+      "AttributeName": "expiresAt"
     }
-  });
-
-  return { resources: { sessions } };
-});
+  }
+}
 ```
 
+TTL is useful for session stores, cache entries, or any data with a natural expiration. AWS DynamoDB automatically deletes expired items at no additional write cost, though deletions may lag behind the expiration time by up to 48 hours. To enable server-side encryption with a customer-managed KMS key instead, override `Properties.SSESpecification` with `{ "SSEEnabled": true, "KMSMasterKeyId": "<your-key-arn>", "SSEType": "KMS" }`.
 
-Deletion can lag the expiry time by a day or two, so filter expired items out of reads if that matters.
-[`stacktape synth`](/cli/synth) shows the logical names of all child resources.
+Use [`stacktape status`](/cli/info-stack) to inspect CloudFormation logical IDs before writing overrides. See [overrides and escape hatches](/configuration/overrides-and-escape-hatches) for the full workflow.
 
-## Configuration reference
+## Referenceable parameters
+
+
+## Referenceable Parameters: `dynamo-db-table`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `name` | AWS (physical) name of the table | `$ResourceParam("<<resource-name>>", "name")` |
+| `arn` | Arn of the table | `$ResourceParam("<<resource-name>>", "arn")` |
+| `streamArn` | Arn of [DynamoDb stream](/resources/databases/dynamodb/#streams) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
+
+
+## API Reference
 
 
 ### Definition: `DynamoDbTableProps`
@@ -374,21 +380,28 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `streamType` | no | `string: "KEYS_ONLY" \| "NEW_AND_OLD_IMAGES" \| "NEW_IMAGE" \| "OLD_IMAGE"` | - |
 
 
-## Referenceable parameters
+## FAQ
 
+### When should I use DynamoDB instead of a relational database?
 
-## Referenceable Parameters: `dynamo-db-table`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+Use DynamoDB when your access patterns are predictable and key-based — user lookups, session stores, leaderboards, IoT telemetry. If your application primarily does single-item reads/writes or queries within a known partition, DynamoDB delivers lower latency and requires zero operational overhead compared to a [relational database](/resources/databases/relational-database). Choose a relational database when you need JOINs, complex aggregations, or flexible ad-hoc queries.
 
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `name` | AWS (physical) name of the table | `$ResourceParam("<<resource-name>>", "name")` |
-| `arn` | Arn of the table | `$ResourceParam("<<resource-name>>", "arn")` |
-| `streamArn` | Arn of [DynamoDb stream](/resources/databases/dynamodb/#streams) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
+### How much does DynamoDB cost?
 
+You pay for reads, writes, and storage. On-demand mode (the default) is more expensive per request but charges only for actual usage with no capacity planning; provisioned mode has a lower per-request cost but requires you to set capacity, so for steady, predictable traffic it typically costs less — especially with auto-scaling enabled. Two features add to the bill: secondary indexes duplicate data and consume their own capacity, and `enablePointInTimeRecovery` adds roughly 20% to storage costs.
 
-## Next steps
+### Can I change the primary key after creating a table?
 
-- [DynamoDB streams](/resources/triggers/dynamodb-streams): run a function when items change.
-- [Local databases](/local-development/local-databases): run the table on your machine in dev mode.
-- [`stacktape query dynamodb`](/cli/query-dynamodb): look at items from your terminal.
+No. The primary key (partition key and sort key) is immutable after table creation. If you need a different key structure, create a new table with the desired key and migrate your data. Design your primary key carefully based on your access patterns before deploying.
+
+### How do DynamoDB Streams work with Stacktape?
+
+Enable streams by setting `streamType` on your DynamoDB table, then configure a [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) on a [Lambda function](/resources/compute/lambda-function) or [batch job](/resources/compute/batch-job). The `streamType` controls what each record contains — `KEYS_ONLY`, `NEW_IMAGE`, `OLD_IMAGE`, or `NEW_AND_OLD_IMAGES`. Use the table's `streamArn` referenceable parameter when wiring up the trigger.
+
+### Does `connectTo` grant permission for DynamoDB transactions?
+
+No. `connectTo` documents DynamoDB access as CRUD plus scan/query, which does not cover transaction operations like `TransactWriteItems` and `TransactGetItems`. If your workload needs transactions or any other DynamoDB API beyond CRUD/scan/query, use [`iamRoleStatements`](/configuration/connecting-resources) on the consuming workload to grant the explicit AWS permissions. Note that AWS charges transactions at twice the normal read/write capacity.
+
+### How do I enable TTL so items expire automatically?
+
+There is no dedicated property for time-to-live, so use `overrides` to set `Properties.TimeToLiveSpecification` with `Enabled: true` and the `AttributeName` holding the expiration timestamp. AWS DynamoDB then deletes expired items at no additional write cost, though deletions can lag the expiration time by up to 48 hours. See the [Overrides](#overrides) section for the full example.

@@ -1,6 +1,6 @@
 ---
-title: 'Security scanning'
-order: 9
+title: 'Security Scanning'
+order: 131
 seoTitle: 'Security Scanning — Findings, Vulnerabilities & Exposure | Stacktape Docs'
 seoDescription: 'See risky configuration, vulnerable packages and internet exposure for every deployed Stacktape stack. Choose what each AWS account checks, limit scanning per stack, and see which fields leave your AWS account.'
 ---
@@ -55,21 +55,20 @@ Dependency checks run only when configuration checks run.
 
 ## The Security pages
 
-The sidebar's **Security** group has four pages: **Overview**, **Exposure**, **Guardrails** and **Settings**.
+Open **Overview** in the sidebar's Security group. The other pages are next to it.
 
-**Overview** is where you start. Its summary counts the open findings to **Fix now** (critical and high) and to **Fix
-when you can** (medium and lower), and how many of your stacks were scanned. Below it, the list of findings has the
-severity, what to fix, the stack, when it was last seen and its status, and you can search it. It holds both kinds of
-finding: configuration findings, including secrets found in environment variables, and vulnerable packages, with the
-versions in use and the version that fixes them (**Fixed in**) or **No fix yet**.
-
-Each stack also has a **Score**: it starts at 100 and loses 25 points for each open critical finding, 10 for each high,
-3 for each medium and 1 for each low. Ignored findings don't count. A stack that was deployed but never reported shows
-**Not scanned**, so a quiet row is not mistaken for a clean one. Click a stack's counts to see only its findings.
-
-**Exposure** lists what the internet can reach in each stack: public endpoints and whether a web application firewall
-protects them, how databases can be reached, and buckets that anyone can read or write. Being reachable is not a
-finding by itself; the findings on Overview say what should change.
+- **Overview** (the **Security** page) has one row per deployed stack: its **Score**, open **Posture** findings, open
+  **Vulnerabilities** and the **Last scan**. A stack starts at a score of 100 and loses 25 points for each open
+  critical finding, 10 for each high, 3 for each medium and 1 for each low. Ignored findings do not count. A stack that
+  was deployed but never reported shows **Not scanned**, so a quiet row is not mistaken for a clean one. **Settings**
+  opens the security settings.
+- **Posture** lists configuration findings and secrets found in environment variables. Filter by project, stage,
+  severity and status.
+- **Vulnerabilities** lists known vulnerabilities by package, with the versions in use, the workloads that run them and
+  the version that fixes the problem (**Fixed in**), or **No fix yet**.
+- **Exposure** lists what the internet can reach in each stack: public endpoints and whether a web application firewall
+  protects them, how databases can be reached, and buckets that anyone can read or write. Being reachable is not a
+  finding by itself; the Posture page lists what should change.
 
 Click a finding to open its page. It shows **What was found** and **How to fix it**. A configuration finding also
 explains **Why it matters**, and a vulnerability shows its **Advisory**: the advisory ID with a link to OSV.dev, other

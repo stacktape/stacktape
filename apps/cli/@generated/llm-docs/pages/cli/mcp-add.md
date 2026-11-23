@@ -54,7 +54,7 @@ stacktape mcp add --yes
 
 With `--yes` or `--agent`, `mcp add` sets up every installed agent. When it finds none, it changes nothing and exits with an error.
 
-## Options
+## Flags reference
 
 
 ## CLI Options: `stacktape mcp add`

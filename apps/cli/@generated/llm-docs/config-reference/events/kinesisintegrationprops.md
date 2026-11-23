@@ -48,7 +48,7 @@ This cannot be used with `consumerArn`.
 
 - Required: no
 - Type: `number`
-- Default: `100`
+- Default: `10`
 
 The maximum number of records to process in a single batch.
 

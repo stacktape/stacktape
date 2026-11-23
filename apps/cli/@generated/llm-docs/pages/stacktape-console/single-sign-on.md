@@ -1,4 +1,4 @@
-# Single sign-on
+# Single Sign-On
 
 Single sign-on lets your team sign in to Stacktape through your company's identity provider: Okta, Microsoft Entra ID,
 Google Workspace, or any SAML 2.0 or OIDC provider. With SCIM, your directory also adds and removes members, so

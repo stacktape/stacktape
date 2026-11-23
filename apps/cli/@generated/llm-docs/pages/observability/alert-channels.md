@@ -1,75 +1,36 @@
-# Alert channels
+# Alert Channels
 
-An alert channel is a place where the Stacktape Console delivers alerts: a Slack channel, email addresses, a Microsoft
-Teams or Discord channel, or your own HTTPS endpoint. You create it once, and incidents, deploy notifications, budget
-alerts and alarms can all deliver to it. Alert channels need the [Stacktape Console](/getting-started/add-the-console).
+Alert channels are the destinations where Stacktape delivers alerts — a Slack channel, an email inbox, a Discord webhook, or a custom HTTP endpoint. You create channels in the Stacktape Console, then use them in [config alarms](/observability/alarms#notification-targets), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets) so every alert reaches the right people.
 
-## Create a channel
+Stacktape supports six channel types: **Slack (Stacktape app)**, **Slack** (your own bot token), **Microsoft Teams**, **Discord**, **Email**, and **Webhook**.
 
-1. In the Console sidebar, open **Alerting → Channels** and click **New channel**.
-2. Choose the kind and fill in its fields:
+## When to use alert channels
 
-| Kind | Fields |
-|---|---|
-| **Slack** | **Connect Slack** once for the workspace, then pick the **Channel**. See [Slack](#slack). |
-| **Email** | **Recipient emails**, comma-separated. |
-| **Teams** | The channel's **Webhook URL**. |
-| **Discord** | The channel's **Webhook URL**. |
-| **Webhook** | **Webhook URL**, and an optional **Signing secret**. See [Webhook](#webhook). |
+Alert channels are Console-managed destinations that can be reused across rules. Create a channel when you want a named target that [notification rules](/observability/notifications), [config alarms](/observability/alarms#notification-targets), or [budget alerts](/managing-costs/budgets) can reference. Once a channel exists, rules across your organization can deliver to it without duplicating configuration.
 
-3. Give it a **Name**. Config alarms and uptime checks refer to the channel by this name.
-4. Check **What it receives** and click **Add channel**. The channel's page opens.
+## When NOT to use alert channels
 
-Every new channel starts with these [notification rules](/observability/notifications), which you can change on its
-page:
+Alert channels are a Console-only feature. If your team does not use the Stacktape Console for alert management, you may not need to create channels. See [alarm configuration](/observability/alarms) for alarm options that deploy with your stack.
 
-- incidents opened, escalated and resolved, from every stage;
-- failed deploys, rollbacks and deletes, from every stage;
-- successful deploys and rollbacks, from production stages;
-- new security findings.
+## Channel types
 
-Managing channels needs the `org:manage-alert-channels` permission (Owners and Admins).
+Stacktape supports six channel types. A channel's page masks properties named `webhookUrl`, `accessToken` or `secret` as sensitive values.
 
-## Slack
+### Slack (Stacktape app)
 
-Slack connects through the Stacktape Slack app. Click **Connect Slack** in the New channel form and approve the app in
-Slack. After that, every new Slack channel is picked from a list, and no token passes through your hands. Slack issues
-the app's bot token for your workspace, and the Console keeps it in AWS Secrets Manager in Stacktape's AWS account.
+Connect your Slack workspace once with the **Connect Slack** button on the **Channels** page, then pick channels from a list. You do not create, paste or rotate a bot token. Slack issues the app's bot token for your workspace when you connect it, and the Stacktape Console keeps that token in AWS Secrets Manager in Stacktape's own AWS account, not in your account and not in the Console database. Messages posted this way are cards that Stacktape keeps up to date: an incident is one message that changes as the incident is acknowledged or resolved, with later events in its thread. A new Slack-app channel starts with default rules: incidents from every stage, failed deployments from every stage, successful deployments from production stages only, and new security findings. Mark a channel as a preview channel to receive pull-request preview deployments there instead.
 
-Messages from the app are cards that Stacktape keeps up to date. An incident is one message that changes as it is
-acknowledged and resolved, with later events in its thread. Turn on **Only pull request preview deploys** for a channel
-that should receive preview deploys only, so they don't land where incidents do.
+The app asks only for what it uses: posting and editing messages, uploading evidence images, listing channels, and reading member names and emails to match Slack users to Console users. It never reads message history. Public channels are joined automatically; invite the app to a private channel first (`/invite @Stacktape`).
 
-If the New channel form asks for a **Bot token** and a **Conversation ID** instead of **Connect Slack**, the Slack app
-isn't available in your Console. Create a Slack app of your own with a bot token that can post to the channel, and
-paste both. Such a channel gets plain messages, without the cards and buttons below. Its token is stored with the
-channel and never shown again.
+Deployments are one card per deployment as well: it appears when the deployment starts (if your rules include "deployment started") or when it finishes, and shows who triggered it and how, the commit and branch, the duration, a link to what changed since the previous successful deployment, the stack's endpoints on success, and the failure text on failure. The outcome is added to the card's thread and shown in the channel. A finished deployment card has **Redeploy** (the same commit again) and **Roll back to** the previous successful version; both confirm inside the card and then start the same operation the Console's Redeploy and Rollback start, as your Console user with the `deployments:deploy` or `deployments:rollback` permission. Pull-request previews get one card per pull request with the preview URLs, edited on every redeploy of that pull request.
 
-The app asks only for what it uses: posting and editing messages, uploading evidence images, listing channels, and
-reading member names and emails to match Slack users to Console users. It never reads message history. It joins public
-channels by itself; invite it to a private channel first (`/invite @Stacktape`).
+New security findings arrive as one digest card per security report, listing the critical and high findings with links to their Console pages; each open finding has an **Ignore** button, which needs the `security:manage` permission, asks for an optional reason in a small form, and marks the finding ignored with that reason (reopen it in the Console at any time). Budget alerts that target a Slack-app channel arrive as one card per budget and month, updated as higher thresholds are crossed, with the amounts, the forecast and links to Budgets and Costs. The card shows the spending pace and the days left in the month. **Show drivers** answers privately with the stacks behind the month's spend and how each moved against the previous month, from the AWS cost report Stacktape downloads (your project access applies). The card's **Snooze until month end** button needs the `org:manage-budgets` permission and stops every alert for that budget until the month is over; the card says who snoozed it, and the budget's details in the Console have a **Resume alerts** button.
 
-### What the cards do
+When an incident is caused by a CloudWatch alarm, the card's thread also gets a graph of the alarm's metric over the last three hours with the threshold drawn, so you can judge the situation without opening AWS.
 
-- **Incidents.** One card per incident, updated as it changes. When a CloudWatch alarm caused it, the thread gets a
-  graph of the alarm's metric over the last three hours with the threshold. The card names the release that was live
-  and links to what changed. **Acknowledge** works for anyone in the workspace. **Mute 1 hour**, **Mute 24 hours**,
-  **Resolve** and **Roll back to** the previous version run as your Console user and need the same permissions as in
-  the Console (`incidents:manage`, `deployments:rollback`). Resolve and Roll back ask for confirmation in the card.
-- **Deployments.** One card per deployment, with who started it and how, the commit and branch, the duration, a link
-  to what changed, and the endpoints or the failure. A finished card has **Redeploy** and **Roll back to**, which need
-  `deployments:deploy` or `deployments:rollback`. Pull request previews get one card per pull request, edited on every
-  redeploy.
-- **Security findings.** One digest per security report with the critical and high findings. **Ignore** on a finding
-  needs `security:manage` and asks for an optional reason.
-- **Budgets.** One card per budget and month, updated as higher thresholds are crossed, with the amounts, the forecast
-  and the spending pace. **Show drivers** answers privately with the stacks behind the spend. **Snooze until month end**
-  needs `org:manage-budgets`; the budget in the Console has **Resume alerts**.
+Incident cards have buttons. **Acknowledge** works for anyone in the workspace and shows the Slack name of the person who clicked. **Mute 1 hour**, **Mute 24 hours** and **Resolve** run as your Console user, so they need the same `incidents:manage` permission and project access as in the Console. The first time you click one, Stacktape matches your Slack email to your Console account; if they differ, you get a private link that connects the two in one click (valid for 15 minutes), and after that every click is attributed to you. Resolve asks for confirmation inside the card before it does anything. The card also names the release that was live when the incident opened and how long before it was deployed, with a link to what changed. While the incident is open, the overflow menu offers **Roll back to** the version deployed before that release; it confirms inside the card and needs the `deployments:rollback` permission, like on deployment cards. Acknowledged and resolved cards state how long each took.
 
-The first time you click a button that runs as your Console user, Stacktape matches your Slack email to your Console
-account. If they differ, you get a private link, valid for 15 minutes, that connects the two.
-
-### What Stacktape sends to Slack
+#### What Stacktape sends to Slack
 
 Slack receives only what the cards show:
 
@@ -80,73 +41,7 @@ Slack receives only what the cards show:
 
 Application logs are never posted. Error text in incident evidence comes from what error tracking already recorded, and that text was masked before it left your AWS account (see [what leaves your AWS account](/observability/error-tracking#what-leaves-your-aws-account)).
 
-## Teams and Discord
-
-Create an incoming webhook for the channel in Teams or Discord and paste its URL. Messages are plain alerts. The URL
-is stored with the channel and never shown again.
-
-## Email
-
-Alerts go to each recipient address. Use email for people who aren't in your chat, or when you want each alert in an
-inbox.
-
-## Webhook
-
-Stacktape sends a `POST` with `Content-Type: application/json` for each alert:
-
-```json
-{
-  "id": "cmh3x0q2k0001abcd",
-  "sourceKind": "INCIDENT",
-  "type": "INCIDENT_OPENED",
-  "severity": "ERROR",
-  "timestamp": "2026-11-12T20:43:10.512Z",
-  "project": "checkout-api",
-  "stage": "production",
-  "region": "eu-west-1",
-  "title": "checkout-api production: API error rate above 5%",
-  "details": { "incidentId": "cmh3x0p9z0000abcd", "severity": "ERROR" }
-}
-```
-
-`details` depends on the kind of alert. With a signing secret, the `X-Stacktape-Signature` header holds the hex
-HMAC-SHA256 of the raw body, keyed with the secret. Check it before you trust the request:
-
-```ts
-import { createHmac, timingSafeEqual } from 'node:crypto';
-
-// rawBody: the request body exactly as received, before parsing it as JSON.
-const isFromStacktape = (rawBody: string, signatureHeader: string | undefined, secret: string) => {
-  const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
-  const received = signatureHeader ?? '';
-  return received.length === expected.length && timingSafeEqual(Buffer.from(received), Buffer.from(expected));
-};
-```
-
-## The channel page
-
-- **What it receives**: its [notification rules](/observability/notifications), with **New rule** to add one, and
-  the [budgets](/managing-costs/budgets) that alert it.
-- **Recent alerts**: the last alerts sent to it and whether each was accepted. Click one for the delivery details.
-- **Settings**: the destination. Webhook URLs, tokens and secrets are not shown after they are saved.
-
-**Send test** sends a test message. **Delete** removes the channel once nothing uses it; if a rule or budget still does,
-the error lists them.
-
-## Use a channel from your config
-
-[Alarms](/observability/alarms#notification-targets) and [uptime checks](/observability/uptime-checks) in your stack
-config deliver to a Console channel by its name:
-
-```yaml
-notificationChannels:
-  - type: console-channel
-    properties:
-      channelName: on-call-slack
-```
-
-For a channel of the connected Slack workspace, `slack-app` takes the Slack channel name or ID. The name is resolved to
-the ID when you deploy, so renaming the channel in Slack later doesn't break delivery:
+In your configuration, reference a channel of the connected workspace with the `slack-app` type and a channel name or ID. The name is resolved to the channel ID when you deploy, so renaming the channel later does not break delivery:
 
 ```yaml
 notificationChannels:
@@ -155,8 +50,88 @@ notificationChannels:
       channel: '#alerts'
 ```
 
-Alarms can also deliver straight from your AWS account to Slack, Teams, Discord, email or a webhook, without a Console
-channel. Those credentials never reach Stacktape, and those alerts don't appear in [Sent alerts](/observability/alert-history).
-See [alarm notification targets](/observability/alarms#notification-targets).
+### Slack
 
-To check whether an alert reached a channel, open the channel's page, or **Alerting → Sent alerts** for every channel.
+Slack is one of the supported alert channel types. Slack is a good default for teams that already use Slack for communication — alerts appear in context alongside other team discussions. This type uses a bot token of a Slack app you create and manage yourself. When you create the channel in the Console, the token is saved with the channel's settings in the Stacktape Console and is not shown again. Messages are plain alert messages, not the updated cards and buttons of the Stacktape app. Prefer **Slack (Stacktape app)** unless you need your own app.
+
+### Microsoft Teams
+
+Microsoft Teams is one of the supported alert channel types. Choose Teams when your organization standardizes on Microsoft 365 and team members already monitor Teams channels throughout the day.
+
+### Discord
+
+Discord is one of the supported alert channel types. Discord works well for small teams, open-source projects, or communities that already use Discord as their primary communication platform.
+
+### Email
+
+Email is one of the supported alert channel types. Use email when recipients are not on your chat platform, when you need a compliance-friendly paper trail, or when you want alerts to reach on-call individuals who check email more reliably than chat.
+
+### Webhook
+
+Webhook is the flexible channel type for HTTP-based integrations. Use a webhook channel when none of the built-in chat integrations fit your workflow, or when you need to route alerts into a custom pipeline such as an incident management tool or a custom dashboard.
+
+## Choosing the right channel type
+
+| Channel | Best for |
+|---|---|
+| **Slack** | Team-wide visibility, threaded discussion |
+| **Microsoft Teams** | Organizations on Microsoft 365 |
+| **Discord** | Small teams, open-source communities |
+| **Email** | Compliance trails, stakeholders outside chat |
+| **Webhook** | Custom integrations (incident tools, custom dashboards) |
+
+For most teams, start with **Slack** or **Teams** for real-time visibility, and add a **Webhook** channel if you need to integrate with an incident management tool. Use **Email** when you need a delivery trail or when recipients are not in your chat platform.
+
+## Creating a channel in the Console
+
+Alert channels are listed on the **Channels** page in the Stacktape Console, with what each one receives and its last alert. The **New alert channel** button opens the channel creation dialog; after you create a channel, its page opens.
+
+## The channel page
+
+Click a channel to open its page:
+
+- **What it receives**: its [notification rules](/observability/notifications), with **New rule** to add one, and the [budgets](/managing-costs/budgets) that alert it.
+- **Recent alerts**: the last alerts sent to it and whether each was accepted. Click one for the delivery details.
+- **Settings**: the channel's destination. Delivery credentials such as webhook URLs and tokens are not shown after they are saved.
+
+**Send test** sends a test message to check the channel, and **Delete** removes it once no rule uses it. Both need the `org:manage-alert-channels` permission.
+
+## Using channels with rules
+
+Channels are delivery targets for Console notification rules and budget alerts. Config alarms can also reference them:
+
+- **[Config alarms](/observability/alarms#notification-targets)** monitor AWS metrics (Lambda error rates, database CPU, API latency). Reference a named channel with `type: console-channel` in the alarm's `notificationChannels` and deploy the stack to apply changes. A firing alarm also opens an incident, which Console notification rules can route to channels.
+- **[Notification rules](/observability/notifications)** deliver alerts when deployment events happen — a deploy succeeds, fails, or is canceled. Each notification rule specifies which events to watch and which channel to deliver the alert to.
+- **[Budget alerts](/managing-costs/budgets)** fire when AWS spending crosses a defined threshold.
+
+See each rule type's dedicated page for configuration details.
+
+## Deleting a channel
+
+The Channels page includes a delete action for each listed channel. When the delete API returns an error starting with "Can't delete this channel yet," the Console renders the referenced rule lines from that error. Remove those references before retrying the deletion.
+
+## FAQ
+
+### Can I use the same channel for alarms, notifications, and budgets?
+
+Yes — this is the main reason to use Console-managed channels. Create a channel once and reference it from [config alarms](/observability/alarms#notification-targets), [notification rules](/observability/notifications), and [budget alerts](/managing-costs/budgets). Channels are scoped to the selected organization, so you don't recreate them per project or stage.
+
+### When should I use a Console channel instead of config-level alarm options?
+
+Use Console-managed channels when a destination is shared across rules or your team manages routing in the Console. Define alarms in stack config either way: use `console-channel` to reference a named Console channel, or configure a delivery integration directly in the alarm's `notificationChannels`. A direct integration is delivered from your AWS account, so its credentials never reach Stacktape and its messages do not appear in Sent alerts. See [alarm notification targets](/observability/alarms#notification-targets).
+
+### Can I send alerts to multiple Slack channels?
+
+Yes, but you create a separate alert channel for each Slack channel you want to target, then select each one in the relevant rules. This lets a warning-level alarm rule deliver to one Slack channel while a critical rule targets another channel (or a webhook for your incident-management tool).
+
+### How do I tell whether an alert was actually delivered?
+
+Open the channel in the Console: its page shows the last alert and whether it was sent, and its recent alerts. [Sent alerts](/observability/alert-history) lists every alert across channels. If an alert shows as sent but the destination never received it, check the receiving system's own logs.
+
+### Why can't I delete a channel?
+
+The delete fails when the channel is still referenced by a rule — the API returns an error starting with "Can't delete this channel yet," and the Console lists the referencing rule lines. Remove those references from the relevant alarm rules, notification rules, or budget alerts, then retry the deletion.
+
+### Is there a CLI command for managing alert channels?
+
+No. Alert channels are a Console-only feature — they are created, viewed, and deleted from the **Channels** page in the [Stacktape Console](/stacktape-console/console-overview). The CLI's observability commands like [`stacktape logs`](/cli/logs) and [`stacktape alarm list`](/cli/alarms) are for runtime debugging, not channel management.

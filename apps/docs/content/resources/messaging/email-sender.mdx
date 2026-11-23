@@ -1,15 +1,13 @@
 ---
 title: 'Email sender'
-order: 6
+order: 5
 seoTitle: 'Send Email with Amazon SES | Stacktape Docs'
-seoDescription: 'Create or reuse a verified Amazon SES identity with Stacktape: scoped send permissions, DKIM, suppression, and bounce and complaint events.'
+seoDescription: 'Create or reuse a verified Amazon SES identity with scoped permissions, DKIM, suppression, and bounce and complaint events.'
 ---
 
-An `email-sender` gives your workloads a verified Amazon SES identity to send email from: a domain or one email
-address. Stacktape verifies the identity, sets up DKIM and bounce handling, and grants connected workloads permission
-to send from it and nothing more.
+# Email sender
 
-## Basic example
+An `email-sender` gives your workloads a verified Amazon SES identity without making identity lifecycle and IAM your application's problem. Give Stacktape a domain or exact email address, connect a workload, and use the injected values with the AWS SDK.
 
 ```yaml
 resources:
@@ -49,46 +47,25 @@ export const handler = async () => {
 };
 ```
 
-`connectTo` injects `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME` and `FEEDBACK_TOPIC_ARN` (here
-`STP_MAIL_IDENTITY` and so on). It grants `ses:SendEmail` and `ses:SendRawEmail` on that identity and configuration set
-only, and no SES administration.
+`connectTo` injects `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`, and `FEEDBACK_TOPIC_ARN`. It grants only `ses:SendEmail` and `ses:SendRawEmail` on the exact identity and configuration set. It does not grant SES administration.
 
-## Verification and DNS
+## Shared identity lifecycle
 
-For a domain, Stacktape sets up 2048-bit Easy DKIM. If the domain has a public Route 53 hosted zone that the domain is
-actually delegated to, Stacktape creates the three DKIM CNAME records. A hosted zone that exists but isn't delegated
-doesn't count.
+A managed identity belongs to the AWS account and region, not to one Stacktape project or stage. Stacktape therefore creates one deterministic, termination-protected shared CloudFormation stack for the canonical identity. `example.com` converges across every project and stage in that account and region; `billing@example.com` remains a distinct identity.
 
-With DNS elsewhere, the deploy succeeds while verification is pending and prints the three CNAME names and values. Add
-them at your DNS provider. For a single email address, SES sends a verification link to that mailbox instead.
+Deleting a project stack does not delete this shared stack. The delete output names retained shared resources so you do not mistake persistence for a leak. Stacktape does not automatically garbage-collect shared email identities in this version.
 
-<Warning>
-SES identities and the SES sandbox are per region. In the sandbox you can send only to verified recipients, with low
-daily limits. Stacktape warns and links to the production access request, but doesn't block the deploy. Request
-production access before you send to customers.
-</Warning>
+The shared stack also owns:
 
-## Shared identity
+- a default configuration set with configuration-set-level suppression for bounces and complaints;
+- one standard SNS feedback topic; and
+- one configuration-set destination that publishes `BOUNCE` and `COMPLAINT` events to that topic.
 
-An SES identity belongs to the AWS account and region, not to one project or stage. Stacktape creates it in a separate
-shared CloudFormation stack with termination protection, one per identity. Every project and stage in that account and
-region that uses `example.com` shares it; `billing@example.com` is a different identity.
-
-Deleting a project's stack doesn't delete the shared stack, and the delete output lists it as retained. Stacktape
-doesn't remove unused shared identities for you.
-
-The shared stack also has:
-
-- a configuration set that suppresses addresses that bounced or complained;
-- an SNS topic for feedback;
-- a destination that publishes `BOUNCE` and `COMPLAINT` events to that topic.
-
-Because they're shared, a feedback subscriber sees the feedback for every send from that identity, including other
-projects and stages. Make feedback processing idempotent.
+The default configuration set and feedback topic are identity-wide. A subscriber sees feedback for every send using that identity and configuration set, including sends from other projects and stages. Treat feedback consumers as shared infrastructure and make processing idempotent.
 
 ## Handle bounces and complaints
 
-Subscribe a function to the feedback topic with an [SNS event](/resources/triggers/sns-events):
+Use the injected `feedbackTopicArn` as an existing SNS event source:
 
 ```yaml
 resources:
@@ -110,10 +87,17 @@ resources:
             snsTopicArn: $ResourceParam('mail', 'feedbackTopicArn')
 ```
 
+## Verification and DNS
+
+For a domain, Stacktape uses 2048-bit Easy DKIM. When it finds a matching public Route 53 hosted zone and verifies that the zone is actually delegated, it creates the three DKIM CNAME records. A hosted zone merely existing in the account is not enough.
+
+With external DNS, deployment succeeds while verification is pending and prints the exact CNAME names and values returned by the SES identity resource. Add those records at your DNS provider. For an exact email address, SES sends a verification link to that mailbox instead; domain-only DKIM settings are not applied.
+
+SES identities and sandbox status are regional. In the SES sandbox you can send only to verified recipients and at sandbox quotas. Stacktape warns and links to the production-access request, but does not block deployment.
+
 ## Use an identity managed elsewhere
 
-Set `manageIdentity: false` to use an identity that another tool created. Stacktape checks that the exact identity
-exists, but never takes it over, changes it or widens it to a parent domain.
+Set `manageIdentity: false` to use an identity created by another platform. Stacktape verifies that the exact identity exists but never adopts, updates, or broadens it to a parent domain.
 
 ```yaml
 resources:
@@ -125,21 +109,10 @@ resources:
       configurationSetName: centrally-managed-mail
 ```
 
-`configurationSetName` is optional. When you set it, Stacktape checks that it exists and limits the send permission to
-it. External identities don't get Stacktape's feedback topic; set up feedback where the identity is managed.
+`configurationSetName` is optional for external identities. When supplied, Stacktape also checks it exists and scopes sending permission to it. External identities do not receive Stacktape's shared feedback topic; configure feedback externally or omit the configuration set when your application does not use one.
 
-## What it doesn't set up
+## Current boundaries
 
-Custom MAIL FROM domains, DMARC records, your own DKIM keys, SES templates, bulk sending, inbound email, dedicated IPs,
-Virtual Deliverability Manager and multi-region identities. Add those with
-[raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) and `iamRoleStatements`.
-
-## Configuration reference
+This resource intentionally does not configure custom MAIL FROM domains, DMARC records, BYODKIM keys, SES templates, bulk sending, inbound email, dedicated IPs, Virtual Deliverability Manager, or multi-region identity replication. Use explicit IAM and CloudFormation resources for those advanced cases today.
 
 <ApiReference definitionName="EmailSenderProps" />
-
-## Next steps
-
-- [SNS events](/resources/triggers/sns-events): process bounce and complaint events.
-- [Connecting resources](/configuration/connecting-resources): what `connectTo` injects and grants.
-- [Secrets](/configuration/secrets): keep API keys of other email providers out of your config.

@@ -1,11 +1,8 @@
 # AppSync API
 
-An AppSync API is a GraphQL endpoint run by AWS AppSync. You write the schema and attach a
-[Lambda function](/resources/compute/lambda-function) to each field you want to resolve. Stacktape creates the API, the
-resolvers, the roles that let AppSync call your functions, and the logs. It costs $4 per million queries and mutations
-in us-east-1 and nothing while idle ([AppSync pricing](https://aws.amazon.com/appsync/pricing/)).
+An AppSync API is a managed, pay-per-request GraphQL endpoint. You provide a GraphQL schema and attach Lambda functions directly to fields. Stacktape creates the AppSync API, data sources, narrowly scoped invocation roles, resolvers, logs, and deployment dependencies.
 
-Each field has one Lambda resolver; there are no VTL or JavaScript resolvers and no pipelines.
+There is no resolver language or pipeline concept to learn in the initial version. Each configured field has one Lambda owner. The Lambda receives the standard AppSync resolver event, including `arguments`, `identity`, `source`, and field information.
 
 ## Basic example
 
@@ -46,60 +43,31 @@ resources:
             field: Query.user
 ```
 
-The resolver gets the standard AppSync event: `arguments`, `identity`, `source` and field information. It returns
-the value of the field:
-
-```ts
-export const handler = async (event: { arguments: { id: string } }) => {
-  return { id: event.arguments.id, name: 'Ada' };
-};
-```
-
-Stacktape reads `schema.graphql` (or `schemaFilePath`) before deploying and stops if a configured `Type.field` isn't in
-it. AppSync directives and custom scalars are allowed.
-
-After the deploy, run a query in the AWS console under **AppSync → your API → Queries**, which signs requests with
-your IAM identity:
-
-```graphql
-query {
-  user(id: "1") {
-    id
-    name
-  }
-}
-```
-
-It returns `{"data":{"user":{"id":"1","name":"Ada"}}}`. From your own code, call the `url` parameter with
-SigV4-signed requests.
+`schemaFilePath` defaults to `schema.graphql`. Stacktape parses the file before deployment and verifies that every configured `Type.field` exists. AWS-specific directives and custom scalars remain available because Stacktape checks syntax and resolver ownership without imposing a separate GraphQL schema policy.
 
 ## Authentication
 
-`authentication` is required and takes one mode:
+Authentication is always explicit:
 
-- **`aws-iam`**: for calls from your AWS workloads. A workload that lists the API in `connectTo` gets permission to
-  query this API's fields.
-- **`user-auth-pool`**: signed-in users of a Stacktape [user auth pool](/resources/security/user-auth-pool).
-- **`api-key`**: for deliberately public or short-lived access. `expiresAt` is a fixed RFC 3339 time 1 to 365 days in
-  the future; Stacktape never extends it, so the key stops working on that date until you set a new one. The key is a
-  sensitive parameter and isn't printed in the deploy output.
+- `aws-iam` is the safest default for calls from AWS workloads. Add the API to another resource's `connectTo` list to receive `appsync:GraphQL` permission scoped to this API's fields.
+- `user-auth-pool` uses an existing Stacktape user auth pool for application users.
+- `api-key` is suitable for deliberately public or short-lived access. It requires a fixed RFC 3339 `expiresAt` timestamp between 1 and 365 days in the future. Stacktape never silently extends it.
+
+API keys are treated as sensitive outputs and are not printed during normal deployment output.
 
 ## Operational defaults
 
-By default the API logs errors without request content and keeps logs for 30 days, limits queries to a depth of 10 and
-1,000 resolver calls, allows introspection and leaves X-Ray off. Each setting can be changed. Verbose logging can
-record headers, variables and personal data, so turn it on only while debugging.
+By default, AppSync records errors without verbose request content, retains logs for 30 days, limits query depth to 10 and resolver executions to 1000, allows introspection, and leaves X-Ray disabled. These settings can be changed individually. Verbose logging can contain headers, variables, or personal data, so enable it only for deliberate debugging.
 
-The Infrequent Access log class works only without log forwarding, because AWS can't forward from it.
+CloudWatch Logs Infrequent Access is supported when logs are not forwarded. Log forwarding requires the standard log class because AWS does not support subscription filters on Infrequent Access log groups.
 
 ## Custom domains
 
-`customDomain` serves the API at your own hostname. The certificate must be in `us-east-1`, even when the API runs in
-another region; `stacktape domain add` creates one there (see
-[Set up the domain](/resources/networking/custom-domains#set-up-the-domain)). Stacktape creates the DNS record unless
-you turn that off.
+Use `customDomain` when clients need a stable branded GraphQL endpoint. Stacktape uses its existing global certificate flow; AppSync custom-domain certificates must be in `us-east-1`, even when the API runs elsewhere. DNS records are created automatically unless explicitly disabled.
 
-## Configuration reference
+The resource exposes `url`, `realtimeUrl`, `apiId`, and `arn`. API-key authentication additionally exposes the sensitive `apiKey` value.
+
+## API reference
 
 
 ### Definition: `AppSyncApiProps`
@@ -116,14 +84,3 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `resolverCountLimit` | no | `number` | `1000` |
 | `schemaFilePath` | no | `string` | `schema.graphql` |
 | `xrayEnabled` | no | `boolean` | `false` |
-
-
-## Referenceable parameters
-
-`url`, `realtimeUrl`, `apiId` and `arn`, plus the sensitive `apiKey` with API key authentication.
-
-## Next steps
-
-- [User auth pool](/resources/security/user-auth-pool): sign users in and authorize queries.
-- [DynamoDB table](/resources/databases/dynamodb): store the data your resolvers read.
-- [Lambda function](/resources/compute/lambda-function): write resolvers in code.

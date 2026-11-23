@@ -7,7 +7,7 @@ seoDescription: 'Inspect resources in a deployed Stacktape stack through explici
 
 # aws call
 
-`stacktape aws call` sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
+The `aws call` command sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
 stack. Use it when Stacktape's purpose-built inspection commands do not expose the AWS data you need.
 
 ## Safety model
@@ -117,6 +117,10 @@ resource-specific validation, and usually provide more useful output.
 | Inspect a Stacktape OpenSearch domain   | [`query opensearch`](/cli/query-opensearch) |
 | Call another reviewed read-only AWS API | `aws call`                                  |
 
+## CLI options
+
+<CliCommandsApiReference command="aws:call" />
+
 ## Troubleshooting
 
 ### The service is not supported
@@ -145,7 +149,3 @@ grant IAM permissions.
 
 No. A local configuration file is optional, but a deployed target stack is not. Use the AWS CLI or an AWS SDK directly
 for resources that are not associated with a deployed Stacktape stack.
-
-## Options
-
-<CliCommandsApiReference command="aws:call" />

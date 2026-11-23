@@ -7,9 +7,7 @@ seoDescription: 'Use stacktape synth to compile your Stacktape configuration int
 
 # synth
 
-`stacktape synth` turns your configuration into a CloudFormation template and writes it to a file, `compiled-template.yaml` by default. Use it to read the template or hand it to other tools. It doesn't create or change a stack.
-
-The file isn't exactly what a deploy sends to CloudFormation. `synth` doesn't build your code, so the code locations are empty, and a deploy adds a few resources that `synth` doesn't write. To take over a deployed stack, save its deployed template instead, as [Stop using Stacktape](/getting-started/evaluate/stop-using-stacktape) shows.
+The `stacktape synth` command compiles your Stacktape configuration into a CloudFormation template and writes it to a local file. Use it when you need the generated CloudFormation template on disk for inspection or downstream tooling. No stack is created or modified.
 
 ## Usage
 
@@ -25,7 +23,15 @@ To write the template to a custom path, use `--out`.
 stacktape synth --stage dev --region eu-west-1 --out ./infra/template.yaml
 ```
 
-`synth` needs no deployed stack and no Stacktape account.
+<Info>
+
+Unlike [`deploy`](/cli/deploy), `synth` does not create or modify any stack resources. It does not require a previously deployed stack, and it does not require a Stacktape subscription.
+
+</Info>
+
+## Flags reference
+
+<CliCommandsApiReference command="synth" />
 
 ## Important flags
 
@@ -89,13 +95,19 @@ stacktape synth --stage dev --region eu-west-1 --keep-temp-files --out ./debug-t
 
 ## synth vs validate vs diff
 
-| Command | What it does | Writes to AWS | Needs a deployed stack |
-|---------|-------------|---------------|------------------------|
-| [`synth`](/cli/synth) | Writes the CloudFormation template to a file | Nothing | No |
-| [`validate`](/cli/validate) | Checks the config and, with `--thorough`, the template | A temporary template object with `--thorough` | No |
-| [`diff`](/cli/diff) | Shows what a deploy would change | Missing secrets, a template and a temporary change set | Yes |
+| Command | What it does | Writes a file? | Modifies stack? | Requires deployed stack? |
+|---------|-------------|---------------|----------------|------------------------|
+| [`synth`](/cli/synth) | Compiles config into a CloudFormation template | Yes (`compiled-template.yaml`) | No | No |
+| [`validate`](/cli/validate) | Validates the Stacktape project without writing deployment artifacts | No | No | No |
+| [`diff`](/cli/diff) | Shows what would change if you deployed | No | No | Yes |
 
 Use `synth` when you need the template file on disk for inspection or downstream tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing artifacts. Use [`diff`](/cli/diff) when you want to compare your current config against what is already deployed.
+
+## Related commands
+
+- [`validate`](/cli/validate) — validates your Stacktape project without writing deployment artifacts. Use `--thorough` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template.
+- [`diff`](/cli/diff) — previews what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with the current configuration.
+- [`deploy`](/cli/deploy) — deploys (or updates) your stack to AWS. Internally runs the same synthesis step that `synth` performs.
 
 ## FAQ
 
@@ -105,14 +117,12 @@ Stacktape needs both values before synthesis so it can resolve a concrete stack 
 
 ### Can I feed the synthesized template into CloudFormation linting or policy tools?
 
-Yes. The file is a finished CloudFormation template, so linters, policy scanners and your own scripts can read it. A common CI step runs `synth` and then a scanner on the file.
+Yes — that is a primary use case. The output is a finalized CloudFormation YAML template, so you can pass it to any tool that accepts CloudFormation: linters, policy-as-code scanners, or your own scripts. A common CI pattern is to run `synth` and then run a scanner against the output. In non-TTY environments output is plain text automatically; pass `--output-format plain` to force it, or `--agent` for JSONL.
 
-## Options
+### When should I use synth vs validate vs diff?
 
-<CliCommandsApiReference command="synth" />
+Use `synth` when you need the generated CloudFormation template on disk to inspect or feed to external tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing any artifact. Use [`diff`](/cli/diff) when a stack is already deployed and you want to see what would change on the next deploy — unlike `synth`, `diff` compares against live stack state.
 
-## Related commands
+### The synthesized template doesn't match what I expected — how do I debug it?
 
-- [`validate`](/cli/validate) — validates your Stacktape project without writing deployment artifacts. Use `--thorough` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template.
-- [`diff`](/cli/diff) — previews what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with the current configuration.
-- [`deploy`](/cli/deploy) — deploys (or updates) your stack to AWS. Internally runs the same synthesis step that `synth` performs.
+Run `synth` with `--keep-temp-files` to keep the intermediate files generated during synthesis under `.stacktape/[invocation-id]`, and add `--debug` to trace how your configuration is resolved. This lets you inspect the synthesis pipeline rather than only the final template.

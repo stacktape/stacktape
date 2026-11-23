@@ -7,7 +7,7 @@ seoDescription: 'Run scripts defined in your Stacktape configuration with custom
 
 # script run
 
-`stacktape script run` executes a script defined in the `scripts` section of your Stacktape configuration. It takes the script name as a positional argument (`script run <script-name>`), requires `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assume-role-of-resource`. Use `script run` when you need to execute a named script from the `scripts` section without deploying the full stack.
+The `script run` command executes a script defined in the `scripts` section of your Stacktape configuration. It takes the script name as a positional argument (`script run <script-name>`), requires `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assume-role-of-resource`. Use `script run` when you need to execute a named script from the `scripts` section without deploying the full stack.
 
 ## Usage
 
@@ -15,7 +15,9 @@ seoDescription: 'Run scripts defined in your Stacktape configuration with custom
 stacktape script run myMigration --stage production
 ```
 
-`script run` requires the script name and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults set`](/cli/defaults-set)).
+`script run` requires the script name and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults set`](/cli/defaults-configure)).
+
+<CliCommandsApiReference command="script:run" />
 
 ## Examples
 
@@ -52,10 +54,6 @@ If `assumeRoleOfResource` is also defined in the script's configuration properti
 ## Errors
 
 If the script name does not match any key in the `scripts` section of your configuration, the command throws `stpErrors.e20({ scriptName })`. The command looks up the script by key in `scripts`, so the script name must exactly match a key defined in your configuration.
-
-## Options
-
-<CliCommandsApiReference command="script:run" />
 
 ## Related commands
 

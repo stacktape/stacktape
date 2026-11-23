@@ -7,7 +7,7 @@ seoDescription: 'Delete a Stacktape project from your organization with the proj
 
 # project delete
 
-`stacktape project delete` deletes a project from the current Stacktape organization. The Console removes the
+The `project delete` command deletes a project from the current Stacktape organization. The Console removes the
 project with its deploy history, stage settings and build runner. Use it to clean up projects you no longer need, such
 as test projects created by automation.
 
@@ -26,6 +26,10 @@ stacktape project delete my-api
 In a terminal, you confirm by typing the project name. Without a terminal, for example in CI or with `--agent`, add
 `--yes`; otherwise the command fails with `CONFIRMATION_REQUIRED`. The Stacktape MCP server passes `--yes` only after
 you confirm the deletion.
+
+## CLI reference
+
+<CliCommandsApiReference command="project:delete" />
 
 ## Examples
 
@@ -54,10 +58,6 @@ Hints:
 ```
 
 With `--agent`, the result's `data.deployedStages` lists the same stages.
-
-## Options
-
-<CliCommandsApiReference command="project:delete" />
 
 ## Related commands
 

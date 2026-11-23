@@ -493,7 +493,7 @@ export interface NextjsWebProps extends ResourceAccessProps {
    */
   useFirewall?: string;
   /**
-   * #### Stream SSR responses for a faster Time to First Byte and responses larger than the 6 MB buffered limit.
+   * #### Stream SSR responses for faster Time to First Byte and up to 20 MB response size (vs 6 MB default).
    *
    * ---
    *

@@ -569,7 +569,7 @@ Files in the bucket that are not present in the source directory will be removed
 
 Your stack must include a \`bastion\` resource. If you have multiple bastions, you can specify which one to connect to with the \`--bastion-resource\` argument. The session is established over a secure SSM connection.
 
-For more information, refer to the [bastion shell documentation](https://docs.stacktape.com/cli/bastion-shell/).`,
+For more information, refer to the [bastion shell documentation](https://docs.stacktape.com/cli/bastion-session/).`,
     args: {
       ...universalArgs,
       ...stackArgs,
@@ -601,7 +601,7 @@ For more information, refer to the [bastion tunnel documentation](https://docs.s
 
 The session is established using ECS Exec and a secure SSM connection. If your service has multiple containers, you can choose which one to connect to. This is useful for debugging and inspecting running containers.
 
-For more information, refer to the [container shell documentation](https://docs.stacktape.com/cli/container-shell/).`,
+For more information, refer to the [container shell documentation](https://docs.stacktape.com/cli/container-session/).`,
     args: {
       ...universalArgs,
       ...stackArgs,

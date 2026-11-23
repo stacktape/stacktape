@@ -1,17 +1,35 @@
-# S3 bucket
+# S3 Bucket
 
-A bucket is an Amazon S3 bucket for files: user uploads, images, PDFs, exports, backups, data for pipelines. S3 keeps
-your files with eleven nines of durability and scales without limits.
+A Stacktape Bucket creates an Amazon S3 bucket for storing files, images, backups, or any binary data. S3 offers 99.999999999% (eleven nines) durability with pay-per-use pricing — you pay only for storage used and data transferred. Buckets are the most common way to store unstructured data on AWS.
 
-You pay for what you store, the requests you make and the data you send out to the internet. In us-east-1, S3 Standard
-costs $0.023 per GB-month, uploads $0.005 per 1,000 and downloads $0.0004 per 1,000 requests
-([S3 pricing](https://aws.amazon.com/s3/pricing/)). Many small, frequently read files cost more in requests than in
-storage. For a website, use [static hosting](/resources/frontend/static-hosting); for a directory that containers
-mount, an [EFS file system](/resources/storage/efs-filesystem).
+S3 pricing is pay-per-use with no minimum commitment — you pay for storage volume, requests, and data transfer out.
+
+## When to use
+
+Use a Stacktape Bucket when you need to store and retrieve arbitrary files — user uploads, images, PDFs, backups, data exports, build artifacts, or application logs. S3 is the right choice for any unstructured data that doesn't need the query capabilities of a database.
+
+Common bucket use cases:
+
+- **User-uploaded content** — profile images, documents, videos
+- **Application assets** — processed files, exports, generated reports
+- **Data pipelines** — raw input data, intermediate results, output files
+- **Backups and archives** — database snapshots, audit logs, compliance data
+- **Frontend build output** — deploy static assets alongside your API
+
+## When NOT to use
+
+A Stacktape Bucket is general-purpose S3 storage. For specific use cases, other Stacktape resources are a better fit:
+
+| Use case | Better option |
+|---|---|
+| Hosting a static website or SPA | [HostingBucket](/resources/frontend/static-hosting) — includes CDN, SPA routing, and index document handling |
+| Next.js, Astro, Nuxt, or other SSR apps | [NextjsWeb](/resources/frontend/nextjs), [AstroWeb](/resources/frontend/astro), etc. |
+| Structured or queryable data | [RelationalDatabase](/resources/databases/relational-database) or [DynamoDbTable](/resources/databases/dynamodb) |
+| Shared filesystem mounted by containers | [EfsFilesystem](/resources/storage/efs-filesystem) |
 
 ## Basic example
 
-A bucket needs no properties:
+A Bucket with no configuration creates a private S3 bucket. All properties in `BucketProps` are optional — the simplest valid bucket is an empty object.
 
 
 Example (TypeScript):
@@ -28,8 +46,7 @@ export default defineConfig(() => {
 ```
 
 
-The bucket is private: only workloads you connect with [`connectTo`](#connecting-to-a-bucket) and IAM identities with
-permission can read or write it.
+This creates a private bucket. Only compute resources and entities with sufficient IAM permissions can access it. Use [`connectTo`](/configuration/connecting-resources) to grant your compute resources access.
 
 ## Uploading files on deploy
 
@@ -43,7 +60,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
-
 export default defineConfig(() => {
   const assets = new Bucket({
     directoryUpload: {
@@ -91,7 +107,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
-
 export default defineConfig(() => {
   const publicAssets = new Bucket({
     accessibility: {
@@ -110,7 +125,7 @@ For fine-grained access control, use `accessibility.accessPolicyStatements` for 
 
 ## CORS
 
-CORS (Cross-Origin Resource Sharing) configuration is needed when browsers make requests directly to your S3 bucket, for example uploading files via presigned URLs from a frontend app. If your application only accesses the bucket from server-side code (Lambda functions, containers), you don't need CORS.
+CORS (Cross-Origin Resource Sharing) configuration is needed when browsers make requests directly to your S3 bucket — for example, uploading files via presigned URLs from a frontend app. If your application only accesses the bucket from server-side code (Lambda functions, containers), you don't need CORS.
 
 Set `cors.enabled: true` without `corsRules` to use permissive defaults (`*` origins, all methods). Add `corsRules` to replace those defaults with explicit browser access rules for production.
 
@@ -119,7 +134,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
-
 export default defineConfig(() => {
   const uploads = new Bucket({
     cors: {
@@ -153,7 +167,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
-
 export default defineConfig(() => {
   const spa = new Bucket({
     directoryUpload: {
@@ -177,9 +190,7 @@ The `rewriteRoutesForSinglePageApp` option routes requests without a file extens
 
 Bucket CDN URL normalization is enabled by default for clean HTML URLs. Disable it with `disableUrlNormalization: true` only when your bucket object keys intentionally rely on exact URL paths.
 
-Enable it when browsers download files from the bucket, especially users far from your region. Buckets that only your
-backend reads don't need it. To serve the files at your own domain, set `cdn.customDomains`; see
-[Custom domains](/resources/networking/custom-domains).
+**When to enable:** Enable a CDN when you serve assets directly to end-user browsers, especially if your users are geographically distributed or you expect high download volume. **When the default is fine:** For most buckets that only serve files to your own backend (Lambda functions, containers), adding a CDN introduces unnecessary complexity. **Tradeoff:** CDN adds a small per-request and data-transfer cost but typically pays for itself by reducing S3 bandwidth charges on high-traffic buckets.
 
 The bucket `cdn` property adds bucket-specific options `rewriteRoutesForSinglePageApp` and `disableUrlNormalization` on top of the shared CDN configuration. See the [CDN resource page](/resources/networking/cdn) for shared CDN options.
 
@@ -206,7 +217,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
-
 export default defineConfig(() => {
   const dataLake = new Bucket({
     lifecycleRules: [
@@ -270,7 +280,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
-
 export default defineConfig(() => {
   const secureBucket = new Bucket({
     versioning: true,
@@ -298,7 +307,7 @@ When versioning is enabled, pair it with a `non-current-version-expiration` rule
 
 Stacktape buckets support two approaches for reacting to object changes:
 
-**S3 event triggers** invoke a [Lambda function](/resources/compute/lambda-function) directly for configured S3 event types — commonly object-created, object-removed, and object-restore events. The trigger type also supports replication-related and reduced-redundancy lost-object events through the [S3 trigger configuration](/resources/triggers/s3-events). This is the simplest approach for processing uploads, for example resizing images or parsing CSV files. Configure S3 triggers on the Lambda function side.
+**S3 event triggers** invoke a [Lambda function](/resources/compute/lambda-function) directly for configured S3 event types — commonly object-created, object-removed, and object-restore events. The trigger type also supports replication-related and reduced-redundancy lost-object events through the [S3 trigger configuration](/resources/triggers/s3-events). This is the simplest approach for processing uploads — for example, resizing images or parsing CSV files. Configure S3 triggers on the Lambda function side.
 
 **EventBridge notifications** send bucket events to [EventBridge](/resources/messaging/event-bus), where multiple consumers can react to the same event independently. Enable with `enableEventBusNotifications: true` (defaults to `false`). Use EventBridge notifications when bucket events should be available on EventBridge for other parts of your architecture. For direct upload processing, an S3 trigger on a Lambda function is usually simpler.
 
@@ -307,7 +316,6 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
-
 export default defineConfig(() => {
   const uploads = new Bucket({
     enableEventBusNotifications: true
@@ -324,15 +332,13 @@ For most use cases, an S3 event trigger on a Lambda function is simpler and suff
 
 ## Connecting to a bucket
 
-Add the bucket to a workload's [`connectTo`](/configuration/connecting-resources). The workload can then read, write and
-delete objects and gets the bucket's name and ARN as environment variables.
+Use [`connectTo`](/configuration/connecting-resources) to grant a compute resource ([Lambda function](/resources/compute/lambda-function), container workload, batch job) access to a bucket. `connectTo` grants bucket read, write, and delete object permissions, and injects environment variables with the bucket's name and ARN.
 
 
 Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
@@ -375,11 +381,25 @@ export default async () => {
 };
 ```
 
-For uploads from a browser, generate a presigned URL in your backend and let the browser upload straight to S3, so large
-files don't pass through your API. That needs [CORS](#cors) on the bucket. To run code when a file arrives, see
-[Event-driven workflows](#event-driven-workflows).
+## Referenceable parameters
 
-## Configuration reference
+Use [`$ResourceParam`](/configuration/referenceable-parameters) to reference bucket properties in other parts of your config — for example, passing the bucket name as an environment variable or using the ARN in a custom IAM policy.
+
+
+## Referenceable Parameters: `bucket`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `name` | AWS (physical) name of the bucket | `$ResourceParam("<<resource-name>>", "name")` |
+| `arn` | Arn of the bucket | `$ResourceParam("<<resource-name>>", "arn")` |
+| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
+| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
+| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
+| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+
+
+## API Reference
 
 
 ### Definition: `BucketProps`
@@ -398,26 +418,32 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `versioning` | no | `boolean` | - |
 
 
-## Referenceable parameters
+## FAQ
 
-Use [`$ResourceParam`](/configuration/referenceable-parameters) to reference bucket properties in other parts of your config, for example passing the bucket name as an environment variable or using the ARN in a custom IAM policy.
+### How do I upload files to an S3 bucket from my application code?
 
+Use the AWS S3 SDK (available for every major language) with the bucket name from the `STP_[RESOURCE_NAME]_NAME` environment variable injected by [`connectTo`](/configuration/connecting-resources). For example, a bucket resource named `uploads` injects `STP_UPLOADS_NAME`. For browser-based uploads, generate a presigned URL on your server and have the client upload directly to S3 — this avoids routing large files through your API. Enable [CORS](#cors) on the bucket when using presigned URLs from a browser.
 
-## Referenceable Parameters: `bucket`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+### How much does S3 storage cost, and how do I keep it down?
 
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `name` | AWS (physical) name of the bucket | `$ResourceParam("<<resource-name>>", "name")` |
-| `arn` | Arn of the bucket | `$ResourceParam("<<resource-name>>", "arn")` |
-| `cdnDomain` | Default domain of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnDomain")` |
-| `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
-| `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
-| `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+S3 uses pure pay-per-use pricing with no upfront costs or minimum commitments. You pay for storage volume (per GB/month), requests (per 1,000 GET/PUT operations), and data transfer out of AWS. Drive the bill down with [lifecycle rules](#lifecycle-rules): transition infrequently accessed data to `STANDARD_IA` after 30 days, archive old data to `GLACIER` or `DEEP_ARCHIVE`, expire logs after a retention period, and add an `abort-incomplete-multipart-upload` rule to every bucket to stop failed uploads from accumulating invisible charges. For unpredictable access patterns, `INTELLIGENT_TIERING` auto-tiers objects based on actual usage. See [Managing Costs](/managing-costs/overview) for monitoring AWS spend.
 
+### When should I use a Bucket vs a HostingBucket?
 
-## Next steps
+Use a [HostingBucket](/resources/frontend/static-hosting) when you're deploying a static website or SPA to end users — it bundles a CDN, SPA routing, and optimized caching headers in one resource. Use a Bucket for backend storage: user uploads, data files, backups, or any files that aren't served directly as a website. If you need fine-grained control over CDN and caching behavior, a Bucket with a `cdn` configuration is also an option.
 
-- [S3 events](/resources/triggers/s3-events): process files as they arrive.
-- [Static hosting](/resources/frontend/static-hosting): host a frontend from a bucket.
-- [Connecting resources](/configuration/connecting-resources#bucket): the variables and permissions `connectTo` adds.
+### Can I attach a custom domain to a bucket?
+
+`BucketProps` does not expose a top-level custom-domain setting. If you place the bucket behind a CDN with the `cdn` property, domain configuration belongs to the CDN layer — see the [CDN](/resources/networking/cdn) and [custom domains](/resources/networking/custom-domains) pages for details. For static sites that need a custom domain, [HostingBucket](/resources/frontend/static-hosting) is usually the simpler path.
+
+### How do I trigger a Lambda function when a file is uploaded?
+
+Configure an [S3 event trigger](/resources/triggers/s3-events) on your [Lambda function](/resources/compute/lambda-function). The trigger fires for the configured S3 event type — commonly object-created, object-removed, or object-restore events. You can filter by key prefix and suffix to trigger only for specific file types or paths. For fan-out to multiple consumers from the same event, enable `enableEventBusNotifications` and use [EventBridge](/resources/messaging/event-bus) rules instead.
+
+### S3 vs EFS — when should I use each?
+
+Use S3 (Bucket) for object storage — uploading, downloading, and processing individual files via the S3 API. Use [EFS](/resources/storage/efs-filesystem) when containers need a shared POSIX filesystem that mounts like a local directory. EFS is appropriate for workloads that read and write files using standard file I/O (e.g., CMS media directories, shared config files across containers). S3 is cheaper per GB, more durable, and scales without capacity limits, but requires SDK-based access rather than filesystem calls.
+
+### Is data in S3 encrypted?
+
+Setting `encryption: true` in your Stacktape bucket config configures AES-256 server-side encryption at rest on the bucket, as described by the `BucketProps.encryption` JSDoc: "Encrypt stored objects at rest (AES-256)." Data in transit to and from S3 is encrypted via HTTPS. `BucketProps` exposes only this AES-256 toggle. If you need different encryption (e.g., AWS KMS customer-managed keys), use [overrides](/configuration/overrides-and-escape-hatches) to modify the underlying CloudFormation resource — verify the generated template before deploying.

@@ -1,22 +1,24 @@
 # WebSocket API Gateway
 
-A WebSocket API Gateway is a `wss://` endpoint, run by AWS API Gateway, whose routes are Lambda functions: `$connect`,
-`$disconnect`, `$default` and your own, such as `sendMessage`. It suits chat, live notifications, job progress and
-presence without an always-on server. Stacktape creates the API, the routes, the permissions to send to connections,
-and the access logs.
+A Stacktape WebSocket API Gateway creates a managed, pay-per-use WebSocket endpoint backed by Lambda functions. You define the gateway once and attach routes such as `$connect`, `$disconnect`, `$default`, and `sendMessage` to functions. Stacktape creates the API, integrations, permissions, deployment stage, access logs, and connection-management access.
 
-You pay $1 per million messages (32 KB each) and $0.25 per million connection-minutes in us-east-1, and nothing while
-idle ([API Gateway pricing](https://aws.amazon.com/api-gateway/pricing/)). If you already run a WebSocket server such
-as Socket.IO in a container, put it behind an [Application Load Balancer](/resources/networking/application-load-balancer)
-instead.
+The default route selection expression is `$request.body.action`. A client message such as `{ "action": "sendMessage", "text": "hello" }` therefore invokes the function that owns the `sendMessage` route.
 
-Clients pick a route with the `action` field of a JSON message: `{ "action": "sendMessage", "text": "hello" }` invokes
-the function that owns `sendMessage`.
+## When to use
+
+Use a WebSocket API Gateway for Lambda-based real-time features that should have no always-on server cost:
+
+- chat and collaboration updates
+- progress, job-status, and deployment notifications
+- lightweight presence and live dashboards
+- targeted server-to-client notifications
+- applications with spiky or modest concurrent connection counts
+
+Use an [Application Load Balancer](/resources/networking/application-load-balancer) instead when you already run a persistent container WebSocket server, need a framework such as Socket.IO with server-side state, or need more control over the connection process.
 
 ## Basic example
 
-Routes live on the functions, not on the gateway. Route handlers get the gateway's variables and permission to send to
-its connections without `connectTo`.
+Routes live on Lambda functions rather than inside the gateway. The route handlers automatically receive the gateway connection variables and the scoped `execute-api:ManageConnections` permission; you do not also need to add the gateway to their `connectTo` lists.
 
 
 Example (TypeScript):
@@ -113,8 +115,7 @@ resources:
 ```
 
 
-The deploy prints the `wss://` URL. Connect to it with any WebSocket client, for example `npx wscat -c <url>`, and send
-`{"action":"sendMessage","text":"hello"}`. Route changes deploy with the stack; there is no API Gateway stage to manage.
+Stacktape owns one stable internal stage and deploys route changes automatically. There is no stage or deployment setting to keep in sync.
 
 ## Route behavior
 
@@ -133,10 +134,10 @@ Route handler return bodies are not sent to the client by default. Use `returnRe
 
 For a gateway named `realtime`, every route handler receives:
 
-- `STP_REALTIME_URL`: the public `wss://` client URL
-- `STP_REALTIME_MANAGEMENT_ENDPOINT`: the HTTPS endpoint for `ApiGatewayManagementApiClient`
-- `STP_REALTIME_API_ID`: the API ID
-- `STP_REALTIME_CANONICAL_DOMAIN`: the AWS DNS target
+- `STP_REALTIME_URL` — the public `wss://` client URL
+- `STP_REALTIME_MANAGEMENT_ENDPOINT` — the HTTPS endpoint for `ApiGatewayManagementApiClient`
+- `STP_REALTIME_API_ID` — the API ID
+- `STP_REALTIME_CANONICAL_DOMAIN` — the AWS DNS target
 
 The handler also gets connection-management permission scoped to this gateway and Stacktape's managed stage.
 
@@ -240,30 +241,17 @@ const realtime = new WebSocketApiGateway({
 });
 ```
 
-[Set up the domain](/resources/networking/custom-domains#set-up-the-domain) with `stacktape domain add` first, so an
-issued certificate for the hostname exists in the stack's region. The deploy then creates the domain mapping and the
-Route 53 record. For DNS or certificates you manage elsewhere, use `disableDnsRecordCreation` or
-`customCertificateArn`; see [Custom domains](/resources/networking/custom-domains#external-dns).
+Stacktape provisions the regional custom-domain mapping, certificate, and Route53 alias by default. Use `disableDnsRecordCreation` or `customCertificateArn` for externally managed DNS or certificates, as described in [Custom domains](/resources/networking/custom-domains).
 
-One API Gateway hostname can't serve both a WebSocket API and an HTTP API, so give each its own name. Stacktape rejects
-the config before deploying.
+AWS does not allow one API Gateway custom domain to mix WebSocket mappings with HTTP or REST API mappings. Stacktape rejects duplicate domain attachment in the config before deployment.
 
 ## Logs
 
 JSON access logs are enabled by default with connection ID, event type, route, status, source IP, request time, and integration error context. Payload data is not logged by default. Configure retention or forwarding through `logging`, or set `logging.disabled: true`.
 
-API Gateway needs a CloudWatch Logs role in the account's API Gateway settings to write these logs, and new accounts
-have none. Before the deploy, Stacktape checks the region's setting. If no role is set, it creates the IAM role
-`stacktape-api-gateway-cloudwatch-logs` (one per account, with the AWS managed policy
-`AmazonAPIGatewayPushToCloudWatchLogs`), registers it and says so. It never replaces a role that is already set; if
-that role was deleted, the deploy stops and says so.
+API Gateway writes WebSocket access logs with a CloudWatch Logs role that is set once per AWS account and region, in the API Gateway settings. New accounts have none, and a stage with access logs then fails to deploy. Before such a deployment, Stacktape checks the setting. When no role is set, it creates the IAM role `stacktape-api-gateway-cloudwatch-logs` with the AWS managed policy `AmazonAPIGatewayPushToCloudWatchLogs`, registers it for the region, and says so in the output. The account has one such role, used by every region. Stacktape never replaces a role that is already set; when the set role no longer exists, the deployment stops and says so. The check needs `apigateway:GET` on `/account`; without it, Stacktape warns and deploys. Creating and registering the role needs `iam:GetRole`, `iam:CreateRole`, `iam:AttachRolePolicy` and `iam:PassRole` on that role and `apigateway:PATCH` on `/account`. The Console's connection role has all of them.
 
-Restricted deployer roles need `apigateway:GET` on `/account` for the check (without it, Stacktape warns and deploys),
-and `iam:GetRole`, `iam:CreateRole`, `iam:AttachRolePolicy`, `iam:PassRole` on the role and `apigateway:PATCH` on
-`/account` to register it.
-
-`logging.logClass: 'infrequent-access'` lowers the ingestion price for new log groups. Those logs can be read only with
-Logs Insights and can't be forwarded.
+`logging.logClass: 'infrequent-access'` is available for newly created log groups when lower ingestion cost matters more than live log features. Infrequent Access logs require Logs Insights and cannot use log forwarding.
 
 ## Dev mode
 
@@ -273,7 +261,26 @@ Logs Insights and can't be forwarded.
 
 API Gateway currently limits a connection to 2 hours with a 10-minute idle timeout. Frames are limited to 32 KB, messages to 128 KB, binary frames are unsupported, and integrations can run for at most 29 seconds. Split large payloads and design clients to reconnect.
 
-## Configuration reference
+## Referenceable parameters
+
+Use `$ResourceParam('realtime', 'paramName')` in configuration. `connectTo` injects these values into workloads automatically.
+
+
+## Referenceable Parameters: `websocket-api-gateway`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `apiId` | API Gateway ID | `$ResourceParam("<<resource-name>>", "apiId")` |
+| `url` | WebSocket client URL | `$ResourceParam("<<resource-name>>", "url")` |
+| `managementEndpoint` | HTTPS endpoint for sending messages to connected clients | `$ResourceParam("<<resource-name>>", "managementEndpoint")` |
+| `canonicalDomain` | AWS DNS target | `$ResourceParam("<<resource-name>>", "canonicalDomain")` |
+| `customDomains` | Comma-separated list of custom domain names | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `customDomainUrls` | Comma-separated list of custom domain URLs | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
+| `customDomainUrl` | URL of the first custom domain | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
+
+
+## API Reference
 
 
 ### Definition: `WebSocketApiGatewayProps`
@@ -297,29 +304,3 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `websocketApiGatewayName` | yes | `string` | - |
 | `authorizer` | no | `aws-iam \| lambda` | - |
 | `returnResponse` | no | `boolean` | `false` |
-
-
-## Referenceable parameters
-
-Use `$ResourceParam('realtime', 'paramName')` in configuration. `connectTo` injects these values into workloads automatically.
-
-
-## Referenceable Parameters: `websocket-api-gateway`
-These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
-
-| Parameter | Description | Usage |
-| --- | --- | --- |
-| `apiId` | API Gateway ID | `$ResourceParam("<<resource-name>>", "apiId")` |
-| `url` | WebSocket client URL | `$ResourceParam("<<resource-name>>", "url")` |
-| `managementEndpoint` | HTTPS endpoint for sending messages to connected clients | `$ResourceParam("<<resource-name>>", "managementEndpoint")` |
-| `canonicalDomain` | AWS DNS target | `$ResourceParam("<<resource-name>>", "canonicalDomain")` |
-| `customDomains` | Comma-separated list of custom domain names | `$ResourceParam("<<resource-name>>", "customDomains")` |
-| `customDomainUrls` | Comma-separated list of custom domain URLs | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
-| `customDomainUrl` | URL of the first custom domain | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
-
-
-## Next steps
-
-- [DynamoDB table](/resources/databases/dynamodb): store connection IDs for broadcasts.
-- [User auth pool](/resources/security/user-auth-pool): authorize connections.
-- [Lambda function](/resources/compute/lambda-function): memory, timeout and logs of the route handlers.

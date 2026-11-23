@@ -1,9 +1,22 @@
+import { CliCommandsApiReference } from '@/components/Mdx/CliCommandsApiReference';
 import { ConsoleScreenshot } from '@/components/Mdx/ConsoleScreenshot';
 import { FlowDiagram, ProjectStructure } from '@/components/Mdx/DecisionTree';
 import { FeatureComparisonTable } from '@/components/Mdx/FeatureComparisonTable';
 import { ErrorCallout, Info, Tip, Warning } from '@/components/Mdx/Highlighter';
 import { MdxImage } from '@/components/Mdx/Image';
-import { HomeExample, HomeHero, HomeMap, HomeOffers, HomePaths, HomeTeams } from '@/components/Mdx/Home';
+import {
+  ButtonRow,
+  CTAButton,
+  CTASection,
+  FeatureGrid,
+  LandingCover,
+  LandingHero,
+  OpenSourceBanner,
+  PricingColumns,
+  Step,
+  Steps,
+  Testimonials
+} from '@/components/Mdx/Landing';
 import { PreviousNext } from '@/components/Mdx/PreviousNext';
 import { ReferenceableParams } from '@/components/Mdx/ReferenceableParams';
 import { Table } from '@/components/Mdx/Table';
@@ -26,6 +39,7 @@ const reactMdxComponents = {
   img: MdxImage,
   PreviousNext,
   ReferenceableParams,
+  CliCommandsApiReference,
   ConsoleScreenshot,
   Warning,
   Info,
@@ -35,12 +49,17 @@ const reactMdxComponents = {
   FlowDiagram,
   FeatureComparisonTable,
   Tab,
-  HomeHero,
-  HomePaths,
-  HomeExample,
-  HomeOffers,
-  HomeTeams,
-  HomeMap
+  LandingHero,
+  LandingCover,
+  CTAButton,
+  ButtonRow,
+  FeatureGrid,
+  Steps,
+  Step,
+  CTASection,
+  OpenSourceBanner,
+  Testimonials,
+  PricingColumns
 };
 
 export default reactMdxComponents;

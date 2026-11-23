@@ -197,25 +197,26 @@ Controls the interactive presentation when output format is \`tty\`:
 - \`dashboard\`: Uses the fullscreen interactive dashboard for the whole command.
 Press Ctrl+T during a command to switch views and pin that choice for the rest of the run.`);
 
-export const agent = z.boolean().describe(`#### Agent Output
+export const agent = z.boolean().describe(`#### Agent Mode
 ---
-Non-interactive, machine-readable output for scripts, CI and coding agents:
+Optimizes CLI output for programmatic/LLM consumption:
 - Uses strict JSONL/NDJSON output (one JSON object per line)
 - Disables interactive terminal UI and prompts
-- Does not confirm operations: an operation that needs confirmation fails with \`CONFIRMATION_REQUIRED\` unless you add \`--yes\``);
+- Does not confirm operations: an operation that needs confirmation fails with \`CONFIRMATION_REQUIRED\` unless you add \`--yes\`
+For dev command: also enables HTTP server for programmatic control.`);
 
 export const agentPort = z.number().describe(`#### Agent Port
 ---
 The port for the agent HTTP server. Providing this option enables agent mode, which does not confirm operations.`);
 
-export const devAgent = z.boolean().describe(`#### Background Dev Session
+export const devAgent = z.boolean().describe(`#### Agent Mode
 ---
-For coding agents: runs dev mode as a background session with a local HTTP API for status, logs, rebuilds and database queries.
-The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until \`stacktape dev stop\`. It does not confirm anything: when the project does not exist yet, creating it fails with \`CONFIRMATION_REQUIRED\` unless you add \`--yes\`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/).`);
+For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries.
+The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until \`stacktape dev stop\`. Agent mode does not confirm anything: when the project does not exist yet, creating it fails with \`CONFIRMATION_REQUIRED\` unless you add \`--yes\`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/).`);
 
 export const devAgentPort = z.number().describe(`#### Agent Port
 ---
-The port of the background session's HTTP API. Implies \`--agent\`. By default, the first free port from 7331.`);
+The port of the agent mode HTTP API. Implies \`--agent\`. By default, the first free port from 7331.`);
 
 export const devStopAgentPort = z.number().describe(`#### Agent Port
 ---

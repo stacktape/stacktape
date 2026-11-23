@@ -687,7 +687,7 @@ const search = (index: LexicalIndex, options: QueryOptions): SearchResult[] => {
       (doc.route.startsWith('/observability/') ||
         doc.route.startsWith('/local-development/debug') ||
         doc.route.startsWith('/cli/debug-') ||
-        ['/cli/logs', '/cli/metrics', '/cli/alarm-list'].includes(doc.route))
+        ['/cli/logs', '/cli/metrics', '/cli/alarms'].includes(doc.route))
     ) {
       score *= 1.25;
     }

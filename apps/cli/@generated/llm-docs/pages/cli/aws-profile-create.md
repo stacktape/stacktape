@@ -1,6 +1,6 @@
 # aws-profile create
 
-`stacktape aws-profile create` creates a new AWS profile on your local machine. It prompts you for a profile name, AWS Access Key ID, and AWS Secret Access Key, then stores them in the default AWS credentials location in your home directory. Other AWS tools — including the AWS CLI — can use these profiles.
+The `aws-profile create` command creates a new AWS profile on your local machine. It prompts you for a profile name, AWS Access Key ID, and AWS Secret Access Key, then stores them in the default AWS credentials location in your home directory. Other AWS tools — including the AWS CLI — can use these profiles.
 
 ## Usage
 
@@ -15,6 +15,18 @@ The command is fully interactive. It walks you through three prompts:
 3. **AWS Secret Access Key** — the corresponding secret key (input is masked).
 
 If a profile with the chosen name already exists in your credentials or config file, the command fails with an error. Use [`aws-profile update`](/cli/aws-profile-update) to change credentials for an existing profile. All prompts are handled interactively — there are no required flags.
+
+## Flags
+
+
+## CLI Options: `stacktape aws-profile create`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
 
 ## Examples
 
@@ -44,18 +56,8 @@ stacktape aws-profile create --log-level error
 
 Credentials are stored in the default AWS credentials location in your home directory. This is the same location used by the AWS CLI and AWS SDKs, so profiles created with Stacktape work with any AWS tooling on the same machine.
 
-To let the Stacktape Console manage AWS access instead of keeping keys on your machine, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
 
-## Options
-
-
-## CLI Options: `stacktape aws-profile create`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+> **Info:** For Console-managed AWS access, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
 
 
 ## Related commands

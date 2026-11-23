@@ -1,6 +1,6 @@
 # aws-profile update
 
-`stacktape aws-profile update` replaces the AWS access key credentials for an existing AWS profile stored on your machine. Use it when you rotate IAM user keys or need to correct a misconfigured profile without deleting and recreating it.
+The `aws-profile update` command replaces the AWS access key credentials for an existing AWS profile stored on your machine. Use it when you rotate IAM user keys or need to correct a misconfigured profile without deleting and recreating it.
 
 ## Usage
 
@@ -28,7 +28,7 @@ Update credentials for an existing profile with debug-level logging:
 stacktape aws-profile update --debug
 ```
 
-## Options
+## Flags reference
 
 
 ## CLI Options: `stacktape aws-profile update`

@@ -1,111 +1,102 @@
-import { createContext, createElement, memo, useContext, type CSSProperties } from 'react';
+import { createElement, memo } from 'react';
+import clsx from 'clsx';
 import { ChevronRight } from 'react-feather';
-import { ensureTrailingSlash } from '@/utils/seo';
+import { Link } from '@/components/Mdx/Link';
 import { useExpansionToggle, useIsActiveUrl, useIsExpanded } from './expansion-store';
 import type { NavItem } from './navigation-data';
 
-/** Prefix of the disclosure IDs, so the desktop sidebar and the phone drawer render distinct `aria-controls` targets. */
-export const NavIdPrefixContext = createContext('docs-nav');
+// Layout constants. Rows render as rounded pills with a horizontal gutter; `ROW_OUTER_MARGIN_X`
+// is the space between the pill edge and the sidebar edge. Each depth step adds extra left
+// padding so children visually nest under their parent. The chevron lives on the right edge
+// of subsection rows, matching the top-level group header style.
+const ROW_OUTER_MARGIN_X = 8;
+const CHEVRON_SIZE = 14;
+const DEPTH_STEP = 12;
 
-const INDENT_BASE = 12;
-const INDENT_STEP = 20;
-
-/** Rows indent by depth; the tree guide of a nested list runs under its parent's icon. */
-export const navIndentStyle = (depth: number) =>
-  ({ '--docs-nav-indent': `${INDENT_BASE + depth * INDENT_STEP}px` }) as CSSProperties;
-
-const guideStyle = (depth: number) =>
-  ({ '--docs-guide-x': `${INDENT_BASE + (depth - 1) * INDENT_STEP + 7}px` }) as CSSProperties;
+// Static row styling lives in the `.stp-nav-row` (+ `.is-active`) class in global.css. Only the
+// per-depth left margin (dynamic) is applied inline.
+const labelBase = 'flex-1 min-w-0 leading-[1.4] truncate select-none';
+const labelSubgroup = clsx(labelBase, 'text-light-gray text-[12px] font-semibold tracking-[0.5px] uppercase');
+const labelLeaf = clsx(labelBase, 'text-fc-primary text-[13.5px] font-normal tracking-[0.02em] normal-case');
+const iconWrapClass = 'shrink-0 inline-flex opacity-[0.85]';
+const listItemRowClass = 'list-none block p-0 m-0';
+const listItemInnerListClass = 'relative overflow-hidden min-h-0 p-0 m-0';
+const chevronBaseClass = 'shrink-0 opacity-[0.5] [transition:transform_220ms_ease]';
 
 function ContentTreeNodeInner({ item, depth }: { item: NavItem; depth: number }) {
   const toggle = useExpansionToggle();
   const hasChildren = item.children.length > 0;
-  // Per-key store selectors: only this row re-renders when its own slice changes.
-  const isExpanded = useIsExpanded(item.key);
-  // A link to another group's page is not where the page sits, so it is never marked as the current page.
-  const isActive = useIsActiveUrl(item.crossLink ? null : item.url);
-  const childrenId = `${useContext(NavIdPrefixContext)}-${item.key.replace(/[^a-z0-9]+/gi, '-')}`;
-  // Top-level rows (the docs home) use the section icons' size, so their labels line up with the sections'.
-  const icon = item.icon ? (
-    <span className="docs-nav-icon">{createElement(item.icon, { size: depth === 0 ? 16 : 15 })}</span>
-  ) : null;
-  const chevron = <ChevronRight size={14} className="docs-nav-chevron" aria-hidden />;
 
-  let row;
-  if (!hasChildren) {
-    row = (
-      <a
-        href={ensureTrailingSlash(item.url || '/')}
-        className={depth === 0 ? 'docs-nav-row is-root' : 'docs-nav-row'}
-        aria-current={isActive ? 'page' : undefined}
-        style={navIndentStyle(depth)}
-      >
-        {icon}
-        <span className="docs-nav-label">{item.title}</span>
-      </a>
-    );
-  } else if (item.url) {
-    // A page that also has child pages: the label opens the page, the chevron toggles the children.
-    row = (
-      <div className="relative flex items-center">
-        <a
-          href={ensureTrailingSlash(item.url)}
-          className="docs-nav-row is-branch pr-[36px]"
-          aria-current={isActive ? 'page' : undefined}
-          style={navIndentStyle(depth)}
-        >
-          {icon}
-          <span className="docs-nav-label">{item.title}</span>
-        </a>
-        <button
-          type="button"
-          aria-expanded={isExpanded}
-          aria-controls={childrenId}
-          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${item.title}`}
-          onClick={() => toggle(item.key)}
-          className="absolute right-[2px] flex h-[28px] w-[28px] items-center justify-center rounded-[6px] hover:bg-[var(--docs-bg-hover)]"
-        >
-          {chevron}
-        </button>
-      </div>
-    );
-  } else {
-    row = (
-      <button
-        type="button"
-        aria-expanded={isExpanded}
-        aria-controls={childrenId}
-        onClick={() => toggle(item.key)}
-        className="docs-nav-row is-branch"
-        style={navIndentStyle(depth)}
-      >
-        {icon}
-        <span className="docs-nav-label">{item.title}</span>
-        {chevron}
-      </button>
-    );
-  }
+  // Per-key store selectors — only this component re-renders when its own slice changes.
+  // Sibling/cousin toggles and unrelated route changes don't reach us. `useIsActiveUrl`'s SSR
+  // snapshot returns false, so SSR HTML never shows an active pill — hydration matches.
+  const isExpanded = useIsExpanded(item.key);
+  const showActive = useIsActiveUrl(item.url);
+
+  const isSubgroup = hasChildren;
+  // Push the pill itself inward with depth so the hover/active background gets narrower as
+  // items nest deeper — visually reinforces hierarchy and avoids a wall of full-width pills.
+  const rowMarginLeft = ROW_OUTER_MARGIN_X + depth * DEPTH_STEP;
+  const rowClassName = clsx('stp-nav-row', showActive && 'is-active');
+  const rowStyle = { margin: `1px ${ROW_OUTER_MARGIN_X}px 1px ${rowMarginLeft}px` };
+
+  const labelClassName = isSubgroup ? labelSubgroup : labelLeaf;
+
+  // Chevron lives on the right edge — matches the top-level group header so every expandable
+  // row uses the same indicator regardless of depth. Leaves don't render one.
+  const chevronEl = hasChildren ? (
+    <ChevronRight
+      size={CHEVRON_SIZE}
+      className={chevronBaseClass}
+      style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
+    />
+  ) : null;
+
+  // Subgroup icon — only rendered on virtual subgroup nodes that have a configured icon
+  // (e.g. Resources/Compute, Packaging/Containers). Real pages and unconfigured virtual nodes
+  // skip it.
+  const iconEl = item.icon ? <span className={iconWrapClass}>{createElement(item.icon, { size: 14 })}</span> : null;
 
   return (
-    <li>
-      {row}
+    <>
+      <li data-guide-row="true" className={listItemRowClass}>
+        {hasChildren ? (
+          <button
+            type="button"
+            aria-expanded={isExpanded}
+            onClick={() => toggle(item.key)}
+            className={rowClassName}
+            style={rowStyle}
+          >
+            {iconEl}
+            <span className={labelClassName}>{item.title}</span>
+            {chevronEl}
+          </button>
+        ) : (
+          <Link href={item.url || '/'} className={rowClassName} style={rowStyle}>
+            <span className={labelClassName}>{item.title}</span>
+          </Link>
+        )}
+      </li>
+
       {hasChildren && (
-        <div
-          id={childrenId}
-          className={isExpanded ? 'docs-nav-children is-open' : 'docs-nav-children'}
-          inert={!isExpanded}
+        <li
+          aria-hidden={!isExpanded}
+          className="list-none grid [transition:grid-template-rows_220ms_ease]"
+          style={{ gridTemplateRows: isExpanded ? '1fr' : '0fr' }}
         >
-          <ul className="docs-nav-list" style={guideStyle(depth + 1)}>
+          <ul className={listItemInnerListClass}>
             {item.children.map((child) => (
               <ContentTreeNode key={child.key} item={child} depth={depth + 1} />
             ))}
           </ul>
-        </div>
+        </li>
       )}
-    </li>
+    </>
   );
 }
 
-// memo so a parent re-render doesn't ripple through unchanged subtrees. `item` is a stable reference from the
-// memoized navigation tree.
+// memo so a parent re-render (e.g. ContentTreeGroup recomputing its guide path) doesn't ripple
+// through unchanged subtrees. `item` is a stable reference from the memoized navigation tree, so
+// default shallow equality is enough.
 export const ContentTreeNode = memo(ContentTreeNodeInner);

@@ -1,104 +1,56 @@
 # AgentCore Runtime
 
-An `agentcore-runtime` runs your AI agent as a container on Amazon Bedrock AgentCore Runtime. AWS starts an isolated
-session per conversation, scales them and bills for the CPU and memory a session uses. Stacktape builds the image,
-creates the runtime and its endpoints, and connects the agent to AgentCore [memory](/resources/ai/agentcore-memory), a
-[gateway](/resources/ai/agentcore-gateway), a [browser](/resources/ai/agentcore-browser) and a
-[code interpreter](/resources/ai/agentcore-code-interpreter).
+AgentCore Runtime deploys a container-packaged AI agent on AWS Bedrock AgentCore. You supply your agent code as a container image, choose a communication protocol (HTTP, MCP, A2A, or AGUI), and Stacktape provisions the managed runtime — with optional connections to [persistent memory](/resources/ai/agentcore-memory), a [tool gateway](/resources/ai/agentcore-gateway), a [browser sandbox](/resources/ai/agentcore-browser), and a [code interpreter](/resources/ai/agentcore-code-interpreter).
 
-For a service that calls a model and returns the answer, a [Lambda function](/resources/compute/lambda-function) or a
-[web service](/resources/compute/web-service) is simpler.
+## When to use
+
+Use AgentCore Runtime when you're building an AI agent that needs managed infrastructure on AWS. You configure protocol, endpoints, lifecycle, and tool attachments declaratively — Stacktape provisions the runtime and wires everything together.
+
+Good fits:
+
+- **Multi-turn AI agents** that maintain state across requests and need session-level lifecycle control (idle timeouts, max lifetime).
+- **Tool-using agents** that need access to a managed browser, code interpreter, or persistent memory without provisioning those services yourself.
+- **MCP or A2A agents** where you want first-class protocol support rather than building your own protocol handling on top of HTTP.
+- **Teams standardizing on Bedrock** who want their agent infrastructure managed alongside other Stacktape resources in a single stack.
+
+## When NOT to use
+
+- **Simple LLM API wrappers** — if your service calls a model API and returns the response, a [Lambda function](/resources/compute/lambda-function) or [web service](/resources/compute/web-service) is simpler and cheaper.
+- **Non-AI container workloads** — use a [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), or [multi-container workload](/resources/compute/multi-container-workload) instead. AgentCore Runtime provides protocol selection and tool-attachment properties that are unnecessary for general-purpose services.
+- **Latency-sensitive edge inference** — consider an [edge function](/resources/compute/edge-function) with a lightweight model or API call instead.
 
 ## Basic example
+
+A minimal AgentCore Runtime using the HTTP protocol:
 
 
 Example (TypeScript):
 
 ```typescript
-import { defineConfig, AgentCoreRuntime, JsBundleImagePackaging } from 'stacktape';
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
 export default defineConfig(() => {
-  const agent = new AgentCoreRuntime({
-    packaging: new JsBundleImagePackaging({
-      entryfilePath: './agent/server.ts'
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
     }),
-    protocol: 'HTTP'
+    protocol: 'HTTP',
+    endpoints: ['chat']
   });
 
   return {
-    resources: { agent }
+    resources: { myAgent }
   };
 });
 ```
 
 
-With the `HTTP` protocol, AgentCore expects the container to listen on `0.0.0.0:8080` and answer two routes:
+The `AgentCoreRuntime` resource configures a container-packaged agent runtime with protocol, endpoint, lifecycle, and tool-attachment properties. The config declares a `chat` endpoint using the HTTP protocol. This example uses `DockerfilePackaging` with `buildContextPath: './agent'`, so Stacktape builds the runtime image with [`dockerfile` packaging](/packaging/containers/dockerfile).
 
-- `POST /invocations` with the request payload. Return JSON, or stream with server-sent events.
-- `GET /ping`, the health check. Return `{"status":"Healthy"}`.
+## Examples
 
-```typescript
-// agent/server.ts
-import { createServer } from 'node:http';
+### Agent with persistent memory and lifecycle
 
-createServer(async (req, res) => {
-  if (req.method === 'GET' && req.url === '/ping') {
-    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ status: 'Healthy' }));
-    return;
-  }
-  if (req.method === 'POST' && req.url === '/invocations') {
-    let body = '';
-    for await (const chunk of req) body += chunk;
-    const { prompt } = JSON.parse(body || '{}');
-    // Call your model here.
-    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ answer: `You asked: ${prompt}` }));
-    return;
-  }
-  res.writeHead(404).end();
-}).listen(8080, '0.0.0.0');
-```
-
-AgentCore runs `linux/arm64` images. Stacktape builds the image for arm64; a `prebuilt-image` must be arm64 too. The
-[AWS HTTP contract](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-http-protocol-contract.html)
-has the details, including WebSocket support.
-
-After `stacktape deploy`, get the runtime ARN and invoke it. The session ID groups requests of one conversation and must
-be at least 33 characters:
-
-```bash
-stacktape param get agent arn --stage dev --region eu-west-1
-```
-
-```bash
-aws bedrock-agentcore invoke-agent-runtime --region eu-west-1 \
-  --agent-runtime-arn <runtime-arn> --qualifier default \
-  --runtime-session-id "session-$(uuidgen)" \
-  --payload '{"prompt":"Hello"}' --cli-binary-format raw-in-base64-out response.json
-```
-
-`response.json` then holds the agent's answer.
-
-## Protocols
-
-| `protocol` | Use when the container |
-|----------|-------------|
-| `HTTP` (default) | Serves `/invocations` and `/ping` as above |
-| `MCP` | Is an [MCP](https://modelcontextprotocol.io/) server |
-| `A2A` | Speaks the Agent-to-Agent protocol |
-| `AGUI` | Implements the AG-UI protocol |
-
-Each protocol has its own port and paths, described in the
-[AgentCore developer guide](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/).
-
-## Tools: memory, gateway, browser and code interpreter
-
-Each tool is its own resource. Attach it by name, and Stacktape grants the runtime access and injects its identifier:
-
-| Property | Resource | Injected variable |
-|----------|----------|-------------------|
-| `useMemory` | [AgentCore Memory](/resources/ai/agentcore-memory) | `STP_AGENTCORE_MEMORY_ID` |
-| `useGateway` | [AgentCore Gateway](/resources/ai/agentcore-gateway) | `STP_AGENTCORE_GATEWAY_URL` |
-| `useBrowser` | [AgentCore Browser](/resources/ai/agentcore-browser) | `STP_AGENTCORE_BROWSER_ID` |
-| `useCodeInterpreter` | [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | `STP_AGENTCORE_CODE_INTERPRETER_ID` |
+An agent that uses [AgentCore Memory](/resources/ai/agentcore-memory) for cross-session context and sets session lifecycle limits. The `useMemory` value must match the resource name in the returned `resources` object — in this case `agentMemory`.
 
 
 Example (TypeScript):
@@ -108,98 +60,495 @@ import {
   defineConfig,
   AgentCoreRuntime,
   AgentCoreMemory,
-  AgentCoreBrowser,
-  JsBundleImagePackaging
+  DockerfilePackaging
 } from 'stacktape';
-
 export default defineConfig(() => {
-  const agentMemory = new AgentCoreMemory({});
-  const browser = new AgentCoreBrowser({});
+  const agentMemory = new AgentCoreMemory({
+    eventRetentionDays: 30
+  });
 
-  const agent = new AgentCoreRuntime({
-    packaging: new JsBundleImagePackaging({ entryfilePath: './agent/server.ts' }),
+  const supportAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
     protocol: 'HTTP',
     useMemory: 'agentMemory',
-    useBrowser: 'browser'
+    endpoints: ['chat'],
+    lifecycle: {
+      maxLifetimeSeconds: 7200,
+      idleTimeoutSeconds: 300
+    }
   });
 
   return {
-    resources: { agentMemory, browser, agent }
+    resources: { agentMemory, supportAgent }
   };
 });
 ```
 
 
-The agent reads `process.env.STP_AGENTCORE_MEMORY_ID` and `process.env.STP_AGENTCORE_BROWSER_ID` and passes them to the
-AgentCore SDK. Attach only what the agent uses: a browser or code interpreter adds its own sessions and charges.
+In this example, `idleTimeoutSeconds` is set to `300` and `maxLifetimeSeconds` to `7200` — these are example values; choose durations appropriate for your agent's session patterns. The memory resource keeps raw events for `eventRetentionDays` days (`30` in this example, which is also the default).
+
+### Agent with tools, authentication, and resource access
+
+A more complete agent that attaches a gateway (no tools configured in this example — see [AgentCore Gateway](/resources/ai/agentcore-gateway)), browser, and code interpreter, protects its endpoint with JWT authentication, and accesses a DynamoDB table via `connectTo`:
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  AgentCoreRuntime,
+  AgentCoreMemory,
+  AgentCoreGateway,
+  AgentCoreBrowser,
+  AgentCoreCodeInterpreter,
+  DynamoDbTable,
+  DockerfilePackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const agentMemory = new AgentCoreMemory({
+    eventRetentionDays: 60
+  });
+
+  const toolGateway = new AgentCoreGateway({
+    description: 'Gateway for support operations',
+    authorizer: { type: 'none' },
+    supportedVersions: ['2025-03-26']
+  });
+
+  const browser = new AgentCoreBrowser({
+    description: 'Sandboxed browser for web research'
+  });
+
+  const codeRunner = new AgentCoreCodeInterpreter({
+    description: 'Sandboxed code execution'
+  });
+
+  const conversations = new DynamoDbTable({
+    primaryKey: {
+      partitionKey: { name: 'sessionId', type: 'string' }
+    }
+  });
+
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './'
+    }),
+    protocol: 'HTTP',
+    useMemory: 'agentMemory',
+    useGateway: 'toolGateway',
+    useBrowser: 'browser',
+    useCodeInterpreter: 'codeRunner',
+    endpoints: [
+      {
+        name: 'production',
+        description: 'Main agent endpoint'
+      }
+    ],
+    lifecycle: {
+      maxLifetimeSeconds: 14400,
+      idleTimeoutSeconds: 1800
+    },
+    connectTo: [conversations],
+    authorizer: {
+      discoveryUrl:
+        'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123/.well-known/openid-configuration',
+      allowedAudience: ['my-app-client-id']
+    },
+    environment: { AI_MODEL: 'anthropic.claude-sonnet-4-20250514' }
+  });
+
+  return {
+    resources: {
+      agentMemory,
+      toolGateway,
+      browser,
+      codeRunner,
+      conversations,
+      myAgent
+    }
+  };
+});
+```
+
+
+In this example, `idleTimeoutSeconds` is set to `1800` and `maxLifetimeSeconds` to `14400` — these are example values; choose durations appropriate for your agent's session patterns. For documented target resource types, `connectTo` grants IAM permissions and uses the `STP_[RESOURCE_NAME]_[PARAM]` naming pattern described in [Connecting resources](/configuration/connecting-resources). For a DynamoDB table named `conversations`, the documented parameters include `NAME`, `ARN`, and `STREAM_ARN`. The `supportedVersions` on the gateway is an optional string array — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for gateway-specific configuration. The `authorizer` property configures JWT authorizer settings: `discoveryUrl` (required) points to an OIDC discovery endpoint, while `allowedAudience`, `allowedClients`, and `allowedScopes` are optional string arrays that filter incoming tokens.
+
+## Protocols
+
+AgentCore Runtime supports four communication protocols, set via the `protocol` property:
+
+| Protocol | Description |
+|----------|-------------|
+| `HTTP` | Standard HTTP request/response. Works with any HTTP client or framework. |
+| `MCP` | [Model Context Protocol](https://modelcontextprotocol.io/). Standardized protocol for tool-calling agents that follow the MCP specification. |
+| `A2A` | Agent-to-Agent protocol. For agents that communicate with other agents using a structured agent protocol. |
+| `AGUI` | Agent GUI protocol. Choose this value when your container implements the AGUI specification. |
+
+Use `HTTP` for a conventional request/response endpoint. Use `MCP`, `A2A`, or `AGUI` only when your agent implements that specific protocol. All four values are valid for the `protocol` property: `'HTTP'`, `'MCP'`, `'A2A'`, and `'AGUI'`.
 
 ## Endpoints
 
-An endpoint is the address callers use, passed as `--qualifier` when invoking. Without `endpoints`, Stacktape creates one
-named `default`. List names, or objects with a `description` and a pinned `runtimeVersion`:
+Define the API endpoints your agent runtime exposes with the `endpoints` property. Each endpoint can be a simple string (the endpoint name) or an object with additional configuration. If you omit `endpoints`, Stacktape creates one endpoint named `default`. If you configure the property, provide at least one endpoint and give every endpoint a unique name.
+
+The resource's `endpointName` and `endpointArn` references point to the endpoint named `default` when the list contains one. Otherwise, they point to the first configured endpoint. Put the endpoint you want other resources to use first, or name it `default`; the remaining endpoints are still created but are not exposed through those shorthand resource parameters.
+
+
+Example (TypeScript):
 
 ```typescript
-endpoints: ['default', { name: 'beta', description: 'Preview of the next version' }]
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
+export default defineConfig(() => {
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
+    protocol: 'HTTP',
+    endpoints: [
+      'chat',
+      {
+        name: 'analyze',
+        description: 'Analyze documents and return structured data'
+      }
+    ]
+  });
+
+  return {
+    resources: { myAgent }
+  };
+});
 ```
 
-The `endpointName` and `endpointArn` parameters point to the endpoint named `default`, or to the first one if none has
-that name.
 
-## Sessions and lifecycle
+When using the object form, you can set:
+- **`name`** — The endpoint identifier (required).
+- **`description`** — Human-readable description of what the endpoint does.
+- **`runtimeVersion`** — Pin a specific runtime version for this endpoint.
 
-AWS keeps a session alive between requests with the same session ID. `lifecycle` limits how long:
+Use named endpoints when your agent exposes multiple capabilities (e.g., a `chat` endpoint for conversations and an `analyze` endpoint for document processing). Use the object form when you need to attach metadata or pin a runtime version.
 
-- `idleTimeoutSeconds` ends a session after it has been idle this long. AWS's default is 15 minutes.
-- `maxLifetimeSeconds` ends a session after this long even while it's active. AWS's default is 8 hours.
+## Tool integrations
+
+AgentCore Runtime can connect to managed tools that extend your agent's capabilities. Each tool is a separate Stacktape resource that you reference by name:
+
+| Property | Resource type | What it provides |
+|----------|--------------|------------------|
+| `useMemory` | [AgentCore Memory](/resources/ai/agentcore-memory) | Memory store with optional `eventRetentionDays` retention |
+| `useGateway` | [AgentCore Gateway](/resources/ai/agentcore-gateway) | MCP-style tool gateway with governed tool definitions |
+| `useBrowser` | [AgentCore Browser](/resources/ai/agentcore-browser) | Sandboxed browser for web research |
+| `useCodeInterpreter` | [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | Sandboxed code execution environment |
+
+You can attach all four simultaneously. Each property is a string that references a same-stack AgentCore resource by name. The value must match the resource name in the returned `resources` object.
+
+- **`useMemory`** — attach when your agent needs retained context across sessions (conversation history, user preferences). Skip for stateless, single-turn request/response agents.
+- **`useGateway`** — attach when tool definitions need to be managed and governed separately from the agent code. Skip when your agent handles tool calls internally.
+- **`useBrowser`** — attach only when the agent needs to browse external web pages. Adds a managed browser sandbox, which increases the resource footprint.
+- **`useCodeInterpreter`** — attach only when the agent needs to execute user-provided or generated code. Adds a sandboxed execution environment.
+
+To access resource attributes from other parts of your config, use the [`$ResourceParam` directive](/configuration/directives).
+
+
+Example (TypeScript):
 
 ```typescript
-lifecycle: { idleTimeoutSeconds: 300, maxLifetimeSeconds: 7200 }
+import {
+  defineConfig,
+  AgentCoreRuntime,
+  AgentCoreGateway,
+  AgentCoreBrowser,
+  AgentCoreCodeInterpreter,
+  DockerfilePackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const toolGateway = new AgentCoreGateway({
+    description: 'MCP tool gateway for support tools',
+    authorizer: { type: 'none' },
+    supportedVersions: ['2025-03-26']
+  });
+
+  const browser = new AgentCoreBrowser({
+    description: 'Sandboxed browser for web research'
+  });
+
+  const codeRunner = new AgentCoreCodeInterpreter({
+    description: 'Sandboxed code execution'
+  });
+
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
+    protocol: 'HTTP',
+    useGateway: 'toolGateway',
+    useBrowser: 'browser',
+    useCodeInterpreter: 'codeRunner',
+    endpoints: ['chat']
+  });
+
+  return {
+    resources: { toolGateway, browser, codeRunner, myAgent }
+  };
+});
 ```
 
-A shorter idle timeout lowers cost for agents that answer quickly. Keep it longer when users pause mid-conversation and
-the agent holds state in memory.
+
+In the example above, the gateway uses `authorizer: { type: 'none' }` to keep the example short; protect a real gateway with a JWT authorizer. `supportedVersions: ['2025-03-26']` is an optional string array. No `tools` are configured on the gateway in this example — see [AgentCore Gateway](/resources/ai/agentcore-gateway) for defining tool entries (each requires a `toolSchema`). See also [AgentCore Browser](/resources/ai/agentcore-browser), [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter), and [AgentCore Memory](/resources/ai/agentcore-memory).
+
+## Lifecycle
+
+Control how long agent runtime sessions live with the `lifecycle` property. Use these settings to manage session duration and control costs.
+
+- **`maxLifetimeSeconds`** — Maximum lifetime of a runtime session, in seconds. After this time, the session ends even while it is active. AWS defaults to 8 hours.
+- **`idleTimeoutSeconds`** — How long an idle session stays alive before it ends, in seconds. AWS defaults to 15 minutes.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
+export default defineConfig(() => {
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
+    protocol: 'HTTP',
+    endpoints: ['chat'],
+    lifecycle: {
+      maxLifetimeSeconds: 3600,
+      idleTimeoutSeconds: 300
+    }
+  });
+
+  return {
+    resources: { myAgent }
+  };
+});
+```
+
+
+In this example, `idleTimeoutSeconds` is set to `300` and `maxLifetimeSeconds` to `3600` — these are example values; choose durations appropriate for your agent's session patterns. Both properties accept a numeric value. For cost-sensitive workloads, consider a shorter `idleTimeoutSeconds` to reclaim idle sessions sooner. Use a longer `maxLifetimeSeconds` for agents that maintain important in-memory state across a multi-step conversation.
 
 ## Authentication
 
-Without an `authorizer`, callers sign requests with AWS credentials that are allowed to invoke the runtime. To let users
-call it with tokens from your identity provider, set a JWT authorizer:
+Protect your agent endpoints with JWT-based authorization using the `authorizer` property. The `discoveryUrl` is required and points to your identity provider's OpenID Connect discovery document. You can optionally restrict access by audience, client ID, or scope.
+
+
+Example (TypeScript):
 
 ```typescript
-authorizer: {
-  discoveryUrl: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123/.well-known/openid-configuration',
-  allowedAudience: ['my-app-client-id'],
-  allowedClients: ['trusted-client'],
-  allowedScopes: ['agent:invoke']
-}
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
+export default defineConfig(() => {
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
+    protocol: 'HTTP',
+    endpoints: ['chat'],
+    authorizer: {
+      discoveryUrl:
+        'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123/.well-known/openid-configuration',
+      allowedAudience: ['my-app-client-id'],
+      allowedClients: ['trusted-client'],
+      allowedScopes: ['agent:invoke']
+    }
+  });
+
+  return {
+    resources: { myAgent }
+  };
+});
 ```
 
-`discoveryUrl` is required; the other three are optional filters on the token's claims.
 
-## Access to other resources
+| Property | Purpose |
+|----------|---------|
+| `discoveryUrl` | OIDC discovery endpoint URL (required) |
+| `allowedAudience` | Valid `aud` claim values |
+| `allowedClients` | Valid client IDs in the token |
+| `allowedScopes` | Required scopes the token must contain |
 
-The runtime's role allows every `bedrock:*`, `bedrock-agentcore:*` and `bedrock-agentcore-control:*` action on all
-resources, so the agent can call Bedrock models and AgentCore tools without extra permissions. Keep that in mind when
-you review what the agent's code is allowed to do.
+Configure an authorizer for any agent endpoint exposed to the public internet. You may skip it temporarily for private prototypes or agents protected by another trusted entry point (e.g., behind an internal API gateway). JWT auth requires an OIDC provider (such as Amazon Cognito or Auth0) and token management by the caller. The `discoveryUrl` is the only required field — `allowedAudience`, `allowedClients`, and `allowedScopes` are optional string array filters you can layer on top to further restrict which tokens are accepted.
 
-`connectTo` gives the agent access to resources in the stack and injects their parameters, for example
-`STP_CONVERSATIONS_NAME` for a DynamoDB table named `conversations`. For other AWS services, add `iamRoleStatements`.
+## Connecting to other resources
 
-`environment` passes other settings; put secrets there with [`$Secret()`](/configuration/directives).
-`requestHeaders` lists request headers, such as `X-Tenant-Id`, that AgentCore forwards to the container.
+AgentCore Runtime accepts `connectTo` through `ResourceAccessProps`. For supported target resource types, `connectTo` grants IAM permissions and provides `STP_[RESOURCE_NAME]_[PARAM]` connection values as documented in [Connecting resources](/configuration/connecting-resources).
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  AgentCoreRuntime,
+  DynamoDbTable,
+  Bucket,
+  DockerfilePackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const knowledgeBase = new Bucket({});
+
+  const conversationLog = new DynamoDbTable({
+    primaryKey: {
+      partitionKey: { name: 'sessionId', type: 'string' }
+    }
+  });
+
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
+    protocol: 'HTTP',
+    endpoints: ['chat'],
+    connectTo: [knowledgeBase, conversationLog]
+  });
+
+  return {
+    resources: { knowledgeBase, conversationLog, myAgent }
+  };
+});
+```
+
+
+In this example, the agent gets read/write access to the S3 bucket and DynamoDB table. The `connectTo` property provides connection values following the `STP_[RESOURCE_NAME]_[PARAM]` pattern — for example, `STP_KNOWLEDGE_BASE_NAME` and `STP_CONVERSATION_LOG_NAME`. See [Connecting resources](/configuration/connecting-resources) for the full reference by resource type.
+
+For AWS services not covered by `connectTo`, use `iamRoleStatements` to add raw IAM policy statements:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
+export default defineConfig(() => {
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
+    protocol: 'HTTP',
+    endpoints: ['chat'],
+    iamRoleStatements: [
+      {
+        Effect: 'Allow',
+        Action: ['bedrock:InvokeModel'],
+        Resource: ['arn:aws:bedrock:*::foundation-model/anthropic.claude-*']
+      }
+    ]
+  });
+
+  return {
+    resources: { myAgent }
+  };
+});
+```
+
+
+This example grants permission to invoke any Anthropic Claude foundation model via the Bedrock API. Adjust the `Action` and `Resource` values to match the AWS services your agent needs.
 
 ## Packaging
 
-AgentCore Runtime takes the [container packaging](/packaging/overview) types: `js-bundle` (`JsBundleImagePackaging`) for
-one TypeScript or JavaScript entry file, `buildpack` for Python and other languages without a Dockerfile, `dockerfile`
-for full control, and `prebuilt-image` for an existing arm64 image.
+AgentCore Runtime uses [container packaging](/packaging/overview), the same types available to other container workloads. Four packaging types are supported:
 
-## Cost
+| Type | Class | When to use |
+|------|-------|-------------|
+| [`js-bundle`](/packaging/containers/js-bundle) | `JsBundleImagePackaging` | A JavaScript or TypeScript agent with one entry file. |
+| [`buildpack`](/packaging/containers/buildpack) | `BuildpackImagePackaging` | Build from source without a Dockerfile. The language and start command are detected. Suits Python agents. |
+| [`dockerfile`](/packaging/containers/dockerfile) | `DockerfilePackaging` | Full control over the container environment. Use when you need specific system dependencies or a custom base image. |
+| [`prebuilt-image`](/packaging/containers/prebuilt-image) | `PrebuiltImagePackaging` | Reference an existing image from any registry. Skips the build step. |
 
-AgentCore Runtime bills per second for the CPU and memory a session actually uses, and doesn't charge CPU while the agent
-waits for a model or a tool. Model calls, memory, gateway and browser are billed separately. See
-[AgentCore pricing](https://aws.amazon.com/bedrock/agentcore/pricing/).
+Most teams use `DockerfilePackaging` for full control or `BuildpackImagePackaging` to build without a Dockerfile. With `PrebuiltImagePackaging`, provide a reference to an existing public image or a private image with `repositoryCredentialsSecretArn` when credentials are needed. This page shows `DockerfilePackaging` because agent containers commonly need runtime-specific dependencies. See [container packaging](/packaging/overview) for all four types.
 
-## Configuration reference
+## Environment variables
+
+Pass configuration to your agent container with the `environment` property. Use the [`$Secret` directive](/configuration/directives) for sensitive values.
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
+export default defineConfig(() => {
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
+    protocol: 'HTTP',
+    endpoints: ['chat'],
+    environment: {
+      AI_MODEL: 'anthropic.claude-sonnet-4-20250514',
+      MAX_TOKENS: '4096',
+      API_KEY: "$Secret('my-api-key')"
+    }
+  });
+
+  return {
+    resources: { myAgent }
+  };
+});
+```
+
+
+Each entry needs a `name` and a `value`. Values are strings, numbers, or booleans (numbers and booleans are converted to strings). For supported target resource types, `connectTo` uses the documented `STP_[RESOURCE_NAME]_[PARAM]` naming pattern for connection values. Use `environment` for values you want to pass explicitly to the runtime. See [Connecting resources](/configuration/connecting-resources) for the full reference.
+
+## Request headers
+
+The `requestHeaders` property accepts an array of header name strings for the AgentCore Runtime:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, AgentCoreRuntime, DockerfilePackaging } from 'stacktape';
+export default defineConfig(() => {
+  const myAgent = new AgentCoreRuntime({
+    packaging: new DockerfilePackaging({
+      buildContextPath: './agent'
+    }),
+    protocol: 'HTTP',
+    endpoints: ['chat'],
+    requestHeaders: ['X-Tenant-Id', 'X-Trace-Id']
+  });
+
+  return {
+    resources: { myAgent }
+  };
+});
+```
+
+
+Use `requestHeaders` when the runtime needs named request headers such as tenant or trace identifiers. The property accepts an optional array of header name strings.
+
+## FAQ
+
+### What protocols does AgentCore Runtime support?
+
+AgentCore Runtime supports four protocols: `HTTP` (standard request/response), `MCP` (Model Context Protocol for tool-calling agents), `A2A` (Agent-to-Agent communication), and `AGUI` (Agent GUI for interactive UIs). Set the protocol via the `protocol` property. Choose `MCP` or `A2A` when your agent specifically implements those protocol specifications; use `HTTP` for general-purpose agent endpoints.
+
+### What managed tools can I attach to an agent?
+
+Attach any combination of four managed tools, each a separate AgentCore resource referenced by name: `useMemory` for [persistent memory](/resources/ai/agentcore-memory) (with optional `eventRetentionDays` retention), `useGateway` for a governed [tool gateway](/resources/ai/agentcore-gateway), `useBrowser` for a [sandboxed browser](/resources/ai/agentcore-browser), and `useCodeInterpreter` for a [code execution environment](/resources/ai/agentcore-code-interpreter). You can attach all four at once. Skip `useBrowser` and `useCodeInterpreter` unless needed — each adds a managed sandbox and increases the resource footprint.
+
+### How do I access other AWS resources from my agent?
+
+Use `connectTo` to grant your agent access to Stacktape resources like DynamoDB tables, S3 buckets, SQS queues, and databases. For supported target resource types, `connectTo` grants IAM permissions and provides `STP_[RESOURCE_NAME]_[PARAM]` connection values as documented in [Connecting resources](/configuration/connecting-resources). For AWS services outside Stacktape's resource model, use `iamRoleStatements` to add custom IAM permissions.
+
+### When should I use AgentCore Runtime vs a Lambda function for AI?
+
+Use AgentCore Runtime when your agent needs lifecycle control (`maxLifetimeSeconds`, `idleTimeoutSeconds`), multi-turn conversations, or tool attachments (`useMemory`, `useBrowser`, `useCodeInterpreter`, `useGateway`). Use a [Lambda function](/resources/compute/lambda-function) when you're building a stateless AI endpoint — a single model call that returns a response. Lambda is simpler and cheaper for request/response workloads; AgentCore Runtime is purpose-built for agents with longer-running sessions and tool integrations. For an always-on container with full control over scaling and networking, use a [web service](/resources/compute/web-service) instead.
+
+### How do I secure my agent endpoints?
+
+Use the `authorizer` property to configure JWT-based authentication. Provide your OIDC provider's `discoveryUrl` (the only required field), and optionally restrict access by audience (`allowedAudience`), client ID (`allowedClients`), or scope (`allowedScopes`). JWT auth requires an OIDC provider such as Amazon Cognito or Auth0. Configure an authorizer for any endpoint exposed to the public internet.
+
+### How is AWS Bedrock AgentCore priced?
+
+Bedrock AgentCore pricing is session-based — you pay for active runtime sessions rather than reserved compute capacity. Because cost scales with session count and duration, a shorter `idleTimeoutSeconds` reclaims idle sessions sooner and lowers cost. Pricing varies by region; check the [AWS Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current rates.
+
+### How does AgentCore Runtime handle concurrency?
+
+AgentCore Runtime concurrency and scaling are managed by AWS Bedrock AgentCore, not configured directly in Stacktape. You control per-session behavior through the `lifecycle` property (`idleTimeoutSeconds`, `maxLifetimeSeconds`) but do not set instance counts or autoscaling policies on the runtime resource itself. For detailed concurrency limits and quotas, check the AWS Bedrock AgentCore documentation.
+
+## API Reference
 
 
 ### Definition: `AgentCoreRuntimeProps`
@@ -227,15 +576,11 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ## Referenceable parameters
 
-| Parameter | Value |
-|-----------|-------|
-| `id` | Runtime ID |
-| `arn` | Runtime ARN, used to invoke it |
-| `endpointName` | Name of the referenced endpoint |
-| `endpointArn` | ARN of the referenced endpoint |
+AgentCore Runtime exposes the following parameters, accessible via the [`$ResourceParam` directive](/configuration/directives):
 
-## Next steps
-
-- [AgentCore Memory](/resources/ai/agentcore-memory): keep context across sessions.
-- [AgentCore Gateway](/resources/ai/agentcore-gateway): give the agent tools behind one MCP endpoint.
-- [Secrets](/configuration/secrets): store model provider keys.
+| Parameter | Description |
+|-----------|-------------|
+| `id` | The runtime resource ID |
+| `arn` | The runtime ARN |
+| `endpointName` | The deployed endpoint name |
+| `endpointArn` | The endpoint ARN |

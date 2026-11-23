@@ -1,6 +1,6 @@
 # Release commands
 
-Set `releaseCommand` on a service, a function or a server-rendered site to run a command once during a deploy, before your services and functions get the new code. Use it for database migrations. By default, it runs on every deploy that changes the image; with [`runWhenChanged`](#run-it-only-when-something-changed), only when your migration files change.
+Set `releaseCommand` on a service, a function or a server-rendered site to run a command once on each deploy, before any workload gets the new code. Use it for database migrations.
 
 ```yaml configExample="complete"
 resources:
@@ -38,10 +38,10 @@ Stacktape runs the command in a one-off ECS task. The task uses the image you ar
 ## What your commands must allow
 
 - **The old code runs against the new schema until the rollout finishes.** Keep migrations compatible with it. To remove a column, stop using it in one deploy and remove it in a later one.
-- **A retry runs the command again.** Stacktape records a run only when the whole deploy succeeds, so a deploy that fails after the command succeeded runs it again on the next attempt. Migration tools handle this already, because they record what they applied.
+- **A retry runs the command again.** A failed deploy, or a deploy that fails after the command succeeded, runs it again on the next attempt. Migration tools handle this already, because they record what they applied.
 - **Nothing reverses the command.** Neither a failed deploy nor [`stacktape rollback`](/deployment-and-lifecycle/rollbacks) changes the database back. A rollback does not run the command either, because an old command must not run against a newer database. The old code has to work with the schema that is there.
 
-## Run it only when something changed
+## Running it only when something changed
 
 By default, the command runs on each deploy that changes the image. Use `runWhenChanged` to run it only when the listed files or directories changed:
 
@@ -80,9 +80,7 @@ Containers that the chosen container depends on run too, but only the chosen con
 
 ## Several commands
 
-Each service can have its own release command. They run one at a time, in the order of the resources in your config. Every container service and function waits until all of them finished.
-
-One exception: if a command refers to a workload, for example through an environment variable with its URL, that workload has to be updated first, so it can get new code before the command finishes. The deploy prints a warning that names it.
+Each service can have its own release command. They run one at a time, in the order of the resources in your config. Every container service and function waits until all of them finished. If the command refers to a workload, for example through an environment variable, that workload has to exist first and can get new code before the command finishes. The deploy prints a warning that names it.
 
 ## Functions and server-rendered sites
 
@@ -130,7 +128,7 @@ A `js-bundle` image contains only the bundled code, not your migration tool or m
 
 ## Skipping and interrupting
 
-Pass `--skip-release-command` to deploy without running the command, for example when you ran it yourself or when you need to deploy a fix for it. A skipped run is not recorded, so the next deploy without the flag runs the command if its inputs still differ from the last successful run.
+Pass `--skipReleaseCommand` to deploy without running the command, for example when you ran it yourself or when you need to deploy a fix for it. The next deploy without the flag runs it.
 
 If you cancel a deploy while the command runs, its task keeps running, because stopping a migration partway can leave the database half migrated. The next deploy waits for that task to finish before it runs the command again or changes anything, and prints which task it waits for. It stops waiting after the command's `timeout`.
 
@@ -140,4 +138,4 @@ The output appears in the deploy output, prefixed with the service name. It is a
 
 ## When to use something else
 
-Use an [`afterDeploy` hook](/configuration/hooks-and-scripts#hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy, and a failed hook fails the command without undoing the deployment.
+Use an [`afterDeploy` hook](/deployment-and-lifecycle/deployment-scripts-and-hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy, and a failed hook fails the command without undoing the deployment.

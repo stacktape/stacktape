@@ -1,6 +1,7 @@
 // Canonical resource metadata, alongside the MDX corpus. See AGENTS.md.
 import resources from '../../../.resources.json';
 import { renderDocsMarkdown } from '@/utils/docs-markdown';
+import { Link } from './Link';
 
 const normalizeLegacyDocLinks = (description: string) =>
   description
@@ -22,25 +23,31 @@ export function ReferenceableParams({ resource, resourceType }: { resource?: str
   }
 
   return (
-    <>
+    <div>
       <p>
-        Reference these parameters with the{' '}
-        <a href="/configuration/directives/#resourceparam">
-          <code>$ResourceParam</code>
-        </a>{' '}
-        directive: <code>{`$ResourceParam('<resource-name>', '<parameter>')`}</code>. See{' '}
-        <a href="/configuration/referenceable-parameters/">referenceable parameters</a>.
+        The following parameters can be easily referenced using{' '}
+        <Link href="/configuration/directives/#resourceparam">$ResourceParam directive</Link> directive.
       </p>
-      <dl className="docs-defs">
-        {Object.entries(referenceableParams).map(([paramName, description]) => (
-          <div key={paramName} className="docs-def">
-            <dt>
-              <code>{paramName}</code>
-            </dt>
-            <dd dangerouslySetInnerHTML={{ __html: renderDocsMarkdown(normalizeLegacyDocLinks(description)) }} />
+      <p>
+        To learn more about referencing parameters, refer to{' '}
+        <Link href="/configuration/referenceable-parameters/">referencing parameters</Link>.
+      </p>
+      {Object.entries(referenceableParams).map(([paramName, description]) => {
+        return (
+          <div key={paramName} className="mt-[18px] stp-typography">
+            <span className="font-bold">{paramName}</span>
+            <ul>
+              <li
+                className="[&_a]:font-bold"
+                dangerouslySetInnerHTML={{ __html: renderDocsMarkdown(normalizeLegacyDocLinks(description)) }}
+              />
+              <li>
+                Usage: <code>{`$ResourceParam('<<resource-name>>', '${paramName}')`}</code>
+              </li>
+            </ul>
           </div>
-        ))}
-      </dl>
-    </>
+        );
+      })}
+    </div>
   );
 }

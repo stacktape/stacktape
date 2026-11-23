@@ -1,6 +1,6 @@
 # org create
 
-`stacktape org create` creates a new organization in your Stacktape account and returns a new API key scoped to it. Organizations are the account boundary Stacktape uses for projects, connected AWS accounts, and user access. Use `org create` when you need a separate organization and API key for a team or workspace.
+The `org create` command creates a new organization in your Stacktape account and returns a new API key scoped to it. Organizations are the account boundary Stacktape uses for projects, connected AWS accounts, and user access. Use `org create` when you need a separate organization and API key for a team or workspace.
 
 ## Usage
 
@@ -36,15 +36,9 @@ On success, `org create` outputs three pieces of information:
 
 In agent mode, Stacktape does not prompt for the organization name, so the organization name argument is required. Use `--json` if you need machine-readable NDJSON output.
 
-## Examples
+## Flags reference
 
-Increase log verbosity for troubleshooting:
-
-```bash
-stacktape org create production-team --debug
-```
-
-## Options
+All flags accepted by `org create` are listed below. None are required in interactive mode.
 
 
 ## CLI Options: `stacktape org create`
@@ -56,6 +50,14 @@ stacktape org create production-team --debug
 | `--organization-name (positional 1)` | no | `string` | Organization Name — The name of the Stacktape organization. | - |
 | `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
 
+
+## Examples
+
+Increase log verbosity for troubleshooting:
+
+```bash
+stacktape org create production-team --debug
+```
 
 ## Related commands
 

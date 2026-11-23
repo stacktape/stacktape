@@ -42,7 +42,7 @@ The ARN of the DynamoDB table stream.
 
 The maximum number of records to process in a single batch.
 
-Maximum is 10,000.
+Maximum is 1,000.
 
 ## Property: `bisectBatchOnFunctionError`
 

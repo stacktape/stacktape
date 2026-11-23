@@ -7,7 +7,7 @@ seoDescription: 'Inspect deployed Redis caches from the command line with stackt
 
 # query redis
 
-`stacktape query redis` lets you inspect a deployed [Redis cache](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
+The `query redis` command lets you inspect a deployed [Redis cache](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
 
 ## Usage
 
@@ -101,7 +101,7 @@ When running inside an AI coding agent or CI pipeline, pass `--agent` to switch 
 stacktape query redis myRedis --stage prod --region eu-west-1 --operation get --key "session:abc123" --agent
 ```
 
-## Options
+## Flags reference
 
 <CliCommandsApiReference command="query:redis" />
 

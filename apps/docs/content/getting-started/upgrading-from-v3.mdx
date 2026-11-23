@@ -1,6 +1,6 @@
 ---
 title: 'Upgrading from v3'
-order: 99
+order: 9
 seoTitle: 'Upgrading from Stacktape v3 to v4 | Stacktape Docs'
 seoDescription: 'Move a Stacktape v3 project to v4: what to do before the upgrade, configuration renames with before/after examples, CLI changes, what the first v4 deployment changes, and Stacktape Console changes.'
 ---
@@ -67,18 +67,14 @@ Do these before the v4 release reaches your machines and CI, or right now if it 
 
 Upgrade one project at a time, and one stage before the others.
 
-1. **Install v4** on your machine and update the project's package. Name the version, so you get a v4 release and not an older default, and keep the CLI and the package on the same version:
+1. **Install v4** on your machine and update the project's package. Keep the CLI and the package on the same version:
 
    <CodeBlock
      tabs={[
-       { label: 'npm', lang: 'bash', code: `npm install --save-exact stacktape@4.0.0` },
-       { label: 'macOS', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/macos.sh | STACKTAPE_VERSION=4.0.0 sh` },
-       { label: 'Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | STACKTAPE_VERSION=4.0.0 sh` },
-       { label: 'Windows', lang: 'powershell', code: `$env:STACKTAPE_VERSION='4.0.0'; irm https://installs.stacktape.com/windows.ps1 | iex` }
+       { label: 'npm', lang: 'bash', code: `npm install --save-exact stacktape@4` },
+       { label: 'Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | sh` }
      ]}
    />
-
-   Use a later 4.x version in place of `4.0.0` when there is one. `stacktape version` prints what you have.
 
 2. **Update the configuration** using the [configuration changes](#configuration-changes) that apply to it. v4 rejects the old names and prints the property it does not accept.
 
@@ -984,7 +980,7 @@ AWS allows two subscription filters per log group, so a log group that already h
 
 v3 rolled a failed deployment back: a failed update returned the stack to its previous state, and a failed first deployment deleted the stack, including a database that had already taken minutes to create. In v4, a failed deployment keeps every resource it created or updated, unless it replaced existing resources: CloudFormation can only replace resources in a deployment it may roll back. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next `stacktape deploy` continues from the failure.
 
-To undo a failed update, run [`stacktape stack recover`](/cli/stack-recover); to remove a failed first deployment, run `stacktape delete`. A failed deployment can leave part of the application on the new version and part on the old one, so check the application after a failure. To keep v3's behaviour, see [Automatic rollback](#automatic-rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+To undo a failed update, run [`stacktape stack recover`](/cli/cf-rollback); to remove a failed first deployment, run `stacktape delete`. A failed deployment can leave part of the application on the new version and part on the old one, so check the application after a failure. To keep v3's behaviour, see [Automatic rollback](#automatic-rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
 
 ### After-deploy hooks fail the deployment
 
@@ -1016,7 +1012,7 @@ See [When a hook fails](/configuration/hooks-and-scripts#when-a-hook-fails).
 
 ### New non-production stages share a network
 
-A new non-production stage, such as `staging` or a preview stage, joins a VPC shared by the non-production stages in the same AWS account and region, instead of creating its own. Stages deployed before v4 keep their own VPC. A stage cannot move between the two after its first deployment. To give a new stage its own VPC, set `stackConfig.vpc.shared: false` before you deploy it the first time. See [Shared network for non-production stages](/configuration/shared-network), which also lists the permissions a restricted CI role needs.
+A new non-production stage, such as `staging` or a preview stage, joins a VPC shared by the non-production stages in the same AWS account and region, instead of creating its own. Stages deployed before v4 keep their own VPC. A stage cannot move between the two after its first deployment. To give a new stage its own VPC, set `stackConfig.vpc.shared: false` before you deploy it the first time. See [Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages), which also lists the permissions a restricted CI role needs.
 
 ### Deploy each upgraded stack only with v4
 
@@ -1051,7 +1047,7 @@ On Linux and Windows, the first v4 command on a machine moves the stored login i
 
 Before v4, every member of an organization reached every connected AWS account. Now Owners and Admins reach all accounts, and Developers and Viewers only the accounts chosen for them on the Members page. The update gives each Developer and Viewer the accounts their projects have deployed to, so day-to-day work continues. Someone who works with an account their projects never deployed to gets "Your access does not include the AWS account" until an Owner or Admin adds it.
 
-CI that deploys with a person's API key stops working when that person loses access or leaves. Use an [organization key](/stacktape-console/api-keys#create-an-organization-key) instead. See [Project and AWS account access](/stacktape-console/team-and-access-control#project-and-aws-account-access).
+CI that deploys with a person's API key stops working when that person loses access or leaves. Use an [organization key](/stacktape-console/team-and-access-control#organization-keys-for-ci) instead. See [Project and AWS account access](/stacktape-console/team-and-access-control#project-and-aws-account-access).
 
 ### Removed Console features
 

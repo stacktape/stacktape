@@ -7,7 +7,7 @@ seoDescription: 'Delete the Stacktape organization of your API key with the org 
 
 # org delete
 
-`stacktape org delete` deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
+The `stacktape org delete` command deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
 
 An API key acts in one organization, so the command can delete only that organization. To delete another organization you own, run [`login`](/cli/login) with an API key of that organization first.
 
@@ -40,6 +40,12 @@ If any of these conditions are not met, the operation will fail.
 Deleting the organization cannot be undone. Make sure you have another way to access anything you still need before continuing.
 </Warning>
 
+## Flags reference
+
+The `org delete` command accepts the following flags. None are required in interactive mode; agent mode requires the organization ID and `--yes`.
+
+<CliCommandsApiReference command="org:delete" />
+
 ## Examples
 
 Check which organization your API key belongs to, then delete it. In a terminal, the command asks for confirmation.
@@ -58,10 +64,6 @@ Non-interactive deletion in CI or agent workflows:
 stacktape org delete "org_abc123" --agent --yes
 ```
 
-## Options
-
-<CliCommandsApiReference command="org:delete" />
-
 ## Related commands
 
 Other organization management commands and the whoami command for verifying your current context.
@@ -69,4 +71,4 @@ Other organization management commands and the whoami command for verifying your
 - [`org create`](/cli/org-create) — create a new organization
 - [`org list`](/cli/org-list) — list all organizations accessible to your user
 - [`login`](/cli/login) — switch to an API key of another organization
-- [`whoami`](/cli/whoami) — verify your current user, organization, and access
+- [`whoami`](/cli/info-whoami) — verify your current user, organization, and access

@@ -7,7 +7,7 @@ seoDescription: 'Run read-only queries against a deployed OpenSearch domain from
 
 # query opensearch
 
-`stacktape query opensearch` runs read-only queries against a deployed [OpenSearch domain](/resources/databases/opensearch) directly from your terminal. Use it to list indices, check document counts, inspect field mappings, retrieve individual documents, or search with Query DSL — without setting up a separate OpenSearch client or dashboard.
+The `query opensearch` command runs read-only queries against a deployed [OpenSearch domain](/resources/databases/opensearch) directly from your terminal. Use it to list indices, check document counts, inspect field mappings, retrieve individual documents, or search with Query DSL — without setting up a separate OpenSearch client or dashboard.
 
 ## Usage
 
@@ -89,6 +89,10 @@ stacktape query opensearch mySearch --agent --stage prod --region eu-west-1 --op
 
 For automation, prefer `--agent`. The global `--output-format` flag is documented in the flags reference below.
 
+## Flags reference
+
+<CliCommandsApiReference command="query:opensearch" />
+
 ## Examples
 
 ### Check what indices exist
@@ -151,6 +155,14 @@ Parse the JSON result programmatically in a CI pipeline or AI coding assistant.
 stacktape query opensearch mySearch --agent --stage prod --region eu-west-1 --operation count --index users
 ```
 
+## Related commands
+
+- [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed relational database.
+- [`query dynamodb`](/cli/query-dynamodb) — query a deployed DynamoDB table.
+- [`query redis`](/cli/query-redis) — query a deployed Redis cache.
+- [`aws call`](/cli/aws-call) — execute read-only AWS SDK commands against any deployed resource.
+- [`logs`](/cli/logs) — fetch and analyze logs from deployed resources.
+
 ## FAQ
 
 ### Which flags does each operation require?
@@ -172,15 +184,3 @@ The `--query` flag accepts a JSON string containing an [OpenSearch Query DSL](ht
 ### What happens if the OpenSearch domain is not deployed?
 
 The command looks up the domain endpoint from the deployed stack. If the resource does not exist in the stack or the domain is not yet provisioned, the command fails with an error indicating it could not retrieve the OpenSearch endpoint. Verify the stack is deployed and the `--resource-name` matches a resource in your configuration.
-
-## Options
-
-<CliCommandsApiReference command="query:opensearch" />
-
-## Related commands
-
-- [`query sql`](/cli/query-sql) — run read-only SQL queries against a deployed relational database.
-- [`query dynamodb`](/cli/query-dynamodb) — query a deployed DynamoDB table.
-- [`query redis`](/cli/query-redis) — query a deployed Redis cache.
-- [`aws call`](/cli/aws-call) — execute read-only AWS SDK commands against any deployed resource.
-- [`logs`](/cli/logs) — fetch and analyze logs from deployed resources.

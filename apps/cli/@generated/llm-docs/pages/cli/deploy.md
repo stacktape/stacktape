@@ -1,6 +1,6 @@
 # deploy
 
-`stacktape deploy` deploys your stack to AWS. It creates the stack when the stage doesn't exist yet and updates it when it does. It needs AWS credentials; a Stacktape account is optional.
+The `stacktape deploy` command deploys your stack to AWS. If the stack does not exist yet, it creates a new one. If it already exists, it updates it with the current configuration. This is the primary command for shipping changes to any stage — development, staging, or production.
 
 ## Usage
 
@@ -8,13 +8,7 @@
 stacktape deploy --stage <stage> --region <region>
 ```
 
-The command reads the Stacktape configuration file in the current directory: `stacktape.yml`, `stacktape.yaml`, `stacktape.ts` or `stacktape.js`. If there is more than one, or the file is elsewhere, pass `--config`. The stage and region are required. When the config declares `projectName` and `region`, as the one [`init`](/cli/init) writes does, `--stage` is enough:
-
-```bash
-stacktape deploy --stage dev
-```
-
-Flags override the config. The region can also come from `AWS_DEFAULT_REGION` (not `AWS_REGION`), [`defaults set`](/cli/defaults-set) or your AWS profile.
+Both `--stage` and `--region` are required. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--config`.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
@@ -22,15 +16,13 @@ stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktap
 
 ## What happens during deploy
 
-Before it changes anything, the CLI prints the AWS account it loaded credentials for. Check it, especially with several profiles.
-
 1. **Validate** — Reads your config, validates guardrails, and ensures referenced secrets exist.
 2. **Build & package** — Packages workloads for deployment. Cached artifacts are reused when possible.
 3. **Upload** — Uploads deployment artifacts for the stack.
 4. **Deploy** — Creates or updates a CloudFormation stack. When only code changed, updates the changed functions and container services directly instead (see [Fast deployments](#fast-deployments)).
 5. **Post-deploy** — Syncs hosting buckets, invalidates CDN caches, and prints resource URLs.
 
-After a successful deploy, Stacktape prints short stack information and the URLs of your resources. When the CLI is signed in to the Stacktape Console, it also prints the Console link of the stage. Without an account, the first successful deploy of a project in an interactive terminal can print a one-line hint about the Console; see [Add the Console](/getting-started/add-the-console).
+After a successful deploy, Stacktape prints short stack information and completion links, including a Stacktape Console URL for the deployed stack.
 
 ## Fast deployments
 
@@ -49,8 +41,6 @@ A deployment uses CloudFormation when:
 - a changed function uses an alias (`deployment` or provisioned concurrency) or a changed container service uses blue/green deployment,
 - the stack has an `after:deploy` [deployment script](/resources/advanced/deployment-scripts), which runs through CloudFormation on every deployment,
 - you pass `--full`.
-
-For eligible Node.js Fargate web services, `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.
 
 A fast deployment is a release like any other: it gets the next version number, and [`rollback`](/cli/rollback) can return to it or from it. A deployment that changes nothing creates no release, even with `--full`. If some updates fail, Stacktape still finishes the others and lists which workloads run the new code. Deploying again updates the rest. The CloudFormation template is updated by the next full deployment.
 
@@ -74,13 +64,13 @@ stacktape deploy --stage production --region eu-west-1 --yes
 
 ### `--auto-rollback`
 
-By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment. When the config sets `deploymentConfig.triggerRollbackOnAlarms` or `monitoringTimeAfterDeploymentInMinutes`, rollback is on by default, and turning it off is an error.
+By default, a failed deployment keeps what it created or updated. The stack stays in `CREATE_FAILED` (first deployment) or `UPDATE_FAILED` (update), and running `deploy` again after fixing the error continues from the failure instead of creating everything again. With `--auto-rollback`, CloudFormation undoes this deployment if it fails: an update returns to the last successful deployment, and a first deployment deletes the new stack. The flag overrides `deploymentConfig.autoRollback` for one deployment.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --auto-rollback
 ```
 
-To undo a failed update later, use [`stack recover`](/cli/stack-recover). To remove a failed first deployment, use [`delete`](/cli/delete). To return to an earlier successful version, use [`rollback`](/cli/rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+To undo a failed update later, use [`stack recover`](/cli/cf-rollback). To remove a failed first deployment, use [`delete`](/cli/delete). To return to an earlier successful version, use [`rollback`](/cli/rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
 
 ### `--no-cache`
 
@@ -88,6 +78,14 @@ Forces a fresh build of all compute resources, ignoring cached artifacts from pr
 
 ```bash
 stacktape deploy --stage dev --region eu-west-1 --no-cache
+```
+
+### `--config`
+
+Points to a Stacktape configuration file when it is not in the default location (current directory).
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
 ```
 
 ### `--no-layer-optimization`
@@ -98,75 +96,7 @@ By default, Stacktape extracts shared code into Lambda layers to reduce per-func
 
 Includes secret values, such as database passwords and connection strings with credentials, in the `--agent` result (`data.result.stackInfo`) and in the stack-info file. Without it, each of them is `<<OMITTED>>`. Use it only where the output stays private, never in shared CI logs. The terminal summary never prints secret values.
 
-## Examples
-
-### Deploy a new production stage
-
-```bash
-stacktape deploy --stage production --region us-east-1
-```
-
-### Deploy to the account of an AWS profile
-
-The deploy goes to the AWS account that `my-aws-profile` belongs to. When the CLI is signed in to the Console, that account must be connected to your organization, or the deploy fails.
-
-```bash
-stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --project my-app
-```
-
-### Deploy to a named connected account
-
-With the Console, choose one of the organization's connected AWS accounts by name.
-
-```bash
-stacktape deploy --stage production --region eu-west-1 --aws-account production
-```
-
-### Preview changes before deploying
-
-Use [`diff`](/cli/diff) to see what a deploy would modify without actually applying changes:
-
-```bash
-stacktape diff --stage production --region us-east-1
-```
-
-## Free plan cost limit
-
-This applies only to organizations on the Console's Free plan. Without a Stacktape account there is no limit.
-
-The Free plan covers up to $200 of managed AWS costs per calendar month (UTC). From $150, a successful deploy prints how
-close the organization is and what the Flexible plan would cost:
-
-```text
-This organization is at $162.40 of the $200 Free limit for November 2026; on Flexible, this spend would cost about $41 (https://console.stacktape.com/subscription-plans).
-```
-
-The first time the organization goes over $200, a 7-day grace period starts and Owners and Admins get an email.
-Deploys keep working during it, and each one prints the countdown. The grace period ends early when the calendar month
-(UTC) ends: one that starts on November 29 doesn't cover December. After the grace period, and in any later month as
-soon as the organization is over the limit, the deploy stops with a `Free Plan Limit Reached` error. The CLI has
-loaded your AWS credentials by then, but nothing in your stack has changed:
-
-```text
-[x] Free Plan Limit Reached
-
-Deploys are paused for this organization. The AWS costs Stacktape manages for it are $214.17 in November 2026, above
-the Free plan's $200 a month. The 7-day grace ended on 24 Nov at 14:05 UTC. Deploys resume on December 1, or right
-away when an Owner or Admin upgrades to the Flexible plan at https://console.stacktape.com/subscription-plans. Your
-running infrastructure is not affected, and deleting or rolling back stages still works.
-```
-
-[`delete`](/cli/delete) and [`rollback`](/cli/rollback) keep working. When the month's costs aren't known yet, the
-deploy goes ahead. See [Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) for
-what counts.
-
-## Dev stacks cannot be deployed
-
-Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape rejects the deploy with an error. To deploy a production stack, use a different stage name (e.g., `--stage production`). To remove a dev stack, use [`stacktape delete`](/cli/delete).
-
-Stacktape does not currently check CloudFormation resource drift before deploying. Manual changes to stack resources can affect an update; review the proposed changes with [`diff`](/cli/diff).
-
-## Options
+## All flags
 
 
 ## CLI Options: `stacktape deploy`
@@ -196,8 +126,79 @@ Stacktape does not currently check CloudFormation resource drift before deployin
 | `--skip-release-command` | no | `boolean` | Skip Release Command — If `true`, this deploy does not run the `releaseCommand` of any service. Use it when you already ran the command yourself, or to deploy a fix for the command. The next deploy without this flag runs it. | - |
 
 
+## Examples
+
+### Deploy a new production stage
+
+```bash
+stacktape deploy --stage production --region us-east-1
+```
+
+### Deploy to the account of an AWS profile
+
+The deploy goes to the AWS account that `my-aws-profile` belongs to. When the CLI is signed in to the Console, that account must be connected to your organization, or the deploy fails.
+
+```bash
+stacktape deploy --stage staging --region eu-west-1 --profile my-aws-profile --project my-app
+```
+
+### Deploy to a named connected account
+
+With the Console, choose one of the organization's connected AWS accounts by name.
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --aws-account production
+```
+
+### Deploy everything through CloudFormation
+
+```bash
+stacktape deploy --stage production --region eu-west-1 --full
+```
+
+### Non-interactive deploy in CI/CD
+
+```bash
+stacktape deploy --stage production --region us-east-1 --yes
+```
+
+### Preview changes before deploying
+
+Use [`diff`](/cli/diff) to see what a deploy would modify without actually applying changes:
+
+```bash
+stacktape diff --stage production --region us-east-1
+```
+
+## Free plan cost limit
+
+A Free organization cannot deploy once its managed AWS costs for the current calendar month (UTC) are above $100. The
+deploy stops before it touches AWS with a `Free Plan Limit Reached` error that shows this month's costs, the limit and
+the link to upgrade:
+
+```text
+[x] Free Plan Limit Reached
+
+Deploys are paused. This organization is on the Free plan, and the AWS costs Stacktape manages for it are
+$142.17 in October 2026 (UTC), above the plan's limit of $100 a month.
+```
+
+Upgrading to the Flexible plan lifts the limit immediately; otherwise deploys resume when the next month starts.
+[`delete`](/cli/delete) and [`rollback`](/cli/rollback) keep working, and running infrastructure is not affected. See
+[Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) for what counts.
+
+## Dev stacks cannot be deployed
+
+Stages created by [`stacktape dev`](/cli/dev) (dev stacks) cannot be updated with `deploy`. If you attempt this, Stacktape rejects the deploy with an error. To deploy a production stack, use a different stage name (e.g., `--stage production`). To remove a dev stack, use [`stacktape delete`](/cli/delete).
+
+Stacktape does not currently check CloudFormation resource drift before deploying. Manual changes to stack resources can affect an update; review the proposed changes with [`diff`](/cli/diff).
+
 ## Related commands
 
-- [`diff`](/cli/diff) shows what a deploy would change.
-- [`rollback`](/cli/rollback) returns a stage to an earlier release.
-- [`stack recover`](/cli/stack-recover) recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`.
+| Command | Description |
+|---|---|
+| [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
+| [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
+| [`stack recover`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
+
+For eligible Node.js Fargate web services, `properties.codeSwap: true` enables [in-place code swaps](/deployment-and-lifecycle/code-swap) with the same deploy command. The opt-in applies in every stage, including production, within the task cap. Failed memory screening or an unsupported change uses an image deploy, with the reason in CLI output. Old and new processes share memory during a swap; a sudden memory increase can fail in-flight requests.

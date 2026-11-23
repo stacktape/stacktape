@@ -1,6 +1,6 @@
 # project list
 
-`stacktape project list` lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+The `project list` command lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs.
 
 ## Usage
 
@@ -8,7 +8,7 @@
 stacktape project list
 ```
 
-The command requires no arguments. You must be [logged in](/cli/login) to Stacktape, and the output reflects the organization your CLI session is scoped to. Run [`whoami`](/cli/whoami) to verify which organization you're authenticated against.
+The command requires no arguments. You must be [logged in](/cli/login) to Stacktape, and the output reflects the organization your CLI session is scoped to. Run [`whoami`](/cli/info-whoami) to verify which organization you're authenticated against.
 
 ## Output
 
@@ -41,6 +41,18 @@ Use plain text output (no colors or animations):
 stacktape project list --output-format plain
 ```
 
+## Flags reference
+
+
+## CLI Options: `stacktape project list`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
+
 ## Examples
 
 Check all projects and their cost at a glance:
@@ -61,20 +73,8 @@ Suppress info-level CLI log messages, showing only errors from the CLI framework
 stacktape project list --log-level error
 ```
 
-## Options
-
-
-## CLI Options: `stacktape project list`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
-| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
-
-
 ## Related commands
 
 - [`project create`](/cli/project-create) — create a new project in the current organization.
 - [`org list`](/cli/org-list) — list organizations accessible with your current user.
-- [`whoami`](/cli/whoami) — verify which user and organization your CLI session is scoped to.
+- [`whoami`](/cli/info-whoami) — verify which user and organization your CLI session is scoped to.

@@ -1,19 +1,20 @@
-# Team and access control
+# Team and Access Control
 
 The **Members** page in the Organization group of the Stacktape Console controls who can use your organization and
-what they reach. Invite people, choose their role, projects and AWS accounts, require two-factor sign-in, and see what
-stops working before you remove someone. Keys for CI are on the [API keys](/stacktape-console/api-keys) page.
+what they reach. Invite people, choose their role, projects and AWS accounts, require two-factor sign-in, give CI an
+organization key that does not belong to a person, and see what stops working before you remove someone.
 
 ## Overview
 
-The page has up to three parts:
+The page has up to four parts:
 
-- **Sign-in rules** (Owners and Admins): whether members who sign in with a password must also use an authenticator
-  app.
+- **Two-factor sign-in** (Owners and Admins): whether members who sign in with a password must also use an
+  authenticator app.
 - **People**: everyone who has joined, with their role, what a Developer or Viewer reaches, two-factor status, when
   they were last active and when they joined. Search by name or email, filter by role, or show only members without
   two-factor or inactive for 30 days or more.
-- **Pending invitations**: invitations that have not been accepted yet, who sent them, and when they expire.
+- **Invitations**: invitations that have not been accepted yet, who sent them, and when they expire.
+- **Organization keys** (Owners and Admins): API keys that belong to the organization, for CI.
 
 Click a member's name to open their page. Owners and Admins can open anyone's page; Developers and Viewers can open
 their own.
@@ -54,7 +55,7 @@ pages that read AWS say that their access does not include the account. Owners a
 4. Click **Send invitations**.
 
 Someone who already has a Stacktape account becomes a member at once. Anyone else gets an email and appears under
-**Pending invitations** until they sign up. An address that is already a member, or that could not be invited, stays in the
+**Invitations** until they sign up. An address that is already a member, or that could not be invited, stays in the
 field with the reason, so the rest are not lost.
 
 An invitation works for 14 days after its email last went out. **Resend invitation** sends it again and starts the
@@ -69,14 +70,21 @@ without an invitation, by signing in through your identity provider or being add
 
 ## Organization keys for CI
 
-A personal API key acts as the person who created it and stops working when they leave the organization, so CI that
-uses one breaks when that person is removed. Give CI an organization key instead: it belongs to the organization and
-has a role of its own. Owners and Admins create it on **Organization → API keys**; see
-[Create an organization key](/stacktape-console/api-keys#create-an-organization-key).
+A personal [API key](/stacktape-console/api-keys) acts as the person who created it and stops working when they leave
+the organization. CI that uses one breaks when that person is removed. An organization key belongs to the
+organization instead:
+
+1. In **Organization keys**, click **New organization key**.
+2. Name it after where it runs, for example `github-actions`.
+3. Choose **Developer** with the projects and AWS accounts the pipeline deploys, or **Admin** for everything.
+4. Copy the key from the next dialog; it is shown only once. Store it as the `STACKTAPE_API_KEY` secret of your CI.
+
+The list shows who created each key and when it was last used. Revoking a key stops every pipeline that uses it at
+once. Organization keys cannot create organizations or connect AI subscriptions, which belong to people.
 
 ## Requiring two-factor sign-in
 
-Owners and Admins can require two-factor sign-in with **Require** in **Sign-in rules**. Members must then sign
+Owners and Admins can require two-factor sign-in with **Require** in the Two-factor sign-in row. Members must then sign
 in with a passkey, Google, GitHub, single sign-on, or a password with an authenticator app; a password alone is not
 enough. The confirmation lists the members who sign in with a password only. After that, those members see only a
 screen that sends them to [Account Settings](/stacktape-console/account-settings) to add an authenticator app or a
@@ -134,6 +142,6 @@ Its 14 days passed. Choose **Resend invitation**; the person can sign up for 14 
 - [Account Settings](/stacktape-console/account-settings): password and two-factor authentication
 - [Single sign-on](/stacktape-console/single-sign-on): sign-in through your identity provider, and SCIM
 - [Audit log](/stacktape-console/audit-log): member, key and access changes, and AWS events
-- [API keys](/stacktape-console/api-keys): organization keys for CI and personal keys
+- [API Keys](/stacktape-console/api-keys): personal keys for the CLI
 - [Connecting your AWS account](/stacktape-console/connecting-your-aws-account): what Stacktape can do in an account
 - [Organizations, Projects, and Stages](/stacktape-console/organizations-projects-and-stages)

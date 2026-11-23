@@ -1,4 +1,4 @@
-# Local databases
+# Local Databases
 
 Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databases locally in Docker, avoiding the corresponding AWS database service. Dev-stack resources and the [dev network](/local-development/debugging-lambda-functions#the-dev-network) can still incur AWS charges. Data persists between sessions and workloads receive connection settings automatically. Use `dev.remote: true` to connect to the deployed database instead.
 
@@ -6,11 +6,9 @@ Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databa
 
 Local databases are the default for day-to-day development and isolate each developer's data. Local clients connect on your machine. Lambda and Batch clients in AWS reach them through the dev network and incur a cloud-to-machine round trip. Use local databases for application logic, migrations and prototypes; test cloud-specific behavior against deployed resources.
 
-## When to use a deployed database
+## When NOT to use local databases
 
-<span id="when-not-to-use-local-databases" />
-
-Switch to a [deployed database](#using-remote-databases) when your work depends on behavior that local emulation cannot replicate: Aurora multi-AZ failover, DynamoDB Streams, OpenSearch security plugins, or engine-specific query plan differences. Also prefer remote databases when you need to test against a realistic data volume or share state across a team. Set `dev.remote: true` on the resource to connect to the deployed AWS resource instead.
+Switch to [remote (deployed) databases](#using-remote-databases) when your work depends on behavior that local emulation cannot replicate — Aurora multi-AZ failover, DynamoDB Streams, OpenSearch security plugins, or engine-specific query plan differences. Also prefer remote databases when you need to test against a realistic data volume or share state across a team. Set `dev.remote: true` on the resource to connect to the deployed AWS resource instead.
 
 ## Supported databases
 
@@ -29,7 +27,7 @@ Dev mode can run the following database resource types locally. Each runs as a D
 
 For [relational databases](/resources/databases/relational-database), local containers use the literal credentials from your config. Locally, `credentials.masterUserName` defaults to `postgres` for PostgreSQL and `root` for MySQL/MariaDB. Local databases never use the deployed database's secret: when `credentials.masterUserPassword` is not set or reads a value with a directive such as `$Secret('db', 'password')`, dev mode generates a random password for each local database and stores it in `.stacktape/dev-data/<stage>/<resourceName>/password`, readable only by your user. Every worktree or copy of the project on your machine gives new local data the same password for a stage, so moving the stage between worktrees does not have to update the dev stack. A Redis `defaultUserPassword` read from a directive gets a generated password the same way, and Redis without a password runs without authentication. The container, deployed dev functions and local workloads all receive the same password through the injected connection information. Properties like `instanceSize` only apply to the deployed AWS resource and are ignored locally.
 
-Aurora engine types (Aurora PostgreSQL, Aurora MySQL and Aurora Serverless v2) are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
+Aurora engine types — Aurora PostgreSQL, Aurora MySQL and Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. Aurora-specific features (multi-AZ replication, serverless ACU scaling, reader endpoints) are not available in the local emulation. For most application-level SQL access, the local container provides the same kind of SQL endpoint and connection-string shape. Test Aurora-specific behavior against a deployed stage.
 
 
 > **Info:** Dev mode needs Docker to start local database containers. If Docker is not running, dev mode cannot proceed with local databases.
@@ -39,11 +37,11 @@ Aurora engine types (Aurora PostgreSQL, Aurora MySQL and Aurora Serverless v2) a
 
 When you run [`stacktape dev`](/cli/dev), Stacktape identifies database resources in your config and starts Docker containers for each one.
 
-1. **Container naming**: each container is named after the project, stage, resource and a short hash of the project directory, so multiple stages, projects and Git worktrees of one project can run in parallel without sharing or stopping each other's containers.
-2. **Port allocation**: dev mode finds an available host port for each container, avoiding conflicts when several sessions run in parallel. The port is published on `127.0.0.1` only, so other machines on your network cannot reach the database. The selected port is reflected in the injected connection information.
-3. **Data persistence**: dev mode mounts a local data directory into the container, so data survives dev mode restarts.
-4. **Readiness checks**: Stacktape polls the container until it responds, then marks the resource ready for your workloads.
-5. **Connection information**: referenceable parameters (host, port, connectionString, etc.) are resolved locally so they can be used via `$ResourceParam()`. Workloads that list the database in their `connectTo` receive the documented environment variables following the `STP_[RESOURCE_NAME]_[PARAM]` pattern described in [Connecting resources](/configuration/connecting-resources).
+1. **Container naming** — each container is named after the project, stage, resource and a short hash of the project directory, so multiple stages, projects and Git worktrees of one project can run in parallel without sharing or stopping each other's containers.
+2. **Port allocation** — dev mode finds an available host port for each container, avoiding conflicts when several sessions run in parallel. The port is published on `127.0.0.1` only, so other machines on your network cannot reach the database. The selected port is reflected in the injected connection information.
+3. **Data persistence** — dev mode mounts a local data directory into the container, so data survives dev mode restarts.
+4. **Readiness checks** — Stacktape polls the container until it responds, then marks the resource ready for your workloads.
+5. **Connection information** — referenceable parameters (host, port, connectionString, etc.) are resolved locally so they can be used via `$ResourceParam()`. Workloads that list the database in their `connectTo` receive the documented environment variables following the `STP_[RESOURCE_NAME]_[PARAM]` pattern described in [Connecting resources](/configuration/connecting-resources).
 
 ## Relational databases
 
@@ -76,7 +74,7 @@ export default defineConfig(() => {
 ```
 
 
-In dev mode, this starts a PostgreSQL container using image tag `16`. The `instanceSize` only applies to the deployed AWS resource: it is ignored locally. Referenceable parameters available for the database include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`, accessible via `$ResourceParam()`. When the database is listed in a workload's `connectTo`, the documented environment variables are injected following the pattern described in [Connecting resources](/configuration/connecting-resources).
+In dev mode, this starts a PostgreSQL container using image tag `16`. The `instanceSize` only applies to the deployed AWS resource — it is ignored locally. Referenceable parameters available for the database include `host`, `port`, `dbName`, `connectionString`, and `jdbcConnectionString`, accessible via `$ResourceParam()`. When the database is listed in a workload's `connectTo`, the documented environment variables are injected following the pattern described in [Connecting resources](/configuration/connecting-resources).
 
 ### MySQL and MariaDB
 
@@ -111,14 +109,14 @@ Referenceable parameters available for MySQL and MariaDB include `host`, `port`,
 
 ### Aurora engines
 
-All Aurora engine types (Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v2) are mapped to standard PostgreSQL or MySQL containers locally. The mapping is:
+All Aurora engine types — Aurora PostgreSQL, Aurora MySQL, Aurora Serverless v2 — are mapped to standard PostgreSQL or MySQL containers locally. The mapping is:
 
 | Aurora engine type | Local container |
 |---|---|
 | `aurora-postgresql`, `aurora-postgresql-serverless-v2` | PostgreSQL |
 | `aurora-mysql`, `aurora-mysql-serverless-v2` | MySQL |
 
-This is a pragmatic tradeoff: the SQL interface, schema behavior, and connection string format match the deployed database, which is sufficient for application development. Aurora-specific behavior (ACU scaling, multi-AZ replication, reader endpoints, pause-after-inactivity) is only available on the deployed AWS resource. Test these features against a deployed stage using `dev.remote: true`.
+This is a pragmatic tradeoff: the SQL interface, schema behavior, and connection string format match the deployed database, which is sufficient for application development. Aurora-specific behavior — ACU scaling, multi-AZ replication, reader endpoints, pause-after-inactivity — is only available on the deployed AWS resource. Test these features against a deployed stage using `dev.remote: true`.
 
 ### Oracle and SQL Server
 
@@ -126,7 +124,7 @@ RDS Oracle (`oracle-ee`, `oracle-se2`) and SQL Server (`sqlserver-ee`, `sqlserve
 
 ## Redis
 
-In dev mode, Stacktape runs a local Redis container using the configured `engineVersion` as the Docker image tag. Redis runs as a single node locally: cluster-mode features such as hash slots and multi-node failover are not available.
+In dev mode, Stacktape runs a local Redis container using the configured `engineVersion` as the Docker image tag. Redis runs as a single node locally — cluster-mode features such as hash slots and multi-node failover are not available.
 
 
 Example (TypeScript):
@@ -150,7 +148,7 @@ Use the Redis connection information exposed by dev mode and by the resource's [
 
 ## DynamoDB
 
-Stacktape uses the `amazon/dynamodb-local` image with the `-sharedDb` flag, meaning all tables share a single underlying database file. Tables are automatically created from your config if a `primaryKey` is defined: you do not need to create them manually.
+Stacktape uses the `amazon/dynamodb-local` image with the `-sharedDb` flag, meaning all tables share a single underlying database file. Tables are automatically created from your config if a `primaryKey` is defined — you do not need to create them manually.
 
 Container readiness is checked by making an HTTP `ListTables` request, polling every 300 ms with a 30-second timeout.
 
@@ -188,9 +186,7 @@ Referenceable parameters available for the local domain include `domainEndpoint`
 
 ## Using remote databases
 
-By default, supported databases run locally. A remote database is deployed in AWS as part of the dev stack instead: the dev stage gets its own real database (an RDS instance, a DynamoDB table, a Redis cluster), created on the first start and reused afterwards. It costs what that AWS resource costs until you delete the dev stage, and a new RDS instance takes several minutes to create. It starts empty; it is not the database of another stage such as `production`.
-
-Use the `--remote-resources` flag for one session, or `dev.remote: true` on the resource to make it permanent.
+By default, supported databases run locally. To connect to the real deployed AWS resource instead, set `dev.remote: true` on the resource in your config, or use the `--remote-resources` CLI flag at runtime without editing config.
 
 To switch a single resource to remote at runtime:
 
@@ -234,13 +230,14 @@ export default defineConfig(() => {
 ```
 
 
-### When to use a remote database
+### When to use remote databases
 
-- **Engine features the local image lacks**, such as Aurora reader endpoints and failover, or Aurora Serverless scaling.
-- **DynamoDB Streams, Global Tables, TTL and backups**, which DynamoDB Local does not have. A table with a stream trigger on a deployed function is deployed automatically.
-- **State several people share.** Developers who run dev mode with the same stage name use the same remote database.
+- **Testing against real data** — when you need to reproduce a production issue with actual records.
+- **Aurora-specific behavior** — to test failover, reader endpoints, or serverless ACU scaling.
+- **DynamoDB advanced features** — Streams, Global Tables, TTL, and backups are only available on the deployed resource.
+- **Shared development database** — when multiple developers need to see the same state.
 
-To work with data from another stage, such as a copy of production, do not use `--remote-resources`. Pass that database's connection details to your workloads yourself, for example from a [secret](/configuration/secrets), and keep in mind that your local code can then change that data.
+Local emulation avoids AWS database service charges and isolates test data. Deployed clients still use the dev network, with its network latency and AWS costs.
 
 ## Resetting local data
 
