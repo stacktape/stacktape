@@ -6,8 +6,8 @@ seoDescription: 'Deploy an always-on public container on AWS with Stacktape. Con
 ---
 
 A web service runs your app in a container with a public HTTPS URL: an API, a backend web app or any HTTP server
-that stays running. It runs on ECS (Fargate by default, or EC2), and Stacktape adds the load balancing, TLS, scaling,
-health checks and logs.
+that stays running. It runs on ECS (Fargate by default, or EC2), and Stacktape adds the HTTPS endpoint, scaling and
+logs.
 
 At least one container runs and bills all the time: 0.5 vCPU and 1 GB cost about $18 a month on x86 Fargate in
 us-east-1, plus $1 per million requests through the default HTTP API Gateway. For code that should cost nothing while
@@ -64,7 +64,8 @@ container output with `stacktape logs api --stage dev`.
 
 The load balancer gets cheaper than the gateway from about 20 million requests a month; see
 [the comparison](/resources/networking/http-api-gateway#choosing-between-http-api-gateway-and-a-load-balancer). The
-gateway also limits each request to 30 seconds.
+gateway also limits each request to 30 seconds, and it doesn't check that your app responds: add an
+[`internalHealthCheck`](#health-checks) so a broken release rolls back instead of going live.
 
 With `application-load-balancer`, the load balancer checks `/` every 5 seconds (4-second timeout); change that in
 `loadBalancing.properties`. Without `customDomains`, a load balancer is served on a `*.stacktape-app.com` domain that
@@ -408,16 +409,16 @@ Use a command your image has and an endpoint that succeeds only when the app is 
 
 ## How deploys replace containers
 
-A deploy starts the new containers next to the old ones. Once every new container passes its health check, the old
-containers stop receiving new requests, get 30 seconds to finish the requests they are handling, and shut down: ECS
+A deploy starts the new containers next to the old ones. Once the new containers are up, the old containers stop
+receiving new requests, get 30 seconds to finish the requests they are handling, and shut down: ECS
 sends `SIGTERM` and, if the process is still running after `stopTimeout` (default 30 seconds), `SIGKILL`. Handle
 `SIGTERM` in your app so an old container exits once its requests are done. An app that ignores the signal keeps a full
 deploy waiting for the whole `stopTimeout`.
 
 A full deployment finishes after the old containers have stopped, because CloudFormation waits for that. A
 [fast deployment](/deployment-and-lifecycle/deploying-stacks#fast-deployments), which Stacktape uses when only your code
-changed, lets the old containers drain and shut down in the background. When it finishes depends on your health checks
-and load balancing:
+changed, lets the old containers drain and shut down in the background. What "up" means, and when the deploy finishes,
+depends on your health checks and load balancing:
 
 - **Default `http-api-gateway`, no `internalHealthCheck`:** the deploy finishes once every new task is `RUNNING` and
   API Gateway can route to it, plus 4 seconds. Only tasks from the new deployment count; an old task still draining
@@ -643,7 +644,7 @@ Container output goes to CloudWatch Logs, kept for 90 days by default (`logging.
 ## Remote sessions
 
 `enableRemoteSessions: true` lets you open a shell in a running container with
-[`stacktape container shell`](/cli/container-session), for example to check a live process or network reachability.
+[`stacktape container shell`](/cli/container-shell), for example to check a live process or network reachability.
 It adds a small Systems Manager agent container.
 
 <CodeBlock
@@ -682,3 +683,9 @@ jump in memory use can fail requests. Services it doesn't support deploy a new i
 ## Referenceable parameters
 
 <ReferenceableParams resource="web-service" />
+
+## Next steps
+
+- [Custom domains](/resources/networking/custom-domains): serve the service on your own domain.
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations before new containers take traffic.
+- [Debugging containers](/observability/debugging-containers): open a shell in a running container.

@@ -1,7 +1,8 @@
 /**
- * Sections of the pages in `V4_RENAMED_PAGES` (`site-redirects.ts`) that readers may have bookmarked or found in search results. A redirect keeps the URL
- * fragment, but the destination page names its sections differently. Keyed by destination page, then by the old
- * fragment, with where that section lives now. `MovedSectionRedirect.astro` follows the entry when the destination has
+ * Sections that moved: those of the pages in `V4_RENAMED_PAGES` (`site-redirects.ts`), which readers may have
+ * bookmarked or found in search results, and sections that left a page for a page of their own. A redirect keeps the
+ * URL fragment, but the destination page names its sections differently. Keyed by the page the reader lands on, then by
+ * the old fragment, with where that section lives now. `MovedSectionRedirect.astro` follows the entry when the destination has
  * no element with the old ID; `scripts/validate-built-site.ts` checks that every target exists.
  */
 export const MOVED_SECTIONS: Record<string, Record<string, string>> = {
@@ -82,6 +83,14 @@ export const MOVED_SECTIONS: Record<string, Record<string, string>> = {
     'secrets-management': '/stacktape-console/console-overview/#managing-secrets',
     'quick-reference': '/stacktape-console/console-overview/#common-tasks',
     'next-step': '/stacktape-console/console-overview/#related-pages'
+  },
+  '/configuration/hooks-and-scripts/': {
+    'release-command-database-migrations': '/deployment-and-lifecycle/release-commands/',
+    'hooks-run-a-script-before-or-after-a-command': '/configuration/hooks-and-scripts/#hooks',
+    'deployment-script-run-code-inside-aws': '/configuration/hooks-and-scripts/#deployment-scripts'
+  },
+  '/configuration/connecting-resources/': {
+    'shared-network-for-non-production-stages': '/configuration/shared-network/'
   },
   '/ci-cd-and-gitops/overview/': {
     'gitops-via-the-stacktape-console': '/ci-cd-and-gitops/overview/#git-deployments',

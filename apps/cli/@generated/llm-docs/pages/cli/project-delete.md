@@ -1,6 +1,6 @@
 # project delete
 
-The `project delete` command deletes a project from the current Stacktape organization. The Console removes the
+`stacktape project delete` deletes a project from the current Stacktape organization. The Console removes the
 project with its deploy history, stage settings and build runner. Use it to clean up projects you no longer need, such
 as test projects created by automation.
 

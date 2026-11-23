@@ -59,6 +59,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, WebAppFirewall } from 'stacktape';
+
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
     scope: 'regional',
@@ -121,6 +122,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, WebAppFirewall } from 'stacktape';
+
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
     scope: 'regional',
@@ -170,6 +172,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, WebAppFirewall } from 'stacktape';
+
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
     scope: 'regional',
@@ -208,6 +211,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, WebAppFirewall } from 'stacktape';
+
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
     scope: 'regional',
@@ -270,3 +274,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `arn` | Arn of the `web-app-firewall`. | `$ResourceParam("<<resource-name>>", "arn")` |
 | `scope` | Scope of the `web-app-firewall` (`regional` or `cdn`). | `$ResourceParam("<<resource-name>>", "scope")` |
+
+
+## Next steps
+
+- [CDN](/resources/networking/cdn): attach the firewall to a distribution.
+- [Application load balancer](/resources/networking/application-load-balancer): attach it to a load balancer.
+- [User auth pool](/resources/security/user-auth-pool): protect sign-in and sign-up.

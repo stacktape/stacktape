@@ -1,7 +1,7 @@
 # Error tracking
 
 Error tracking finds the errors in the logs of your functions and containers, groups repeats of the same error into one
-issue, and lists the issues on the Console's **Error tracking** page and in [`stacktape error list`](/cli/errors-list).
+issue, and lists the issues on the Console's **Error tracking** page and in [`stacktape error list`](/cli/error-list).
 You add no SDK to your code.
 
 It needs the [Stacktape Console](/getting-started/add-the-console) (the Free plan works). Once your AWS account is
@@ -40,6 +40,10 @@ Open **Observability → Error tracking**.
    failing request, and the version that was deployed when it failed.
 5. Use the row's menu to **Resolve** an error you fixed, **Ignore…** one you don't want to see, or **Reopen** it.
 
+
+> Screenshot: The Error tracking page: the Open, Resolved, Ignored and All tabs with counts, search, project and stage filters, and error rows with their project, stage, function, source line, event count and last seen time Caption: Open errors across projects, newest first, each with its function, source line and count.
+
+
 A resolved error that occurs again goes back to **Open**. An ignored error stays ignored, and its new occurrences are
 not counted.
 
@@ -50,8 +54,8 @@ stacktape error list --project my-api --stage production --status OPEN
 ```
 
 The table shows each issue's ID, status, message, type, function, project, stage, count and last occurrence, 25 at a
-time (`--limit` changes that). Change an issue's status with [`error resolve`](/cli/errors-resolve),
-[`error ignore`](/cli/errors-ignore) and [`error reopen`](/cli/errors-reopen). With `--agent`, the commands print JSON
+time (`--limit` changes that). Change an issue's status with [`error resolve`](/cli/error-resolve),
+[`error ignore`](/cli/error-ignore) and [`error reopen`](/cli/error-reopen). With `--agent`, the commands print JSON
 for scripts and coding agents.
 
 ## Turn it off or limit it to some stages
@@ -79,6 +83,16 @@ For each detected error, the detector running in your account sends the error me
 Before sending, known shapes of sensitive text are masked: secrets and tokens (AWS keys, GitHub, Stripe, Slack and Google tokens, JWTs, private key blocks), values under sensitive key names such as `password`, `token` or `authorization`, credentials in URLs, email addresses (the domain stays), IP addresses, card numbers and user home directories in file paths. Masked text reads `[redacted:email]`, `[redacted:secret]` and so on. The Console masks the same shapes again on arrival. Names, street addresses and phone numbers are not detected, because those patterns would also match ids and timestamps in log lines.
 
 During an error storm the detector reports each distinct error once per log batch with its occurrence count, and the Console stores a few occurrence samples per issue per minute. Occurrence counts stay exact.
+
+### Where errors are stored and for how long
+
+The Console stores issues and their samples in its database in the AWS `eu-west-1` region (Ireland). A sample is one occurrence as sent above: the stack frames, the masked log line, the request id, the log group and the function name.
+
+- Each issue keeps its newest 100 samples, and stores about 5 new samples a minute at most. Older samples are deleted as new ones arrive.
+- Issues have no time limit. Resolving or ignoring an issue keeps it, and so does deleting its project or the organization. The Console has no way to delete them.
+- Turning error tracking off stops new errors and keeps the stored ones.
+
+For questions about stored data, write to [support@stacktape.com](mailto:support@stacktape.com). Organizations that must keep this data in their own AWS account can run a single-tenant Console on the [Enterprise plan](/stacktape-console/billing-and-subscription#enterprise-plan).
 
 ## Stack traces of bundled JavaScript
 

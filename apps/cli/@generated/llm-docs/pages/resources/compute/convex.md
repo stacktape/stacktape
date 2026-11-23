@@ -58,8 +58,8 @@ Stacktape generates the admin key, stores it in AWS Secrets Manager and passes i
 
 Without custom domains, the backend is served on a `*.stacktape-app.com` domain, on ports 3210 (client API), 3211
 (HTTP actions) and 6791 (dashboard). That domain comes from the [Stacktape Console](/getting-started/add-the-console).
-Without the Console connected, set [custom domains](#custom-domains) for all three origins, or the deploy stops and
-asks for them.
+Without the Console connected, set [custom domains](#custom-domains) for `cloud` and `site`, and for `dashboard` unless
+you turn the dashboard off, or the deploy stops and asks for them.
 
 ## Custom domains
 
@@ -80,6 +80,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -130,6 +131,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -175,6 +177,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -216,17 +219,18 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
+    dashboard: {
+      resources: { cpu: 0.25, memory: 512 }
+    },
     backend: {
       resources: {
         cpu: 2,
         memory: 4096
       }
-    },
-    dashboard: {
-      resources: { cpu: 0.25, memory: 512 }
     }
   });
 
@@ -245,17 +249,18 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
+    dashboard: {
+      resources: { cpu: 0.25, memory: 512 }
+    },
     backend: {
       resources: {
         instanceTypes: ['c6g.large'],
         enableWarmPool: true
       }
-    },
-    dashboard: {
-      resources: { cpu: 0.25, memory: 512 }
     }
   });
 
@@ -285,6 +290,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -312,6 +318,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -352,6 +359,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -398,6 +406,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -457,3 +466,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `dashboardUrl` | Admin dashboard URL. Only available when the dashboard is enabled. | `$ResourceParam("<<resource-name>>", "dashboardUrl")` |
 | `adminKey` | Sensitive root credentials for the deployment, resolved from AWS Secrets Manager. Reference explicitly with $ResourceParam; never auto-injected by connectTo. | `$ResourceParam("<<resource-name>>", "adminKey")` |
 | `instanceSecret` | Sensitive boot secret stored in AWS Secrets Manager. Almost never needed by user code. | `$ResourceParam("<<resource-name>>", "instanceSecret")` |
+
+
+## Next steps
+
+- [Next.js](/resources/frontend/nextjs): host the frontend that calls Convex.
+- [Dev mode](/local-development/dev-mode-overview): run the app locally against your stack.
+- [Alarms](/observability/alarms): get told when the backend misbehaves.

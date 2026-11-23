@@ -64,21 +64,21 @@ Each listener has a `protocol` and a `port`:
       lang: 'typescript',
       code: `import { defineConfig, NetworkLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const mqttBroker = new NetworkLoadBalancer({
+  const mqttBroker = new NetworkLoadBalancer({ // [!code focus]
     customDomains: [{ domainName: 'mqtt.example.com' }],
+    // [!code focus-start]
     listeners: [
       { protocol: 'TCP', port: 1883 },
       { protocol: 'TLS', port: 8883 }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { mqttBroker }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -96,8 +96,8 @@ Without `customDomains`, give a TLS listener your own ACM certificate:
       lang: 'typescript',
       code: `import { defineConfig, NetworkLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const grpcLb = new NetworkLoadBalancer({
     listeners: [
       {
@@ -107,12 +107,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { grpcLb }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -134,18 +134,18 @@ The deploy uses the issued certificate for the TLS listeners and creates the DNS
       lang: 'typescript',
       code: `import { defineConfig, NetworkLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const tcpLb = new NetworkLoadBalancer({
-    customDomains: [{ domainName: 'tcp.example.com' }, { domainName: 'mqtt.example.com' }],
-    listeners: [{ protocol: 'TLS', port: 8883 }]
+  const tcpLb = new NetworkLoadBalancer({ // [!code focus]
+    listeners: [{ protocol: 'TLS', port: 8883 }],
+    // [!code focus-start]
+    customDomains: [{ domainName: 'tcp.example.com' }, { domainName: 'mqtt.example.com' }]
   });
+  // [!code focus-end]
 
   return {
     resources: { tcpLb }
   };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -169,18 +169,18 @@ service.
       lang: 'typescript',
       code: `import { defineConfig, NetworkLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const internalLb = new NetworkLoadBalancer({
-    interface: 'internal',
-    listeners: [{ protocol: 'TCP', port: 50051 }]
+  const internalLb = new NetworkLoadBalancer({ // [!code focus]
+    listeners: [{ protocol: 'TCP', port: 50051 }],
+    // [!code focus-start]
+    interface: 'internal'
   });
+  // [!code focus-end]
 
   return {
     resources: { internalLb }
   };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -199,8 +199,8 @@ list.
       lang: 'typescript',
       code: `import { defineConfig, NetworkLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const dbProxy = new NetworkLoadBalancer({
     listeners: [
       {
@@ -210,12 +210,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { dbProxy }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -229,3 +229,8 @@ the only filter at the load balancer. For rate limits or geo-blocking, use an Ap
 ## Referenceable parameters
 
 <ReferenceableParams resource="network-load-balancer" />
+
+## Next steps
+
+- [Multi-container workload](/resources/compute/multi-container-workload): expose a TCP port of a container.
+- [Application load balancer](/resources/networking/application-load-balancer): for HTTP routing, WebSockets or a firewall.

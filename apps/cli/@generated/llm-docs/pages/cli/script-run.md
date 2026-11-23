@@ -1,6 +1,6 @@
 # script run
 
-The `script run` command executes a script defined in the `scripts` section of your Stacktape configuration. It takes the script name as a positional argument (`script run <script-name>`), requires `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assume-role-of-resource`. Use `script run` when you need to execute a named script from the `scripts` section without deploying the full stack.
+`stacktape script run` executes a script defined in the `scripts` section of your Stacktape configuration. It takes the script name as a positional argument (`script run <script-name>`), requires `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assume-role-of-resource`. Use `script run` when you need to execute a named script from the `scripts` section without deploying the full stack.
 
 ## Usage
 
@@ -8,7 +8,7 @@ The `script run` command executes a script defined in the `scripts` section of y
 stacktape script run myMigration --stage production
 ```
 
-`script run` requires the script name and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults set`](/cli/defaults-configure)).
+`script run` requires the script name and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults set`](/cli/defaults-set)).
 
 ## Examples
 

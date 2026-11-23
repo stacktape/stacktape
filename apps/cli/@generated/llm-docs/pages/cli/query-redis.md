@@ -1,6 +1,6 @@
 # query redis
 
-The `query redis` command lets you inspect a deployed [Redis cache](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
+`stacktape query redis` lets you inspect a deployed [Redis cache](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
 
 ## Usage
 

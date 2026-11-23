@@ -1,6 +1,6 @@
 # defaults list
 
-The `defaults list` command prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
+`stacktape defaults list` prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
 
 ## Usage
 
@@ -8,11 +8,11 @@ The `defaults list` command prints all system-wide Stacktape defaults configured
 stacktape defaults list
 ```
 
-This command takes no arguments. It reads stored defaults and prints each configured key-value pair. If no defaults are set, it suggests running [`defaults set`](/cli/defaults-configure).
+This command takes no arguments. It reads stored defaults and prints each configured key-value pair. If no defaults are set, it suggests running [`defaults set`](/cli/defaults-set).
 
 ## What gets displayed
 
-The output shows all defaults you've previously set with [`defaults set`](/cli/defaults-configure). Configurable defaults include:
+The output shows all defaults you've previously set with [`defaults set`](/cli/defaults-set). Configurable defaults include:
 
 - `region` — AWS region used for deployments
 - `stage` — default stage name
@@ -42,6 +42,6 @@ Each default appears as a `key: value` pair. Stacktape uses these values as fall
 
 ## Related commands
 
-- [`defaults set`](/cli/defaults-configure) — set or update system-wide defaults
-- [`whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
+- [`defaults set`](/cli/defaults-set) — set or update system-wide defaults
+- [`whoami`](/cli/whoami) — verify your current user, organization, and connected accounts
 - [`login`](/cli/login) — configure your Stacktape API key

@@ -38,6 +38,7 @@ import {
   HttpApiIntegration,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const api = new HttpApiGateway({});
 
@@ -108,6 +109,7 @@ import {
   ApplicationLoadBalancerIntegration,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const alb = new ApplicationLoadBalancer({});
 

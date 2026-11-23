@@ -1,6 +1,6 @@
 # ai disconnect
 
-The `stacktape ai disconnect` command removes your own sign-in with one AI provider from Stacktape, in the organization of your API key. It asks which provider to disconnect unless you pass it as an argument (`ai disconnect <ai-provider>`). Hosted AI incident runs you request can no longer be funded by that sign-in until you connect it again with [`stacktape ai connect`](/cli/ai-connect). A run already running is not affected; a queued run funded by it fails without starting.
+`stacktape ai disconnect` removes your own sign-in with one AI provider from Stacktape, in the organization of your API key. It asks which provider to disconnect unless you pass it as an argument (`ai disconnect <ai-provider>`). Hosted AI incident runs you request can no longer be funded by that sign-in until you connect it again with [`stacktape ai connect`](/cli/ai-connect). A run already running is not affected; a queued run funded by it fails without starting.
 
 Your own CLI's sign-in on your machine stays as it is.
 

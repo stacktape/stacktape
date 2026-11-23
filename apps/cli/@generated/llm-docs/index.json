@@ -15864,25 +15864,25 @@
       ]
     },
     {
-      "id": "page:/cli/alarms",
+      "id": "page:/cli/alarm-list",
       "title": "alarm list",
-      "route": "/cli/alarms",
-      "sourcePath": "apps/docs/content/cli/alarms.mdx",
-      "outputPath": "pages/cli/alarms.md",
+      "route": "/cli/alarm-list",
+      "sourcePath": "apps/docs/content/cli/alarm-list.mdx",
+      "outputPath": "pages/cli/alarm-list.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "alarms"
+        "alarm-list"
       ],
       "chunks": [
-        "page:/cli/alarms#alarm-list",
-        "page:/cli/alarms#usage",
-        "page:/cli/alarms#filter-by-resource-or-state",
-        "page:/cli/alarms#check-from-a-script",
-        "page:/cli/alarms#options",
-        "page:/cli/alarms#cli-options-stacktape-alarm-list",
-        "page:/cli/alarms#related-commands"
+        "page:/cli/alarm-list#alarm-list",
+        "page:/cli/alarm-list#usage",
+        "page:/cli/alarm-list#filter-by-resource-or-state",
+        "page:/cli/alarm-list#check-from-a-script",
+        "page:/cli/alarm-list#options",
+        "page:/cli/alarm-list#cli-options-stacktape-alarm-list",
+        "page:/cli/alarm-list#related-commands"
       ]
     },
     {
@@ -15998,29 +15998,29 @@
       ]
     },
     {
-      "id": "page:/cli/bastion-session",
+      "id": "page:/cli/bastion-shell",
       "title": "bastion shell",
-      "route": "/cli/bastion-session",
-      "sourcePath": "apps/docs/content/cli/bastion-session.mdx",
-      "outputPath": "pages/cli/bastion-session.md",
+      "route": "/cli/bastion-shell",
+      "sourcePath": "apps/docs/content/cli/bastion-shell.mdx",
+      "outputPath": "pages/cli/bastion-shell.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "bastion-session"
+        "bastion-shell"
       ],
       "chunks": [
-        "page:/cli/bastion-session#bastion-shell",
-        "page:/cli/bastion-session#usage",
-        "page:/cli/bastion-session#how-it-works",
-        "page:/cli/bastion-session#examples",
-        "page:/cli/bastion-session#connect-to-the-only-bastion-in-a-stack",
-        "page:/cli/bastion-session#connect-to-a-specific-bastion-by-name",
-        "page:/cli/bastion-session#use-a-specific-aws-profile",
-        "page:/cli/bastion-session#troubleshooting",
-        "page:/cli/bastion-session#options",
-        "page:/cli/bastion-session#cli-options-stacktape-bastion-shell",
-        "page:/cli/bastion-session#related-commands"
+        "page:/cli/bastion-shell#bastion-shell",
+        "page:/cli/bastion-shell#usage",
+        "page:/cli/bastion-shell#how-it-works",
+        "page:/cli/bastion-shell#examples",
+        "page:/cli/bastion-shell#connect-to-the-only-bastion-in-a-stack",
+        "page:/cli/bastion-shell#connect-to-a-specific-bastion-by-name",
+        "page:/cli/bastion-shell#use-a-specific-aws-profile",
+        "page:/cli/bastion-shell#troubleshooting",
+        "page:/cli/bastion-shell#options",
+        "page:/cli/bastion-shell#cli-options-stacktape-bastion-shell",
+        "page:/cli/bastion-shell#related-commands"
       ]
     },
     {
@@ -16085,57 +16085,6 @@
       ]
     },
     {
-      "id": "page:/cli/cf-module-update",
-      "title": "stack update-modules",
-      "route": "/cli/cf-module-update",
-      "sourcePath": "apps/docs/content/cli/cf-module-update.mdx",
-      "outputPath": "pages/cli/cf-module-update.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "cf-module-update"
-      ],
-      "chunks": [
-        "page:/cli/cf-module-update#stack-update-modules",
-        "page:/cli/cf-module-update#usage",
-        "page:/cli/cf-module-update#examples",
-        "page:/cli/cf-module-update#options",
-        "page:/cli/cf-module-update#cli-options-stacktape-stack-update-modules",
-        "page:/cli/cf-module-update#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/cf-rollback",
-      "title": "stack recover",
-      "route": "/cli/cf-rollback",
-      "sourcePath": "apps/docs/content/cli/cf-rollback.mdx",
-      "outputPath": "pages/cli/cf-rollback.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "cf-rollback"
-      ],
-      "chunks": [
-        "page:/cli/cf-rollback#stack-recover",
-        "page:/cli/cf-rollback#usage",
-        "page:/cli/cf-rollback#what-it-does",
-        "page:/cli/cf-rollback#stack-recover-vs-rollback",
-        "page:/cli/cf-rollback#important-flags",
-        "page:/cli/cf-rollback#resources-to-skip",
-        "page:/cli/cf-rollback#stage",
-        "page:/cli/cf-rollback#profile",
-        "page:/cli/cf-rollback#examples",
-        "page:/cli/cf-rollback#faq",
-        "page:/cli/cf-rollback#what-s-the-difference-between-update-failed-and-update-rollback-failed",
-        "page:/cli/cf-rollback#my-rollback-keeps-failing-on-a-specific-resource-what-do-i-do",
-        "page:/cli/cf-rollback#options",
-        "page:/cli/cf-rollback#cli-options-stacktape-stack-recover",
-        "page:/cli/cf-rollback#related-commands"
-      ]
-    },
-    {
       "id": "page:/cli/connect",
       "title": "connect",
       "route": "/cli/connect",
@@ -16189,48 +16138,27 @@
       ]
     },
     {
-      "id": "page:/cli/container-session",
+      "id": "page:/cli/container-shell",
       "title": "container shell",
-      "route": "/cli/container-session",
-      "sourcePath": "apps/docs/content/cli/container-session.mdx",
-      "outputPath": "pages/cli/container-session.md",
+      "route": "/cli/container-shell",
+      "sourcePath": "apps/docs/content/cli/container-shell.mdx",
+      "outputPath": "pages/cli/container-shell.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "container-session"
+        "container-shell"
       ],
       "chunks": [
-        "page:/cli/container-session#container-shell",
-        "page:/cli/container-session#usage",
-        "page:/cli/container-session#important-flags",
-        "page:/cli/container-session#multiple-running-instances",
-        "page:/cli/container-session#common-errors",
-        "page:/cli/container-session#examples",
-        "page:/cli/container-session#options",
-        "page:/cli/container-session#cli-options-stacktape-container-shell",
-        "page:/cli/container-session#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/defaults-configure",
-      "title": "defaults set",
-      "route": "/cli/defaults-configure",
-      "sourcePath": "apps/docs/content/cli/defaults-configure.mdx",
-      "outputPath": "pages/cli/defaults-configure.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "defaults-configure"
-      ],
-      "chunks": [
-        "page:/cli/defaults-configure#defaults-set",
-        "page:/cli/defaults-configure#usage",
-        "page:/cli/defaults-configure#what-you-can-set",
-        "page:/cli/defaults-configure#options",
-        "page:/cli/defaults-configure#cli-options-stacktape-defaults-set",
-        "page:/cli/defaults-configure#related-commands"
+        "page:/cli/container-shell#container-shell",
+        "page:/cli/container-shell#usage",
+        "page:/cli/container-shell#important-flags",
+        "page:/cli/container-shell#multiple-running-instances",
+        "page:/cli/container-shell#common-errors",
+        "page:/cli/container-shell#examples",
+        "page:/cli/container-shell#options",
+        "page:/cli/container-shell#cli-options-stacktape-container-shell",
+        "page:/cli/container-shell#related-commands"
       ]
     },
     {
@@ -16252,6 +16180,27 @@
         "page:/cli/defaults-list#options",
         "page:/cli/defaults-list#cli-options-stacktape-defaults-list",
         "page:/cli/defaults-list#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/defaults-set",
+      "title": "defaults set",
+      "route": "/cli/defaults-set",
+      "sourcePath": "apps/docs/content/cli/defaults-set.mdx",
+      "outputPath": "pages/cli/defaults-set.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "defaults-set"
+      ],
+      "chunks": [
+        "page:/cli/defaults-set#defaults-set",
+        "page:/cli/defaults-set#usage",
+        "page:/cli/defaults-set#what-you-can-set",
+        "page:/cli/defaults-set#options",
+        "page:/cli/defaults-set#cli-options-stacktape-defaults-set",
+        "page:/cli/defaults-set#related-commands"
       ]
     },
     {
@@ -16475,106 +16424,96 @@
         "page:/cli/domain-add#domain-add",
         "page:/cli/domain-add#usage",
         "page:/cli/domain-add#what-it-does",
-        "page:/cli/domain-add#dns-ownership-scenarios",
-        "page:/cli/domain-add#dns-already-verified",
-        "page:/cli/domain-add#dns-managed-outside-aws",
-        "page:/cli/domain-add#tls-certificates",
         "page:/cli/domain-add#examples",
-        "page:/cli/domain-add#faq",
-        "page:/cli/domain-add#can-i-add-a-subdomain-instead-of-a-root-domain",
-        "page:/cli/domain-add#what-happens-if-my-domain-is-not-yet-registered",
-        "page:/cli/domain-add#do-i-need-to-run-this-command-in-every-region",
-        "page:/cli/domain-add#is-there-a-cost-for-adding-a-domain",
-        "page:/cli/domain-add#can-i-use-a-domain-registered-outside-aws",
         "page:/cli/domain-add#options",
         "page:/cli/domain-add#cli-options-stacktape-domain-add",
         "page:/cli/domain-add#related-commands"
       ]
     },
     {
-      "id": "page:/cli/errors-ignore",
+      "id": "page:/cli/error-ignore",
       "title": "error ignore",
-      "route": "/cli/errors-ignore",
-      "sourcePath": "apps/docs/content/cli/errors-ignore.mdx",
-      "outputPath": "pages/cli/errors-ignore.md",
+      "route": "/cli/error-ignore",
+      "sourcePath": "apps/docs/content/cli/error-ignore.mdx",
+      "outputPath": "pages/cli/error-ignore.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "errors-ignore"
+        "error-ignore"
       ],
       "chunks": [
-        "page:/cli/errors-ignore#error-ignore",
-        "page:/cli/errors-ignore#usage",
-        "page:/cli/errors-ignore#examples",
-        "page:/cli/errors-ignore#when-to-ignore-vs-resolve",
-        "page:/cli/errors-ignore#options",
-        "page:/cli/errors-ignore#cli-options-stacktape-error-ignore",
-        "page:/cli/errors-ignore#related-commands"
+        "page:/cli/error-ignore#error-ignore",
+        "page:/cli/error-ignore#usage",
+        "page:/cli/error-ignore#examples",
+        "page:/cli/error-ignore#when-to-ignore-vs-resolve",
+        "page:/cli/error-ignore#options",
+        "page:/cli/error-ignore#cli-options-stacktape-error-ignore",
+        "page:/cli/error-ignore#related-commands"
       ]
     },
     {
-      "id": "page:/cli/errors-list",
+      "id": "page:/cli/error-list",
       "title": "error list",
-      "route": "/cli/errors-list",
-      "sourcePath": "apps/docs/content/cli/errors-list.mdx",
-      "outputPath": "pages/cli/errors-list.md",
+      "route": "/cli/error-list",
+      "sourcePath": "apps/docs/content/cli/error-list.mdx",
+      "outputPath": "pages/cli/error-list.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "errors-list"
+        "error-list"
       ],
       "chunks": [
-        "page:/cli/errors-list#error-list",
-        "page:/cli/errors-list#usage",
-        "page:/cli/errors-list#examples",
-        "page:/cli/errors-list#output",
-        "page:/cli/errors-list#options",
-        "page:/cli/errors-list#cli-options-stacktape-error-list",
-        "page:/cli/errors-list#related-commands"
+        "page:/cli/error-list#error-list",
+        "page:/cli/error-list#usage",
+        "page:/cli/error-list#examples",
+        "page:/cli/error-list#output",
+        "page:/cli/error-list#options",
+        "page:/cli/error-list#cli-options-stacktape-error-list",
+        "page:/cli/error-list#related-commands"
       ]
     },
     {
-      "id": "page:/cli/errors-reopen",
+      "id": "page:/cli/error-reopen",
       "title": "error reopen",
-      "route": "/cli/errors-reopen",
-      "sourcePath": "apps/docs/content/cli/errors-reopen.mdx",
-      "outputPath": "pages/cli/errors-reopen.md",
+      "route": "/cli/error-reopen",
+      "sourcePath": "apps/docs/content/cli/error-reopen.mdx",
+      "outputPath": "pages/cli/error-reopen.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "errors-reopen"
+        "error-reopen"
       ],
       "chunks": [
-        "page:/cli/errors-reopen#error-reopen",
-        "page:/cli/errors-reopen#usage",
-        "page:/cli/errors-reopen#examples",
-        "page:/cli/errors-reopen#options",
-        "page:/cli/errors-reopen#cli-options-stacktape-error-reopen",
-        "page:/cli/errors-reopen#related-commands"
+        "page:/cli/error-reopen#error-reopen",
+        "page:/cli/error-reopen#usage",
+        "page:/cli/error-reopen#examples",
+        "page:/cli/error-reopen#options",
+        "page:/cli/error-reopen#cli-options-stacktape-error-reopen",
+        "page:/cli/error-reopen#related-commands"
       ]
     },
     {
-      "id": "page:/cli/errors-resolve",
+      "id": "page:/cli/error-resolve",
       "title": "error resolve",
-      "route": "/cli/errors-resolve",
-      "sourcePath": "apps/docs/content/cli/errors-resolve.mdx",
-      "outputPath": "pages/cli/errors-resolve.md",
+      "route": "/cli/error-resolve",
+      "sourcePath": "apps/docs/content/cli/error-resolve.mdx",
+      "outputPath": "pages/cli/error-resolve.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "errors-resolve"
+        "error-resolve"
       ],
       "chunks": [
-        "page:/cli/errors-resolve#error-resolve",
-        "page:/cli/errors-resolve#usage",
-        "page:/cli/errors-resolve#examples",
-        "page:/cli/errors-resolve#options",
-        "page:/cli/errors-resolve#cli-options-stacktape-error-resolve",
-        "page:/cli/errors-resolve#related-commands"
+        "page:/cli/error-resolve#error-resolve",
+        "page:/cli/error-resolve#usage",
+        "page:/cli/error-resolve#examples",
+        "page:/cli/error-resolve#options",
+        "page:/cli/error-resolve#cli-options-stacktape-error-resolve",
+        "page:/cli/error-resolve#related-commands"
       ]
     },
     {
@@ -16598,199 +16537,111 @@
       ]
     },
     {
-      "id": "page:/cli/incidents-ack",
+      "id": "page:/cli/incident-ack",
       "title": "incident ack",
-      "route": "/cli/incidents-ack",
-      "sourcePath": "apps/docs/content/cli/incidents-ack.mdx",
-      "outputPath": "pages/cli/incidents-ack.md",
+      "route": "/cli/incident-ack",
+      "sourcePath": "apps/docs/content/cli/incident-ack.mdx",
+      "outputPath": "pages/cli/incident-ack.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "incidents-ack"
+        "incident-ack"
       ],
       "chunks": [
-        "page:/cli/incidents-ack#incident-ack",
-        "page:/cli/incidents-ack#usage",
-        "page:/cli/incidents-ack#examples",
-        "page:/cli/incidents-ack#options",
-        "page:/cli/incidents-ack#cli-options-stacktape-incident-ack",
-        "page:/cli/incidents-ack#related-commands"
+        "page:/cli/incident-ack#incident-ack",
+        "page:/cli/incident-ack#usage",
+        "page:/cli/incident-ack#examples",
+        "page:/cli/incident-ack#options",
+        "page:/cli/incident-ack#cli-options-stacktape-incident-ack",
+        "page:/cli/incident-ack#related-commands"
       ]
     },
     {
-      "id": "page:/cli/incidents-resolve",
-      "title": "incident resolve",
-      "route": "/cli/incidents-resolve",
-      "sourcePath": "apps/docs/content/cli/incidents-resolve.mdx",
-      "outputPath": "pages/cli/incidents-resolve.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "incidents-resolve"
-      ],
-      "chunks": [
-        "page:/cli/incidents-resolve#incident-resolve",
-        "page:/cli/incidents-resolve#usage",
-        "page:/cli/incidents-resolve#examples",
-        "page:/cli/incidents-resolve#options",
-        "page:/cli/incidents-resolve#cli-options-stacktape-incident-resolve",
-        "page:/cli/incidents-resolve#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/incidents-show",
-      "title": "incident show",
-      "route": "/cli/incidents-show",
-      "sourcePath": "apps/docs/content/cli/incidents-show.mdx",
-      "outputPath": "pages/cli/incidents-show.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "incidents-show"
-      ],
-      "chunks": [
-        "page:/cli/incidents-show#incident-show",
-        "page:/cli/incidents-show#usage",
-        "page:/cli/incidents-show#examples",
-        "page:/cli/incidents-show#untrusted-evidence",
-        "page:/cli/incidents-show#options",
-        "page:/cli/incidents-show#cli-options-stacktape-incident-show",
-        "page:/cli/incidents-show#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/incidents-watch",
-      "title": "incident watch",
-      "route": "/cli/incidents-watch",
-      "sourcePath": "apps/docs/content/cli/incidents-watch.mdx",
-      "outputPath": "pages/cli/incidents-watch.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "incidents-watch"
-      ],
-      "chunks": [
-        "page:/cli/incidents-watch#incident-watch",
-        "page:/cli/incidents-watch#usage",
-        "page:/cli/incidents-watch#examples",
-        "page:/cli/incidents-watch#exit-behavior",
-        "page:/cli/incidents-watch#options",
-        "page:/cli/incidents-watch#cli-options-stacktape-incident-watch",
-        "page:/cli/incidents-watch#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/incidents",
+      "id": "page:/cli/incident-list",
       "title": "incident list",
-      "route": "/cli/incidents",
-      "sourcePath": "apps/docs/content/cli/incidents.mdx",
-      "outputPath": "pages/cli/incidents.md",
+      "route": "/cli/incident-list",
+      "sourcePath": "apps/docs/content/cli/incident-list.mdx",
+      "outputPath": "pages/cli/incident-list.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "incidents"
+        "incident-list"
       ],
       "chunks": [
-        "page:/cli/incidents#incident-list",
-        "page:/cli/incidents#usage",
-        "page:/cli/incidents#examples",
-        "page:/cli/incidents#output",
-        "page:/cli/incidents#options",
-        "page:/cli/incidents#cli-options-stacktape-incident-list",
-        "page:/cli/incidents#related-commands"
+        "page:/cli/incident-list#incident-list",
+        "page:/cli/incident-list#usage",
+        "page:/cli/incident-list#examples",
+        "page:/cli/incident-list#output",
+        "page:/cli/incident-list#options",
+        "page:/cli/incident-list#cli-options-stacktape-incident-list",
+        "page:/cli/incident-list#related-commands"
       ]
     },
     {
-      "id": "page:/cli/info-operations",
-      "title": "stack history",
-      "route": "/cli/info-operations",
-      "sourcePath": "apps/docs/content/cli/info-operations.mdx",
-      "outputPath": "pages/cli/info-operations.md",
+      "id": "page:/cli/incident-resolve",
+      "title": "incident resolve",
+      "route": "/cli/incident-resolve",
+      "sourcePath": "apps/docs/content/cli/incident-resolve.mdx",
+      "outputPath": "pages/cli/incident-resolve.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "info-operations"
+        "incident-resolve"
       ],
       "chunks": [
-        "page:/cli/info-operations#stack-history",
-        "page:/cli/info-operations#usage",
-        "page:/cli/info-operations#filtering-results",
-        "page:/cli/info-operations#controlling-output-size",
-        "page:/cli/info-operations#machine-readable-output",
-        "page:/cli/info-operations#options",
-        "page:/cli/info-operations#cli-options-stacktape-stack-history",
-        "page:/cli/info-operations#related-commands"
+        "page:/cli/incident-resolve#incident-resolve",
+        "page:/cli/incident-resolve#usage",
+        "page:/cli/incident-resolve#examples",
+        "page:/cli/incident-resolve#options",
+        "page:/cli/incident-resolve#cli-options-stacktape-incident-resolve",
+        "page:/cli/incident-resolve#related-commands"
       ]
     },
     {
-      "id": "page:/cli/info-stack",
-      "title": "status",
-      "route": "/cli/info-stack",
-      "sourcePath": "apps/docs/content/cli/info-stack.mdx",
-      "outputPath": "pages/cli/info-stack.md",
+      "id": "page:/cli/incident-show",
+      "title": "incident show",
+      "route": "/cli/incident-show",
+      "sourcePath": "apps/docs/content/cli/incident-show.mdx",
+      "outputPath": "pages/cli/incident-show.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "info-stack"
+        "incident-show"
       ],
       "chunks": [
-        "page:/cli/info-stack#status",
-        "page:/cli/info-stack#usage",
-        "page:/cli/info-stack#examples",
-        "page:/cli/info-stack#options",
-        "page:/cli/info-stack#cli-options-stacktape-status",
-        "page:/cli/info-stack#related-commands"
+        "page:/cli/incident-show#incident-show",
+        "page:/cli/incident-show#usage",
+        "page:/cli/incident-show#examples",
+        "page:/cli/incident-show#untrusted-evidence",
+        "page:/cli/incident-show#options",
+        "page:/cli/incident-show#cli-options-stacktape-incident-show",
+        "page:/cli/incident-show#related-commands"
       ]
     },
     {
-      "id": "page:/cli/info-stacks",
-      "title": "stack list",
-      "route": "/cli/info-stacks",
-      "sourcePath": "apps/docs/content/cli/info-stacks.mdx",
-      "outputPath": "pages/cli/info-stacks.md",
+      "id": "page:/cli/incident-watch",
+      "title": "incident watch",
+      "route": "/cli/incident-watch",
+      "sourcePath": "apps/docs/content/cli/incident-watch.mdx",
+      "outputPath": "pages/cli/incident-watch.md",
       "docKind": "docs-page",
       "definitionNames": [],
       "tags": [
         "cli",
-        "info-stacks"
+        "incident-watch"
       ],
       "chunks": [
-        "page:/cli/info-stacks#stack-list",
-        "page:/cli/info-stacks#usage",
-        "page:/cli/info-stacks#what-it-does",
-        "page:/cli/info-stacks#important-flags",
-        "page:/cli/info-stacks#examples",
-        "page:/cli/info-stacks#options",
-        "page:/cli/info-stacks#cli-options-stacktape-stack-list",
-        "page:/cli/info-stacks#related-commands"
-      ]
-    },
-    {
-      "id": "page:/cli/info-whoami",
-      "title": "whoami",
-      "route": "/cli/info-whoami",
-      "sourcePath": "apps/docs/content/cli/info-whoami.mdx",
-      "outputPath": "pages/cli/info-whoami.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "cli",
-        "info-whoami"
-      ],
-      "chunks": [
-        "page:/cli/info-whoami#whoami",
-        "page:/cli/info-whoami#usage",
-        "page:/cli/info-whoami#examples",
-        "page:/cli/info-whoami#options",
-        "page:/cli/info-whoami#cli-options-stacktape-whoami",
-        "page:/cli/info-whoami#related-commands"
+        "page:/cli/incident-watch#incident-watch",
+        "page:/cli/incident-watch#usage",
+        "page:/cli/incident-watch#examples",
+        "page:/cli/incident-watch#exit-behavior",
+        "page:/cli/incident-watch#options",
+        "page:/cli/incident-watch#cli-options-stacktape-incident-watch",
+        "page:/cli/incident-watch#related-commands"
       ]
     },
     {
@@ -16921,12 +16772,7 @@
         "page:/cli/logs#how-log-group-resolution-works",
         "page:/cli/logs#examples",
         "page:/cli/logs#faq",
-        "page:/cli/logs#how-do-i-filter-logs-for-errors-only",
-        "page:/cli/logs#what-is-the-difference-between-filter-and-query",
-        "page:/cli/logs#how-far-back-can-i-fetch-logs",
-        "page:/cli/logs#does-stacktape-logs-live-tail",
         "page:/cli/logs#how-much-does-cloudwatch-logs-cost",
-        "page:/cli/logs#what-is-the-difference-between-raw-and-agent",
         "page:/cli/logs#options",
         "page:/cli/logs#cli-options-stacktape-logs",
         "page:/cli/logs#related-commands"
@@ -17112,9 +16958,7 @@
         "page:/cli/package#usage",
         "page:/cli/package#examples",
         "page:/cli/package#faq",
-        "page:/cli/package#when-should-i-use-package-instead-of-just-running-deploy",
         "page:/cli/package#how-is-package-different-from-validate-with-package",
-        "page:/cli/package#does-package-use-caching",
         "page:/cli/package#does-package-require-aws-credentials",
         "page:/cli/package#can-i-package-only-specific-workloads",
         "page:/cli/package#what-is-the-difference-between-package-and-synth",
@@ -17379,7 +17223,6 @@
       ],
       "chunks": [
         "page:/cli/rollback#rollback",
-        "page:/cli/rollback#when-to-use",
         "page:/cli/rollback#usage",
         "page:/cli/rollback#important-flags",
         "page:/cli/rollback#target-version",
@@ -17392,16 +17235,10 @@
         "page:/cli/rollback#version-availability",
         "page:/cli/rollback#bucket-synced-content",
         "page:/cli/rollback#examples",
-        "page:/cli/rollback#quick-rollback-after-a-bad-deploy",
-        "page:/cli/rollback#inspect-available-versions-first",
         "page:/cli/rollback#rollback-in-ci-cd",
         "page:/cli/rollback#faq",
         "page:/cli/rollback#what-is-the-difference-between-rollback-and-stack-recover",
-        "page:/cli/rollback#does-rollback-rebuild-my-code",
-        "page:/cli/rollback#does-rollback-affect-my-database",
         "page:/cli/rollback#how-far-back-can-i-roll-back",
-        "page:/cli/rollback#can-i-roll-forward-after-a-rollback",
-        "page:/cli/rollback#will-my-after-deploy-hooks-run-during-rollback",
         "page:/cli/rollback#options",
         "page:/cli/rollback#cli-options-stacktape-rollback",
         "page:/cli/rollback#related-commands"
@@ -17499,6 +17336,124 @@
       ]
     },
     {
+      "id": "page:/cli/stack-history",
+      "title": "stack history",
+      "route": "/cli/stack-history",
+      "sourcePath": "apps/docs/content/cli/stack-history.mdx",
+      "outputPath": "pages/cli/stack-history.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "stack-history"
+      ],
+      "chunks": [
+        "page:/cli/stack-history#stack-history",
+        "page:/cli/stack-history#usage",
+        "page:/cli/stack-history#filtering-results",
+        "page:/cli/stack-history#controlling-output-size",
+        "page:/cli/stack-history#machine-readable-output",
+        "page:/cli/stack-history#options",
+        "page:/cli/stack-history#cli-options-stacktape-stack-history",
+        "page:/cli/stack-history#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/stack-list",
+      "title": "stack list",
+      "route": "/cli/stack-list",
+      "sourcePath": "apps/docs/content/cli/stack-list.mdx",
+      "outputPath": "pages/cli/stack-list.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "stack-list"
+      ],
+      "chunks": [
+        "page:/cli/stack-list#stack-list",
+        "page:/cli/stack-list#usage",
+        "page:/cli/stack-list#what-it-does",
+        "page:/cli/stack-list#important-flags",
+        "page:/cli/stack-list#examples",
+        "page:/cli/stack-list#options",
+        "page:/cli/stack-list#cli-options-stacktape-stack-list",
+        "page:/cli/stack-list#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/stack-recover",
+      "title": "stack recover",
+      "route": "/cli/stack-recover",
+      "sourcePath": "apps/docs/content/cli/stack-recover.mdx",
+      "outputPath": "pages/cli/stack-recover.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "stack-recover"
+      ],
+      "chunks": [
+        "page:/cli/stack-recover#stack-recover",
+        "page:/cli/stack-recover#usage",
+        "page:/cli/stack-recover#what-it-does",
+        "page:/cli/stack-recover#stack-recover-vs-rollback",
+        "page:/cli/stack-recover#important-flags",
+        "page:/cli/stack-recover#resources-to-skip",
+        "page:/cli/stack-recover#stage",
+        "page:/cli/stack-recover#profile",
+        "page:/cli/stack-recover#examples",
+        "page:/cli/stack-recover#faq",
+        "page:/cli/stack-recover#what-s-the-difference-between-update-failed-and-update-rollback-failed",
+        "page:/cli/stack-recover#my-rollback-keeps-failing-on-a-specific-resource-what-do-i-do",
+        "page:/cli/stack-recover#options",
+        "page:/cli/stack-recover#cli-options-stacktape-stack-recover",
+        "page:/cli/stack-recover#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/stack-update-modules",
+      "title": "stack update-modules",
+      "route": "/cli/stack-update-modules",
+      "sourcePath": "apps/docs/content/cli/stack-update-modules.mdx",
+      "outputPath": "pages/cli/stack-update-modules.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "stack-update-modules"
+      ],
+      "chunks": [
+        "page:/cli/stack-update-modules#stack-update-modules",
+        "page:/cli/stack-update-modules#usage",
+        "page:/cli/stack-update-modules#examples",
+        "page:/cli/stack-update-modules#options",
+        "page:/cli/stack-update-modules#cli-options-stacktape-stack-update-modules",
+        "page:/cli/stack-update-modules#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/status",
+      "title": "status",
+      "route": "/cli/status",
+      "sourcePath": "apps/docs/content/cli/status.mdx",
+      "outputPath": "pages/cli/status.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "status"
+      ],
+      "chunks": [
+        "page:/cli/status#status",
+        "page:/cli/status#usage",
+        "page:/cli/status#examples",
+        "page:/cli/status#options",
+        "page:/cli/status#cli-options-stacktape-status",
+        "page:/cli/status#related-commands"
+      ]
+    },
+    {
       "id": "page:/cli/synth",
       "title": "synth",
       "route": "/cli/synth",
@@ -17523,7 +17478,6 @@
         "page:/cli/synth#faq",
         "page:/cli/synth#why-are-stage-and-region-required-if-nothing-is-deployed",
         "page:/cli/synth#can-i-feed-the-synthesized-template-into-cloudformation-linting-or-policy-tools",
-        "page:/cli/synth#the-synthesized-template-doesn-t-match-what-i-expected-how-do-i-debug-it",
         "page:/cli/synth#options",
         "page:/cli/synth#cli-options-stacktape-synth",
         "page:/cli/synth#related-commands"
@@ -17576,10 +17530,7 @@
         "page:/cli/validate#important-flags",
         "page:/cli/validate#examples",
         "page:/cli/validate#faq",
-        "page:/cli/validate#how-is-validate-different-from-synth",
         "page:/cli/validate#do-i-need-aws-credentials-to-run-validate-in-ci",
-        "page:/cli/validate#what-errors-does-thorough-catch-that-the-default-level-misses",
-        "page:/cli/validate#can-i-use-validate-with-ai-agents-or-in-scripts",
         "page:/cli/validate#options",
         "page:/cli/validate#cli-options-stacktape-validate",
         "page:/cli/validate#related-commands"
@@ -17606,6 +17557,27 @@
         "page:/cli/version#options",
         "page:/cli/version#cli-options-stacktape-version",
         "page:/cli/version#related-commands"
+      ]
+    },
+    {
+      "id": "page:/cli/whoami",
+      "title": "whoami",
+      "route": "/cli/whoami",
+      "sourcePath": "apps/docs/content/cli/whoami.mdx",
+      "outputPath": "pages/cli/whoami.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "cli",
+        "whoami"
+      ],
+      "chunks": [
+        "page:/cli/whoami#whoami",
+        "page:/cli/whoami#usage",
+        "page:/cli/whoami#examples",
+        "page:/cli/whoami#options",
+        "page:/cli/whoami#cli-options-stacktape-whoami",
+        "page:/cli/whoami#related-commands"
       ]
     },
     {
@@ -17683,7 +17655,6 @@
         "page:/configuration/connecting-resources#resources-that-use-connectto",
         "page:/configuration/connecting-resources#vpc-and-networking",
         "page:/configuration/connecting-resources#nat-internet-access-from-private-subnets",
-        "page:/configuration/connecting-resources#shared-network-for-non-production-stages",
         "page:/configuration/connecting-resources#faq",
         "page:/configuration/connecting-resources#how-does-connectto-differ-from-setting-environment-variables-myself",
         "page:/configuration/connecting-resources#can-i-connect-to-resources-in-a-different-stack",
@@ -17761,6 +17732,8 @@
       ],
       "chunks": [
         "page:/configuration/hooks-and-scripts#hooks-and-scripts",
+        "page:/configuration/hooks-and-scripts#choose-the-right-tool",
+        "page:/configuration/hooks-and-scripts#order-within-a-deploy",
         "page:/configuration/hooks-and-scripts#scripts",
         "page:/configuration/hooks-and-scripts#local-script",
         "page:/configuration/hooks-and-scripts#local-script-with-bastion-tunneling",
@@ -18000,6 +17973,28 @@
       ]
     },
     {
+      "id": "page:/configuration/shared-network",
+      "title": "Shared non-production network",
+      "route": "/configuration/shared-network",
+      "sourcePath": "apps/docs/content/configuration/shared-network.mdx",
+      "outputPath": "pages/configuration/shared-network.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "configuration",
+        "shared-network"
+      ],
+      "chunks": [
+        "page:/configuration/shared-network#shared-non-production-network",
+        "page:/configuration/shared-network#how-a-stage-is-placed",
+        "page:/configuration/shared-network#placement-is-fixed",
+        "page:/configuration/shared-network#isolation-between-stages",
+        "page:/configuration/shared-network#functions-with-no-private-access",
+        "page:/configuration/shared-network#removal-of-the-shared-stacks",
+        "page:/configuration/shared-network#permissions-for-ci"
+      ]
+    },
+    {
       "id": "page:/configuration/stages-and-environments",
       "title": "Stages and environments",
       "route": "/configuration/stages-and-environments",
@@ -18129,27 +18124,6 @@
         "page:/deployment-and-lifecycle/deploying-stacks#missing-secrets-fail-the-deploy-in-ci",
         "page:/deployment-and-lifecycle/deploying-stacks#no-changes-to-deploy",
         "page:/deployment-and-lifecycle/deploying-stacks#deploys-are-slow"
-      ]
-    },
-    {
-      "id": "page:/deployment-and-lifecycle/deployment-scripts-and-hooks",
-      "title": "Deployment scripts and hooks",
-      "route": "/deployment-and-lifecycle/deployment-scripts-and-hooks",
-      "sourcePath": "apps/docs/content/deployment-and-lifecycle/deployment-scripts-and-hooks.mdx",
-      "outputPath": "pages/deployment-and-lifecycle/deployment-scripts-and-hooks.md",
-      "docKind": "docs-page",
-      "definitionNames": [],
-      "tags": [
-        "deployment-and-lifecycle",
-        "deployment-scripts-and-hooks"
-      ],
-      "chunks": [
-        "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#deployment-scripts-and-hooks",
-        "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#choose-the-right-tool",
-        "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#order-within-a-deploy",
-        "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#release-command-database-migrations",
-        "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#hooks-run-a-script-before-or-after-a-command",
-        "page:/deployment-and-lifecycle/deployment-scripts-and-hooks#deployment-script-run-code-inside-aws"
       ]
     },
     {
@@ -18326,7 +18300,6 @@
       "chunks": [
         "page:/getting-started/add-the-console#add-the-console",
         "page:/getting-started/add-the-console#what-you-get",
-        "page:/getting-started/add-the-console#what-it-costs",
         "page:/getting-started/add-the-console#connect-from-the-init-wizard",
         "page:/getting-started/add-the-console#connect-from-the-terminal",
         "page:/getting-started/add-the-console#who-can-connect-an-aws-account",
@@ -18354,6 +18327,7 @@
         "page:/getting-started/after-the-first-deploy#read-the-logs",
         "page:/getting-started/after-the-first-deploy#ship-a-change",
         "page:/getting-started/after-the-first-deploy#add-another-stage",
+        "page:/getting-started/after-the-first-deploy#preview-pull-requests",
         "page:/getting-started/after-the-first-deploy#find-the-stack-in-aws",
         "page:/getting-started/after-the-first-deploy#delete-the-stage",
         "page:/getting-started/after-the-first-deploy#if-a-deploy-fails",
@@ -18380,7 +18354,8 @@
         "page:/getting-started/aws-credentials#if-you-have-your-own-aws-account",
         "page:/getting-started/aws-credentials#tell-stacktape-which-credentials-to-use",
         "page:/getting-started/aws-credentials#what-permissions-you-need",
-        "page:/getting-started/aws-credentials#what-it-costs"
+        "page:/getting-started/aws-credentials#what-it-costs",
+        "page:/getting-started/aws-credentials#back-to-your-deploy"
       ]
     },
     {
@@ -18409,6 +18384,7 @@
         "page:/getting-started/deploy-an-existing-app#optional-try-it-on-this-machine-first",
         "page:/getting-started/deploy-an-existing-app#check-the-target-then-deploy",
         "page:/getting-started/deploy-an-existing-app#it-s-live",
+        "page:/getting-started/deploy-an-existing-app#check-the-database",
         "page:/getting-started/deploy-an-existing-app#deploy-from-your-terminal-instead",
         "page:/getting-started/deploy-an-existing-app#what-the-deploy-costs",
         "page:/getting-started/deploy-an-existing-app#add-the-console",
@@ -18417,6 +18393,85 @@
         "page:/getting-started/deploy-an-existing-app#the-wizard-found-nothing-to-deploy",
         "page:/getting-started/deploy-an-existing-app#aws-rejects-the-credentials",
         "page:/getting-started/deploy-an-existing-app#the-target-is-blocked"
+      ]
+    },
+    {
+      "id": "page:/getting-started/evaluate",
+      "title": "Evaluate Stacktape",
+      "route": "/getting-started/evaluate",
+      "sourcePath": "apps/docs/content/getting-started/evaluate/index.mdx",
+      "outputPath": "pages/getting-started/evaluate.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "evaluate"
+      ],
+      "chunks": [
+        "page:/getting-started/evaluate#evaluate-stacktape",
+        "page:/getting-started/evaluate#what-it-is-and-what-it-isn-t",
+        "page:/getting-started/evaluate#what-runs-where",
+        "page:/getting-started/evaluate#who-does-what-in-production",
+        "page:/getting-started/evaluate#what-leaves-your-aws-account",
+        "page:/getting-started/evaluate#access-and-security",
+        "page:/getting-started/evaluate#accounts-stages-and-isolation",
+        "page:/getting-started/evaluate#ci-cd",
+        "page:/getting-started/evaluate#scaling-networking-and-databases",
+        "page:/getting-started/evaluate#what-it-costs",
+        "page:/getting-started/evaluate#maturity-and-support",
+        "page:/getting-started/evaluate#lock-in-and-the-way-out",
+        "page:/getting-started/evaluate#run-a-pilot"
+      ]
+    },
+    {
+      "id": "page:/getting-started/evaluate/move-to-stacktape",
+      "title": "Move to Stacktape",
+      "route": "/getting-started/evaluate/move-to-stacktape",
+      "sourcePath": "apps/docs/content/getting-started/evaluate/move-to-stacktape.mdx",
+      "outputPath": "pages/getting-started/evaluate/move-to-stacktape.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "evaluate",
+        "move-to-stacktape"
+      ],
+      "chunks": [
+        "page:/getting-started/evaluate/move-to-stacktape#move-to-stacktape",
+        "page:/getting-started/evaluate/move-to-stacktape#what-init-reads",
+        "page:/getting-started/evaluate/move-to-stacktape#move-a-running-app",
+        "page:/getting-started/evaluate/move-to-stacktape#1-generate-the-config",
+        "page:/getting-started/evaluate/move-to-stacktape#2-decide-where-the-data-lives",
+        "page:/getting-started/evaluate/move-to-stacktape#3-set-the-secrets",
+        "page:/getting-started/evaluate/move-to-stacktape#4-check-the-migrations",
+        "page:/getting-started/evaluate/move-to-stacktape#5-deploy-and-test-the-copy",
+        "page:/getting-started/evaluate/move-to-stacktape#6-move-the-data",
+        "page:/getting-started/evaluate/move-to-stacktape#7-switch-dns",
+        "page:/getting-started/evaluate/move-to-stacktape#8-keep-a-way-back-then-retire-the-old-app",
+        "page:/getting-started/evaluate/move-to-stacktape#from-sst-or-serverless-framework",
+        "page:/getting-started/evaluate/move-to-stacktape#what-usually-takes-the-time"
+      ]
+    },
+    {
+      "id": "page:/getting-started/evaluate/stop-using-stacktape",
+      "title": "Stop using Stacktape",
+      "route": "/getting-started/evaluate/stop-using-stacktape",
+      "sourcePath": "apps/docs/content/getting-started/evaluate/stop-using-stacktape.mdx",
+      "outputPath": "pages/getting-started/evaluate/stop-using-stacktape.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "evaluate",
+        "stop-using-stacktape"
+      ],
+      "chunks": [
+        "page:/getting-started/evaluate/stop-using-stacktape#stop-using-stacktape",
+        "page:/getting-started/evaluate/stop-using-stacktape#leave-the-console-keep-the-cli",
+        "page:/getting-started/evaluate/stop-using-stacktape#stop-using-stacktape-2",
+        "page:/getting-started/evaluate/stop-using-stacktape#before-you-leave",
+        "page:/getting-started/evaluate/stop-using-stacktape#what-you-take-over",
+        "page:/getting-started/evaluate/stop-using-stacktape#delete-everything-instead"
       ]
     },
     {
@@ -18687,7 +18742,7 @@
     },
     {
       "id": "page:/",
-      "title": "Introduction",
+      "title": "Start here",
       "route": "/",
       "sourcePath": "apps/docs/content/index.mdx",
       "outputPath": "pages/index.md",
@@ -18819,7 +18874,7 @@
       "chunks": [
         "page:/local-development/local-databases#local-databases",
         "page:/local-development/local-databases#when-to-use-local-databases",
-        "page:/local-development/local-databases#when-not-to-use-local-databases",
+        "page:/local-development/local-databases#when-to-use-a-deployed-database",
         "page:/local-development/local-databases#supported-databases",
         "page:/local-development/local-databases#how-it-works",
         "page:/local-development/local-databases#relational-databases",
@@ -19120,6 +19175,7 @@
         "page:/observability/error-tracking#manage-errors-from-the-cli",
         "page:/observability/error-tracking#turn-it-off-or-limit-it-to-some-stages",
         "page:/observability/error-tracking#what-leaves-your-aws-account",
+        "page:/observability/error-tracking#where-errors-are-stored-and-for-how-long",
         "page:/observability/error-tracking#stack-traces-of-bundled-javascript",
         "page:/observability/error-tracking#error-types",
         "page:/observability/error-tracking#limits",
@@ -19696,7 +19752,6 @@
       "chunks": [
         "page:/resources#resource-catalog",
         "page:/resources#pick-by-what-you-are-building",
-        "page:/resources#choose-a-compute-resource",
         "page:/resources#all-resources",
         "page:/resources#compute",
         "page:/resources#frontend",
@@ -20009,7 +20064,8 @@
         "page:/resources/compute/batch-job#configuration-reference",
         "page:/resources/compute/batch-job#definition-batchjobprops",
         "page:/resources/compute/batch-job#referenceable-parameters",
-        "page:/resources/compute/batch-job#referenceable-parameters-batch-job"
+        "page:/resources/compute/batch-job#referenceable-parameters-batch-job",
+        "page:/resources/compute/batch-job#next-steps"
       ]
     },
     {
@@ -20046,7 +20102,8 @@
         "page:/resources/compute/convex#configuration-reference",
         "page:/resources/compute/convex#definition-convexprops",
         "page:/resources/compute/convex#referenceable-parameters",
-        "page:/resources/compute/convex#referenceable-parameters-convex"
+        "page:/resources/compute/convex#referenceable-parameters-convex",
+        "page:/resources/compute/convex#next-steps"
       ]
     },
     {
@@ -20078,7 +20135,8 @@
         "page:/resources/compute/edge-function#configuration-reference",
         "page:/resources/compute/edge-function#definition-edgelambdafunctionprops",
         "page:/resources/compute/edge-function#referenceable-parameters",
-        "page:/resources/compute/edge-function#referenceable-parameters-edge-lambda-function"
+        "page:/resources/compute/edge-function#referenceable-parameters-edge-lambda-function",
+        "page:/resources/compute/edge-function#next-steps"
       ]
     },
     {
@@ -20124,7 +20182,8 @@
         "page:/resources/compute/lambda-function#configuration-reference",
         "page:/resources/compute/lambda-function#definition-lambdafunctionprops",
         "page:/resources/compute/lambda-function#referenceable-parameters",
-        "page:/resources/compute/lambda-function#referenceable-parameters-function"
+        "page:/resources/compute/lambda-function#referenceable-parameters-function",
+        "page:/resources/compute/lambda-function#next-steps"
       ]
     },
     {
@@ -20166,7 +20225,8 @@
         "page:/resources/compute/multi-container-workload#configuration-reference",
         "page:/resources/compute/multi-container-workload#definition-containerworkloadprops",
         "page:/resources/compute/multi-container-workload#referenceable-parameters",
-        "page:/resources/compute/multi-container-workload#referenceable-parameters-multi-container-workload"
+        "page:/resources/compute/multi-container-workload#referenceable-parameters-multi-container-workload",
+        "page:/resources/compute/multi-container-workload#next-steps"
       ]
     },
     {
@@ -20210,7 +20270,8 @@
         "page:/resources/compute/private-service#configuration-reference",
         "page:/resources/compute/private-service#definition-privateserviceprops",
         "page:/resources/compute/private-service#referenceable-parameters",
-        "page:/resources/compute/private-service#referenceable-parameters-private-service"
+        "page:/resources/compute/private-service#referenceable-parameters-private-service",
+        "page:/resources/compute/private-service#next-steps"
       ]
     },
     {
@@ -20254,7 +20315,8 @@
         "page:/resources/compute/web-service#configuration-reference",
         "page:/resources/compute/web-service#definition-webserviceprops",
         "page:/resources/compute/web-service#referenceable-parameters",
-        "page:/resources/compute/web-service#referenceable-parameters-web-service"
+        "page:/resources/compute/web-service#referenceable-parameters-web-service",
+        "page:/resources/compute/web-service#next-steps"
       ]
     },
     {
@@ -20294,7 +20356,8 @@
         "page:/resources/compute/worker-service#configuration-reference",
         "page:/resources/compute/worker-service#definition-workerserviceprops",
         "page:/resources/compute/worker-service#referenceable-parameters",
-        "page:/resources/compute/worker-service#referenceable-parameters-worker-service"
+        "page:/resources/compute/worker-service#referenceable-parameters-worker-service",
+        "page:/resources/compute/worker-service#next-steps"
       ]
     },
     {
@@ -20326,7 +20389,8 @@
         "page:/resources/databases/dsql#configuration-reference",
         "page:/resources/databases/dsql#definition-dsqldatabaseprops",
         "page:/resources/databases/dsql#referenceable-parameters",
-        "page:/resources/databases/dsql#referenceable-parameters-dsql-database"
+        "page:/resources/databases/dsql#referenceable-parameters-dsql-database",
+        "page:/resources/databases/dsql#next-steps"
       ]
     },
     {
@@ -20364,7 +20428,8 @@
         "page:/resources/databases/dynamodb#configuration-reference",
         "page:/resources/databases/dynamodb#definition-dynamodbtableprops",
         "page:/resources/databases/dynamodb#referenceable-parameters",
-        "page:/resources/databases/dynamodb#referenceable-parameters-dynamo-db-table"
+        "page:/resources/databases/dynamodb#referenceable-parameters-dynamo-db-table",
+        "page:/resources/databases/dynamodb#next-steps"
       ]
     },
     {
@@ -20401,7 +20466,8 @@
         "page:/resources/databases/mongodb-atlas#configuration-reference",
         "page:/resources/databases/mongodb-atlas#definition-mongodbatlasclusterprops",
         "page:/resources/databases/mongodb-atlas#referenceable-parameters",
-        "page:/resources/databases/mongodb-atlas#referenceable-parameters-mongo-db-atlas-cluster"
+        "page:/resources/databases/mongodb-atlas#referenceable-parameters-mongo-db-atlas-cluster",
+        "page:/resources/databases/mongodb-atlas#next-steps"
       ]
     },
     {
@@ -20442,7 +20508,8 @@
         "page:/resources/databases/opensearch#configuration-reference",
         "page:/resources/databases/opensearch#definition-opensearchdomainprops",
         "page:/resources/databases/opensearch#referenceable-parameters",
-        "page:/resources/databases/opensearch#referenceable-parameters-open-search-domain"
+        "page:/resources/databases/opensearch#referenceable-parameters-open-search-domain",
+        "page:/resources/databases/opensearch#next-steps"
       ]
     },
     {
@@ -20486,7 +20553,8 @@
         "page:/resources/databases/redis#configuration-reference",
         "page:/resources/databases/redis#definition-redisprops",
         "page:/resources/databases/redis#referenceable-parameters",
-        "page:/resources/databases/redis#referenceable-parameters-redis"
+        "page:/resources/databases/redis#referenceable-parameters-redis",
+        "page:/resources/databases/redis#next-steps"
       ]
     },
     {
@@ -20527,9 +20595,7 @@
         "page:/resources/databases/relational-database#definition-relationaldatabaseprops",
         "page:/resources/databases/relational-database#referenceable-parameters",
         "page:/resources/databases/relational-database#referenceable-parameters-relational-database",
-        "page:/resources/databases/relational-database#faq",
-        "page:/resources/databases/relational-database#how-do-i-run-database-migrations",
-        "page:/resources/databases/relational-database#can-i-change-the-engine-or-instance-size-later"
+        "page:/resources/databases/relational-database#next-steps"
       ]
     },
     {
@@ -20560,7 +20626,8 @@
         "page:/resources/databases/upstash-redis#configuration-reference",
         "page:/resources/databases/upstash-redis#definition-upstashredisprops",
         "page:/resources/databases/upstash-redis#referenceable-parameters",
-        "page:/resources/databases/upstash-redis#referenceable-parameters-upstash-redis"
+        "page:/resources/databases/upstash-redis#referenceable-parameters-upstash-redis",
+        "page:/resources/databases/upstash-redis#next-steps"
       ]
     },
     {
@@ -20895,8 +20962,6 @@
         "page:/resources/messaging/event-bus#definition-eventbusprops",
         "page:/resources/messaging/event-bus#referenceable-parameters",
         "page:/resources/messaging/event-bus#referenceable-parameters-event-bus",
-        "page:/resources/messaging/event-bus#event-bus-faq",
-        "page:/resources/messaging/event-bus#can-a-container-consume-events",
         "page:/resources/messaging/event-bus#next-steps"
       ]
     },
@@ -20988,9 +21053,6 @@
         "page:/resources/messaging/sns-topic#definition-snstopicprops",
         "page:/resources/messaging/sns-topic#referenceable-parameters",
         "page:/resources/messaging/sns-topic#referenceable-parameters-sns-topic",
-        "page:/resources/messaging/sns-topic#sns-topic-faq",
-        "page:/resources/messaging/sns-topic#what-does-a-topic-cost",
-        "page:/resources/messaging/sns-topic#what-is-the-largest-message",
         "page:/resources/messaging/sns-topic#next-steps"
       ]
     },
@@ -21061,7 +21123,8 @@
         "page:/resources/networking/application-load-balancer#configuration-reference",
         "page:/resources/networking/application-load-balancer#definition-applicationloadbalancerprops",
         "page:/resources/networking/application-load-balancer#referenceable-parameters",
-        "page:/resources/networking/application-load-balancer#referenceable-parameters-application-load-balancer"
+        "page:/resources/networking/application-load-balancer#referenceable-parameters-application-load-balancer",
+        "page:/resources/networking/application-load-balancer#next-steps"
       ]
     },
     {
@@ -21088,7 +21151,8 @@
         "page:/resources/networking/appsync-api#custom-domains",
         "page:/resources/networking/appsync-api#configuration-reference",
         "page:/resources/networking/appsync-api#definition-appsyncapiprops",
-        "page:/resources/networking/appsync-api#referenceable-parameters"
+        "page:/resources/networking/appsync-api#referenceable-parameters",
+        "page:/resources/networking/appsync-api#next-steps"
       ]
     },
     {
@@ -21129,7 +21193,8 @@
         "page:/resources/networking/cdn#document-defaults",
         "page:/resources/networking/cdn#configuration-reference",
         "page:/resources/networking/cdn#definition-cdnconfiguration",
-        "page:/resources/networking/cdn#referenceable-parameters"
+        "page:/resources/networking/cdn#referenceable-parameters",
+        "page:/resources/networking/cdn#next-steps"
       ]
     },
     {
@@ -21158,7 +21223,8 @@
         "page:/resources/networking/custom-domains#multiple-domains",
         "page:/resources/networking/custom-domains#cost",
         "page:/resources/networking/custom-domains#configuration-reference",
-        "page:/resources/networking/custom-domains#definition-domainconfiguration"
+        "page:/resources/networking/custom-domains#definition-domainconfiguration",
+        "page:/resources/networking/custom-domains#next-steps"
       ]
     },
     {
@@ -21194,7 +21260,8 @@
         "page:/resources/networking/http-api-gateway#configuration-reference",
         "page:/resources/networking/http-api-gateway#definition-httpapigatewayprops",
         "page:/resources/networking/http-api-gateway#referenceable-parameters",
-        "page:/resources/networking/http-api-gateway#referenceable-parameters-http-api-gateway"
+        "page:/resources/networking/http-api-gateway#referenceable-parameters-http-api-gateway",
+        "page:/resources/networking/http-api-gateway#next-steps"
       ]
     },
     {
@@ -21225,7 +21292,8 @@
         "page:/resources/networking/network-load-balancer#configuration-reference",
         "page:/resources/networking/network-load-balancer#definition-networkloadbalancerprops",
         "page:/resources/networking/network-load-balancer#referenceable-parameters",
-        "page:/resources/networking/network-load-balancer#referenceable-parameters-network-load-balancer"
+        "page:/resources/networking/network-load-balancer#referenceable-parameters-network-load-balancer",
+        "page:/resources/networking/network-load-balancer#next-steps"
       ]
     },
     {
@@ -21263,7 +21331,8 @@
         "page:/resources/networking/websocket-api-gateway#definition-websocketapigatewayprops",
         "page:/resources/networking/websocket-api-gateway#definition-websocketapiintegrationprops",
         "page:/resources/networking/websocket-api-gateway#referenceable-parameters",
-        "page:/resources/networking/websocket-api-gateway#referenceable-parameters-websocket-api-gateway"
+        "page:/resources/networking/websocket-api-gateway#referenceable-parameters-websocket-api-gateway",
+        "page:/resources/networking/websocket-api-gateway#next-steps"
       ]
     },
     {
@@ -21297,7 +21366,8 @@
         "page:/resources/orchestration/state-machine#configuration-reference",
         "page:/resources/orchestration/state-machine#definition-statemachineprops",
         "page:/resources/orchestration/state-machine#referenceable-parameters",
-        "page:/resources/orchestration/state-machine#referenceable-parameters-state-machine"
+        "page:/resources/orchestration/state-machine#referenceable-parameters-state-machine",
+        "page:/resources/orchestration/state-machine#next-steps"
       ]
     },
     {
@@ -21327,7 +21397,8 @@
         "page:/resources/security/bastion-host#startup-commands",
         "page:/resources/security/bastion-host#logging",
         "page:/resources/security/bastion-host#configuration-reference",
-        "page:/resources/security/bastion-host#definition-bastionprops"
+        "page:/resources/security/bastion-host#definition-bastionprops",
+        "page:/resources/security/bastion-host#next-steps"
       ]
     },
     {
@@ -21369,7 +21440,8 @@
         "page:/resources/security/user-auth-pool#configuration-reference",
         "page:/resources/security/user-auth-pool#definition-userauthpoolprops",
         "page:/resources/security/user-auth-pool#referenceable-parameters",
-        "page:/resources/security/user-auth-pool#referenceable-parameters-user-auth-pool"
+        "page:/resources/security/user-auth-pool#referenceable-parameters-user-auth-pool",
+        "page:/resources/security/user-auth-pool#next-steps"
       ]
     },
     {
@@ -21404,7 +21476,8 @@
         "page:/resources/security/web-application-firewall#configuration-reference",
         "page:/resources/security/web-application-firewall#definition-webappfirewallprops",
         "page:/resources/security/web-application-firewall#referenceable-parameters",
-        "page:/resources/security/web-application-firewall#referenceable-parameters-web-app-firewall"
+        "page:/resources/security/web-application-firewall#referenceable-parameters-web-app-firewall",
+        "page:/resources/security/web-application-firewall#next-steps"
       ]
     },
     {
@@ -21434,7 +21507,8 @@
         "page:/resources/storage/efs-filesystem#backups",
         "page:/resources/storage/efs-filesystem#configuration-reference",
         "page:/resources/storage/efs-filesystem#definition-efsfilesystemprops",
-        "page:/resources/storage/efs-filesystem#referenceable-parameters"
+        "page:/resources/storage/efs-filesystem#referenceable-parameters",
+        "page:/resources/storage/efs-filesystem#next-steps"
       ]
     },
     {
@@ -21470,7 +21544,8 @@
         "page:/resources/storage/s3-bucket#configuration-reference",
         "page:/resources/storage/s3-bucket#definition-bucketprops",
         "page:/resources/storage/s3-bucket#referenceable-parameters",
-        "page:/resources/storage/s3-bucket#referenceable-parameters-bucket"
+        "page:/resources/storage/s3-bucket#referenceable-parameters-bucket",
+        "page:/resources/storage/s3-bucket#next-steps"
       ]
     },
     {
@@ -21551,8 +21626,6 @@
         "page:/resources/triggers/dynamodb-streams#dev-mode",
         "page:/resources/triggers/dynamodb-streams#configuration-reference",
         "page:/resources/triggers/dynamodb-streams#definition-dynamodbintegrationprops",
-        "page:/resources/triggers/dynamodb-streams#dynamodb-streams-faq",
-        "page:/resources/triggers/dynamodb-streams#what-does-a-stream-cost",
         "page:/resources/triggers/dynamodb-streams#next-steps"
       ]
     },
@@ -21581,8 +21654,6 @@
         "page:/resources/triggers/event-bus-events#failures-and-retries",
         "page:/resources/triggers/event-bus-events#configuration-reference",
         "page:/resources/triggers/event-bus-events#definition-eventbusintegrationprops",
-        "page:/resources/triggers/event-bus-events#event-bus-events-faq",
-        "page:/resources/triggers/event-bus-events#what-does-it-cost",
         "page:/resources/triggers/event-bus-events#next-steps"
       ]
     },
@@ -21674,9 +21745,6 @@
         "page:/resources/triggers/kinesis-events#failures-and-retries",
         "page:/resources/triggers/kinesis-events#configuration-reference",
         "page:/resources/triggers/kinesis-events#definition-kinesisintegrationprops",
-        "page:/resources/triggers/kinesis-events#kinesis-events-faq",
-        "page:/resources/triggers/kinesis-events#how-do-i-tell-that-the-function-can-t-keep-up",
-        "page:/resources/triggers/kinesis-events#can-a-container-consume-the-stream",
         "page:/resources/triggers/kinesis-events#next-steps"
       ]
     },
@@ -21700,10 +21768,7 @@
         "page:/resources/triggers/overview#feature-comparison",
         "page:/resources/triggers/overview#basic-example",
         "page:/resources/triggers/overview#how-events-are-delivered",
-        "page:/resources/triggers/overview#filtering-events",
-        "page:/resources/triggers/overview#triggers-faq",
-        "page:/resources/triggers/overview#why-can-t-a-web-service-consume-an-sqs-queue-directly",
-        "page:/resources/triggers/overview#http-api-gateway-or-application-load-balancer"
+        "page:/resources/triggers/overview#filtering-events"
       ]
     },
     {
@@ -21731,8 +21796,6 @@
         "page:/resources/triggers/s3-events#failures-and-retries",
         "page:/resources/triggers/s3-events#configuration-reference",
         "page:/resources/triggers/s3-events#definition-s3integrationprops",
-        "page:/resources/triggers/s3-events#s3-events-faq",
-        "page:/resources/triggers/s3-events#can-several-functions-react-to-the-same-bucket",
         "page:/resources/triggers/s3-events#next-steps"
       ]
     },
@@ -21789,9 +21852,6 @@
         "page:/resources/triggers/sns-events#fifo-topics",
         "page:/resources/triggers/sns-events#configuration-reference",
         "page:/resources/triggers/sns-events#definition-snsintegrationprops",
-        "page:/resources/triggers/sns-events#sns-events-faq",
-        "page:/resources/triggers/sns-events#does-the-sns-trigger-support-batching",
-        "page:/resources/triggers/sns-events#what-does-it-cost",
         "page:/resources/triggers/sns-events#next-steps"
       ]
     },
@@ -21821,9 +21881,6 @@
         "page:/resources/triggers/sqs-events#retry-only-the-failed-messages",
         "page:/resources/triggers/sqs-events#configuration-reference",
         "page:/resources/triggers/sqs-events#definition-sqsintegrationprops",
-        "page:/resources/triggers/sqs-events#sqs-events-faq",
-        "page:/resources/triggers/sqs-events#what-is-the-largest-message-i-can-send",
-        "page:/resources/triggers/sqs-events#how-do-i-see-that-the-queue-is-falling-behind",
         "page:/resources/triggers/sqs-events#next-steps"
       ]
     },
@@ -21989,14 +22046,10 @@
         "page:/stacktape-console/connecting-your-aws-account#checking-which-regions-an-account-uses",
         "page:/stacktape-console/connecting-your-aws-account#troubleshooting",
         "page:/stacktape-console/connecting-your-aws-account#account-stuck-in-connecting-or-setup-not-finished",
-        "page:/stacktape-console/connecting-your-aws-account#cannot-delete-a-connected-aws-account",
+        "page:/stacktape-console/connecting-your-aws-account#cannot-disconnect-an-aws-account",
         "page:/stacktape-console/connecting-your-aws-account#account-shows-no-access",
         "page:/stacktape-console/connecting-your-aws-account#you-do-not-have-permission-to-manage-aws-accounts",
-        "page:/stacktape-console/connecting-your-aws-account#related-features",
-        "page:/stacktape-console/connecting-your-aws-account#faq",
-        "page:/stacktape-console/connecting-your-aws-account#do-i-need-to-create-aws-access-keys-for-stacktape",
-        "page:/stacktape-console/connecting-your-aws-account#can-i-deploy-to-any-aws-region-after-connecting",
-        "page:/stacktape-console/connecting-your-aws-account#is-connecting-my-aws-account-free"
+        "page:/stacktape-console/connecting-your-aws-account#related-features"
       ]
     },
     {
@@ -22035,7 +22088,6 @@
         "page:/stacktape-console/console-overview#sidebar-items-are-missing",
         "page:/stacktape-console/console-overview#related-pages",
         "page:/stacktape-console/console-overview#faq",
-        "page:/stacktape-console/console-overview#do-i-need-the-console-to-use-stacktape",
         "page:/stacktape-console/console-overview#does-stacktape-deploy-into-my-own-aws-account"
       ]
     },

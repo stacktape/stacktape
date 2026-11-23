@@ -302,6 +302,15 @@ export const getAllowedValues = (typeInfo: ApiTypeInfo): (string | number)[] | n
   return null;
 };
 
+/**
+ * A union of more than two named types, or a list of them (packaging, triggers). Its type names are long and the row's
+ * "N types" control lists them, so the property's first line leaves them out.
+ */
+export const isWideNamedUnion = (typeInfo: ApiTypeInfo): boolean => {
+  const inner = typeInfo.kind === 'array' ? typeInfo.itemType : typeInfo;
+  return inner.kind === 'union' && inner.branches.length > 2 && inner.branches.some((branch) => branch.typeName);
+};
+
 /** A short type for the property's first line: enums show their base type, and their values are listed below. */
 export const getShortTypeInfo = (typeInfo: ApiTypeInfo): ApiTypeInfo => {
   if (typeInfo.kind === 'array') return { kind: 'array', itemType: getShortTypeInfo(typeInfo.itemType) };

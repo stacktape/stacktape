@@ -86,24 +86,24 @@ new TanStackWeb({
       lang: 'typescript',
       code: `import { defineConfig, TanStackWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
     credentials: { masterUserPassword: $Secret('main-database-password') }
   });
 
-  const web = new TanStackWeb({
+  const web = new TanStackWeb({ // [!code focus]
     appDirectory: '.',
+    // [!code focus-start]
     connectTo: [mainDatabase],
     serverLambda: { joinDefaultVpc: true }
   });
+  // [!code focus-end]
 
   return {
     resources: { mainDatabase, web }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />

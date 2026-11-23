@@ -81,6 +81,7 @@ import {
   HttpApiIntegration,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
@@ -135,6 +136,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cors: {
@@ -168,6 +170,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     customDomains: [{ domainName: 'api.example.com' }]
@@ -193,6 +196,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -227,6 +231,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     logging: {
@@ -257,6 +262,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     payloadFormat: '2.0'
@@ -279,6 +285,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     alarms: [
@@ -346,3 +353,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+
+
+## Next steps
+
+- [HTTP triggers](/resources/triggers/http-triggers): route requests to Lambda functions.
+- [User auth pool](/resources/security/user-auth-pool): require sign-in on routes.
+- [CDN](/resources/networking/cdn): cache responses close to your users.

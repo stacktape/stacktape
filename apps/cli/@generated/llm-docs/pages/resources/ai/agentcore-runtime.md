@@ -111,6 +111,7 @@ import {
   AgentCoreBrowser,
   JsBundleImagePackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({});
   const browser = new AgentCoreBrowser({});

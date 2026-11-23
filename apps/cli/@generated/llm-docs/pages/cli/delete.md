@@ -65,5 +65,5 @@ stacktape delete --stage staging --region eu-west-1 --log-level debug
 ## Related commands
 
 - [`rollback`](/cli/rollback) returns a stage to an earlier release and keeps it running.
-- [`stack list`](/cli/info-stacks) lists the stacks in a region.
+- [`stack list`](/cli/stack-list) lists the stacks in a region.
 - [`deploy`](/cli/deploy) creates or updates a stage.

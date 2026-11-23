@@ -1,20 +1,18 @@
 # Stages and environments
 
-A Stacktape stage is a named deployment of your project: such as `dev`, `staging`, or `production`. Each stage creates
-a fully isolated set of AWS resources under its own CloudFormation stack. One codebase, multiple stages: develop against
-cheap resources, test against a staging replica, and deploy production with full redundancy: all from the same
-configuration file.
+A stage is a named deployment of your project, such as `dev`, `staging` or `production`. Each stage is a separate
+CloudFormation stack with its own application resources: databases, functions, queues and buckets. Non-production
+stages in the same AWS account and region usually share one VPC; see
+[Shared network for non-production stages](/configuration/shared-network).
 
 ## Why stages exist
 
-Most teams need at least two separate copies of their infrastructure: one for development and one for production.
-Without stages, you'd maintain parallel config files, duplicate resources manually, or rely on brittle naming
-conventions. Stages solve this by making the environment a first-class parameter of your configuration. You write one
-`stacktape.ts`, branch on the `stage` value where sizing, secrets, or features differ, and let Stacktape create fully
-independent stacks per stage.
+Most teams need at least two copies of their infrastructure: one to develop against and one for production. With
+stages you keep one `stacktape.ts` and branch on `stage` where sizing, secrets or features differ. For example, `dev`
+runs one small container and `production` runs two larger ones with a multi-AZ database.
 
-Because every stage produces its own CloudFormation stack with its own resources, a development deploy does not touch
-production databases, functions, or storage: each stage's resources are independently provisioned. Stages can fit CI/CD workflows; for example, a team might deploy `main` to `production` and feature branches to short-lived stages.
+A deploy to `dev` doesn't touch production's databases, functions or storage. A common CI setup deploys `main` to
+`production` and each feature branch to a short-lived stage.
 
 ## How stages work
 
@@ -27,7 +25,7 @@ Stacktape derives the CloudFormation stack name from your project name and stage
 ```
 
 A project named `my-api` deployed to stage `dev` creates a stack called `my-api-dev`. The same project deployed to
-`production` creates `my-api-production`. Each stage creates a separate CloudFormation stack with separately provisioned resources: databases, Lambda functions, queues, and storage are all independent between stages.
+`production` creates `my-api-production`.
 
 ### Stage name constraints
 
@@ -55,8 +53,7 @@ Deploy production:
 stacktape deploy --stage production --region eu-west-1
 ```
 
-Each command creates (or updates) a completely separate CloudFormation stack with its own resources. Deleting a stage
-removes only that stage's resources: other stages are unaffected.
+Deleting a stage removes only that stage's resources.
 
 ## Production and non-production stages
 
@@ -430,7 +427,7 @@ export default defineConfig(({ stage }) => {
 
 ## Setting defaults
 
-If you always deploy to the same stage and region during development, use [`stacktape defaults set`](/cli/defaults-configure) to set default values for stage and region. See the [CLI reference](/cli/defaults-configure) for details.
+If you always deploy to the same stage and region during development, use [`stacktape defaults set`](/cli/defaults-set) to set default values for stage and region. See the [CLI reference](/cli/defaults-set) for details.
 
 ```bash
 stacktape defaults set
@@ -452,7 +449,7 @@ stacktape deploy --stage production --region us-east-1
 
 ### Listing stacks
 
-Use [`stacktape stack list`](/cli/info-stacks) to list deployed stacks in a region. See the [CLI reference](/cli/info-stacks) for available options.
+Use [`stacktape stack list`](/cli/stack-list) to list deployed stacks in a region. See the [CLI reference](/cli/stack-list) for available options.
 
 ```bash
 stacktape stack list --region eu-west-1
@@ -505,7 +502,10 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Each stage has its own CloudFormation stack and its own resources: databases, functions, buckets and so on. Deploying or deleting one stage does not touch the others. Non-production stages of an account and region do share one VPC, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages), but each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Production stages get a VPC of their own.
+Their application resources are separate, and deploying or deleting one stage does not touch the others. Two things are shared:
+
+- **The network.** Non-production stages of an account and region usually run in one VPC, the [shared network](/configuration/shared-network). Each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Where a stage runs is decided on its first deploy and doesn't change later, even when the stage becomes production.
+- **The AWS account.** Anyone with deploy credentials for the account can reach every stage in it. To keep production away from people who deploy previews, deploy it to its own AWS account.
 
 ### What happens when I deploy to an existing stage?
 

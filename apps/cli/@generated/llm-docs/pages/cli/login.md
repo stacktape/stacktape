@@ -1,6 +1,6 @@
 # login
 
-The `stacktape login` command signs the Stacktape CLI in to the Stacktape Console on the current system. You approve the sign-in in your browser, and the CLI keeps the local auth state.
+`stacktape login` signs the Stacktape CLI in to the Stacktape Console on the current system. You approve the sign-in in your browser, and the CLI keeps the local auth state.
 
 You don't need to log in to deploy: without an account, the CLI deploys with your local AWS credentials. To add the Console to stacks you already deployed, run [`stacktape connect`](/getting-started/add-the-console#connect-from-the-terminal) instead. It signs you in and connects the AWS account of your credentials in one step. `login` only signs you in.
 
@@ -68,7 +68,7 @@ stacktape login --api-key "$STACKTAPE_API_KEY"
 
 ### Verify your identity after login
 
-After logging in, use [`whoami`](/cli/info-whoami) to verify your local Stacktape CLI authentication state and display the current user, organization, connected AWS accounts, and accessible projects.
+After logging in, use [`whoami`](/cli/whoami) to verify your local Stacktape CLI authentication state and display the current user, organization, connected AWS accounts, and accessible projects.
 
 ```bash
 stacktape whoami
@@ -135,6 +135,6 @@ No. Use a separate key per integration point and prefer individual interactive l
 ## Related commands
 
 - [`logout`](/cli/logout) — removes Stacktape authentication state from the current system.
-- [`whoami`](/cli/info-whoami) — displays the current user, organization, and connected AWS accounts.
+- [`whoami`](/cli/whoami) — displays the current user, organization, and connected AWS accounts.
 - [`org create`](/cli/org-create) — creates a new organization and returns organization credentials.
 - [`org list`](/cli/org-list) — lists all organizations accessible with your current user.

@@ -774,13 +774,15 @@ const homeHeroToMarkdown = (propsRaw: string): string => {
     commandLabel: string;
     commands: Array<{ label: string; code: string }>;
     commandNote?: string;
+    links?: HomeLink[];
   }>('HomeHero', propsRaw);
   return [
     `# ${props.title}`,
     props.lead,
     `${props.commandLabel}:`,
     props.commands.map((command) => `- ${command.label}: \`${command.code}\``).join('\n'),
-    props.commandNote
+    props.commandNote,
+    homeLinksToMarkdown(props.links ?? [])
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -789,7 +791,15 @@ const homeHeroToMarkdown = (propsRaw: string): string => {
 const homePathsToMarkdown = (propsRaw: string): string => {
   const props = homeProps<{
     title: string;
-    items: Array<{ title: string; text: string; command?: string; steps?: string[]; links: HomeLink[] }>;
+    items: Array<{
+      title: string;
+      href: string;
+      text: string;
+      command?: string;
+      steps?: string[];
+      topics?: string[];
+      links?: HomeLink[];
+    }>;
   }>('HomePaths', propsRaw);
   return [
     `## ${props.title}`,
@@ -798,8 +808,9 @@ const homePathsToMarkdown = (propsRaw: string): string => {
         `### ${item.title}`,
         item.text,
         item.steps && `Steps: ${item.steps.join(', ')}.`,
+        item.topics && `Covers: ${item.topics.join(', ')}.`,
         item.command && `\`\`\`bash\n${item.command}\n\`\`\``,
-        homeLinksToMarkdown(item.links)
+        homeLinksToMarkdown([{ label: item.title, href: item.href }, ...(item.links ?? [])])
       ]
         .filter(Boolean)
         .join('\n\n')
@@ -812,14 +823,21 @@ const homeExampleToMarkdown = (propsRaw: string, children: string): string => {
     title: string;
     lead: string;
     stack: string;
-    resources: Array<{ service: string; name: string; detail: string; inVpc?: boolean }>;
+    resources: Array<{
+      name: string;
+      kind: string;
+      via: string;
+      services: Array<{ service: string; detail: string }>;
+    }>;
     extras: string[];
     deployTitle: string;
     deploy: Array<{ label: string; command: string }>;
   }>('HomeExample', propsRaw);
-  const resources = props.resources.map(
-    (resource) =>
-      `- ${resource.service} (\`${resource.name}\`${resource.inVpc ? ', in the VPC' : ''}): ${resource.detail}`
+  const resources = props.resources.map((resource) =>
+    [
+      `- \`${resource.name}\` (${resource.kind}), connected by ${resource.via}:`,
+      ...resource.services.map((service) => `  - ${service.service}: ${service.detail}`)
+    ].join('\n')
   );
   return [
     `## ${props.title}`,
@@ -956,6 +974,12 @@ const transformComponents = (body: string): string => {
     (_, propsRaw) => `\n\n${homeTeamsToMarkdown(propsRaw)}\n\n`
   );
   result = replaceSelfClosingMdxComponent(result, 'HomeMap', (_, propsRaw) => `\n\n${homeMapToMarkdown(propsRaw)}\n\n`);
+  // A lookup list's filter only matters in the browser; its Markdown is the content. Lists can nest, and each pass
+  // pairs an opening tag with the first closing tag after it, so unwrap until none is left.
+  while (/<Directory[\s>]/.test(result)) {
+    result = replaceMdxComponentWithChildren(result, 'Directory', (_, children) => `\n\n${children.trim()}\n\n`);
+  }
+  result = result.replaceAll('</Directory>', '');
 
   result = result.replace(/<ApiReference\s+definitionName="([^"]+)"\s*\/>/g, (_, definitionName) =>
     apiReferenceSummaryToMarkdown(definitionName)

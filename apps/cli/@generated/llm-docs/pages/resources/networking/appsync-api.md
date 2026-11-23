@@ -121,3 +121,9 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 ## Referenceable parameters
 
 `url`, `realtimeUrl`, `apiId` and `arn`, plus the sensitive `apiKey` with API key authentication.
+
+## Next steps
+
+- [User auth pool](/resources/security/user-auth-pool): sign users in and authorize queries.
+- [DynamoDB table](/resources/databases/dynamodb): store the data your resolvers read.
+- [Lambda function](/resources/compute/lambda-function): write resolvers in code.

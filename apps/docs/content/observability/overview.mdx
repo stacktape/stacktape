@@ -25,6 +25,11 @@ question, what needs the Stacktape Console, and which data leaves your AWS accou
 | What is broken right now, as one problem? | [Incidents](/observability/incidents) | Yes |
 | What's inside a running container? | [Debugging containers](/observability/debugging-containers) | No |
 
+Error tracking covers functions packaged by Stacktape and containers packaged with `js-bundle`. It skips workloads
+you package yourself, with a Dockerfile, a prebuilt image or a custom artifact, and workloads with log forwarding. For
+those, read errors in [Logs](/observability/logs) or keep your own error tracker. See
+[which workloads it covers](/observability/error-tracking#how-it-works).
+
 Every CLI command that inspects a stack is listed in [Debug commands](/observability/debug-commands). To send logs to
 Datadog, Highlight.io or your own endpoint as well, use [log forwarding](/observability/log-forwarding).
 
@@ -55,6 +60,12 @@ the log line of each error that error tracking records. Some features send opera
 Before data leaves, known shapes of sensitive text are masked: secrets and tokens, values under keys such as `password`,
 email and IP addresses, card numbers and home directory paths. Free text can still carry anything your application
 logged, such as names.
+
+The Console keeps what it receives in the AWS `eu-west-1` region (Ireland). Retention differs by feature: error
+tracking keeps the newest 100 samples of each issue with no time limit (see
+[where errors are stored](/observability/error-tracking#where-errors-are-stored-and-for-how-long)), uptime results are
+kept per minute for 48 hours and per hour for 90 days, and [audit events](/stacktape-console/audit-log#how-long-events-are-kept)
+for 400 days.
 
 | Feature | What Stacktape receives | Fields |
 |---|---|---|

@@ -1,6 +1,6 @@
 # package
 
-The `package` command packages your compute resources and prepares them for deployment without actually deploying. Use it to run the same packaging step that [`deploy`](/cli/deploy) uses — useful for catching packaging or build failures early, before committing to a full deployment.
+`stacktape package` builds your Lambda packages and container images without deploying. It runs the same packaging step as [`deploy`](/cli/deploy), so build errors show up before you deploy.
 
 ## Usage
 
@@ -8,17 +8,11 @@ The `package` command packages your compute resources and prepares them for depl
 stacktape package --stage dev --region eu-west-1
 ```
 
-The command loads your Stacktape configuration, initializes packaging, and packages all compute resources for the target stack. A valid Stacktape configuration file is required — by default Stacktape looks for one in the current directory.
-
-To use a configuration file in a different location, pass `--config`.
+The command packages every compute resource of the stack. It never uses the packaging cache, so each run builds from the current source. It reads the Stacktape config in the current directory; for one elsewhere, pass `--config`:
 
 ```bash
 stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
-
-
-> **Info:** The `package` command runs packaging with caching disabled, so every invocation produces a fresh build from the current state of your source code.
-
 
 ## Examples
 
@@ -40,25 +34,11 @@ Package using a specific AWS profile:
 stacktape package --stage prod --region eu-west-1 --profile my-aws-profile
 ```
 
-Package using a configuration file in a subdirectory:
-
-```bash
-stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
-```
-
 ## FAQ
-
-### When should I use `package` instead of just running `deploy`?
-
-Use `package` when you want to verify that your compute resources package correctly before committing to a deployment — for example, catching build errors, confirming dependencies resolve, or validating that container images build successfully. In normal workflows, [`deploy`](/cli/deploy) handles packaging as part of its pipeline, so `package` is primarily a pre-deploy verification tool.
 
 ### How is `package` different from `validate --with-package`?
 
 [`validate`](/cli/validate) validates your configuration, resolves resources, and synthesizes the CloudFormation template in memory. Adding `--with-package` also validates workload packaging. Use `validate --with-package` when you want configuration validation combined with packaging checks. Use `package` when you specifically want to run the packaging step on its own.
-
-### Does `package` use caching?
-
-No. The `package` command runs packaging with caching disabled, so every invocation produces a fresh build from the current state of your source code. This ensures the output accurately reflects your code at the time of the run.
 
 ### Does `package` require AWS credentials?
 
@@ -70,7 +50,7 @@ By default, the `package` command packages all compute resources in your configu
 
 ### What is the difference between `package` and `synth`?
 
-[`synth`](/cli/synth) compiles your Stacktape configuration into a CloudFormation template — it produces the infrastructure definition but does not build any application code. `package` is the inverse: it builds your compute resources (according to each resource's [packaging mode](/packaging/overview)) but does not produce the infrastructure template. Run both before a deploy when you want a complete pre-deploy review.
+[`synth`](/cli/synth) writes the CloudFormation template and builds no application code. `package` builds your code, according to each resource's [packaging mode](/packaging/overview), and writes no template. [`validate --with-package`](/cli/validate#validation-levels) does both checks in one run.
 
 ## Options
 

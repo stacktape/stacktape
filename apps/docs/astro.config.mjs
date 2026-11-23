@@ -12,6 +12,8 @@ import { generatedRuntimeAssets } from './src/build/generated-runtime-assets.ts'
 import { redirectFragments } from './src/build/redirect-fragments.ts';
 import { getGitLastModified } from './src/utils/git-dates.ts';
 import { rehypeDocsLinks } from './src/utils/rehype-docs-links.ts';
+import { rehypeDirectory } from './src/utils/rehype-directory.ts';
+import { rehypeInlineCode } from './src/utils/rehype-inline-code.ts';
 import { remarkCodeToComponent } from './src/utils/remark-code-to-component.ts';
 import { remarkDocsTransforms } from './src/utils/remark-docs-transforms.ts';
 import { remarkFixJsxTemplateIndent } from './src/utils/remark-fix-jsx-template-indent.ts';
@@ -59,7 +61,7 @@ export default defineConfig({
       // v3 archive adaptation (archive pages only) → docs transforms → code-to-component (last, so
       // it converts every resulting code node).
       remarkPlugins: [remarkFixJsxTemplateIndent, remarkV3Archive, remarkDocsTransforms, remarkCodeToComponent],
-      rehypePlugins: [rehypeDocsLinks]
+      rehypePlugins: [rehypeDocsLinks, rehypeInlineCode, rehypeDirectory]
     })
   },
   integrations: [

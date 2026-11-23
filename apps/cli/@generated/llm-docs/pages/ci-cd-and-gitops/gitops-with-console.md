@@ -108,6 +108,10 @@ and creates the Git deployment.
 4. Check the sentence at the bottom of the form, for example "Every push to main deploys production in eu-west-1",
    and click **Create Git deployment**.
 
+
+> Screenshot: The New Git deployment dialog: Push to a branch, branch main, stage staging, the target AWS account and region, the sentence Every push to main deploys staging in eu-west-1, and the Create Git deployment button Caption: The sentence above the buttons says what every matching push will deploy, and where.
+
+
 The form also says what the build costs. The first Git deployment in an AWS account and region starts a runner there:
 AWS bills it by the hour while it builds and bills its disks while it is stopped, about $8.80 a month in Ireland. A
 second Git deployment in the same place shares that runner. See [Runner cost](#runner-cost).

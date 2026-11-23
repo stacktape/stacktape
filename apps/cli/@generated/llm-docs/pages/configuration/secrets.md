@@ -13,7 +13,7 @@ The command asks for the value without showing it. Use the region you deploy to.
 You can also create, view, edit and delete secrets on the **Secrets** page of the [Stacktape Console](/stacktape-console/console-overview), per AWS account and region.
 
 
-> Screenshot: Stacktape Console Secrets page with a table of secrets, their dates and descriptions, and view, edit and delete actions Caption: The Secrets page lists the secrets of the selected AWS account and region.
+> Screenshot: The New secret dialog in the Console: name, AWS account, region, value, optional description and the Create secret button Caption: New secret creates the secret in the AWS account and region shown in the dialog.
 
 
 ## Use it in a container

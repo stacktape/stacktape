@@ -319,7 +319,7 @@ On the same resources, list the rule's name in `disabledGlobalAlarms`. Without i
 
 ### CLI
 
-Use [`stacktape alarm list`](/cli/alarms) to inspect alarms from the CLI. See the [CLI reference](/cli/alarms) for flags and output details.
+Use [`stacktape alarm list`](/cli/alarm-list) to inspect alarms from the CLI. See the [CLI reference](/cli/alarm-list) for flags and output details.
 
 ```bash
 stacktape alarm list --stage production --region eu-west-1
@@ -358,7 +358,7 @@ a stage, then deploy each affected stage.
 
 ### How do I test that an alarm works?
 
-Deploy it, check it with [`stacktape alarm list`](/cli/alarms), then set a threshold your current traffic breaches (for
+Deploy it, check it with [`stacktape alarm list`](/cli/alarm-list), then set a threshold your current traffic breaches (for
 example `thresholdPercent: 0` on an error-rate alarm), deploy and wait one evaluation period. Check that the alert
 arrives, then restore the real threshold.
 

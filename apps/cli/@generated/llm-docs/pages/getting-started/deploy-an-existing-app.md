@@ -40,13 +40,25 @@ Under **Options** you choose what reads the code:
   and Heroku manifests, and Serverless Framework, SAM, SST, CDK and Terraform declarations. Nothing is sent to an AI
   provider. It takes a second and falls back to defaults more often.
 
+
+> Screenshot: The Start screen with Options open: Claude Code or Files only, no agent, and for Claude Code the model: Your default, Opus, Sonnet or Haiku Caption: Options on the Start screen: the agent that reads your code and, for Claude Code, the model.
+
+
 An installed agent is the default. To skip agent detection, start with `stacktape init --coding-agent none`.
+
+If the app already runs on Heroku, Render, Fly.io, SST or the Serverless Framework, init reads those files too and
+deploys a separate copy. [Move to Stacktape](/getting-started/evaluate/move-to-stacktape) covers the data, secrets and
+DNS that you move yourself.
 
 ## 2. Analyze
 
 The built-in scan always runs first. If it answers everything, the wizard says your agent was not needed and no tokens
 were spent. Otherwise the agent reads your project and you watch each file it opens. From `.env` files, only the
 variable names are kept.
+
+
+> Screenshot: The Analyze screen: the agent in use, the number of files read so far and a list of each file it read Caption: The Analyze screen lists each file the agent reads.
+
 
 If the analysis finds no server, worker or website, the wizard says so and has nothing to save. Run `stacktape init`
 in the app's own directory, or click **Analyze again with Claude Code** (or Codex) if you started with files only.
@@ -57,7 +69,7 @@ in the app's own directory, or click **Analyze again with Claude Code** (or Code
 
 - **Diagram**: the resources and how they connect.
 - **What & why**: each resource, with the line of your code that led to it under **Where we saw this**.
-- **File**: the configuration that will be saved.
+- **stacktape.yml** (or **stacktape.ts**; **File** on a narrow screen): the configuration that will be saved.
 
 Below the tabs:
 
@@ -68,18 +80,22 @@ Below the tabs:
 - **Before you deploy** lists what only you can provide: secrets your app reads, settings your code reads with no
   default, and anything else the deploy still needs.
 
+
+> Screenshot: The Review step for a Next.js app with Postgres: the monthly estimate at AWS list prices, the What & why tab with each resource, its price and a Where we saw this link, and Decided for you with one alarm the wizard added Caption: Review shows the monthly estimate, each resource with its price and the reason for it, and what the wizard decided for you.
+
+
 ### What it will cost
 
-Each resource shows a monthly price, and the total is at the top. Prices come from AWS list prices for the region you
-pick. Usage charges, such as requests and data transfer, come on top. A resource without a known price says **Price
-unavailable**.
+The sentence above the tabs gives the monthly total, and each resource shows its own price. Prices come from AWS list
+prices for the region you pick. Usage charges, such as requests and data transfer, come on top. A resource without a
+known price says **Price unavailable**.
 
 To calculate the price, the wizard sends the generated configuration and the region to Stacktape's price estimator.
 The configuration contains no source code and no secret values.
 
 ### Save the file
 
-1. In the **File** tab, choose **YAML** or **TypeScript**. YAML is the default.
+1. In the file tab, choose **YAML** or **TypeScript**. YAML is the default.
 2. Pick the region. It's saved in the file as `region`, and every command in this project deploys there. The wizard
    preselects the region your AWS setup uses, or `eu-west-1`.
 3. Click **Save stacktape.yml & continue**, or **Save stacktape.ts & continue**.
@@ -128,7 +144,9 @@ Nothing on the page is lost.
 Under **Optional**, **Try it on this machine first** has a **Build and start it here** button. It builds your services
 in Docker and starts them without network access and with placeholder settings, to catch an app that won't start
 before it reaches AWS. It runs your project's code, including install scripts. If it finds a startup failure, the
-deploy waits until you fix it or set the result aside. You don't need Docker if you skip it.
+deploy waits until you fix it or set the result aside. The check needs Docker. Skipping it doesn't skip Docker for the
+deploy: a config that builds a container image or a Python, Go or Java function builds it with Docker on this
+machine.
 
 ### Check the target, then deploy
 
@@ -141,6 +159,10 @@ deploy waits until you fix it or set the result aside. You don't need Docker if 
      wizard says why and, where a command fixes it, gives you the command.
 3. Click **Create new stack** or **Update existing stack**.
 
+
+> Screenshot: What the deploy does after the target check: This will create a new stack, with the stack name, AWS account and region, and the Create new stack button Caption: The target check names the stack, the AWS account and the region before you confirm.
+
+
 The deploy usually takes a few minutes. A first deploy with a new database takes 10 to 15 minutes. The wizard shows
 each phase, warnings and the full log.
 
@@ -151,7 +173,8 @@ are. With files only, there is no repair.
 
 ### It's live
 
-**It's live** lists the public HTTPS address of each resource that has one. Open it to check your app. Below it:
+**It's live** lists the public HTTPS address of each resource that has one. Open it to check your app, then
+[check the database](#check-the-database) if it has one. Below it:
 
 - **Add dev to the Stacktape Console**: optional, see [below](#add-the-console).
 - **Ship a change**: the command that deploys again after you edit your code.
@@ -160,6 +183,27 @@ are. With files only, there is no repair.
 - **Done experimenting? Remove this deployment**: the command that deletes everything the deploy created, including
   any database and its data. Your code and config file stay. A database the wizard added is protected from deletion,
   so turn that off first; see [Delete the stage](/getting-started/after-the-first-deploy#delete-the-stage).
+
+### Check the database
+
+A health route can answer while every database query fails, so check the data path too:
+
+1. **The connection.** In the saved file, find the variable your app reads its database address from. Init sets it
+   from the new database, for example:
+
+   ```yaml
+   environment:
+     - name: DATABASE_URL
+       value: $ResourceParam('mainDatabase', 'connectionString')
+   ```
+
+   If your app reads another name, change `name` and deploy again. [Connecting resources](/configuration/connecting-resources)
+   lists the other values, such as `host` and `port`.
+2. **The schema.** A new database is empty. If init found your migration tool, the file runs it on every deploy: as
+   `releaseCommand` on a container service, or as a script under `hooks.afterDeploy`. If it found the tool but no
+   command, **Before you deploy** asks you to set one. See [Release commands](/deployment-and-lifecycle/release-commands).
+3. **A real query.** Open a page or call an endpoint that reads or writes data. If it fails, the error is in the
+   logs: `stacktape logs <resource name> --stage dev`.
 
 ## Deploy from your terminal instead
 
@@ -186,6 +230,10 @@ After a successful deploy, the wizard offers **Add dev to the Stacktape Console*
 team access for the stage, free up to $200 a month of AWS spend. **Connect to the Console** signs you in (or creates an
 account) in a new tab, then connects the AWS account. Your app is not redeployed. **Not now** skips it, and
 `stacktape connect` does the same later. See [Add the Console](/getting-started/add-the-console).
+
+
+> Screenshot: The end of a deploy: the live stage with its public address and an Open button, then Add dev to the Stacktape Console with Connect to the Console and Not now Caption: After the deploy: the live address, then the offer to add the stage to the Console.
+
 
 ## Without a browser
 

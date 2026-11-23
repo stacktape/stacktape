@@ -666,7 +666,7 @@ retention, turns it off or sets up [log forwarding](/observability/log-forwardin
 ## Remote sessions
 
 `enableRemoteSessions: true` lets you open a shell in a running container with
-[`stacktape container shell`](/cli/container-session). It adds a small Systems Manager agent container.
+[`stacktape container shell`](/cli/container-shell). It adds a small Systems Manager agent container.
 
 ## Configuration reference
 
@@ -697,3 +697,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
+
+
+## Next steps
+
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations before new containers take traffic.
+- [Debugging containers](/observability/debugging-containers): open a shell or run a command in a running container.
+- [Web service](/resources/compute/web-service): the simpler choice for one container with a public URL.

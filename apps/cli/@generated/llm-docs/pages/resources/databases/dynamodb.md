@@ -56,6 +56,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const ordersTable = new DynamoDbTable({
     primaryKey: {
@@ -100,6 +101,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const sessionsTable = new DynamoDbTable({
     primaryKey: {
@@ -153,6 +155,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const usersTable = new DynamoDbTable({
     primaryKey: {
@@ -192,6 +195,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const productsTable = new DynamoDbTable({
     primaryKey: {
@@ -230,6 +234,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const ordersTable = new DynamoDbTable({
     primaryKey: {
@@ -268,6 +273,7 @@ import {
   LambdaFunction,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const itemsTable = new DynamoDbTable({
     primaryKey: {
@@ -379,3 +385,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `name` | AWS (physical) name of the table | `$ResourceParam("<<resource-name>>", "name")` |
 | `arn` | Arn of the table | `$ResourceParam("<<resource-name>>", "arn")` |
 | `streamArn` | Arn of [DynamoDb stream](/resources/databases/dynamodb/#streams) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
+
+
+## Next steps
+
+- [DynamoDB streams](/resources/triggers/dynamodb-streams): run a function when items change.
+- [Local databases](/local-development/local-databases): run the table on your machine in dev mode.
+- [`stacktape query dynamodb`](/cli/query-dynamodb): look at items from your terminal.

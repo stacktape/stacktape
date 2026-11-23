@@ -147,4 +147,4 @@ The output appears in the deploy output, prefixed with the service name. It is a
 
 ## When to use something else
 
-Use an [`afterDeploy` hook](/deployment-and-lifecycle/deployment-scripts-and-hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy, and a failed hook fails the command without undoing the deployment.
+Use an [`afterDeploy` hook](/configuration/hooks-and-scripts#hooks) for a command that needs the new code to be live, such as seeding through your API or warming a cache. A hook runs on your machine or CI runner, after the deploy, and a failed hook fails the command without undoing the deployment.

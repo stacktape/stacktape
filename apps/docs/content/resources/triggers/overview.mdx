@@ -31,6 +31,10 @@ in AWS. A Lambda function costs nothing while no trigger fires.
 For messages between your own services, start with SQS: one queue per consumer, with retries and a dead-letter queue.
 Add SNS or an event bus in front when a second consumer needs the same message.
 
+For HTTP, an HTTP API Gateway costs nothing without traffic and is the default for Lambda APIs. A load balancer has an
+hourly charge and routes on headers, hosts, query parameters and source IPs; pick it when you already run one for
+containers. [HTTP triggers](/resources/triggers/http-triggers) compares them.
+
 ## What each resource accepts
 
 <FeatureComparisonTable
@@ -145,17 +149,3 @@ Filtering at the source means the function isn't invoked for events it would ign
 | CloudWatch Logs | `filter` | The log line, with CloudWatch filter syntax |
 
 The other triggers have no filter property. Skip unwanted events in your handler.
-
-## Triggers FAQ
-
-### Why can't a web service consume an SQS queue directly?
-
-A trigger starts code when an event arrives. A web service is already running, so it reads the queue itself, like any
-long-running consumer. Use a [worker service](/resources/compute/worker-service) for a container consumer, or an
-[SQS event](/resources/triggers/sqs-events) on a Lambda function when you'd rather not write the polling loop.
-
-### HTTP API Gateway or Application Load Balancer?
-
-HTTP API Gateway costs nothing without traffic and is the default for Lambda APIs. A load balancer has an hourly charge
-and routes on headers, hosts, query parameters and source IPs. Pick it when you already run one for containers.
-[HTTP triggers](/resources/triggers/http-triggers) compares them.

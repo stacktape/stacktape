@@ -46,7 +46,7 @@ ORM at it and keep the command running while you work. A Redis cache with a read
 [application load balancers](/resources/networking/application-load-balancer) and
 [private services](/resources/compute/private-service) behind a load balancer.
 
-[`bastion shell`](/cli/bastion-session) opens a shell on the instance itself:
+[`bastion shell`](/cli/bastion-shell) opens a shell on the instance itself:
 
 ```bash
 stacktape bastion shell --stage production
@@ -76,6 +76,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bastion } from 'stacktape';
+
 export default defineConfig(() => {
   const bastion = new Bastion({
     instanceSize: 't3.small'
@@ -98,6 +99,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bastion } from 'stacktape';
+
 export default defineConfig(() => {
   const bastion = new Bastion({
     runCommandsAtLaunch: ['yum install -y postgresql15', 'yum install -y redis6']
@@ -129,6 +131,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bastion } from 'stacktape';
+
 export default defineConfig(() => {
   const bastion = new Bastion({
     logging: {
@@ -160,3 +163,10 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `instanceSize` | no | `string` | `t3.micro` |
 | `logging` | no | `BastionLoggingConfig` | - |
 | `runCommandsAtLaunch` | no | `Array<string>` | - |
+
+
+## Next steps
+
+- [`stacktape bastion tunnel`](/cli/bastion-tunnel): open a tunnel from your machine.
+- [Hooks and scripts](/configuration/hooks-and-scripts): run scripts through the bastion.
+- [Relational database](/resources/databases/relational-database): keep the database private and reach it this way.

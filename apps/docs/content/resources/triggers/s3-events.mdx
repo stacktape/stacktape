@@ -124,6 +124,11 @@ new S3Integration({
 
 S3 filters only on the key. To skip objects by size or content type, check them at the start of the handler.
 
+Several functions can react to the same bucket if their filters don't overlap: S3 rejects two notifications for the
+same event type whose prefix and suffix can match the same key. When several consumers need every event, set
+`enableEventBusNotifications: true` on the bucket and give each one an
+[event bus trigger](/resources/triggers/event-bus-events) on the default bus with `source: ['aws.s3']`.
+
 ## Avoid loops
 
 If the function writes its output to the same bucket and the trigger matches that output, every write runs the
@@ -147,15 +152,6 @@ should give the same result.
 ## Configuration reference
 
 <ApiReference definitionName="S3IntegrationProps" />
-
-## S3 events FAQ
-
-### Can several functions react to the same bucket?
-
-Yes, if their triggers don't overlap. S3 rejects two notifications for the same event type whose prefix and suffix
-filters can match the same key. When several consumers need every event, set `enableEventBusNotifications: true` on the
-bucket and give each consumer an [event bus trigger](/resources/triggers/event-bus-events) on the default bus with
-`source: ['aws.s3']`.
 
 ## Next steps
 

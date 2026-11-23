@@ -7,7 +7,7 @@ seoDescription: 'List all Stacktape projects with deployed stages, deployment st
 
 # project list
 
-The `project list` command lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape project list` lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -15,7 +15,7 @@ The `project list` command lists all projects in your current organization along
 stacktape project list
 ```
 
-The command requires no arguments. You must be [logged in](/cli/login) to Stacktape, and the output reflects the organization your CLI session is scoped to. Run [`whoami`](/cli/info-whoami) to verify which organization you're authenticated against.
+The command requires no arguments. You must be [logged in](/cli/login) to Stacktape, and the output reflects the organization your CLI session is scoped to. Run [`whoami`](/cli/whoami) to verify which organization you're authenticated against.
 
 ## Output
 
@@ -76,4 +76,4 @@ stacktape project list --log-level error
 
 - [`project create`](/cli/project-create) — create a new project in the current organization.
 - [`org list`](/cli/org-list) — list organizations accessible with your current user.
-- [`whoami`](/cli/info-whoami) — verify which user and organization your CLI session is scoped to.
+- [`whoami`](/cli/whoami) — verify which user and organization your CLI session is scoped to.

@@ -20,7 +20,28 @@ export const V4_RENAMED_PAGES: Record<string, string> = {
   '/getting-started/deploy-your-first-stage/': '/getting-started/deploy-an-existing-app/',
   '/getting-started/use-the-dev-mode/': '/local-development/dev-mode-overview/',
   '/getting-started/using-console-ui/': '/stacktape-console/console-overview/',
-  '/getting-started/ci-cd/': '/ci-cd-and-gitops/overview/'
+  '/getting-started/ci-cd/': '/ci-cd-and-gitops/overview/',
+  // Docs structure, round 2 (November 2026): the hooks pages merged; CLI pages named after the command they document.
+  '/deployment-and-lifecycle/deployment-scripts-and-hooks/': '/configuration/hooks-and-scripts/',
+  '/cli/alarms/': '/cli/alarm-list/',
+  '/cli/bastion-session/': '/cli/bastion-shell/',
+  '/cli/cf-module-update/': '/cli/stack-update-modules/',
+  '/cli/cf-rollback/': '/cli/stack-recover/',
+  '/cli/container-session/': '/cli/container-shell/',
+  '/cli/defaults-configure/': '/cli/defaults-set/',
+  '/cli/errors-ignore/': '/cli/error-ignore/',
+  '/cli/errors-list/': '/cli/error-list/',
+  '/cli/errors-reopen/': '/cli/error-reopen/',
+  '/cli/errors-resolve/': '/cli/error-resolve/',
+  '/cli/incidents/': '/cli/incident-list/',
+  '/cli/incidents-ack/': '/cli/incident-ack/',
+  '/cli/incidents-resolve/': '/cli/incident-resolve/',
+  '/cli/incidents-show/': '/cli/incident-show/',
+  '/cli/incidents-watch/': '/cli/incident-watch/',
+  '/cli/info-operations/': '/cli/stack-history/',
+  '/cli/info-stack/': '/cli/status/',
+  '/cli/info-stacks/': '/cli/stack-list/',
+  '/cli/info-whoami/': '/cli/whoami/'
 };
 
 /**

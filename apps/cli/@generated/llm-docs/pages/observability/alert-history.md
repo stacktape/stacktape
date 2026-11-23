@@ -42,4 +42,4 @@ An incident's page links here filtered to that incident.
 - **Alerting → Budgets** lists each budget's alerts in its **Alerts sent** section.
 
 Sent alerts is a Console page with no CLI command. For CloudWatch alarm states in the terminal, use
-[`stacktape alarm list`](/cli/alarms).
+[`stacktape alarm list`](/cli/alarm-list).

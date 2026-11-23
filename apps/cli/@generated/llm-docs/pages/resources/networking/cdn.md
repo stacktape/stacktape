@@ -160,6 +160,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -195,6 +196,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -236,9 +238,9 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const assetsBucket = new Bucket({});
-
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
@@ -299,6 +301,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -344,6 +347,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -442,6 +446,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -497,6 +502,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -554,3 +560,9 @@ Available CDN parameters:
 | `cdnCustomDomainUrls` | Custom domain URL value(s) for the CDN |
 | `cdnCanonicalDomain` | The primary domain for the CDN |
 | `cdnCanonicalUrl` | The primary URL for the CDN |
+
+## Next steps
+
+- [Static hosting](/resources/frontend/static-hosting): host a frontend behind the CDN.
+- [Edge function](/resources/compute/edge-function): run code on requests at the edge.
+- [Web application firewall](/resources/security/web-application-firewall): block malicious requests before they reach your origin.

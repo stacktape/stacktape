@@ -35,10 +35,12 @@ The Flexible plan has no spend limit. Its fee is one rate applied to the whole m
 | Monthly managed AWS spend | Rate |
 |---|---|
 | Up to $2,000 | 25% |
-| $2,000 to $5,000 | 23% |
-| $5,000 to $10,000 | 21% |
-| $10,000 to $25,000 | 20% |
-| Above $25,000 | 19% |
+| Over $2,000, up to $5,000 | 23% |
+| Over $5,000, up to $10,000 | 21% |
+| Over $10,000, up to $25,000 | 20% |
+| Over $25,000 | 19% |
+
+Each band includes its upper limit: exactly $2,000 is charged 25%, $2,000.01 is charged 23%.
 
 For example:
 
@@ -46,6 +48,7 @@ For example:
 |---|---|
 | $500 | $125 (25%) |
 | $1,000 | $250 (25%) |
+| $2,000 | $500 (25%) |
 | $3,000 | $690 (23%) |
 | $8,000 | $1,680 (21%) |
 

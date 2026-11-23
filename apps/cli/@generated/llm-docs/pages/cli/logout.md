@@ -1,6 +1,6 @@
 # logout
 
-The `stacktape logout` command ends the CLI session that [`stacktape login`](/cli/login) created: Stacktape revokes it, so it stops working everywhere, and the CLI removes it from your system. The command takes no required flags. After logging out, the CLI works without an account again: stack commands such as `deploy`, `delete` and `logs` run on your local AWS credentials, and nothing you deployed changes. Commands that need the Console ask you to sign in again with [`stacktape login`](/cli/login). See [Use the CLI without an account](/getting-started/open-source-cli). Use `logout` when switching accounts, removing credentials from a shared machine, or before storing a different API key.
+`stacktape logout` ends the CLI session that [`stacktape login`](/cli/login) created: Stacktape revokes it, so it stops working everywhere, and the CLI removes it from your system. The command takes no required flags. After logging out, the CLI works without an account again: stack commands such as `deploy`, `delete` and `logs` run on your local AWS credentials, and nothing you deployed changes. Commands that need the Console ask you to sign in again with [`stacktape login`](/cli/login). See [Use the CLI without an account](/getting-started/open-source-cli). Use `logout` when switching accounts, removing credentials from a shared machine, or before storing a different API key.
 
 ## Usage
 
@@ -15,7 +15,7 @@ stacktape logout
 
 ## When to use
 
-Run `logout` when you want the CLI to stop working with the Console, when switching between Stacktape accounts or organizations, when removing local credentials from a shared machine, or before storing a different API key with `login`. If you need to verify which account is currently configured, use [`stacktape whoami`](/cli/info-whoami) before logging out.
+Run `logout` when you want the CLI to stop working with the Console, when switching between Stacktape accounts or organizations, when removing local credentials from a shared machine, or before storing a different API key with `login`. If you need to verify which account is currently configured, use [`stacktape whoami`](/cli/whoami) before logging out.
 
 ## Options
 
@@ -35,4 +35,4 @@ Run `logout` when you want the CLI to stop working with the Console, when switch
 ## Related commands
 
 - [`login`](/cli/login) — configure your Stacktape API key
-- [`whoami`](/cli/info-whoami) — verify which user and organization your current API key belongs to
+- [`whoami`](/cli/whoami) — verify which user and organization your current API key belongs to

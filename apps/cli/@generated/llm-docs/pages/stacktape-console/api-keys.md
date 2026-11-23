@@ -36,8 +36,8 @@ A key is a password. Keep it in your CI's secret store, never in code, chat, iss
 
 ## Rotate and revoke keys
 
-A key can't be shown again, reactivated or extended. To replace one, create the new key, put it in your CI secret, check that a pipeline run works, then revoke the old key.
+A key can't be shown again, reactivated or extended. To replace one, create the new key, put it in your CI secret, check that a pipeline run works, then revoke the old key. [Authenticate the pipeline](/ci-cd-and-gitops/custom-ci-cd#with-the-console) shows where each CI provider keeps the key.
 
 **Revoke key** stops every CLI session and pipeline that uses the key at once. Expired and revoked keys stay in the list with their status.
 
-Owners and Admins can also revoke a member's personal keys from the Members page, and removing a member revokes theirs. The removal dialog warns when one of their keys was used in the last 7 days, because a pipeline may depend on it.
+Owners and Admins can also revoke a member's personal keys from the Members page, and [removing a member](/stacktape-console/team-and-access-control#removing-a-member) revokes theirs. The removal dialog warns when one of their keys was used in the last 7 days, because a pipeline may depend on it. Before you remove someone whose key runs a shared pipeline, replace it with an organization key.
