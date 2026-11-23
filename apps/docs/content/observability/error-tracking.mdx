@@ -87,6 +87,16 @@ Before sending, known shapes of sensitive text are masked: secrets and tokens (A
 
 During an error storm the detector reports each distinct error once per log batch with its occurrence count, and the Console stores a few occurrence samples per issue per minute. Occurrence counts stay exact.
 
+### Where errors are stored and for how long
+
+The Console stores issues and their samples in its database in the AWS `eu-west-1` region (Ireland). A sample is one occurrence as sent above: the stack frames, the masked log line, the request id, the log group and the function name.
+
+- Each issue keeps its newest 100 samples, and stores about 5 new samples a minute at most. Older samples are deleted as new ones arrive.
+- Issues have no time limit. Resolving or ignoring an issue keeps it, and so does deleting its project or the organization. The Console has no way to delete them.
+- Turning error tracking off stops new errors and keeps the stored ones.
+
+For questions about stored data, write to [support@stacktape.com](mailto:support@stacktape.com). Organizations that must keep this data in their own AWS account can run a single-tenant Console on the [Enterprise plan](/stacktape-console/billing-and-subscription#enterprise-plan).
+
 ## Stack traces of bundled JavaScript
 
 A JavaScript or TypeScript function packaged with [`js-bundle`](/packaging/function/js-bundle) runs minified code, so the frames the runtime logs point into the bundle (`/var/task/index.js:1:4821`). Its source maps are not in the deployment package: each deployment stores them in the stack's deployment bucket and tells the Console which maps describe the code each function runs from when.

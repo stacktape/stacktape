@@ -11,19 +11,17 @@ Run it in your project directory:
 
 It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed.
 
-- [Quickstart](/getting-started)
-- [Starting a new project?](/getting-started/start-a-new-project)
-
 
 ## Where to start
 
 ### Deploy an existing app
 
-Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.
+Already have a repository? Follow the wizard from the analysis of your code to the first deploy.
 
 Steps: Start, Analyze, Review, Deploy.
 
-- [Deploy an existing app](/getting-started/deploy-an-existing-app)
+- [The wizard, step by step](/getting-started/deploy-an-existing-app)
+- [Moving from Heroku, Render, Fly.io, SST or Serverless](/getting-started/evaluate/move-to-stacktape)
 
 ### Start a new project
 
@@ -33,13 +31,14 @@ Start from a working starter, such as Express with Postgres, Next.js or FastAPI.
 npx stacktape@latest init --starter-project
 ```
 
-- [Start a new project](/getting-started/start-a-new-project)
+- [Walkthrough](/getting-started/start-a-new-project)
+- [Browse starters](/getting-started/starter-projects)
 
 ### Evaluate Stacktape for your team
 
-Short answers for a team lead or CTO before a pilot.
+What runs where, who owns production, what leaves your AWS account, access, costs, support and how you would leave.
 
-Covers: Where it runs, data, lock-in, networking, CI/CD, costs, access.
+- [Evaluate Stacktape](/getting-started/evaluate)
 
 
 ## A config and what it creates
@@ -120,19 +119,16 @@ resources:
 
 What it creates in your AWS account, in the stack `my-api-dev`:
 
-- `api` (WebService), connected by HTTPS requests:
-  - HTTP API Gateway: The public URL
-  - ECS on Fargate: Your container, 0.25 vCPU and 512 MB, in the VPC
-- `database` (RelationalDatabase), connected by `connectTo`: private, inside the VPC:
-  - RDS Postgres 18: db.t4g.micro, reachable only from `api`
+- HTTP API Gateway (`api`): Public HTTPS URL for the service
+- ECS on Fargate (`api`, in the VPC): Your container, 0.25 vCPU and 512 MB
+- RDS Postgres 18 (`database`, in the VPC): db.t4g.micro, reachable only from `api`
 - `STP_DATABASE_CONNECTION_STRING` in the container environment
 - Security groups, an IAM role and CloudWatch logs
-- The password read from AWS Secrets Manager
+- A generated database password, kept in AWS Secrets Manager
 
 Deploy it:
 
-1. Store the database password in your account: `stacktape secret set db-password --region eu-west-1`
-2. Create the stack: `stacktape deploy --project my-api --stage dev --region eu-west-1`
+1. Create the stack. The first deploy generates the database password.: `stacktape deploy --project my-api --stage dev --region eu-west-1`
 
 
 ## The open-source CLI and the optional Console
@@ -167,19 +163,19 @@ AWS resources are created in your account, one CloudFormation stack per stage. M
 
 ### What leaves your account
 
-With the Console: errors with their log line, alarm state changes, uptime check results, monthly cost breakdowns and security findings. Incident briefings send a masked incident snapshot to the provider of your own AI API key, once you connect one. An incident AI run you start sends what the agent reads, code included, to its model provider. Logs, metrics, build artifacts and secrets stay in AWS. The CLI sends usage telemetry, which you can turn off. [What each feature sends](/observability/overview#what-leaves-your-aws-account)
+Without the Console: anonymous CLI telemetry, which you can turn off, and the config init sends for its price estimate. With the Console: alarm state changes, uptime results, monthly cost breakdowns, security findings and errors. Application logs stay in CloudWatch; each recorded error sends a masked copy of its log line. AI features send data to the provider of your own key, and only when you use them. [What each feature sends](/observability/overview#what-leaves-your-aws-account)
 
 ### How you would leave
 
-Stacktape deploys plain CloudFormation. `stacktape synth --out` writes the template to a file. You can override any AWS property or add raw CloudFormation and CDK constructs. [Escape hatches](/configuration/overrides-and-escape-hatches)
+Your stacks are plain CloudFormation in your account and keep running without Stacktape. `stacktape synth` writes the template to a file. To leave, you take over the stacks and replace the few parts the CLI did for you. [Stop using Stacktape](/getting-started/evaluate/stop-using-stacktape)
 
 ### Networking
 
-Production stages get their own VPC, and other stages share one per account and region. Databases accept connections from the internet with credentials by default. One setting keeps them inside the VPC. [Connecting resources](/configuration/connecting-resources)
+Non-production stages in one account and region share a VPC, each with its own security groups. Production stages get their own. The first deploy decides, so choose before it. Databases accept internet connections with credentials by default: `accessibilityMode` limits who can connect, and `forceDisablePublicIp` removes the public IP. [Shared network](/configuration/connecting-resources#shared-network-for-non-production-stages)
 
 ### CI/CD
 
-Init can write a GitHub Actions, GitLab CI or Bitbucket pipeline. With the Console, a push deploys and each pull request can get its own preview stage. [CI/CD options](/ci-cd-and-gitops/overview)
+Your pipeline runs `stacktape deploy` with AWS credentials, no Stacktape account needed. Init can write a GitHub Actions, GitLab CI or Bitbucket pipeline. With the Console, a push deploys and each pull request can get its own preview stage. [CI/CD options](/ci-cd-and-gitops/overview)
 
 ### Observability
 
@@ -191,7 +187,7 @@ Init estimates the monthly price from AWS list prices before the first deploy. T
 
 ### Access
 
-The Console has roles per organization and project, two-factor sign-in and an audit log on every plan. SSO and SCIM come with the Flexible plan. [Team and access](/stacktape-console/team-and-access-control)
+The Console has roles per organization and project, two-factor sign-in and an audit log on every plan. SSO and SCIM come with the Flexible plan. AWS access covers a whole account: whoever can deploy to it can reach every stack in it, so keep production and each client in their own account. [Team and access](/stacktape-console/team-and-access-control)
 
 
 ## Find your way around

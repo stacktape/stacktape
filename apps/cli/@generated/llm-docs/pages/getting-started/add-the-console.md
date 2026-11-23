@@ -1,10 +1,14 @@
 # Add the Console
 
-The Stacktape Console is the hosted part of Stacktape. It adds what a team shares: deploy history, costs, alerts,
-error tracking, team access and deploys from Git. You add it to stacks you already deployed. Connecting doesn't
-redeploy, rename or replace anything.
+The Stacktape Console is the hosted part of Stacktape, for what a team shares. You add it to stacks you already
+deployed. Connecting doesn't redeploy, rename or replace anything.
 
-You don't need it to deploy. The CLI works without an account; see [Use the CLI without an account](/getting-started/open-source-cli).
+It's free while the AWS spend Stacktape manages for your organization stays at or under $200 a month. Above that, the
+Flexible plan costs 19–25% of that spend; see [Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit)
+for the warning, the grace period and what pauses. AWS bills your AWS account for the resources, as before.
+
+You don't need the Console to deploy. The CLI works without an account; see
+[Use the CLI without an account](/getting-started/open-source-cli).
 
 ## What you get
 
@@ -14,23 +18,9 @@ You don't need it to deploy. The CLI works without an account; see [Use the CLI 
   [error tracking](/observability/error-tracking) with incidents.
 - **Team access**: members with roles, limited to the projects and AWS accounts you choose, and organization keys for
   CI.
-- **Deploys from Git**: push to deploy, pull request previews and Stacktape-managed build runners. See
-  [GitOps with Console](/ci-cd-and-gitops/gitops-with-console).
+- **Git deployments**: push to deploy and pull request previews, built on runners in your AWS account. See
+  [Git deployments](/ci-cd-and-gitops/gitops-with-console).
 - **Organization rules**: [guardrails](/guardrails/overview), security reports and the audit log.
-
-## What it costs
-
-- **Free**: $0, no card, the whole Console. It applies while the AWS spend Stacktape manages for your organization is
-  at or under $200 in a calendar month (UTC). Managed spend is what the stacks Stacktape manages cost in AWS, across
-  all connected accounts.
-- **Over the limit**: from $150, a successful deploy prints what the Flexible plan would cost. The first time the
-  organization goes over $200, Owners and Admins get an email and deploys keep working for up to 7 more days, within
-  that calendar month. After that, new deploys and dev sessions pause until the next month starts or someone upgrades. Running apps, deletes and
-  rollbacks keep working.
-- **Flexible**: no limit. One rate on the month's managed AWS spend, from 25% down to 19%.
-
-AWS bills your AWS account for the resources, as before. See [Billing and subscription](/stacktape-console/billing-and-subscription)
-for the rates and examples.
 
 ## Connect from the init wizard
 

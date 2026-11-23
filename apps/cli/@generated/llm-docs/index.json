@@ -18328,7 +18328,6 @@
       "chunks": [
         "page:/getting-started/add-the-console#add-the-console",
         "page:/getting-started/add-the-console#what-you-get",
-        "page:/getting-started/add-the-console#what-it-costs",
         "page:/getting-started/add-the-console#connect-from-the-init-wizard",
         "page:/getting-started/add-the-console#connect-from-the-terminal",
         "page:/getting-started/add-the-console#who-can-connect-an-aws-account",
@@ -18356,6 +18355,7 @@
         "page:/getting-started/after-the-first-deploy#read-the-logs",
         "page:/getting-started/after-the-first-deploy#ship-a-change",
         "page:/getting-started/after-the-first-deploy#add-another-stage",
+        "page:/getting-started/after-the-first-deploy#preview-pull-requests",
         "page:/getting-started/after-the-first-deploy#find-the-stack-in-aws",
         "page:/getting-started/after-the-first-deploy#delete-the-stage",
         "page:/getting-started/after-the-first-deploy#if-a-deploy-fails",
@@ -18382,7 +18382,8 @@
         "page:/getting-started/aws-credentials#if-you-have-your-own-aws-account",
         "page:/getting-started/aws-credentials#tell-stacktape-which-credentials-to-use",
         "page:/getting-started/aws-credentials#what-permissions-you-need",
-        "page:/getting-started/aws-credentials#what-it-costs"
+        "page:/getting-started/aws-credentials#what-it-costs",
+        "page:/getting-started/aws-credentials#back-to-your-deploy"
       ]
     },
     {
@@ -18411,6 +18412,7 @@
         "page:/getting-started/deploy-an-existing-app#optional-try-it-on-this-machine-first",
         "page:/getting-started/deploy-an-existing-app#check-the-target-then-deploy",
         "page:/getting-started/deploy-an-existing-app#it-s-live",
+        "page:/getting-started/deploy-an-existing-app#check-the-database",
         "page:/getting-started/deploy-an-existing-app#deploy-from-your-terminal-instead",
         "page:/getting-started/deploy-an-existing-app#what-the-deploy-costs",
         "page:/getting-started/deploy-an-existing-app#add-the-console",
@@ -18419,6 +18421,84 @@
         "page:/getting-started/deploy-an-existing-app#the-wizard-found-nothing-to-deploy",
         "page:/getting-started/deploy-an-existing-app#aws-rejects-the-credentials",
         "page:/getting-started/deploy-an-existing-app#the-target-is-blocked"
+      ]
+    },
+    {
+      "id": "page:/getting-started/evaluate",
+      "title": "Evaluate Stacktape",
+      "route": "/getting-started/evaluate",
+      "sourcePath": "apps/docs/content/getting-started/evaluate/index.mdx",
+      "outputPath": "pages/getting-started/evaluate.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "evaluate"
+      ],
+      "chunks": [
+        "page:/getting-started/evaluate#evaluate-stacktape",
+        "page:/getting-started/evaluate#what-it-is-and-what-it-isn-t",
+        "page:/getting-started/evaluate#what-runs-where",
+        "page:/getting-started/evaluate#who-does-what-in-production",
+        "page:/getting-started/evaluate#what-leaves-your-aws-account",
+        "page:/getting-started/evaluate#access-and-security",
+        "page:/getting-started/evaluate#accounts-stages-and-isolation",
+        "page:/getting-started/evaluate#ci-cd",
+        "page:/getting-started/evaluate#scaling-networking-and-databases",
+        "page:/getting-started/evaluate#what-it-costs",
+        "page:/getting-started/evaluate#maturity-and-support",
+        "page:/getting-started/evaluate#lock-in-and-the-way-out",
+        "page:/getting-started/evaluate#run-a-pilot"
+      ]
+    },
+    {
+      "id": "page:/getting-started/evaluate/move-to-stacktape",
+      "title": "Move to Stacktape",
+      "route": "/getting-started/evaluate/move-to-stacktape",
+      "sourcePath": "apps/docs/content/getting-started/evaluate/move-to-stacktape.mdx",
+      "outputPath": "pages/getting-started/evaluate/move-to-stacktape.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "evaluate",
+        "move-to-stacktape"
+      ],
+      "chunks": [
+        "page:/getting-started/evaluate/move-to-stacktape#move-to-stacktape",
+        "page:/getting-started/evaluate/move-to-stacktape#what-init-reads",
+        "page:/getting-started/evaluate/move-to-stacktape#move-a-running-app",
+        "page:/getting-started/evaluate/move-to-stacktape#1-deploy-a-copy",
+        "page:/getting-started/evaluate/move-to-stacktape#2-copy-the-secrets",
+        "page:/getting-started/evaluate/move-to-stacktape#3-decide-where-the-data-lives",
+        "page:/getting-started/evaluate/move-to-stacktape#4-run-the-migrations",
+        "page:/getting-started/evaluate/move-to-stacktape#5-test-the-copy",
+        "page:/getting-started/evaluate/move-to-stacktape#6-switch-dns",
+        "page:/getting-started/evaluate/move-to-stacktape#7-keep-a-way-back-then-retire-the-old-app",
+        "page:/getting-started/evaluate/move-to-stacktape#from-sst-or-serverless-framework",
+        "page:/getting-started/evaluate/move-to-stacktape#what-usually-takes-the-time"
+      ]
+    },
+    {
+      "id": "page:/getting-started/evaluate/stop-using-stacktape",
+      "title": "Stop using Stacktape",
+      "route": "/getting-started/evaluate/stop-using-stacktape",
+      "sourcePath": "apps/docs/content/getting-started/evaluate/stop-using-stacktape.mdx",
+      "outputPath": "pages/getting-started/evaluate/stop-using-stacktape.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "getting-started",
+        "evaluate",
+        "stop-using-stacktape"
+      ],
+      "chunks": [
+        "page:/getting-started/evaluate/stop-using-stacktape#stop-using-stacktape",
+        "page:/getting-started/evaluate/stop-using-stacktape#leave-the-console-keep-the-cli",
+        "page:/getting-started/evaluate/stop-using-stacktape#stop-using-stacktape-2",
+        "page:/getting-started/evaluate/stop-using-stacktape#before-you-leave",
+        "page:/getting-started/evaluate/stop-using-stacktape#what-you-take-over",
+        "page:/getting-started/evaluate/stop-using-stacktape#delete-everything-instead"
       ]
     },
     {
@@ -19122,6 +19202,7 @@
         "page:/observability/error-tracking#manage-errors-from-the-cli",
         "page:/observability/error-tracking#turn-it-off-or-limit-it-to-some-stages",
         "page:/observability/error-tracking#what-leaves-your-aws-account",
+        "page:/observability/error-tracking#where-errors-are-stored-and-for-how-long",
         "page:/observability/error-tracking#stack-traces-of-bundled-javascript",
         "page:/observability/error-tracking#error-types",
         "page:/observability/error-tracking#limits",

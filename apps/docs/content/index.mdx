@@ -31,7 +31,8 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
       title: 'Deploy an existing app',
       href: '/getting-started/deploy-an-existing-app',
       text: 'Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.',
-      steps: ['Start', 'Analyze', 'Review', 'Deploy']
+      steps: ['Start', 'Analyze', 'Review', 'Deploy'],
+      links: [{ label: 'Moving from Heroku, Render, Fly.io, SST or Serverless', href: '/getting-started/evaluate/move-to-stacktape' }]
     },
     {
       title: 'Start a new project',
@@ -41,9 +42,10 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
     },
     {
       title: 'Evaluate Stacktape for your team',
-      href: '#for-teams',
-      text: 'Short answers for a team lead or CTO before a pilot.',
-      topics: ['Where it runs', 'data', 'lock-in', 'networking', 'CI/CD', 'costs', 'access']
+      href: '/getting-started/evaluate',
+      text: 'What a team lead or CTO checks before a pilot, answered from the product as it is today.',
+      topics: ['Where it runs', 'data', 'access', 'stages', 'costs', 'support', 'lock-in'],
+      links: [{ label: 'Short answers', href: '#for-teams' }]
     }
   ]}
 />
@@ -72,12 +74,11 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
   extras={[
     '`STP_DATABASE_CONNECTION_STRING` in the container environment',
     'Security groups, an IAM role and CloudWatch logs',
-    'The password read from AWS Secrets Manager'
+    'A generated database password, kept in AWS Secrets Manager'
   ]}
   deployTitle="Deploy it"
   deploy={[
-    { label: 'Store the database password in your account', command: 'stacktape secret set db-password --region eu-west-1' },
-    { label: 'Create the stack', command: 'stacktape deploy --project my-api --stage dev --region eu-west-1' }
+    { label: 'Create the stack. The first deploy generates the database password.', command: 'stacktape deploy --project my-api --stage dev --region eu-west-1' }
   ]}
 >
 
@@ -199,22 +200,22 @@ export default defineConfig(() => {
     },
     {
       title: 'What leaves your account',
-      text: 'With the Console: errors with their log line, alarm state changes, uptime check results, monthly cost breakdowns and security findings. Incident briefings send a masked incident snapshot to the provider of your own AI API key, once you connect one. An incident AI run you start sends what the agent reads, code included, to its model provider. Logs, metrics, build artifacts and secrets stay in AWS. The CLI sends usage telemetry, which you can turn off.',
+      text: 'Without the Console: anonymous CLI telemetry, which you can turn off, and the config init sends for its price estimate. With the Console: alarm state changes, uptime results, monthly cost breakdowns, security findings and errors. Application logs stay in CloudWatch; each recorded error sends a masked copy of its log line. AI features send data to the provider of your own key, and only when you use them.',
       link: { label: 'What each feature sends', href: '/observability/overview#what-leaves-your-aws-account' }
     },
     {
       title: 'How you would leave',
-      text: 'Stacktape deploys plain CloudFormation. `stacktape synth --out` writes the template to a file. You can override any AWS property or add raw CloudFormation and CDK constructs.',
-      link: { label: 'Escape hatches', href: '/configuration/overrides-and-escape-hatches' }
+      text: 'Your stacks are plain CloudFormation in your account and keep running without Stacktape. `stacktape synth` writes the template to a file. To leave, you take over the stacks and replace the few parts the CLI did for you.',
+      link: { label: 'Stop using Stacktape', href: '/getting-started/evaluate/stop-using-stacktape' }
     },
     {
       title: 'Networking',
-      text: 'Production stages get their own VPC, and other stages share one per account and region. Databases accept connections from the internet with credentials by default. One setting keeps them inside the VPC.',
-      link: { label: 'Connecting resources', href: '/configuration/connecting-resources' }
+      text: 'Non-production stages in one account and region share a VPC, each with its own security groups. Production stages get their own. The first deploy decides, so choose before it. Databases accept internet connections with credentials by default: `accessibilityMode` limits who can connect, and `forceDisablePublicIp` removes the public IP.',
+      link: { label: 'Shared network', href: '/configuration/connecting-resources#shared-network-for-non-production-stages' }
     },
     {
       title: 'CI/CD',
-      text: 'Init can write a GitHub Actions, GitLab CI or Bitbucket pipeline. With the Console, a push deploys and each pull request can get its own preview stage.',
+      text: 'Your pipeline runs `stacktape deploy` with AWS credentials, no Stacktape account needed. Init can write a GitHub Actions, GitLab CI or Bitbucket pipeline. With the Console, a push deploys and each pull request can get its own preview stage.',
       link: { label: 'CI/CD options', href: '/ci-cd-and-gitops/overview' }
     },
     {
@@ -229,7 +230,7 @@ export default defineConfig(() => {
     },
     {
       title: 'Access',
-      text: 'The Console has roles per organization and project, two-factor sign-in and an audit log on every plan. SSO and SCIM come with the Flexible plan.',
+      text: 'The Console has roles per organization and project, two-factor sign-in and an audit log on every plan. SSO and SCIM come with the Flexible plan. AWS access covers a whole account: whoever can deploy to it can reach every stack in it, so keep production and each client in their own account.',
       link: { label: 'Team and access', href: '/stacktape-console/team-and-access-control' }
     }
   ]}
