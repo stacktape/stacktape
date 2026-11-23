@@ -86,14 +86,6 @@ export function CTAButton({
   );
 }
 
-export function ButtonRow({ children, align = 'left' }: { children: ReactNode; align?: 'left' | 'center' }) {
-  return (
-    <div className={clsx('flex flex-wrap gap-3 mt-[26px]', align === 'center' ? 'justify-center' : 'justify-start')}>
-      {children}
-    </div>
-  );
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // Hero
 // ────────────────────────────────────────────────────────────────────────────

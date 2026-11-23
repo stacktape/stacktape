@@ -5,7 +5,6 @@ import { FeatureComparisonTable } from '@/components/Mdx/FeatureComparisonTable'
 import { ErrorCallout, Info, Tip, Warning } from '@/components/Mdx/Highlighter';
 import { MdxImage } from '@/components/Mdx/Image';
 import {
-  ButtonRow,
   CTAButton,
   CTASection,
   DocsMap,
@@ -54,7 +53,6 @@ const reactMdxComponents = {
   LandingHero,
   LandingCover,
   CTAButton,
-  ButtonRow,
   FeatureGrid,
   Steps,
   Step,
