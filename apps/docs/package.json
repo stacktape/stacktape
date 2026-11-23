@@ -47,6 +47,8 @@
   },
   "devDependencies": {
     "@astrojs/check": "catalog:",
+    "@aws-sdk/client-cloudfront-keyvaluestore": "3.1121.0",
+    "@aws-sdk/signature-v4a": "3.1138.0",
     "@posthog/rollup-plugin": "^1.5.1",
     "@tailwindcss/vite": "4.3.3",
     "@types/node": "catalog:",

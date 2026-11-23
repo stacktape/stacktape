@@ -55,8 +55,9 @@ can override shared component styles.
 
 `stacktape.ts` deploys the site: `pnpm deploy:docs:preview` publishes `https://preview-docs.stacktape.com`, and
 `pnpm deploy:docs` publishes production. Redirects live in `src/utils/site-redirects.ts`; Astro renders them as
-meta-refresh pages and the CDN answers them with a 301 through a CloudFront Function, whose code must stay under 10 KB
-(`tests/cdn-redirects.test.ts`). The procedure, verification and rollback are in
+meta-refresh pages, and the CDN answers them with a 301 through a CloudFront Function that reads the table from a
+CloudFront KeyValueStore (`src/build/cdn-redirects.ts`, `src/build/redirect-store-sync.ts`,
+`tests/cdn-redirects.test.ts`). The procedure, verification and rollback are in
 [releasing](../../docs/releasing.md#documentation-site).
 
 ## Checks
