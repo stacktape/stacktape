@@ -47,6 +47,8 @@
   /* ── Lines ──────────────────────────────────────────────────────────────────────────────── */
   --docs-border: rgb(255 255 255 / 0.085);
   --docs-border-strong: rgb(255 255 255 / 0.15);
+  /* The edge a code block shows where more code is out of view. */
+  --docs-code-edge: rgb(255 255 255 / 0.16);
 
   /* ── Status: callouts, badges and comparison marks ──────────────────────────────────────── */
   --docs-note: rgb(150 163 173);

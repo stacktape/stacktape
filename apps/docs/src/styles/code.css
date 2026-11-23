@@ -88,15 +88,23 @@
   .docs-code-copy.is-copied {
     color: var(--docs-success);
   }
-  .docs-code-copy.is-floating {
-    position: absolute;
-    top: 9px;
-    right: 6px;
-    z-index: 2;
-    background: var(--docs-bg-sunken);
+  /* A block without a header (shell commands, output) puts Copy in a column of its own next to the code. */
+  .docs-code.is-bare {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
   }
-  .docs-code-copy.is-floating:hover {
-    background: color-mix(in oklab, var(--docs-bg-sunken) 80%, white);
+  .docs-code-copy.is-lane {
+    width: 32px;
+    height: 32px;
+    margin: 7px 6px 0 0;
+  }
+  @media (max-width: 799px) {
+    .docs-code-copy.is-lane {
+      width: 36px;
+      height: 36px;
+      margin: 5px 4px 0 0;
+    }
   }
 
   .docs-code-scroll {
@@ -106,16 +114,16 @@
     padding: 12px 0;
     scrollbar-width: thin;
     scrollbar-color: var(--docs-border-strong) transparent;
-    /* Soft edges where code continues out of view: covers that scroll with the content hide the hint at each end. */
+    /* An edge where code continues out of view: covers that scroll with the content hide the hint at each end. */
     background:
-      linear-gradient(to right, var(--docs-bg-sunken) 40%, transparent) left / 32px 100% no-repeat local,
-      linear-gradient(to left, var(--docs-bg-sunken) 40%, transparent) right / 32px 100% no-repeat local,
-      linear-gradient(to right, rgb(255 255 255 / 0.07), transparent) left / 16px 100% no-repeat scroll,
-      linear-gradient(to left, rgb(255 255 255 / 0.07), transparent) right / 16px 100% no-repeat scroll;
+      linear-gradient(to right, var(--docs-bg-sunken) 40%, transparent) left / 40px 100% no-repeat local,
+      linear-gradient(to left, var(--docs-bg-sunken) 40%, transparent) right / 40px 100% no-repeat local,
+      linear-gradient(to right, var(--docs-code-edge), transparent) left / 20px 100% no-repeat scroll,
+      linear-gradient(to left, var(--docs-code-edge), transparent) right / 20px 100% no-repeat scroll;
     background-color: var(--docs-bg-sunken);
   }
-  .docs-code:not(:has(.docs-code-header)) .docs-code-scroll {
-    border-radius: var(--docs-radius);
+  .docs-code.is-bare .docs-code-scroll {
+    border-radius: var(--docs-radius) 0 0 var(--docs-radius);
   }
   .docs-code-scroll:focus-visible {
     outline-offset: -2px;
@@ -417,8 +425,26 @@
   color: var(--docs-text-faint);
 }
 
-/* Room for the floating copy button at the end of each line, so it never covers code. */
-.docs-code-scroll.has-floating-copy .stacktape-code-block .stacktape-shiki-pre .line,
-.docs-code-scroll.has-floating-copy .docs-code-plain .line {
-  padding-right: 48px;
+/* A command wraps on a phone instead of hiding its end. Continuation lines hang under the first, so one command never
+ * reads as two. Copy takes the original text. */
+@media (max-width: 799px) {
+  .docs-code.is-command .stacktape-code-block.twoslash .stacktape-shiki-pre,
+  .docs-code.is-command .docs-code-plain {
+    width: auto;
+  }
+  .docs-code.is-command .stacktape-code-block.twoslash .stacktape-shiki-pre .line,
+  .docs-code.is-command .docs-code-plain .line {
+    padding-left: calc(var(--docs-space-16) + 2ch);
+    text-indent: -2ch;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .docs-code.is-command .stacktape-code-block.twoslash .stacktape-shiki-pre .line span {
+    white-space: inherit;
+  }
+  /* A word moves to the next line whole, so `--region` never breaks after its hyphens. A URL or a long word wraps
+     inside, preferably after a `/`. */
+  .docs-code.is-command .docs-code-word:not(.is-long) {
+    white-space: nowrap;
+  }
 }

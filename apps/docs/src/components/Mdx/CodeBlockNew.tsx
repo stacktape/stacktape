@@ -514,6 +514,57 @@ const getShikiRuntime = () => {
   return shikiRuntimePromise;
 };
 
+type HastNode = { type: string; tagName?: string; value?: string; properties?: object; children?: HastNode[] };
+
+/** Splits a command line into words and the whitespace between them. */
+const commandWords = (line: string) => line.split(/(\s+)/).filter(Boolean);
+
+/** Text with a break opportunity after each path `/` (not inside `https://`), so a URL wraps at a path boundary. */
+const pathBreaks = (text: string) => text.split(/(?<=[^/]\/)(?!\/)/);
+
+/** A word that may wrap inside (a URL, a path, anything near a phone's line length). Shorter words never do. */
+const wordClass = (word: string) =>
+  word.includes('/') || word.length > 28 ? ['docs-code-word', 'is-long'] : ['docs-code-word'];
+
+/**
+ * Groups each word of a command line (across Shiki's colour tokens) into one span. On a phone the spans wrap as whole
+ * words, so `--region` moves to the next line instead of breaking after its hyphens. See `.docs-code-word`.
+ */
+const commandWordsTransformer = {
+  name: 'stacktape:command-words',
+  line(node: HastNode) {
+    const children: HastNode[] = [];
+    let word: HastNode | null = null;
+    for (const token of node.children ?? []) {
+      const text =
+        token.type === 'text' ? (token.value ?? '') : (token.children ?? []).map((c) => c.value ?? '').join('');
+      for (const part of commandWords(text)) {
+        if (/^\s/.test(part)) {
+          if (word) children.push(word);
+          word = null;
+          children.push(
+            token.type === 'text'
+              ? { type: 'text', value: part }
+              : { ...token, children: [{ type: 'text', value: part }] }
+          );
+          continue;
+        }
+        word ??= { type: 'element', tagName: 'span', properties: { className: wordClass(part) }, children: [] };
+        for (const [index, piece] of pathBreaks(part).entries()) {
+          if (index > 0) word.children!.push({ type: 'element', tagName: 'wbr', properties: {}, children: [] });
+          word.children!.push(
+            token.type === 'text'
+              ? { type: 'text', value: piece }
+              : { ...token, children: [{ type: 'text', value: piece }] }
+          );
+        }
+      }
+    }
+    if (word) children.push(word);
+    node.children = children;
+  }
+};
+
 const renderWithShiki = async ({
   runtime,
   code,
@@ -610,6 +661,41 @@ const LANGUAGE_LABELS: Record<string, string> = {
 };
 
 const SHELL_LANGUAGES = new Set(['bash', 'shell', 'sh', 'zsh', 'powershell', 'ps1', 'console', 'text', 'txt', '']);
+
+/** Languages whose lines are commands a reader types. Output (`text`) keeps its columns. */
+const COMMAND_LANGUAGES = new Set(['bash', 'shell', 'sh', 'zsh', 'powershell', 'ps1', 'console']);
+
+/**
+ * Commands may wrap on a phone, so the whole command is readable without scrolling. Copy still takes the original
+ * text. A block with indented lines (a heredoc, a script body) keeps its layout, except the continuation line of a
+ * command split with `\` or a PowerShell backtick.
+ */
+const wrapsOnPhone = (code: string, lang: string) => {
+  if (!COMMAND_LANGUAGES.has(lang)) return false;
+  const lines = code.split('\n');
+  return lines.every((line, index) => !/^\s/.test(line) || /[\\`]\s*$/.test(lines[index - 1] ?? ''));
+};
+
+/** The plain (not yet highlighted) form of a command line, with the same word spans as `commandWordsTransformer`. */
+function CommandLine({ line }: { line: string }) {
+  let offset = 0;
+  return commandWords(line).map((part) => {
+    const key = offset;
+    offset += part.length;
+    if (/^\s/.test(part)) return part;
+    return (
+      <span key={key} className={wordClass(part).join(' ')}>
+        {pathBreaks(part).map((piece, index) => (
+          // eslint-disable-next-line react/no-array-index-key -- pieces of one word have no identity besides position
+          <span key={index}>
+            {index > 0 && <wbr />}
+            {piece}
+          </span>
+        ))}
+      </span>
+    );
+  });
+}
 
 export function MdxCodeBlockNew({
   children: code,
@@ -713,6 +799,7 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
         const twoslashTransformer = shouldUseTwoslash ? await getTwoslashTransformer() : undefined;
 
         const extraTransformers: unknown[] = [];
+        if (wrapsOnPhone(processedCode.renderCode, normalizedLanguage)) extraTransformers.push(commandWordsTransformer);
         if (shouldUseIntellisense && normalizedLanguage === 'yaml') {
           // Parse the ORIGINAL code (still valid YAML) and translate hover positions
           // through `lineMap` to match the rendered (possibly focus-filtered) output.
@@ -875,10 +962,12 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
   const hasHeader =
     hasTabs || (headerLabel !== null && !SHELL_LANGUAGES.has(normalizedActiveLanguage)) || !!singleLabel;
 
+  const isCommand = wrapsOnPhone(processedCode.renderCode, normalizedActiveLanguage);
+
   const copyButton = (
     <button
       type="button"
-      className={clsx('docs-code-copy', isCopiedShown && 'is-copied', !hasHeader && 'is-floating')}
+      className={clsx('docs-code-copy', isCopiedShown && 'is-copied', !hasHeader && 'is-lane')}
       aria-label={isCopiedShown ? 'Copied' : 'Copy code'}
       onClick={handleCopyClick}
     >
@@ -888,7 +977,7 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
   );
 
   return (
-    <div className="docs-code">
+    <div className={clsx('docs-code', !hasHeader && 'is-bare', isCommand && 'is-command')}>
       {hasHeader && (
         <div className="docs-code-header">
           {hasTabs ? (
@@ -913,12 +1002,7 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
           {copyButton}
         </div>
       )}
-      {!hasHeader && copyButton}
-      <div
-        id={`code-${blockId}-panel`}
-        role={hasTabs ? 'tabpanel' : undefined}
-        className={clsx('docs-code-scroll', !hasHeader && 'has-floating-copy')}
-      >
+      <div id={`code-${blockId}-panel`} role={hasTabs ? 'tabpanel' : undefined} className="docs-code-scroll">
         {renderError && <p className="docs-code-status">{renderError}</p>}
         {renderedHtml && !renderError ? (
           <div
@@ -934,13 +1018,15 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
               {processedCode.renderCode.split('\n').map((line, index) => (
                 // eslint-disable-next-line react/no-array-index-key -- lines have no identity besides position
                 <span key={index} className="line">
-                  {line}
+                  {isCommand ? <CommandLine line={line} /> : line}
                 </span>
               ))}
             </code>
           </pre>
         )}
       </div>
+      {/* A block without a header keeps Copy in its own column, so it never covers the end of a command. */}
+      {!hasHeader && copyButton}
     </div>
   );
 }
