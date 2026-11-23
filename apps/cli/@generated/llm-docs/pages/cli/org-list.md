@@ -66,5 +66,5 @@ stacktape org list --json
 
 - [`org create`](/cli/org-create) — create a new organization
 - [`org delete`](/cli/org-delete) — delete the organization of your API key (owner-only, requires no other users or connected AWS accounts)
-- [`whoami`](/cli/info-whoami) — verify your current user, organization, and connected accounts
+- [`whoami`](/cli/whoami) — verify your current user, organization, and connected accounts
 - [`login`](/cli/login) — configure your Stacktape API key

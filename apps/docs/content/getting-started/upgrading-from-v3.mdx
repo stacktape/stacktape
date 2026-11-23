@@ -984,7 +984,7 @@ AWS allows two subscription filters per log group, so a log group that already h
 
 v3 rolled a failed deployment back: a failed update returned the stack to its previous state, and a failed first deployment deleted the stack, including a database that had already taken minutes to create. In v4, a failed deployment keeps every resource it created or updated, unless it replaced existing resources: CloudFormation can only replace resources in a deployment it may roll back. The stack stays in `CREATE_FAILED` or `UPDATE_FAILED`, and the next `stacktape deploy` continues from the failure.
 
-To undo a failed update, run [`stacktape stack recover`](/cli/cf-rollback); to remove a failed first deployment, run `stacktape delete`. A failed deployment can leave part of the application on the new version and part on the old one, so check the application after a failure. To keep v3's behaviour, see [Automatic rollback](#automatic-rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+To undo a failed update, run [`stacktape stack recover`](/cli/stack-recover); to remove a failed first deployment, run `stacktape delete`. A failed deployment can leave part of the application on the new version and part on the old one, so check the application after a failure. To keep v3's behaviour, see [Automatic rollback](#automatic-rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
 
 ### After-deploy hooks fail the deployment
 
@@ -1016,7 +1016,7 @@ See [When a hook fails](/configuration/hooks-and-scripts#when-a-hook-fails).
 
 ### New non-production stages share a network
 
-A new non-production stage, such as `staging` or a preview stage, joins a VPC shared by the non-production stages in the same AWS account and region, instead of creating its own. Stages deployed before v4 keep their own VPC. A stage cannot move between the two after its first deployment. To give a new stage its own VPC, set `stackConfig.vpc.shared: false` before you deploy it the first time. See [Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages), which also lists the permissions a restricted CI role needs.
+A new non-production stage, such as `staging` or a preview stage, joins a VPC shared by the non-production stages in the same AWS account and region, instead of creating its own. Stages deployed before v4 keep their own VPC. A stage cannot move between the two after its first deployment. To give a new stage its own VPC, set `stackConfig.vpc.shared: false` before you deploy it the first time. See [Shared network for non-production stages](/configuration/shared-network), which also lists the permissions a restricted CI role needs.
 
 ### Deploy each upgraded stack only with v4
 

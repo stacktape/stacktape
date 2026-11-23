@@ -150,7 +150,7 @@ See [Directives](/configuration/directives) for all built-in directives and [Ref
 
 Each Stacktape resource produces one or more CloudFormation resources. When you run [`stacktape deploy`](/cli/deploy), Stacktape resolves your configuration (variables, directives, secrets), translates each resource into CloudFormation definitions with the necessary IAM roles and security groups, and submits the resulting template to AWS for provisioning.
 
-You can inspect the generated template with [`stacktape synth`](/cli/synth) before deploying. After deploying, use [`stacktape status`](/cli/info-stack) to see deployed resource details.
+You can inspect the generated template with [`stacktape synth`](/cli/synth) before deploying. After deploying, use [`stacktape status`](/cli/status) to see deployed resource details.
 
 
 > **Info:** Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to every AWS resource in your stack. Custom tags defined in `stackConfig.tags` are merged on top: useful for cost tracking and access control in AWS Cost Explorer. Tag names starting with `stp:` are reserved for Stacktape's own tags, and a config that uses one fails validation.
@@ -205,4 +205,4 @@ Yes. Use [raw CloudFormation resources](/resources/advanced/raw-cloudformation-r
 
 ### How does Stacktape handle VPC networking?
 
-Stacktape sets up the network when your stack includes resources that need one, such as relational databases and Redis. Production stages get a VPC of their own; non-production stages of an account and region share one, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages). Resources that don't need a VPC (Lambda functions by default, DynamoDB, S3 buckets) work without one. To use an existing VPC, set `stackConfig.vpc.reuseVpc`.
+Stacktape sets up the network when your stack includes resources that need one, such as relational databases and Redis. Production stages get a VPC of their own; non-production stages of an account and region share one, the [shared network](/configuration/shared-network). Resources that don't need a VPC (Lambda functions by default, DynamoDB, S3 buckets) work without one. To use an existing VPC, set `stackConfig.vpc.reuseVpc`.

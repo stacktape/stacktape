@@ -90,5 +90,5 @@ stacktape container shell backend --stage staging --region us-west-2 --command /
 ## Related commands
 
 - [`container exec`](/cli/container-exec) — run a single command inside a container and return the output (non-interactive). Use this when you need to capture command output programmatically rather than open a live shell.
-- [`bastion shell`](/cli/bastion-session) — start an interactive session on a [bastion host](/resources/security/bastion-host), useful for accessing private VPC resources.
+- [`bastion shell`](/cli/bastion-shell) — start an interactive session on a [bastion host](/resources/security/bastion-host), useful for accessing private VPC resources.
 - [`logs`](/cli/logs) — fetch and filter logs from deployed resources without opening a shell session.

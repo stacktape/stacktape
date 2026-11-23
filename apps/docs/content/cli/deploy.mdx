@@ -21,7 +21,7 @@ The command reads the Stacktape configuration file in the current directory: `st
 stacktape deploy --stage dev
 ```
 
-Flags override the config. The region can also come from `AWS_DEFAULT_REGION` (not `AWS_REGION`), [`defaults set`](/cli/defaults-configure) or your AWS profile.
+Flags override the config. The region can also come from `AWS_DEFAULT_REGION` (not `AWS_REGION`), [`defaults set`](/cli/defaults-set) or your AWS profile.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts
@@ -87,7 +87,7 @@ By default, a failed deployment keeps what it created or updated. The stack stay
 stacktape deploy --stage production --region eu-west-1 --auto-rollback
 ```
 
-To undo a failed update later, use [`stack recover`](/cli/cf-rollback). To remove a failed first deployment, use [`delete`](/cli/delete). To return to an earlier successful version, use [`rollback`](/cli/rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
+To undo a failed update later, use [`stack recover`](/cli/stack-recover). To remove a failed first deployment, use [`delete`](/cli/delete). To return to an earlier successful version, use [`rollback`](/cli/rollback). See [when a deployment fails](/deployment-and-lifecycle/deploying-stacks#when-a-deployment-fails).
 
 ### `--no-cache`
 
@@ -181,4 +181,4 @@ Stacktape does not currently check CloudFormation resource drift before deployin
 
 - [`diff`](/cli/diff) shows what a deploy would change.
 - [`rollback`](/cli/rollback) returns a stage to an earlier release.
-- [`stack recover`](/cli/cf-rollback) recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`.
+- [`stack recover`](/cli/stack-recover) recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`.

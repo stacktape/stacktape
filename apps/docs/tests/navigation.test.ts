@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getNavigationTree, type NavItem } from '../src/components/Navigation/SidebarNavigation/navigation-data.ts';
+import {
+  computeExpandedState,
+  getNavigationTree,
+  getSectionTrail,
+  type NavItem
+} from '../src/components/Navigation/SidebarNavigation/navigation-data.ts';
 import config, { type SidebarSubgroup } from '../src/site-config.ts';
 import { entryToUrlSlug, slugToUrl } from '../src/utils/route-slugs.ts';
 import { contentFiles } from './canonical-content.ts';
@@ -69,4 +74,46 @@ test('the Resources and CLI groups open on their index page', () => {
   const tree = getNavigationTree(pages());
   assert.equal(tree.find((group) => group.id === 'resources')?.children[0]?.url, '/resources');
   assert.equal(tree.find((group) => group.id === 'cli')?.children[0]?.url, '/cli');
+});
+
+/** The URLs of the pages placed in `items`, not counting links to pages placed elsewhere. */
+const urlsOf = (items: NavItem[]): string[] =>
+  items.flatMap((item) => [...(item.url && !item.crossLink ? [item.url] : []), ...urlsOf(item.children)]);
+
+test('pages listed by another group keep their URL and sit in that group; links to them never open their branch', () => {
+  const tree = getNavigationTree(pages());
+
+  const gettingStarted = tree.find((group) => group.id === 'getting-started');
+  assert.ok(gettingStarted?.children.some((item) => item.url === '/resources/networking/custom-domains'));
+  const resources = tree.find((group) => group.id === 'resources');
+  assert.ok(resources && !urlsOf(resources.children).includes('/resources/networking/custom-domains'));
+  const networking = resources.children.find((item) => item.key === '/resources/networking');
+  const link = networking?.children.at(-1);
+  assert.equal(link?.url, '/resources/networking/custom-domains', 'Networking ends with a link to Custom domains');
+  assert.equal(link?.crossLink, true);
+
+  const expanded = computeExpandedState({
+    groups: tree,
+    pathname: '/resources/networking/custom-domains/',
+    userOverrides: {}
+  });
+  assert.equal(expanded['group:getting-started'], true);
+  assert.equal(expanded['group:resources'], false, 'the link does not open Resources');
+
+  assert.deepEqual(
+    tree.at(-1)?.children.map((item) => item.url),
+    ['/getting-started/upgrading-from-v3']
+  );
+  assert.ok(!urlsOf(gettingStarted?.children ?? []).includes('/getting-started/upgrading-from-v3'));
+  assert.deepEqual(getSectionTrail('/getting-started/upgrading-from-v3', pages()), ['Stacktape v3']);
+});
+
+test('every page a group lists or a subgroup links to exists', () => {
+  const urls = new Set(pages().map((page) => page.url));
+  for (const group of config.sidebar.groups) {
+    for (const { url } of ('pages' in group ? group.pages : undefined) ?? []) assert.ok(urls.has(url), url);
+    for (const subgroup of ('subgroups' in group ? (group.subgroups as SidebarSubgroup[]) : undefined) ?? []) {
+      for (const url of subgroup.links ?? []) assert.ok(urls.has(url), url);
+    }
+  }
 });

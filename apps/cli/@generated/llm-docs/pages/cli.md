@@ -11,7 +11,7 @@ Most commands work without a Stacktape account. Commands that act on a stack use
 - [`aws-profile list`](/cli/aws-profile-list): Lists the AWS profiles on your machine.
 - [`aws-profile update`](/cli/aws-profile-update): Updates an AWS profile.
 - [`aws-profile delete`](/cli/aws-profile-delete): Deletes an AWS profile.
-- [`defaults set`](/cli/defaults-configure): Sets default values for flags such as the region, stage and AWS profile.
+- [`defaults set`](/cli/defaults-set): Sets default values for flags such as the region, stage and AWS profile.
 - [`defaults list`](/cli/defaults-list): Prints the defaults you set.
 - [`domain add`](/cli/domain-add): Adds a registered domain to your AWS account, so Stacktape can manage its DNS records and certificates.
 - [`upgrade`](/cli/upgrade): Upgrades the CLI to the latest version.
@@ -25,12 +25,12 @@ Most commands work without a Stacktape account. Commands that act on a stack use
 - [`synth`](/cli/synth): Prints the CloudFormation template your configuration produces.
 - [`package`](/cli/package): Builds the deployment packages of your functions and containers.
 - [`deploy`](/cli/deploy): Creates or updates a stage in your AWS account.
-- [`status`](/cli/info-stack) (Console): Shows a deployed stack's URLs, outputs and resources.
-- [`stack list`](/cli/info-stacks): Lists the stacks deployed in a region.
-- [`stack history`](/cli/info-operations) (Console): Lists recent deploys and other operations with their result.
+- [`status`](/cli/status) (Console): Shows a deployed stack's URLs, outputs and resources.
+- [`stack list`](/cli/stack-list): Lists the stacks deployed in a region.
+- [`stack history`](/cli/stack-history) (Console): Lists recent deploys and other operations with their result.
 - [`rollback`](/cli/rollback): Returns the stack to a previous deployment version.
-- [`stack recover`](/cli/cf-rollback): Recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`.
-- [`stack update-modules`](/cli/cf-module-update): Updates the CloudFormation modules the stack uses.
+- [`stack recover`](/cli/stack-recover): Recovers a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`.
+- [`stack update-modules`](/cli/stack-update-modules): Updates the CloudFormation modules the stack uses.
 - [`deployment-script run`](/cli/deployment-script-run): Runs a deployment script of the stack in AWS.
 - [`bucket sync`](/cli/bucket-sync): Mirrors a local directory into a bucket, removing files that no longer exist locally.
 - [`delete`](/cli/delete): Deletes a stage and its resources.
@@ -54,11 +54,11 @@ Most commands work without a Stacktape account. Commands that act on a stack use
 
 - [`logs`](/cli/logs): Prints and filters the logs of a deployed resource.
 - [`metrics`](/cli/metrics): Prints CloudWatch metrics of a deployed resource.
-- [`alarm list`](/cli/alarms): Lists the alarms of the stack and their state.
+- [`alarm list`](/cli/alarm-list): Lists the alarms of the stack and their state.
 - [`aws call`](/cli/aws-call): Runs a read-only AWS SDK call against the stack's resources.
-- [`container shell`](/cli/container-session): Opens a shell inside a running container.
+- [`container shell`](/cli/container-shell): Opens a shell inside a running container.
 - [`container exec`](/cli/container-exec): Runs one command in a running container and prints the output.
-- [`bastion shell`](/cli/bastion-session): Opens a shell on the stack's bastion host.
+- [`bastion shell`](/cli/bastion-shell): Opens a shell on the stack's bastion host.
 - [`bastion tunnel`](/cli/bastion-tunnel): Opens a tunnel from your machine to a private database or cache.
 - [`query sql`](/cli/query-sql): Runs a read-only SQL query against a relational database.
 - [`query dynamodb`](/cli/query-dynamodb): Reads items and the schema of a DynamoDB table.
@@ -67,22 +67,22 @@ Most commands work without a Stacktape account. Commands that act on a stack use
 
 ## Incidents and errors
 
-- [`incident list`](/cli/incidents) (Console): Lists incidents: downtime, failing checks, firing alarms and production errors.
-- [`incident show`](/cli/incidents-show) (Console): Prints everything known about one incident.
-- [`incident ack`](/cli/incidents-ack) (Console): Marks an incident as being handled.
-- [`incident watch`](/cli/incidents-watch) (Console): Waits until an incident recovers and stays recovered.
-- [`incident resolve`](/cli/incidents-resolve) (Console): Resolves an incident after you deployed and verified a fix.
-- [`error list`](/cli/errors-list) (Console): Lists runtime errors from your functions and containers.
-- [`error resolve`](/cli/errors-resolve) (Console): Marks an error as resolved. It reopens if the error comes back.
-- [`error ignore`](/cli/errors-ignore) (Console): Ignores an error, so it does not reopen or alert.
-- [`error reopen`](/cli/errors-reopen) (Console): Reopens a resolved or ignored error.
+- [`incident list`](/cli/incident-list) (Console): Lists incidents: downtime, failing checks, firing alarms and production errors.
+- [`incident show`](/cli/incident-show) (Console): Prints everything known about one incident.
+- [`incident ack`](/cli/incident-ack) (Console): Marks an incident as being handled.
+- [`incident watch`](/cli/incident-watch) (Console): Waits until an incident recovers and stays recovered.
+- [`incident resolve`](/cli/incident-resolve) (Console): Resolves an incident after you deployed and verified a fix.
+- [`error list`](/cli/error-list) (Console): Lists runtime errors from your functions and containers.
+- [`error resolve`](/cli/error-resolve) (Console): Marks an error as resolved. It reopens if the error comes back.
+- [`error ignore`](/cli/error-ignore) (Console): Ignores an error, so it does not reopen or alert.
+- [`error reopen`](/cli/error-reopen) (Console): Reopens a resolved or ignored error.
 
 ## Console and account
 
 - [`login`](/cli/login): Signs this machine in to Stacktape.
 - [`logout`](/cli/logout): Signs this machine out of Stacktape.
 - [`connect`](/cli/connect): Connects the AWS account of your local credentials to the Console, without redeploying anything.
-- [`whoami`](/cli/info-whoami) (Console): Shows your user, organization, connected AWS accounts and projects.
+- [`whoami`](/cli/whoami) (Console): Shows your user, organization, connected AWS accounts and projects.
 - [`org list`](/cli/org-list) (Console): Lists the organizations you can access.
 - [`org create`](/cli/org-create) (Console): Creates an organization.
 - [`org delete`](/cli/org-delete) (Console): Deletes the organization of your API key.

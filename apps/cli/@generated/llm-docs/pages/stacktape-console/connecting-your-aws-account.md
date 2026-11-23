@@ -66,7 +66,7 @@ CLI commands that work with a deployed stack, such as `deploy`, `delete` and `ro
 
 1. `--aws-account <name>`, the account's name in the Console.
 2. The account your local AWS credentials belong to: `--profile`, then `AWS_PROFILE`, then `AWS_ACCESS_KEY_ID` in the environment. The CLI reads the account ID from the profile's `sso_account_id` or `role_arn` when it can, and otherwise asks AWS STS.
-3. The default saved with [`stacktape defaults set`](/cli/defaults-configure).
+3. The default saved with [`stacktape defaults set`](/cli/defaults-set).
 4. Your organization's only connected account.
 
 If the local credentials belong to an account that is not connected, the command stops before it changes anything and lists the connected accounts. It also stops when their account cannot be determined, for example when an SSO session has expired, and when a profile and environment keys point to different accounts. To deploy anyway, pass `--aws-account`, unset the profile, or connect the account.

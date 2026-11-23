@@ -1,0 +1,53 @@
+# Shared non-production network
+
+Non-production stages of an AWS account and region share one VPC, the `stacktape-network` stack, instead of creating a VPC each. A new stage's first deploy skips creating a VPC, subnets and an internet gateway, and a team with many preview and feature stages stays under the AWS default limit of 5 VPCs per region.
+
+When a stage in it needs outbound internet ([`stackConfig.nat`](/configuration/connecting-resources#nat-internet-access-from-private-subnets)), it uses one shared NAT instance, the `stacktape-network-nat` stack: one `t4g.nano` for every non-production stage, about $7.70 per month in total. The first stage that needs each shared stack creates it while the stage builds, which takes about a minute for the network and about three minutes for the NAT; later stages only use them, and the shared stacks are removed after a day without stages. The shared NAT's size is fixed, so a stage's `nat.instanceSize` does not apply in the shared network.
+
+## How a stage is placed
+
+Every deploy prints where the stage runs and why:
+
+```text
+Network: shared non-production network `stacktape-network` (the stage name `pr-42` marks a non-production stage).
+Network: own VPC (the stage name `acme` does not say whether it is production). Set `stackConfig.stageType` or `stackConfig.vpc.shared` to choose.
+```
+
+The first deploy that creates networked resources decides, in this order:
+
+1. `stackConfig.vpc.shared: true` or `false` decides.
+2. Otherwise `stackConfig.stageType`, then the stage type chosen in the Stacktape Console: non-production stages join the shared network, production stages get a VPC of their own.
+3. Otherwise the stage name: names with `dev`, `staging`, `test`, `qa`, `uat`, `preview`, `sandbox`, `pr`, `feature`, `feat`, `e2e` or `ci` join the shared network; `prod`, `production`, `prd` and `live` get their own VPC.
+4. A name that says neither (`main`, `acme`, or one with both kinds of word, such as `pre-prod`) asks once, "Is stage acme production?", when you deploy from a terminal. In CI, agents, MCP and remote runners nothing is asked: the stage gets a VPC of its own, and the output says how to choose. The answer is not stored for you: add the `stackConfig.stageType` line the deploy prints so paging, permissions and security checks classify the stage the same way.
+
+Stages with `vpc.reuseVpc`, [MongoDB Atlas](/resources/databases/mongodb-atlas) clusters, Kafka clusters with function triggers, or `stackConfig.nat` set to `gateway` or `ha-ec2` always get a VPC of their own, and the output says why.
+
+## Placement is fixed
+
+Stages deployed before this behavior existed keep their VPC. A deployed stage cannot move between the shared network and a VPC of its own, because its databases, caches, load balancers and functions would be replaced; to move it, delete the stage and deploy it again. A stage that later becomes production (through `stageType`, the Console or a rename) keeps running in the shared network, and every deploy warns about it until you set `stackConfig.vpc.shared: true` to keep it there.
+
+## Isolation between stages
+
+Each stage keeps its own security groups, and every workload of the stage also carries a stage security group. In the shared network, databases, Redis and OpenSearch in `accessibilityMode: vpc`, internal load balancers and Service Connect ports admit only that stage group, so one stage cannot reach another stage's resources by private IP. `connectTo` works as before. What you give up in the shared network: reaching another stage's resources by private IP (use `reuseVpc` for that), choosing the CIDR, peering or a transit gateway per stage, and a NAT IP of the stage's own. Anyone who can deploy to the account can still change the shared network; the separation prevents accidental access, not a hostile deployer.
+
+## Functions with no private access
+
+Functions that reach nothing private deploy in seconds. AWS creates network interfaces for each combination of subnets and security groups that VPC functions use. A new combination takes about 4 minutes on the first deploy, and deleting its last function waits up to 20 minutes for AWS to release them. In the shared network, a function with `joinDefaultVpc` therefore runs in the network's no-access security group when it connects to nothing private: no `connectTo` target that admits functions by security group (database, Redis, OpenSearch, Kafka) and no EFS mount, in a stage with no `accessibilityMode: vpc` database, Redis or OpenSearch, no internal load balancer and no Service Connect port. Nothing admits that group, so such a function reaches no stage's private resources, its own stage's included; its outbound access does not change. Every such function in the account and region shares the same network interfaces, so it is created in seconds and deleting it waits for nothing. Other functions keep the stage's security groups. A deployed function keeps its security group, because moving it would create network interfaces again; it moves to the no-access group only when its group changes anyway, for example when it is new or its connections change. The network keeps two idle functions in that group, `stacktape-network-keeper-public` and `stacktape-network-keeper-private`, and the janitor invokes them every hour, because AWS removes the network interfaces of functions that are not invoked for about 14 days. They cost nothing in practice.
+
+## Removal of the shared stacks
+
+The shared stacks go away on their own. The network stack includes a small function, the janitor, that checks the shared stacks every hour. Once no stage has used the shared NAT for 24 hours, it removes the NAT; once no stage has used the network for 24 hours, it deletes the network's idle keeper functions and, on a later run once AWS has released their network interfaces, removes the network, its own function included. Deleting a stage never waits for this. The day of grace keeps the NAT for preview and feature stages that come and go, instead of creating it again, about three minutes, for the next one. A stage uses a shared stack while its stack imports it, which lasts until AWS has deleted the stage completely, and each deploy of a stage in the shared network counts as a use too. A failed first deploy, or a stage that stops using `nat`, is cleaned up the same way. The janitor keeps a shared stack whose VPC holds something Stacktape did not create, such as an instance or an endpoint you added, and says so in its log group, `/aws/lambda/stacktape-network-janitor`. A deploy that starts while a shared stack is being removed waits for the removal and creates the stack again. The janitor runs within the Lambda free tier and costs well under a cent per month without it.
+
+## Permissions for CI
+
+Deploys through the Stacktape Console and its runners use the connected account's role and need nothing more. A CI role limited to its own stacks also needs, for the shared stacks:
+
+- `cloudformation:DescribeStacks`, `CreateStack`, `UpdateStack` and `UpdateTerminationProtection` on `arn:aws:cloudformation:<region>:<account>:stack/stacktape-network*/*`;
+- `ssm:PutParameter` on `arn:aws:ssm:<region>:<account>:parameter/stacktape/shared-network/*`, where each deploy records that it uses the shared stacks;
+- the EC2 actions the network creates: `ec2:CreateVpc`, `ModifyVpcAttribute`, `CreateSubnet`, `ModifySubnetAttribute`, `CreateRouteTable`, `AssociateRouteTable`, `CreateRoute`, `CreateInternetGateway`, `AttachInternetGateway`, `CreateVpcEndpoint`, `CreateTags` and `ec2:Describe*`;
+- for the janitor and the no-access group, which the network gets when it is created or on the next deploy of a stage that uses it: `iam:CreateRole`, `PutRolePolicy`, `GetRole`, `PassRole`, `lambda:CreateFunction`, `lambda:GetFunction`, `lambda:UpdateFunctionCode`, `lambda:UpdateFunctionConfiguration`, `lambda:InvokeFunction`, `logs:CreateLogGroup`, `logs:PutRetentionPolicy`, `scheduler:CreateSchedule`, `scheduler:GetSchedule` and `ec2:CreateSecurityGroup`;
+- for the NAT: `ec2:AllocateAddress`, `CreateNetworkInterface`, `CreateSecurityGroup`, `AuthorizeSecurityGroupIngress`, `AuthorizeSecurityGroupEgress`, `CreateLaunchTemplate`, `RunInstances`, `autoscaling:CreateAutoScalingGroup`, `autoscaling:Describe*`, `iam:CreateRole`, `PutRolePolicy`, `AttachRolePolicy`, `PassRole`, `lambda:CreateFunction`, `lambda:GetFunction`, `lambda:InvokeFunction`, `ssm:PutParameter` and `ssm:GetParameters`.
+
+The CI role needs no delete actions: the janitor removes the shared stacks with its own role, which can delete only `stacktape-network` and `stacktape-network-nat`, and whose delete actions on their resources apply only while CloudFormation uses it for those deletes.
+
+If you would rather not grant them, set `stackConfig.vpc.shared: false`; the stage then creates its own VPC as before.

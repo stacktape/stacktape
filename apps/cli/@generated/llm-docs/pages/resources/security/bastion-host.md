@@ -46,7 +46,7 @@ ORM at it and keep the command running while you work. A Redis cache with a read
 [application load balancers](/resources/networking/application-load-balancer) and
 [private services](/resources/compute/private-service) behind a load balancer.
 
-[`bastion shell`](/cli/bastion-session) opens a shell on the instance itself:
+[`bastion shell`](/cli/bastion-shell) opens a shell on the instance itself:
 
 ```bash
 stacktape bastion shell --stage production

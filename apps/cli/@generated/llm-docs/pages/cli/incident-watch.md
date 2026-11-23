@@ -1,10 +1,3 @@
----
-title: 'incident watch'
-order: 184
-seoTitle: 'incident watch CLI Command | Stacktape Docs'
-seoDescription: 'Wait until a Stacktape incident remains resolved for a sustained stability window with stacktape incident watch. Verify a deployed fix from scripts and coding-agent workflows.'
----
-
 # incident watch
 
 The `incident watch` command waits for an incident to recover and stay recovered. It exits successfully only after the incident has remained `RESOLVED` for the stability window; if a signal recurs and reopens the incident, the window resets. Use it after deploying a fix to prove the fix worked, in CI scripts, or at the end of a coding-agent workflow. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
@@ -39,12 +32,23 @@ The command exits with the error code `INCIDENT_WATCH_TIMEOUT` if sustained reco
 
 ## Options
 
-<CliCommandsApiReference command="incidents:watch" />
+
+## CLI Options: `stacktape incident watch`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--incident-id (positional 1)` | yes | `string` | Incident ID — The ID of the incident to act on. | - |
+| `-h, --help` | no | `string` | Show Help — If provided, the command will not execute and will instead print help information. | - |
+| `--stable-for` | no | `number` | Incident Watch Stability Window — Number of continuous seconds the incident must remain resolved before the command succeeds. A recurring signal resets the window. Defaults to 30 seconds. | - |
+| `--timeout` | no | `number` | Incident Watch Timeout — Maximum number of seconds to wait for the incident to recover. Defaults to 900 seconds. | - |
+| `--log-level` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--quiet` | no | `boolean` | Quiet — Hide progress, banners, success messages and hints. Command output, warnings and errors are still printed. | - |
+
 
 ## Related commands
 
-- [`incident show`](/cli/incidents-show) — inspect the current evidence when the watch times out
-- [`incident resolve`](/cli/incidents-resolve) — resolve error-only incidents manually before watching for a recurrence
-- [`incident list`](/cli/incidents) — list incidents and find their IDs
+- [`incident show`](/cli/incident-show) — inspect the current evidence when the watch times out
+- [`incident resolve`](/cli/incident-resolve) — resolve error-only incidents manually before watching for a recurrence
+- [`incident list`](/cli/incident-list) — list incidents and find their IDs
 
 See [Incidents](/observability/incidents) for the recommended triage and verification workflow.

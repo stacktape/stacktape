@@ -11,6 +11,7 @@ import {
   LuFileCog,
   LuGitBranch,
   LuHardDrive,
+  LuHistory,
   LuKeyRound,
   LuLaptop,
   LuLayoutDashboard,
@@ -58,14 +59,25 @@ export type SidebarSubgroup = {
    * `/cli/<command>` URLs and groups the commands by task here.
    */
   pages?: string[];
+  /**
+   * Pages that another group lists (see `SidebarGroup.pages`) and that this subgroup links to as well, after its own
+   * pages. The link never opens its branch: the page's place in the sidebar is the group that lists it.
+   */
+  links?: string[];
 };
 
 type SidebarGroup = {
   order: number;
+  /** Key of the group. Pages whose URL starts with it belong to it, unless another group lists them. */
   path: string;
   title: string;
   icon: SidebarIcon;
   defaultOpen?: boolean;
+  /**
+   * Pages from another URL path that sit in this group among its own pages, at `order` (the frontmatter order of the
+   * group's own pages). Used where the sidebar place changed but the URL had to stay, because the CLI prints it.
+   */
+  pages?: { url: string; order: number }[];
   subgroups?: SidebarSubgroup[];
 };
 
@@ -95,10 +107,19 @@ const siteConfig = {
       '/guardrails',
       '/stacktape-console',
       '/using-with-ai',
-      '/cli'
+      '/cli',
+      '/stacktape-v3'
     ],
     groups: [
-      { order: 1, path: '/getting-started', title: 'Getting started', icon: LuRocket, defaultOpen: true },
+      {
+        order: 1,
+        path: '/getting-started',
+        title: 'Getting started',
+        icon: LuRocket,
+        defaultOpen: true,
+        // Setting up a domain is a step of going live, right after "Going to production".
+        pages: [{ url: '/resources/networking/custom-domains', order: 10 }]
+      },
       { order: 2, path: '/configuration', title: 'Configuration', icon: LuFileCog },
       {
         order: 3,
@@ -110,7 +131,7 @@ const siteConfig = {
           { path: '/resources/frontend', icon: LuMonitor },
           { path: '/resources/databases', icon: LuDatabase },
           { path: '/resources/storage', icon: LuHardDrive },
-          { path: '/resources/networking', icon: LuNetwork },
+          { path: '/resources/networking', icon: LuNetwork, links: ['/resources/networking/custom-domains'] },
           { path: '/resources/messaging', icon: LuMessageSquare },
           { path: '/resources/triggers', icon: LuZap },
           { path: '/resources/orchestration', icon: LuWorkflow },
@@ -152,7 +173,7 @@ const siteConfig = {
               '/cli/aws-profile-list',
               '/cli/aws-profile-update',
               '/cli/aws-profile-delete',
-              '/cli/defaults-configure',
+              '/cli/defaults-set',
               '/cli/defaults-list',
               '/cli/domain-add',
               '/cli/upgrade',
@@ -169,12 +190,12 @@ const siteConfig = {
               '/cli/synth',
               '/cli/package',
               '/cli/deploy',
-              '/cli/info-stack',
-              '/cli/info-stacks',
-              '/cli/info-operations',
+              '/cli/status',
+              '/cli/stack-list',
+              '/cli/stack-history',
               '/cli/rollback',
-              '/cli/cf-rollback',
-              '/cli/cf-module-update',
+              '/cli/stack-recover',
+              '/cli/stack-update-modules',
               '/cli/deployment-script-run',
               '/cli/bucket-sync',
               '/cli/delete'
@@ -196,11 +217,11 @@ const siteConfig = {
             pages: [
               '/cli/logs',
               '/cli/metrics',
-              '/cli/alarms',
+              '/cli/alarm-list',
               '/cli/aws-call',
-              '/cli/container-session',
+              '/cli/container-shell',
               '/cli/container-exec',
-              '/cli/bastion-session',
+              '/cli/bastion-shell',
               '/cli/bastion-tunnel',
               '/cli/query-sql',
               '/cli/query-dynamodb',
@@ -212,15 +233,15 @@ const siteConfig = {
             path: '/cli/incidents-and-errors',
             title: 'Incidents and errors',
             pages: [
-              '/cli/incidents',
-              '/cli/incidents-show',
-              '/cli/incidents-ack',
-              '/cli/incidents-watch',
-              '/cli/incidents-resolve',
-              '/cli/errors-list',
-              '/cli/errors-resolve',
-              '/cli/errors-ignore',
-              '/cli/errors-reopen'
+              '/cli/incident-list',
+              '/cli/incident-show',
+              '/cli/incident-ack',
+              '/cli/incident-watch',
+              '/cli/incident-resolve',
+              '/cli/error-list',
+              '/cli/error-resolve',
+              '/cli/error-ignore',
+              '/cli/error-reopen'
             ]
           },
           {
@@ -230,7 +251,7 @@ const siteConfig = {
               '/cli/login',
               '/cli/logout',
               '/cli/connect',
-              '/cli/info-whoami',
+              '/cli/whoami',
               '/cli/org-list',
               '/cli/org-create',
               '/cli/org-delete',
@@ -246,6 +267,14 @@ const siteConfig = {
             pages: ['/cli/mcp', '/cli/mcp-add', '/cli/mcp-remove', '/cli/ai-connect', '/cli/ai-disconnect']
           }
         ]
+      },
+      {
+        // Kept apart from Getting started, whose pages are for new users.
+        order: 14,
+        path: '/stacktape-v3',
+        title: 'Stacktape v3',
+        icon: LuHistory,
+        pages: [{ url: '/getting-started/upgrading-from-v3', order: 1 }]
       }
     ] satisfies SidebarGroup[],
     /**

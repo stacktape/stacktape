@@ -17,7 +17,7 @@ Use `rollback` when a recent deployment introduced a bug, performance regression
 Rollback primarily restores the previous CloudFormation template and stored workload artifacts (Lambda zips, container images). For bucket-synced static content, Stacktape also attempts a manifest-based restore after the rollback. Application-side data changes are not undone — treat database migrations and application-written objects as separate recovery work. If your deployment included a schema migration, rolling back the code without rolling back the schema may cause errors.
 </Warning>
 
-If your stack is stuck in an `UPDATE_ROLLBACK_FAILED` state and cannot accept new updates, use [`stack recover`](/cli/cf-rollback) instead — it uses CloudFormation's native recovery mechanism to restore the stack to a working state. A stack in `UPDATE_FAILED` can be rolled back with either command.
+If your stack is stuck in an `UPDATE_ROLLBACK_FAILED` state and cannot accept new updates, use [`stack recover`](/cli/stack-recover) instead — it uses CloudFormation's native recovery mechanism to restore the stack to a working state. A stack in `UPDATE_FAILED` can be rolled back with either command.
 
 ## Usage
 
@@ -145,7 +145,7 @@ The `--agent` flag uses JSONL/NDJSON output and disables interactive terminal UI
 
 ### What is the difference between `rollback` and `stack recover`?
 
-The `rollback` command deploys a previously stored CloudFormation template as a new version — use it when a *successful* deployment introduced a problem in your application. The [`stack recover`](/cli/cf-rollback) command uses CloudFormation's native rollback mechanism to recover a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. Use `rollback` for "the deploy worked but the app is broken" and `stack recover` for "the deploy itself failed."
+The `rollback` command deploys a previously stored CloudFormation template as a new version — use it when a *successful* deployment introduced a problem in your application. The [`stack recover`](/cli/stack-recover) command uses CloudFormation's native rollback mechanism to recover a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. Use `rollback` for "the deploy worked but the app is broken" and `stack recover` for "the deploy itself failed."
 
 ### Does rollback rebuild my code?
 
@@ -173,7 +173,7 @@ No. When rollback safety metadata reports `after:deploy` hooks, Stacktape warns 
 
 ## Related commands
 
-- [`stack recover`](/cli/cf-rollback) — recover a stack stuck in a failed CloudFormation update state
+- [`stack recover`](/cli/stack-recover) — recover a stack stuck in a failed CloudFormation update state
 - [`deploy`](/cli/deploy) — deploy your stack to AWS
 - [`diff`](/cli/diff) — preview what a deployment would change before applying it
-- [`stack history`](/cli/info-operations) — view recent deployment operations and their status
+- [`stack history`](/cli/stack-history) — view recent deployment operations and their status

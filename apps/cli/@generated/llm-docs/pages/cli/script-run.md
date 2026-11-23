@@ -8,7 +8,7 @@ The `script run` command executes a script defined in the `scripts` section of y
 stacktape script run myMigration --stage production
 ```
 
-`script run` requires the script name and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults set`](/cli/defaults-configure)).
+`script run` requires the script name and `--stage`. Pass `--region` when you do not rely on a configured default (set via [`defaults set`](/cli/defaults-set)).
 
 ## Examples
 

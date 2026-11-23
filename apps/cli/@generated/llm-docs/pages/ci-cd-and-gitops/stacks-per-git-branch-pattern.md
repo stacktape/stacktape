@@ -104,7 +104,7 @@ To keep previews cheap:
 - **Make them smaller.** Use [stage-specific configuration](/configuration/stages-and-environments) to give previews a
   smaller database instance or fewer containers than production.
 - **Set a budget.** A [budget](/managing-costs/budgets) alerts you when the account's spend passes a threshold.
-- **List what runs.** [`stacktape stack list`](/cli/info-stacks) shows every deployed stage, so you can delete the
+- **List what runs.** [`stacktape stack list`](/cli/stack-list) shows every deployed stage, so you can delete the
   stale ones.
 
 Previews can be the wrong choice when one stage costs a lot per hour (large databases, many containers, GPU jobs) or

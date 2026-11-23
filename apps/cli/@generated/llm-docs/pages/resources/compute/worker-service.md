@@ -425,7 +425,7 @@ them with [`stacktape logs`](/cli/logs). Log the job or message ID with each lin
 ## Remote sessions
 
 `enableRemoteSessions: true` lets you open a shell in a running container with
-[`stacktape container shell`](/cli/container-session), for example to inspect a stuck worker. It adds a small Systems
+[`stacktape container shell`](/cli/container-shell), for example to inspect a stuck worker. It adds a small Systems
 Manager agent container. Turn it on for stages where you debug, not as a routine production tool.
 
 
