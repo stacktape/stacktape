@@ -1,6 +1,6 @@
 # Deploy Your First Stage
 
-Deploying a Stacktape stage takes your `stacktape.ts` configuration and provisions real AWS infrastructure — a CloudFormation stack containing every resource you declared. This page walks you through AWS credentials and your first deploy command. You don't need a Stacktape account: the open-source CLI deploys with your own AWS credentials. See [Use the CLI without an account](/getting-started/open-source-cli) for what that covers.
+Deploying a Stacktape stage takes your `stacktape.ts` configuration and provisions real AWS infrastructure — a CloudFormation stack containing every resource you declared. This page walks you through AWS credentials and your first deploy command. You don't need a Stacktape account: the open-source CLI deploys with your own AWS credentials. See [Use the CLI without an account](/getting-started/open-source-cli) for what that covers. If you deployed from the init wizard, skip to [Verifying the deploy](#verifying-the-deploy).
 
 
 > **Info:** Already deployed before? Skip to [CI/CD](/getting-started/ci-cd) or [Going to production](/getting-started/going-to-production).
@@ -15,19 +15,16 @@ Before deploying, you need:
 
 If you followed [Use the dev mode](/getting-started/use-the-dev-mode), your config is already tested locally and ready for a real deployment.
 
-If you deployed from the `stacktape init` wizard, the stage you deployed there (`dev` by default) is already running. Use this page for the deploys you run from the terminal.
-
 ## Step 1: Set up AWS credentials
 
 Stacktape deploys into your own AWS account with the AWS credentials on your machine. It finds them the same way the AWS CLI does: environment variables such as `AWS_ACCESS_KEY_ID` or `AWS_PROFILE`, the default profile in `~/.aws`, or an AWS IAM Identity Center (SSO) session.
 
-If you already use the AWS CLI, you are set. Otherwise, create a profile with [`stacktape aws-profile create`](/cli/aws-profile-create) or sign in with the AWS CLI:
+If you already use the AWS CLI, you are set. Otherwise, create a profile from an IAM user's access key with [`stacktape aws-profile create`](/cli/aws-profile-create) or sign in with the AWS CLI:
 
 ```bash
+aws configure sso   # once: set up the profile, name it my-dev-account
 aws sso login --profile my-dev-account
 ```
-
-Without any credentials yet, you need one of two things from the AWS console: an access key of an IAM user, which `stacktape aws-profile create` asks for, or an IAM Identity Center sign-in, which `aws configure sso` sets up once.
 
 Pass `--profile <name>` to Stacktape commands to use a profile other than the default one.
 
@@ -37,21 +34,21 @@ Pass `--profile <name>` to Stacktape commands to use a profile other than the de
 
 ## Step 2: Deploy
 
-With credentials in place, deploy your stack with the [`stacktape deploy`](/cli/deploy) command. A config from `stacktape init` declares the project name and region, so the stage is the only flag you need.
-
-```bash cli-check=defaults:region
-stacktape deploy --stage dev
-```
-
-If your config has no `projectName` or `region`, pass them as flags.
+With credentials in place, deploy your stack with the [`stacktape deploy`](/cli/deploy) command.
 
 ```bash
 stacktape deploy --project my-app --stage dev --region eu-west-1
 ```
 
+If your config declares `projectName` and `region`, as the init wizard writes it, the stage is the only flag you need.
+
+```bash cli-check=defaults:region
+stacktape deploy --stage dev
+```
+
 The project name and stage name together name the stack. Stages let you run multiple independent copies of your infrastructure — `dev`, `staging`, `production` — from the same configuration. See the [`stacktape deploy`](/cli/deploy) CLI reference for the full list of flags and their accepted values.
 
-The stage name also decides where resources that need a VPC run. A name with `prod`, `production` or `live` marks a production stage, which gets a VPC of its own. Names like `dev`, `staging` or `test` mark non-production stages, which share one network per AWS account and region. If the name says neither, the first deploy asks, and in CI the stage gets its own VPC. Moving a deployed stage to the other network means deleting and redeploying it, so choose the name before the first deploy. See [Production and non-production stages](/configuration/stages-and-environments#production-and-non-production-stages).
+For a first stage, a name like `dev` works. If your resources need a VPC, a non-production stage like `dev` shares one network with the other non-production stages in the AWS account and region by default. Moving it to a network of its own later means deleting and redeploying it. See [Production and non-production stages](/configuration/stages-and-environments#production-and-non-production-stages).
 
 If your configuration file is in a different directory or has another name, point the CLI at it explicitly.
 
@@ -77,7 +74,15 @@ On the first deploy, CloudFormation creates the stack and all resources from scr
 
 After a successful deploy, the CLI prints the URLs of your resources, such as API endpoints and website addresses.
 
-In a terminal, the run ends with `DEPLOYMENT SUCCESSFUL` and these links. Without a Stacktape account, the first deploy of a project also prints a grey line that suggests [`stacktape connect`](#add-the-console-optional).
+For a Lambda function with a URL, the output ends like this:
+
+```text cli-check=skip:output
+✓ DEPLOYMENT SUCCESSFUL
+  hello URL: https://<function-id>.lambda-url.eu-west-1.on.aws/
+i Deploy history, costs and alerts for this stage, shared with your team: stacktape connect (free)
+```
+
+The last line appears once per project when you deploy without a Stacktape account. It points to the [optional Console](#add-the-console-optional).
 
 If the CLI is signed in to the [Stacktape Console](/stacktape-console/console-overview), the output also includes a Console URL for the stage:
 
@@ -146,13 +151,17 @@ stacktape deploy --project my-app --stage staging --region eu-west-1
 
 Each stage is deployed as its own CloudFormation stack with its own resources and URLs. Use different stage names to run separate copies of the resources declared by your configuration. This lets you test changes in staging without affecting production users. For automated stage-per-branch workflows, see [Stacks per git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
 
-To serve a stage on your own domain, see [Custom domains](/resources/networking/custom-domains).
+To serve a stage on your own domain, see [Custom domains](/resources/networking/custom-domains). To remove a stage you no longer need, run [`stacktape delete`](/cli/delete) with the same flags you deployed it with.
 
 ## Troubleshooting
 
+<span id="no-aws-credentials-found" />
+
 ### Could not load AWS credentials
 
-The CLI prints `Could not load AWS credentials from …` or `Could not find the AWS account of …` when it finds no usable AWS credentials. Set them up as described in [Step 1](#step-1-set-up-aws-credentials), or pass `--profile <name>`. If you use AWS IAM Identity Center, run `aws sso login` again when the session expires.
+The CLI prints `Could not load AWS credentials from …` or `Could not find the AWS account of …`. The end of the message gives the cause: missing or expired credentials, or an AWS error. Set them up as described in [Step 1](#step-1-set-up-aws-credentials), or pass `--profile <name>`. If you use AWS IAM Identity Center, run `aws sso login` again when the session expires.
+
+<span id="no-connected-aws-accounts" />
 
 ### "There is no AWS account connected"
 
