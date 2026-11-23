@@ -41,5 +41,7 @@ const { label, layout = 'rows', items } = Astro.props;
 </div>
 
 <script>
-import './directory-filter.ts';
+import { setUpDirectoryFilters } from './directory-filter.ts';
+
+  setUpDirectoryFilters();
 </script>

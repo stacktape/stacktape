@@ -18,5 +18,8 @@ const setUp = () => {
   });
 };
 
-setUp();
-document.addEventListener('astro:page-load', setUp);
+/** Sets up the field now and after each client-side navigation. */
+export const setUpNotFoundSearch = () => {
+  setUp();
+  document.addEventListener('astro:page-load', setUp);
+};

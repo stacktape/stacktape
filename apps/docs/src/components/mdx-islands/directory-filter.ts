@@ -63,5 +63,9 @@ const setUp = (root: HTMLElement) => {
 };
 
 const setUpAll = () => document.querySelectorAll<HTMLElement>('[data-directory]').forEach(setUp);
-setUpAll();
-document.addEventListener('astro:page-load', setUpAll);
+
+/** Sets up every filter on the page now and after each client-side navigation. Safe to call more than once. */
+export const setUpDirectoryFilters = () => {
+  setUpAll();
+  document.addEventListener('astro:page-load', setUpAll);
+};
