@@ -19004,21 +19004,15 @@
       "tags": [],
       "chunks": [
         "page:/#from-scratch-to-production-grade-aws-infra-in-a-day-no-devops-knowledge-required",
-        "page:/#everything-you-need-in-one-framework",
-        "page:/#a-real-stacktape-config",
-        "page:/#quick-start",
-        "page:/#install-stacktape",
-        "page:/#initialize-a-project",
-        "page:/#deploy-to-aws",
-        "page:/#configuration-in-typescript-yaml-or-json",
-        "page:/#a-development-workflow-built-for-speed",
-        "page:/#local-development",
-        "page:/#scripts-migrations",
-        "page:/#private-networking",
-        "page:/#override-extend",
-        "page:/#open-source-cli-optional-console",
+        "page:/#start-with-your-own-project",
+        "page:/#pick-your-path",
+        "page:/#deploy-an-app-you-already-have",
+        "page:/#start-a-new-project",
+        "page:/#evaluate-it-for-your-team",
+        "page:/#map-of-the-docs",
+        "page:/#why-teams-use-stacktape",
         "page:/#loved-by-teams-shipping-on-aws",
-        "page:/#ready-to-simplify-your-aws-deployments"
+        "page:/#open-source-cli-optional-console"
       ]
     },
     {

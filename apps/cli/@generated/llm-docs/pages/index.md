@@ -1,125 +1,22 @@
 # From scratch to production-grade AWS infra in a day. No DevOps knowledge required.
 
-Stacktape gives you the speed of a PaaS with the control and cost structure of raw AWS. Define your infrastructure in TypeScript, deploy it with one command, and run it in the AWS account you control. The CLI is open source and needs no Stacktape account. Your infrastructure and application data stay in your AWS account; if you add the Stacktape Console, operational data such as error events, check results and security findings goes to it.
+Stacktape turns one config file into infrastructure in your own AWS account, and the CLI builds and deploys your code to it. The CLI is open source and works without a Stacktape account.
 
 
-- [Get started](/getting-started/configure-your-stack/)
-- [Star on GitHub](https://github.com/stacktape/stacktape)
-- [Browse examples](/getting-started/starter-projects/)
+`stacktape deploy` creates these resources with your AWS credentials, and AWS bills you for them directly. `stacktape delete` removes all of them.
 
 
-Stacktape is open source. Browse the source at https://github.com/stacktape/stacktape.
+## Start with your own project
+
+Run this in your project's folder. A wizard opens in your browser, proposes a config from your code and deploys it
+after you review it. You don't need a Stacktape account; the wizard offers the Console after the first deploy.
 
 
-## Everything you need, in one framework
-
-
-- **Containers & serverless:** Deploy Lambda functions and containers side by side — Fargate for steady workloads, Lambda for spiky ones, EC2 when you need raw control.
-- **Full power of AWS:** SQL and NoSQL databases, load balancers, API gateways, Redis, MongoDB Atlas, queues, buckets and more — all first-class building blocks.
-- **Risk-free:** Extend, override or eject anytime. Everything compiles to plain CloudFormation you can inspect and take with you.
-- **Infrastructure as code:** TypeScript, YAML or JSON — about 97% shorter than writing the equivalent CloudFormation by hand.
-- **Built-in CI/CD:** Push-to-deploy and isolated preview deployments for every pull request, straight out of the box.
-- **Development mode:** Run services locally while connected to real cloud resources — test changes without redeploying every time.
-- **Smart builds:** Zero-config, optimized parallel builds with advanced caching for every function and container.
-- **Security built in:** Secret management, least-privilege permissions and private networking — configured by default.
-- **Cost optimization:** A detailed cost breakdown across all your stacks and accounts. Billed by AWS, with no markup.
-
-
-## A real Stacktape config
-
-A complete HTTP API backed by DynamoDB, with CORS, a custom domain per stage, auto-generated IAM and environment variables:
-
-
-Example (stacktape.ts):
-
-```typescript
-import {
-  defineConfig,
-  DynamoDbTable,
-  HttpApiGateway,
-  HttpApiIntegration,
-  LambdaFunction,
-  JsBundleLambdaPackaging
-} from 'stacktape';
-
-export default defineConfig(({ stage }) => {
-  const database = new DynamoDbTable({
-    primaryKey: { partitionKey: { name: 'id', type: 'string' } }
-  });
-
-  const api = new HttpApiGateway({
-    cors: { enabled: true },
-    customDomains: [{ domainName: stage === 'production' ? 'acme.com' : stage + '-acme.com' }]
-  });
-
-  const myFunction = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
-    events: [new HttpApiIntegration({ httpApiGatewayName: api, method: 'GET', path: '/' })],
-    connectTo: [database],
-    environment: { TABLE_NAME: database.name }
-  });
-
-  return { resources: { api, myFunction, database } };
-});
-```
-
-
-Run `stacktape deploy` and you get a live API Gateway endpoint with your custom domain, a DynamoDB table, and a Lambda with the table name injected and IAM scoped to exactly what it needs — no console clicking, no IAM JSON.
-
-## Quick start
-
-
-### Install Stacktape
-
-
-    Install globally, or locally to your project.
-
-
-Example (npm (global)):
+Example (npm):
 
 ```bash
-npm install -g stacktape
+npx stacktape init
 ```
-
-
-Example (npm (local)):
-
-```bash
-npm install stacktape
-```
-
-
-Example (bun (global)):
-
-```bash
-bun add -g stacktape
-```
-
-
-Example (bun (local)):
-
-```bash
-bun add stacktape
-```
-
-
-Example (pnpm (global)):
-
-```bash
-pnpm add -g stacktape
-```
-
-
-Example (pnpm (local)):
-
-```bash
-pnpm add stacktape
-```
-
-
-    Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The
-    installer picks the build for your processor, including Apple silicon, ARM64 and Alpine Linux. Leave out `init` to
-    only install.
 
 
 Example (macOS):
@@ -143,243 +40,64 @@ iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 ```
 
 
-### Initialize a project
+## Pick your path
 
 
-    Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
+### Deploy an app you already have
 
+Run `stacktape init` in the repository. The wizard proposes a config from your code and deploys it after you review it.
 
-Example (bash):
+- [Configure your stack](/getting-started/configure-your-stack)
+- [Deploy your first stage](/getting-started/deploy-your-first-stage)
 
-```bash
-stacktape init
-```
 
+### Start a new project
 
-### Deploy to AWS
+Start from one of 60+ starter projects, from REST APIs to full-stack apps and AI agents. Scaffold one with `stacktape init --starter-id <id>`.
 
+- [Browse starter projects](/getting-started/starter-projects)
 
-    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
-    local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
 
+### Evaluate it for your team
 
-Example (bash):
+Everything runs in your AWS account and AWS bills you directly. The config compiles to CloudFormation that you can override, or extend with raw CloudFormation and AWS CDK.
 
-```bash
-stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
-```
+- [What you can deploy](/resources/compute/web-service)
+- [Overrides and escape hatches](/configuration/overrides-and-escape-hatches)
+- [CLI without an account](/getting-started/open-source-cli)
+- [Console pricing](/stacktape-console/billing-and-subscription)
 
 
-That's it — your app is now running on AWS. 🎉
+## Map of the docs
 
-## Configuration in TypeScript, YAML or JSON
 
-Stacktape supports three configuration formats. Use TypeScript for full type-safety and autocomplete, or YAML/JSON if you prefer. Each tab below defines the same deployable function.
+- [Getting Started](/getting-started/configure-your-stack): From the first config to production, in order.
+- [Configuration](/configuration/configuration-files): Config files, stages, connecting resources, secrets and overrides.
+- [Resources](/resources/compute/web-service): Every resource you can deploy, with all its properties.
+- [Packaging](/packaging/overview): How your code becomes a Lambda package or a container image.
+- [Deploying & Lifecycle](/deployment-and-lifecycle/deploying-stacks): Deploys, change previews, rollbacks and deleting stacks.
+- [Local Development](/local-development/dev-mode-overview): Run your services locally without redeploying.
+- [CI/CD & GitOps](/ci-cd-and-gitops/overview): Push-to-deploy, custom pipelines and build runners.
+- [Observability](/observability/overview): Logs, metrics, alarms, error tracking and uptime checks.
+- [Managing Costs](/managing-costs/overview): Cost dashboards, budgets and per-resource breakdowns.
+- [Guardrails](/guardrails/overview): Organization-wide rules for stages, regions and resource settings.
+- [Using with AI](/using-with-ai/overview): The MCP server and agent mode for coding assistants.
+- [Stacktape Console](/stacktape-console/console-overview): Deploy history, incidents, costs, team access and billing.
+- [CLI Reference](/cli/deploy): Every command and flag.
 
 
-Example (stacktape.ts (recommended)):
+## Why teams use Stacktape
 
-```typescript
-import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
-export default defineConfig(() => ({
-  resources: {
-    myFunction: new LambdaFunction({
-      packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' })
-    })
-  }
-}));
-```
+- **Containers & serverless:** Deploy Lambda functions and containers side by side — Fargate for steady workloads, Lambda for spiky ones, EC2 when you need raw control.
+- **Full power of AWS:** SQL and NoSQL databases, load balancers, API gateways, Redis, MongoDB Atlas, queues, buckets and more — all first-class building blocks.
+- **Risk-free:** Extend, override or eject anytime. Everything compiles to plain CloudFormation you can inspect and take with you.
+- **Built-in CI/CD:** Push-to-deploy and isolated preview deployments for every pull request, straight out of the box.
+- **Security built in:** Secret management, least-privilege permissions and private networking — configured by default.
+- **Cost optimization:** A detailed cost breakdown across all your stacks and accounts. Billed by AWS, with no markup.
 
 
-Example (stacktape.yml):
-
-```yaml
-resources:
-  myFunction:
-    type: function
-    properties:
-      packaging:
-        type: js-bundle
-        properties:
-          entryfilePath: ./src/index.ts
-```
-
-
-Example (stacktape.json):
-
-```json
-{
-  "resources": {
-    "myFunction": {
-      "type": "function",
-      "properties": {
-        "packaging": {
-          "type": "js-bundle",
-          "properties": {
-            "entryfilePath": "./src/index.ts"
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-
-Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `stacktape deploy --config stacktape.json --stage dev --region us-east-1`.
-
-## A development workflow built for speed
-
-### Local development
-
-Run your services in development mode to iterate faster — your code runs locally, connected to real cloud resources, so you can test changes without redeploying every time.
-
-
-Example (bash):
-
-```bash
-stacktape dev --stage dev --region us-east-1
-```
-
-
-### Scripts & migrations
-
-Define reusable scripts in your config — they run with the same connectivity and secrets your app has.
-
-
-Example (stacktape.ts):
-
-```typescript
-import { defineConfig, LocalScript, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
-
-export default defineConfig(() => {
-  const database = new RelationalDatabase({
-    engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-    credentials: { masterUserPassword: $Secret('database', 'password') }
-  });
-
-  return {
-    resources: { database },
-    scripts: {
-      migrate: new LocalScript({
-        executeCommand: 'npm run migrate',
-        connectTo: [database],
-        environment: { DATABASE_URL: database.connectionString }
-      })
-    }
-  };
-});
-```
-
-
-Example (bash):
-
-```bash
-stacktape script run migrate --stage dev --region us-east-1
-```
-
-
-## Private networking
-
-Increase security by keeping your database private (VPC-only):
-
-
-Example (stacktape.ts):
-
-```typescript
-import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
-
-export default defineConfig(({ stage }) => {
-  const mainDatabase = new RelationalDatabase({
-    engine: new RdsEnginePostgres({
-      primaryInstance: {
-        instanceSize: stage === 'production' ? 'db.t4g.medium' : 'db.t4g.micro',
-        multiAz: stage === 'production'
-      },
-      version: '18'
-    }),
-    credentials: {
-      masterUserName: 'master-user',
-      masterUserPassword: $Secret('my-secret-password')
-    },
-    accessibility: { accessibilityMode: 'vpc', forceDisablePublicIp: true }
-  });
-
-  return { resources: { mainDatabase } };
-});
-```
-
-
-Then add a bastion resource, so you can perform management tasks through a secure tunnel:
-
-
-Example (stacktape.ts):
-
-```typescript
-import { Bastion, LocalScriptWithBastionTunneling, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
-
-const mainDatabase = new RelationalDatabase({
-  engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
-  credentials: { masterUserPassword: $Secret('database', 'password') }
-});
-
-const bastion = new Bastion({});
-
-const migrationScript = new LocalScriptWithBastionTunneling({
-  executeCommand: 'prisma migrate',
-  connectTo: [mainDatabase]
-});
-```
-
-
-## Override & extend
-
-Need more control? Override or transform any AWS resource:
-
-
-Example (stacktape.ts):
-
-```typescript
-import { LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-
-const myFunction = new LambdaFunction({
-    // ... standard config
-    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' }),
-    overrides: {
-      lambda: { Description: 'Overridden description' }
-    },
-    transforms: {
-      lambda: (props: any) => ({ ...props, MemorySize: (props.MemorySize ?? 128) * 2 })
-    }
-});
-```
-
-
-Or drop in raw CloudFormation and AWS CDK constructs alongside your Stacktape resources:
-
-
-Example (stacktape.ts):
-
-```typescript
-import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-
-export default defineConfig(() => {
-  const myFunction = new LambdaFunction({
-    packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/index.ts' })
-  });
-
-  return {
-    resources: { myFunction },
-    cloudformationResources: {
-      mySnsTopic: {
-        Type: 'AWS::SNS::Topic',
-        Properties: { TopicName: 'my-test-topic', DisplayName: 'My Test Topic' }
-      }
-    }
-  };
-});
-```
+## Loved by teams shipping on AWS
 
 
 ## Open-source CLI, optional Console
@@ -388,14 +106,3 @@ The CLI is open source (MIT) and works without an account. Add the hosted Consol
 
 
 See current pricing at https://stacktape.com/pricing.
-
-
-## Loved by teams shipping on AWS
-
-
-## Ready to simplify your AWS deployments?
-
-From scratch to production-grade AWS infra in a day — no DevOps knowledge required.
-
-- [Get started](/getting-started/configure-your-stack/)
-- [Browse examples](/getting-started/starter-projects/)
