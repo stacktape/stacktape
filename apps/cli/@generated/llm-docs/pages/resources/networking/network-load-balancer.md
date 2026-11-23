@@ -64,7 +64,7 @@ Listeners define which ports and protocols the Network Load Balancer accepts tra
 
 **TCP listeners** forward raw TCP connections with no encryption at the load balancer level. Use TCP when your application handles its own encryption, or when the traffic is on a private network and TLS overhead is unnecessary.
 
-**TLS listeners** terminate TLS at the load balancer and forward decrypted traffic to the container. This offloads certificate management from your application. TLS requires a certificate — either auto-provisioned through `customDomains` on the NLB, or explicitly provided via `customCertificateArns` on the listener.
+**TLS listeners** terminate TLS at the load balancer and forward decrypted traffic to the container. This offloads certificate management from your application. TLS requires a certificate — either the one [`stacktape domain add`](/cli/domain-add) issued for a domain in `customDomains` on the NLB, or one explicitly provided via `customCertificateArns` on the listener. A TLS listener with neither gets a `*.stacktape-app.com` domain from the [Stacktape Console](/getting-started/open-source-cli); without the Console connected, the deploy stops with `CONFIG_NEEDS_CONSOLE` and asks for a domain or certificate. TCP listeners need neither.
 
 **Choosing between TCP and TLS:** TCP is simpler and avoids double-encryption if your application already terminates TLS. TLS at the NLB offloads certificate management and works well when the backend doesn't need to inspect the TLS handshake. For mutual TLS (mTLS) or when the application needs access to client certificates, use TCP and terminate TLS inside the container.
 

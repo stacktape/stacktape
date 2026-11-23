@@ -46,7 +46,7 @@ An API Gateway custom domain cannot contain both WebSocket and HTTP/REST API map
 
 For Stacktape-managed DNS, point your registrar's nameservers at a public Route 53 hosted zone in your AWS account. The zone for `example.com` holds records for names such as `api.example.com` and `app.example.com`. If the domain is already in use, follow the [AWS migration steps](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/migrate-dns-domain-in-use.html) before changing nameservers.
 
-Use [`stacktape domain add --region eu-west-1`](/cli/domain-add) to set up the zone and request its certificates. Replace `eu-west-1` with the region you deploy to. Enter the domain when prompted. Once the nameservers point at Route 53, run the command again to finish setup. If you started in the Console, run the command after the DNS change so the CLI can find the domain during deployment. Repeat the setup for each deployment region and wait for the certificates you need to show **Issued** in ACM.
+Use [`stacktape domain add --region eu-west-1`](/cli/domain-add) to set up the zone and request its certificates. Replace `eu-west-1` with the region you deploy to. Enter the domain when prompted. Once the nameservers point at Route 53, run the command again to finish setup. If you started in the Console, run the command after the DNS change so the CLI can find the domain during deployment. The command requests a certificate in your deploy region and one in `us-east-1`, which anything behind CloudFront needs. Repeat the setup for each deployment region and wait for the certificates you need to show **Issued** in ACM. Without an issued certificate, the deploy stops with an error.
 
 The Console requests certificates for the domain and a wildcard one level below it. For example, `*.example.com` covers `app.example.com`. Check the names on the certificate you use. For `api.dev.example.com`, enter that full name in `stacktape domain add` to set up a matching certificate. The CLI still uses the `example.com` zone.
 
@@ -117,7 +117,7 @@ The certificate must be in ACM in your AWS account and cover the hostname in `do
 
 Keep DNS at your current provider if you want to keep editing records there or keep using features such as Cloudflare's proxy and firewall. With both `customCertificateArn` and `disableDnsRecordCreation: true`, Stacktape skips its managed hosted-zone lookup for this hostname.
 
-1. Request a public certificate in ACM in the region your resource needs. Include each hostname you'll use. A certificate for `example.com` alone cannot serve `app.example.com`.
+1. Request a public certificate in ACM. For anything served through CloudFront (a CDN, Next.js and the other frontend resources, static hosting), AppSync or a user pool domain, request it in `us-east-1`. For an API gateway or a load balancer, request it in the stack's region. Include each hostname you'll use. A certificate for `example.com` alone cannot serve `app.example.com`.
 2. Add the validation CNAME records ACM gives you at your DNS provider. Wait for ACM to show **Issued**.
 3. Set `customCertificateArn` to the certificate ARN, set `disableDnsRecordCreation: true`, and deploy.
 4. At your DNS provider, point a CNAME for `app.example.com` to the AWS target hostname. Use the AWS hostname even if the application URL already shows your custom name.
@@ -131,7 +131,7 @@ For the bare `example.com`, use an alias or CNAME flattening if your DNS provide
   intellisense
   tabs={[
     {
-      label: 'TypeScript',
+      label: 'Load balancer (stack region)',
       lang: 'typescript',
       code: `import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
 
@@ -149,6 +149,30 @@ export default defineConfig(() => {
 
   return {
     resources: { myAlb }
+  };
+});
+// [!code focus-end]`
+    },
+    {
+      label: 'Next.js on CloudFront (us-east-1)',
+      lang: 'typescript',
+      code: `import { defineConfig, NextjsWeb } from 'stacktape';
+
+// [!code focus-start]
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: '.',
+    customDomains: [
+      {
+        domainName: 'www.example.com',
+        customCertificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/abc-def-123',
+        disableDnsRecordCreation: true
+      }
+    ]
+  });
+
+  return {
+    resources: { web }
   };
 });
 // [!code focus-end]`
@@ -195,7 +219,7 @@ export default defineConfig(() => {
 
 Each array entry can include its own `domainName`, `customCertificateArn`, and `disableDnsRecordCreation` values. You can mix auto-managed DNS with external DNS, and auto-provisioned certificates with custom certificates, within the same resource.
 
-Each domain whose DNS Stacktape manages needs its own Route 53 hosted zone.
+Each root domain whose DNS Stacktape manages needs one Route 53 hosted zone. The zone for `example.com` also serves `api.example.com` and `app.example.com`.
 
 ## API Reference
 

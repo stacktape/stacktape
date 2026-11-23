@@ -1,6 +1,6 @@
 # Private Service
 
-A Stacktape private service runs always-on containers with no public endpoint, reachable only from other resources in your stack or VPC. Use it for internal microservices, gRPC backends, or any service that should never be exposed to the internet. Stacktape handles service discovery, health checks, and horizontal scaling.
+A Stacktape private service runs always-on containers with no public endpoint, reachable only from other resources in your stack or VPC. Use it for internal microservices, gRPC backends, or any service that should never be exposed to the internet. Stacktape handles service discovery and horizontal scaling. In the default `service-connect` mode, nothing checks that your app responds unless you add a [health check](#health-checks), which lets ECS replace a container that runs but stops answering.
 
 **Pricing context:** A minimal Fargate task (0.25 vCPU, 512 MB) costs approximately **~$9/month** for compute. The default `service-connect` networking adds approximately **~$0.50/month**. Switching to an Application Load Balancer adds approximately **~$18/month** in base fees.
 
@@ -217,6 +217,8 @@ export default defineConfig(() => {
 
 
 With an ALB, the private service gets a stable internal DNS hostname reachable from any resource in the same VPC. Any workload or script that `connectTo`s this service receives the `ADDRESS` parameter injected as `STP_[RESOURCE_NAME]_ADDRESS`. See [connecting resources](/configuration/connecting-resources) for the full list of resource types that support `connectTo`.
+
+This mode needs the [Stacktape Console](/getting-started/open-source-cli) for now: without an account, the deploy stops with `CONFIG_NEEDS_CONSOLE`, because the CLI expects the Console's default domain for every load balancer without its own domain or certificate, and this one can't have either. Without an account, keep `service-connect`.
 
 ## Packaging
 

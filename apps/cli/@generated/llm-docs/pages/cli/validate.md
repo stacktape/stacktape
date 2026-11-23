@@ -4,7 +4,7 @@ The `stacktape validate` command loads your Stacktape configuration, resolves re
 
 ## Usage
 
-The `validate` command requires a stage and region. It checks your configuration file, resolves all resource definitions, validates configured [guardrails](/guardrails/overview), and synthesizes the CloudFormation template in memory.
+The `validate` command requires a stage and region. It checks your configuration file, resolves all resource definitions, and synthesizes the CloudFormation template in memory. It doesn't load your organization's [guardrails](/guardrails/overview), so it doesn't check them; [`deploy`](/cli/deploy) and [`diff`](/cli/diff) do.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1
@@ -18,7 +18,7 @@ The `validate` command supports three levels of thoroughness, each building on t
 
 ### Default — config, resources, and template
 
-Stacktape loads the configuration, resolves all resources, validates [guardrails](/guardrails/overview), and synthesizes the CloudFormation template in memory. This is the fastest option and catches most configuration-level mistakes — broken resource references, invalid property values, and guardrail violations.
+Stacktape loads the configuration, resolves all resources, and synthesizes the CloudFormation template in memory. This is the fastest option and catches most configuration-level mistakes — broken resource references, invalid property values, and missing secrets.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1

@@ -102,11 +102,11 @@ stacktape synth --stage dev --region eu-west-1 --keep-temp-files --out ./debug-t
 
 ## synth vs validate vs diff
 
-| Command | What it does | Writes a file? | Modifies stack? | Requires deployed stack? |
+| Command | What it does | Writes a file? | Writes to AWS? | Requires deployed stack? |
 |---------|-------------|---------------|----------------|------------------------|
 | [`synth`](/cli/synth) | Compiles config into a CloudFormation template | Yes (`compiled-template.yaml`) | No | No |
-| [`validate`](/cli/validate) | Validates the Stacktape project without writing deployment artifacts | No | No | No |
-| [`diff`](/cli/diff) | Shows what would change if you deployed | No | No | Yes |
+| [`validate`](/cli/validate) | Validates the Stacktape project without writing deployment artifacts | No | Only with `--thorough`, for a template over 51,200 bytes: a temporary template object | No |
+| [`diff`](/cli/diff) | Shows what would change if you deployed | No | Missing secrets and parameters, a temporary template and a change set it never executes | Yes |
 
 Use `synth` when you need the template file on disk for inspection or downstream tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing artifacts. Use [`diff`](/cli/diff) when you want to compare your current config against what is already deployed.
 

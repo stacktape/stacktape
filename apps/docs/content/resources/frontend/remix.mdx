@@ -132,7 +132,11 @@ Skip CDN customization for early-stage apps; revisit when traffic and caching re
 
 A Stacktape Remix resource can attach custom domains to the app's CDN and associate a Web Application Firewall with that CDN. `customDomains` configures DNS records and TLS certificates, while `useFirewall` references a `web-app-firewall` resource whose `scope` must be `cdn`.
 
-Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account, and your domain registrar's nameservers must point to that hosted zone. Stacktape creates the DNS record by default and provisions a free TLS certificate. Each `customDomains` entry requires `domainName` (the domain without protocol); optionally set `customCertificateArn` to use an existing ACM certificate instead of the auto-provisioned one, or `disableDnsRecordCreation` to skip DNS record creation when you manage DNS outside Route 53 (e.g. through Cloudflare).
+Use `customDomains` for production and shared staging apps where users need a stable branded URL. A Route 53 hosted zone for the domain must exist in your AWS account, and your domain registrar's nameservers must point to that hosted zone. Stacktape creates the DNS record by default and uses the `us-east-1` certificate that `stacktape domain add` requested. Each `customDomains` entry requires `domainName` (the domain without protocol); optionally set `customCertificateArn` to use an existing ACM certificate instead of the auto-provisioned one, or `disableDnsRecordCreation` to skip DNS record creation when you manage DNS outside Route 53 (e.g. through Cloudflare).
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` for the root domain, point your registrar at the Route 53 hosted zone it creates, and run it again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 <CodeBlock
   intellisense
@@ -266,7 +270,7 @@ export default defineConfig(() => {
 
 ### Can I use a custom domain with Remix?
 
-Yes. Configure `customDomains` on the Remix resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account with your registrar's nameservers pointing to it. Stacktape creates the DNS record by default and provisions a free TLS certificate. Provide `customCertificateArn` to use your own certificate; set `disableDnsRecordCreation` only when you manage DNS records yourself. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
+Yes. Configure `customDomains` on the Remix resource, and make sure a Route 53 hosted zone for the domain exists in your AWS account with your registrar's nameservers pointing to it. Run `stacktape domain add` first and wait for the certificates to be issued. Stacktape creates the DNS record by default and uses the `us-east-1` certificate that `stacktape domain add` requested. Provide `customCertificateArn` to use your own certificate; set `disableDnsRecordCreation` only when you manage DNS records yourself. See [custom domains](/resources/networking/custom-domains) for the broader domain model.
 
 ### Can I protect a Remix app with AWS WAF?
 

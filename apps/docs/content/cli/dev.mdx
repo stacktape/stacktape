@@ -133,14 +133,16 @@ Stop a running agent with [`dev stop`](/cli/dev-stop).
 
 ## Interactive commands
 
-While running in interactive mode, you can control dev mode with the following text commands:
+While running in interactive mode, you can control dev mode with the following keys:
 
-| Command | Action |
+| Key | Action |
 |---------|--------|
-| `rs` | Rebuild all workloads |
-| `rs <name>` | Rebuild a specific workload by name |
-| `q` or `quit` | Stop dev mode and exit |
-| `c` or `clear` | Clear the log output |
+| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
+| **Ctrl+A** | Rebuild all workloads |
+| **Tab** | Switch between the overview and the logs |
+| **Ctrl+C** | Stop dev mode and exit |
+
+The rebuild keys work in the overview, not in the logs view.
 
 ## Examples
 

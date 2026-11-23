@@ -59,7 +59,9 @@ An Application Load Balancer resource defines the load balancer itself — liste
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const myAlb = new ApplicationLoadBalancer({});
+  const myAlb = new ApplicationLoadBalancer({
+    customDomains: [{ domainName: 'api.example.com' }]
+  });
 
   return {
     resources: { myAlb }
@@ -70,7 +72,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The ALB `myAlb` has no explicit configuration because its listener defaults handle the common case. [Lambda functions](/resources/compute/lambda-function) attach to the ALB through an `ApplicationLoadBalancerIntegration` event, while container workloads use the container ALB integration (type `application-load-balancer`) and must additionally specify `containerPort` to identify which container port receives the traffic.
+The ALB `myAlb` sets only its domain because its listener defaults handle the common case. Without `customDomains` (or `customCertificateArns` on its listeners), a load balancer is served on a `*.stacktape-app.com` domain that the [Stacktape Console](/getting-started/open-source-cli) provides. Without the Console connected, the deploy stops with `CONFIG_NEEDS_CONSOLE` and asks for a custom domain. [Lambda functions](/resources/compute/lambda-function) attach to the ALB through an `ApplicationLoadBalancerIntegration` event, while container workloads use the container ALB integration (type `application-load-balancer`) and must additionally specify `containerPort` to identify which container port receives the traffic.
 
 You can reference the deployed ALB domain with `$ResourceParam('myAlb', 'domain')` in your config or retrieve it via [`stacktape param get`](/cli/param-get).
 
@@ -159,7 +161,7 @@ The `priority` values determine evaluation order. Requests to `/users/123` match
 
 When `listeners` is omitted, an Application Load Balancer creates two default listeners: HTTPS on port 443 and HTTP on port 80 (redirecting to HTTPS). Custom listeners let you change ports, add IP restrictions, or define redirect behavior for unmatched requests.
 
-When you provide custom listener objects, each requires an explicit `protocol` (`HTTP` or `HTTPS`) and `port`. Any HTTPS listener requires a TLS certificate: Stacktape provisions one automatically when you configure `customDomains`, or you supply your own ACM certificates via the listener's `customCertificateArns`. If neither is set, an HTTPS listener cannot be created.
+When you provide custom listener objects, each requires an explicit `protocol` (`HTTP` or `HTTPS`) and `port`. Any HTTPS listener requires a TLS certificate: Stacktape uses the one [`stacktape domain add`](/cli/domain-add) issued when you configure `customDomains`, or you supply your own ACM certificates via the listener's `customCertificateArns`. If neither is set, an HTTPS listener cannot be created.
 
 **When to configure custom listeners:** You need a non-standard port, want to restrict access by IP address, or need a custom redirect for unmatched requests.
 
@@ -199,7 +201,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The `protocol` is either `HTTP` or `HTTPS`. HTTPS listeners require a TLS certificate — Stacktape provisions one automatically when you use `customDomains`, or you can supply your own via `customCertificateArns`.
+The `protocol` is either `HTTP` or `HTTPS`. HTTPS listeners require a TLS certificate — Stacktape uses the issued certificate for your domain when you use `customDomains`, or you can supply your own via `customCertificateArns`.
 
 The `whitelistIps` property restricts access to specific IP addresses or CIDR ranges. When set, requests from other IPs are rejected at the load balancer level before reaching your application.
 
@@ -207,7 +209,7 @@ The optional `defaultAction` property on a custom listener configures a redirect
 
 ## Custom domains
 
-Stacktape can attach your own domain (e.g., `api.example.com`) to an Application Load Balancer. By default, Stacktape creates DNS records and TLS certificates for each domain. The domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
+Stacktape can attach your own domain (e.g., `api.example.com`) to an Application Load Balancer. By default, Stacktape creates DNS records and TLS certificates for each domain. The domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up. Run it again after the nameservers point at Route 53, and wait until the certificate is issued: without an issued certificate in the stack's region, the deploy stops with an error.
 
 <CodeBlock
   intellisense
@@ -241,7 +243,7 @@ For full details on domain management, see [Custom domains](/resources/networkin
 
 ## CDN
 
-The `cdn` property puts CloudFront in front of the load balancer for caching and lower latency worldwide. See the [CDN page](/resources/networking/cdn) for cache policy and forwarding details.
+The `cdn` property puts CloudFront in front of the load balancer for caching and lower latency worldwide. See the [CDN page](/resources/networking/cdn) for cache policy and forwarding details. Give the CDN its own `cdn.customDomains`: without them it needs a `*.stacktape-app.com` domain from the Stacktape Console, and without the Console connected the deploy stops with `CONFIG_NEEDS_CONSOLE`.
 
 **When to enable CDN:** Your API serves cacheable public data (product catalogs, static assets, content APIs), or your users are spread across continents and you need lower global latency.
 
@@ -261,7 +263,8 @@ export default defineConfig(() => {
     customDomains: [{ domainName: 'api.example.com' }],
     cdn: {
       enabled: true,
-      cloudfrontPriceClass: 'PriceClass_100'
+      cloudfrontPriceClass: 'PriceClass_100',
+      customDomains: [{ domainName: 'cdn.example.com' }]
     }
   });
 

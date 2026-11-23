@@ -73,7 +73,7 @@ Create a Git deployment with the **Pull request opened** trigger and choose the 
 
 1. **Pull request opened** — Stacktape deploys the stage `pr-<number>`, for example `pr-42`, and comments on the pull request. The comment is updated with the result.
 2. **New commits pushed to the pull request** — Stacktape redeploys `pr-<number>` with the latest commit.
-3. **Pull request merged or closed** — if the Git deployment has **Delete stack after pull request is merged or closed?** turned on, Stacktape deletes the preview stage and comments on the pull request. Otherwise the stage keeps running.
+3. **Pull request merged or closed** — if the Git deployment has **Delete the preview when the pull request closes** turned on, Stacktape deletes the preview stage and comments on the pull request. Otherwise the stage keeps running.
 
 Pull requests from forks never get a preview, so code from outside the repository does not run with your project's credentials.
 
@@ -96,20 +96,34 @@ npx stacktape deploy --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1
 Delete on PR close (GitHub Actions — add as a separate job triggered on PR close; see [`delete` CLI reference](/cli/delete)):
 
 ```bash
-npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region eu-west-1
+npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region eu-west-1 --yes
 ```
 
 Delete on merge request close (GitLab CI):
 
 ```bash
-npx stacktape delete --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1
+npx stacktape delete --stage "pr-${CI_MERGE_REQUEST_IID}" --region eu-west-1 --yes
 ```
 
 For GitHub Actions, you can run this workflow on GitHub-hosted compute or enable Stacktape's [self-hosted EC2 runner](/ci-cd-and-gitops/self-hosted-github-actions-runners).
 
 ### Auto-delete on PR close
 
-Turn on **Delete stack after pull request is merged or closed?** in the Git deployment, or add a delete step to your custom CI pipeline, so preview stages don't keep running databases, load balancers or containers after the pull request closes.
+Turn on **Delete the preview when the pull request closes** in the Git deployment, or add a delete step to your custom CI pipeline, so preview stages don't keep running databases, load balancers or containers after the pull request closes.
+
+A database that `stacktape init` added has `deletionProtection: true` on every stage. The delete then stops before it removes anything, and the preview keeps running and costing money. Protect only production. In `stacktape.ts`:
+
+```ts
+export default defineConfig(({ stage }) => {
+  const database = new RelationalDatabase({
+    // ...the rest of the database
+    deletionProtection: stage === 'production'
+  });
+  // ...
+});
+```
+
+After your first preview, close the pull request and check that the stage is gone, for example with [`stacktape stack list`](/cli/info-stacks).
 
 Keep previews after merge only when you have a specific reason, such as:
 
@@ -181,7 +195,7 @@ Deploying to a stage runs a Stacktape deploy operation for the selected project,
 
 **Right-size preview resources.** Use [stage-specific configuration](/configuration/stages-and-environments) to give preview stages smaller database instances, lower container counts, or fewer replicas than production.
 
-**Auto-delete PR previews.** Turn on **Delete stack after pull request is merged or closed?** in the preview Git deployment, or add a deletion step in your custom CI pipeline. Stale previews running unused databases or containers are the most common source of unexpected bills.
+**Auto-delete PR previews.** Turn on **Delete the preview when the pull request closes** in the preview Git deployment, or add a deletion step in your custom CI pipeline. Stale previews running unused databases or containers are the most common source of unexpected bills.
 
 **Use serverless resources in previews.** [Lambda functions](/resources/compute/lambda-function) and [DynamoDB tables](/resources/databases/dynamodb) have pay-per-use pricing with generous free tiers. A preview stage with only serverless resources costs nearly nothing when idle. [Container workloads](/resources/compute/web-service) and [relational databases](/resources/databases/relational-database) incur costs whether traffic is flowing or not.
 
@@ -195,7 +209,7 @@ Stale stages are the primary risk of the stacks-per-branch pattern. A forgotten 
 
 | Strategy | How | Best for |
 |----------|-----|----------|
-| **Git deployment cleanup** | Turn on **Delete stack after pull request is merged or closed?** in the preview Git deployment | PR previews |
+| **Git deployment cleanup** | Turn on **Delete the preview when the pull request closes** in the preview Git deployment | PR previews |
 | **CI pipeline step** | Add a [`stacktape delete`](/cli/delete) step triggered on PR close or branch deletion | Custom CI/CD setups |
 | **Manual cleanup** | Run `stacktape delete --stage {name}` | Feature branches, one-off stages |
 | **Periodic audit** | Schedule a script that lists stacks and deletes those older than N days | Teams with many developers |

@@ -28,7 +28,7 @@ The open-source CLI deploys with the AWS credentials the job has. Set them befor
 
 ### With the Console
 
-Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. You can authenticate the CLI in two ways:
+Create an organization key in the Stacktape Console under [API keys](/stacktape-console/api-keys#creating-an-api-key) and store it as a secret in your CI provider. Use an organization key, not a personal one. A personal key acts as the person who created it and stops working when they leave the organization. Owners and Admins create organization keys with **New organization key**, with the Developer role limited to the projects and AWS accounts the pipeline deploys. You can authenticate the CLI in two ways:
 
 - **Explicit login step** — run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying. The login command verifies the key and saves it for subsequent CLI commands.
 - **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The CI examples on this page use this approach for brevity.
@@ -43,7 +43,7 @@ If the pipeline also sets AWS credentials, for example with `aws-actions/configu
 | CircleCI | Project Settings → Environment Variables |
 
 
-> **Tip:** Create a dedicated API key for CI/CD rather than reusing a personal key. This makes it easy to rotate without disrupting developer workflows.
+> **Tip:** Create a separate organization key for each pipeline. You can then rotate or revoke it without breaking the others.
 
 
 ## Essential CLI flags for CI
@@ -150,47 +150,106 @@ The `needs: test` dependency ensures the deploy only runs when tests pass.
 
 ### PR preview environments
 
-Deploy an isolated stage for each pull request and tear it down on close. Each PR stage creates real AWS resources for whatever your Stacktape config defines — delete preview stages promptly to avoid accumulating unused infrastructure.
+One workflow deploys a stage for every pull request and deletes it when the pull request closes. It needs no
+Stacktape account: both jobs get AWS credentials from an IAM role through GitHub's OIDC provider. Each PR stage creates
+real AWS resources for whatever your Stacktape config defines, so make sure the delete works.
 
 ```yaml
 name: PR Preview
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  id-token: write
+  contents: read
+
+# One group per pull request keeps its deploys and the delete in order.
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+
 jobs:
   deploy-preview:
+    if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          aws-region: us-east-1
       - name: Deploy PR preview
-        env:
-          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape deploy --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
-```
+        run: npx stacktape deploy --project my-app --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
 
-Add a cleanup workflow that runs when the PR is closed:
-
-```yaml
-name: Cleanup PR Preview
-on:
-  pull_request:
-    types: [closed]
-jobs:
   delete-preview:
+    if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          aws-region: us-east-1
       - name: Delete PR preview
-        env:
-          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
-        run: npx stacktape delete --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
+        run: npx stacktape delete --project my-app --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
 ```
+
+Both commands name the project and the stage, so the stack name never depends on the runner or on the checkout. The
+delete job runs on the base branch after a merge, and its config may differ from the one the preview was deployed with.
+
+The role's trust policy must accept pull request jobs. GitHub sends one of two subject formats: repositories created
+after July 15, 2026 (and older ones that opted in) include the owner and repository IDs. Trusting both exact values
+works either way:
+
+```json
+"Condition": {
+  "StringEquals": {
+    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+    "token.actions.githubusercontent.com:sub": [
+      "repo:my-org/my-app:pull_request",
+      "repo:my-org@123456/my-app@456789:pull_request"
+    ]
+  }
+}
+```
+
+`gh api repos/my-org/my-app --jq '.owner.id, .id'` prints the two IDs. A role that trusts only
+`...:ref:refs/heads/main` refuses pull request jobs. Keep previews in an AWS account without production.
+
+With the Console, drop the `configure-aws-credentials` steps and set `STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}`
+in the `env` of both Stacktape steps, as in the deploy workflow above.
+
+The shared concurrency group matters. Without it, a delete that runs before a queued deploy leaves that deploy to
+create the preview again after the pull request closed. With it, closing the pull request replaces any deploy that
+hasn't started yet, and the delete runs after the one that is running.
+
+The `if` conditions skip pull requests from forks, but a fork can edit its copy of the workflow, and the trust policy
+can't tell a fork's run from yours. What keeps forks out is that GitHub gives fork pull request runs read-only
+permissions, so they can't request the OIDC token. Keep **Send write tokens to workflows from pull requests** turned
+off in the repository's **Settings → Actions → General**.
+
+A database that `stacktape init` added has `deletionProtection: true` on every stage. `stacktape delete` then stops
+before it deletes anything, the delete job fails, and the preview keeps running and costing money. Protect only
+production. In `stacktape.ts`, use the `stage` that `defineConfig` passes to your config:
+
+```ts
+export default defineConfig(({ stage }) => {
+  const database = new RelationalDatabase({
+    // ...the rest of the database
+    deletionProtection: stage === 'production'
+  });
+  // ...
+});
+```
+
+A preview deployed before this change keeps its protection until it is deployed again. After your first preview,
+close the pull request and check that the stage is gone, for example with `stacktape stack list --region us-east-1`.
 
 
 > **Warning:** Delete preview stages on PR close to avoid unused infrastructure and costs. Each preview stage provisions the full set of resources defined in your config — databases, functions, containers, and networking — all of which incur AWS charges while running.
@@ -374,7 +433,7 @@ The first deploy of a new stage is the exception: until the stage exists, it has
 
 ### How do I authenticate Stacktape in a CI pipeline?
 
-Without a Stacktape account, give the job AWS credentials; nothing else is needed. With the Console, run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated key for CI rather than a personal key so you can rotate it without disrupting developer workflows.
+Without a Stacktape account, give the job AWS credentials; nothing else is needed. With the Console, run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create the key in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use an organization key rather than a personal key, so the pipeline keeps working when the person who set it up leaves.
 
 ### When should I use custom CI/CD vs GitOps?
 

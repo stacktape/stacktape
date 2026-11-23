@@ -12,28 +12,30 @@ You should have a `stacktape.ts` from [step 1](/getting-started/configure-your-s
 
 - **Docker** running on your machine — needed for container workloads and local database emulation. Not required if your config only has Lambda functions without locally emulated databases
 - **Stacktape CLI** installed (`npm install -g stacktape`)
-- An AWS account connected — dev mode initializes AWS credentials and deploys a dev stack when one does not already exist
+- AWS credentials for your AWS account on your machine (see [Set up AWS credentials](/getting-started/deploy-your-first-stage#step-1-set-up-aws-credentials)) — dev mode deploys a dev stack when one does not already exist
 
 ## Start dev mode
 
 Start Stacktape dev mode from the directory containing your `stacktape.ts`:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1
+stacktape dev --stage local --region eu-west-1
 ```
+
+Give dev mode its own stage, such as `local`. [`stacktape deploy`](/cli/deploy) refuses a stage that dev mode created, so the first deploy on the next page uses a different stage, `dev`.
 
 On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Unchanged starts reuse it. A restart can update the stack after cloud configuration or cloud-image changes, or when required outputs are missing.
 
 An interactive picker lets you choose which resources to run. To skip the picker and run everything:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources all
+stacktape dev --stage local --region eu-west-1 --resources all
 ```
 
 To run only specific resources:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
+stacktape dev --stage local --region eu-west-1 --resources myApi,myDatabase
 ```
 
 Dev mode watches your `stacktape.ts`. Code changes are rebuilt, but a configuration change (new resources, environment variables, connections) needs a restart: dev mode tells you so and refuses rebuilds until you restart it. The restart updates the dev stack with the new configuration.
@@ -48,7 +50,7 @@ Stacktape dev mode splits your stack between local execution and AWS, depending 
 
 | Resource type | Where it runs | How changes work |
 |---|---|---|
-| Container workloads (web-service, private-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (`rs` command) |
+| Container workloads (web-service, private-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (**Ctrl+R**) |
 | Lambda functions | Packaged locally and code updated on AWS | Repackaged and updated on file change or manual trigger; logs stream to your terminal |
 | SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix) | Local dev server | Automatic hot reload via the framework's built-in HMR |
 | Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
@@ -101,7 +103,7 @@ export default defineConfig(() => {
 
 The `version` property selects the PostgreSQL engine version and the local Docker image, subject to the adapter's supported tag mapping. The AWS `instanceSize` controls the deployed RDS compute tier; it does not size the local Docker database. See [relational databases](/resources/databases/relational-database) for supported versions and sizing.
 
-With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
+With this config, running `stacktape dev --stage local --region eu-west-1 --resources all`:
 
 1. Starts a local PostgreSQL emulator (Docker container on your machine)
 2. Builds and updates the Lambda function code on AWS. The function runs in AWS and reaches the local database through the dev box, a small EC2 instance in your account's [dev network](/local-development/debugging-lambda-functions#the-dev-network). To use the deployed database instead, run with `--remote-resources myDatabase`: the dev stack then includes the database, and the function connects to it
@@ -110,7 +112,7 @@ With this config, running `stacktape dev --stage dev --region eu-west-1 --resour
 Now edit `./src/handler.ts`, save, and either:
 
 - **With `--watch` flag**: Stacktape detects the change and automatically repackages and updates the Lambda code
-- **Without `--watch`**: Type `rs` and press Enter in the terminal to trigger a rebuild
+- **Without `--watch`**: Press **Ctrl+R** in the terminal to trigger a rebuild. With several workloads running, pick one by its number, or press `a` for all
 
 For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly through the framework's built-in hot module replacement — no rebuild step needed.
 
@@ -119,7 +121,7 @@ For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly throug
 Stacktape dev mode can automatically rebuild workloads when source files change. Add `--watch` to enable this:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources all --watch
+stacktape dev --stage local --region eu-west-1 --resources all --watch
 ```
 
 Container workloads are rebuilt and restarted. Lambda functions are repackaged and updated on AWS. Frontends handle their own watching natively regardless of this flag.
@@ -141,13 +143,13 @@ Database data persists between sessions in `.stacktape/dev-data/{stage}/`. This 
 To reset databases prepared at startup, including relay dependencies (DynamoDB Local tables share storage; see [reset scope](/local-development/local-databases#resetting-local-data)):
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --fresh-db
+stacktape dev --stage local --region eu-west-1 --fresh-db
 ```
 
 To skip local emulation and connect to an already-deployed database on AWS:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --remote-resources myDatabase
+stacktape dev --stage local --region eu-west-1 --remote-resources myDatabase
 ```
 
 ## Environment variables
@@ -158,14 +160,16 @@ For connected resources, dev mode keeps the same `STP_*` environment variable na
 
 ## Terminal commands
 
-Stacktape dev mode accepts interactive commands while running. Type a command and press Enter:
+Stacktape dev mode accepts these keys while running:
 
-| Command | Action |
+| Key | Action |
 |---|---|
-| `rs` | Rebuild all workloads |
-| `rs myApi` | Rebuild a specific workload |
-| `c` or `clear` | Clear the log output |
-| `q` or `quit` | Stop dev mode |
+| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
+| **Ctrl+A** | Rebuild all workloads |
+| **Tab** | Switch between the overview and the logs |
+| **Ctrl+C** | Stop dev mode |
+
+The rebuild keys work in the overview, not in the logs view.
 
 ## Useful flags
 
@@ -189,7 +193,7 @@ The [`stacktape dev`](/cli/dev) command accepts flags to control which resources
 Stacktape dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code, Codex or Cursor. Pass `--agent` to start it as a background daemon:
 
 ```bash
-stacktape dev --stage dev --region eu-west-1 --resources all --agent
+stacktape dev --stage local --region eu-west-1 --resources all --agent
 ```
 
 The agent server starts on port 7331 by default (or the next available port). See [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the full endpoint reference and usage guide.
@@ -198,7 +202,7 @@ The agent server starts on port 7331 by default (or the next available port). Se
 
 Stacktape provides CLI commands for inspecting logs and metrics from your running resources, both during dev mode and against deployed stacks:
 
-- [`stacktape logs`](/cli/logs) — Stream or search logs from your Lambda functions and container workloads
+- [`stacktape logs`](/cli/logs) — Stream or search logs from your Lambda functions and container workloads, for example `stacktape logs api --stage dev --region eu-west-1` on a deployed stage
 - [`stacktape metrics`](/cli/metrics) — View CloudWatch metrics for any resource
 
 For deeper coverage of debugging workflows, see [Dev mode overview](/local-development/dev-mode-overview).

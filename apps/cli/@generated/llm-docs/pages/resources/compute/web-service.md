@@ -1,12 +1,12 @@
 # Web Service
 
-A Stacktape web service runs one always-on container with a public HTTPS URL. Use the `WebService` resource for APIs, backend web apps, and internet-facing container services that need TLS, health checks, horizontal scaling, and deployment behavior managed through Stacktape instead of hand-wired AWS networking.
+A Stacktape web service runs one always-on container with a public HTTPS URL. Use the `WebService` resource for APIs, backend web apps, and internet-facing container services that need TLS, horizontal scaling, and deployment behavior managed through Stacktape instead of hand-wired AWS networking. The default `http-api-gateway` mode doesn't check that your app responds; add an [`internalHealthCheck`](#health-checks) so a broken release rolls back instead of going live.
 
 **Pricing context:** Fargate bills for every running task; approximate us-east-1 monthly compute starts around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB memory. HTTP API Gateway load balancing is about ~$1/million requests; Application Load Balancer starts around ~$18/month plus usage.
 
 ## When to use
 
-A Stacktape web service is the right default for a single public HTTP container that should stay online all the time. Pick a web service when the workload serves request/response traffic, needs a stable HTTPS URL, and benefits from Stacktape-managed load balancing, TLS certificates, scaling, logs, and health checks.
+A Stacktape web service is the right default for a single public HTTP container that should stay online all the time. Pick a web service when the workload serves request/response traffic, needs a stable HTTPS URL, and benefits from Stacktape-managed load balancing, TLS certificates, scaling, and logs.
 
 Common use cases:
 
@@ -62,7 +62,7 @@ A Stacktape web service can receive public traffic through three load balancing 
 | `application-load-balancer` | WebSockets, gradual deployments, top-level `useFirewall`, and high steady HTTP traffic | Adds a baseline monthly load balancer cost |
 | `network-load-balancer` | TCP/TLS protocols such as MQTT, game servers, or custom protocols | Requires explicit `ports`; does not support CDN, top-level firewall, or gradual deployments |
 
-Use `application-load-balancer` when the service needs WebSocket support, [gradual deployments](/deployment-and-lifecycle/gradual-deployments), or a regional [web application firewall](/resources/security/web-application-firewall) attached through top-level `useFirewall`. The ALB health check defaults are path `/`, interval `5` seconds, and timeout `4` seconds, and you can override those in `loadBalancing.properties`.
+Use `application-load-balancer` when the service needs WebSocket support, [gradual deployments](/deployment-and-lifecycle/gradual-deployments), or a regional [web application firewall](/resources/security/web-application-firewall) attached through top-level `useFirewall`. The ALB health check defaults are path `/`, interval `5` seconds, and timeout `4` seconds, and you can override those in `loadBalancing.properties`. Without `customDomains`, the load balancer is served on a `*.stacktape-app.com` domain that the [Stacktape Console](/getting-started/open-source-cli) provides. Without the Console connected, add a custom domain or the deploy stops with `CONFIG_NEEDS_CONSOLE`.
 
 
 Example (TypeScript):
@@ -74,6 +74,7 @@ export default defineConfig(() => {
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
+    customDomains: [{ domainName: 'api.example.com' }],
     loadBalancing: {
       type: 'application-load-balancer',
       properties: {
@@ -89,7 +90,7 @@ export default defineConfig(() => {
 ```
 
 
-Use `network-load-balancer` only when the service is not ordinary HTTP. Each `ports` entry defines the public listener port, the protocol (`TLS` by default, or `TCP`), and optionally a different `containerPort` when the container listens on another port.
+Use `network-load-balancer` only when the service is not ordinary HTTP. Each `ports` entry defines the public listener port, the protocol (`TLS` by default, or `TCP`), and optionally a different `containerPort` when the container listens on another port. Like the Application Load Balancer, a `TLS` port needs a custom domain when the Console isn't connected.
 
 
 Example (TypeScript):
@@ -101,6 +102,7 @@ export default defineConfig(() => {
   const broker = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: './src/broker.ts' }),
     resources: { cpu: 1, memory: 2048 },
+    customDomains: [{ domainName: 'mqtt.example.com' }],
     loadBalancing: {
       type: 'network-load-balancer',
       properties: {
@@ -127,7 +129,7 @@ export default defineConfig(() => {
 
 <span id="custom-domain-names" />
 
-A Stacktape web service can attach custom domains directly through `customDomains`. Stacktape can auto-create DNS records and provision a free TLS certificate. The domain must first be added as a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing to that hosted zone. Set `disableDnsRecordCreation` when DNS records are managed outside Stacktape.
+A Stacktape web service can attach custom domains directly through `customDomains`. Stacktape can auto-create DNS records and use the certificate that [`stacktape domain add`](/cli/domain-add) requested. The domain must first be added as a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing to that hosted zone. Run `stacktape domain add` before the first deploy that uses the domain and wait until the certificates are issued; without an issued certificate, the deploy stops with an error. Set `disableDnsRecordCreation` when DNS records are managed outside Stacktape.
 
 
 Example (TypeScript):
@@ -342,7 +344,7 @@ The default `http-api-gateway` mode has no health check. Stacktape can tell that
 
 ## How deploys replace containers
 
-A deploy starts the new containers next to the old ones. Once every new container passes its health check, the old
+A deploy starts the new containers next to the old ones. Once the new containers are up, the old
 containers stop receiving new requests, get 30 seconds to finish the requests they are handling, and shut down: ECS
 sends `SIGTERM` and, if the process is still running after `stopTimeout` (default 30 seconds), `SIGKILL`. Handle
 `SIGTERM` in your app so an old container exits once its requests are done. An app that ignores the signal keeps a full
@@ -350,8 +352,8 @@ deploy waiting for the whole `stopTimeout`.
 
 A full deployment finishes after the old containers have stopped, because CloudFormation waits for that. A
 [fast deployment](/deployment-and-lifecycle/deploying-stacks#fast-deployments), which Stacktape uses when only your code
-changed, lets the old containers drain and shut down in the background. When it finishes depends on your health checks
-and load balancing:
+changed, lets the old containers drain and shut down in the background. What "up" means, and when the deploy finishes,
+depends on your health checks and load balancing:
 
 - **Default `http-api-gateway`, no `internalHealthCheck`:** the deploy finishes once every new task is `RUNNING` and
   API Gateway can route to it, plus 4 seconds. Only tasks from the new deployment count; an old task still draining
@@ -584,7 +586,7 @@ Use the default `http-api-gateway` mode for most HTTP APIs and web apps. Choose 
 
 ### Why isn't my custom domain working?
 
-The most common cause is missing DNS setup: `customDomains` only auto-creates the DNS record and TLS certificate when the domain is already a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing at that zone. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and point the record yourself, or supply your own ACM certificate via `customCertificateArn`. See [custom domains](/resources/networking/custom-domains).
+The most common cause is missing DNS setup: `customDomains` only works when the domain is already a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing at that zone, and its certificate is issued. Run [`stacktape domain add`](/cli/domain-add) until it reports the certificates as validated. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and point the record yourself, or supply your own ACM certificate via `customCertificateArn`. See [custom domains](/resources/networking/custom-domains).
 
 ### Why are my `cors` settings being ignored?
 

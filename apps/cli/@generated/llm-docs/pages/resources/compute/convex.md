@@ -53,7 +53,7 @@ export default defineConfig(() => {
 ```
 
 
-With the dashboard enabled (the default), this provisions the full Convex stack: a backend container on ECS Fargate, a PostgreSQL database (`db.t4g.micro` by default), five S3 buckets, an Application Load Balancer, and the admin dashboard. Set `dashboard.enabled` to `false` to skip the dashboard container and reduce cost. The `appDirectory` points to the directory containing your `schema.ts` and Convex function files.
+With the dashboard enabled (the default), this provisions the full Convex stack: a backend container on ECS Fargate, a PostgreSQL database (`db.t4g.micro` by default), five S3 buckets, an Application Load Balancer, and the admin dashboard. Set `dashboard.enabled` to `false` to skip the dashboard container and reduce cost. The `appDirectory` points to the directory containing your `schema.ts` and Convex function files. Without `customDomains`, this example is served on a `*.stacktape-app.com` domain from the [Stacktape Console](/getting-started/open-source-cli), so without the Console connected the deploy stops. Add [custom domains](#custom-domains) to deploy it without an account.
 
 After the infrastructure is healthy, Stacktape runs `npx convex deploy` against the configured `appDirectory` to push your function code to the backend. The admin key is managed by Stacktape and resolved from AWS Secrets Manager — Stacktape enables ECS Exec internally because it is required to generate the key after the backend starts.
 
@@ -446,7 +446,7 @@ Enable `versioning` for production stages to keep previous versions of overwritt
 
 ## Custom domains
 
-Convex exposes three distinct HTTP origins that serve different purposes. If `customDomains` is omitted entirely, Stacktape uses the ALB's default DNS with port-based routing: 3210 for cloud, 3211 for site, and 6791 for dashboard. Port-based routing works for dev/staging but is not recommended for production — the ALB DNS is unstable across stack recreations, and clients hard-code the URL.
+Convex exposes three distinct HTTP origins that serve different purposes. If `customDomains` is omitted entirely, Stacktape serves the backend on a `*.stacktape-app.com` default domain with port-based routing: 3210 for cloud, 3211 for site, and 6791 for dashboard. That domain comes from the [Stacktape Console](/getting-started/open-source-cli). Without the Console connected, set custom domains for `cloud` and `site`, and for `dashboard` unless you turn the dashboard off, or the deploy stops with `CONFIG_NEEDS_CONSOLE`. Port-based routing works for dev/staging but is not recommended for production, because clients hard-code the URL.
 
 | Origin | Port | Purpose | Example domain |
 |---|---|---|---|

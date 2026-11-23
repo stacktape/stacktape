@@ -83,33 +83,27 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
 ## Quick start
 
 <Steps>
-  <Step title="Install Stacktape">
-    Install globally, or locally to your project.
+  <Step title="Start Stacktape in your project">
+    Run it in your app's directory. It opens a wizard in your browser that reads your project, writes the config
+    file with you and shows the monthly price before anything is deployed.
     <CodeBlock tabs={[
-      { label: 'npm (global)', lang: 'bash', code: `npm install -g stacktape` },
-      { label: 'npm (local)', lang: 'bash', code: `npm install stacktape` },
-      { label: 'bun (global)', lang: 'bash', code: `bun add -g stacktape` },
-      { label: 'bun (local)', lang: 'bash', code: `bun add stacktape` },
-      { label: 'pnpm (global)', lang: 'bash', code: `pnpm add -g stacktape` },
-      { label: 'pnpm (local)', lang: 'bash', code: `pnpm add stacktape` }
-    ]} />
-    Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The
-    installer picks the build for your processor, including Apple silicon, ARM64 and Alpine Linux. Leave out `init` to
-    only install.
-    <CodeBlock tabs={[
+      { label: 'npm', lang: 'bash', code: `npx stacktape@latest init` },
       { label: 'macOS', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/macos.sh | sh -s -- init` },
       { label: 'Linux', lang: 'bash', code: `curl -fsSL https://installs.stacktape.com/linux.sh | sh -s -- init` },
       { label: 'Windows', lang: 'powershell', code: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"` }
     ]} />
+    The macOS, Linux and Windows lines install the standalone binary, which needs no Node.js, and then start
+    `stacktape init`, so you don't run init again. Leave out `init` to only install.
   </Step>
-  <Step title="Initialize a project">
-    Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
-    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape init` }]} />
+  <Step title="Or start a new project">
+    In an empty directory, pick a starter project instead.
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `npx stacktape@latest init --starter-project` }]} />
   </Step>
   <Step title="Deploy to AWS">
-    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
-    local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
-    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape deploy --stage dev --region us-east-1 --project {your-project-name}` }]} />
+    The wizard deploys when you confirm. Stacktape builds, packages and provisions everything into your account with
+    your local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
+    To deploy from the terminal, pick a stage and a region:
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `npx stacktape@latest deploy --stage dev --region us-east-1 --project {your-project-name}` }]} />
   </Step>
 </Steps>
 

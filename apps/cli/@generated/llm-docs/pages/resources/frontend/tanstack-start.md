@@ -194,7 +194,7 @@ Leave `fileOptions` unset initially — TanStack Start and Stacktape already rou
 
 ## Custom domains and firewall
 
-The `customDomains` property attaches branded domain names to the app's CloudFront distribution. When the domain has a Route 53 hosted zone in your AWS account and the registrar's nameservers point to it, Stacktape creates the DNS record and provisions a free TLS certificate automatically. Set `customCertificateArn` to use your own ACM certificate when you have specific requirements (such as EV or OV certificates). Set `disableDnsRecordCreation` to `true` if you manage DNS records through an external provider like Cloudflare.
+The `customDomains` property attaches branded domain names to the app's CloudFront distribution. When the domain has a Route 53 hosted zone in your AWS account and the registrar's nameservers point to it, Stacktape creates the DNS record and uses the `us-east-1` certificate that `stacktape domain add` requested. Set `customCertificateArn` to use your own ACM certificate when you have specific requirements (such as EV or OV certificates). Set `disableDnsRecordCreation` to `true` if you manage DNS records through an external provider like Cloudflare.
 
 The `useFirewall` property references a [`web-app-firewall`](/resources/security/web-application-firewall) resource whose `scope` must be `cdn`. This protects the CloudFront distribution path for the TanStack Start app.
 
@@ -220,6 +220,10 @@ export default defineConfig(() => {
 
 
 Use `customDomains` for production and shared staging apps where users need a stable branded URL. Skip it for throwaway review or development stages where the default CloudFront URL is sufficient.
+
+Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` for the root domain, point your registrar at the Route 53 hosted zone it creates, and run it again until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
+
+To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains) covers both paths.
 
 Enable `useFirewall` when the public TanStack Start app needs CDN-level WAF protection — for example, a customer-facing portal exposed to the internet. Skip it for internal prototypes or early development stages where WAF rules add configuration work before there is a clear threat model. Load-balancer-scoped firewalls are a separate attachment path used by [compute resources](/resources/compute/web-service).
 

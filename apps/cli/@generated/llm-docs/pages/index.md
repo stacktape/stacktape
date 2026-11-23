@@ -69,57 +69,18 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
 ## Quick start
 
 
-### Install Stacktape
+### Start Stacktape in your project
 
 
-    Install globally, or locally to your project.
+    Run it in your app's directory. It opens a wizard in your browser that reads your project, writes the config
+    file with you and shows the monthly price before anything is deployed.
 
 
-Example (npm (global)):
-
-```bash
-npm install -g stacktape
-```
-
-
-Example (npm (local)):
+Example (npm):
 
 ```bash
-npm install stacktape
+npx stacktape@latest init
 ```
-
-
-Example (bun (global)):
-
-```bash
-bun add -g stacktape
-```
-
-
-Example (bun (local)):
-
-```bash
-bun add stacktape
-```
-
-
-Example (pnpm (global)):
-
-```bash
-pnpm add -g stacktape
-```
-
-
-Example (pnpm (local)):
-
-```bash
-pnpm add stacktape
-```
-
-
-    Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The
-    installer picks the build for your processor, including Apple silicon, ARM64 and Alpine Linux. Leave out `init` to
-    only install.
 
 
 Example (macOS):
@@ -143,30 +104,35 @@ iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 ```
 
 
-### Initialize a project
+    The macOS, Linux and Windows lines install the standalone binary, which needs no Node.js, and then start
+    `stacktape init`, so you don't run init again. Leave out `init` to only install.
 
 
-    Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
+### Or start a new project
+
+
+    In an empty directory, pick a starter project instead.
 
 
 Example (bash):
 
 ```bash
-stacktape init
+npx stacktape@latest init --starter-project
 ```
 
 
 ### Deploy to AWS
 
 
-    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
-    local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
+    The wizard deploys when you confirm. Stacktape builds, packages and provisions everything into your account with
+    your local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
+    To deploy from the terminal, pick a stage and a region:
 
 
 Example (bash):
 
 ```bash
-stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
+npx stacktape@latest deploy --stage dev --region us-east-1 --project {your-project-name}
 ```
 
 

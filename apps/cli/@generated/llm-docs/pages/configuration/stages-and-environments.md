@@ -1,17 +1,19 @@
 # Stages and Environments
 
-A Stacktape stage is a named deployment of your project — such as `dev`, `staging`, or `production`. Each stage creates
-a fully isolated set of AWS resources under its own CloudFormation stack. One codebase, multiple stages: develop against
-cheap resources, test against a staging replica, and deploy production with full redundancy — all from the same
-configuration file.
+A Stacktape stage is a named deployment of your project — such as `dev`, `staging`, or `production`. Each stage is a
+separate CloudFormation stack with its own application resources: databases, functions, queues and buckets.
+Non-production stages in the same AWS account and region usually share one VPC; see
+[Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
+One codebase, multiple stages: develop against cheap resources, test against a staging replica, and deploy production
+with full redundancy — all from the same configuration file.
 
 ## Why stages exist
 
 Most teams need at least two separate copies of their infrastructure: one for development and one for production.
 Without stages, you'd maintain parallel config files, duplicate resources manually, or rely on brittle naming
 conventions. Stages solve this by making the environment a first-class parameter of your configuration. You write one
-`stacktape.ts`, branch on the `stage` value where sizing, secrets, or features differ, and let Stacktape create fully
-independent stacks per stage.
+`stacktape.ts`, branch on the `stage` value where sizing, secrets, or features differ, and let Stacktape create a
+separate stack per stage.
 
 Because every stage produces its own CloudFormation stack with its own resources, a development deploy does not touch
 production databases, functions, or storage — each stage's resources are independently provisioned. Stages can fit CI/CD workflows; for example, a team might deploy `main` to `production` and feature branches to short-lived stages.
@@ -492,7 +494,10 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. Stacktape provisions each stage's resources independently and does not share data between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). Deploying or deleting one stage has no effect on other stages.
+Their application resources are separate — separate databases, separate Lambda functions, separate S3 buckets, and so on — and deploying or deleting one stage does not touch the others. Two things are shared:
+
+- **The network.** Non-production stages of an account and region usually run in one VPC, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages). Each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Where a stage runs is decided on its first deploy and doesn't change later, even when the stage becomes production.
+- **The AWS account.** Anyone with deploy credentials for the account can reach every stage in it. To keep production away from people who deploy previews, deploy it to its own AWS account.
 
 ### What happens when I deploy to an existing stage?
 

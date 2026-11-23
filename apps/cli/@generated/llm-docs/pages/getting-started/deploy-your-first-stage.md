@@ -13,7 +13,7 @@ Before deploying, you need:
 - A `stacktape.ts` configuration file (created in [Configure your stack](/getting-started/configure-your-stack))
 - An AWS account to deploy into, and credentials for it on your machine
 
-If you followed [Use the dev mode](/getting-started/use-the-dev-mode), your config is already tested locally and ready for a real deployment.
+If you followed [Use the dev mode](/getting-started/use-the-dev-mode), your config is already tested locally and ready for a real deployment. Dev mode ran on its own stage (`local`). Deploy to a different stage, such as `dev`: `stacktape deploy` refuses a stage that dev mode created.
 
 ## Step 1: Set up AWS credentials
 
@@ -102,10 +102,10 @@ Open the resource URL printed by the CLI. For a [web service](/resources/compute
 
 If you use the Console, the deploy output also includes a Console URL for the deployed stack. See [Manage your app in the Console](/getting-started/using-console-ui) for what you can do there.
 
-To view logs from the CLI, use [`stacktape logs`](/cli/logs).
+To view logs from the CLI, use [`stacktape logs`](/cli/logs) with the name of a function or service from your config.
 
 ```bash
-stacktape logs
+stacktape logs myApi --project my-app --stage dev --region eu-west-1
 ```
 
 ## Redeploying after changes
@@ -154,9 +154,9 @@ First deploys take longer because every resource must be created from scratch. D
 
 If a resource fails to create, the resources that were already created stay, and the stack is left in `CREATE_FAILED`. Fix the error and deploy again to continue from there, or run `stacktape delete` to remove everything. The CLI displays the specific error. Common causes include IAM permission issues, resource limit quotas, or invalid configuration values. For rollback options, see [`stacktape rollback`](/cli/rollback) for version-based rollback and [`stacktape stack recover`](/cli/cf-rollback) for CloudFormation-level rollback.
 
-### Deploy fails during dev mode
+### Deploy fails on a dev mode stage
 
-You cannot deploy to a stage that currently has an active [dev mode](/getting-started/use-the-dev-mode) session. Stop dev mode first with [`stacktape dev stop`](/cli/dev-stop), or deploy to a different stage name.
+You cannot deploy to a stage that [dev mode](/getting-started/use-the-dev-mode) created, even after the dev session has ended. The CLI stops with "is a dev stack and cannot be deployed". Deploy to a different stage name, or delete the dev stage first with `stacktape delete --project my-app --stage <stage> --region eu-west-1`.
 
 ## FAQ
 
@@ -178,11 +178,11 @@ Without the Console there is no connection: the CLI uses your own AWS credential
 
 ### What happens if I lose internet during a deploy?
 
-CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, check the stack status with [`stacktape status`](/cli/info-stack) before running another deploy.
+CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, open the stack (`<project>-<stage>`) in the CloudFormation console in the stack's region and wait until its status no longer ends in `IN_PROGRESS` before running another deploy.
 
 ### What's the difference between stages and AWS accounts?
 
-Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack with fully isolated resources. You can also deploy different stages to different AWS accounts by using different AWS credentials, or by connecting several AWS accounts in the Console (e.g., production in a separate account). See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
+Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack with its own resources. Non-production stages in one account and region usually share a VPC, and anyone with the account's credentials can reach every stage, so keep production in its own AWS account. You can also deploy different stages to different AWS accounts by using different AWS credentials, or by connecting several AWS accounts in the Console (e.g., production in a separate account). See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
 
 ### Can I preview what a deploy will change before running it?
 

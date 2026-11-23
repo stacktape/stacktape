@@ -85,7 +85,7 @@ Auto-rebuild workloads when source files change:
 stacktape dev --stage dev --region us-east-1 --resources all --watch
 ```
 
-Without `--watch`, you trigger rebuilds manually from the dev mode terminal using the `rs` command (see [Rebuilding workloads](#rebuilding-workloads)).
+Without `--watch`, you trigger rebuilds manually from the dev mode terminal with **Ctrl+R** (see [Rebuilding workloads](#rebuilding-workloads)).
 
 Watch mode also watches the Stacktape configuration file. A rebuild cannot apply a configuration change, so dev mode tells you to restart it instead.
 
@@ -158,16 +158,16 @@ Code on your machine talks to the dev stack, and deployed functions talk to your
 
 ## Rebuilding workloads
 
-The dev mode terminal accepts commands while running. Type a command and press Enter:
+The dev mode terminal accepts these keys while running:
 
-| Command | Action |
+| Key | Action |
 |---|---|
-| `rs` | Rebuild all workloads |
-| `rs <name>` | Rebuild a specific workload by name |
-| `c` or `clear` | Clear the log output |
-| `q` or `quit` | Stop dev mode and exit |
+| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
+| **Ctrl+A** | Rebuild all workloads |
+| **Tab** | Switch between the overview and the logs |
+| **Ctrl+C** | Stop dev mode and exit |
 
-When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, use `rs` after editing code to see changes. Use `rs <name>` to rebuild a single workload without restarting others — useful when iterating on one service in a multi-resource config.
+The rebuild keys work in the overview, not in the logs view. When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, press **Ctrl+R** after editing code to see changes. Pick a single workload to rebuild it without restarting others — useful when iterating on one service in a multi-resource config.
 
 A workload whose rebuild fails, for example because of a syntax error, shows the error and stays failed until a rebuild succeeds. A Lambda function keeps its previous code until then. A rebuild deploys code only: after a change to the configuration file, stop dev mode and start it again.
 
