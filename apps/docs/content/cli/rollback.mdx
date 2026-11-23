@@ -21,7 +21,7 @@ stacktape rollback --region eu-west-1 --stage production
 Rollback restores infrastructure and code, not data. Database migrations and objects your app wrote stay as they are, so code rolled back past a schema migration can fail. Plan that recovery separately.
 </Warning>
 
-Every deploy that changed something is a release, including fast deployments that only updated code. `--region` is the only required flag; `--stage` and `--project` pick the stack, and no config file is needed. A stack stuck in `UPDATE_ROLLBACK_FAILED` can't take a rollback: use [`stack recover`](/cli/cf-rollback) instead. A stack in `UPDATE_FAILED` works with either command.
+Every deploy that changed something is a release, including fast deployments that only updated code. `--region` is the only required flag; `--stage` and `--project` pick the stack, and no config file is needed. A stack stuck in `UPDATE_ROLLBACK_FAILED` can't take a rollback: use [`stack recover`](/cli/stack-recover) instead. A stack in `UPDATE_FAILED` works with either command.
 
 Roll back to a specific version:
 
@@ -111,7 +111,7 @@ stacktape rollback --region eu-west-1 --stage production --rollback-steps 1 --ag
 
 ### What is the difference between `rollback` and `stack recover`?
 
-Use `rollback` when the deploy worked but the app is broken: it deploys an earlier release as a new one. Use [`stack recover`](/cli/cf-rollback) when the deploy itself failed and left the stack in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`: it runs CloudFormation's own recovery.
+Use `rollback` when the deploy worked but the app is broken: it deploys an earlier release as a new one. Use [`stack recover`](/cli/stack-recover) when the deploy itself failed and left the stack in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`: it runs CloudFormation's own recovery.
 
 ### How far back can I roll back?
 
@@ -123,7 +123,7 @@ As far as the stored releases go. `previousVersionsToKeep` decides how many olde
 
 ## Related commands
 
-- [`stack recover`](/cli/cf-rollback) — recover a stack stuck in a failed CloudFormation update state
+- [`stack recover`](/cli/stack-recover) — recover a stack stuck in a failed CloudFormation update state
 - [`deploy`](/cli/deploy) — deploy your stack to AWS
 - [`diff`](/cli/diff) — preview what a deployment would change before applying it
-- [`stack history`](/cli/info-operations) — view recent deployment operations and their status
+- [`stack history`](/cli/stack-history) — view recent deployment operations and their status

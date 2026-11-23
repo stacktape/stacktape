@@ -85,7 +85,7 @@ databases and URLs. Three things matter when you plan accounts:
 - **Non-production stages share a network.** In one AWS account and region, they run in one shared VPC. Each stage has
   its own security groups, so one stage can't reach another stage's databases by private IP. Production stages get a
   VPC of their own. The first deploy decides this, and a stage that becomes production later stays where it is. See
-  [Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
+  [Shared network for non-production stages](/configuration/shared-network).
 - **AWS access covers the whole account.** A developer who gets AWS access to one project's account can reach every
   other project's stacks in that account. The Console limits what people see in the Console, not what their AWS
   credentials can do.
