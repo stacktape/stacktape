@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import clsx from 'clsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Check, Copy } from 'react-feather';
+import { Check, Copy, Maximize2, Minimize2 } from 'react-feather';
 import { Tabs as SharedTabs } from '@stacktape/ui-react/tabs';
 import type { InstallPlatform } from '@stacktape/ui-react/install-platform';
 import { detectInstallPlatform } from '@stacktape/ui-react/install-platform';
@@ -225,11 +225,14 @@ const formatTypescriptConfigSnippet = (code: string) => {
 const preprocessCode = ({
   code,
   lang,
-  formatStacktapeConfig = false
+  formatStacktapeConfig = false,
+  showAll = false
 }: {
   code: string;
   lang: string;
   formatStacktapeConfig?: boolean;
+  /** Ignore focus markers and show every line (the reader expanded a focused excerpt). */
+  showAll?: boolean;
 }): ProcessedCode => {
   const normalizedCode = formatStacktapeConfig ? formatTypescriptConfigSnippet(code) : code;
   const rawLines = normalizedCode.replace(/\r\n/g, '\n').split('\n');
@@ -333,7 +336,7 @@ const preprocessCode = ({
   };
 
   for (const state of fullStates) {
-    const isFocused = !anyFocusMarker || state.focused;
+    const isFocused = showAll || !anyFocusMarker || state.focused;
     if (!isFocused) {
       pendingHide.push(state);
       continue;
@@ -354,9 +357,10 @@ const preprocessCode = ({
   }
   pendingHide = [];
 
-  const displayLines = anyFocusMarker
-    ? dedentLinesForDisplay(focusedLineSpecs.map((spec) => spec.text))
-    : focusedLineSpecs.map((spec) => spec.text);
+  const displayLines =
+    anyFocusMarker && !showAll
+      ? dedentLinesForDisplay(focusedLineSpecs.map((spec) => spec.text))
+      : focusedLineSpecs.map((spec) => spec.text);
   const displayFocusedLineSpecs = focusedLineSpecs.map((spec): FocusedLineSpec => {
     const displayText = displayLines.shift() ?? spec.text;
     return spec.kind === 'line'
@@ -738,6 +742,7 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
   const resolvedTabs = tabs;
   const [activeTabLabel, setActiveTabLabel] = useState(() => String(resolvedTabs[0]?.label ?? ''));
   const [isCopiedShown, setIsCopiedShown] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
   const [renderedHtml, setRenderedHtml] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -758,9 +763,10 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
     return preprocessCode({
       code: activeTabCode,
       lang: activeLanguage,
-      formatStacktapeConfig: shouldEnableIntellisense && activeTabIsStacktapeConfig
+      formatStacktapeConfig: shouldEnableIntellisense && activeTabIsStacktapeConfig,
+      showAll
     });
-  }, [activeTabCode, activeTabIsStacktapeConfig, activeTabLang, lang, shouldEnableIntellisense]);
+  }, [activeTabCode, activeTabIsStacktapeConfig, activeTabLang, lang, shouldEnableIntellisense, showAll]);
 
   const activeIndex = resolvedTabs.findIndex((tab) => tab.label === activeTab.label);
 
@@ -976,6 +982,20 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
     </button>
   );
 
+  // A focused excerpt keeps the rest of the file one click away. Copy always takes the whole file.
+  const expandButton = processedCode.hasFocusMarkers && (
+    <button
+      type="button"
+      className="docs-code-copy"
+      aria-pressed={showAll}
+      aria-controls={`code-${blockId}-panel`}
+      onClick={() => setShowAll((value) => !value)}
+    >
+      {showAll ? <Minimize2 size={14} aria-hidden /> : <Maximize2 size={14} aria-hidden />}
+      <span>{showAll ? 'Show less' : 'Show all'}</span>
+    </button>
+  );
+
   return (
     <div className={clsx('docs-code', !hasHeader && 'is-bare', isCommand && 'is-command')}>
       {hasHeader && (
@@ -999,7 +1019,10 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
           ) : (
             <span className="docs-code-label">{headerLabel}</span>
           )}
-          {copyButton}
+          <span className="docs-code-actions">
+            {expandButton}
+            {copyButton}
+          </span>
         </div>
       )}
       <div id={`code-${blockId}-panel`} role={hasTabs ? 'tabpanel' : undefined} className="docs-code-scroll">

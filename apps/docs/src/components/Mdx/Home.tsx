@@ -96,12 +96,16 @@ const withOffsets = (parts: string[], separatorLength: number) => {
   });
 };
 
+/**
+ * A shell command that wraps as whole words with a hanging indent, so `--stage` never breaks after its hyphens and a
+ * continuation line never reads as a second command. A URL or a long word may wrap inside, after a path `/`.
+ */
 function Command({ code, size = 'large' }: { code: string; size?: 'large' | 'small' }) {
   return (
     <code
       className={clsx(
-        'block min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 font-mono text-ink break-normal whitespace-normal',
-        size === 'large' ? 'text-[15px] leading-[1.6]' : 'text-[13px] leading-[1.55]'
+        'block min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 pl-[2ch] -indent-[2ch] font-mono text-ink break-normal whitespace-normal',
+        size === 'large' ? 'text-[14px] leading-[1.65] @min-[560px]:text-[14.5px]' : 'text-[13px] leading-[1.55]'
       )}
     >
       <span className="select-none text-accent-text" aria-hidden="true">
@@ -110,10 +114,8 @@ function Command({ code, size = 'large' }: { code: string; size?: 'large' | 'sma
       {withOffsets(code.split(' '), 1).map(({ part, offset }) => (
         <span key={offset}>
           {offset > 0 && ' '}
-          {/* Wrap between words, not after the hyphens of a flag. A URL may also wrap after a slash, so a phone
-              breaks it at `installs.stacktape.com/` rather than mid-word; anything longer still wraps. */}
-          <span className="inline-block max-w-full [overflow-wrap:anywhere]">
-            {withOffsets(part.split(/(?<=\/)(?!\/)/), 0).map(({ part: segment, offset: at }) => (
+          <span className={part.includes('/') || part.length > 28 ? '[overflow-wrap:anywhere]' : 'whitespace-nowrap'}>
+            {withOffsets(part.split(/(?<=[^/]\/)(?!\/)/), 0).map(({ part: segment, offset: at }) => (
               <span key={at}>
                 {at > 0 && <wbr />}
                 {segment}
@@ -129,14 +131,16 @@ function Command({ code, size = 'large' }: { code: string; size?: 'large' | 'sma
 // ── Hero ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 type CommandTab = { label: string; code: string };
+type PathLink = { label: string; href: string };
+const NO_LINKS: PathLink[] = [];
 
 /* Which command is shown follows the checked radio. Tailwind needs each selector written out, so the hero supports
  * up to four commands. */
-const SHOWN_BLOCK = [
-  'group-has-[#home-command-0:checked]/cmd:block',
-  'group-has-[#home-command-1:checked]/cmd:block',
-  'group-has-[#home-command-2:checked]/cmd:block',
-  'group-has-[#home-command-3:checked]/cmd:block'
+const SHOWN = [
+  'group-has-[#home-command-0:checked]/cmd:visible',
+  'group-has-[#home-command-1:checked]/cmd:visible',
+  'group-has-[#home-command-2:checked]/cmd:visible',
+  'group-has-[#home-command-3:checked]/cmd:visible'
 ];
 const SHOWN_FLEX = [
   'group-has-[#home-command-0:checked]/cmd:inline-flex',
@@ -145,13 +149,51 @@ const SHOWN_FLEX = [
   'group-has-[#home-command-3:checked]/cmd:inline-flex'
 ];
 
+function ArrowLink({
+  link,
+  tone = 'accent',
+  className
+}: {
+  link: PathLink;
+  tone?: 'accent' | 'muted';
+  className?: string;
+}) {
+  const isAnchor = link.href.startsWith('#');
+  const Icon = isAnchor ? LuArrowDown : LuArrowRight;
+  return (
+    <a
+      href={link.href}
+      className={clsx(
+        'group/link inline-flex items-center gap-1.5 font-semibold no-underline [transition:color_150ms_ease]',
+        tone === 'accent' ? 'text-accent-text hover:text-ink-strong' : 'text-ink-muted hover:text-ink',
+        className
+      )}
+    >
+      {link.label}
+      <Icon
+        size={14}
+        aria-hidden="true"
+        className={clsx(
+          '[transition:transform_150ms_ease] motion-reduce:transform-none',
+          isAnchor ? 'group-hover/link:translate-y-0.5' : 'group-hover/link:translate-x-0.5'
+        )}
+      />
+    </a>
+  );
+}
+
+/**
+ * The title, the one command, and the next step beside it. The command card keeps one height whichever system is
+ * selected: every command sits in the same grid cell and only the selected one is visible.
+ */
 export function HomeHero({
   eyebrow,
   title,
   lead,
   commandLabel,
   commands,
-  commandNote
+  commandNote,
+  links = NO_LINKS
 }: {
   eyebrow?: string;
   title: string;
@@ -159,12 +201,15 @@ export function HomeHero({
   commandLabel: string;
   commands: CommandTab[];
   commandNote?: string;
+  /** The first link is the next step after the command. Later links show only where the paths below are off screen. */
+  links?: PathLink[];
 }) {
-  const shown = commands.slice(0, SHOWN_BLOCK.length);
+  const shown = commands.slice(0, SHOWN.length);
+  const [primary, ...secondary] = links;
   return (
-    <section className="@container font-sans mt-1 mb-12" aria-labelledby="home-title">
+    <section className="@container font-sans mt-1 mb-14" aria-labelledby="home-title">
       <script dangerouslySetInnerHTML={{ __html: COPY_SCRIPT }} />
-      <div className="grid gap-x-12 gap-y-8 @min-[860px]:grid-cols-[minmax(0,1fr)_minmax(0,30rem)] @min-[860px]:items-center">
+      <div className="grid gap-x-12 gap-y-7 @min-[860px]:grid-cols-[minmax(0,1fr)_minmax(0,31rem)] @min-[860px]:items-center">
         <div>
           {eyebrow && <p className="m-0 text-[13px] font-semibold tracking-[0.02em] text-accent-text">{eyebrow}</p>}
           <h1
@@ -173,20 +218,20 @@ export function HomeHero({
           >
             {title}
           </h1>
-          <p className="mt-5 mb-0 max-w-[36rem] text-[16px] leading-[1.65] text-ink-muted @min-[560px]:text-[17px]">
+          <p className="mt-4 mb-0 max-w-[36rem] text-[16px] leading-[1.6] text-ink-muted @min-[560px]:mt-5 @min-[560px]:text-[17px] @min-[560px]:leading-[1.65]">
             {lead}
           </p>
         </div>
 
-        <div className="group/cmd @container/card min-w-0 rounded-xl border border-line bg-surface-raised">
-          <div className="flex items-center gap-2 border-b border-line pr-2.5 pl-2">
-            <fieldset className="m-0 flex min-w-0 flex-1 items-center border-0 p-0 pt-2">
+        <div className="group/cmd min-w-0 overflow-hidden rounded-xl border border-line-strong bg-surface-raised">
+          <div className="flex items-center gap-2 border-b border-line pr-2 pl-2">
+            <fieldset className="m-0 flex min-w-0 flex-1 items-center border-0 p-0">
               <legend className="sr-only">{commandLabel}</legend>
               {shown.map((command, index) => (
                 <label
                   key={command.label}
                   className={clsx(
-                    'relative -mb-px cursor-pointer select-none border-b-2 border-transparent px-2 pt-1.5 pb-2.5 @min-[400px]/card:px-2.5',
+                    'relative -mb-px cursor-pointer select-none border-b-2 border-transparent px-2 pt-3 pb-2.5 @min-[400px]:px-2.5',
                     'text-[13px] font-semibold text-ink-faint [transition:color_150ms_ease] hover:text-ink',
                     'has-[:checked]:text-ink has-[:checked]:border-accent',
                     'has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:focus-visible]:rounded-sm'
@@ -206,24 +251,35 @@ export function HomeHero({
             </fieldset>
             {shown.map((command, index) => (
               <span key={command.label} className={clsx('hidden', SHOWN_FLEX[index])}>
-                <CopyButton text={command.code} labelClassName="@max-[399px]/card:sr-only" />
+                <CopyButton text={command.code} labelClassName="@max-[399px]:sr-only" />
               </span>
             ))}
           </div>
-          <div className="px-4 pt-3.5 pb-4">
-            <p className="m-0 mb-2 text-[12.5px] font-medium text-ink-muted">{commandLabel}</p>
-            <div className="rounded-lg border border-line bg-surface-sunken px-3.5 py-3">
+          <div className="bg-surface-sunken px-4 pt-3 pb-3.5">
+            <p className="m-0 mb-1.5 font-mono text-[13px] leading-[1.6] text-ink-faint">
+              <span aria-hidden="true"># </span>
+              {commandLabel}
+            </p>
+            <div className="grid">
               {shown.map((command, index) => (
-                <div key={command.label} className={clsx('hidden', SHOWN_BLOCK[index])}>
+                <div key={command.label} className={clsx('invisible col-start-1 row-start-1 min-w-0', SHOWN[index])}>
                   <Command code={command.code} />
                 </div>
               ))}
             </div>
           </div>
-          {commandNote && (
-            <p className="m-0 border-t border-line px-4 pt-3 pb-4 text-[13.5px] leading-[1.55] text-ink-muted">
-              {commandNote}
-            </p>
+          {(commandNote || primary) && (
+            <div className="border-t border-line px-4 pt-3 pb-4">
+              {commandNote && <p className="m-0 text-[13.5px] leading-[1.55] text-ink-muted">{commandNote}</p>}
+              {primary && (
+                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[14px]">
+                  <ArrowLink link={primary} />
+                  {secondary.map((link) => (
+                    <ArrowLink key={link.href} link={link} tone="muted" className="@min-[860px]:hidden" />
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -233,81 +289,89 @@ export function HomeHero({
 
 // ── Paths by goal ────────────────────────────────────────────────────────────────────────────────────────
 
-type PathLink = { label: string; href: string };
-type Path = { title: string; text: string; command?: string; steps?: string[]; links: PathLink[] };
+type Path = {
+  title: string;
+  /** Where the title leads: the guide for this goal. */
+  href: string;
+  text: string;
+  /** Wizard steps, shown as one quiet line. */
+  steps?: string[];
+  /** A command to copy. */
+  command?: string;
+  /** What the destination answers, shown as one quiet line. */
+  topics?: string[];
+  links?: PathLink[];
+};
 
-function PathLinkView({ link, primary }: { link: PathLink; primary: boolean }) {
-  const isAnchor = link.href.startsWith('#');
-  return (
-    <a
-      href={link.href}
-      className={clsx(
-        'group/link inline-flex items-center gap-1.5 text-[14px] font-semibold no-underline',
-        primary ? 'text-accent-text hover:text-ink-strong' : 'text-ink-muted hover:text-ink'
-      )}
-    >
-      {link.label}
-      {isAnchor ? (
-        <LuArrowDown
-          size={14}
-          aria-hidden="true"
-          className="[transition:transform_150ms_ease] group-hover/link:translate-y-0.5 motion-reduce:group-hover/link:translate-y-0"
-        />
-      ) : (
-        <LuArrowRight
-          size={14}
-          aria-hidden="true"
-          className="[transition:transform_150ms_ease] group-hover/link:translate-x-0.5 motion-reduce:group-hover/link:translate-x-0"
-        />
-      )}
-    </a>
-  );
-}
-
+/**
+ * Three goals, one card each, built the same way: the title links to the guide, one sentence says what happens,
+ * one detail line (the wizard steps, the command, or the questions answered) and an optional second link.
+ */
 export function HomePaths({ title, items }: { title: string; items: Path[] }) {
   return (
     <section className="@container font-sans mb-16" aria-labelledby="home-paths">
-      <h2 id="home-paths" className="m-0 mb-4 text-[13px] font-semibold tracking-[0.02em] text-ink-muted">
+      <h2 id="home-paths" className="m-0 mb-4 text-[20px] font-semibold leading-[1.3] tracking-[-0.01em] text-ink">
         {title}
       </h2>
       <ol className="m-0 grid list-none gap-3 p-0 @min-[760px]:grid-cols-3">
         {items.map((item) => (
           <li
             key={item.title}
-            className="before:hidden m-0 flex min-w-0 flex-col rounded-xl border border-line bg-surface-raised p-4 @min-[560px]:p-5 [transition:border-color_150ms_ease] hover:border-line-strong"
+            className="before:hidden m-0 flex min-w-0 flex-col rounded-xl border border-line-strong bg-surface-raised p-4 @min-[560px]:p-5"
           >
-            <h3 className="m-0 text-[17px] font-semibold leading-[1.35] text-ink">{item.title}</h3>
+            <h3 className="m-0 text-[17px] font-semibold leading-[1.35]">
+              <ArrowLink
+                link={{ label: item.title, href: item.href }}
+                tone="accent"
+                className="text-ink-strong hover:text-accent-text"
+              />
+            </h3>
             <p className="m-0 mt-2 text-[14px] leading-[1.6] text-ink-muted">{item.text}</p>
-            {item.steps && (
-              <ol
-                className="m-0 mt-4 flex list-none flex-wrap items-center gap-x-1 gap-y-1 rounded-lg border border-line bg-surface-sunken px-3 py-2.5"
-                aria-label="Wizard steps"
-              >
-                {item.steps.map((step, index) => (
-                  <li
-                    key={step}
-                    className="before:hidden m-0 flex items-center gap-1 p-0 text-[13px] leading-[1.5] font-medium text-ink-muted"
-                  >
-                    {step}
-                    {index < (item.steps?.length ?? 0) - 1 && (
-                      <LuChevronRight size={13} aria-hidden="true" className="text-ink-faint" />
-                    )}
-                  </li>
-                ))}
-              </ol>
-            )}
-            {item.command && (
-              <div className="mt-4 flex items-start gap-3 rounded-lg border border-line bg-surface-sunken py-2 pr-2 pl-3">
-                <span className="min-w-0 flex-1 pt-[5px]">
-                  <Command code={item.command} size="small" />
-                </span>
-                <CopyButton text={item.command} />
-              </div>
-            )}
-            <div className="mt-auto flex flex-wrap gap-x-5 gap-y-2 pt-4">
-              {item.links.map((link, linkIndex) => (
-                <PathLinkView key={link.href} link={link} primary={linkIndex === 0} />
-              ))}
+            <div className="mt-auto pt-4">
+              {item.steps && (
+                <ol className="m-0 flex list-none flex-wrap items-center gap-x-1 gap-y-1 p-0" aria-label="Wizard steps">
+                  {item.steps.map((step, index) => (
+                    <li
+                      key={step}
+                      className="before:hidden m-0 flex items-center gap-1 p-0 text-[13px] leading-[1.5] font-medium text-ink"
+                    >
+                      {step}
+                      {index < (item.steps?.length ?? 0) - 1 && (
+                        <LuChevronRight size={13} aria-hidden="true" className="text-ink-faint" />
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {item.command && (
+                <div className="flex items-center gap-2 rounded-lg border border-line bg-surface-sunken py-1.5 pr-1.5 pl-3">
+                  <span className="min-w-0 flex-1">
+                    <Command code={item.command} size="small" />
+                  </span>
+                  <CopyButton text={item.command} labelClassName="sr-only" />
+                </div>
+              )}
+              {item.topics && (
+                <ul className="m-0 flex list-none flex-wrap gap-x-1.5 p-0 text-[13px] leading-[1.6] font-medium text-ink">
+                  {item.topics.map((topic, index) => (
+                    <li key={topic} className="before:hidden m-0 p-0 whitespace-nowrap">
+                      {topic}
+                      {index < (item.topics?.length ?? 0) - 1 && (
+                        <span className="pl-1.5 text-ink-faint" aria-hidden="true">
+                          ·
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {item.links && item.links.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[13.5px]">
+                  {item.links.map((link) => (
+                    <ArrowLink key={link.href} link={link} tone="muted" />
+                  ))}
+                </div>
+              )}
             </div>
           </li>
         ))}
@@ -353,7 +417,15 @@ function Inline({ text }: { text: string }) {
 // ── Example: config and the AWS resources it creates ────────────────────────────────────────────────────
 
 type AwsCategory = 'compute' | 'database' | 'network' | 'security' | 'storage' | 'integration';
-type AwsResource = { category: AwsCategory; service: string; name: string; detail: string; inVpc?: boolean };
+type AwsService = { category: AwsCategory; service: string; detail: string };
+/** One resource of the config (its name and class, as in the code) and the AWS services it creates. */
+type ExampleResource = {
+  name: string;
+  kind: string;
+  services: AwsService[];
+  /** The label on the line that leads into this resource: how requests or connections reach it. */
+  via: string;
+};
 
 const categoryDot: Record<AwsCategory, string> = {
   compute: 'bg-aws-compute',
@@ -364,27 +436,53 @@ const categoryDot: Record<AwsCategory, string> = {
   integration: 'bg-aws-integration'
 };
 
-function ResourceNode({ resource }: { resource: AwsResource }) {
+function ResourceNode({ resource }: { resource: ExampleResource }) {
   return (
-    <div className="relative rounded-lg border border-line bg-surface-raised px-3.5 py-3">
-      <div className="flex items-center gap-2">
-        <span className={clsx('h-2 w-2 shrink-0 rounded-full', categoryDot[resource.category])} aria-hidden="true" />
-        <span className="text-[13.5px] font-semibold text-ink">{resource.service}</span>
-        <span className="ml-auto font-mono text-[12px] text-ink-faint">{resource.name}</span>
+    <div className="rounded-lg border border-line-strong bg-surface-raised">
+      <div className="flex items-baseline justify-between gap-3 border-b border-line px-3.5 py-2">
+        <code className="rounded-none border-0 bg-transparent p-0 font-mono text-[13px] font-semibold text-ink-strong">
+          {resource.name}
+        </code>
+        <span className="font-mono text-[12px] text-ink-faint">{resource.kind}</span>
       </div>
-      <p className="m-0 mt-1 pl-4 text-[12.5px] leading-[1.5] text-ink-muted">
-        <Inline text={resource.detail} />
-      </p>
+      <ul className="m-0 flex list-none flex-col gap-2 px-3.5 py-2.5">
+        {resource.services.map((service) => (
+          <li key={service.service} className="before:hidden m-0 p-0">
+            <div className="flex items-center gap-2">
+              <span
+                className={clsx('h-2 w-2 shrink-0 rounded-full', categoryDot[service.category])}
+                aria-hidden="true"
+              />
+              <span className="text-[13.5px] font-semibold text-ink">{service.service}</span>
+            </div>
+            <p className="m-0 mt-0.5 pl-4 text-[12.5px] leading-[1.5] text-ink-muted">
+              <Inline text={service.detail} />
+            </p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-function Connector() {
-  return <div className="mx-auto h-4 w-px bg-line" aria-hidden="true" />;
+/** A labelled line between two nodes: what travels along it. */
+function Connector({ label }: { label: string }) {
+  return (
+    <div className="flex items-stretch gap-2.5 pl-5" aria-hidden="true">
+      <span className="w-px shrink-0 bg-line-strong" />
+      <span className="py-2 text-[12px] leading-[1.4] text-ink-faint">
+        <Inline text={label} />
+      </span>
+    </div>
+  );
 }
 
 type DeployStep = { label: string; command: string };
 
+/**
+ * A config next to what it creates. On a phone the diagram comes first, then the config, then the commands, so the
+ * reader meets the two halves of the example together.
+ */
 export function HomeExample({
   title,
   lead,
@@ -398,88 +496,55 @@ export function HomeExample({
   title: string;
   lead: string;
   stack: string;
-  resources: AwsResource[];
+  resources: ExampleResource[];
   extras: string[];
   deployTitle: string;
   deploy: DeployStep[];
   children: ReactNode;
 }) {
-  const outside = resources.filter((resource) => !resource.inVpc);
-  const inside = resources.filter((resource) => resource.inVpc);
   return (
     <Section id="example" title={title} lead={lead}>
-      <div className="grid gap-4 @min-[900px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] @min-[900px]:items-start">
-        {/* The code block brings its own vertical margins; the grid sets the spacing here. On narrow screens the
-            config starts collapsed below the diagram, and the checkbox opens it. */}
-        <div className="relative min-w-0">
-          <input type="checkbox" id="home-full-config" className="peer sr-only" />
-          <div className="max-h-[22rem] overflow-hidden peer-checked:max-h-none @min-[900px]:max-h-none [&_astro-island>div]:my-0">
-            {children}
-          </div>
-          <div
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-surface peer-checked:hidden @min-[900px]:hidden"
-            aria-hidden="true"
-          />
-          <label
-            htmlFor="home-full-config"
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 cursor-pointer rounded-md border border-line bg-surface-raised px-3 py-1.5 text-[13px] font-semibold text-ink peer-checked:hidden peer-focus-visible:outline-2 peer-focus-visible:outline-accent @min-[900px]:hidden"
-          >
-            Show the full config
-          </label>
-        </div>
-        {/* What the config creates comes first on narrow screens, before the code that describes it. */}
-        <div className="order-first flex min-w-0 flex-col gap-4 @min-[900px]:order-none">
-          <figure className="m-0 rounded-xl border border-line bg-surface-sunken p-4">
-            <figcaption className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-              <span className="text-[13px] font-semibold text-ink">In your AWS account</span>
-              <span className="font-mono text-[12px] text-ink-faint">stack {stack}</span>
-            </figcaption>
-            <div className="text-center text-[12px] text-ink-faint">Internet</div>
-            <Connector />
-            {outside.map((resource) => (
-              <div key={resource.name}>
-                <ResourceNode resource={resource} />
-                <Connector />
-              </div>
+      <div className="grid gap-4 [grid-template-areas:'diagram'_'config'_'deploy'] @min-[900px]:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] @min-[900px]:grid-rows-[auto_1fr] @min-[900px]:[grid-template-areas:'config_diagram'_'config_deploy']">
+        {/* The code block brings its own vertical margins; the grid sets the spacing here. */}
+        <div className="min-w-0 [grid-area:config] [&_astro-island>div]:my-0">{children}</div>
+        <figure className="m-0 min-w-0 rounded-xl border border-line bg-surface-sunken p-4 [grid-area:diagram]">
+          <figcaption className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <span className="text-[13px] font-semibold text-ink">In your AWS account</span>
+            <span className="font-mono text-[12px] text-ink-faint">stack {stack}</span>
+          </figcaption>
+          <div className="text-[12.5px] font-medium text-ink-muted">Internet</div>
+          {resources.map((resource) => (
+            <div key={resource.name}>
+              <Connector label={resource.via} />
+              <ResourceNode resource={resource} />
+            </div>
+          ))}
+          <ul className="m-0 mt-4 flex list-none flex-col gap-1.5 p-0">
+            {extras.map((extra) => (
+              <li key={extra} className="before:hidden m-0 flex gap-2 p-0 text-[12.5px] leading-[1.5] text-ink-muted">
+                <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-faint" aria-hidden="true" />
+                <span>
+                  <Inline text={extra} />
+                </span>
+              </li>
             ))}
-            {inside.length > 0 && (
-              <div className="rounded-lg border border-dashed border-line-strong p-2.5 pt-2">
-                <div className="mb-2 px-1 text-[11.5px] font-medium text-ink-faint">VPC</div>
-                {inside.map((resource, index) => (
-                  <div key={resource.name}>
-                    <ResourceNode resource={resource} />
-                    {index < inside.length - 1 && <Connector />}
-                  </div>
-                ))}
-              </div>
-            )}
-            <ul className="m-0 mt-4 flex list-none flex-col gap-1.5 p-0">
-              {extras.map((extra) => (
-                <li key={extra} className="before:hidden m-0 flex gap-2 p-0 text-[12.5px] leading-[1.5] text-ink-muted">
-                  <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-ink-faint" aria-hidden="true" />
-                  <span>
-                    <Inline text={extra} />
+          </ul>
+        </figure>
+        <div className="min-w-0 rounded-xl border border-line p-4 [grid-area:deploy] @min-[900px]:self-start">
+          <h3 className="m-0 text-[13px] font-semibold text-ink">{deployTitle}</h3>
+          <ol className="m-0 mt-3 flex list-none flex-col gap-3 p-0">
+            {deploy.map((step) => (
+              <li key={step.command} className="before:hidden m-0 p-0">
+                <p className="m-0 mb-1.5 text-[12.5px] leading-[1.5] text-ink-muted">{step.label}</p>
+                <div className="flex items-start gap-2 rounded-lg border border-line bg-surface-sunken py-1.5 pr-1.5 pl-3">
+                  <span className="min-w-0 flex-1 pt-[5px]">
+                    <Command code={step.command} size="small" />
                   </span>
-                </li>
-              ))}
-            </ul>
-          </figure>
-          <div className="rounded-xl border border-line p-4">
-            <h3 className="m-0 text-[13px] font-semibold text-ink">{deployTitle}</h3>
-            <ol className="m-0 mt-3 flex list-none flex-col gap-3 p-0">
-              {deploy.map((step) => (
-                <li key={step.command} className="before:hidden m-0 p-0">
-                  <p className="m-0 mb-1.5 text-[12.5px] leading-[1.5] text-ink-muted">{step.label}</p>
-                  <div className="flex items-start gap-3 rounded-lg border border-line bg-surface-sunken py-2 pr-2 pl-3">
-                    <span className="min-w-0 flex-1 pt-[5px]">
-                      <Command code={step.command} size="small" />
-                    </span>
-                    <CopyButton text={step.command} />
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
+                  <CopyButton text={step.command} labelClassName="sr-only" />
+                </div>
+              </li>
+            ))}
+          </ol>
         </div>
       </div>
     </Section>

@@ -63,6 +63,12 @@
     outline-offset: -2px;
   }
 
+  .docs-code-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 2px;
+  }
   .docs-code-copy {
     display: inline-flex;
     flex: none;
