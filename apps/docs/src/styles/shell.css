@@ -411,11 +411,41 @@
     }
     .docs-drawer .docs-sidebar-scroller {
       height: auto;
+      overflow: visible;
       padding: var(--docs-space-16) var(--docs-space-12) var(--docs-space-64);
     }
     .docs-drawer .docs-nav-row {
       min-height: 40px;
       font-size: 0.9375rem;
+    }
+    /* The open section and sub-section stay at the top while their pages scroll under them, so a page opened deep in
+       the tree never shows without its section. The bottom edge fades where more navigation follows. */
+    .docs-drawer::after {
+      content: '';
+      position: sticky;
+      bottom: 0;
+      display: block;
+      height: 40px;
+      margin-top: -40px;
+      background: linear-gradient(to bottom, transparent, var(--docs-bg));
+      pointer-events: none;
+    }
+    .docs-drawer .docs-nav-row.is-group[aria-expanded='true'],
+    .docs-drawer li:has(> .docs-nav-children.is-open) > :first-child {
+      position: sticky;
+      z-index: 3;
+      top: 0;
+      background: var(--docs-bg);
+      box-shadow:
+        -12px 0 0 var(--docs-bg),
+        12px 0 0 var(--docs-bg);
+    }
+    .docs-drawer li:has(> .docs-nav-children.is-open) > :first-child {
+      z-index: 2;
+      top: 40px;
+    }
+    .docs-drawer .docs-nav-children > .docs-nav-list {
+      overflow: clip;
     }
     html[data-mobile-nav-open] {
       overflow: hidden;
