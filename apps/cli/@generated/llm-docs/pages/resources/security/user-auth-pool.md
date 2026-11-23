@@ -48,6 +48,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -137,6 +138,7 @@ import {
   HttpApiIntegration,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code'
@@ -215,20 +217,21 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
     enableHostedUi: true,
     hostedUiDomainPrefix: 'myapp-login',
+    callbackURLs: ['https://myapp.com/auth/callback'],
+    logoutURLs: ['https://myapp.com/logged-out'],
     identityProviders: [
       {
         type: 'Google',
         clientId: "$Secret('google-credentials', 'clientId')",
         clientSecret: "$Secret('google-credentials', 'clientSecret')"
       }
-    ],
-    callbackURLs: ['https://myapp.com/auth/callback'],
-    logoutURLs: ['https://myapp.com/logged-out']
+    ]
   });
 
   return {
@@ -273,6 +276,7 @@ import {
   LambdaFunction,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const createProfile = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({
@@ -313,6 +317,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -340,6 +345,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     enableHostedUi: true,
@@ -371,15 +377,16 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     enableHostedUi: true,
     userVerificationType: 'email-code',
+    callbackURLs: ['https://example.com/auth/callback'],
+    logoutURLs: ['https://example.com/logged-out'],
     customDomain: {
       domainName: 'auth.example.com'
-    },
-    callbackURLs: ['https://example.com/auth/callback'],
-    logoutURLs: ['https://example.com/logged-out']
+    }
   });
 
   return {
@@ -419,6 +426,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -476,6 +484,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -519,6 +528,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -656,3 +666,9 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 
 `connectTo` auto-injects `STP_[RESOURCE_NAME]_ID`, `STP_[RESOURCE_NAME]_CLIENT_ID`, and `STP_[RESOURCE_NAME]_ARN` as environment variables. The remaining parameters (`providerUrl`, `domain`, `clientSecret`) are accessible via [`$ResourceParam`](/configuration/referenceable-parameters).
+
+## Next steps
+
+- [HTTP API Gateway](/resources/networking/http-api-gateway): the API whose routes the pool protects.
+- [AppSync API](/resources/networking/appsync-api): authorize GraphQL requests with the pool.
+- [Secrets](/configuration/secrets): store identity provider client secrets.

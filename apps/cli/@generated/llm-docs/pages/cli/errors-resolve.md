@@ -1,6 +1,6 @@
 # error resolve
 
-The `error resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`error ignore`](/cli/errors-ignore) instead. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape error resolve` marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`error ignore`](/cli/errors-ignore) instead. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 

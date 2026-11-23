@@ -61,6 +61,11 @@ Start with standard RDS when you want one fixed monthly price, or with Aurora Se
 the database sits idle for long periods (dev and preview stages). Provisioned Aurora suits large production databases
 that need fast failover and several readers.
 
+Choose before you store data you care about. Changing `instanceSize` or `multiAz` later updates the instance in place,
+with a short interruption for a size change. Changing the engine type, for example from RDS to Aurora, replaces the
+database: the deploy creates an empty new one and deletes the old one with its data. Dump the data first and restore
+it into the new database, and keep `deletionProtection` on so a deploy can't delete the old database by accident.
+
 ### Standard RDS
 
 Engine types: `postgres`, `mysql`, `mariadb`, `oracle-se2`, `sqlserver-ee`, `sqlserver-ex`, `sqlserver-se` and
@@ -343,6 +348,12 @@ await client.connect();
 A Lambda function opens a connection per concurrent execution. If a busy function exhausts the database's connection
 limit, reuse the client across invocations (create it outside the handler) or move to a larger instance.
 
+Run migrations with a [release command](/deployment-and-lifecycle/release-commands): it runs your deployed image
+inside the VPC during each deploy, before services and functions get the new code. A `local-script` with
+`connectTo: ['mainDatabase']`, called from a [hook](/configuration/hooks-and-scripts), works too, but it runs on the
+machine that deploys; a database that isn't open to the internet then needs a `local-script-with-bastion-tunneling`
+script and a [bastion host](/resources/security/bastion-host).
+
 ## Storage
 
 Standard RDS starts with 20 GB of gp3 storage (`storage.initialSize`) and grows automatically up to 200 GB
@@ -567,18 +578,8 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `readReplicaJdbcConnectionStrings` | Same as **readReplicaConnectionStrings** but in JDBC format (only available when read replicas are configured). | `$ResourceParam("<<resource-name>>", "readReplicaJdbcConnectionStrings")` |
 
 
-## FAQ
+## Next steps
 
-### How do I run database migrations?
-
-Run them from a [hook](/configuration/hooks-and-scripts) after each deploy. Define a `local-script` with
-`connectTo: ['mainDatabase']`, which injects the same `STP_MAIN_DATABASE_*` variables, and call it from
-`hooks.afterDeploy`. For a database that isn't open to the internet, use a `local-script-with-bastion-tunneling` script
-and a [bastion host](/resources/security/bastion-host).
-
-### Can I change the engine or instance size later?
-
-Changing `instanceSize` or `multiAz` updates the instance in place, with a short interruption for a size change.
-Changing the engine type, for example from RDS to Aurora, replaces the database: the deploy creates an empty new one and
-deletes the old one with its data. Dump the data first and restore it into the new database, and keep
-`deletionProtection` on so a deploy can't delete the old database by accident.
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations during each deploy.
+- [Local databases](/local-development/local-databases): run the database on your machine in dev mode.
+- [Bastion host](/resources/security/bastion-host): reach a VPC-only database from your machine.

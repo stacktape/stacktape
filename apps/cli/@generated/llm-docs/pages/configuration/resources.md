@@ -4,7 +4,7 @@ A Stacktape resource is a named piece of infrastructure (an API, a database, a c
 
 ## Why resources exist
 
-AWS has hundreds of services, each with dozens of configuration knobs. Stacktape resources are opinionated abstractions that bundle the AWS primitives you need into a single declaration. A [web service](/resources/compute/web-service) runs a container workload using Fargate by default (with EC2 available through the container resources configuration): you declare the container, scaling, and networking in one block without manually configuring task definitions, target groups, or IAM roles.
+One resource stands for all the AWS pieces it needs. A [web service](/resources/compute/web-service) is a few lines in your config: the packaging, `cpu` and `memory`. From that, Stacktape creates an ECS cluster, a Fargate task definition and service, an HTTP API Gateway that finds the containers through Cloud Map, a security group, a log group and the IAM roles. You don't write task definitions, target groups or roles yourself.
 
 You stay in control of the underlying AWS resources through [overrides](/configuration/overrides-and-escape-hatches), but you don't need to think about them until you have an edge case that the abstraction doesn't expose directly.
 

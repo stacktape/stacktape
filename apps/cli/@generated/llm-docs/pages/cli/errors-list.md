@@ -1,6 +1,6 @@
 # error list
 
-The `error list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. [Error tracking](/observability/error-tracking) runs in the Console.
+`stacktape error list` retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. [Error tracking](/observability/error-tracking) runs in the Console.
 
 ## Usage
 

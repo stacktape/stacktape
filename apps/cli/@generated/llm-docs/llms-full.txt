@@ -647,9 +647,11 @@ You connect your Git provider once, link the project to its repository and creat
 that should deploy. A Git deployment either deploys a fixed stage on every push to a branch, or deploys a preview stage
 `pr-<number>` for every pull request into a branch.
 
-The first Git deployment in an AWS account and region creates a [build runner](/ci-cd-and-gitops/build-runners) there.
-AWS bills its compute while it builds and its disks while it is stopped, about $8.80 a month in Ireland for the default
-disks. The runner and its disks are removed with the last Git deployment that uses them.
+A project's first Git deployment in an AWS account and region creates a [build runner](/ci-cd-and-gitops/build-runners)
+for that project there. More Git deployments of the same project, account and region share it. AWS bills each runner's
+compute while it builds and its disks while it is stopped: the default disks cost about $8.80 a month per runner in
+Ireland, so ten projects deploying to one account and region cost about $88 a month in disks. A runner and its disks
+are removed with the last Git deployment that uses them.
 
 After the first successful deploy of a new stage, a CLI signed in to the Console offers to set this up: it asks whether
 pushes to your current branch should deploy that stage.
@@ -934,7 +936,7 @@ Most commands work without a Stacktape account. Commands that act on a stack use
 
 - [`validate`](/cli/validate): Checks your configuration without deploying anything.
 - [`diff`](/cli/diff): Shows what a deploy would change in the stack.
-- [`synth`](/cli/synth): Prints the CloudFormation template your configuration produces.
+- [`synth`](/cli/synth): Writes the CloudFormation template your configuration produces to a file.
 - [`package`](/cli/package): Builds the deployment packages of your functions and containers.
 - [`deploy`](/cli/deploy): Creates or updates a stage in your AWS account.
 - [`status`](/cli/info-stack) (Console): Shows a deployed stack's URLs, outputs and resources.
@@ -1018,7 +1020,7 @@ Most commands work without a Stacktape account. Commands that act on a stack use
 Source: `apps/docs/content/cli/ai-connect.mdx`
 Route: `/cli/ai-connect`
 
-The `stacktape ai connect` command connects your own AI subscription to Stacktape for the hosted AI incident runs you request ([Investigate with AI and Fix with AI](/observability/incident-ai)). It first asks which provider to connect (unless you pass `--ai-provider`) and explains what will happen, then, in a terminal, waits for your confirmation. It stores the sign-in with Stacktape under your user and the organization of your API key, and never prints it. Only runs you request use it, and they run the provider's coding agent.
+`stacktape ai connect` connects your own AI subscription to Stacktape for the hosted AI incident runs you request ([Investigate with AI and Fix with AI](/observability/incident-ai)). It first asks which provider to connect (unless you pass `--ai-provider`) and explains what will happen, then, in a terminal, waits for your confirmation. It stores the sign-in with Stacktape under your user and the organization of your API key, and never prints it. Only runs you request use it, and they run the provider's coding agent.
 
 ## Usage
 
@@ -1085,7 +1087,7 @@ A Claude token from `claude setup-token` does not refresh, so this does not appl
 Source: `apps/docs/content/cli/ai-disconnect.mdx`
 Route: `/cli/ai-disconnect`
 
-The `stacktape ai disconnect` command removes your own sign-in with one AI provider from Stacktape, in the organization of your API key. It asks which provider to disconnect unless you pass it as an argument (`ai disconnect <ai-provider>`). Hosted AI incident runs you request can no longer be funded by that sign-in until you connect it again with [`stacktape ai connect`](/cli/ai-connect). A run already running is not affected; a queued run funded by it fails without starting.
+`stacktape ai disconnect` removes your own sign-in with one AI provider from Stacktape, in the organization of your API key. It asks which provider to disconnect unless you pass it as an argument (`ai disconnect <ai-provider>`). Hosted AI incident runs you request can no longer be funded by that sign-in until you connect it again with [`stacktape ai connect`](/cli/ai-connect). A run already running is not affected; a queued run funded by it fails without starting.
 
 Your own CLI's sign-in on your machine stays as it is.
 
@@ -1268,7 +1270,7 @@ Legacy alarm rules that were created in the Console, not in your config, move in
 Source: `apps/docs/content/cli/aws-call.mdx`
 Route: `/cli/aws-call`
 
-The `aws call` command sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
+`stacktape aws call` sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
 stack. Use it when Stacktape's purpose-built inspection commands do not expose the AWS data you need.
 
 ## Safety model
@@ -1433,7 +1435,7 @@ for resources that are not associated with a deployed Stacktape stack.
 Source: `apps/docs/content/cli/aws-profile-create.mdx`
 Route: `/cli/aws-profile-create`
 
-The `aws-profile create` command creates a new AWS profile on your local machine. It prompts you for a profile name, AWS Access Key ID, and AWS Secret Access Key, then stores them in the default AWS credentials location in your home directory. Other AWS tools — including the AWS CLI — can use these profiles.
+`stacktape aws-profile create` creates a new AWS profile on your local machine. It prompts you for a profile name, AWS Access Key ID, and AWS Secret Access Key, then stores them in the default AWS credentials location in your home directory. Other AWS tools — including the AWS CLI — can use these profiles.
 
 ## Usage
 
@@ -1477,9 +1479,7 @@ stacktape aws-profile create --log-level error
 
 Credentials are stored in the default AWS credentials location in your home directory. This is the same location used by the AWS CLI and AWS SDKs, so profiles created with Stacktape work with any AWS tooling on the same machine.
 
-
-> **Info:** For Console-managed AWS access, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
-
+To let the Stacktape Console manage AWS access instead of keeping keys on your machine, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
 
 ## Options
 
@@ -1507,7 +1507,7 @@ Credentials are stored in the default AWS credentials location in your home dire
 Source: `apps/docs/content/cli/aws-profile-delete.mdx`
 Route: `/cli/aws-profile-delete`
 
-The `aws-profile delete` command removes an AWS profile from your system. It reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`), deduplicates them, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine. If no profiles exist, the command exits with an error.
+`stacktape aws-profile delete` removes an AWS profile from your system. It reads profiles from both the AWS credentials file (`~/.aws/credentials`) and the AWS config file (`~/.aws/config`), deduplicates them, presents them in an interactive selector, and deletes the chosen profile. Use this when you need to clean up stale or unused AWS profiles from your local machine. If no profiles exist, the command exits with an error.
 
 ## Usage
 
@@ -1598,7 +1598,7 @@ Only the last 4 characters of each secret access key are shown, in the terminal 
 Source: `apps/docs/content/cli/aws-profile-update.mdx`
 Route: `/cli/aws-profile-update`
 
-The `aws-profile update` command replaces the AWS access key credentials for an existing AWS profile stored on your machine. Use it when you rotate IAM user keys or need to correct a misconfigured profile without deleting and recreating it.
+`stacktape aws-profile update` replaces the AWS access key credentials for an existing AWS profile stored on your machine. Use it when you rotate IAM user keys or need to correct a misconfigured profile without deleting and recreating it.
 
 ## Usage
 
@@ -1651,7 +1651,7 @@ stacktape aws-profile update --debug
 Source: `apps/docs/content/cli/bastion-session.mdx`
 Route: `/cli/bastion-session`
 
-The `bastion shell` command starts an interactive shell on a deployed [bastion host](/resources/security/bastion-host). The session is established over SSM, so no SSH keys or open inbound ports are required.
+`stacktape bastion shell` starts an interactive shell on a deployed [bastion host](/resources/security/bastion-host). The session is established over SSM, so no SSH keys or open inbound ports are required.
 
 ## Usage
 
@@ -1738,7 +1738,7 @@ When using `--bastion-resource`, the value must match the name of a bastion reso
 Source: `apps/docs/content/cli/bastion-tunnel.mdx`
 Route: `/cli/bastion-tunnel`
 
-The `bastion tunnel` command creates a secure tunnel through a [bastion host](/resources/security/bastion-host) to reach resources inside a private VPC. Use it to connect local tools — database GUIs, Redis CLIs, or HTTP clients — to resources that have no public endpoint. The command establishes the tunnel through AWS SSM Session Manager.
+`stacktape bastion tunnel` creates a secure tunnel through a [bastion host](/resources/security/bastion-host) to reach resources inside a private VPC. Use it to connect local tools — database GUIs, Redis CLIs, or HTTP clients — to resources that have no public endpoint. The command establishes the tunnel through AWS SSM Session Manager.
 
 ## Usage
 
@@ -1889,7 +1889,7 @@ You can, but there is no reason to. If a database has a public endpoint, connect
 Source: `apps/docs/content/cli/bucket-sync.mdx`
 Route: `/cli/bucket-sync`
 
-The `bucket sync` command synchronizes the contents of a local directory with an S3 bucket. It mirrors the source directory into the bucket, removing any files from the bucket that no longer exist locally. Use it when you need a local build directory mirrored into an S3 bucket, either by resolving a bucket resource from a deployed Stacktape stack or by passing a bucket ID directly.
+`stacktape bucket sync` synchronizes the contents of a local directory with an S3 bucket. It mirrors the source directory into the bucket, removing any files from the bucket that no longer exist locally. Use it when you need a local build directory mirrored into an S3 bucket, either by resolving a bucket resource from a deployed Stacktape stack or by passing a bucket ID directly.
 
 ## Usage
 
@@ -2009,7 +2009,7 @@ stacktape bucket sync assets --stage staging --region eu-central-1 --profile my-
 Source: `apps/docs/content/cli/cf-module-update.mdx`
 Route: `/cli/cf-module-update`
 
-The `stack update-modules` command updates CloudFormation infrastructure module private types in your AWS account to the latest compatible version. Stacktape currently offers updates for `atlasMongo`, `upstashRedis`, and `ecsBlueGreen` CloudFormation private types. Run this command when an upstream API change for one of these modules requires the registration in your account to be updated, or when an error message or Stacktape support explicitly tells you to update a module.
+`stacktape stack update-modules` updates CloudFormation infrastructure module private types in your AWS account to the latest compatible version. Stacktape currently offers updates for `atlasMongo`, `upstashRedis`, and `ecsBlueGreen` CloudFormation private types. Run this command when an upstream API change for one of these modules requires the registration in your account to be updated, or when an error message or Stacktape support explicitly tells you to update a module.
 
 ## Usage
 
@@ -2077,7 +2077,7 @@ stacktape stack update-modules --region eu-west-1 --debug
 Source: `apps/docs/content/cli/cf-rollback.mdx`
 Route: `/cli/cf-rollback`
 
-The `stack recover` command recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state by triggering CloudFormation's native rollback mechanism. Only `--region` is required. Use it when a failed deployment leaves your stack unable to accept new updates — this is a recovery command, not a version rollback. To revert to a previous deployment version, use [`rollback`](/cli/rollback) instead.
+`stacktape stack recover` recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state by triggering CloudFormation's native rollback mechanism. Only `--region` is required. Use it when a failed deployment leaves your stack unable to accept new updates — this is a recovery command, not a version rollback. To revert to a previous deployment version, use [`rollback`](/cli/rollback) instead.
 
 ## Usage
 
@@ -2386,7 +2386,7 @@ The `--task-arn` value doesn't match a running task. The error lists the task ID
 Source: `apps/docs/content/cli/container-session.mdx`
 Route: `/cli/container-session`
 
-The `container shell` command starts an interactive session inside a running container in your deployed stack. The session is established using ECS Exec and an SSM (Systems Manager) connection, giving you direct terminal access to debug, inspect files, or troubleshoot issues in a running container.
+`stacktape container shell` starts an interactive session inside a running container in your deployed stack. The session is established using ECS Exec and an SSM (Systems Manager) connection, giving you direct terminal access to debug, inspect files, or troubleshoot issues in a running container.
 
 ## Usage
 
@@ -2551,7 +2551,7 @@ An unknown key or an invalid value, such as a stage with capital letters, fails 
 Source: `apps/docs/content/cli/defaults-list.mdx`
 Route: `/cli/defaults-list`
 
-The `defaults list` command prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
+`stacktape defaults list` prints all system-wide Stacktape defaults configured on your machine. Stacktape uses these defaults as fallback values for commands that accept the corresponding arguments, so you don't need to pass common flags like `--region` or `--stage` each time.
 
 ## Usage
 
@@ -2888,7 +2888,7 @@ Stacktape does not currently check CloudFormation resource drift before deployin
 Source: `apps/docs/content/cli/deployment-script-run.mdx`
 Route: `/cli/deployment-script-run`
 
-The `deployment-script run` command re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, updates the existing Lambda with it, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
+`stacktape deployment-script run` re-packages and invokes a single [deployment script](/resources/advanced/deployment-scripts) without running a full [deploy](/cli/deploy). Use it to iterate on script logic — fix a migration, adjust a seed routine, or re-run a post-deploy step — without waiting for a complete stack update. The command rebuilds the script's Lambda function code from your local source, updates the existing Lambda with it, resolves the script's `parameters` from your current local configuration, invokes the function, and prints the response payload or error to your terminal.
 
 
 > **Warning:** This command updates the script's **source code** and resolves `parameters` from your local configuration. Changes to environment variables, memory, timeout, VPC settings, or other Lambda configuration require a full [`deploy`](/cli/deploy).
@@ -3087,7 +3087,7 @@ The dev network is shared by the whole AWS account and region. Every dev functio
 Source: `apps/docs/content/cli/dev-stop.mdx`
 Route: `/cli/dev-stop`
 
-The `dev stop` command gracefully stops a running dev agent that was started with [`stacktape dev --agent`](/cli/dev). Dev agents expose a local HTTP status endpoint, and `dev stop` uses the selected port to stop the matching agent. It can also clean up orphaned Docker containers left behind by crashed dev sessions.
+`stacktape dev stop` gracefully stops a running dev agent that was started with [`stacktape dev --agent`](/cli/dev). Dev agents expose a local HTTP status endpoint, and `dev stop` uses the selected port to stop the matching agent. It can also clean up orphaned Docker containers left behind by crashed dev sessions.
 
 ## Usage
 
@@ -3265,19 +3265,19 @@ stacktape dev --stage dev --region eu-west-1 --no-emulation
 
 ### --agent / --agent-port
 
-The `--agent` flag runs dev mode as a detached daemon and enables the agent HTTP server for programmatic control. Agent mode is intended for programmatic/LLM consumption and AI coding-agent workflows. The daemon spawns in the background and the parent process exits after confirming the agent is ready.
+On `dev`, `--agent` does more than on other commands, where it only switches the output to JSONL. It runs dev mode as a background session with a local HTTP API that a coding agent uses to check status, rebuild workloads, read logs and query local databases. The command returns once the session is ready. [Agent mode in dev](/using-with-ai/agent-mode-in-dev) documents the API.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --agent
 ```
 
-Agent mode does not confirm anything. When the project named with `--project` does not exist yet, `dev --agent` fails with `CONFIRMATION_REQUIRED` before it deploys. Check the name and run it again with `--yes` to create the project:
+The background session does not confirm anything. When the project named with `--project` does not exist yet, `dev --agent` fails with `CONFIRMATION_REQUIRED` before it deploys. Check the name and run it again with `--yes` to create the project:
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --agent --yes
 ```
 
-Providing `--agent-port` also enables agent mode, so `--agent` is optional when you pass a port. Use `--agent-port` to specify a custom port for the agent HTTP server:
+Passing `--agent-port` also starts the background session, so `--agent` is optional when you pass a port. Use it to choose the HTTP API's port:
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --agent-port 8080
@@ -3341,8 +3341,8 @@ This applies only when the CLI is signed in to an organization on the Console's 
 | --- | --- | --- | --- | --- |
 | `-r, --region` | yes | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). Inside a project whose config declares `region`, the flag is optional and overrides the config. | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `-s, --stage` | yes | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash. | - |
-| `--agent` | no | `boolean` | Agent Mode — For coding agents: runs dev mode in the background with a local HTTP API for status, logs, rebuilds and database queries. The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. Agent mode does not confirm anything: when the project does not exist yet, creating it fails with `CONFIRMATION_REQUIRED` unless you add `--yes`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/). | - |
-| `--agent-port` | no | `number` | Agent Port — The port of the agent mode HTTP API. Implies `--agent`. By default, the first free port from 7331. | - |
+| `--agent` | no | `boolean` | Background Dev Session — For coding agents: runs dev mode as a background session with a local HTTP API for status, logs, rebuilds and database queries. The command returns once the session is ready. Its result names the API port, the token file and the log file, and the session keeps running until `stacktape dev stop`. It does not confirm anything: when the project does not exist yet, creating it fails with `CONFIRMATION_REQUIRED` unless you add `--yes`. See [Agent mode in dev](https://docs.stacktape.com/using-with-ai/agent-mode-in-dev/). | - |
+| `--agent-port` | no | `number` | Agent Port — The port of the background session's HTTP API. Implies `--agent`. By default, the first free port from 7331. | - |
 | `-y, --yes` | no | `boolean` | Auto-Confirm Operation — Confirms an operation that would otherwise ask first: deleting a stack, an update that may delete stateful resources, creating a project that does not exist yet, and the other deletions that ask. Without a terminal to ask in (CI, `--agent`, machine-readable output), such an operation fails with `CONFIRMATION_REQUIRED` unless this flag is set. `--agent` does not confirm anything. | - |
 | `--aws-account` | no | `string` | AWS Account — The name of the AWS account to use for the operation. The account must first be connected in the [Stacktape Console](https://console.stacktape.com/aws-accounts). Without it, the account is chosen by `--profile`, `AWS_PROFILE` or AWS credentials in environment variables, then by your saved default, then by your organization's only connected account. `--aws-account` takes precedence over all of them, but AWS credentials in environment variables must then belong to that account. | - |
 | `-c, --config` | no | `string` | Config File Path — The path to your Stacktape configuration file, relative to the current working directory. Without it, Stacktape uses the one `stacktape.ts`, `stacktape.yml`, `stacktape.yaml` or `stacktape.js` in the working directory. When there are several, the command stops and asks you to choose one with this option. | - |
@@ -3483,7 +3483,7 @@ stacktape diff --stage production --region eu-west-1 --agent
 Source: `apps/docs/content/cli/domain-add.mdx`
 Route: `/cli/domain-add`
 
-The `domain add` command sets up an already-registered domain in your AWS account so Stacktape can manage its DNS and TLS certificates. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), [HTTP API Gateways](/resources/networking/http-api-gateway), and [WebSocket API Gateways](/resources/networking/websocket-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
+`stacktape domain add` prepares a domain you already own for Stacktape: it moves the domain's DNS to Route 53 when it isn't there yet and requests TLS certificates. Then [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), [HTTP API Gateways](/resources/networking/http-api-gateway) and [WebSocket API Gateways](/resources/networking/websocket-api-gateway) can use the domain. [Custom domains](/resources/networking/custom-domains#set-up-the-domain) covers the whole setup, including which names a certificate covers.
 
 ## Usage
 
@@ -3491,91 +3491,30 @@ The `domain add` command sets up an already-registered domain in your AWS accoun
 stacktape domain add --region eu-west-1
 ```
 
-The command runs an interactive wizard. You supply only the `--region` flag — the domain name is entered interactively during the wizard.
+The command asks for the domain name. It stops at the first step that isn't finished yet, for example while DNS changes propagate. Run it again later and it continues where it stopped; it keeps its progress in Parameter Store. When everything is done, it prints `Domain ready to use in <region>.`
 
 ## What it does
 
-The `domain add` wizard walks through the following steps, stopping at the first incomplete one.
+1. **Domain name.** Enter a root domain (`mydomain.com`) or a subdomain (`api.dev.mydomain.com`). DNS is always set up for the root domain; the certificates are requested for the name you enter.
+2. **Registration.** If nobody has registered the domain yet, the command stops and prints how to register it with Route 53 (from $3 a year for `.click`) or another registrar.
+3. **DNS.** If the domain's DNS is outside AWS, for example at GoDaddy or Namecheap, the command asks to move it to Route 53. It creates a hosted zone and prints the name servers to set at your registrar. If the domain already serves traffic, copy its DNS records into the new hosted zone before you change the name servers, or the domain stops resolving. Propagation can take hours.
+4. **Certificates.** It requests a free ACM certificate in `--region` and, when that region isn't `us-east-1`, a second one in `us-east-1`, which CDNs need. It adds the DNS validation records to the hosted zone; AWS usually issues the certificates a few minutes later.
 
-1. **Enter domain name** — A root domain (`mydomain.com`) or a subdomain (`api.internal.mydomain.com`). DNS is always set up for the root domain; the certificates are requested for the name you enter.
-2. **Check registration** — If the domain is not registered (not purchased), the command exits immediately and prints a hint to register via Route 53 or another registrar. Prices start at $3/year for `.click` domains.
-3. **Verify DNS ownership** — If DNS is managed outside AWS, the command asks whether to move DNS management to Route 53. If confirmed and no hosted zone exists, it creates one and prints the name servers to configure at your registrar.
-4. **Provision TLS certificates** — Requests a regional ACM certificate. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate. For each certificate that is not issued yet, it adds the DNS validation record to the Route 53 hosted zone.
-
-The command stores domain status in Parameter Store after key checkpoints (hosted-zone setup, certificate-validation-record setup), so later runs can read saved domain status. Re-run `domain add` after DNS or certificate validation has had time to complete.
-
-A certificate for a two-part root domain also covers its first-level subdomains (`*.mydomain.com`); for `mydomain.co.uk` it doesn't, so enter each hostname. For a deeper name such as `api.dev.mydomain.com`, enter that full name to get a certificate for it. See [custom domains](/resources/networking/custom-domains#set-up-the-domain).
-
-## DNS ownership scenarios
-
-The command handles two scenarios based on the domain's DNS ownership status.
-
-### DNS already verified
-
-If Stacktape detects that domain ownership is already verified, the command skips straight to TLS certificate provisioning.
-
-### DNS managed outside AWS
-
-When DNS for the domain is managed outside AWS, the command asks whether you want to move DNS management to Route 53. If you confirm:
-
-1. A Route 53 hosted zone is created (if one doesn't already exist).
-2. The command prints the name server records to set at your registrar.
-3. DNS propagation can take hours to days depending on the registrar and prior TTL values.
-4. After propagation, re-run `domain add` to continue with certificate provisioning.
-
-
-> **Info:** If the domain is already in use, copy your existing DNS records into the new Route 53 hosted zone before updating the name servers at your registrar. This prevents downtime during the migration.
-
-
-## TLS certificates
-
-The command requests a free AWS ACM certificate in the specified `--region`. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate, which CDNs need. For each certificate that is not issued yet, the command adds the DNS validation record to the Route 53 hosted zone. Certificate issuance typically takes a few minutes after DNS records are in place.
-
-
-> **Tip:** The command prints https://console.stacktape.com/domains as the place to continue or check domain setup.
-
+Certificates are regional, so run the command in each region where you deploy resources that use the domain. ACM certificates are free; a Route 53 hosted zone costs $0.50 a month.
 
 ## Examples
 
-Add a domain in the eu-west-1 region:
-
-```bash
-stacktape domain add --region eu-west-1
-```
-
-Add a domain using a specific AWS profile:
+Use a specific AWS profile:
 
 ```bash
 stacktape domain add --region us-east-1 --profile production
 ```
 
-Add a domain using a named AWS account connected in the Stacktape Console:
+Use an AWS account connected in the Stacktape Console:
 
 ```bash
 stacktape domain add --region eu-west-1 --aws-account my-prod-account
 ```
-
-## FAQ
-
-### Can I add a subdomain instead of a root domain?
-
-Yes. Enter the full name, such as `api.dev.mydomain.com`. The command sets up DNS for the root domain (`mydomain.com`) and requests certificates for the name you entered. For a two-part root domain such as `mydomain.com`, its certificate also covers `*.mydomain.com`, so you need this only for names more than one level below it. For a longer root domain, such as `mydomain.co.uk`, the command requests no wildcard, so add each hostname you use, such as `api.mydomain.co.uk`.
-
-### What happens if my domain is not yet registered?
-
-If the domain is not registered (not purchased from any registrar), the command exits immediately and prints a hint to register it. You can register it with [Route 53](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) or any other domain registrar. Registration prices vary by top-level domain; see the [current Route 53 prices](https://aws.amazon.com/route53/pricing/#Domain_Names). After registration, re-run `domain add`.
-
-### Do I need to run this command in every region?
-
-The command creates a regional certificate for the selected `--region` and, when that region is not `us-east-1`, also requests a `us-east-1` ACM certificate. Run the command in each region where you intend regional certificates for the domain.
-
-### Is there a cost for adding a domain?
-
-Adding the domain is free: ACM TLS certificates are free. The only cost is the underlying domain registration itself — Route 53 prices start at $3/year for `.click` domains, but registration is a separate step (`domain add` requires the domain to already be registered).
-
-### Can I use a domain registered outside AWS?
-
-Yes. For domains registered with another registrar (GoDaddy, Namecheap, Hostinger, etc.), the command asks whether to move DNS management to Route 53. If you confirm, it creates a hosted zone (if needed) and prints the name servers to set at your registrar. If the domain is already serving traffic, copy your existing DNS records into the new hosted zone before switching name servers to avoid downtime. After DNS propagation, re-run the command to continue with certificate provisioning.
 
 ## Options
 
@@ -3604,7 +3543,7 @@ Yes. For domains registered with another registrar (GoDaddy, Namecheap, Hostinge
 Source: `apps/docs/content/cli/errors-ignore.mdx`
 Route: `/cli/errors-ignore`
 
-The `error ignore` command marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`error reopen`](/cli/errors-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`error resolve`](/cli/errors-resolve) which will automatically reopen if the same error recurs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape error ignore` marks a runtime issue as ignored. Ignored issues will not reopen on new occurrences and will not generate alerts. You can reopen an ignored issue at any time with [`error reopen`](/cli/errors-reopen). Use this for errors you've reviewed and decided are not actionable, rather than [`error resolve`](/cli/errors-resolve) which will automatically reopen if the same error recurs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -3660,7 +3599,7 @@ Use [`error resolve`](/cli/errors-resolve) when you've fixed the root cause. A r
 Source: `apps/docs/content/cli/errors-list.mdx`
 Route: `/cli/errors-list`
 
-The `error list` command retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. [Error tracking](/observability/error-tracking) runs in the Console.
+`stacktape error list` retrieves detected runtime issues (errors) across your deployed functions and containers. It shows each issue's error message, type, function name, project, stage, occurrence count, status, and last occurrence timestamp. Use it to inspect error patterns and occurrence counts from the terminal. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. [Error tracking](/observability/error-tracking) runs in the Console.
 
 ## Usage
 
@@ -3744,7 +3683,7 @@ When no limit is provided, the command requests 25 issues. Omit `--project`, `--
 Source: `apps/docs/content/cli/errors-reopen.mdx`
 Route: `/cli/errors-reopen`
 
-The `error reopen` command sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`error list`](/cli/errors-list) with OPEN status. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape error reopen` sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`error list`](/cli/errors-list) with OPEN status. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -3804,7 +3743,7 @@ The issue lifecycle commands — list, resolve, ignore, and reopen — let you t
 Source: `apps/docs/content/cli/errors-resolve.mdx`
 Route: `/cli/errors-resolve`
 
-The `error resolve` command marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`error ignore`](/cli/errors-ignore) instead. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape error resolve` marks a runtime issue as resolved. Stacktape marks the issue as resolved, and if the same error occurs again in your deployed functions or containers, Stacktape reopens it automatically — acting as a regression detector. Resolve an issue after deploying a fix to keep your issues list focused on unresolved problems. If you want new occurrences to stay ignored and stop generating alerts, use [`error ignore`](/cli/errors-ignore) instead. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -3892,7 +3831,7 @@ stacktape help deploy
 Source: `apps/docs/content/cli/incidents-ack.mdx`
 Route: `/cli/incidents-ack`
 
-The `incident ack` command acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape incident ack` acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -3936,7 +3875,7 @@ stacktape incident ack inc_abc123def456 --agent
 Source: `apps/docs/content/cli/incidents-resolve.mdx`
 Route: `/cli/incidents-resolve`
 
-The `incident resolve` command resolves an incident manually. Use it after you deployed and verified a fix for signals that cannot observe their own recovery, such as production error groups: no new error is not proof that the defect is gone, so Stacktape leaves that judgement to you. A recurring signal reopens the incident automatically, so a wrong resolution is caught rather than hidden. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape incident resolve` resolves an incident manually. Use it after you deployed and verified a fix for signals that cannot observe their own recovery, such as production error groups: no new error is not proof that the defect is gone, so Stacktape leaves that judgement to you. A recurring signal reopens the incident automatically, so a wrong resolution is caught rather than hidden. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 Stateful signals (uptime checks, synthetic tests, alarms) resolve on their own once their recovery criteria are met, and the incident resolves automatically when all of its stateful signals have recovered. Prefer that path; use manual resolution only when a signal cannot recover by itself.
 
@@ -3984,7 +3923,7 @@ stacktape incident watch inc_abc123def456
 Source: `apps/docs/content/cli/incidents-show.mdx`
 Route: `/cli/incidents-show`
 
-The `incident show` command prints an incident's handoff bundle: a self-contained markdown document with the incident's current state, its signals and their evidence, the release that was live when it opened and what changed since the previous release, nearby operations and events, the timeline with page delivery status, scoped links into the Console, earlier related incidents, the AI assessment (or a line saying none exists because no AI API key is connected), the reports of any hosted AI runs on the incident, and guidance for diagnosing the incident and watching its recovery read-only. It asks for a diagnosis and a recommended next action; it never tells the reader to deploy or resolve. It is the same document that **Copy details for agent** produces on the incident page in the Console.
+`stacktape incident show` prints an incident's handoff bundle: a self-contained markdown document with the incident's current state, its signals and their evidence, the release that was live when it opened and what changed since the previous release, nearby operations and events, the timeline with page delivery status, scoped links into the Console, earlier related incidents, the AI assessment (or a line saying none exists because no AI API key is connected), the reports of any hosted AI runs on the incident, and guidance for diagnosing the incident and watching its recovery read-only. It asks for a diagnosis and a recommended next action; it never tells the reader to deploy or resolve. It is the same document that **Copy details for agent** produces on the incident page in the Console.
 
 ## Usage
 
@@ -4036,7 +3975,7 @@ The bundle contains runtime data from your application: log lines, error message
 Source: `apps/docs/content/cli/incidents-watch.mdx`
 Route: `/cli/incidents-watch`
 
-The `incident watch` command waits for an incident to recover and stay recovered. It exits successfully only after the incident has remained `RESOLVED` for the stability window; if a signal recurs and reopens the incident, the window resets. Use it after deploying a fix to prove the fix worked, in CI scripts, or at the end of a coding-agent workflow. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape incident watch` waits for an incident to recover and stay recovered. It exits successfully only after the incident has remained `RESOLVED` for the stability window; if a signal recurs and reopens the incident, the window resets. Use it after deploying a fix to prove the fix worked, in CI scripts, or at the end of a coding-agent workflow. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -4096,7 +4035,7 @@ See [Incidents](/observability/incidents) for the recommended triage and verific
 Source: `apps/docs/content/cli/incidents.mdx`
 Route: `/cli/incidents`
 
-The `incident list` command lists incidents: everything that needs (or needed) a reaction, such as downtime, failing synthetic tests, firing alarms, production errors, unhealthy stacks, and expiring certificates. It shows each incident's ID, status, severity, title, project, stage, open time, and contributing signals. The default `ACTIVE` view includes both open and acknowledged incidents. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape incident list` lists incidents: everything that needs (or needed) a reaction, such as downtime, failing synthetic tests, firing alarms, production errors, unhealthy stacks, and expiring certificates. It shows each incident's ID, status, severity, title, project, stage, open time, and contributing signals. The default `ACTIVE` view includes both open and acknowledged incidents. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -4175,7 +4114,7 @@ See [Incidents](/observability/incidents) for what opens an incident, its lifecy
 Source: `apps/docs/content/cli/info-operations.mdx`
 Route: `/cli/info-operations`
 
-The `stack history` command lists recent recorded Stacktape operations with their status. Each entry shows success or failure status, timestamps, and error descriptions for failed operations. Use filters to narrow results by project, stage, or the current API-key user. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. The history comes from the operations the Console recorded.
+`stacktape stack history` lists recent recorded Stacktape operations with their status. Each entry shows success or failure status, timestamps, and error descriptions for failed operations. Use filters to narrow results by project, stage, or the current API-key user. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. The history comes from the operations the Console recorded.
 
 ## Usage
 
@@ -4256,7 +4195,7 @@ stacktape stack history --agent
 Source: `apps/docs/content/cli/info-stack.mdx`
 Route: `/cli/info-stack`
 
-The `status` command displays detailed information about a deployed stack, including its outputs (URLs, endpoints, resource identifiers) and the list of AWS resources in the stack. Use it after [deploying](/cli/deploy) to discover endpoints, verify resource creation, or feed stack data into scripts and CI pipelines. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. It reads the stage's record in the Console. Without an account, open the stack `<project>-<stage>` in the AWS CloudFormation console, in the stage's region, to see its outputs and resources.
+`stacktape status` displays detailed information about a deployed stack, including its outputs (URLs, endpoints, resource identifiers) and the list of AWS resources in the stack. Use it after [deploying](/cli/deploy) to discover endpoints, verify resource creation, or feed stack data into scripts and CI pipelines. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. It reads the stage's record in the Console. Without an account, open the stack `<project>-<stage>` in the AWS CloudFormation console, in the stage's region, to see its outputs and resources.
 
 ## Usage
 
@@ -4353,7 +4292,7 @@ stacktape status --region us-west-2 --project payments --stage prod --aws-accoun
 Source: `apps/docs/content/cli/info-stacks.mdx`
 Route: `/cli/info-stacks`
 
-The `stack list` command lists CloudFormation stacks deployed in a specified AWS region and identifies which ones are Stacktape-managed. It shows each stack's name, status, timestamps, and actual or forecasted spend when budget data is available — giving you a quick inventory of what's running in your account.
+`stacktape stack list` lists CloudFormation stacks deployed in a specified AWS region and identifies which ones are Stacktape-managed. It shows each stack's name, status, timestamps, and actual or forecasted spend when budget data is available — giving you a quick inventory of what's running in your account.
 
 ## Usage
 
@@ -4441,7 +4380,7 @@ stacktape stack list --region eu-west-1 --aws-account my-production-account
 Source: `apps/docs/content/cli/info-whoami.mdx`
 Route: `/cli/info-whoami`
 
-The `stacktape whoami` command shows the current user, organization, connected AWS accounts, and accessible projects for your configured API key. Use it to verify your authentication is set up correctly and confirm which organization and projects you can access.
+`stacktape whoami` shows the current user, organization, connected AWS accounts, and accessible projects for your configured API key. Use it to verify your authentication is set up correctly and confirm which organization and projects you can access.
 
 ## Usage
 
@@ -4759,7 +4698,7 @@ It never overwrites a `stacktape.yml`, `stacktape.yaml` or `stacktape.ts`. It ca
 Source: `apps/docs/content/cli/login.mdx`
 Route: `/cli/login`
 
-The `stacktape login` command signs the Stacktape CLI in to the Stacktape Console on the current system. You approve the sign-in in your browser, and the CLI keeps the local auth state.
+`stacktape login` signs the Stacktape CLI in to the Stacktape Console on the current system. You approve the sign-in in your browser, and the CLI keeps the local auth state.
 
 You don't need to log in to deploy: without an account, the CLI deploys with your local AWS credentials. To add the Console to stacks you already deployed, run [`stacktape connect`](/getting-started/add-the-console#connect-from-the-terminal) instead. It signs you in and connects the AWS account of your credentials in one step. `login` only signs you in.
 
@@ -4905,7 +4844,7 @@ No. Use a separate key per integration point and prefer individual interactive l
 Source: `apps/docs/content/cli/logout.mdx`
 Route: `/cli/logout`
 
-The `stacktape logout` command ends the CLI session that [`stacktape login`](/cli/login) created: Stacktape revokes it, so it stops working everywhere, and the CLI removes it from your system. The command takes no required flags. After logging out, the CLI works without an account again: stack commands such as `deploy`, `delete` and `logs` run on your local AWS credentials, and nothing you deployed changes. Commands that need the Console ask you to sign in again with [`stacktape login`](/cli/login). See [Use the CLI without an account](/getting-started/open-source-cli). Use `logout` when switching accounts, removing credentials from a shared machine, or before storing a different API key.
+`stacktape logout` ends the CLI session that [`stacktape login`](/cli/login) created: Stacktape revokes it, so it stops working everywhere, and the CLI removes it from your system. The command takes no required flags. After logging out, the CLI works without an account again: stack commands such as `deploy`, `delete` and `logs` run on your local AWS credentials, and nothing you deployed changes. Commands that need the Console ask you to sign in again with [`stacktape login`](/cli/login). See [Use the CLI without an account](/getting-started/open-source-cli). Use `logout` when switching accounts, removing credentials from a shared machine, or before storing a different API key.
 
 ## Usage
 
@@ -4949,15 +4888,11 @@ Run `logout` when you want the CLI to stop working with the Console, when switch
 Source: `apps/docs/content/cli/logs.mdx`
 Route: `/cli/logs`
 
-The `stacktape logs` command fetches logs from a deployed resource's CloudWatch log group. It operates in two modes: standard mode retrieves recent log events with optional start-time and pattern filtering, while Insights mode runs a CloudWatch Logs Insights query for aggregation and structured analysis. The command requires a Stacktape configuration file and a deployed stack.
-
-If the resource uses `logging.logClass: infrequent-access`, the ordinary command automatically runs a bounded Logs Insights snapshot and preserves the usual formatted or JSON event shape. CloudWatch does not support live tail or filter-pattern reads for this class, so the command exits after the snapshot. Use `--query` instead of `--filter` when you need to narrow an Infrequent Access group.
-
-
-> **Info:** This command requires a Stacktape configuration file (set via `--config` or auto-detected in the working directory). The configuration is used to resolve the deployed stack and locate the correct CloudWatch log group for the specified resource.
-
+`stacktape logs` prints the logs of a deployed resource from its CloudWatch log group. By default it shows recent log lines, optionally filtered by time and pattern. With `--query`, it runs a CloudWatch Logs Insights query instead.
 
 ## Usage
+
+The command finds the log group through your Stacktape config and the deployed stack, so run it in the project directory or pass `--config`.
 
 Fetch the last hour of logs from a resource named `myApi`.
 
@@ -4998,6 +4933,8 @@ Pass a `--query` flag to run a CloudWatch Logs Insights query instead. Insights 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
+
+A resource with `logging.logClass: infrequent-access` can't be filtered or followed: CloudWatch supports neither for that log class. The command then runs a bounded Logs Insights snapshot instead, prints the events in the usual shape and exits. Use `--query` instead of `--filter` to narrow such a log group.
 
 In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, that JSON payload is text in a `type: "log"` record's `message` within the CLI NDJSON stream; the final `result` record is separate.
 
@@ -5078,7 +5015,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent
 
 ## Output format
 
-In standard mode, the default output is formatted by the CLI for terminal display via an internal formatter. Pass `--raw` to get raw JSON output, or use `--agent` for machine-readable JSON optimized for programmatic consumption.
+In standard mode, the output is formatted for the terminal. Pass `--raw` for plain JSON, or `--agent` for the CLI's JSONL protocol.
 
 `--raw` prints this JSON object for standard retrieval. With `--agent` without `--follow`, this is the payload encoded as text in a log record's `message`:
 
@@ -5107,9 +5044,7 @@ In Insights mode with `--agent`, the log record's JSON message payload includes 
 }
 ```
 
-
-> **Tip:** If no log streams exist for the resource, the command prints an empty result. In agent mode, a log record's `message` contains `{"logGroup": "...", "events": []}`; the final result remains separate.
-
+If the resource has no log streams yet, the command prints an empty result. With `--agent`, the log record's `message` then contains `{"logGroup": "...", "events": []}`.
 
 ## How log group resolution works
 
@@ -5157,29 +5092,9 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 
 ## FAQ
 
-### How do I filter logs for errors only?
-
-Use `--filter "ERROR"` for simple text matching, or `--filter '{ $.level = "error" }'` for structured JSON logs. The filter runs server-side in CloudWatch, so only matching events are returned — faster and cheaper than fetching all logs and filtering locally. See the [AWS filter pattern syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html) for the full query language. The `--filter` flag applies in standard mode only; for Insights mode, use filter clauses inside the `--query` string.
-
-### What is the difference between --filter and --query?
-
-The `--filter` flag applies a CloudWatch Logs filter pattern in standard mode — it returns individual log events that match the pattern. The `--query` flag runs a CloudWatch Logs Insights query, which supports aggregation, sorting, field extraction, and statistical analysis across your logs. Use `--filter` for quick searches like "show me lines containing ERROR". Use `--query` when you need to compute counts, percentiles, group results by time window, or extract fields from structured logs.
-
-### How far back can I fetch logs?
-
-The `--since` flag controls how far back the command looks — there is no hard limit in the CLI itself, only what CloudWatch has retained for the log group's retention period. When omitted, `--since` defaults to 1 hour ago. It accepts relative shorthand (`1h`, `30m`, `1d`, `5s`) or any string the JavaScript `Date` constructor parses, such as `2026-05-28T14:00:00Z`.
-
-### Does stacktape logs live-tail?
-
-Yes. In a terminal, `stacktape logs` shows the newest events and then prints new ones as they arrive until you press Ctrl+C. Without a terminal it prints the events once, unless you pass `--follow`. For log viewing in the browser, see [Logs](/observability/logs).
-
 ### How much does CloudWatch Logs cost?
 
-CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/analysis usage. Logs Insights queries (via `--query`) charge per GB of data scanned. For most development workloads, costs are minimal. High-throughput production services should consider setting log retention limits or using [log forwarding](/observability/log-forwarding) to cheaper storage. Check the [AWS CloudWatch pricing page](https://aws.amazon.com/cloudwatch/pricing/) for current rates.
-
-### What is the difference between --raw and --agent?
-
-`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` without `--follow` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. With `--agent --follow`, each batch of new events arrives as its own log record with the same payload. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.
+CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/analysis usage. Logs Insights queries (via `--query`) charge per GB of data scanned. High-throughput production services should consider setting log retention limits or using [log forwarding](/observability/log-forwarding) to cheaper storage. Check the [AWS CloudWatch pricing page](https://aws.amazon.com/cloudwatch/pricing/) for current rates.
 
 ## Options
 
@@ -5353,7 +5268,7 @@ stacktape mcp remove --coding-agents cursor
 Source: `apps/docs/content/cli/mcp.mdx`
 Route: `/cli/mcp`
 
-The `stacktape mcp` command starts a local MCP (Model Context Protocol) server that exposes Stacktape tools and documentation to AI coding agents. The server communicates over stdio and is spawned automatically by MCP-compatible clients like Claude Code, Codex, Cursor, Windsurf, and VS Code Copilot.
+`stacktape mcp` starts a local MCP (Model Context Protocol) server that exposes Stacktape tools and documentation to AI coding agents. The server communicates over stdio and is spawned automatically by MCP-compatible clients like Claude Code, Codex, Cursor, Windsurf, and VS Code Copilot.
 
 ## Usage
 
@@ -5543,7 +5458,7 @@ stacktape metrics myApi Duration --stage prod --region eu-west-1 --agent \
 Source: `apps/docs/content/cli/org-create.mdx`
 Route: `/cli/org-create`
 
-The `org create` command creates a new organization in your Stacktape account and returns a new API key scoped to it. Organizations are the account boundary Stacktape uses for projects, connected AWS accounts, and user access. Use `org create` when you need a separate organization and API key for a team or workspace.
+`stacktape org create` creates a new organization in your Stacktape account and returns a new API key scoped to it. Organizations are the account boundary Stacktape uses for projects, connected AWS accounts, and user access. Use `org create` when you need a separate organization and API key for a team or workspace.
 
 ## Usage
 
@@ -5615,7 +5530,7 @@ Commands commonly used alongside `org create`:
 Source: `apps/docs/content/cli/org-delete.mdx`
 Route: `/cli/org-delete`
 
-The `stacktape org delete` command deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
+`stacktape org delete` deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
 
 An API key acts in one organization, so the command can delete only that organization. To delete another organization you own, run [`login`](/cli/login) with an API key of that organization first.
 
@@ -5696,7 +5611,7 @@ Other organization management commands and the whoami command for verifying your
 Source: `apps/docs/content/cli/org-list.mdx`
 Route: `/cli/org-list`
 
-The `org list` command displays all organizations accessible with your current Stacktape API key. Use it to see which organizations you belong to, your role in each, and which one is currently active for CLI operations.
+`stacktape org list` displays all organizations accessible with your current Stacktape API key. Use it to see which organizations you belong to, your role in each, and which one is currently active for CLI operations.
 
 ## Usage
 
@@ -5772,7 +5687,7 @@ stacktape org list --json
 Source: `apps/docs/content/cli/package.mdx`
 Route: `/cli/package`
 
-The `package` command packages your compute resources and prepares them for deployment without actually deploying. Use it to run the same packaging step that [`deploy`](/cli/deploy) uses — useful for catching packaging or build failures early, before committing to a full deployment.
+`stacktape package` builds your Lambda packages and container images without deploying. It runs the same packaging step as [`deploy`](/cli/deploy), so build errors show up before you deploy.
 
 ## Usage
 
@@ -5780,17 +5695,11 @@ The `package` command packages your compute resources and prepares them for depl
 stacktape package --stage dev --region eu-west-1
 ```
 
-The command loads your Stacktape configuration, initializes packaging, and packages all compute resources for the target stack. A valid Stacktape configuration file is required — by default Stacktape looks for one in the current directory.
-
-To use a configuration file in a different location, pass `--config`.
+The command packages every compute resource of the stack. It never uses the packaging cache, so each run builds from the current source. It reads the Stacktape config in the current directory; for one elsewhere, pass `--config`:
 
 ```bash
 stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
 ```
-
-
-> **Info:** The `package` command runs packaging with caching disabled, so every invocation produces a fresh build from the current state of your source code.
-
 
 ## Examples
 
@@ -5812,25 +5721,11 @@ Package using a specific AWS profile:
 stacktape package --stage prod --region eu-west-1 --profile my-aws-profile
 ```
 
-Package using a configuration file in a subdirectory:
-
-```bash
-stacktape package --stage dev --region eu-west-1 --config ./infra/stacktape.ts
-```
-
 ## FAQ
-
-### When should I use `package` instead of just running `deploy`?
-
-Use `package` when you want to verify that your compute resources package correctly before committing to a deployment — for example, catching build errors, confirming dependencies resolve, or validating that container images build successfully. In normal workflows, [`deploy`](/cli/deploy) handles packaging as part of its pipeline, so `package` is primarily a pre-deploy verification tool.
 
 ### How is `package` different from `validate --with-package`?
 
 [`validate`](/cli/validate) validates your configuration, resolves resources, and synthesizes the CloudFormation template in memory. Adding `--with-package` also validates workload packaging. Use `validate --with-package` when you want configuration validation combined with packaging checks. Use `package` when you specifically want to run the packaging step on its own.
-
-### Does `package` use caching?
-
-No. The `package` command runs packaging with caching disabled, so every invocation produces a fresh build from the current state of your source code. This ensures the output accurately reflects your code at the time of the run.
 
 ### Does `package` require AWS credentials?
 
@@ -5842,7 +5737,7 @@ By default, the `package` command packages all compute resources in your configu
 
 ### What is the difference between `package` and `synth`?
 
-[`synth`](/cli/synth) compiles your Stacktape configuration into a CloudFormation template — it produces the infrastructure definition but does not build any application code. `package` is the inverse: it builds your compute resources (according to each resource's [packaging mode](/packaging/overview)) but does not produce the infrastructure template. Run both before a deploy when you want a complete pre-deploy review.
+[`synth`](/cli/synth) writes the CloudFormation template and builds no application code. `package` builds your code, according to each resource's [packaging mode](/packaging/overview), and writes no template. [`validate --with-package`](/cli/validate#validation-levels) does both checks in one run.
 
 ## Options
 
@@ -6025,7 +5920,7 @@ stacktape project create payments-service --region eu-west-1 --agent
 Source: `apps/docs/content/cli/project-delete.mdx`
 Route: `/cli/project-delete`
 
-The `project delete` command deletes a project from the current Stacktape organization. The Console removes the
+`stacktape project delete` deletes a project from the current Stacktape organization. The Console removes the
 project with its deploy history, stage settings and build runner. Use it to clean up projects you no longer need, such
 as test projects created by automation.
 
@@ -6100,7 +5995,7 @@ With `--agent`, the result's `data.deployedStages` lists the same stages.
 Source: `apps/docs/content/cli/project-list.mdx`
 Route: `/cli/project-list`
 
-The `project list` command lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape project list` lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 
@@ -6186,7 +6081,7 @@ stacktape project list --log-level error
 Source: `apps/docs/content/cli/query-dynamodb.mdx`
 Route: `/cli/query-dynamodb`
 
-The `query dynamodb` command lets you inspect data in a deployed [DynamoDB table](/resources/databases/dynamodb) directly from the command line. It supports five read-only operations — `sample`, `scan`, `query`, `get`, and `schema` — so you can check table structure, look up items by key, or browse data without leaving the terminal.
+`stacktape query dynamodb` lets you inspect data in a deployed [DynamoDB table](/resources/databases/dynamodb) directly from the command line. It supports five read-only operations — `sample`, `scan`, `query`, `get`, and `schema` — so you can check table structure, look up items by key, or browse data without leaving the terminal.
 
 Use this command as your first tool when you need to verify data in a deployed DynamoDB table. The command resolves your Stacktape `DynamoDbTable` resource by name and runs read-only operations against the deployed table, so there's no risk of accidental writes.
 
@@ -6356,7 +6251,7 @@ No. DynamoDB is a regional AWS service accessible over the public internet — i
 Source: `apps/docs/content/cli/query-opensearch.mdx`
 Route: `/cli/query-opensearch`
 
-The `query opensearch` command runs read-only queries against a deployed [OpenSearch domain](/resources/databases/opensearch) directly from your terminal. Use it to list indices, check document counts, inspect field mappings, retrieve individual documents, or search with Query DSL — without setting up a separate OpenSearch client or dashboard.
+`stacktape query opensearch` runs read-only queries against a deployed [OpenSearch domain](/resources/databases/opensearch) directly from your terminal. Use it to list indices, check document counts, inspect field mappings, retrieve individual documents, or search with Query DSL — without setting up a separate OpenSearch client or dashboard.
 
 ## Usage
 
@@ -6560,7 +6455,7 @@ The command looks up the domain endpoint from the deployed stack. If the resourc
 Source: `apps/docs/content/cli/query-redis.mdx`
 Route: `/cli/query-redis`
 
-The `query redis` command lets you inspect a deployed [Redis cache](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
+`stacktape query redis` lets you inspect a deployed [Redis cache](/resources/databases/redis) directly from the command line. It supports five read-only operations — `keys`, `get`, `ttl`, `info`, and `type` — so you can check cached values, list keys by pattern, or view server stats without setting up a local Redis client or tunnel.
 
 ## Usage
 
@@ -6905,27 +6800,21 @@ Pass `--agent` to switch from the formatted ASCII table to a structured JSON obj
 Source: `apps/docs/content/cli/rollback.mdx`
 Route: `/cli/rollback`
 
-The `stacktape rollback` command reverts a deployed stack to a previous release. It downloads the CloudFormation template from that release and deploys it. Every deployment that changed something is a release, including fast deployments that updated code without CloudFormation. Artifacts, such as Lambda zips and container images, are reused — no rebuild or packaging step is needed. Use it to recover from a bad deployment without redeploying from source.
-
-## When to use
-
-Use `rollback` when a recent deployment introduced a bug, performance regression, or broken configuration and you want to restore the previous working state. No code rebuild or workload artifact packaging occurs. Stacktape downloads the stored CloudFormation template, prepares it as a new deployment version, uploads that rollback template, and asks CloudFormation to deploy it.
-
-
-> **Warning:** Rollback primarily restores the previous CloudFormation template and stored workload artifacts (Lambda zips, container images). For bucket-synced static content, Stacktape also attempts a manifest-based restore after the rollback. Application-side data changes are not undone — treat database migrations and application-written objects as separate recovery work. If your deployment included a schema migration, rolling back the code without rolling back the schema may cause errors.
-
-
-If your stack is stuck in an `UPDATE_ROLLBACK_FAILED` state and cannot accept new updates, use [`stack recover`](/cli/cf-rollback) instead — it uses CloudFormation's native recovery mechanism to restore the stack to a working state. A stack in `UPDATE_FAILED` can be rolled back with either command.
+`stacktape rollback` puts a deployed stack back on an earlier release. It deploys that release's CloudFormation template with its stored Lambda zips and container images, so nothing is rebuilt.
 
 ## Usage
 
-The only required argument is `--region`. `--stage` and `--project` are optional arguments used to identify the target stack.
-
-Roll back one version (the default):
+Roll back to the release before the current one:
 
 ```bash
 stacktape rollback --region eu-west-1 --stage production
 ```
+
+
+> **Warning:** Rollback restores infrastructure and code, not data. Database migrations and objects your app wrote stay as they are, so code rolled back past a schema migration can fail. Plan that recovery separately.
+
+
+Every deploy that changed something is a release, including fast deployments that only updated code. `--region` is the only required flag; `--stage` and `--project` pick the stack, and no config file is needed. A stack stuck in `UPDATE_ROLLBACK_FAILED` can't take a rollback: use [`stack recover`](/cli/cf-rollback) instead. A stack in `UPDATE_FAILED` works with either command.
 
 Roll back to a specific version:
 
@@ -6963,11 +6852,11 @@ When previous versions exist, the command prints the current version and the ava
 
 ### `--config`
 
-Rollback initializes with `commandRequiresConfig: false`, so a local configuration file is not required. `--config` appears in the command's optional arguments because rollback includes common config-dependent CLI arguments.
+Rollback doesn't read a config file. The flag is accepted, but it isn't needed.
 
 ## How rollback works
 
-Stacktape stores CloudFormation templates and deployment artifacts for each deployment version in an S3 deployment bucket. When you run `rollback`:
+Stacktape keeps the CloudFormation template and the deployment artifacts of each release in the stack's deployment bucket. When you run `rollback`, it copies the stored template into a new release and asks CloudFormation to deploy it:
 
 
 ## Flow
@@ -6979,8 +6868,7 @@ Stacktape stores CloudFormation templates and deployment artifacts for each depl
 6. **Bucket content restoration**: If the stack includes static hosting with bucket-synced content, Stacktape attempts to restore the bucket contents from a version manifest.
 
 
-> **Info:** Each rollback creates a new deployment version. Rolling back from `v000008` to `v000005` produces `v000009` — so you maintain a full audit trail and can roll forward again if needed.
-
+Each rollback is a new release: rolling back from `v000008` to `v000005` produces `v000009`. To roll forward again, deploy as usual or roll back to the release you came from.
 
 ## Safety warnings
 
@@ -7005,65 +6893,23 @@ If the stack includes static hosting with bucket-synced content, Stacktape attem
 
 ## Examples
 
-### Quick rollback after a bad deploy
-
-The most common use case — revert to the version that was running before the last deployment:
-
-```bash
-stacktape rollback --region eu-west-1 --stage production
-```
-
-This is equivalent to `--rollback-steps 1`. No config file is needed.
-
-### Inspect available versions first
-
-Before rolling back, check which versions are available:
-
-```bash
-stacktape rollback --region eu-west-1 --stage production --list-versions
-```
-
-The output prints the current version and the available rollback versions. If the current version appears in the listed versions, Stacktape marks it as current. Pick a version and roll back to it:
-
-```bash
-stacktape rollback --region eu-west-1 --stage production --target-version v000005
-```
-
 ### Rollback in CI/CD
 
-Use `--agent` for output optimized for programmatic consumption:
+`--agent` prints JSONL and never prompts:
 
 ```bash
 stacktape rollback --region eu-west-1 --stage production --rollback-steps 1 --agent
 ```
 
-The `--agent` flag uses JSONL/NDJSON output and disables interactive terminal UI.
-
 ## FAQ
 
 ### What is the difference between `rollback` and `stack recover`?
 
-The `rollback` command deploys a previously stored CloudFormation template as a new version — use it when a *successful* deployment introduced a problem in your application. The [`stack recover`](/cli/cf-rollback) command uses CloudFormation's native rollback mechanism to recover a stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. Use `rollback` for "the deploy worked but the app is broken" and `stack recover` for "the deploy itself failed."
-
-### Does rollback rebuild my code?
-
-No. Rollback reuses stored deployment artifacts (Lambda zips, container images) from the original deployment. No code rebuild or packaging occurs. Stacktape still prepares and uploads a rollback CloudFormation template for the new deployment version.
-
-### Does rollback affect my database?
-
-Rollback primarily restores the previous CloudFormation template and stored workload artifacts. For bucket-synced static content, Stacktape also attempts a manifest-based restore. Application-side data changes such as database migrations or records written by your application are not undone. If your deployment included a schema migration, you may need to manually reconcile the database state after rolling back.
+Use `rollback` when the deploy worked but the app is broken: it deploys an earlier release as a new one. Use [`stack recover`](/cli/cf-rollback) when the deploy itself failed and left the stack in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED`: it runs CloudFormation's own recovery.
 
 ### How far back can I roll back?
 
-It depends on the `previousVersionsToKeep` setting — older versions may have been cleaned up after successful deployments, and once a version's artifacts are gone you can no longer roll back to it. Use `--list-versions` to see which versions still have their artifacts available in the deployment bucket.
-
-### Can I roll forward after a rollback?
-
-Yes. Each rollback creates a new deployment version (e.g., rolling back from `v000008` to `v000005` produces `v000009`). You can [`deploy`](/cli/deploy) again normally, or roll back the rollback by targeting the version you came from.
-
-### Will my `after:deploy` hooks run during rollback?
-
-No. When rollback safety metadata reports `after:deploy` hooks, Stacktape warns that they will not be re-executed during rollback. If your deployment relies on post-deploy scripts (database seeding, cache warming), you need to run them manually after the rollback completes.
+As far as the stored releases go. `previousVersionsToKeep` decides how many older releases keep their artifacts; once they're removed, you can't roll back to that release. `--list-versions` shows what is still available.
 
 ## Options
 
@@ -7101,7 +6947,7 @@ No. When rollback safety metadata reports `after:deploy` hooks, Stacktape warns 
 Source: `apps/docs/content/cli/script-run.mdx`
 Route: `/cli/script-run`
 
-The `script run` command executes a script defined in the `scripts` section of your Stacktape configuration. It takes the script name as a positional argument (`script run <script-name>`), requires `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assume-role-of-resource`. Use `script run` when you need to execute a named script from the `scripts` section without deploying the full stack.
+`stacktape script run` executes a script defined in the `scripts` section of your Stacktape configuration. It takes the script name as a positional argument (`script run <script-name>`), requires `--stage`, accepts additional environment variables via `--env`, and can optionally assume a deployed resource's IAM role with `--assume-role-of-resource`. Use `script run` when you need to execute a named script from the `scripts` section without deploying the full stack.
 
 ## Usage
 
@@ -7232,7 +7078,9 @@ On success the CLI prints `Secret "stripe-webhook-secret" deleted.`, which means
 Source: `apps/docs/content/cli/secret-get.mdx`
 Route: `/cli/secret-get`
 
-Retrieve details about a secret stored in AWS Secrets Manager. The command prints the secret's name, creation date and ARN. It prints the value only with `--show-secrets`; otherwise the value is `<<OMITTED>>`. Use this to verify a secret before referencing it in your Stacktape configuration with the [`$Secret()` directive](/configuration/directives).
+`stacktape secret get` shows a secret stored in AWS Secrets Manager: its name, creation date and ARN. Use it to check that a secret exists before you reference it with [`$Secret()`](/configuration/directives).
+
+The value is hidden by default and shows as `<<OMITTED>>`. Add `--show-secrets` to print it, but only where the output stays private: never in a shared CI log or an AI assistant's conversation. The [MCP server](/using-with-ai/mcp-server-setup) never returns the value.
 
 ## Usage
 
@@ -7240,7 +7088,7 @@ Retrieve details about a secret stored in AWS Secrets Manager. The command print
 stacktape secret get --region eu-west-1
 ```
 
-In interactive mode, you are prompted to enter the secret name. In agent mode, pass the secret name as an argument:
+In a terminal, the command asks for the secret name. With `--agent`, it can't ask, so pass the name as an argument:
 
 ```bash
 stacktape secret get my-api-key --region eu-west-1 --agent
@@ -7248,11 +7096,9 @@ stacktape secret get my-api-key --region eu-west-1 --agent
 
 ## Output
 
-In interactive mode, the command prints a formatted box containing the secret's name, creation date, ARN, and value. If the value is valid JSON, it is pretty-printed.
+The terminal box and the `--agent` result carry the same fields. With `--agent`, the final result event has `name`, `arn`, `created` (an ISO 8601 timestamp) and `value` at `data.result`.
 
-With `--agent`, the final result event contains `name`, `arn`, `created` (an ISO 8601 timestamp) and `value` at `data.result`. The shared CLI `--agent` flag also disables interactive prompts, so pass the secret name when using it.
-
-Without `--show-secrets`, `value` is `<<OMITTED>>` in both modes. Pass the flag only where the output stays private: never in a shared CI log or an AI assistant's conversation. The [MCP server](/using-with-ai/mcp-server-setup) never returns the value.
+With `--show-secrets`, a value that is valid JSON is pretty-printed in the box and returned as an object in the `--agent` result.
 
 ## Examples
 
@@ -7310,7 +7156,7 @@ stacktape secret get --region eu-west-1 --profile production
 Source: `apps/docs/content/cli/secret-set.mdx`
 Route: `/cli/secret-set`
 
-The `secret set` command creates or updates a secret stored in AWS Secrets Manager. Once stored, you can reference the secret in your Stacktape configuration using the [`$Secret('secret-name')`](/configuration/directives) directive — keeping sensitive values like API keys, database passwords, and third-party tokens out of your config files and version control.
+`stacktape secret set` creates or updates a secret stored in AWS Secrets Manager. Once stored, you can reference the secret in your Stacktape configuration using the [`$Secret('secret-name')`](/configuration/directives) directive — keeping sensitive values like API keys, database passwords, and third-party tokens out of your config files and version control.
 
 ## Usage
 
@@ -7320,7 +7166,7 @@ In interactive mode (the default), the command walks you through a guided flow �
 stacktape secret set --region eu-west-1
 ```
 
-In agent mode (for CI/CD pipelines or AI coding assistants), provide all values as flags:
+With `--agent` the command prints JSONL and asks nothing, so CI and coding agents pass every value as a flag:
 
 ```bash
 stacktape secret set my-api-key --region eu-west-1 --value sk-abc123 --agent
@@ -7342,7 +7188,7 @@ The command operates in two modes depending on whether `--agent` is set.
 2. How to provide the value — either by typing it directly (masked input) or by specifying a file path.
 3. If a secret with the same name already exists, confirmation before overwriting.
 
-**Agent mode** (`--agent`) is designed for non-interactive environments. It requires the secret name and either `--value` or `--file`. If the secret already exists, the command fails unless you pass `--force-update`. Agent mode outputs structured JSONL and skips all prompts.
+**Agent mode** (`--agent`) prints JSONL and never prompts. It requires the secret name and either `--value` or `--file`. If the secret already exists, the command fails unless you pass `--force-update`.
 
 ## Updating existing secrets
 
@@ -7428,7 +7274,7 @@ For a broader overview of how secrets fit into Stacktape configuration, see [Sec
 Source: `apps/docs/content/cli/synth.mdx`
 Route: `/cli/synth`
 
-The `stacktape synth` command compiles your Stacktape configuration into a CloudFormation template and writes it to a local file. Use it when you need the generated CloudFormation template on disk for inspection or downstream tooling. No stack is created or modified.
+`stacktape synth` turns your configuration into a CloudFormation template and writes it to a file, `compiled-template.yaml` by default. Use it to read the template or hand it to other tools. It doesn't create or change a stack.
 
 ## Usage
 
@@ -7444,9 +7290,7 @@ To write the template to a custom path, use `--out`.
 stacktape synth --stage dev --region eu-west-1 --out ./infra/template.yaml
 ```
 
-
-> **Info:** Unlike [`deploy`](/cli/deploy), `synth` does not create or modify any stack resources. It does not require a previously deployed stack, and it does not require a Stacktape subscription.
-
+`synth` needs no deployed stack and no Stacktape account.
 
 ## Important flags
 
@@ -7526,11 +7370,7 @@ Stacktape needs both values before synthesis so it can resolve a concrete stack 
 
 ### Can I feed the synthesized template into CloudFormation linting or policy tools?
 
-Yes — that is a primary use case. The output is a finalized CloudFormation YAML template, so you can pass it to any tool that accepts CloudFormation: linters, policy-as-code scanners, or your own scripts. A common CI pattern is to run `synth` and then run a scanner against the output. In non-TTY environments output is plain text automatically; pass `--output-format plain` to force it, or `--agent` for JSONL.
-
-### The synthesized template doesn't match what I expected — how do I debug it?
-
-Run `synth` with `--keep-temp-files` to keep the intermediate files generated during synthesis under `.stacktape/[invocation-id]`, and add `--debug` to trace how your configuration is resolved. This lets you inspect the synthesis pipeline rather than only the final template.
+Yes. The file is a finished CloudFormation template, so linters, policy scanners and your own scripts can read it. A common CI step runs `synth` and then a scanner on the file.
 
 ## Options
 
@@ -7615,11 +7455,11 @@ stacktape upgrade 4.0.1
 Source: `apps/docs/content/cli/validate.mdx`
 Route: `/cli/validate`
 
-The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also packages workloads and asks CloudFormation to validate the template. Add `--out` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
+`stacktape validate` checks your configuration and builds the CloudFormation template in memory, without deploying. Run it before a deploy or as a CI step to catch config errors early.
 
 ## Usage
 
-The `validate` command requires a stage and region. It checks your configuration file, resolves all resource definitions, validates configured [guardrails](/guardrails/overview), and synthesizes the CloudFormation template in memory.
+The command needs a stage and a region. It checks the configuration file, resolves every resource, reports [security findings](#security-findings-by-stage-purpose) and builds the template in memory. It doesn't load your organization's [guardrails](/guardrails/overview); `deploy`, `diff` and the other commands that change a stack check them.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1
@@ -7629,11 +7469,11 @@ The command does not require a deployed stack and doesn't change your stack. Its
 
 ## Validation levels
 
-The `validate` command supports three levels of thoroughness, each building on the previous one. Choose the level that matches how much confidence you need before proceeding.
+Each level adds checks to the one before it. The default needs no packaging, `--with-package` builds your workloads, and `--thorough` also asks CloudFormation to check the template.
 
 ### Default — config, resources, and template
 
-Stacktape loads the configuration, resolves all resources, validates [guardrails](/guardrails/overview), and synthesizes the CloudFormation template in memory. This is the fastest option and catches most configuration-level mistakes — broken resource references, invalid property values, and guardrail violations.
+Stacktape loads the configuration, resolves all resources and builds the template in memory. This is the fastest level. It catches broken resource references, invalid property values and missing secrets.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1
@@ -7729,7 +7569,7 @@ Use [`synth`](/cli/synth) when you only need the faster, un-packaged template co
 | `--stage` | Required. The stage name used for template synthesis (e.g., `dev`, `staging`, `production`). |
 | `--region` | Required. The AWS region used for template synthesis. |
 | `--config` | Path to your Stacktape configuration file if it is not in the default location. |
-| `--agent` | Optimizes CLI output for programmatic/LLM consumption. Uses JSONL/NDJSON output and disables the interactive terminal UI. |
+| `--agent` | Prints JSONL (one JSON object per line) and turns off prompts, for CI and coding agents. |
 
 ## Examples
 
@@ -7759,21 +7599,9 @@ stacktape validate --stage dev --region eu-west-1 --agent
 
 ## FAQ
 
-### How is validate different from synth?
-
-Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--out` is supplied; with `--with-package` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
-
 ### Do I need AWS credentials to run validate in CI?
 
 Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API, and for a template over 51,200 bytes writes and deletes a temporary object in the stack's deployment bucket. Use a CI profile scoped to the intended account that can read the stack and write to that bucket.
-
-### What errors does --thorough catch that the default level misses?
-
-Default validation catches configuration errors and synthesis failures. `--thorough` also catches packaging errors, then asks CloudFormation to check the template. Only a template over 51,200 bytes of a stack that was never deployed skips that check; the result then has `checked.cloudformation: false` and a warning. Even an AWS-checked template can fail during provisioning; verify deployment behavior in a deployed stage.
-
-### Can I use validate with AI agents or in scripts?
-
-Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. This flag uses JSONL/NDJSON output (one JSON object per line) and disables the interactive terminal UI. You can also use `--json` for machine-readable output without the other `--agent` behaviors.
 
 ## Options
 
@@ -7811,7 +7639,7 @@ Yes. Pass `--agent` to optimize CLI output for programmatic or LLM consumption. 
 Source: `apps/docs/content/cli/version.mdx`
 Route: `/cli/version`
 
-The `stacktape version` command prints the currently installed version of Stacktape. It requires no arguments, no configuration file, and no API key. Use it to verify your installation or check whether you need to [upgrade](/cli/upgrade).
+`stacktape version` prints the currently installed version of Stacktape. It requires no arguments, no configuration file, and no API key. Use it to verify your installation or check whether you need to [upgrade](/cli/upgrade).
 
 ## Usage
 
@@ -11076,7 +10904,7 @@ A Stacktape resource is a named piece of infrastructure (an API, a database, a c
 
 ## Why resources exist
 
-AWS has hundreds of services, each with dozens of configuration knobs. Stacktape resources are opinionated abstractions that bundle the AWS primitives you need into a single declaration. A [web service](/resources/compute/web-service) runs a container workload using Fargate by default (with EC2 available through the container resources configuration): you declare the container, scaling, and networking in one block without manually configuring task definitions, target groups, or IAM roles.
+One resource stands for all the AWS pieces it needs. A [web service](/resources/compute/web-service) is a few lines in your config: the packaging, `cpu` and `memory`. From that, Stacktape creates an ECS cluster, a Fargate task definition and service, an HTTP API Gateway that finds the containers through Cloud Map, a security group, a log group and the IAM roles. You don't write task definitions, target groups or roles yourself.
 
 You stay in control of the underlying AWS resources through [overrides](/configuration/overrides-and-escape-hatches), but you don't need to think about them until you have an edge case that the abstraction doesn't expose directly.
 
@@ -11408,21 +11236,19 @@ For different values per stage, use different secret names, such as `staging-str
 Source: `apps/docs/content/configuration/stages-and-environments.mdx`
 Route: `/configuration/stages-and-environments`
 
-A Stacktape stage is a named deployment of your project: such as `dev`, `staging`, or `production`. Each stage creates
-a fully isolated set of AWS resources under its own CloudFormation stack. One codebase, multiple stages: develop against
-cheap resources, test against a staging replica, and deploy production with full redundancy: all from the same
-configuration file.
+A stage is a named deployment of your project, such as `dev`, `staging` or `production`. Each stage is a separate
+CloudFormation stack with its own application resources: databases, functions, queues and buckets. Non-production
+stages in the same AWS account and region usually share one VPC; see
+[Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
 
 ## Why stages exist
 
-Most teams need at least two separate copies of their infrastructure: one for development and one for production.
-Without stages, you'd maintain parallel config files, duplicate resources manually, or rely on brittle naming
-conventions. Stages solve this by making the environment a first-class parameter of your configuration. You write one
-`stacktape.ts`, branch on the `stage` value where sizing, secrets, or features differ, and let Stacktape create fully
-independent stacks per stage.
+Most teams need at least two copies of their infrastructure: one to develop against and one for production. With
+stages you keep one `stacktape.ts` and branch on `stage` where sizing, secrets or features differ. For example, `dev`
+runs one small container and `production` runs two larger ones with a multi-AZ database.
 
-Because every stage produces its own CloudFormation stack with its own resources, a development deploy does not touch
-production databases, functions, or storage: each stage's resources are independently provisioned. Stages can fit CI/CD workflows; for example, a team might deploy `main` to `production` and feature branches to short-lived stages.
+A deploy to `dev` doesn't touch production's databases, functions or storage. A common CI setup deploys `main` to
+`production` and each feature branch to a short-lived stage.
 
 ## How stages work
 
@@ -11435,7 +11261,7 @@ Stacktape derives the CloudFormation stack name from your project name and stage
 ```
 
 A project named `my-api` deployed to stage `dev` creates a stack called `my-api-dev`. The same project deployed to
-`production` creates `my-api-production`. Each stage creates a separate CloudFormation stack with separately provisioned resources: databases, Lambda functions, queues, and storage are all independent between stages.
+`production` creates `my-api-production`.
 
 ### Stage name constraints
 
@@ -11463,8 +11289,7 @@ Deploy production:
 stacktape deploy --stage production --region eu-west-1
 ```
 
-Each command creates (or updates) a completely separate CloudFormation stack with its own resources. Deleting a stage
-removes only that stage's resources: other stages are unaffected.
+Deleting a stage removes only that stage's resources.
 
 ## Production and non-production stages
 
@@ -11913,7 +11738,10 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Each stage has its own CloudFormation stack and its own resources: databases, functions, buckets and so on. Deploying or deleting one stage does not touch the others. Non-production stages of an account and region do share one VPC, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages), but each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Production stages get a VPC of their own.
+Their application resources are separate, and deploying or deleting one stage does not touch the others. Two things are shared:
+
+- **The network.** Non-production stages of an account and region usually run in one VPC, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages). Each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Where a stage runs is decided on its first deploy and doesn't change later, even when the stage becomes production.
+- **The AWS account.** Anyone with deploy credentials for the account can reach every stage in it. To keep production away from people who deploy previews, deploy it to its own AWS account.
 
 ### What happens when I deploy to an existing stage?
 
@@ -16531,9 +16359,7 @@ stacktape dev --stage dev --region eu-west-1 --skip-resources myDatabase
 
 A skipped Lambda function stays in the dev stack without its triggers, so it does not run on queue messages, schedules, stream records or HTTP requests during the session.
 
-
-> **Tip:** If you misspell a resource name, Stacktape suggests the closest matches using fuzzy matching. The error message also lists all available resource names in your config.
-
+If a name is wrong, the error shows the available resource names.
 
 ### Keep deployed functions away from local databases
 
@@ -16705,9 +16531,11 @@ Stacktape [dev mode](/local-development/dev-mode-overview) runs supported databa
 
 Local databases are the default for day-to-day development and isolate each developer's data. Local clients connect on your machine. Lambda and Batch clients in AWS reach them through the dev network and incur a cloud-to-machine round trip. Use local databases for application logic, migrations and prototypes; test cloud-specific behavior against deployed resources.
 
-## When NOT to use local databases
+## When to use a deployed database
 
-Switch to [remote (deployed) databases](#using-remote-databases) when your work depends on behavior that local emulation cannot replicate: Aurora multi-AZ failover, DynamoDB Streams, OpenSearch security plugins, or engine-specific query plan differences. Also prefer remote databases when you need to test against a realistic data volume or share state across a team. Set `dev.remote: true` on the resource to connect to the deployed AWS resource instead.
+<span id="when-not-to-use-local-databases" />
+
+Switch to a [deployed database](#using-remote-databases) when your work depends on behavior that local emulation cannot replicate: Aurora multi-AZ failover, DynamoDB Streams, OpenSearch security plugins, or engine-specific query plan differences. Also prefer remote databases when you need to test against a realistic data volume or share state across a team. Set `dev.remote: true` on the resource to connect to the deployed AWS resource instead.
 
 ## Supported databases
 
@@ -17501,7 +17329,9 @@ This section answers four questions:
 
 ## Estimate before you deploy
 
-[`stacktape init`](/cli/init) prices the setup it proposes: its Review step shows the monthly price of each resource and the total, for the region you pick. `stacktape init --headless` prints the same estimate without the browser.
+[`stacktape init`](/cli/init) prices the setup it proposes: its Review step shows the monthly price of each resource and the total, for the region you pick. `stacktape init --headless` prints the same estimate in the terminal. Both also write a config file; in a project that already has one, init writes `stacktape.generated.yml` beside it and leaves yours alone.
+
+Init doesn't price changes you make to your config later. For those, add up the pricing notes on the resource pages, or use the [AWS Pricing Calculator](https://calculator.aws/). For example, a [worker service](/resources/compute/worker-service) with 0.5 vCPU and 1 GB adds about $18 a month on x86 Fargate in us-east-1, whether or not it has work.
 
 What makes a bill large is mostly what runs all the time:
 
@@ -18121,7 +17951,8 @@ Route: `/observability/debug-commands`
 
 These CLI commands inspect a deployed stack from your terminal. Each takes the stage and region (`--stage`,
 `--region`), reads the project from your config, and runs with your AWS credentials, or through the Console when the
-CLI is signed in. Except for the container and bastion sessions, they only read.
+CLI is signed in. `status` and `stack history` read the Console's records, so they need a Console sign-in. Except for
+the container and bastion sessions, the commands only read.
 
 ## Pick a command
 
@@ -18135,7 +17966,8 @@ CLI is signed in. Except for the container and bastion sessions, they only read.
 | Look at keys of a Redis cluster | [`stacktape query redis`](/cli/query-redis) |
 | Search an OpenSearch domain | [`stacktape query opensearch`](/cli/query-opensearch) |
 | Read the state of any other AWS resource | [`stacktape aws call`](/cli/aws-call) |
-| See the stack's status, outputs and resources | [`stacktape status`](/cli/info-stack) |
+| See the stack's status, outputs and resources (Console sign-in) | [`stacktape status`](/cli/info-stack) |
+| Find why a recent deploy failed (Console sign-in) | [`stacktape stack history`](/cli/info-operations) |
 | Run one command in a running container | [`stacktape container exec`](/cli/container-exec) |
 | Open a shell in a running container | [`stacktape container shell`](/cli/container-session) |
 | Reach a VPC-only database from your machine | [`stacktape bastion tunnel`](/cli/bastion-tunnel) |
@@ -20048,7 +19880,7 @@ Choose `dockerfile` packaging when:
 - You need a specific base image (e.g., distroless, or a base image reachable by the build environment).
 - The [`buildpack`](/packaging/containers/buildpack) type does not detect your project, or its overrides are not enough.
 
-## When NOT to use
+## When not to use
 
 If your service is a JavaScript or TypeScript entry file, [`js-bundle`](/packaging/containers/js-bundle) builds the image for you. For other languages and frameworks, [`buildpack`](/packaging/containers/buildpack) detects the project and builds the image without a Dockerfile. A Dockerfile adds maintenance work: you own base image updates, layer ordering and security patching.
 
@@ -22925,9 +22757,9 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, AgentCoreBrowser, Bucket, $ResourceParam } from 'stacktape';
+
 export default defineConfig(() => {
   const recordings = new Bucket({});
-
   const browser = new AgentCoreBrowser({
     recording: {
       enabled: true,
@@ -23455,6 +23287,7 @@ import {
   AgentCoreBrowser,
   JsBundleImagePackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({});
   const browser = new AgentCoreBrowser({});
@@ -23908,6 +23741,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `stateMachineArn` | Arn of the state machine controlling the execution flow of the batch job | `$ResourceParam("<<resource-name>>", "stateMachineArn")` |
 | `logGroupArn` | Arn of the log group aggregating logs from the batch job | `$ResourceParam("<<resource-name>>", "logGroupArn")` |
 
+
+## Next steps
+
+- [Schedule triggers](/resources/triggers/schedule-triggers): run the job on a schedule.
+- [S3 events](/resources/triggers/s3-events): start a job for each uploaded file.
+- [Logs](/observability/logs): check the first run's output with `stacktape logs`.
+
 ---
 
 # Convex
@@ -23995,6 +23835,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -24045,6 +23886,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -24090,6 +23932,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -24131,17 +23974,18 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
+    dashboard: {
+      resources: { cpu: 0.25, memory: 512 }
+    },
     backend: {
       resources: {
         cpu: 2,
         memory: 4096
       }
-    },
-    dashboard: {
-      resources: { cpu: 0.25, memory: 512 }
     }
   });
 
@@ -24160,17 +24004,18 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
+    dashboard: {
+      resources: { cpu: 0.25, memory: 512 }
+    },
     backend: {
       resources: {
         instanceTypes: ['c6g.large'],
         enableWarmPool: true
       }
-    },
-    dashboard: {
-      resources: { cpu: 0.25, memory: 512 }
     }
   });
 
@@ -24200,6 +24045,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -24227,6 +24073,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -24267,6 +24114,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -24313,6 +24161,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Convex } from 'stacktape';
+
 export default defineConfig(() => {
   const myConvex = new Convex({
     appDirectory: './convex',
@@ -24372,6 +24221,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `dashboardUrl` | Admin dashboard URL. Only available when the dashboard is enabled. | `$ResourceParam("<<resource-name>>", "dashboardUrl")` |
 | `adminKey` | Sensitive root credentials for the deployment, resolved from AWS Secrets Manager. Reference explicitly with $ResourceParam; never auto-injected by connectTo. | `$ResourceParam("<<resource-name>>", "adminKey")` |
 | `instanceSecret` | Sensitive boot secret stored in AWS Secrets Manager. Almost never needed by user code. | `$ResourceParam("<<resource-name>>", "instanceSecret")` |
+
+
+## Next steps
+
+- [Next.js](/resources/frontend/nextjs): host the frontend that calls Convex.
+- [Dev mode](/local-development/dev-mode-overview): run the app locally against your stack.
+- [Alarms](/observability/alarms): get told when the backend misbehaves.
 
 ---
 
@@ -24587,6 +24443,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
+
+
+## Next steps
+
+- [CDN](/resources/networking/cdn): attach the function to a distribution's routes.
+- [Logs](/observability/logs): read what the function prints.
+- [Lambda function](/resources/compute/lambda-function): for work that doesn't need to run at the edge.
 
 ---
 
@@ -24954,11 +24817,11 @@ export default defineConfig(() => {
 
   const api = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    memory: 1024,
+    timeout: 30,
     connectTo: [database],
     joinDefaultVpc: true,
-    environment: { LOG_LEVEL: 'info' },
-    memory: 1024,
-    timeout: 30
+    environment: { LOG_LEVEL: 'info' }
   });
 
   return { resources: { database, api } };
@@ -25340,6 +25203,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `arn` | Arn of the function | `$ResourceParam("<<resource-name>>", "arn")` |
 | `logGroupArn` | Arn of the log group aggregating logs from the function | `$ResourceParam("<<resource-name>>", "logGroupArn")` |
+
+
+## Next steps
+
+- [Triggers](/resources/triggers/overview): pick what starts the function.
+- [Dev mode](/local-development/dev-mode-overview): run and debug functions against your stack.
+- [Logs](/observability/logs): read and follow what the function prints.
 
 ---
 
@@ -26046,6 +25916,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 
+
+## Next steps
+
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations before new containers take traffic.
+- [Debugging containers](/observability/debugging-containers): open a shell or run a command in a running container.
+- [Web service](/resources/compute/web-service): the simpler choice for one container with a public URL.
+
 ---
 
 # Private service
@@ -26055,7 +25932,8 @@ Route: `/resources/compute/private-service`
 
 A private service runs always-on containers that only other resources in your stack can call, such as an internal
 API or a gRPC backend. It runs on ECS (Fargate by default, or EC2), has no public endpoint, and Stacktape handles
-service discovery, health checks and scaling.
+service discovery and scaling. Add a [health check](#health-checks) so ECS replaces a container that runs but stops
+answering.
 
 At least one container runs and bills all the time: 0.25 vCPU and 512 MB cost about $9 a month on x86 Fargate in
 us-east-1 ([Fargate pricing](https://aws.amazon.com/fargate/pricing/)). For a container with a public URL, use a
@@ -26507,6 +26385,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `address` | service `host:port` pair accessible only to other resources of stack([web-services](/resources/compute/web-service/), [multi-container-workloads](/resources/compute/multi-container-workload/)) | `$ResourceParam("<<resource-name>>", "address")` |
 
+
+## Next steps
+
+- [Web service](/resources/compute/web-service): the public API that calls this service.
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations before new containers take traffic.
+- [Debugging containers](/observability/debugging-containers): open a shell in a running container.
+
 ---
 
 # Web service
@@ -26515,8 +26400,8 @@ Source: `apps/docs/content/resources/compute/web-service.mdx`
 Route: `/resources/compute/web-service`
 
 A web service runs your app in a container with a public HTTPS URL: an API, a backend web app or any HTTP server
-that stays running. It runs on ECS (Fargate by default, or EC2), and Stacktape adds the load balancing, TLS, scaling,
-health checks and logs.
+that stays running. It runs on ECS (Fargate by default, or EC2), and Stacktape adds the HTTPS endpoint, scaling and
+logs.
 
 At least one container runs and bills all the time: 0.5 vCPU and 1 GB cost about $18 a month on x86 Fargate in
 us-east-1, plus $1 per million requests through the default HTTP API Gateway. For code that should cost nothing while
@@ -26567,7 +26452,8 @@ container output with `stacktape logs api --stage dev`.
 
 The load balancer gets cheaper than the gateway from about 20 million requests a month; see
 [the comparison](/resources/networking/http-api-gateway#choosing-between-http-api-gateway-and-a-load-balancer). The
-gateway also limits each request to 30 seconds.
+gateway also limits each request to 30 seconds, and it doesn't check that your app responds: add an
+[`internalHealthCheck`](#health-checks) so a broken release rolls back instead of going live.
 
 With `application-load-balancer`, the load balancer checks `/` every 5 seconds (4-second timeout); change that in
 `loadBalancing.properties`. Without `customDomains`, a load balancer is served on a `*.stacktape-app.com` domain that
@@ -26870,16 +26756,16 @@ Use a command your image has and an endpoint that succeeds only when the app is 
 
 ## How deploys replace containers
 
-A deploy starts the new containers next to the old ones. Once every new container passes its health check, the old
-containers stop receiving new requests, get 30 seconds to finish the requests they are handling, and shut down: ECS
+A deploy starts the new containers next to the old ones. Once the new containers are up, the old containers stop
+receiving new requests, get 30 seconds to finish the requests they are handling, and shut down: ECS
 sends `SIGTERM` and, if the process is still running after `stopTimeout` (default 30 seconds), `SIGKILL`. Handle
 `SIGTERM` in your app so an old container exits once its requests are done. An app that ignores the signal keeps a full
 deploy waiting for the whole `stopTimeout`.
 
 A full deployment finishes after the old containers have stopped, because CloudFormation waits for that. A
 [fast deployment](/deployment-and-lifecycle/deploying-stacks#fast-deployments), which Stacktape uses when only your code
-changed, lets the old containers drain and shut down in the background. When it finishes depends on your health checks
-and load balancing:
+changed, lets the old containers drain and shut down in the background. What "up" means, and when the deploy finishes,
+depends on your health checks and load balancing:
 
 - **Default `http-api-gateway`, no `internalHealthCheck`:** the deploy finishes once every new task is `RUNNING` and
   API Gateway can route to it, plus 4 seconds. Only tasks from the new deployment count; an old task still draining
@@ -27166,6 +27052,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
+
+## Next steps
+
+- [Custom domains](/resources/networking/custom-domains): serve the service on your own domain.
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations before new containers take traffic.
+- [Debugging containers](/observability/debugging-containers): open a shell in a running container.
+
 ---
 
 # Worker service
@@ -27376,13 +27269,14 @@ export default defineConfig(() => {
 This worker gets `STP_JOBS_QUEUE_URL`, `STP_JOBS_QUEUE_ARN` and `STP_JOBS_QUEUE_NAME` for the queue, and
 `STP_MAIN_DATABASE_CONNECTION_STRING`, `STP_MAIN_DATABASE_HOST`, `STP_MAIN_DATABASE_PORT` and the other database
 variables. [Connecting resources](/configuration/connecting-resources) lists them per resource type. For AWS services
-that `connectTo` doesn't cover, such as Bedrock, add `iamRoleStatements`.
+that `connectTo` doesn't cover, such as Bedrock, add `iamRoleStatements`. For an API key or another secret, see
+[Use a secret in a container](/configuration/secrets#use-it-in-a-container).
 
 ### Consuming an SQS queue
 
 A container reads the queue itself: it asks for messages, processes them and deletes each one it finished. A message it
 doesn't delete comes back after the queue's visibility timeout and is processed again, so make the processing safe to
-repeat.
+repeat. This is `src/worker.ts` from the config above; add `@aws-sdk/client-sqs` to your dependencies.
 
 ```ts
 import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
@@ -27397,15 +27291,32 @@ while (running) {
     new ReceiveMessageCommand({ QueueUrl: queueUrl, MaxNumberOfMessages: 10, WaitTimeSeconds: 20 })
   );
   for (const message of Messages) {
-    await handleJob(JSON.parse(message.Body!));
+    await handleJob(JSON.parse(message.Body!)); // your processing
     await sqs.send(new DeleteMessageCommand({ QueueUrl: queueUrl, ReceiptHandle: message.ReceiptHandle! }));
+    console.log(`processed message ${message.MessageId}`);
   }
 }
 ```
 
-`WaitTimeSeconds: 20` makes each request wait for messages instead of polling an empty queue. To test it, send one
-message from the SQS console and watch `stacktape logs worker --stage dev`. If you'd rather not run a loop, a
-[Lambda function with an SQS trigger](/resources/triggers/sqs-events) receives and deletes messages for you.
+`WaitTimeSeconds: 20` makes each request wait for messages instead of polling an empty queue. If you'd rather not run a
+loop, a [Lambda function with an SQS trigger](/resources/triggers/sqs-events) receives and deletes messages for you.
+
+To test it after a deploy, print the queue URL, send one message and read the worker's logs:
+
+```bash
+stacktape param get jobsQueue url --stage dev --region eu-west-1
+```
+
+```bash
+aws sqs send-message --queue-url "<queue-url>" --message-body '{"job":"test"}' --region eu-west-1
+```
+
+```bash
+stacktape logs worker --stage dev --region eu-west-1
+```
+
+The send command prints a `MessageId`, and within a few seconds the logs show `processed message <MessageId>` with the
+same ID. If the line doesn't appear, the worker isn't receiving: check that `jobsQueue` is in its `connectTo`.
 
 ## Health checks
 
@@ -27655,6 +27566,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 
+
+## Next steps
+
+- [SQS queue](/resources/messaging/sqs-queue): give the worker its jobs.
+- [Logs](/observability/logs): follow what the worker processes.
+- [Debugging containers](/observability/debugging-containers): open a shell in a running container.
+
 ---
 
 # Aurora DSQL
@@ -27855,6 +27773,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `id` | DSQL cluster ID. | `$ResourceParam("<<resource-name>>", "id")` |
 | `arn` | DSQL cluster ARN. | `$ResourceParam("<<resource-name>>", "arn")` |
 
+
+## Next steps
+
+- [Release commands](/deployment-and-lifecycle/release-commands): run schema migrations during each deploy.
+- [Connecting resources](/configuration/connecting-resources#aurora-dsql): the variables `connectTo` injects.
+- [Relational database](/resources/databases/relational-database): when you need full PostgreSQL or MySQL.
+
 ---
 
 # DynamoDB
@@ -27918,6 +27843,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const ordersTable = new DynamoDbTable({
     primaryKey: {
@@ -27962,6 +27888,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const sessionsTable = new DynamoDbTable({
     primaryKey: {
@@ -28015,6 +27942,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const usersTable = new DynamoDbTable({
     primaryKey: {
@@ -28054,6 +27982,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const productsTable = new DynamoDbTable({
     primaryKey: {
@@ -28092,6 +28021,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, DynamoDbTable } from 'stacktape';
+
 export default defineConfig(() => {
   const ordersTable = new DynamoDbTable({
     primaryKey: {
@@ -28130,6 +28060,7 @@ import {
   LambdaFunction,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const itemsTable = new DynamoDbTable({
     primaryKey: {
@@ -28241,6 +28172,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `name` | AWS (physical) name of the table | `$ResourceParam("<<resource-name>>", "name")` |
 | `arn` | Arn of the table | `$ResourceParam("<<resource-name>>", "arn")` |
 | `streamArn` | Arn of [DynamoDb stream](/resources/databases/dynamodb/#streams) (available only if `streamType` is configured) | `$ResourceParam("<<resource-name>>", "streamArn")` |
+
+
+## Next steps
+
+- [DynamoDB streams](/resources/triggers/dynamodb-streams): run a function when items change.
+- [Local databases](/local-development/local-databases): run the table on your machine in dev mode.
+- [`stacktape query dynamodb`](/cli/query-dynamodb): look at items from your terminal.
 
 ---
 
@@ -28657,6 +28595,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `connectionString` | Connection string (URL) that allows connecting to the cluster. | `$ResourceParam("<<resource-name>>", "connectionString")` |
 
+
+## Next steps
+
+- [Connecting resources](/configuration/connecting-resources#mongodb-atlas-cluster): the connection variables your code gets.
+- [Secrets](/configuration/secrets): store the Atlas API keys.
+- [Relational database](/resources/databases/relational-database): a database that runs in your own AWS account.
+
 ---
 
 # OpenSearch
@@ -28716,16 +28661,17 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
-    version: '2.17',
     clusterConfig: {
       instanceType: 't3.medium.search',
       instanceCount: 1
     },
     storage: {
       size: 20
-    }
+    },
+    version: '2.17'
   });
 
   return {
@@ -28763,6 +28709,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     version: '2.17',
@@ -28812,6 +28759,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     clusterConfig: {
@@ -28920,6 +28868,7 @@ import {
   LambdaFunction,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     clusterConfig: {
@@ -28966,6 +28915,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain } from 'stacktape';
+
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     clusterConfig: {
@@ -29005,6 +28955,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, OpenSearchDomain, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const authPool = new UserAuthPool({});
 
@@ -29065,6 +29016,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `domainEndpoint` | Endpoint used for communicating with your opensearch-domain | `$ResourceParam("<<resource-name>>", "domainEndpoint")` |
 | `arn` | Arn of the domain | `$ResourceParam("<<resource-name>>", "arn")` |
 
+
+## Next steps
+
+- [Local databases](/local-development/local-databases): run OpenSearch on your machine in dev mode.
+- [`stacktape query opensearch`](/cli/query-opensearch): search the domain from your terminal.
+- [Bastion host](/resources/security/bastion-host): reach a domain inside the VPC from your machine.
+
 ---
 
 # Redis
@@ -29105,6 +29063,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29132,6 +29091,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29160,6 +29120,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29187,6 +29148,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29254,6 +29216,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29289,6 +29252,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29324,6 +29288,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29358,6 +29323,7 @@ import {
   $ResourceParam,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29409,6 +29375,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29436,6 +29403,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -29507,6 +29475,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `port` | Port of the cluster. | `$ResourceParam("<<resource-name>>", "port")` |
 | `sharding` | Indicates whether cluster is sharded. Available values: `enabled` or `disabled`. | `$ResourceParam("<<resource-name>>", "sharding")` |
 
+
+## Next steps
+
+- [Local databases](/local-development/local-databases): run Redis on your machine in dev mode.
+- [`stacktape query redis`](/cli/query-redis): look at keys from your terminal.
+- [Bastion host](/resources/security/bastion-host): reach a VPC-only cluster from your machine.
+
 ---
 
 # Relational database
@@ -29574,6 +29549,11 @@ Anyone who has the credentials can reach this database from the internet, becaus
 Start with standard RDS when you want one fixed monthly price, or with Aurora Serverless v2 when traffic is uneven or
 the database sits idle for long periods (dev and preview stages). Provisioned Aurora suits large production databases
 that need fast failover and several readers.
+
+Choose before you store data you care about. Changing `instanceSize` or `multiAz` later updates the instance in place,
+with a short interruption for a size change. Changing the engine type, for example from RDS to Aurora, replaces the
+database: the deploy creates an empty new one and deletes the old one with its data. Dump the data first and restore
+it into the new database, and keep `deletionProtection` on so a deploy can't delete the old database by accident.
 
 ### Standard RDS
 
@@ -29857,6 +29837,12 @@ await client.connect();
 A Lambda function opens a connection per concurrent execution. If a busy function exhausts the database's connection
 limit, reuse the client across invocations (create it outside the handler) or move to a larger instance.
 
+Run migrations with a [release command](/deployment-and-lifecycle/release-commands): it runs your deployed image
+inside the VPC during each deploy, before services and functions get the new code. A `local-script` with
+`connectTo: ['mainDatabase']`, called from a [hook](/configuration/hooks-and-scripts), works too, but it runs on the
+machine that deploys; a database that isn't open to the internet then needs a `local-script-with-bastion-tunneling`
+script and a [bastion host](/resources/security/bastion-host).
+
 ## Storage
 
 Standard RDS starts with 20 GB of gp3 storage (`storage.initialSize`) and grows automatically up to 200 GB
@@ -30081,21 +30067,11 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `readReplicaJdbcConnectionStrings` | Same as **readReplicaConnectionStrings** but in JDBC format (only available when read replicas are configured). | `$ResourceParam("<<resource-name>>", "readReplicaJdbcConnectionStrings")` |
 
 
-## FAQ
+## Next steps
 
-### How do I run database migrations?
-
-Run them from a [hook](/configuration/hooks-and-scripts) after each deploy. Define a `local-script` with
-`connectTo: ['mainDatabase']`, which injects the same `STP_MAIN_DATABASE_*` variables, and call it from
-`hooks.afterDeploy`. For a database that isn't open to the internet, use a `local-script-with-bastion-tunneling` script
-and a [bastion host](/resources/security/bastion-host).
-
-### Can I change the engine or instance size later?
-
-Changing `instanceSize` or `multiAz` updates the instance in place, with a short interruption for a size change.
-Changing the engine type, for example from RDS to Aurora, replaces the database: the deploy creates an empty new one and
-deletes the old one with its data. Dump the data first and restore it into the new database, and keep
-`deletionProtection` on so a deploy can't delete the old database by accident.
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations during each deploy.
+- [Local databases](/local-development/local-databases): run the database on your machine in dev mode.
+- [Bastion host](/resources/security/bastion-host): reach a VPC-only database from your machine.
 
 ---
 
@@ -30173,6 +30149,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UpstashRedis } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new UpstashRedis({
     enableEviction: true
@@ -30293,6 +30270,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `restUrl` | Rest URL which can be used when communicating with the database using the REST API | `$ResourceParam("<<resource-name>>", "restUrl")` |
 | `redisUrl` | Standard redis url (including password) which can be used for connecting using cli. | `$ResourceParam("<<resource-name>>", "redisUrl")` |
 
+
+## Next steps
+
+- [Connecting resources](/configuration/connecting-resources#upstash-redis): the variables your code gets.
+- [Secrets](/configuration/secrets): store the Upstash API key.
+- [Redis](/resources/databases/redis): ElastiCache in your own account, inside your VPC.
+
 ---
 
 # Astro
@@ -30390,6 +30374,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, AstroWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
@@ -30612,6 +30597,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NextjsWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
@@ -30812,6 +30798,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NuxtWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
@@ -31006,6 +30993,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, RemixWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
@@ -31200,6 +31188,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, SolidStartWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
@@ -31602,6 +31591,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, SvelteKitWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
@@ -31797,6 +31787,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, TanStackWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
@@ -32083,7 +32074,9 @@ who listens, and a new consumer doesn't need a change to the producer. You pay $
 East.
 
 For one consumer working through jobs, an [SQS queue](/resources/messaging/sqs-queue) is simpler. When every subscriber
-needs every message, an [SNS topic](/resources/messaging/sns-topic) is enough.
+needs every message, an [SNS topic](/resources/messaging/sns-topic) is enough. A container can't be a rule's target:
+deliver the events to an [SQS queue](/resources/messaging/sqs-queue#deliver-eventbridge-events-to-the-queue) and let a
+[worker service](/resources/compute/worker-service) poll it.
 
 ## Basic example
 
@@ -32218,13 +32211,6 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `arn` | Arn of the event bus | `$ResourceParam("<<resource-name>>", "arn")` |
 | `archiveArn` | Arn of the event bus archive (available only if the archivation is enabled) | `$ResourceParam("<<resource-name>>", "archiveArn")` |
 
-
-## Event bus FAQ
-
-### Can a container consume events?
-
-Not as a trigger. Deliver the events to an [SQS queue](/resources/messaging/sqs-queue#deliver-eventbridge-events-to-the-queue)
-with the queue's `events` property, and let a [worker service](/resources/compute/worker-service) poll that queue.
 
 ## Next steps
 
@@ -32584,6 +32570,9 @@ await sns.send(
 For a topic named `orderEvents`, the variables are `STP_ORDER_EVENTS_ARN` and `STP_ORDER_EVENTS_NAME`. Containers
 publish the same way. See [Connecting resources](/configuration/connecting-resources).
 
+A message can be up to 256 KB. For a larger payload, upload the data to an [S3 bucket](/resources/storage/s3-bucket)
+and publish the object key.
+
 ## Fan out to SQS queues
 
 A Lambda subscriber loses a message after Lambda's retries run out. When each consumer needs a buffer, its own retries
@@ -32640,6 +32629,10 @@ queue with an [SQS event](/resources/triggers/sqs-events) or a worker.
 | Subscribers | Lambda, SQS, HTTP, email, SMS | SQS queues only |
 | Throughput | Practically unlimited | Limited per topic, see the [AWS quotas](https://docs.aws.amazon.com/general/latest/gr/sns.html) |
 
+A standard topic bills per publish, and each 64 KB of a message counts as one. Delivery to Lambda and SQS is free;
+HTTP, email and SMS deliveries are charged. A FIFO topic bills per published and delivered message and per GB of
+payload, so each extra subscriber adds cost. See [SNS pricing](https://aws.amazon.com/sns/pricing/).
+
 Use a standard topic unless the order matters. `fifoEnabled: true` creates a FIFO topic. Each publish then needs a
 `MessageGroupId` and a deduplication ID, or set `contentBasedDeduplication: true` to use a hash of the body.
 
@@ -32678,20 +32671,6 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 
-
-## SNS topic FAQ
-
-### What does a topic cost?
-
-A standard topic costs $0.50 per million publish requests in US East after the first million each month. Each 64 KB of
-a message counts as one request. Delivery to Lambda and SQS is free; HTTP, email and SMS deliveries are charged. A FIFO
-topic is billed per published and delivered message and per GB of payload, so each extra subscriber adds cost. See
-[SNS pricing](https://aws.amazon.com/sns/pricing/).
-
-### What is the largest message?
-
-256 KB, for both topic types. For larger payloads, upload the data to an [S3 bucket](/resources/storage/s3-bucket) and
-publish the object key.
 
 ## Next steps
 
@@ -32891,6 +32870,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, SqsQueue, EventBus } from 'stacktape';
+
 export default defineConfig(() => {
   const orderBus = new EventBus({});
   const orderQueue = new SqsQueue({
@@ -33104,6 +33084,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
     customDomains: [{ domainName: 'api.example.com' }],
@@ -33138,6 +33119,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
     customDomains: [{ domainName: 'api.example.com' }, { domainName: 'api-v2.example.com' }]
@@ -33165,6 +33147,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
     customDomains: [{ domainName: 'api.example.com' }],
@@ -33220,6 +33203,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const internalAlb = new ApplicationLoadBalancer({
     interface: 'internal'
@@ -33250,6 +33234,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
     alarms: [
@@ -33310,6 +33295,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+
+
+## Next steps
+
+- [Web service](/resources/compute/web-service): put containers behind the load balancer.
+- [Gradual deployments](/deployment-and-lifecycle/gradual-deployments): shift traffic to a new release step by step.
+- [Web application firewall](/resources/security/web-application-firewall): block malicious requests.
 
 ---
 
@@ -33439,6 +33431,12 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 ## Referenceable parameters
 
 `url`, `realtimeUrl`, `apiId` and `arn`, plus the sensitive `apiKey` with API key authentication.
+
+## Next steps
+
+- [User auth pool](/resources/security/user-auth-pool): sign users in and authorize queries.
+- [DynamoDB table](/resources/databases/dynamodb): store the data your resolvers read.
+- [Lambda function](/resources/compute/lambda-function): write resolvers in code.
 
 ---
 
@@ -33607,6 +33605,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -33642,6 +33641,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -33683,9 +33683,9 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const assetsBucket = new Bucket({});
-
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
@@ -33746,6 +33746,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -33791,6 +33792,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -33889,6 +33891,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -33944,6 +33947,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -34001,6 +34005,12 @@ Available CDN parameters:
 | `cdnCustomDomainUrls` | Custom domain URL value(s) for the CDN |
 | `cdnCanonicalDomain` | The primary domain for the CDN |
 | `cdnCanonicalUrl` | The primary URL for the CDN |
+
+## Next steps
+
+- [Static hosting](/resources/frontend/static-hosting): host a frontend behind the CDN.
+- [Edge function](/resources/compute/edge-function): run code on requests at the edge.
+- [Web application firewall](/resources/security/web-application-firewall): block malicious requests before they reach your origin.
 
 ---
 
@@ -34235,6 +34245,13 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `customCertificateArn` | no | `string` | - |
 | `disableDnsRecordCreation` | no | `boolean` | `false` |
 
+
+## Next steps
+
+- [Going to production](/getting-started/going-to-production): the rest of the production checklist.
+- [CDN](/resources/networking/cdn): cache responses close to your users.
+- [`stacktape domain add`](/cli/domain-add): the command's steps and options.
+
 ---
 
 # HTTP API Gateway
@@ -34323,6 +34340,7 @@ import {
   HttpApiIntegration,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({});
 
@@ -34377,6 +34395,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cors: {
@@ -34410,6 +34429,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     customDomains: [{ domainName: 'api.example.com' }]
@@ -34435,6 +34455,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     cdn: {
@@ -34469,6 +34490,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     logging: {
@@ -34499,6 +34521,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     payloadFormat: '2.0'
@@ -34521,6 +34544,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, HttpApiGateway } from 'stacktape';
+
 export default defineConfig(() => {
   const myApi = new HttpApiGateway({
     alarms: [
@@ -34589,6 +34613,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
 
+
+## Next steps
+
+- [HTTP triggers](/resources/triggers/http-triggers): route requests to Lambda functions.
+- [User auth pool](/resources/security/user-auth-pool): require sign-in on routes.
+- [CDN](/resources/networking/cdn): cache responses close to your users.
+
 ---
 
 # Network Load Balancer
@@ -34645,6 +34676,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const mqttBroker = new NetworkLoadBalancer({
     customDomains: [{ domainName: 'mqtt.example.com' }],
@@ -34671,6 +34703,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const grpcLb = new NetworkLoadBalancer({
     listeners: [
@@ -34703,10 +34736,11 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const tcpLb = new NetworkLoadBalancer({
-    customDomains: [{ domainName: 'tcp.example.com' }, { domainName: 'mqtt.example.com' }],
-    listeners: [{ protocol: 'TLS', port: 8883 }]
+    listeners: [{ protocol: 'TLS', port: 8883 }],
+    customDomains: [{ domainName: 'tcp.example.com' }, { domainName: 'mqtt.example.com' }]
   });
 
   return {
@@ -34731,10 +34765,11 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const internalLb = new NetworkLoadBalancer({
-    interface: 'internal',
-    listeners: [{ protocol: 'TCP', port: 50051 }]
+    listeners: [{ protocol: 'TCP', port: 50051 }],
+    interface: 'internal'
   });
 
   return {
@@ -34754,6 +34789,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const dbProxy = new NetworkLoadBalancer({
     listeners: [
@@ -34799,6 +34835,12 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `domain` | default domain name of load balancer | `$ResourceParam("<<resource-name>>", "domain")` |
 | `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+
+
+## Next steps
+
+- [Multi-container workload](/resources/compute/multi-container-workload): expose a TCP port of a container.
+- [Application load balancer](/resources/networking/application-load-balancer): for HTTP routing, WebSockets or a firewall.
 
 ---
 
@@ -35123,6 +35165,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `customDomains` | Comma-separated list of custom domain names | `$ResourceParam("<<resource-name>>", "customDomains")` |
 | `customDomainUrls` | Comma-separated list of custom domain URLs | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
 | `customDomainUrl` | URL of the first custom domain | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
+
+
+## Next steps
+
+- [DynamoDB table](/resources/databases/dynamodb): store connection IDs for broadcasts.
+- [User auth pool](/resources/security/user-auth-pool): authorize connections.
+- [Lambda function](/resources/compute/lambda-function): memory, timeout and logs of the route handlers.
 
 ---
 
@@ -35505,6 +35554,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `arn` | Arn of the state machine. | `$ResourceParam("<<resource-name>>", "arn")` |
 | `name` | AWS (physical) name of the state machine. | `$ResourceParam("<<resource-name>>", "name")` |
 
+
+## Next steps
+
+- [Lambda function](/resources/compute/lambda-function): write the steps.
+- [Batch job](/resources/compute/batch-job): run steps that take longer than 15 minutes.
+- [Connecting resources](/configuration/connecting-resources#additional-connectto-targets): let a function start executions.
+
 ---
 
 # Bastion host
@@ -35588,6 +35644,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bastion } from 'stacktape';
+
 export default defineConfig(() => {
   const bastion = new Bastion({
     instanceSize: 't3.small'
@@ -35610,6 +35667,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bastion } from 'stacktape';
+
 export default defineConfig(() => {
   const bastion = new Bastion({
     runCommandsAtLaunch: ['yum install -y postgresql15', 'yum install -y redis6']
@@ -35641,6 +35699,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bastion } from 'stacktape';
+
 export default defineConfig(() => {
   const bastion = new Bastion({
     logging: {
@@ -35672,6 +35731,13 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `instanceSize` | no | `string` | `t3.micro` |
 | `logging` | no | `BastionLoggingConfig` | - |
 | `runCommandsAtLaunch` | no | `Array<string>` | - |
+
+
+## Next steps
+
+- [`stacktape bastion tunnel`](/cli/bastion-tunnel): open a tunnel from your machine.
+- [Hooks and scripts](/configuration/hooks-and-scripts): run scripts through the bastion.
+- [Relational database](/resources/databases/relational-database): keep the database private and reach it this way.
 
 ---
 
@@ -35728,6 +35794,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -35817,6 +35884,7 @@ import {
   HttpApiIntegration,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code'
@@ -35895,20 +35963,21 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
     enableHostedUi: true,
     hostedUiDomainPrefix: 'myapp-login',
+    callbackURLs: ['https://myapp.com/auth/callback'],
+    logoutURLs: ['https://myapp.com/logged-out'],
     identityProviders: [
       {
         type: 'Google',
         clientId: "$Secret('google-credentials', 'clientId')",
         clientSecret: "$Secret('google-credentials', 'clientSecret')"
       }
-    ],
-    callbackURLs: ['https://myapp.com/auth/callback'],
-    logoutURLs: ['https://myapp.com/logged-out']
+    ]
   });
 
   return {
@@ -35953,6 +36022,7 @@ import {
   LambdaFunction,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const createProfile = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({
@@ -35993,6 +36063,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -36020,6 +36091,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     enableHostedUi: true,
@@ -36051,15 +36123,16 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     enableHostedUi: true,
     userVerificationType: 'email-code',
+    callbackURLs: ['https://example.com/auth/callback'],
+    logoutURLs: ['https://example.com/logged-out'],
     customDomain: {
       domainName: 'auth.example.com'
-    },
-    callbackURLs: ['https://example.com/auth/callback'],
-    logoutURLs: ['https://example.com/logged-out']
+    }
   });
 
   return {
@@ -36099,6 +36172,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -36156,6 +36230,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -36199,6 +36274,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UserAuthPool } from 'stacktape';
+
 export default defineConfig(() => {
   const auth = new UserAuthPool({
     userVerificationType: 'email-code',
@@ -36337,6 +36413,12 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 `connectTo` auto-injects `STP_[RESOURCE_NAME]_ID`, `STP_[RESOURCE_NAME]_CLIENT_ID`, and `STP_[RESOURCE_NAME]_ARN` as environment variables. The remaining parameters (`providerUrl`, `domain`, `clientSecret`) are accessible via [`$ResourceParam`](/configuration/referenceable-parameters).
 
+## Next steps
+
+- [HTTP API Gateway](/resources/networking/http-api-gateway): the API whose routes the pool protects.
+- [AppSync API](/resources/networking/appsync-api): authorize GraphQL requests with the pool.
+- [Secrets](/configuration/secrets): store identity provider client secrets.
+
 ---
 
 # Web application firewall
@@ -36403,6 +36485,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, WebAppFirewall } from 'stacktape';
+
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
     scope: 'regional',
@@ -36465,6 +36548,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, WebAppFirewall } from 'stacktape';
+
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
     scope: 'regional',
@@ -36514,6 +36598,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, WebAppFirewall } from 'stacktape';
+
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
     scope: 'regional',
@@ -36552,6 +36637,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, WebAppFirewall } from 'stacktape';
+
 export default defineConfig(() => {
   const firewall = new WebAppFirewall({
     scope: 'regional',
@@ -36614,6 +36700,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `arn` | Arn of the `web-app-firewall`. | `$ResourceParam("<<resource-name>>", "arn")` |
 | `scope` | Scope of the `web-app-firewall` (`regional` or `cdn`). | `$ResourceParam("<<resource-name>>", "scope")` |
+
+
+## Next steps
+
+- [CDN](/resources/networking/cdn): attach the firewall to a distribution.
+- [Application load balancer](/resources/networking/application-load-balancer): attach it to a load balancer.
+- [User auth pool](/resources/security/user-auth-pool): protect sign-in and sign-up.
 
 ---
 
@@ -36718,6 +36811,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, EfsFilesystem } from 'stacktape';
+
 export default defineConfig(() => {
   const videoStorage = new EfsFilesystem({
     throughputMode: 'provisioned',
@@ -36747,6 +36841,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, EfsFilesystem } from 'stacktape';
+
 export default defineConfig(() => {
   const sharedStorage = new EfsFilesystem({
     backupEnabled: true
@@ -36780,6 +36875,12 @@ EFS filesystems expose the following parameter for use with [`$ResourceParam`](/
 | Parameter | Description | Usage |
 |---|---|---|
 | `arn` | ARN of the EFS filesystem | `$ResourceParam('myEfs', 'arn')` |
+
+## Next steps
+
+- [Web service](/resources/compute/web-service#efs-storage): mount the file system in a container.
+- [Lambda function](/resources/compute/lambda-function#storage): mount it in a function.
+- [S3 bucket](/resources/storage/s3-bucket): for files your app reads by key, not as a file system.
 
 ---
 
@@ -36831,6 +36932,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const assets = new Bucket({
     directoryUpload: {
@@ -36878,6 +36980,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const publicAssets = new Bucket({
     accessibility: {
@@ -36905,6 +37008,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const uploads = new Bucket({
     cors: {
@@ -36938,6 +37042,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const spa = new Bucket({
     directoryUpload: {
@@ -36990,6 +37095,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const dataLake = new Bucket({
     lifecycleRules: [
@@ -37053,6 +37159,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const secureBucket = new Bucket({
     versioning: true,
@@ -37089,6 +37196,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const uploads = new Bucket({
     enableEventBusNotifications: true
@@ -37113,6 +37221,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
@@ -37194,6 +37303,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+
+
+## Next steps
+
+- [S3 events](/resources/triggers/s3-events): process files as they arrive.
+- [Static hosting](/resources/frontend/static-hosting): host a frontend from a bucket.
+- [Connecting resources](/configuration/connecting-resources#bucket): the variables and permissions `connectTo` adds.
 
 ---
 
@@ -37550,6 +37666,9 @@ Changes to the same item always arrive in the order they were made. With `parall
 processes up to 10 batches per shard at the same time. Changes to one item stay in order, but changes to different
 items can be processed in any order.
 
+Lambda reads DynamoDB streams for free. You pay for the function's invocations and run time, so a larger `batchSize` or
+a batching window lowers the bill on busy tables.
+
 ## Failures and retries
 
 If the function throws, Lambda retries the whole batch, including records it already processed, and doesn't move past
@@ -37633,13 +37752,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `reportBatchItemFailures` | no | `boolean` | `false` |
 | `startingPosition` | no | `string` | `TRIM_HORIZON` |
 
-
-## DynamoDB streams FAQ
-
-### What does a stream cost?
-
-Lambda reads DynamoDB streams for free. You pay for the function's invocations and run time, so a larger `batchSize`
-or a batching window lowers the bill on busy tables.
 
 ## Next steps
 
@@ -37738,6 +37850,9 @@ new EventBusIntegration({
 
 A bus in another account must allow your account in its resource policy.
 
+AWS charges per event published to a custom bus, $1.00 per million in US East. Events from AWS services on the default
+bus are free, and rules cost nothing. See [EventBridge pricing](https://aws.amazon.com/eventbridge/pricing/).
+
 ## Event patterns
 
 `eventPattern` is required. An event matches when every field in the pattern matches; within a field, any listed value
@@ -37825,13 +37940,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `useDefaultBus` | no | `boolean` | - |
 
 
-## Event bus events FAQ
-
-### What does it cost?
-
-AWS charges per event published to a custom bus, $1.00 per million in US East. Events from AWS services on the default
-bus are free, and rules cost nothing. See [EventBridge pricing](https://aws.amazon.com/eventbridge/pricing/).
-
 ## Next steps
 
 - [Event bus](/resources/messaging/event-bus): create a bus, archive events and publish from your code.
@@ -37883,6 +37991,7 @@ import {
   HttpApiIntegration,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const api = new HttpApiGateway({});
 
@@ -37953,6 +38062,7 @@ import {
   ApplicationLoadBalancerIntegration,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const alb = new ApplicationLoadBalancer({});
 
@@ -38219,7 +38329,9 @@ stream works for ordered, high-volume data such as clickstreams, telemetry or ch
 independently.
 
 For plain background jobs, an [SQS queue](/resources/triggers/sqs-events) is cheaper and simpler: it has no hourly
-charge and no ordering to manage. Batch jobs accept `kinesis-stream` events too.
+charge and no ordering to manage. Batch jobs accept `kinesis-stream` events too. A container reads the stream with its
+own consumer, such as the Kinesis Client Library, in a [worker service](/resources/compute/worker-service) with
+[`connectTo`](/configuration/connecting-resources).
 
 ## Basic example
 
@@ -38307,6 +38419,10 @@ invocation payload limit.
 `parallelizationFactor` runs up to 10 batches from one shard at the same time. Records with the same partition key are
 still processed in order; records with different keys may run in parallel.
 
+When the function can't keep up, its `IteratorAge` metric in CloudWatch grows: records wait longer before they're
+processed. Raise `batchSize` or `parallelizationFactor`, give the function more memory, or add shards to a provisioned
+stream.
+
 ### Enhanced fan-out
 
 By default the trigger shares each shard's read throughput (2 MB/s) with every other consumer of the stream. Set
@@ -38370,19 +38486,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `streamArn` | no | `string` | - |
 
 
-## Kinesis events FAQ
-
-### How do I tell that the function can't keep up?
-
-Watch the function's `IteratorAge` metric in CloudWatch. It grows when records wait longer before they're processed.
-Raise `batchSize` or `parallelizationFactor`, give the function more memory, or add shards to a provisioned stream.
-
-### Can a container consume the stream?
-
-Not with this trigger. Run a consumer, such as the Kinesis Client Library, in a
-[worker service](/resources/compute/worker-service) and give it access with
-[`connectTo`](/configuration/connecting-resources).
-
 ## Next steps
 
 - [Kinesis stream](/resources/messaging/kinesis-stream): capacity modes, retention and what the stream costs.
@@ -38421,6 +38524,10 @@ in AWS. A Lambda function costs nothing while no trigger fires.
 
 For messages between your own services, start with SQS: one queue per consumer, with retries and a dead-letter queue.
 Add SNS or an event bus in front when a second consumer needs the same message.
+
+For HTTP, an HTTP API Gateway costs nothing without traffic and is the default for Lambda APIs. A load balancer has an
+hourly charge and routes on headers, hosts, query parameters and source IPs; pick it when you already run one for
+containers. [HTTP triggers](/resources/triggers/http-triggers) compares them.
 
 ## What each resource accepts
 
@@ -38530,20 +38637,6 @@ Filtering at the source means the function isn't invoked for events it would ign
 | CloudWatch Logs | `filter` | The log line, with CloudWatch filter syntax |
 
 The other triggers have no filter property. Skip unwanted events in your handler.
-
-## Triggers FAQ
-
-### Why can't a web service consume an SQS queue directly?
-
-A trigger starts code when an event arrives. A web service is already running, so it reads the queue itself, like any
-long-running consumer. Use a [worker service](/resources/compute/worker-service) for a container consumer, or an
-[SQS event](/resources/triggers/sqs-events) on a Lambda function when you'd rather not write the polling loop.
-
-### HTTP API Gateway or Application Load Balancer?
-
-HTTP API Gateway costs nothing without traffic and is the default for Lambda APIs. A load balancer has an hourly charge
-and routes on headers, hosts, query parameters and source IPs. Pick it when you already run one for containers.
-[HTTP triggers](/resources/triggers/http-triggers) compares them.
 
 ---
 
@@ -38664,6 +38757,11 @@ new S3Integration({
 
 S3 filters only on the key. To skip objects by size or content type, check them at the start of the handler.
 
+Several functions can react to the same bucket if their filters don't overlap: S3 rejects two notifications for the
+same event type whose prefix and suffix can match the same key. When several consumers need every event, set
+`enableEventBusNotifications: true` on the bucket and give each one an
+[event bus trigger](/resources/triggers/event-bus-events) on the default bus with `source: ['aws.s3']`.
+
 ## Avoid loops
 
 If the function writes its output to the same bucket and the trigger matches that output, every write runs the
@@ -38697,15 +38795,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `s3EventType` | yes | `string: "s3:ObjectCreated:*" \| "s3:ObjectCreated:CompleteMultipartUpload" \| "s3:ObjectCreated:Copy" \| "s3:ObjectCreated:Post" \| "s3:ObjectCreated:Put" \| "s3:ObjectRemoved:*" \| "s3:ObjectRemoved:Delete" \| "s3:ObjectRemoved:DeleteMarkerCreated" \| "s3:ObjectRestore:*" \| "s3:ObjectRestore:Completed" \| "s3:ObjectRestore:Post" \| "s3:ReducedRedundancyLostObject" \| "s3:Replication:*" \| "s3:Replication:OperationFailedReplication" \| "s3:Replication:OperationMissedThreshold" \| "s3:Replication:OperationNotTracked" \| "s3:Replication:OperationReplicatedAfterThreshold"` | - |
 | `filterRule` | no | `S3FilterRule` | - |
 
-
-## S3 events FAQ
-
-### Can several functions react to the same bucket?
-
-Yes, if their triggers don't overlap. S3 rejects two notifications for the same event type whose prefix and suffix
-filters can match the same key. When several consumers need every event, set `enableEventBusNotifications: true` on the
-bucket and give each consumer an [event bus trigger](/resources/triggers/event-bus-events) on the default bus with
-`source: ['aws.s3']`.
 
 ## Next steps
 
@@ -38915,9 +39004,11 @@ An `sns` event subscribes a [Lambda function](/resources/compute/lambda-function
 copy. Use it to fan one event out to several independent consumers: an order is placed, and billing, inventory and email
 each get the message.
 
-With a single consumer, an [SQS queue](/resources/triggers/sqs-events) is simpler and adds batching and retention. To
-route on fields inside the message body, use an [event bus](/resources/triggers/event-bus-events). Batch jobs accept
-`sns` events too.
+SNS invokes the function once per message; the trigger has no `batchSize`. To process messages in batches, or with a
+single consumer, subscribe an [SQS queue](/resources/triggers/sqs-events) to the topic instead: it adds batching and
+keeps messages while the consumer is down. To route on fields inside the message body, use an
+[event bus](/resources/triggers/event-bus-events). Batch jobs accept `sns` events too. Delivery to Lambda is free; the
+[SNS topic](/resources/messaging/sns-topic#standard-or-fifo) page explains what publishing costs.
 
 ## Basic example
 
@@ -39043,20 +39134,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `snsTopicName` | no | `string` | - |
 
 
-## SNS events FAQ
-
-### Does the SNS trigger support batching?
-
-No. SNS invokes the function per message, and the integration has no `batchSize`. To process messages in batches,
-subscribe an SQS queue to the topic and consume the queue with an [SQS event](/resources/triggers/sqs-events). The
-queue also keeps messages while the consumer is down.
-
-### What does it cost?
-
-For a standard topic, AWS charges per publish request ($0.50 per million in US East after the first million each month)
-and nothing for delivery to Lambda or SQS. A FIFO topic is billed per published and delivered message and per GB of
-payload. See [SNS pricing](https://aws.amazon.com/sns/pricing/).
-
 ## Next steps
 
 - [SNS topic](/resources/messaging/sns-topic): create the topic, FIFO and publishing from your code.
@@ -39170,6 +39247,11 @@ database or a rate-limited API. Messages wait in the queue while the cap is reac
 new SqsIntegration({ sqsQueueName: 'orderQueue', maximumConcurrency: 5 })
 ```
 
+To see that the queue is falling behind, watch `ApproximateNumberOfMessagesVisible` (backlog) and
+`ApproximateAgeOfOldestMessage` (lag) in CloudWatch. The queue can alarm on its backlog with the
+`sqs-queue-received-messages-count` or `sqs-queue-not-empty` [alarm](/observability/alarms). When the backlog keeps
+growing, raise `batchSize` or remove a `maximumConcurrency` cap.
+
 ## Failures and retries
 
 If the function throws, the whole batch goes back to the queue. It becomes visible again when the queue's visibility
@@ -39280,20 +39362,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `sqsQueueArn` | no | `string` | - |
 | `sqsQueueName` | no | `string` | - |
 
-
-## SQS events FAQ
-
-### What is the largest message I can send?
-
-A new queue accepts messages up to 1 MiB (1,048,576 bytes), the SQS maximum. Lower it with `maxMessageSizeBytes` on
-the queue. For larger payloads, upload the data to an [S3 bucket](/resources/storage/s3-bucket) and send the object key
-in the message.
-
-### How do I see that the queue is falling behind?
-
-Watch `ApproximateNumberOfMessagesVisible` (backlog) and `ApproximateAgeOfOldestMessage` (lag) in CloudWatch. A queue
-can alarm on its backlog with the `sqs-queue-received-messages-count` or `sqs-queue-not-empty`
-[alarm](/observability/alarms). Raise `batchSize`, or remove a `maximumConcurrency` cap, when the backlog keeps growing.
 
 ## Next steps
 
@@ -39535,11 +39603,11 @@ A key is a password. Keep it in your CI's secret store, never in code, chat, iss
 
 ## Rotate and revoke keys
 
-A key can't be shown again, reactivated or extended. To replace one, create the new key, put it in your CI secret, check that a pipeline run works, then revoke the old key.
+A key can't be shown again, reactivated or extended. To replace one, create the new key, put it in your CI secret, check that a pipeline run works, then revoke the old key. [Authenticate the pipeline](/ci-cd-and-gitops/custom-ci-cd#with-the-console) shows where each CI provider keeps the key.
 
 **Revoke key** stops every CLI session and pipeline that uses the key at once. Expired and revoked keys stay in the list with their status.
 
-Owners and Admins can also revoke a member's personal keys from the Members page, and removing a member revokes theirs. The removal dialog warns when one of their keys was used in the last 7 days, because a pipeline may depend on it.
+Owners and Admins can also revoke a member's personal keys from the Members page, and [removing a member](/stacktape-console/team-and-access-control#removing-a-member) revokes theirs. The removal dialog warns when one of their keys was used in the last 7 days, because a pipeline may depend on it. Before you remove someone whose key runs a shared pipeline, replace it with an organization key.
 
 ---
 
@@ -39743,7 +39811,12 @@ The role gets one of two AWS managed policies:
 | **Can deploy** | `AdministratorAccess` | Deploy, update and delete your stacks, and read their logs, metrics and costs |
 | **Read-only** | `ReadOnlyAccess` | Read logs, metrics and costs. Deploys, budgets and other writes fail. |
 
-A connection made in the Console or with `stacktape connect` can deploy. The **Status** column of the AWS accounts page shows **Can deploy** or **Read-only** next to **Connected**. An Owner or Admin can switch a read-only account with **Allow deploys**.
+A connection made in the Console or with `stacktape connect` can deploy. The connection stack's `StacktapeConnectionMode` parameter decides: `PRIVILEGED` can deploy, `BASIC` is read-only. To make an account read-only:
+
+- **New connection:** on the AWS page that **Open AWS CloudFormation** opens, change **StacktapeConnectionMode** to `BASIC` before you choose **Create stack**.
+- **Existing connection:** in the AWS CloudFormation console, in `eu-west-1`, update the stack `stacktape-<connection ID>`, keep its current template and set **StacktapeConnectionMode** to `BASIC`.
+
+The **Status** column of the AWS accounts page then shows **Read-only** next to **Connected**, and in IAM the role has `ReadOnlyAccess` and the reporting policy, nothing else. An Owner or Admin can switch it back with **Allow deploys**.
 
 Deploy access is administrator access because a stack can contain almost any AWS service: functions, containers, databases, networking, IAM roles for your workloads and more. A policy limited to some services would fail on the next resource you add. Your workloads don't get these permissions: each one runs with its own role that allows only what its config declares.
 
@@ -39824,10 +39897,12 @@ The Flexible plan has no spend limit. Its fee is one rate applied to the whole m
 | Monthly managed AWS spend | Rate |
 |---|---|
 | Up to $2,000 | 25% |
-| $2,000 to $5,000 | 23% |
-| $5,000 to $10,000 | 21% |
-| $10,000 to $25,000 | 20% |
-| Above $25,000 | 19% |
+| Over $2,000, up to $5,000 | 23% |
+| Over $5,000, up to $10,000 | 21% |
+| Over $10,000, up to $25,000 | 20% |
+| Over $25,000 | 19% |
+
+Each band includes its upper limit: exactly $2,000 is charged 25%, $2,000.01 is charged 23%.
 
 For example:
 
@@ -39835,6 +39910,7 @@ For example:
 |---|---|
 | $500 | $125 (25%) |
 | $1,000 | $250 (25%) |
+| $2,000 | $500 (25%) |
 | $3,000 | $690 (23%) |
 | $8,000 | $1,680 (21%) |
 
@@ -39903,8 +39979,9 @@ Source: `apps/docs/content/stacktape-console/connecting-your-aws-account.mdx`
 Route: `/stacktape-console/connecting-your-aws-account`
 
 The Stacktape Console works with your AWS accounts through a connection: an IAM role in your account that Stacktape
-assumes with short-lived credentials. With it, the Console deploys from Git, shows logs, metrics and costs, and runs
-deploys for the CLI when it is signed in. You connect each AWS account once.
+assumes with short-lived credentials, so you never create or rotate access keys for Stacktape. With it, the Console
+runs Git deployments, shows logs, metrics and costs, and runs deploys for the CLI when it is signed in. You connect each
+AWS account once.
 
 The open-source CLI doesn't need a connection. Without a Stacktape account, it deploys with your own AWS credentials.
 See [Use the CLI without an account](/getting-started/open-source-cli).
@@ -40002,9 +40079,11 @@ The **Regions** column of the AWS accounts page shows the regions each account h
 2. Check that the stack is created in the **eu-west-1** region. The link the Console opens targets it automatically.
 3. If you can't complete the AWS side, an Owner or Admin can remove the account from its menu and start a new connection.
 
-### Cannot delete a connected AWS account
+### Cannot disconnect an AWS account
 
-Stacktape prevents deletion when projects reference the account in their GitOps deployment configurations. The error message lists the affected projects. Delete the GitOps deployment configurations from the listed projects, then retry the deletion.
+<span id="cannot-delete-a-connected-aws-account" />
+
+**Disconnect account** fails while Git deployments of a project target the account, and the error lists those projects. In each one, open the **Project settings** menu (the cog on the project page), choose **Configure Git deployments** and remove the rules that deploy to this account. Then disconnect again. Right after that, the Console may still be removing the account's [build runner](/ci-cd-and-gitops/build-runners); try again a few minutes later.
 
 ### Account shows No access
 
@@ -40018,22 +40097,8 @@ Connecting and disconnecting accounts is for Owners and Admins. Ask one of them,
 
 - [AWS permissions](/stacktape-console/aws-permissions) — details on what the cross-account role can do
 - [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — how connected accounts relate to your project structure
-- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — auto-deploy to connected accounts on push
+- [Git deployments](/ci-cd-and-gitops/gitops-with-console) — deploy to connected accounts on push
 - [Add the Console](/getting-started/add-the-console) — connect the Console to stacks you deployed with the CLI
-
-## FAQ
-
-### Do I need to create AWS access keys for Stacktape?
-
-No. Stacktape uses cross-account IAM role assumption, not static access keys. The connection CloudFormation stack creates an IAM role that Stacktape assumes with temporary credentials. You never need to generate, rotate, or store AWS access keys for Stacktape to work.
-
-### Can I deploy to any AWS region after connecting?
-
-Yes, to any region Stacktape supports. The connection stack is always created in `eu-west-1`, but that only controls where the connection's CloudFormation stack lives.
-
-### Is connecting my AWS account free?
-
-Connecting has no fee. The Console itself is free while the AWS spend it manages stays at or under $200 a month, and the Flexible plan charges a percentage above that; see [Billing and subscription](/stacktape-console/billing-and-subscription). AWS bills your account for the resources.
 
 ---
 
@@ -40150,10 +40215,6 @@ The Console uses role-based access control. Sidebar items are hidden when your r
 
 Projects, Activity, Logs, Metrics, Traces, Uptime, Synthetics, Channels, Sent alerts, AWS accounts and Runners are shown to every role. Every role that sees the Security group can read Guardrails; only owners and admins (`org:manage-guardrails`) can change them.
 
-
-> **Warning:** If a sidebar item is missing, your role may not include the required permission. Ask your organization's owner or admin to adjust your access. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
-
-
 ## Troubleshooting
 
 ### Cost data is not appearing
@@ -40170,7 +40231,7 @@ A stack reports errors only after it has been deployed with Stacktape v4 while s
 
 ### Sidebar items are missing
 
-Some sidebar items are permission-gated. If you don't see an item (for example, Costs or Alarms), your role may not include the required permission. See the [permission-gated navigation](#permission-gated-navigation) table or ask your organization admin.
+Some sidebar items need a permission your role may not have, for example Costs or Alarms. The [permission table](#permission-gated-navigation) lists them. An Owner or Admin of your organization can change your role; see [Team and access control](/stacktape-console/team-and-access-control#roles).
 
 ## Related pages
 
@@ -40181,14 +40242,10 @@ Some sidebar items are permission-gated. If you don't see an item (for example, 
 - [Single sign-on](/stacktape-console/single-sign-on): sign in through your identity provider and provision members with SCIM
 - [Audit log](/stacktape-console/audit-log): who changed what in your organization and its AWS accounts
 - [Billing and subscription](/stacktape-console/billing-and-subscription): subscription details
-- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console): deploy on push
+- [Git deployments](/ci-cd-and-gitops/gitops-with-console): deploy on push
 - [Observability overview](/observability/overview): incidents, alarms, error tracking and notifications in depth
 
 ## FAQ
-
-### Do I need the Console to use Stacktape?
-
-No. The CLI deploys with your own AWS credentials and needs no account. See [Use the CLI without an account](/getting-started/open-source-cli). The Console adds team access, Git deployments, cost visibility, incidents, error tracking, security findings, budgets and guardrails. Most teams use both: the CLI, directly or in CI, for deploying, and the Console for visibility and operations.
 
 ### Does Stacktape deploy into my own AWS account?
 
@@ -40219,7 +40276,7 @@ Projects are listed on the **Projects** home, the most recently deployed first.
 
 ## Stages
 
-A stage is a complete, isolated set of AWS resources, with its own CloudFormation stack, databases, functions and URLs. Stages don't share resources unless you [reference one on purpose](/configuration/stages-and-environments). Most teams deploy the same config to every stage and change sizes per stage in the config.
+A stage is one deployment of the project: its own CloudFormation stack, with its own databases, functions and URLs. Non-production stages in an AWS account and region usually share one VPC; [Stages and environments](/configuration/stages-and-environments#are-stages-fully-isolated-from-each-other) explains what that means. Most teams deploy the same config to every stage and change sizes per stage in the config.
 
 Each stage costs money for its always-on resources. Delete stages you no longer use.
 
@@ -40903,7 +40960,9 @@ Its 14 days passed. Choose **Resend invitation**; the person can sign up for 14 
 Source: `apps/docs/content/using-with-ai/agent-mode-in-dev.mdx`
 Route: `/using-with-ai/agent-mode-in-dev`
 
-Stacktape [dev mode](/local-development/dev-mode-overview) can start an HTTP API next to your local workloads and databases. This **agent mode** lets a coding agent, or any HTTP client, check workload status, trigger rebuilds, read logs, query local databases and call read-only AWS operations, so it can edit, test and fix code in a loop. Agent mode is in preview: `GET /` on the running agent lists the endpoints it has.
+`stacktape dev --agent` runs [dev mode](/local-development/dev-mode-overview) as a background session with a local HTTP API. A coding agent, or any HTTP client, uses it to check workload status, rebuild workloads, read logs, query local databases and call read-only AWS operations, so it can edit, test and fix code in a loop. This page calls that session agent mode. On other commands, `--agent` only switches the output to JSONL and turns off prompts.
+
+Agent mode is in preview: `GET /` on the running agent lists the endpoints it has.
 
 ## When to use
 
@@ -40913,7 +40972,7 @@ Agent mode is designed for workflows where an AI coding assistant drives the edi
 - **Automated test harnesses** — You want a script to verify application behavior during development by hitting the status, env, or database endpoints.
 - **Database inspection without client tools** — You need to run SQL queries, check Redis keys, scan DynamoDB items, or search OpenSearch indices against local dev databases without installing separate database clients.
 
-## When NOT to use
+## When not to use
 
 - **Manual development** — If you're editing code yourself and checking results in a browser, standard [dev mode](/local-development/dev-mode-overview) without `--agent` is simpler. The TUI output is optimized for human reading.
 - **Production observability** — Agent mode runs locally. For deployed stacks, use [`stacktape logs`](/cli/logs), [`stacktape metrics`](/cli/metrics), or the [Stacktape Console](/stacktape-console/console-overview).
@@ -41582,7 +41641,7 @@ Use the MCP server when your AI coding assistant supports the [Model Context Pro
 - **Configuration help** — the assistant searches Stacktape's bundled documentation index for resource types, config syntax, and deployment patterns without opening a browser.
 - **Dev mode** — start, monitor, rebuild, and stop [dev mode](/local-development/dev-mode-overview) sessions from within your AI conversation.
 
-## When NOT to use
+## When not to use
 
 Skip the MCP server if your AI client does not support the Model Context Protocol — use the [Stacktape CLI](/cli/deploy) directly or the [Stacktape Console](/stacktape-console/console-overview) instead. For long-running deployments, prefer the CLI when you want to watch the command directly in your own terminal. MCP command responses are consolidated and may be truncated. The MCP server runs CLI commands as subprocesses and returns a consolidated response; if an optional caller-specified timeout is exceeded, the subprocess is terminated and an error is returned.
 

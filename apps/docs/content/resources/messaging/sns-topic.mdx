@@ -79,6 +79,9 @@ await sns.send(
 For a topic named `orderEvents`, the variables are `STP_ORDER_EVENTS_ARN` and `STP_ORDER_EVENTS_NAME`. Containers
 publish the same way. See [Connecting resources](/configuration/connecting-resources).
 
+A message can be up to 256 KB. For a larger payload, upload the data to an [S3 bucket](/resources/storage/s3-bucket)
+and publish the object key.
+
 ## Fan out to SQS queues
 
 A Lambda subscriber loses a message after Lambda's retries run out. When each consumer needs a buffer, its own retries
@@ -141,6 +144,10 @@ queue with an [SQS event](/resources/triggers/sqs-events) or a worker.
 | Subscribers | Lambda, SQS, HTTP, email, SMS | SQS queues only |
 | Throughput | Practically unlimited | Limited per topic, see the [AWS quotas](https://docs.aws.amazon.com/general/latest/gr/sns.html) |
 
+A standard topic bills per publish, and each 64 KB of a message counts as one. Delivery to Lambda and SQS is free;
+HTTP, email and SMS deliveries are charged. A FIFO topic bills per published and delivered message and per GB of
+payload, so each extra subscriber adds cost. See [SNS pricing](https://aws.amazon.com/sns/pricing/).
+
 Use a standard topic unless the order matters. `fifoEnabled: true` creates a FIFO topic. Each publish then needs a
 `MessageGroupId` and a deduplication ID, or set `contentBasedDeduplication: true` to use a hash of the body.
 
@@ -163,20 +170,6 @@ per message by country, and new AWS accounts start in an SMS sandbox that only s
 ## Referenceable parameters
 
 <ReferenceableParams resource="sns-topic" />
-
-## SNS topic FAQ
-
-### What does a topic cost?
-
-A standard topic costs $0.50 per million publish requests in US East after the first million each month. Each 64 KB of
-a message counts as one request. Delivery to Lambda and SQS is free; HTTP, email and SMS deliveries are charged. A FIFO
-topic is billed per published and delivered message and per GB of payload, so each extra subscriber adds cost. See
-[SNS pricing](https://aws.amazon.com/sns/pricing/).
-
-### What is the largest message?
-
-256 KB, for both topic types. For larger payloads, upload the data to an [S3 bucket](/resources/storage/s3-bucket) and
-publish the object key.
 
 ## Next steps
 

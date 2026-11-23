@@ -139,10 +139,10 @@ certificates in its `customCertificateArns`.
       lang: 'typescript',
       code: `import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myAlb = new ApplicationLoadBalancer({
+  const myAlb = new ApplicationLoadBalancer({ // [!code focus]
     customDomains: [{ domainName: 'api.example.com' }],
+    // [!code focus-start]
     listeners: [
       {
         protocol: 'HTTPS',
@@ -155,12 +155,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { myAlb }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -179,17 +179,17 @@ match no rule, with `HTTP_301` or `HTTP_302`, and can reuse parts of the URL wit
       lang: 'typescript',
       code: `import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myAlb = new ApplicationLoadBalancer({
     customDomains: [{ domainName: 'api.example.com' }, { domainName: 'api-v2.example.com' }]
   });
+  // [!code focus-end]
 
   return {
     resources: { myAlb }
   };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -213,21 +213,21 @@ which one to use. See [CDN](/resources/networking/cdn) for cache rules.
       lang: 'typescript',
       code: `import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const myAlb = new ApplicationLoadBalancer({
+  const myAlb = new ApplicationLoadBalancer({ // [!code focus]
     customDomains: [{ domainName: 'api.example.com' }],
+    // [!code focus-start]
     cdn: {
       enabled: true,
       cloudfrontPriceClass: 'PriceClass_100'
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myAlb }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -280,17 +280,17 @@ services call.
       lang: 'typescript',
       code: `import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const internalAlb = new ApplicationLoadBalancer({
     interface: 'internal'
   });
+  // [!code focus-end]
 
   return {
     resources: { internalAlb }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -316,8 +316,8 @@ Load balancer alarms use the `application-load-balancer-error-rate` (share of 4x
       lang: 'typescript',
       code: `import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myAlb = new ApplicationLoadBalancer({
     alarms: [
       {
@@ -334,12 +334,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { myAlb }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -354,3 +354,9 @@ services. See [Alarms](/observability/alarms) for `evaluation` settings, compari
 ## Referenceable parameters
 
 <ReferenceableParams resource="application-load-balancer" />
+
+## Next steps
+
+- [Web service](/resources/compute/web-service): put containers behind the load balancer.
+- [Gradual deployments](/deployment-and-lifecycle/gradual-deployments): shift traffic to a new release step by step.
+- [Web application firewall](/resources/security/web-application-firewall): block malicious requests.

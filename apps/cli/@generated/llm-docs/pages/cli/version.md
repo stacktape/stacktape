@@ -1,6 +1,6 @@
 # version
 
-The `stacktape version` command prints the currently installed version of Stacktape. It requires no arguments, no configuration file, and no API key. Use it to verify your installation or check whether you need to [upgrade](/cli/upgrade).
+`stacktape version` prints the currently installed version of Stacktape. It requires no arguments, no configuration file, and no API key. Use it to verify your installation or check whether you need to [upgrade](/cli/upgrade).
 
 ## Usage
 

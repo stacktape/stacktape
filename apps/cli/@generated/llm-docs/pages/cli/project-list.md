@@ -1,6 +1,6 @@
 # project list
 
-The `project list` command lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape project list` lists all projects in your current organization along with their deployed stages, deployment status, and monthly costs. Use it to review projects in your organization, see deployed and undeployed stage counts, spot in-progress or errored stages, and compare current and previous month costs. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 

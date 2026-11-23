@@ -84,6 +84,9 @@ new EventBusIntegration({
 
 A bus in another account must allow your account in its resource policy.
 
+AWS charges per event published to a custom bus, $1.00 per million in US East. Events from AWS services on the default
+bus are free, and rules cost nothing. See [EventBridge pricing](https://aws.amazon.com/eventbridge/pricing/).
+
 ## Event patterns
 
 `eventPattern` is required. An event matches when every field in the pattern matches; within a field, any listed value
@@ -170,13 +173,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `onDeliveryFailure` | no | `EventBusOnDeliveryFailure` | - |
 | `useDefaultBus` | no | `boolean` | - |
 
-
-## Event bus events FAQ
-
-### What does it cost?
-
-AWS charges per event published to a custom bus, $1.00 per million in US East. Events from AWS services on the default
-bus are free, and rules cost nothing. See [EventBridge pricing](https://aws.amazon.com/eventbridge/pricing/).
 
 ## Next steps
 

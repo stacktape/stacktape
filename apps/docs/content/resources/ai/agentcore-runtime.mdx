@@ -125,23 +125,23 @@ Each tool is its own resource. Attach it by name, and Stacktape grants the runti
   JsBundleImagePackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const agentMemory = new AgentCoreMemory({});
   const browser = new AgentCoreBrowser({});
 
-  const agent = new AgentCoreRuntime({
+  const agent = new AgentCoreRuntime({ // [!code focus]
     packaging: new JsBundleImagePackaging({ entryfilePath: './agent/server.ts' }),
     protocol: 'HTTP',
+    // [!code focus-start]
     useMemory: 'agentMemory',
     useBrowser: 'browser'
   });
+  // [!code focus-end]
 
   return {
     resources: { agentMemory, browser, agent }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />

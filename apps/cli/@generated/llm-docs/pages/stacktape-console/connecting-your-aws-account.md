@@ -1,8 +1,9 @@
 # Connecting your AWS account
 
 The Stacktape Console works with your AWS accounts through a connection: an IAM role in your account that Stacktape
-assumes with short-lived credentials. With it, the Console deploys from Git, shows logs, metrics and costs, and runs
-deploys for the CLI when it is signed in. You connect each AWS account once.
+assumes with short-lived credentials, so you never create or rotate access keys for Stacktape. With it, the Console
+runs Git deployments, shows logs, metrics and costs, and runs deploys for the CLI when it is signed in. You connect each
+AWS account once.
 
 The open-source CLI doesn't need a connection. Without a Stacktape account, it deploys with your own AWS credentials.
 See [Use the CLI without an account](/getting-started/open-source-cli).
@@ -100,9 +101,11 @@ The **Regions** column of the AWS accounts page shows the regions each account h
 2. Check that the stack is created in the **eu-west-1** region. The link the Console opens targets it automatically.
 3. If you can't complete the AWS side, an Owner or Admin can remove the account from its menu and start a new connection.
 
-### Cannot delete a connected AWS account
+### Cannot disconnect an AWS account
 
-Stacktape prevents deletion when projects reference the account in their GitOps deployment configurations. The error message lists the affected projects. Delete the GitOps deployment configurations from the listed projects, then retry the deletion.
+<span id="cannot-delete-a-connected-aws-account" />
+
+**Disconnect account** fails while Git deployments of a project target the account, and the error lists those projects. In each one, open the **Project settings** menu (the cog on the project page), choose **Configure Git deployments** and remove the rules that deploy to this account. Then disconnect again. Right after that, the Console may still be removing the account's [build runner](/ci-cd-and-gitops/build-runners); try again a few minutes later.
 
 ### Account shows No access
 
@@ -116,19 +119,5 @@ Connecting and disconnecting accounts is for Owners and Admins. Ask one of them,
 
 - [AWS permissions](/stacktape-console/aws-permissions) — details on what the cross-account role can do
 - [Organizations, projects, and stages](/stacktape-console/organizations-projects-and-stages) — how connected accounts relate to your project structure
-- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console) — auto-deploy to connected accounts on push
+- [Git deployments](/ci-cd-and-gitops/gitops-with-console) — deploy to connected accounts on push
 - [Add the Console](/getting-started/add-the-console) — connect the Console to stacks you deployed with the CLI
-
-## FAQ
-
-### Do I need to create AWS access keys for Stacktape?
-
-No. Stacktape uses cross-account IAM role assumption, not static access keys. The connection CloudFormation stack creates an IAM role that Stacktape assumes with temporary credentials. You never need to generate, rotate, or store AWS access keys for Stacktape to work.
-
-### Can I deploy to any AWS region after connecting?
-
-Yes, to any region Stacktape supports. The connection stack is always created in `eu-west-1`, but that only controls where the connection's CloudFormation stack lives.
-
-### Is connecting my AWS account free?
-
-Connecting has no fee. The Console itself is free while the AWS spend it manages stays at or under $200 a month, and the Flexible plan charges a percentage above that; see [Billing and subscription](/stacktape-console/billing-and-subscription). AWS bills your account for the resources.

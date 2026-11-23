@@ -118,6 +118,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
     customDomains: [{ domainName: 'api.example.com' }],
@@ -152,6 +153,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
     customDomains: [{ domainName: 'api.example.com' }, { domainName: 'api-v2.example.com' }]
@@ -179,6 +181,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
     customDomains: [{ domainName: 'api.example.com' }],
@@ -234,6 +237,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const internalAlb = new ApplicationLoadBalancer({
     interface: 'internal'
@@ -264,6 +268,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const myAlb = new ApplicationLoadBalancer({
     alarms: [
@@ -324,3 +329,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+
+
+## Next steps
+
+- [Web service](/resources/compute/web-service): put containers behind the load balancer.
+- [Gradual deployments](/deployment-and-lifecycle/gradual-deployments): shift traffic to a new release step by step.
+- [Web application firewall](/resources/security/web-application-firewall): block malicious requests.

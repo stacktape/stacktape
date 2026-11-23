@@ -373,3 +373,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `arn` | Arn of the state machine. | `$ResourceParam("<<resource-name>>", "arn")` |
 | `name` | AWS (physical) name of the state machine. | `$ResourceParam("<<resource-name>>", "name")` |
+
+
+## Next steps
+
+- [Lambda function](/resources/compute/lambda-function): write the steps.
+- [Batch job](/resources/compute/batch-job): run steps that take longer than 15 minutes.
+- [Connecting resources](/configuration/connecting-resources#additional-connectto-targets): let a function start executions.

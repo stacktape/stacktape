@@ -83,11 +83,12 @@ so Upstash removes keys to make room, starting with keys that have a TTL.
       lang: 'typescript',
       code: `import { defineConfig, UpstashRedis } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const cache = new UpstashRedis({
     enableEviction: true
   });
+  // [!code focus-end]
 
   return {
     providerConfig: {
@@ -98,8 +99,7 @@ export default defineConfig(() => {
     },
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -184,3 +184,9 @@ connection limit. Use the REST API there.
 Use [`$ResourceParam()`](/configuration/referenceable-parameters) to reference Upstash Redis parameters in other parts of your config, for example to pass the host or REST URL as an environment variable to a resource that doesn't support `connectTo`.
 
 <ReferenceableParams resource="upstash-redis" />
+
+## Next steps
+
+- [Connecting resources](/configuration/connecting-resources#upstash-redis): the variables your code gets.
+- [Secrets](/configuration/secrets): store the Upstash API key.
+- [Redis](/resources/databases/redis): ElastiCache in your own account, inside your VPC.

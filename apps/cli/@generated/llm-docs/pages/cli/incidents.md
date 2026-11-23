@@ -1,6 +1,6 @@
 # incident list
 
-The `incident list` command lists incidents: everything that needs (or needed) a reaction, such as downtime, failing synthetic tests, firing alarms, production errors, unhealthy stacks, and expiring certificates. It shows each incident's ID, status, severity, title, project, stage, open time, and contributing signals. The default `ACTIVE` view includes both open and acknowledged incidents. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape incident list` lists incidents: everything that needs (or needed) a reaction, such as downtime, failing synthetic tests, firing alarms, production errors, unhealthy stacks, and expiring certificates. It shows each incident's ID, status, severity, title, project, stage, open time, and contributing signals. The default `ACTIVE` view includes both open and acknowledged incidents. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 

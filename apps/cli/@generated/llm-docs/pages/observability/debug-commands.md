@@ -2,7 +2,8 @@
 
 These CLI commands inspect a deployed stack from your terminal. Each takes the stage and region (`--stage`,
 `--region`), reads the project from your config, and runs with your AWS credentials, or through the Console when the
-CLI is signed in. Except for the container and bastion sessions, they only read.
+CLI is signed in. `status` and `stack history` read the Console's records, so they need a Console sign-in. Except for
+the container and bastion sessions, the commands only read.
 
 ## Pick a command
 
@@ -16,7 +17,8 @@ CLI is signed in. Except for the container and bastion sessions, they only read.
 | Look at keys of a Redis cluster | [`stacktape query redis`](/cli/query-redis) |
 | Search an OpenSearch domain | [`stacktape query opensearch`](/cli/query-opensearch) |
 | Read the state of any other AWS resource | [`stacktape aws call`](/cli/aws-call) |
-| See the stack's status, outputs and resources | [`stacktape status`](/cli/info-stack) |
+| See the stack's status, outputs and resources (Console sign-in) | [`stacktape status`](/cli/info-stack) |
+| Find why a recent deploy failed (Console sign-in) | [`stacktape stack history`](/cli/info-operations) |
 | Run one command in a running container | [`stacktape container exec`](/cli/container-exec) |
 | Open a shell in a running container | [`stacktape container shell`](/cli/container-session) |
 | Reach a VPC-only database from your machine | [`stacktape bastion tunnel`](/cli/bastion-tunnel) |

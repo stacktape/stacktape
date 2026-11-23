@@ -41,18 +41,18 @@ Prices are for us-east-1, running all month ([ElastiCache pricing](https://aws.a
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
+    // [!code focus-start]
     engine: { type: 'valkey-serverless' }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -74,10 +74,10 @@ There are no instances to size. The cache stores up to 5,000 GB and is billed fo
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
+    // [!code focus-start]
     engine: {
       type: 'valkey-serverless',
       properties: {
@@ -86,12 +86,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -108,21 +108,21 @@ Clients connect on port 6379. Port 6380 serves lower-latency, eventually consist
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
+    // [!code focus-start]
     engine: {
       type: 'valkey',
       properties: { instanceSize: 'cache.t4g.micro' }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -141,21 +141,21 @@ AWS publishes no Redis OSS versions after 7.1, so new caches must use Valkey. `e
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
+    // [!code focus-start]
     engine: {
       type: 'redis',
       properties: { instanceSize: 'cache.t4g.micro', version: '6.2' }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -214,10 +214,10 @@ Set `numReplicaNodes` to add read replicas, and `enableAutomaticFailover` to pro
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
+    // [!code focus-start]
     engine: {
       type: 'valkey',
       properties: {
@@ -227,12 +227,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -255,10 +255,10 @@ Deploy replicas first, then enable `enableAutomaticFailover` in a separate deplo
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
+    // [!code focus-start]
     engine: {
       type: 'valkey',
       properties: {
@@ -269,12 +269,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -296,21 +296,21 @@ Caches run inside your stack's VPC and have no public IP addresses.
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
+    // [!code focus-start]
     accessibility: {
       accessibilityMode: 'scoping-workloads-in-vpc'
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -336,27 +336,27 @@ Use [`connectTo`](/configuration/connecting-resources) to grant a workload acces
   JsBundleLambdaPackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' }
   });
 
-  const api = new LambdaFunction({
+  const api = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
+    // [!code focus-start]
     joinDefaultVpc: true,
     connectTo: [cache],
     environment: { REDIS_URL: $ResourceParam('cache', 'connectionString') }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache, api }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -394,19 +394,19 @@ Set `automatedBackupRetentionDays` to keep daily snapshots for that many days (m
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
+    // [!code focus-start]
     automatedBackupRetentionDays: 7
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -427,21 +427,21 @@ During [`stacktape dev`](/local-development/dev-mode-overview), the cache runs l
       lang: 'typescript',
       code: `import { defineConfig, Redis, $Secret } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const cache = new Redis({
+  const cache = new Redis({ // [!code focus]
     defaultUserPassword: $Secret('redis', 'password'),
     engine: { type: 'valkey-serverless' },
+    // [!code focus-start]
     dev: {
       remote: true
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { cache }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -478,3 +478,9 @@ The cache keeps its endpoint and data. Switch it to Valkey afterwards by changin
 ## Referenceable parameters
 
 <ReferenceableParams resource="redis" />
+
+## Next steps
+
+- [Local databases](/local-development/local-databases): run Redis on your machine in dev mode.
+- [`stacktape query redis`](/cli/query-redis): look at keys from your terminal.
+- [Bastion host](/resources/security/bastion-host): reach a VPC-only cluster from your machine.

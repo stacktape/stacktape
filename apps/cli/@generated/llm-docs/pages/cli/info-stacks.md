@@ -1,6 +1,6 @@
 # stack list
 
-The `stack list` command lists CloudFormation stacks deployed in a specified AWS region and identifies which ones are Stacktape-managed. It shows each stack's name, status, timestamps, and actual or forecasted spend when budget data is available — giving you a quick inventory of what's running in your account.
+`stacktape stack list` lists CloudFormation stacks deployed in a specified AWS region and identifies which ones are Stacktape-managed. It shows each stack's name, status, timestamps, and actual or forecasted spend when budget data is available — giving you a quick inventory of what's running in your account.
 
 ## Usage
 

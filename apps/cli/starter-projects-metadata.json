@@ -753,7 +753,7 @@
     "description": "Event-driven order processing pipeline using SQS,\n  EventBridge, and\n  Step Functions.\nDemonstrates reliable message processing with FIFO ordering, dead-letter queues, event routing, and workflow\n  orchestration.\nRuns serverlessly — pay only for events you process.\n"
   },
   {
-    "name": "Express.js API with MongoDb",
+    "name": "Express.js API with MongoDB",
     "tags": ["Typescript", "MongoDb", "REST API", "Lambda"],
     "icon": "typescript.svg",
     "priority": 1,
@@ -934,7 +934,7 @@
     "description": "Serverless REST API with DynamoDB storage using\n  Hono as the HTTP router.\nRuns in a single Lambda function behind an\n  HTTP API Gateway. Pay only for requests you receive.\n"
   },
   {
-    "name": "Lambda API with MongoDb",
+    "name": "Lambda API with MongoDB",
     "tags": ["Typescript", "MongoDb", "REST API", "Lambda"],
     "icon": "typescript.svg",
     "priority": 1,
@@ -961,7 +961,7 @@
     "description": "simple Lambda-based HTTP API.\nThe application runs in a Lambda function and uses\n  MongoDb Atlas cluster to store the data. To\n  simplify the database access, this project uses Mongoose ORM.\n"
   },
   {
-    "name": "Typescript monorepo with pnpm",
+    "name": "TypeScript monorepo with pnpm",
     "tags": ["Typescript", "REST API", "Lambda"],
     "icon": "typescript.svg",
     "priority": 1,
@@ -1572,7 +1572,7 @@
     "description": "web link scraper implemented in Typescript using headless chrome -\n  Puppeteer.\nThe scraper runs in a Lambda function\n"
   },
   {
-    "name": "Python Lambda with MongoDb",
+    "name": "Python Lambda with MongoDB",
     "tags": ["Python", "MongoDb", "REST API", "Lambda"],
     "icon": "python.svg",
     "starterProjectId": "python-lambda-api",
@@ -1671,6 +1671,6 @@
     "hasReact": false,
     "isRestApi": false,
     "hasCognito": false,
-    "description": "GPU-capable batch job for image classification using\n  TensorFlow.\nUpload a .zip of images to the input S3 bucket — the job automatically classifies them using a pre-trained\n  EfficientNet model and saves results to the output bucket.\nUses spot instances for up to 90% cost\n  savings. Perfect as a starting point for any ML batch processing workload.\n"
+    "description": "GPU-capable batch job for image classification using\n  TensorFlow.\nUpload a .zip of images to the input S3 bucket — the job automatically classifies them using a pre-trained\n  EfficientNet model and saves results to the output bucket.\nUses spot instances for up to 90% cost\n  savings.\n"
   }
 ]

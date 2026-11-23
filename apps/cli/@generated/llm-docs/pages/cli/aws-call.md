@@ -1,6 +1,6 @@
 # aws call
 
-The `aws call` command sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
+`stacktape aws call` sends a reviewed read-only AWS SDK v3 operation against resources in a deployed Stacktape
 stack. Use it when Stacktape's purpose-built inspection commands do not expose the AWS data you need.
 
 ## Safety model

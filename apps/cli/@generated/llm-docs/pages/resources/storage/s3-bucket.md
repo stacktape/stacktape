@@ -43,6 +43,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const assets = new Bucket({
     directoryUpload: {
@@ -90,6 +91,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const publicAssets = new Bucket({
     accessibility: {
@@ -117,6 +119,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const uploads = new Bucket({
     cors: {
@@ -150,6 +153,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const spa = new Bucket({
     directoryUpload: {
@@ -202,6 +206,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const dataLake = new Bucket({
     lifecycleRules: [
@@ -265,6 +270,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const secureBucket = new Bucket({
     versioning: true,
@@ -301,6 +307,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket } from 'stacktape';
+
 export default defineConfig(() => {
   const uploads = new Bucket({
     enableEventBusNotifications: true
@@ -325,6 +332,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Bucket, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
+
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
@@ -406,3 +414,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `cdnUrl` | Default url of the [CDN distribution](/resources/networking/cdn/) (only available if you DO NOT configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnUrl")` |
 | `cdnCustomDomains` | Comma-separated list of custom domain names assigned to the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomains")` |
 | `cdnCustomDomainUrls` | Comma-separated list of custom domain name URLs of the [CDN](/resources/networking/cdn/) (only available if you configure custom domain names for the CDN). | `$ResourceParam("<<resource-name>>", "cdnCustomDomainUrls")` |
+
+
+## Next steps
+
+- [S3 events](/resources/triggers/s3-events): process files as they arrive.
+- [Static hosting](/resources/frontend/static-hosting): host a frontend from a bucket.
+- [Connecting resources](/configuration/connecting-resources#bucket): the variables and permissions `connectTo` adds.

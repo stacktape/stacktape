@@ -69,6 +69,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, UpstashRedis } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new UpstashRedis({
     enableEviction: true
@@ -188,3 +189,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `readOnlyRestToken` | Rest token which can be used only for reading from the database using the REST API | `$ResourceParam("<<resource-name>>", "readOnlyRestToken")` |
 | `restUrl` | Rest URL which can be used when communicating with the database using the REST API | `$ResourceParam("<<resource-name>>", "restUrl")` |
 | `redisUrl` | Standard redis url (including password) which can be used for connecting using cli. | `$ResourceParam("<<resource-name>>", "redisUrl")` |
+
+
+## Next steps
+
+- [Connecting resources](/configuration/connecting-resources#upstash-redis): the variables your code gets.
+- [Secrets](/configuration/secrets): store the Upstash API key.
+- [Redis](/resources/databases/redis): ElastiCache in your own account, inside your VPC.

@@ -1,6 +1,6 @@
 # query dynamodb
 
-The `query dynamodb` command lets you inspect data in a deployed [DynamoDB table](/resources/databases/dynamodb) directly from the command line. It supports five read-only operations — `sample`, `scan`, `query`, `get`, and `schema` — so you can check table structure, look up items by key, or browse data without leaving the terminal.
+`stacktape query dynamodb` lets you inspect data in a deployed [DynamoDB table](/resources/databases/dynamodb) directly from the command line. It supports five read-only operations — `sample`, `scan`, `query`, `get`, and `schema` — so you can check table structure, look up items by key, or browse data without leaving the terminal.
 
 Use this command as your first tool when you need to verify data in a deployed DynamoDB table. The command resolves your Stacktape `DynamoDbTable` resource by name and runs read-only operations against the deployed table, so there's no risk of accidental writes.
 

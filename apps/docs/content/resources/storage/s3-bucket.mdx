@@ -58,20 +58,20 @@ Directory upload replaces all existing bucket contents. Do not use this for buck
       lang: 'typescript',
       code: `import { defineConfig, Bucket } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const assets = new Bucket({
     directoryUpload: {
       directoryPath: './dist',
       headersPreset: 'single-page-app'
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { assets }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -111,19 +111,19 @@ Most buckets should stay `private`. Use [`connectTo`](/configuration/connecting-
       lang: 'typescript',
       code: `import { defineConfig, Bucket } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const publicAssets = new Bucket({
     accessibility: {
       accessibilityMode: 'public-read'
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { publicAssets }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -144,8 +144,8 @@ Set `cors.enabled: true` without `corsRules` to use permissive defaults (`*` ori
       lang: 'typescript',
       code: `import { defineConfig, Bucket } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const uploads = new Bucket({
     cors: {
       enabled: true,
@@ -159,12 +159,12 @@ export default defineConfig(() => {
       ]
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { uploads }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -183,24 +183,24 @@ Placing a CDN (Amazon CloudFront) in front of a bucket reduces download latency 
       lang: 'typescript',
       code: `import { defineConfig, Bucket } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const spa = new Bucket({
+  const spa = new Bucket({ // [!code focus]
     directoryUpload: {
       directoryPath: './dist',
       headersPreset: 'single-page-app'
     },
+    // [!code focus-start]
     cdn: {
       enabled: true,
       rewriteRoutesForSinglePageApp: true
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { spa }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -241,8 +241,8 @@ Stacktape supports five lifecycle rule types:
       lang: 'typescript',
       code: `import { defineConfig, Bucket } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const dataLake = new Bucket({
     lifecycleRules: [
       {
@@ -268,12 +268,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { dataLake }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -310,8 +310,8 @@ Add an `abort-incomplete-multipart-upload` rule to every bucket. Large file uplo
       lang: 'typescript',
       code: `import { defineConfig, Bucket } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const secureBucket = new Bucket({
     versioning: true,
     encryption: true,
@@ -324,12 +324,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { secureBucket }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -352,17 +352,17 @@ Stacktape buckets support two approaches for reacting to object changes:
       lang: 'typescript',
       code: `import { defineConfig, Bucket } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const uploads = new Bucket({
     enableEventBusNotifications: true
   });
+  // [!code focus-end]
 
   return {
     resources: { uploads }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -382,22 +382,22 @@ delete objects and gets the bucket's name and ARN as environment variables.
       lang: 'typescript',
       code: `import { defineConfig, Bucket, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const uploads = new Bucket({});
 
-  const processor = new LambdaFunction({
+  const processor = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/processor.ts'
     }),
+    // [!code focus-start]
     connectTo: [uploads]
   });
+  // [!code focus-end]
 
   return {
     resources: { uploads, processor }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -439,3 +439,9 @@ files don't pass through your API. That needs [CORS](#cors) on the bucket. To ru
 Use [`$ResourceParam`](/configuration/referenceable-parameters) to reference bucket properties in other parts of your config, for example passing the bucket name as an environment variable or using the ARN in a custom IAM policy.
 
 <ReferenceableParams resource="bucket" />
+
+## Next steps
+
+- [S3 events](/resources/triggers/s3-events): process files as they arrive.
+- [Static hosting](/resources/frontend/static-hosting): host a frontend from a bucket.
+- [Connecting resources](/configuration/connecting-resources#bucket): the variables and permissions `connectTo` adds.

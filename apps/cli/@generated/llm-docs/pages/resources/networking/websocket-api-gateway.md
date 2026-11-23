@@ -316,3 +316,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `customDomains` | Comma-separated list of custom domain names | `$ResourceParam("<<resource-name>>", "customDomains")` |
 | `customDomainUrls` | Comma-separated list of custom domain URLs | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
 | `customDomainUrl` | URL of the first custom domain | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
+
+
+## Next steps
+
+- [DynamoDB table](/resources/databases/dynamodb): store connection IDs for broadcasts.
+- [User auth pool](/resources/security/user-auth-pool): authorize connections.
+- [Lambda function](/resources/compute/lambda-function): memory, timeout and logs of the route handlers.

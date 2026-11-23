@@ -1,6 +1,6 @@
 # org delete
 
-The `stacktape org delete` command deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
+`stacktape org delete` deletes the organization your API key belongs to. Use it when you no longer need an organization you own. The command enforces two safety constraints before proceeding: all other non-service users must already be removed, and all AWS accounts must be disconnected from the organization. Deleting the organization revokes its API keys, including the one you used.
 
 An API key acts in one organization, so the command can delete only that organization. To delete another organization you own, run [`login`](/cli/login) with an API key of that organization first.
 

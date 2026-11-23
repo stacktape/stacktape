@@ -108,10 +108,6 @@ The Console uses role-based access control. Sidebar items are hidden when your r
 
 Projects, Activity, Logs, Metrics, Traces, Uptime, Synthetics, Channels, Sent alerts, AWS accounts and Runners are shown to every role. Every role that sees the Security group can read Guardrails; only owners and admins (`org:manage-guardrails`) can change them.
 
-
-> **Warning:** If a sidebar item is missing, your role may not include the required permission. Ask your organization's owner or admin to adjust your access. See [Team and access control](/stacktape-console/team-and-access-control) for role details.
-
-
 ## Troubleshooting
 
 ### Cost data is not appearing
@@ -128,7 +124,7 @@ A stack reports errors only after it has been deployed with Stacktape v4 while s
 
 ### Sidebar items are missing
 
-Some sidebar items are permission-gated. If you don't see an item (for example, Costs or Alarms), your role may not include the required permission. See the [permission-gated navigation](#permission-gated-navigation) table or ask your organization admin.
+Some sidebar items need a permission your role may not have, for example Costs or Alarms. The [permission table](#permission-gated-navigation) lists them. An Owner or Admin of your organization can change your role; see [Team and access control](/stacktape-console/team-and-access-control#roles).
 
 ## Related pages
 
@@ -139,14 +135,10 @@ Some sidebar items are permission-gated. If you don't see an item (for example, 
 - [Single sign-on](/stacktape-console/single-sign-on): sign in through your identity provider and provision members with SCIM
 - [Audit log](/stacktape-console/audit-log): who changed what in your organization and its AWS accounts
 - [Billing and subscription](/stacktape-console/billing-and-subscription): subscription details
-- [GitOps with Console](/ci-cd-and-gitops/gitops-with-console): deploy on push
+- [Git deployments](/ci-cd-and-gitops/gitops-with-console): deploy on push
 - [Observability overview](/observability/overview): incidents, alarms, error tracking and notifications in depth
 
 ## FAQ
-
-### Do I need the Console to use Stacktape?
-
-No. The CLI deploys with your own AWS credentials and needs no account. See [Use the CLI without an account](/getting-started/open-source-cli). The Console adds team access, Git deployments, cost visibility, incidents, error tracking, security findings, budgets and guardrails. Most teams use both: the CLI, directly or in CI, for deploying, and the Console for visibility and operations.
 
 ### Does Stacktape deploy into my own AWS account?
 

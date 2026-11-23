@@ -2,7 +2,8 @@
 
 A private service runs always-on containers that only other resources in your stack can call, such as an internal
 API or a gRPC backend. It runs on ECS (Fargate by default, or EC2), has no public endpoint, and Stacktape handles
-service discovery, health checks and scaling.
+service discovery and scaling. Add a [health check](#health-checks) so ECS replaces a container that runs but stops
+answering.
 
 At least one container runs and bills all the time: 0.25 vCPU and 512 MB cost about $9 a month on x86 Fargate in
 us-east-1 ([Fargate pricing](https://aws.amazon.com/fargate/pricing/)). For a container with a public URL, use a
@@ -453,3 +454,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 | `address` | service `host:port` pair accessible only to other resources of stack([web-services](/resources/compute/web-service/), [multi-container-workloads](/resources/compute/multi-container-workload/)) | `$ResourceParam("<<resource-name>>", "address")` |
+
+
+## Next steps
+
+- [Web service](/resources/compute/web-service): the public API that calls this service.
+- [Release commands](/deployment-and-lifecycle/release-commands): run migrations before new containers take traffic.
+- [Debugging containers](/observability/debugging-containers): open a shell in a running container.

@@ -22,7 +22,7 @@ Most commands work without a Stacktape account. Commands that act on a stack use
 
 - [`validate`](/cli/validate): Checks your configuration without deploying anything.
 - [`diff`](/cli/diff): Shows what a deploy would change in the stack.
-- [`synth`](/cli/synth): Prints the CloudFormation template your configuration produces.
+- [`synth`](/cli/synth): Writes the CloudFormation template your configuration produces to a file.
 - [`package`](/cli/package): Builds the deployment packages of your functions and containers.
 - [`deploy`](/cli/deploy): Creates or updates a stage in your AWS account.
 - [`status`](/cli/info-stack) (Console): Shows a deployed stack's URLs, outputs and resources.

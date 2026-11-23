@@ -101,8 +101,8 @@ Stacktape supports three Lambda packaging types: [`js-bundle`](/packaging/functi
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const api = new LambdaFunction({
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/api.ts',
@@ -110,10 +110,10 @@ export default defineConfig(() => {
       outputModuleFormat: 'esm'
     })
   });
+  // [!code focus-end]
 
   return { resources: { api } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -131,8 +131,8 @@ export default defineConfig(() => {
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, BuildpackLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const processor = new LambdaFunction({
     runtime: 'python3.13',
     packaging: new BuildpackLambdaPackaging({
@@ -140,10 +140,10 @@ export default defineConfig(() => {
       python: { packageManagerFile: './pyproject.toml' }
     })
   });
+  // [!code focus-end]
 
   return { resources: { processor } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -159,8 +159,8 @@ The `CustomArtifactLambdaPackaging` class takes a `packagePath` pointing to a pr
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, CustomArtifactLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const processor = new LambdaFunction({
     packaging: new CustomArtifactLambdaPackaging({
       packagePath: './dist/processor.zip',
@@ -168,10 +168,10 @@ export default defineConfig(() => {
     }),
     runtime: 'nodejs22.x'
   });
+  // [!code focus-end]
 
   return { resources: { processor } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -218,12 +218,12 @@ IDs in `batchItemFailures` so only those are retried.
   SqsQueue,
   JsBundleLambdaPackaging
 } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
   const jobs = new SqsQueue({});
 
-  const worker = new LambdaFunction({
+  const worker = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/worker.ts' }),
+    // [!code focus-start]
     events: [
       {
         type: 'sqs',
@@ -235,10 +235,10 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return { resources: { jobs, worker } };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -261,10 +261,10 @@ routing by method and path.
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
-  const webhook = new LambdaFunction({
+  const webhook = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/webhook.ts' }),
+    // [!code focus-start]
     url: {
       enabled: true,
       authMode: 'NONE',
@@ -275,10 +275,10 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return { resources: { webhook } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -309,20 +309,20 @@ CPU-bound code, more memory often costs less in total, because the function fini
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
-  const imageProcessor = new LambdaFunction({
+  const imageProcessor = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/image-processor.ts' }),
+    // [!code focus-start]
     runtime: 'nodejs22.x',
     architecture: 'arm64',
     memory: 2048,
     timeout: 120,
     storage: 2048
   });
+  // [!code focus-end]
 
   return { resources: { imageProcessor } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -348,17 +348,17 @@ instances and can disappear between invocations.
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
-  const checkout = new LambdaFunction({
+  const checkout = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/checkout.ts' }),
+    // [!code focus-start]
     reservedConcurrency: 25,
     provisionedConcurrency: 3
   });
+  // [!code focus-end]
 
   return { resources: { checkout } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -397,7 +397,6 @@ variables per resource type. Put your own settings in `environment` and secrets 
   $Secret,
   JsBundleLambdaPackaging
 } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
@@ -407,18 +406,19 @@ export default defineConfig(() => {
     credentials: { masterUserPassword: $Secret('database', 'password') }
   });
 
-  const api = new LambdaFunction({
+  const api = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    memory: 1024,
+    timeout: 30,
+    // [!code focus-start]
     connectTo: [database],
     joinDefaultVpc: true,
-    environment: { LOG_LEVEL: 'info' },
-    memory: 1024,
-    timeout: 30
+    environment: { LOG_LEVEL: 'info' }
   });
+  // [!code focus-end]
 
   return { resources: { database, api } };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -436,10 +436,10 @@ For AWS services that `connectTo` doesn't cover, such as Rekognition, Bedrock or
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
-  const analyzer = new LambdaFunction({
+  const analyzer = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/analyzer.ts' }),
+    // [!code focus-start]
     iamRoleStatements: [
       {
         Effect: 'Allow',
@@ -448,10 +448,10 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return { resources: { analyzer } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -475,12 +475,12 @@ most data, an [S3 bucket](/resources/storage/s3-bucket) or a database is simpler
   EfsFilesystem,
   JsBundleLambdaPackaging
 } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
   const sharedFiles = new EfsFilesystem({});
 
-  const renderer = new LambdaFunction({
+  const renderer = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/renderer.ts' }),
+    // [!code focus-start]
     joinDefaultVpc: true,
     storage: 2048,
     volumeMounts: [
@@ -494,10 +494,10 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return { resources: { sharedFiles, renderer } };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -518,19 +518,19 @@ off for personalized responses. See [CDN](/resources/networking/cdn) for cache r
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
-  const catalog = new LambdaFunction({
+  const catalog = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/catalog.ts' }),
+    // [!code focus-start]
     url: { enabled: true },
     cdn: {
       enabled: true
     }
   });
+  // [!code focus-end]
 
   return { resources: { catalog } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -553,18 +553,18 @@ Use it for production functions where a bad release would hurt users.
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
-  const api = new LambdaFunction({
+  const api = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    // [!code focus-start]
     deployment: {
       strategy: 'Canary10Percent5Minutes'
     }
   });
+  // [!code focus-end]
 
   return { resources: { api } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -592,20 +592,20 @@ They don't apply to synchronous callers like API gateways and load balancers. St
   SqsQueue,
   JsBundleLambdaPackaging
 } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
   const deadLetterQueue = new SqsQueue({});
 
-  const processor = new LambdaFunction({
+  const processor = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/processor.ts' }),
+    // [!code focus-start]
     destinations: {
       onFailure: "$ResourceParam('deadLetterQueue', 'arn')"
     }
   });
+  // [!code focus-end]
 
   return { resources: { deadLetterQueue, processor } };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -629,10 +629,10 @@ evaluation settings and notification channels.
       label: 'TypeScript',
       lang: 'typescript',
       code: `import { defineConfig, LambdaFunction, JsBundleLambdaPackaging } from 'stacktape';
-// [!code focus-start]
 export default defineConfig(() => {
-  const api = new LambdaFunction({
+  const api = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({ entryfilePath: './src/api.ts' }),
+    // [!code focus-start]
     logging: {
       retentionDays: 30
     },
@@ -651,10 +651,10 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return { resources: { api } };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -802,3 +802,9 @@ To delete expired DynamoDB items, a [TTL attribute](/resources/databases/dynamod
 ## Referenceable parameters
 
 <ReferenceableParams resource="function" />
+
+## Next steps
+
+- [Triggers](/resources/triggers/overview): pick what starts the function.
+- [Dev mode](/local-development/dev-mode-overview): run and debug functions against your stack.
+- [Logs](/observability/logs): read and follow what the function prints.

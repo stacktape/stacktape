@@ -1,6 +1,6 @@
 # error reopen
 
-The `error reopen` command sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`error list`](/cli/errors-list) with OPEN status. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+`stacktape error reopen` sets a previously resolved or ignored issue back to OPEN status. It is most useful for ignored issues, which do not auto-reopen on new occurrences — manual reopening is required to restore them to active tracking. You can also reopen a resolved issue before waiting for the next automatic reopen on error recurrence, or when a teammate resolved an issue prematurely. Once reopened, the issue appears in [`error list`](/cli/errors-list) with OPEN status. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
 
 ## Usage
 

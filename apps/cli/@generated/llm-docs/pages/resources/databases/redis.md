@@ -33,6 +33,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -60,6 +61,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -88,6 +90,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -115,6 +118,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -182,6 +186,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -217,6 +222,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -252,6 +258,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -286,6 +293,7 @@ import {
   $ResourceParam,
   JsBundleLambdaPackaging
 } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -337,6 +345,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -364,6 +373,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, Redis, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const cache = new Redis({
     defaultUserPassword: $Secret('redis', 'password'),
@@ -434,3 +444,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `readerHost` | Hostname (address) that can be used for reads only. (only available for NON-sharded clusters). If you use multiple replicas, it is advised to use readerHost for read operations to offload the primary host. ReaderHost automatically balances requests between available read replicas. | `$ResourceParam("<<resource-name>>", "readerHost")` |
 | `port` | Port of the cluster. | `$ResourceParam("<<resource-name>>", "port")` |
 | `sharding` | Indicates whether cluster is sharded. Available values: `enabled` or `disabled`. | `$ResourceParam("<<resource-name>>", "sharding")` |
+
+
+## Next steps
+
+- [Local databases](/local-development/local-databases): run Redis on your machine in dev mode.
+- [`stacktape query redis`](/cli/query-redis): look at keys from your terminal.
+- [Bastion host](/resources/security/bastion-host): reach a VPC-only cluster from your machine.

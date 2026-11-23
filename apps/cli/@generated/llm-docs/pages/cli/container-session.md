@@ -1,6 +1,6 @@
 # container shell
 
-The `container shell` command starts an interactive session inside a running container in your deployed stack. The session is established using ECS Exec and an SSM (Systems Manager) connection, giving you direct terminal access to debug, inspect files, or troubleshoot issues in a running container.
+`stacktape container shell` starts an interactive session inside a running container in your deployed stack. The session is established using ECS Exec and an SSM (Systems Manager) connection, giving you direct terminal access to debug, inspect files, or troubleshoot issues in a running container.
 
 ## Usage
 

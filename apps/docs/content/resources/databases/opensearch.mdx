@@ -66,24 +66,24 @@ your domain. Accepted: `2.17`, `2.15`, `2.13`, `2.11`, `2.9`, `2.7`, `2.5`, `2.3
       lang: 'typescript',
       code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const search = new OpenSearchDomain({
-    version: '2.17',
+  const search = new OpenSearchDomain({ // [!code focus]
     clusterConfig: {
       instanceType: 't3.medium.search',
       instanceCount: 1
     },
     storage: {
       size: 20
-    }
+    },
+    // [!code focus-start]
+    version: '2.17'
   });
+  // [!code focus-end]
 
   return {
     resources: { search }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -119,8 +119,8 @@ Three data nodes, three dedicated masters and Multi-AZ with standby, the setup A
       lang: 'typescript',
       code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const search = new OpenSearchDomain({
     version: '2.17',
     clusterConfig: {
@@ -136,12 +136,12 @@ export default defineConfig(() => {
       throughput: 250
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { search }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -174,25 +174,25 @@ With two or more data nodes, Stacktape spreads them across availability zones so
       lang: 'typescript',
       code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const search = new OpenSearchDomain({
+  const search = new OpenSearchDomain({ // [!code focus]
     clusterConfig: {
       instanceType: 'r6g.large.search',
       instanceCount: 2
     },
+    // [!code focus-start]
     storage: {
       size: 200,
       iops: 6000,
       throughput: 400
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { search }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -295,7 +295,6 @@ const client = endpoint.startsWith('http://')
   JsBundleLambdaPackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const search = new OpenSearchDomain({
     clusterConfig: {
@@ -307,21 +306,22 @@ export default defineConfig(() => {
     }
   });
 
-  const indexer = new LambdaFunction({
+  const indexer = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/indexer.ts'
     }),
+    // [!code focus-start]
     connectTo: [search],
     environment: {
       OPENSEARCH_ENDPOINT: "$ResourceParam('search', 'domainEndpoint')"
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { search, indexer }
   };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -348,9 +348,8 @@ Slow logs stay empty until you set thresholds in the index settings, for example
       lang: 'typescript',
       code: `import { defineConfig, OpenSearchDomain } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const search = new OpenSearchDomain({
+  const search = new OpenSearchDomain({ // [!code focus]
     clusterConfig: {
       instanceType: 't3.medium.search',
       instanceCount: 1
@@ -358,6 +357,7 @@ export default defineConfig(() => {
     storage: {
       size: 20
     },
+    // [!code focus-start]
     logging: {
       errorLogs: {
         retentionDays: 90
@@ -370,12 +370,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { search }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -393,11 +393,10 @@ Dashboards in the browser. Skip it if only your code talks to the domain.
       lang: 'typescript',
       code: `import { defineConfig, OpenSearchDomain, UserAuthPool } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const authPool = new UserAuthPool({});
 
-  const search = new OpenSearchDomain({
+  const search = new OpenSearchDomain({ // [!code focus]
     clusterConfig: {
       instanceType: 't3.medium.search',
       instanceCount: 1
@@ -405,14 +404,15 @@ export default defineConfig(() => {
     storage: {
       size: 20
     },
+    // [!code focus-start]
     userPool: 'authPool'
   });
+  // [!code focus-end]
 
   return {
     resources: { authPool, search }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -434,3 +434,9 @@ For OpenSearch settings Stacktape doesn't expose, use [overrides](/configuration
 ## Referenceable parameters
 
 <ReferenceableParams resource="open-search-domain" />
+
+## Next steps
+
+- [Local databases](/local-development/local-databases): run OpenSearch on your machine in dev mode.
+- [`stacktape query opensearch`](/cli/query-opensearch): search the domain from your terminal.
+- [Bastion host](/resources/security/bastion-host): reach a domain inside the VPC from your machine.

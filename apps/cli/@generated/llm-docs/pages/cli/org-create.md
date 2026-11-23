@@ -1,6 +1,6 @@
 # org create
 
-The `org create` command creates a new organization in your Stacktape account and returns a new API key scoped to it. Organizations are the account boundary Stacktape uses for projects, connected AWS accounts, and user access. Use `org create` when you need a separate organization and API key for a team or workspace.
+`stacktape org create` creates a new organization in your Stacktape account and returns a new API key scoped to it. Organizations are the account boundary Stacktape uses for projects, connected AWS accounts, and user access. Use `org create` when you need a separate organization and API key for a team or workspace.
 
 ## Usage
 
