@@ -22007,14 +22007,14 @@ Compute resources run your code. Always-on resources bill by the hour even with 
 
 | Resource | AWS service | How it runs | When idle |
 |---|---|---|---|
-| [Web service](/resources/compute/web-service) | ECS on Fargate or EC2 | Always on, in containers, with a public HTTPS URL | Bills by the hour |
+| [Web service](/resources/compute/web-service) | ECS on Fargate or EC2 | Always on, in containers, with a public HTTPS URL | Bills hourly |
 | [Lambda function](/resources/compute/lambda-function) | Lambda | Per event from a [trigger](/resources/triggers/overview), for up to 15 minutes | Scales to zero |
-| [Private service](/resources/compute/private-service) | ECS on Fargate or EC2 | Always on, in containers that only the stack can call | Bills by the hour |
-| [Worker service](/resources/compute/worker-service) | ECS on Fargate or EC2 | Always on, with no URL: it polls queues or runs loops | Bills by the hour |
+| [Private service](/resources/compute/private-service) | ECS on Fargate or EC2 | Always on, in containers that only the stack can call | Bills hourly |
+| [Worker service](/resources/compute/worker-service) | ECS on Fargate or EC2 | Always on, with no URL: it polls queues or runs loops | Bills hourly |
 | [Batch job](/resources/compute/batch-job) | AWS Batch | From a trigger until the job finishes, with CPUs, memory or GPUs | Scales to zero |
-| [Multi-container workload](/resources/compute/multi-container-workload) | ECS on Fargate or EC2 | Always on, several containers in one task | Bills by the hour |
+| [Multi-container workload](/resources/compute/multi-container-workload) | ECS on Fargate or EC2 | Always on, several containers in one task | Bills hourly |
 | [Edge function](/resources/compute/edge-function) | Lambda@Edge | Per CloudFront request or response | Scales to zero |
-| [Convex](/resources/compute/convex) | ECS, RDS, S3 and a load balancer | Always on, as a self-hosted Convex backend | Bills by the hour |
+| [Convex](/resources/compute/convex) | ECS, RDS, S3 and a load balancer | Always on, as a self-hosted Convex backend | Bills hourly |
 
 Containers are packaged with [container packaging](/packaging/overview#container-packaging) and Lambda functions with [function packaging](/packaging/overview#function-packaging).
 
