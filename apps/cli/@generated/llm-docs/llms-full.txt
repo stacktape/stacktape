@@ -136,10 +136,10 @@ The open-source CLI deploys with the AWS credentials the job has. Set them befor
 
 ### With the Console
 
-Create an organization key in the Stacktape Console under [API keys](/stacktape-console/api-keys#creating-an-api-key) and store it as a secret in your CI provider. Use an organization key, not a personal one. A personal key acts as the person who created it and stops working when they leave the organization. Owners and Admins create organization keys with **New organization key**, with the Developer role limited to the projects and AWS accounts the pipeline deploys. You can authenticate the CLI in two ways:
+Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. You can authenticate the CLI in two ways:
 
 - **Explicit login step** — run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying. The login command verifies the key and saves it for subsequent CLI commands.
-- **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The CI examples on this page use this approach for brevity.
+- **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The examples that use the Console set this variable.
 
 If the pipeline also sets AWS credentials, for example with `aws-actions/configure-aws-credentials`, Stacktape deploys to the connected account they belong to. Pass `--aws-account <name>` to choose the account explicitly; the AWS credentials must then belong to it. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
 
@@ -151,7 +151,7 @@ If the pipeline also sets AWS credentials, for example with `aws-actions/configu
 | CircleCI | Project Settings → Environment Variables |
 
 
-> **Tip:** Create a separate organization key for each pipeline. You can then rotate or revoke it without breaking the others.
+> **Tip:** For team CI/CD, create a dedicated organization API key. You can rotate it independently of developers’ keys.
 
 
 ## Essential CLI flags for CI
@@ -258,160 +258,103 @@ The `needs: test` dependency ensures the deploy only runs when tests pass.
 
 ### PR preview environments
 
-Two workflows deploy a stage for every pull request and delete it when the pull request closes. They need no
-Stacktape account: both get AWS credentials from an IAM role through GitHub's OIDC provider. Each PR stage creates
-real AWS resources for whatever your Stacktape config defines, so make sure the delete works.
+Deploy a separate stack for each pull request from a branch in your repository and tear it down on close. Both jobs skip pull requests from forks. Each PR stage creates real AWS resources for whatever your Stacktape config defines — delete preview stages promptly to avoid accumulating unused infrastructure.
 
-The deploy workflow, for example `.github/workflows/pr-preview.yml`:
+The jobs use GitHub OIDC for AWS credentials. Set the repository variable `AWS_PREVIEW_ROLE_ARN` to an IAM role that trusts your repository’s [pull-request OIDC subject](https://docs.github.com/en/actions/reference/security/oidc#filtering-for-pull_request-events) for the deploy job and the subject of the `preview-cleanup` [environment](https://docs.github.com/en/actions/reference/security/oidc#filtering-for-a-specific-environment) for the cleanup job, and can deploy and delete preview stacks. Replace `my-project` with your project name in both jobs. Both workflows use the same [concurrency group](https://docs.github.com/en/actions/concepts/workflows-and-actions/concurrency) per pull request. Each job checks the current PR state so a delayed run can skip a stale open or close event.
 
 ```yaml
 name: PR Preview
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-
-permissions:
-  id-token: write
-  contents: read
-  pull-requests: read
-
-# One group per pull request runs its deploys one at a time.
 concurrency:
-  group: preview-${{ github.event.pull_request.number }}
-
+  group: pr-preview-${{ github.event.pull_request.number }}
+  queue: max
 jobs:
   deploy-preview:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          role-to-assume: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
           aws-region: us-east-1
       - name: Deploy PR preview
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # A run that waited in the queue must not recreate the preview of a closed pull request.
-          state=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq .state)
-          if [ "$state" != open ]; then exit 0; fi
-          npx stacktape deploy --project my-app --stage "pr-$PR_NUMBER" --region us-east-1 --yes
+          head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq 'select(.state == "open") | .head.sha')
+          checkout=$(git rev-parse HEAD)
+          if [ "$head" = "$checkout" ]; then
+            npx stacktape deploy --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
+          fi
 ```
 
-The delete workflow, for example `.github/workflows/pr-preview-delete.yml`:
+Add a cleanup workflow that runs when the PR is closed. Both jobs check out the PR's head commit so cleanup can load delete hooks defined on that branch.
+
+The cleanup workflow uses `pull_request_target`, because GitHub doesn't run `pull_request` workflows for a pull request with merge conflicts, and that includes its close. GitHub runs the copy of this workflow on your default branch. The job names the `preview-cleanup` environment because a `pull_request_target` job otherwise gets the base branch's OIDC subject, not the pull request's. Keep the fork check: `pull_request_target` runs with your repository's permissions even for a pull request from a fork, and this job checks out the pull request's code. From December 2, 2026, GitHub blocks `pull_request_target` in public repositories unless an [Actions event policy](https://docs.github.com/actions/how-tos/administer/control-workflow-execution) allows it. Allow it for this workflow.
 
 ```yaml
-name: PR Preview Delete
+name: Cleanup PR Preview
 on:
   pull_request_target:
     types: [closed]
-
-permissions:
-  id-token: write
-  contents: read
-  actions: read
-
 concurrency:
-  group: preview-delete-${{ github.event.pull_request.number }}
-
+  group: pr-preview-${{ github.event.pull_request.number }}
+  queue: max
 jobs:
   delete-preview:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: preview-cleanup
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: read
     steps:
-      # Checks out the default branch. Never check out the pull request's code in this workflow.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Wait for a preview deploy that is still running
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          for id in $(gh run list --repo "${{ github.repository }}" --workflow "PR Preview" --branch "$HEAD_REF" \
-              --status in_progress --json databaseId --jq '.[].databaseId'); do
-            gh run watch "$id" --repo "${{ github.repository }}" > /dev/null
-          done
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          role-to-assume: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
           aws-region: us-east-1
       - name: Delete PR preview
-        run: npx stacktape delete --project my-app --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
+          if [ "$state" = closed ]; then
+            status=0
+            output=$(npx stacktape delete --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes --json) || status=$?
+            printf '%s\n' "$output"
+            if [ "$status" -ne 0 ]; then
+              jq -es 'last | .type == "result" and .ok == false and (.code | IN("NON_EXISTING_STACK_E30", "NON_EXISTING_STACK_E32"))' <<< "$output" >/dev/null || exit "$status"
+            fi
+          fi
 ```
-
-Both commands name the project and the stage, so the stack name never depends on the runner or on the checkout. The
-delete always runs with the default branch's code, and its config may differ from the one the preview was deployed with.
-
-The delete is a separate workflow because GitHub doesn't run `pull_request` workflows for a pull request with merge
-conflicts, and that includes the close. `pull_request_target` runs anyway, with the workflow file and code of your
-default branch. Checking out the pull request's code there would let it run with the delete's AWS credentials. In a
-public repository, GitHub blocks `pull_request_target` by default from December 2, 2026: allow it for this workflow in
-an Actions policy under **Settings → Actions → Policies**.
-
-The two workflows also use separate concurrency groups. In a shared group, a deploy that GitHub queues after the close
-replaces the pending delete. Instead, the delete waits for a deploy that is still running, and a deploy that starts
-after the close finds the pull request closed and stops. Stacktape also makes a delete wait while a deploy of the same
-stage holds the stack.
-
-The role's trust policy must accept the deploy job's pull request subject and the delete job's environment subject.
-GitHub sends one of two subject formats: repositories created after July 15, 2026 (and older ones that opted in)
-include the owner and repository IDs. Trusting all four exact values works either way:
-
-```json
-"Condition": {
-  "StringEquals": {
-    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-    "token.actions.githubusercontent.com:sub": [
-      "repo:my-org/my-app:pull_request",
-      "repo:my-org@123456/my-app@456789:pull_request",
-      "repo:my-org/my-app:environment:preview-cleanup",
-      "repo:my-org@123456/my-app@456789:environment:preview-cleanup"
-    ]
-  }
-}
-```
-
-`gh api repos/my-org/my-app --jq '.owner.id, .id'` prints the two IDs. The delete job names an environment because
-GitHub then puts the environment in the subject, whatever event started the job. A role that trusts only
-`...:ref:refs/heads/main` refuses both jobs. Keep previews in an AWS account without production.
-
-With the Console, drop the `configure-aws-credentials` steps and set `STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}`
-in the `env` of both Stacktape steps, as in the deploy workflow above.
-
-The `if` conditions skip pull requests from forks. In the deploy workflow, a fork can edit its copy of the workflow,
-and the trust policy can't tell a fork's run from yours. What keeps forks out there is that GitHub gives fork pull
-request runs read-only permissions, so they can't request the OIDC token. Keep **Send write tokens to workflows from
-pull requests** turned off in the repository's **Settings → Actions → General**. The delete workflow is different:
-`pull_request_target` runs your default branch's copy, with the permissions it asks for, even for a fork's pull
-request, so its `if` condition is what keeps forks out. Don't remove it.
-
-A database that `stacktape init` added has `deletionProtection: true` on every stage. `stacktape delete` then stops
-before it deletes anything, the delete job fails, and the preview keeps running and costing money. Protect only
-production. In `stacktape.ts`, use the `stage` that `defineConfig` passes to your config:
-
-```ts
-export default defineConfig(({ stage }) => {
-  const database = new RelationalDatabase({
-    // ...the rest of the database
-    deletionProtection: stage === 'production'
-  });
-  // ...
-});
-```
-
-A preview deployed before this change keeps its protection until it is deployed again. After your first preview,
-close the pull request and check that the stage is gone, for example with `stacktape stack list --region us-east-1`.
 
 
 > **Warning:** Delete preview stages on PR close to avoid unused infrastructure and costs. Each preview stage provisions the full set of resources defined in your config — databases, functions, containers, and networking — all of which incur AWS charges while running.
+
+If cleanup doesn't run or fails, use the preview's AWS credentials and run `stacktape delete --project my-project --stage pr-<n> --region us-east-1 --yes` with the PR number in place of `<n>`.
+
+If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
 
 For more on the branch-to-stage mapping pattern, see [stacks per git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
@@ -592,7 +535,7 @@ The first deploy of a new stage is the exception: until the stage exists, it has
 
 ### How do I authenticate Stacktape in a CI pipeline?
 
-Without a Stacktape account, give the job AWS credentials; nothing else is needed. With the Console, run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create the key in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use an organization key rather than a personal key, so the pipeline keeps working when the person who set it up leaves.
+Without a Stacktape account, give the job AWS credentials; nothing else is needed. With the Console, run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated organization key for team CI so you can rotate it independently of developers’ keys.
 
 ### When should I use custom CI/CD vs GitOps?
 
@@ -728,7 +671,7 @@ creates a **Push to branch** Git deployment for that stage.
 | **Deploy to AWS account** | The connected AWS account. |
 | **Deploy to region** | The AWS region. |
 | **Config path** | The Stacktape config file in the repository. |
-| **Delete the preview when the pull request closes** | Shown only for **Pull request opened**. Deletes the preview stage when the pull request closes. The delete stops if the stage has a database with deletion protection, which `stacktape init` turns on; see [Runner cost](#runner-cost). |
+| **Delete the preview when the pull request closes** | Shown only for **Pull request opened**. Starts deleting the preview stack when the pull request closes. |
 
 5. Click **Create Git deployment**.
 
@@ -743,7 +686,9 @@ keep running. To remove a stage, delete it in the Console or run [`stacktape del
 | Push to a branch with a **Push to branch** rule | Deploys the rule's stage with the pushed commit. Creates the stage if it does not exist. |
 | Pull request opened (or reopened) into a branch with a **Pull request opened** rule | Deploys the preview stage `pr-<number>`. |
 | New commits pushed to that pull request | Redeploys `pr-<number>` with the latest commit. |
-| Pull request merged or closed | Deletes `pr-<number>` if the rule deletes previews. Otherwise the stage keeps running. |
+| Pull request merged or closed | Starts deleting `pr-<number>` if the rule deletes previews. Otherwise the stage keeps running. |
+
+If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
 These events do not deploy anything:
 
@@ -798,21 +743,6 @@ stays.
 Pull request previews also cost whatever their AWS resources cost, until the preview stage is deleted. Turn on
 **Delete the preview when the pull request closes** unless you need previews after merge, for example for
 post-merge QA.
-
-A database that `stacktape init` added has `deletionProtection: true` on every stage. The delete stops at it before it
-removes anything, so the preview keeps running and costing money. Protect only production. In `stacktape.ts`:
-
-```ts
-export default defineConfig(({ stage }) => {
-  const database = new RelationalDatabase({
-    // ...the rest of the database
-    deletionProtection: stage === 'production'
-  });
-  // ...
-});
-```
-
-Then close one test pull request and check that its stage is gone.
 
 ## Provider permissions for security fix pull requests
 
@@ -1405,7 +1335,7 @@ Create a Git deployment with the **Pull request opened** trigger and choose the 
 
 1. **Pull request opened** — Stacktape deploys the stage `pr-<number>`, for example `pr-42`, and comments on the pull request. The comment is updated with the result.
 2. **New commits pushed to the pull request** — Stacktape redeploys `pr-<number>` with the latest commit.
-3. **Pull request merged or closed** — if the Git deployment has **Delete the preview when the pull request closes** turned on, Stacktape deletes the preview stage and comments on the pull request. Otherwise the stage keeps running.
+3. **Pull request merged or closed** — if the Git deployment has **Delete the preview when the pull request closes** turned on, Stacktape starts deleting the preview stack and comments on the pull request. Otherwise the stage keeps running.
 
 Pull requests from forks never get a preview, so code from outside the repository does not run with your project's credentials.
 
@@ -1443,19 +1373,7 @@ For GitHub Actions, you can run this workflow on GitHub-hosted compute or enable
 
 Turn on **Delete the preview when the pull request closes** in the Git deployment, or add a delete step to your custom CI pipeline, so preview stages don't keep running databases, load balancers or containers after the pull request closes.
 
-A database that `stacktape init` added has `deletionProtection: true` on every stage. The delete then stops before it removes anything, and the preview keeps running and costing money. Protect only production. In `stacktape.ts`:
-
-```ts
-export default defineConfig(({ stage }) => {
-  const database = new RelationalDatabase({
-    // ...the rest of the database
-    deletionProtection: stage === 'production'
-  });
-  // ...
-});
-```
-
-After your first preview, close the pull request and check that the stage is gone, for example with [`stacktape stack list`](/cli/info-stacks).
+When init analyzes an existing repository, it enables deletion protection on the RDS databases it adds, including in preview stages. A protected database blocks cleanup, and AWS charges continue. Set `deletionProtection: false` for that database in the preview stage. If the preview is already deployed, deploy that change before deleting it. If the stack is in `DELETE_FAILED`, turn off protection on the database in AWS and retry [`stacktape delete`](/cli/delete).
 
 Keep previews after merge only when you have a specific reason, such as:
 
@@ -1463,7 +1381,7 @@ Keep previews after merge only when you have a specific reason, such as:
 - Debugging a deployment issue after the PR was merged
 - Compliance workflows that require a frozen snapshot
 
-You can always remove a preview stage manually with [`stacktape delete`](/cli/delete), whatever the Git deployment's setting.
+You can also remove a preview stage manually with [`stacktape delete`](/cli/delete), whatever the Git deployment's setting.
 
 ### CI variables for custom pipelines
 
@@ -3492,15 +3410,15 @@ stacktape diff --stage production --region us-east-1
 
 ## Free plan cost limit
 
-A Free organization cannot deploy once its managed AWS costs for the current calendar month (UTC) are above $100. The
-deploy stops before it touches AWS with a `Free Plan Limit Reached` error that shows this month's costs, the limit and
-the link to upgrade:
+Deploys pause when a Free organization’s managed AWS costs for the current calendar month (UTC) are above $200
+and its grace period no longer applies. The one-time grace lasts up to seven days and applies only in the UTC month it starts. The CLI stops before changing your stack and prints a
+`Free Plan Limit Reached` error with this month’s costs, the limit and the link to upgrade.
 
 ```text
 [x] Free Plan Limit Reached
 
 Deploys are paused. This organization is on the Free plan, and the AWS costs Stacktape manages for it are
-$142.17 in October 2026 (UTC), above the plan's limit of $100 a month.
+$242.17 in October 2026 (UTC), above the plan's limit of $200 a month.
 ```
 
 Upgrading to the Flexible plan lifts the limit immediately; otherwise deploys resume when the next month starts.
@@ -3517,7 +3435,7 @@ Stacktape does not currently check CloudFormation resource drift before deployin
 
 | Command | Description |
 |---|---|
-| [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
+| [`diff`](/cli/diff) | Previews a deploy without updating the live stack. It can write to AWS. |
 | [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
 | [`stack recover`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
 
@@ -3946,16 +3864,14 @@ Stop a running agent with [`dev stop`](/cli/dev-stop).
 
 ## Interactive commands
 
-While running in interactive mode, you can control dev mode with the following keys:
+Use these shortcuts in the interactive dev dashboard.
 
 | Key | Action |
 |---------|--------|
-| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
-| **Ctrl+A** | Rebuild all workloads |
-| **Tab** | Switch between the overview and the logs |
-| **Ctrl+C** | Stop dev mode and exit |
-
-The rebuild keys work in the overview, not in the logs view.
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode and exit |
 
 ## Examples
 
@@ -4012,7 +3928,7 @@ Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server fo
 Dev mode deploys and updates a dev stack in your AWS account, so it follows the same
 [Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) as
 [`stacktape deploy`](/cli/deploy#free-plan-cost-limit). When a Free organization's managed AWS costs this month are
-above $100, dev mode stops before it creates or deploys anything and prints the costs and the upgrade link. Upgrading
+above $200 and the grace period no longer applies, dev mode stops before it creates or deploys anything and prints the costs and the upgrade link. Upgrading
 to the Flexible plan lifts the limit immediately. Running infrastructure is not affected, and
 [`dev stop`](/cli/dev-stop) and [`delete`](/cli/delete) keep working.
 
@@ -4030,7 +3946,7 @@ to the Flexible plan lifts the limit immediately. Running infrastructure is not 
 Source: `apps/docs/content/cli/diff.mdx`
 Route: `/cli/diff`
 
-The `diff` command shows what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with your current configuration. It packages workloads, uploads the synthesized CloudFormation template, and creates a change set against the live stack to print a summary of new, updated, replaced, and removed resources. The change set is never executed, so your running resources stay as they are. The command is not read-only, though: [How it works](#how-it-works) lists what it writes to AWS.
+The `diff` command shows what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with your current configuration. It packages workloads, uploads the synthesized CloudFormation template, and creates a change set against the live stack to print a summary of new, updated, replaced, and removed resources. The change set is not executed. The command can create missing secrets and SSM parameters or restore secrets scheduled for deletion.
 
 ## Usage
 
@@ -4062,14 +3978,6 @@ For resources that will be replaced, the output distinguishes between **will rep
 
 > **Warning:** Replaced resources are destroyed and recreated. For databases or stateful resources, replacement can cause data loss. Always review `diff` output before deploying changes that touch database engines, instance classes, or storage configuration.
 
-
-`diff` leaves your running resources alone, but to build the preview it does what a deploy does up to the point of applying it:
-
-- **Secrets and SSM parameters.** It restores secrets referenced by the config that are scheduled for deletion. In a terminal, it asks for the values of missing secrets and parameters and creates them. With `--agent` or without a terminal, a missing secret or parameter stops the command instead. Missing database passwords are generated and stored as new secrets, after a confirmation in a terminal.
-- **The template.** It uploads the template to the stage's deployment bucket and deletes it after the preview.
-- **The change set.** It creates a CloudFormation change set on the stack to read the changes, then deletes it.
-
-That's why coding agents need your approval before they run `diff` through the [MCP server](/using-with-ai/mcp-server-setup#safety-model), the same as for a deploy. [`synth`](/cli/synth) builds the template without changing anything in AWS.
 
 ## Important flags
 
@@ -4178,7 +4086,7 @@ Meaningful Stacktape resource changes
 
 ### Does diff make any changes to my stack?
 
-It doesn't update your stack's resources: the change set it creates is never executed and is deleted after the preview. It can still write to AWS. It creates missing secrets and SSM parameters, restores secrets scheduled for deletion, and uploads a temporary template to the deployment bucket. See [How it works](#how-it-works).
+The change set is not executed and no stack updates are applied. `diff` can create missing secrets and SSM parameters or restore secrets scheduled for deletion.
 
 ### What does "no meaningful Stacktape resource changes" mean?
 
@@ -5441,7 +5349,7 @@ Initialize from a ready-made project instead of reading yours. These skip the wi
 with their estimated price, and prints the commands that run it in dev mode and deploy it.
 
 ```bash
-stacktape init --starter-id hono-api
+stacktape init --starter-id expressjs-api-postgres
 ```
 
 ### `--initialize-project-to`
@@ -5607,7 +5515,7 @@ For CI/CD, prefer setting `STACKTAPE_API_KEY` as a masked secret in the runner e
 stacktape login --api-key "$STACKTAPE_API_KEY" --agent
 ```
 
-For CI, Owners and Admins create an [organization key](/stacktape-console/api-keys#creating-an-api-key) on the Stacktape Console's API keys page, so the pipeline keeps working when people leave. Manual API keys are bearer secrets and should be treated as shown-once credentials.
+You can create CI keys from the [Stacktape Console's API keys page](/stacktape-console/api-keys). Manual API keys are bearer secrets and should be treated as shown-once credentials.
 
 ## What happens during login
 
@@ -8457,11 +8365,11 @@ stacktape synth --stage dev --region eu-west-1 --keep-temp-files --out ./debug-t
 
 ## synth vs validate vs diff
 
-| Command | What it does | Writes a file? | Writes to AWS? | Requires deployed stack? |
+| Command | What it does | Writes a file? | Modifies stack? | Requires deployed stack? |
 |---------|-------------|---------------|----------------|------------------------|
 | [`synth`](/cli/synth) | Compiles config into a CloudFormation template | Yes (`compiled-template.yaml`) | No | No |
-| [`validate`](/cli/validate) | Validates the Stacktape project without writing deployment artifacts | No | Only with `--thorough`, for a template over 51,200 bytes: a temporary template object | No |
-| [`diff`](/cli/diff) | Shows what would change if you deployed | No | Missing secrets and parameters, a temporary template and a change set it never executes | Yes |
+| [`validate`](/cli/validate) | Validates the Stacktape project without writing deployment artifacts | No | No | No |
+| [`diff`](/cli/diff) | Shows what would change if you deployed. Can write secrets, parameters and temporary preview artifacts | No | No | Yes |
 
 Use `synth` when you need the template file on disk for inspection or downstream tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing artifacts. Use [`diff`](/cli/diff) when you want to compare your current config against what is already deployed.
 
@@ -8585,7 +8493,7 @@ The `stacktape validate` command loads your Stacktape configuration, resolves re
 
 ## Usage
 
-The `validate` command requires a stage and region. It checks your configuration file, resolves all resource definitions, and synthesizes the CloudFormation template in memory. It doesn't load your organization's [guardrails](/guardrails/overview), so it doesn't check them; [`deploy`](/cli/deploy) and [`diff`](/cli/diff) do.
+The `validate` command requires a stage and region. It checks your configuration file, resolves all resource definitions, and synthesizes the CloudFormation template in memory. `deploy` and `diff` check the organization’s [guardrails](/guardrails/overview). `validate` skips them.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1
@@ -8599,7 +8507,7 @@ The `validate` command supports three levels of thoroughness, each building on t
 
 ### Default — config, resources, and template
 
-Stacktape loads the configuration, resolves all resources, and synthesizes the CloudFormation template in memory. This is the fastest option and catches most configuration-level mistakes — broken resource references, invalid property values, and missing secrets.
+Stacktape loads the configuration, resolves all resources, and synthesizes the CloudFormation template in memory. This is the fastest option and catches most configuration-level mistakes — broken resource references and invalid property values.
 
 ```bash
 stacktape validate --stage dev --region eu-west-1
@@ -9147,7 +9055,7 @@ Stacktape auto-detects a configuration file named `stacktape.ts`, `stacktape.yml
 When the directory holds more than one of these files, for example a `stacktape.yml` left next to its `stacktape.ts` rewrite, a command that loads the config stops with `CONFIG_FILE_AMBIGUOUS` instead of guessing. Pass the one to use with `--config`, or delete or rename the file you no longer use. Each file can name another project, stage or region, so Stacktape does not pick one by precedence.
 
 ```bash
-stacktape deploy --stage production --config ./infrastructure/stacktape.ts
+stacktape deploy --stage production --region eu-west-1 --config ./infrastructure/stacktape.ts
 ```
 
 ## Directives in configuration
@@ -10729,7 +10637,7 @@ A bastion script runs on the bastion host inside your VPC. If your command needs
 Run any defined script with [`stacktape script run`](/cli/script-run):
 
 ```bash
-stacktape script run seedBucket
+stacktape script run seedBucket --stage dev
 ```
 
 See the [`script run` CLI reference](/cli/script-run) for the complete command options.
@@ -12354,9 +12262,7 @@ export default defineConfig(() => {
       cpu: 0.25,
       memory: 512
     },
-    environment: {
-      DISCORD_BOT_TOKEN: $Secret('discord-bot-token')
-    }
+    secrets: [{ name: 'DISCORD_BOT_TOKEN', valueFrom: $Secret('discord-bot-token') }]
   });
 
   return {
@@ -12556,20 +12462,18 @@ pick up the new secret version — `$Secret()` pins to the version from the last
 Source: `apps/docs/content/configuration/stages-and-environments.mdx`
 Route: `/configuration/stages-and-environments`
 
-A Stacktape stage is a named deployment of your project — such as `dev`, `staging`, or `production`. Each stage is a
-separate CloudFormation stack with its own application resources: databases, functions, queues and buckets.
-Non-production stages in the same AWS account and region usually share one VPC; see
-[Shared network for non-production stages](/configuration/connecting-resources#shared-network-for-non-production-stages).
-One codebase, multiple stages: develop against cheap resources, test against a staging replica, and deploy production
-with full redundancy — all from the same configuration file.
+A Stacktape stage is a named deployment of your project — such as `dev`, `staging`, or `production`. Each stage creates
+its own CloudFormation stack. One codebase, multiple stages: develop against
+cheap resources, test against a staging replica, and deploy production with full redundancy — all from the same
+configuration file.
 
 ## Why stages exist
 
 Most teams need at least two separate copies of their infrastructure: one for development and one for production.
 Without stages, you'd maintain parallel config files, duplicate resources manually, or rely on brittle naming
 conventions. Stages solve this by making the environment a first-class parameter of your configuration. You write one
-`stacktape.ts`, branch on the `stage` value where sizing, secrets, or features differ, and let Stacktape create a
-separate stack per stage.
+`stacktape.ts`, branch on the `stage` value where sizing, secrets, or features differ, and let Stacktape create fully
+independent stacks per stage.
 
 Because every stage produces its own CloudFormation stack with its own resources, a development deploy does not touch
 production databases, functions, or storage — each stage's resources are independently provisioned. Stages can fit CI/CD workflows; for example, a team might deploy `main` to `production` and feature branches to short-lived stages.
@@ -12968,7 +12872,7 @@ export default defineConfig(({ stage }) => {
 ```
 
 
-This keeps a single database instance serving multiple services within the same stage, reducing cost in development while still allowing full isolation between stages. See [directives](/configuration/directives) for more about cross-stack references.
+This keeps a single database instance serving multiple services within the same stage, reducing cost in development while keeping each stage’s database separate. See [directives](/configuration/directives) for more about cross-stack references.
 
 ## Setting defaults
 
@@ -12980,7 +12884,7 @@ stacktape defaults set
 
 Once configured, you can deploy without passing `--stage` and `--region`:
 
-```bash
+```bash cli-check=defaults:region,stage
 stacktape deploy
 ```
 
@@ -13050,10 +12954,7 @@ Yes. Since `defineConfig` returns a plain JavaScript object, you can conditional
 
 ### Are stages fully isolated from each other?
 
-Their application resources are separate — separate databases, separate Lambda functions, separate S3 buckets, and so on — and deploying or deleting one stage does not touch the others. Two things are shared:
-
-- **The network.** Non-production stages of an account and region usually run in one VPC, the [shared network](/configuration/connecting-resources#shared-network-for-non-production-stages). Each stage has its own security groups, so one stage cannot reach another stage's databases by private IP. Where a stage runs is decided on its first deploy and doesn't change later, even when the stage becomes production.
-- **The AWS account.** Anyone with deploy credentials for the account can reach every stage in it. To keep production away from people who deploy previews, deploy it to its own AWS account.
+Each stage creates its own CloudFormation stack with its own AWS resources — separate databases, separate Lambda functions, separate S3 buckets, and so on. Stacktape provisions each stage's resources independently and does not share data between stages unless you explicitly configure it (e.g., by referencing another stack's outputs via the [`$StackOutput` directive](/configuration/directives)). New non-production stages that need a VPC and support shared networking use the same VPC in each AWS account and region by default. AWS credentials with account-wide access can reach every stage in that account. Use a separate AWS account to isolate production access.
 
 ### What happens when I deploy to an existing stage?
 
@@ -13776,7 +13677,7 @@ Use `$File()` for structured, version-controlled configuration (JSON, YAML, `.en
 Source: `apps/docs/content/deployment-and-lifecycle/deploying-stacks.mdx`
 Route: `/deployment-and-lifecycle/deploying-stacks`
 
-The [`stacktape deploy`](/cli/deploy) command prepares your application artifacts, generates a CloudFormation template from your configuration, uploads artifacts, and asks CloudFormation to create or update the stack. Each stage of a project maps to one CloudFormation stack in your AWS account. A deployment that fails keeps what it already created; fix the error and deploy again, and it continues from where it stopped. See [When a deployment fails](#when-a-deployment-fails).
+The [`stacktape deploy`](/cli/deploy) command prepares your application artifacts, generates a CloudFormation template from your configuration, uploads artifacts, and asks CloudFormation to create or update the stack. Each stage of a project maps to one CloudFormation stack in your AWS account. By default, a failed deploy keeps the resources it created or updated. See [When a deployment fails](#when-a-deployment-fails) for recovery and rollback options.
 
 ## How deployment works
 
@@ -13820,13 +13721,13 @@ After the stack is stable, Stacktape completes several post-deployment tasks: sy
 
 ## Running a deployment
 
-Every Stacktape deployment targets a specific stage and AWS region. The stage name identifies a separate copy of your infrastructure — each stage maps to one CloudFormation stack — while the region determines where AWS provisions your resources. Both flags are required unless you have configured defaults with [`stacktape defaults set`](/cli/defaults-configure).
+Every Stacktape deployment targets a specific stage and AWS region. The stage name identifies an isolated copy of your infrastructure — each stage maps to one CloudFormation stack — while the region determines where AWS provisions your resources. Both flags are required unless you have configured defaults with [`stacktape defaults set`](/cli/defaults-configure).
 
 ```bash
 stacktape deploy --stage dev --region eu-west-1
 ```
 
-A **stage** is a separate copy of your infrastructure — typically one per environment (`dev`, `staging`, `production`) or per developer (`dev-john`). Stage names use lowercase letters, numbers and hyphens. See [Stages and environments](/configuration/stages-and-environments) for details. A **region** determines the AWS data center where your resources are created.
+A **stage** is an isolated copy of your infrastructure — typically one per environment (`dev`, `staging`, `production`) or per developer (`dev-john`). Stage names use lowercase letters, numbers and hyphens. See [Stages and environments](/configuration/stages-and-environments) for details. A **region** determines the AWS data center where your resources are created.
 
 Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory by default. Use `--config` to point to a different file.
 
@@ -13900,7 +13801,6 @@ By default, a failed full deployment keeps everything it created or updated, and
 
 - A failed **first deployment** leaves the stack in `CREATE_FAILED`. Resources that were created stay, for example a database that took several minutes. Fix the error and run `stacktape deploy` again: it updates the stack, creates only what is missing and retries what failed. To remove everything instead, run [`stacktape delete`](/cli/delete).
 - A failed **update** leaves the stack in `UPDATE_FAILED`. Resources that updated successfully keep their new configuration, and the ones that failed return to their previous state. Fix the error and deploy again, or return the whole stack to the last successful deployment with [`stacktape stack recover`](/cli/cf-rollback).
-- When the deployment **succeeded but the app is broken**, the stack is in `UPDATE_COMPLETE` and nothing rolls back on its own. Return to an earlier release with [`stacktape rollback`](/cli/rollback), or deploy a fix.
 
 The CLI prints which state the stack is in and these options when a deployment fails. A deployment over a failed stack always goes through CloudFormation, even when only code changed. When it succeeds, Stacktape removes the deployment artifacts that the failed attempts left behind.
 
@@ -14032,7 +13932,7 @@ Run with `--debug` to see detailed timing for each phase.
 If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
 
 ```bash
-stacktape secret set --name mySecret --stage production --region eu-west-1
+stacktape secret set mySecret --region eu-west-1
 ```
 
 ## FAQ
@@ -14047,7 +13947,7 @@ By default, the stack keeps what the deployment created or updated and stays in 
 
 ### Can I deploy multiple stages from the same config?
 
-Yes. The same `stacktape.ts` config produces independent stacks per stage. Deploy with `--stage dev` and `--stage production` from the same config, and they create separate application resources. Non-production stages of an account and region usually share one VPC; see [Stages and environments](/configuration/stages-and-environments#are-stages-fully-isolated-from-each-other). Use [directives](/configuration/directives) like `$Stage()` inside your config to vary behavior per stage — for example, smaller instances in dev and larger ones in production.
+Yes. The same `stacktape.ts` config produces independent stacks per stage. Deploy with `--stage dev` and `--stage production` from the same config, and they create separate AWS resources with no shared state. Use [directives](/configuration/directives) like `$Stage()` inside your config to vary behavior per stage — for example, smaller instances in dev and larger ones in production.
 
 ### Do I have to choose between a fast and a full deployment?
 
@@ -14375,7 +14275,7 @@ See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the 
 Run any named script with the [`stacktape script run`](/cli/script-run) command:
 
 ```bash
-stacktape script run migrate
+stacktape script run migrate --stage staging
 ```
 
 ## Deployment scripts
@@ -14539,7 +14439,7 @@ export const handler = async (event: { bucketName: string }) => {
 Use [`stacktape deployment-script run`](/cli/deployment-script-run) to execute a deployment script outside of the normal deploy lifecycle. This is useful during development or when a migration needs to be re-applied. See the [CLI reference](/cli/deployment-script-run) for the available flags.
 
 ```bash
-stacktape deployment-script run migrate
+stacktape deployment-script run migrate --stage staging --region eu-west-1
 ```
 
 ### Memory, timeout, and storage
@@ -14654,10 +14554,10 @@ The script inherits the `api` function's IAM role, which has DynamoDB access thr
 
 ## Debugging
 
-View logs from deployment scripts using [`stacktape logs`](/cli/logs):
+View logs from the Lambda function behind the `migrate` deployment script using [`stacktape logs`](/cli/logs):
 
 ```bash
-stacktape logs migrate
+stacktape logs migrateScriptFunction --stage staging --region eu-west-1
 ```
 
 Local script and bastion script output is visible in your terminal when running the script. See [hooks and scripts configuration](/configuration/hooks-and-scripts) for any output-handling options exposed by each script type.
@@ -14870,7 +14770,7 @@ Deleting removes the entire stack and its resources. [Rolling back](/deployment-
 Source: `apps/docs/content/deployment-and-lifecycle/gradual-deployments.mdx`
 Route: `/deployment-and-lifecycle/gradual-deployments`
 
-Gradual deployments shift traffic from the old version of your code to the new version incrementally — canary or linear — instead of switching all at once. Stacktape supports gradual deployments for [Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), and [multi-container workloads](/resources/compute/multi-container-workload) that use an [application load balancer](/resources/networking/application-load-balancer). Container workloads use the `deployment` property with an application load balancer for gradual traffic shifting. Shifting traffic alone does not catch a version that returns errors. A rollout stops when a test function you write reports a failure, when a CloudWatch alarm you list fires, when new containers fail their load balancer health checks, or when the deployment fails or is stopped. See [Rollback behavior](#rollback-behavior).
+Gradual deployments shift traffic from the old version of your code to the new version incrementally — canary or linear — instead of switching all at once. Stacktape supports gradual deployments for [Lambda functions](/resources/compute/lambda-function), [web services](/resources/compute/web-service), and [multi-container workloads](/resources/compute/multi-container-workload) that use an [application load balancer](/resources/networking/application-load-balancer). For Lambda functions, CodeDeploy can restore the previous version when the deployment fails, a configured rollback alarm fires, or the deployment is stopped. Container workloads use the `deployment` property with an application load balancer for gradual traffic shifting.
 
 ## When to use
 
@@ -14891,7 +14791,7 @@ Gradual deployments add deploy-time complexity and extend total deployment durat
 
 ## Lambda function strategies
 
-Lambda functions support nine deployment strategies through the `deployment` property on [LambdaFunction](/resources/compute/lambda-function). Underneath, AWS CodeDeploy manages the traffic shift between versions. If a lifecycle hook reports a failure, or the deployment fails or is stopped, traffic goes back to the previous version.
+Lambda functions support nine deployment strategies through the `deployment` property on [LambdaFunction](/resources/compute/lambda-function). Underneath, AWS CodeDeploy manages the traffic shift between versions. CodeDeploy rolls back if the deployment fails, including when a validation hook reports failure.
 
 ### Strategy reference
 
@@ -14937,7 +14837,7 @@ export default defineConfig(() => {
 ```
 
 
-The `memory` value (in MB) sets Lambda memory and proportional CPU allocation, while `timeout` (in seconds) caps execution time — tune both for your handler. The gradual deployment behavior depends only on the `deployment.strategy` block. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes, the remaining 90% shifts over, even if the new version returns errors. Use a `beforeAllowTrafficFunction` hook to run a validation step that can stop the deployment and trigger rollback before traffic shifts. To roll back on errors seen by real traffic, create a CloudWatch alarm on the function's error rate and list its ARN in `deploymentConfig.triggerRollbackOnAlarms`.
+The `memory` value (in MB) sets Lambda memory and proportional CPU allocation, while `timeout` (in seconds) caps execution time — tune both for your handler. The gradual deployment behavior depends only on the `deployment.strategy` block. With `Canary10Percent5Minutes`, 10% of invocations go to the new version immediately. After 5 minutes, the remaining 90% shifts over if CodeDeploy has not stopped the deployment. Application errors alone do not stop the rollout. Use a `beforeAllowTrafficFunction` hook to run a validation step that can stop the deployment and trigger rollback before traffic shifts. To make errors trigger a CodeDeploy rollback, customize the deployment group to attach a CloudWatch alarm.
 
 ### Lambda lifecycle hooks
 
@@ -15110,16 +15010,9 @@ Gradual deployments extend total deployment time. The minimum overhead equals th
 
 ## Rollback behavior
 
-A rollout goes back to the old version, or never shifts traffic to the new one, in these cases:
+For Lambda functions, CodeDeploy restores the alias weights to point 100% of traffic to the previous version on deployment failure, a configured rollback alarm or a stop request. The `beforeAllowTrafficFunction` hook can also trigger a rollback by signaling failure — the deployment stops before any user traffic reaches the new code.
 
-- **The `beforeAllowTrafficFunction` reports `Failed`**, or does not report within an hour. No production traffic has reached the new version yet.
-- **The `afterTrafficShiftFunction` reports `Failed`.** By then all traffic is on the new version; CodeDeploy points it back to the old version.
-- **A CloudWatch alarm listed in `deploymentConfig.triggerRollbackOnAlarms` fires** while CloudFormation updates the stack, which includes the shift. CloudFormation then rolls the whole stack back. This is how you roll back on errors seen by real traffic: create an alarm on the function's or the load balancer's error rate and list its ARN. See [Automatic rollback](/deployment-and-lifecycle/deploying-stacks#automatic-rollback).
-- **The deployment fails or is stopped.** For Lambda functions, CodeDeploy rolls back when the deployment fails for any reason and when you stop it, for example in the CodeDeploy console. For web services and multi-container workloads, the deployment fails before any traffic shifts if the new containers don't pass the load balancer health checks, and the old version keeps all traffic.
-
-An application error that passes the health checks and that no hook or alarm sees doesn't stop a rollout: the new version still gets all the traffic when the strategy ends. A hook rollback works at the traffic-routing layer: Lambda alias weights or ALB target group routing point all traffic back to the previous version without a full redeploy.
-
-Container workloads configure the same `beforeAllowTrafficFunction` hook through `ContainerWorkloadDeploymentConfig`. The hook runs a Lambda function before traffic shifts to the new version for validation — see the [web service](/resources/compute/web-service) and [multi-container workload](/resources/compute/multi-container-workload) pages for container-specific deployment details.
+The container CodeDeploy deployment group has automatic rollback disabled. Container workloads configure the same `beforeAllowTrafficFunction` hook through `ContainerWorkloadDeploymentConfig`. The hook runs a Lambda function before traffic shifts to the new version for validation — see the [web service](/resources/compute/web-service) and [multi-container workload](/resources/compute/multi-container-workload) pages for container-specific deployment details.
 
 For rolling back completed deployments to an earlier version of your stack, see [`stacktape rollback`](/cli/rollback).
 
@@ -15145,7 +15038,7 @@ Gradual deployments themselves don't add AWS costs beyond what you pay for the u
 |--------|-----------------|------------------------------------------|
 | Strategies available | 9 (finer time granularity) | 5 |
 | Load balancer required | No | Yes (`application-load-balancer`) |
-| Rolls back when | A hook reports failure, a listed alarm fires, or the deployment fails or is stopped | A hook reports failure, a listed alarm fires, or new containers fail health checks before traffic shifts |
+| Auto-rollback | On deployment failure, configured rollback alarm or stop request | Disabled for the CodeDeploy deployment group |
 | Lifecycle hooks | `beforeAllowTrafficFunction`, `afterTrafficShiftFunction` | Same, plus `testListenerPort` |
 | Cost overhead | None | Temporary extra capacity during shift |
 | Linear naming | `Linear10PercentEvery1Minute` (no "s") | `Linear10PercentEvery1Minutes` (with "s") |
@@ -15168,7 +15061,7 @@ The API reference above covers **Lambda deployment configuration only**. Contain
 
 ### What happens if my deployment fails during the canary window?
 
-A failed lifecycle hook, a fired alarm from `deploymentConfig.triggerRollbackOnAlarms`, new containers that fail their health checks, or a failed or stopped Lambda deployment stops the rollout. Errors that pass the health checks and that no hook or alarm sees don't (see [Rollback behavior](#rollback-behavior)). When a hook fails, AWS CodeDeploy points 100% of traffic back to the previous version — for Lambda functions through the alias weights, for container workloads through the ALB target groups. Rollback operates at the traffic-routing layer (Lambda alias weights or ALB target group routing) rather than a full redeploy, so it's fast; exact propagation time depends on AWS service behavior and active connections draining from the new version.
+For Lambda functions, CodeDeploy restores the previous version when the deployment fails, a configured rollback alarm fires, or the deployment is stopped. For container workloads, the `beforeAllowTrafficFunction` hook can block traffic from shifting to the new version. CodeDeploy restores the old Lambda version by resetting the alias weights.
 
 ### Can I use gradual deployments with HTTP API Gateway?
 
@@ -15431,7 +15324,7 @@ Each region's stack can have its own [custom domain](/resources/networking/custo
 Source: `apps/docs/content/deployment-and-lifecycle/previewing-changes.mdx`
 Route: `/deployment-and-lifecycle/previewing-changes`
 
-The [`stacktape diff`](/cli/diff) command shows what a deployment would change in your stack without applying anything. It packages workloads, generates a CloudFormation template, creates a change set against the currently deployed stack, and displays which resources would be created, updated, replaced, or removed. Use it before deploying to production, reviewing pull requests, or whenever you need to verify that a config change does what you expect.
+The [`stacktape diff`](/cli/diff) command shows what a deployment would change in your stack while leaving the live stack in place. It can create missing secrets and SSM parameters or restore secrets scheduled for deletion. It packages workloads, generates a CloudFormation template, creates a change set against the currently deployed stack, and displays which resources would be created, updated, replaced, or removed. Use it before deploying to production, reviewing pull requests, or whenever you need to verify that a config change does what you expect.
 
 ## When to use diff
 
@@ -15977,13 +15870,15 @@ In the Console, these rules are called **Git deployments**. Each one maps a Git 
 - **Stage** — the stage to deploy, such as `production` or `staging`; pull request previews always use `pr-<number>`
 - **AWS account and region** — where the stage deploys
 - **Config path** — the Stacktape config file in the repository
-- **Delete stack after pull request is merged or closed?** — for previews, deletes the preview stage when the pull request closes
+- **Delete the preview when the pull request closes** — for previews, starts deleting the preview stack when the pull request closes
 
 You can create several Git deployments per project — for example, one that deploys `main` to `production` and another that creates preview environments for every pull request.
 
 ### PR preview environments
 
-When you configure a pull request trigger, Stacktape creates an isolated stage for each pull request (merge request on GitLab), named `pr-<number>`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape deletes the stage if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
+When you configure a pull request trigger, Stacktape creates a separate stage named `pr-<number>` for each pull request (merge request on GitLab). For PR 42 in project `shop`, stage `pr-42` deploys as CloudFormation stack `shop-pr-42`. The stage deploys when the pull request is opened and redeploys on every new commit pushed to it. When the pull request is merged or closed, Stacktape starts deleting the preview stack if you turned on deletion; otherwise it keeps running and costing money until you delete it. Stacktape comments on the pull request with each result. Pull requests from forks are not deployed. Previews give reviewers a live URL to test against without touching your production or staging stage.
+
+If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
 If several pushes arrive close together, deployments of the same stage run one after another, never at the same time.
 
@@ -16002,7 +15897,7 @@ The pipeline needs one of these:
 | Credentials | When to use |
 |----------|---------|
 | AWS credentials only | Without a Stacktape account. Set AWS credentials in the job, for example with an IAM role your CI provider assumes through OIDC. The CLI deploys to the AWS account they belong to. See [CI/CD without an account](/getting-started/open-source-cli#cicd-without-an-account). |
-| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. Create a key in the Console under [API keys](/stacktape-console/api-keys). The CLI deploys into the AWS account you connected to your Stacktape organization. |
+| `STACKTAPE_API_KEY` | With the Console, so deploys are recorded and Console features work. For team CI, create an organization key under [API keys](/stacktape-console/api-keys). The CLI deploys into the AWS account you connected to your Stacktape organization. |
 
 Store credentials in your CI provider's secret store and expose them to the CLI as environment variables. The examples below use an API key.
 
@@ -16101,7 +15996,7 @@ A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, datab
 > **Info:** Already have a `stacktape.ts`? Skip to [using dev mode](/getting-started/use-the-dev-mode) or [deploying your first stage](/getting-started/deploy-your-first-stage).
 
 
-> **Tip:** **Recommended starting path:** Run `stacktape init` in your repository. It reads the code and proposes the infrastructure, or starts a new project from a starter template. Either way, understanding the config format below will help you customize what you get.
+> **Tip:** **Recommended starting path:** Run `stacktape init` in your repository. It reads the code and proposes the infrastructure. For a new project, run `stacktape init --starter-project`. Either way, understanding the config format below will help you customize what you get.
 
 
 ## Install the package
@@ -16286,7 +16181,7 @@ Before deploying, you need:
 - A `stacktape.ts` configuration file (created in [Configure your stack](/getting-started/configure-your-stack))
 - An AWS account to deploy into, and credentials for it on your machine
 
-If you followed [Use the dev mode](/getting-started/use-the-dev-mode), your config is already tested locally and ready for a real deployment. Dev mode ran on its own stage (`local`). Deploy to a different stage, such as `dev`: `stacktape deploy` refuses a stage that dev mode created.
+If you followed [Use the dev mode](/getting-started/use-the-dev-mode), your config is already tested locally and ready for a real deployment.
 
 ## Step 1: Set up AWS credentials
 
@@ -16375,10 +16270,10 @@ Open the resource URL printed by the CLI. For a [web service](/resources/compute
 
 If you use the Console, the deploy output also includes a Console URL for the deployed stack. See [Manage your app in the Console](/getting-started/using-console-ui) for what you can do there.
 
-To view logs from the CLI, use [`stacktape logs`](/cli/logs) with the name of a function or service from your config.
+To view logs from the CLI, use [`stacktape logs`](/cli/logs) with the resource name from your config.
 
 ```bash
-stacktape logs myApi --project my-app --stage dev --region eu-west-1
+stacktape logs <resource-name> --project my-app --stage dev --region eu-west-1
 ```
 
 ## Redeploying after changes
@@ -16429,7 +16324,7 @@ If a resource fails to create, the resources that were already created stay, and
 
 ### Deploy fails during dev mode
 
-You cannot deploy to a stage that [dev mode](/getting-started/use-the-dev-mode) created, even after the dev session has ended. The CLI stops with "is a dev stack and cannot be deployed". Deploy to a different stage name, or delete the dev stage first with `stacktape delete --project my-app --stage <stage> --region eu-west-1`.
+Use a different stage name for `deploy` and [dev mode](/getting-started/use-the-dev-mode). A stage created by dev mode still counts as a dev stack after its session ends.
 
 ## FAQ
 
@@ -16451,11 +16346,11 @@ Without the Console there is no connection: the CLI uses your own AWS credential
 
 ### What happens if I lose internet during a deploy?
 
-CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, open the stack (`<project>-<stage>`) in the CloudFormation console in the stack's region and wait until its status no longer ends in `IN_PROGRESS` before running another deploy.
+CloudFormation continues the deployment on AWS's side regardless of your local connection. If the CLI disconnects, check the stack status with [`stacktape status`](/cli/info-stack) before running another deploy.
 
 ### What's the difference between stages and AWS accounts?
 
-Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack with its own resources. Non-production stages in one account and region usually share a VPC, and anyone with the account's credentials can reach every stage, so keep production in its own AWS account. You can also deploy different stages to different AWS accounts by using different AWS credentials, or by connecting several AWS accounts in the Console (e.g., production in a separate account). See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
+Stages are logical environments (dev, staging, production) within a single AWS account — each stage gets its own CloudFormation stack. New non-production stages that need a VPC and support shared networking share one by default within the same account and region. You can also deploy different stages to different AWS accounts by using different AWS credentials, or by connecting several AWS accounts in the Console (e.g., production in a separate account). See [Connecting your AWS account](/stacktape-console/connecting-your-aws-account) for details.
 
 ### Can I preview what a deploy will change before running it?
 
@@ -16553,7 +16448,7 @@ A budget watches the whole AWS account. It cannot filter by project or stage. If
 
 ## Custom domains
 
-Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. Provide your domain name, and Stacktape creates DNS records in Route53 and provisions TLS certificates automatically. The example below shows the most common case — a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
+Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. After you set up the domain and its certificate, Stacktape creates the DNS record in Route 53. The example below shows the most common case — a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
 
 
 Example (TypeScript):
@@ -16575,7 +16470,7 @@ export default defineConfig(() => {
 ```
 
 
-Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain add`](/cli/domain-add) command to register a domain, or add the hosted zone manually in the AWS Console. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
+For managed DNS, run [`stacktape domain add`](/cli/domain-add) even if the Route 53 hosted zone already exists. Wait for the certificate to show **Issued** in ACM before deploying. A CloudFront distribution needs its viewer certificate in `us-east-1`. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
 
 Custom domains add no Stacktape cost, but Route53 hosted-zone and DNS-query charges apply in AWS. For production, custom domains are worth the cost — they give users a branded URL instead of an auto-generated AWS hostname, and TLS certificates are provisioned and renewed automatically.
 
@@ -16721,14 +16616,14 @@ The stack goes to the AWS account those credentials belong to. Resources get AWS
 | Dev mode, scripts, bastion tunnels and container sessions | Works | Runs on your machine and in your AWS account |
 | Logs, metrics, secrets and parameters | Works | Read from your AWS account |
 | Alarms in your configuration, with `slack`, `ms-teams`, `discord`, `email` or `webhook` channels | Works | CloudWatch alarms live in your AWS account, and the stack delivers these notifications itself |
-| Synthetic tests | Works | CloudWatch Synthetics runs them in your AWS account |
-| Deploys and pull request previews from your own CI pipeline | Works | Your pipeline runs `stacktape deploy` and `stacktape delete` with AWS credentials; see [CI/CD without an account](#cicd-without-an-account) |
 | Deploy history, costs and team access | Needs the Console | Stored by Stacktape and shared by your team |
 | Alarm channels of type `console-channel` and `slack-app`, and deploy notifications | Needs the Console | The Console delivers these alerts |
-| Uptime checks | Needs the Console | The probes run in your AWS account, but the Console decides when a check is down and alerts you |
+| Synthetic tests | Works | CloudWatch Synthetics runs them in your AWS account |
+| Uptime checks | Needs the Console | Uptime probes run in your AWS account. The Console shows the results. |
 | Error tracking, incidents and incident AI | Needs the Console | Stacktape stores and groups the events |
 | Default `*.stacktape-app.com` domains, including the one a load balancer, a CDN in front of a load balancer, or a Convex backend without its own domain needs for HTTPS | Needs the Console | Stacktape owns that domain |
-| Git deployments: push to deploy, Console-managed pull request previews and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |
+| PR preview deploys from your own CI | Works | The CI job deploys and deletes stages with your AWS credentials |
+| Console Git deployments and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |
 | Organization-wide guardrails, security reports and the audit log | Needs the Console | They apply to, and are shared by, the whole organization |
 
 Commands that are Console features by nature, such as `stacktape org list`, `stacktape project create`, `stacktape error list`, `stacktape incident list`, `stacktape whoami` and `stacktape deploy --runner ec2`, ask you to sign in and say why.
@@ -17963,9 +17858,7 @@ Start Stacktape dev mode from the directory containing your `stacktape.ts`:
 stacktape dev --stage local --region eu-west-1
 ```
 
-Give dev mode its own stage, such as `local`. [`stacktape deploy`](/cli/deploy) refuses a stage that dev mode created, so the first deploy on the next page uses a different stage, `dev`.
-
-On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Unchanged starts reuse it. A restart can update the stack after cloud configuration or cloud-image changes, or when required outputs are missing.
+Use a separate stage such as `local` for dev mode. The `deploy` command refuses stages created by dev mode. On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Unchanged starts reuse it. A restart can update the stack after cloud configuration or cloud-image changes, or when required outputs are missing.
 
 An interactive picker lets you choose which resources to run. To skip the picker and run everything:
 
@@ -17991,7 +17884,7 @@ Stacktape dev mode splits your stack between local execution and AWS, depending 
 
 | Resource type | Where it runs | How changes work |
 |---|---|---|
-| Container workloads (web-service, private-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (**Ctrl+R**) |
+| Container workloads (web-service, private-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (Ctrl+R or Ctrl+A) |
 | Lambda functions | Packaged locally and code updated on AWS | Repackaged and updated on file change or manual trigger; logs stream to your terminal |
 | SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix) | Local dev server | Automatic hot reload via the framework's built-in HMR |
 | Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
@@ -18053,7 +17946,7 @@ With this config, running `stacktape dev --stage local --region eu-west-1 --reso
 Now edit `./src/handler.ts`, save, and either:
 
 - **With `--watch` flag**: Stacktape detects the change and automatically repackages and updates the Lambda code
-- **Without `--watch`**: Press **Ctrl+R** in the terminal to trigger a rebuild. With several workloads running, pick one by its number, or press `a` for all
+- **Without `--watch`**: From Overview, press Ctrl+R to rebuild a workload or Ctrl+A to rebuild all workloads
 
 For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly through the framework's built-in hot module replacement — no rebuild step needed.
 
@@ -18101,16 +17994,14 @@ For connected resources, dev mode keeps the same `STP_*` environment variable na
 
 ## Terminal commands
 
-Stacktape dev mode accepts these keys while running:
+Use these shortcuts in the interactive dev dashboard.
 
 | Key | Action |
 |---|---|
-| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
-| **Ctrl+A** | Rebuild all workloads |
-| **Tab** | Switch between the overview and the logs |
-| **Ctrl+C** | Stop dev mode |
-
-The rebuild keys work in the overview, not in the logs view.
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode |
 
 ## Useful flags
 
@@ -18143,7 +18034,7 @@ The agent server starts on port 7331 by default (or the next available port). Se
 
 Stacktape provides CLI commands for inspecting logs and metrics from your running resources, both during dev mode and against deployed stacks:
 
-- [`stacktape logs`](/cli/logs) — Stream or search logs from your Lambda functions and container workloads, for example `stacktape logs api --stage dev --region eu-west-1` on a deployed stage
+- [`stacktape logs`](/cli/logs) — Stream or search logs from your Lambda functions and container workloads
 - [`stacktape metrics`](/cli/metrics) — View CloudWatch metrics for any resource
 
 For deeper coverage of debugging workflows, see [Dev mode overview](/local-development/dev-mode-overview).
@@ -18195,7 +18086,7 @@ An alarm sends to the `notificationChannels` listed on it, such as Slack, email 
 
 The **Error tracking** page in the Observability group is a built-in error inbox. Stacktape reads runtime errors from the logs of your functions and containers and groups repeated occurrences into one issue per distinct error and resource, with the error message, project, stage, function name, occurrence count and last-seen time.
 
-Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's log groups to Stacktape's error detector, and errors appear within a minute of being logged. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
+With the Console, error tracking is on by default. Without the Console, it defaults to off, and enabling it in config stops the deploy with `CONFIG_NEEDS_CONSOLE`. Deployed workloads that meet the [error tracking requirements](/observability/error-tracking#turning-error-tracking-off-or-limiting-stages) send errors to the Console. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
 
 
 > Screenshot: Stacktape Console Error tracking page showing summary cards (Open/Resolved/Ignored counts), filters, and a table of runtime errors with occurrence counts and status Caption: The Error tracking page groups repeated runtime errors so you don't search logs by hand.
@@ -19311,18 +19202,57 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
 ## Quick start
 
 
-### Start Stacktape in your project
+### Install Stacktape
 
 
-    Run it in your app's directory. It opens a wizard in your browser that reads your project, writes the config
-    file with you and shows the monthly price before anything is deployed.
+    Install globally, or locally to your project.
 
 
-Example (npm):
+Example (npm (global)):
 
 ```bash
-npx stacktape@latest init
+npm install -g stacktape
 ```
+
+
+Example (npm (local)):
+
+```bash
+npm install stacktape
+```
+
+
+Example (bun (global)):
+
+```bash
+bun add -g stacktape
+```
+
+
+Example (bun (local)):
+
+```bash
+bun add stacktape
+```
+
+
+Example (pnpm (global)):
+
+```bash
+pnpm add -g stacktape
+```
+
+
+Example (pnpm (local)):
+
+```bash
+pnpm add stacktape
+```
+
+
+    Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The
+    installer picks the build for your processor, including Apple silicon, ARM64 and Alpine Linux. Leave out `init` to
+    only install. For a new project, pass `init --starter-project`.
 
 
 Example (macOS):
@@ -19346,48 +19276,41 @@ iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 ```
 
 
-    The macOS, Linux and Windows lines install the standalone binary, which needs no Node.js, and then start
-    `stacktape init`, so you don't run init again. Leave out `init` to only install. With the standalone binary,
-    run the commands below as `stacktape` instead of `npx stacktape@latest`, which needs Node.js. If the installer
-    added Stacktape to your PATH, open a new terminal first.
+### Initialize a project
 
 
-### Or start a new project
-
-
-    In an empty directory, pick a starter project instead.
+    If the standalone installer already started init, skip this step. Otherwise, run init in your existing repository. For a new project, add `--starter-project`. Open a new terminal if the installer added Stacktape to your PATH.
 
 
 Example (npm):
 
 ```bash
-npx stacktape@latest init --starter-project
+npx stacktape init
 ```
 
 
-Example (Standalone binary):
+Example (Standalone):
 
 ```bash
-stacktape init --starter-project
+stacktape init
 ```
 
 
 ### Deploy to AWS
 
 
-    The wizard deploys when you confirm. Stacktape builds, packages and provisions everything into your account with
-    your local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
-    To deploy from the terminal, pick a stage and a region:
+    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
+    local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
 
 
 Example (npm):
 
 ```bash
-npx stacktape@latest deploy --stage dev --region us-east-1 --project {your-project-name}
+npx stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
 ```
 
 
-Example (Standalone binary):
+Example (Standalone):
 
 ```bash
 stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
@@ -19451,7 +19374,7 @@ Example (stacktape.json):
 ```
 
 
-Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `stacktape deploy --config stacktape.json --stage dev --region us-east-1`.
+Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `npx stacktape deploy --config stacktape.json --stage dev --region us-east-1`. With the standalone CLI, omit `npx`.
 
 ## A development workflow built for speed
 
@@ -19460,10 +19383,17 @@ Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `s
 Run your services in development mode to iterate faster — your code runs locally, connected to real cloud resources, so you can test changes without redeploying every time.
 
 
-Example (bash):
+Example (npm):
 
 ```bash
-stacktape dev --stage dev --region us-east-1
+npx stacktape dev --stage local --region us-east-1
+```
+
+
+Example (Standalone):
+
+```bash
+stacktape dev --stage local --region us-east-1
 ```
 
 
@@ -19497,7 +19427,14 @@ export default defineConfig(() => {
 ```
 
 
-Example (bash):
+Example (npm):
+
+```bash
+npx stacktape script run migrate --stage dev --region us-east-1
+```
+
+
+Example (Standalone):
 
 ```bash
 stacktape script run migrate --stage dev --region us-east-1
@@ -19667,7 +19604,7 @@ The [`stacktape logs`](/cli/logs) command fetches CloudWatch log events for a de
 Fetch the last hour of logs for a resource:
 
 ```bash
-stacktape logs api --project myProject --stage prod --region eu-west-1
+stacktape logs api --project my-project --stage prod --region eu-west-1
 ```
 
 ### Time range
@@ -19677,7 +19614,7 @@ Use `--since` with relative notation (`1h`, `30m`, `1d`, `5s`) or an ISO timesta
 Fetch the last 30 minutes:
 
 ```bash
-stacktape logs api --since 30m
+stacktape logs api --project my-project --stage prod --region eu-west-1 --since 30m
 ```
 
 For standard log fetching, Stacktape passes `startTime` to CloudWatch Logs. `--until` is used as the reference point when parsing relative `--since`; Logs Insights queries pass both `startTime` and `endTime`.
@@ -19689,13 +19626,13 @@ Use `--filter` to pass a CloudWatch Logs filter pattern.
 Filter for lines containing "ERROR":
 
 ```bash
-stacktape logs api --filter "ERROR"
+stacktape logs api --project my-project --stage prod --region eu-west-1 --filter "ERROR"
 ```
 
 Filter JSON structured logs by a field:
 
 ```bash
-stacktape logs api --filter '{ $.level = "error" }'
+stacktape logs api --project my-project --stage prod --region eu-west-1 --filter '{ $.level = "error" }'
 ```
 
 ### CloudWatch Logs Insights queries
@@ -19703,13 +19640,13 @@ stacktape logs api --filter '{ $.level = "error" }'
 Use `--query` to run a full CloudWatch Logs Insights query against the resource's log group. Logs Insights supports aggregations, sorting, field extraction, and explicit time bounds via `--since` and `--until`.
 
 ```bash
-stacktape logs api --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
+stacktape logs api --project my-project --stage prod --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
 
 Fetch Logs Insights results between two absolute timestamps:
 
 ```bash
-stacktape logs api --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --until "2025-01-15T11:00:00Z"
+stacktape logs api --project my-project --stage prod --region eu-west-1 --query "fields @timestamp, @message | sort @timestamp desc" --since "2025-01-15T10:00:00Z" --until "2025-01-15T11:00:00Z"
 ```
 
 ### Output format
@@ -19761,7 +19698,7 @@ The metrics command checks the resource's type from the deployed stack. If the t
 View Lambda invocations over the last hour:
 
 ```bash
-stacktape metrics api Invocations
+stacktape metrics api Invocations --project my-project --stage prod --region eu-west-1
 ```
 
 ### Customizing the query
@@ -19774,7 +19711,7 @@ stacktape metrics api Invocations
 View database CPU over the last 24 hours with 1-hour granularity:
 
 ```bash
-stacktape metrics mainDb CPUUtilization --since 1d --period 3600
+stacktape metrics mainDb CPUUtilization --project my-project --stage prod --region eu-west-1 --since 1d --period 3600
 ```
 
 ### Terminal output
@@ -20096,19 +20033,19 @@ Run [`stacktape dev`](/cli/dev) to start dev mode. Lambda functions appear as se
 Run all dev-compatible resources in your config:
 
 ```bash
-stacktape dev --stage dev --resources all
+stacktape dev --stage local --region eu-west-1 --resources all
 ```
 
 Run only specific Lambda functions by name (comma-separated):
 
 ```bash
-stacktape dev --stage dev --resources myApi,myWorker
+stacktape dev --stage local --region eu-west-1 --resources myApi,myWorker
 ```
 
 Run everything except specific resources:
 
 ```bash
-stacktape dev --stage dev --skip-resources myWorker
+stacktape dev --stage local --region eu-west-1 --skip-resources myWorker
 ```
 
 Without `--resources` or `--skip-resources`, Stacktape displays an interactive multi-select picker listing all dev-compatible resources. All resources are pre-selected by default — deselect any you don't need and confirm to start.
@@ -20162,15 +20099,13 @@ The dev TUI supports these keys:
 
 | Key | Action |
 |---------|--------|
-| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
-| **Ctrl+A** | Rebuild all workloads |
-| **Tab** | Switch between the overview and the logs |
-| **Ctrl+C** | Stop dev mode and exit |
-
-The rebuild keys work in the overview, not in the logs view.
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode and exit |
 
 
-> **Tip:** When iterating on a single function, press **Ctrl+R** and pick that function instead of rebuilding everything. This keeps the feedback loop tight when you're focused on one function.
+> **Tip:** When iterating on a single function, press Ctrl+R and pick that function instead of rebuilding everything. This keeps the feedback loop tight when you're focused on one function.
 
 
 ## Viewing logs
@@ -20192,7 +20127,7 @@ Outside of dev mode, use [`stacktape logs`](/cli/logs) to fetch logs for a Stack
 View logs for a specific function:
 
 ```bash
-stacktape logs myApi --stage production
+stacktape logs myApi --stage production --region eu-west-1
 ```
 
 By default, `stacktape logs` uses a one-hour start time and returns up to 100 events.
@@ -20200,19 +20135,19 @@ By default, `stacktape logs` uses a one-hour start time and returns up to 100 ev
 View the last 30 minutes of logs:
 
 ```bash
-stacktape logs myApi --stage production --since 30m
+stacktape logs myApi --stage production --region eu-west-1 --since 30m
 ```
 
 Filter logs containing a specific pattern:
 
 ```bash
-stacktape logs myApi --stage production --filter "ERROR"
+stacktape logs myApi --stage production --region eu-west-1 --filter "ERROR"
 ```
 
 Run a CloudWatch Logs Insights query for structured searching:
 
 ```bash
-stacktape logs myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
+stacktape logs myApi --stage production --region eu-west-1 --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
 ```
 
 The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--until` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
@@ -20277,7 +20212,7 @@ The first session in an account and region creates the dev network with CloudFor
 Dev mode uses an isolated dev stack and emulates supported databases locally. When a function needs a real deployed database or Redis resource, pass its name through `--remote-resources`:
 
 ```bash
-stacktape dev --stage dev --remote-resources myDatabase
+stacktape dev --stage local --region eu-west-1 --remote-resources myDatabase
 ```
 
 This keeps the dev stack isolated while wiring the selected resource to its deployed AWS counterpart.
@@ -20302,7 +20237,7 @@ Dev mode does not change deployed functions at session start or exit: they are d
 For AI-assisted debugging workflows, dev mode supports an `--agent` flag that starts a background daemon with an HTTP API. Agent mode registers rebuild handlers and keeps workload and local-resource state updated for the agent server. See [agent mode in dev](/using-with-ai/agent-mode-in-dev) for the supported API surface.
 
 ```bash
-stacktape dev --stage dev --agent
+stacktape dev --stage local --region eu-west-1 --agent
 ```
 
 The agent daemon starts on port 7331 when available. If you do not pass `--agent-port`, Stacktape finds an available port starting at 7331. Use `--agent-port` to request a specific agent port. Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):
@@ -20355,7 +20290,7 @@ For Lambda functions with [HTTP API Gateway triggers](/resources/triggers/http-t
 
 ### Narrowing the feedback loop
 
-When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. Unselected functions are not built: they keep the code they run until you select them again. Rebuild just that function with **Ctrl+R**. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
+When debugging a specific function, use `--resources <name>` to select it for session rebuilds, watching and logs. Unselected functions are not built: they keep the code they run until you select them again. Rebuild just that function with Ctrl+R. Selected Lambda functions are deployed by Stacktape during dev mode, so exercise their configured triggers as you normally would — invoke HTTP endpoints, send messages into queues like [SQS](/resources/triggers/sqs-events), or wait for [schedules](/resources/triggers/schedule-triggers) — and watch the function process events live in the dev TUI.
 
 ## Dev mode vs deployed-stack debugging
 
@@ -20364,7 +20299,7 @@ Stacktape offers two distinct workflows for investigating Lambda function behavi
 | Aspect | Dev mode (`stacktape dev`) | Deployed stack (`logs`) |
 |--------|---------------------------|-------------------------------|
 | Log delivery | Streamed in the dev TUI | Follows CloudWatch logs in a terminal by default; `--follow=false` takes a snapshot |
-| Code iteration | **Ctrl+R** in the TUI, or `--watch` | Requires full [`stacktape deploy`](/cli/deploy) |
+| Code iteration | Ctrl+R in the TUI, or `--watch` | Requires full [`stacktape deploy`](/cli/deploy) |
 | Database access | Local databases through the dev box, or deployed ones via `--remote-resources` | AWS-deployed databases |
 | Interaction model | Interactive TUI with keyboard shortcuts | Follows until stopped, or exits after a snapshot |
 | Infrastructure | Dev stack | Full production stack |
@@ -20377,7 +20312,7 @@ Use dev mode for active development — the rebuild-and-test loop from the TUI i
 
 ### Can I set breakpoints in Lambda functions during dev mode?
 
-Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local machine. The debugging path documented here is log streaming in the dev TUI combined with targeted rebuilds (**Ctrl+R**). The tradeoff is high-fidelity testing against the real Lambda runtime on AWS. Add targeted `console.info(JSON.stringify(...))` statements at key points and rebuild quickly after changes.
+Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local machine. The debugging path documented here is log streaming in the dev TUI combined with targeted rebuilds (Ctrl+R). The tradeoff is high-fidelity testing against the real Lambda runtime on AWS. Add targeted `console.info(JSON.stringify(...))` statements at key points and rebuild quickly after changes.
 
 ### Do my Lambda function's event sources work in dev mode?
 
@@ -20495,7 +20430,7 @@ Auto-rebuild workloads when source files change:
 stacktape dev --stage dev --region us-east-1 --resources all --watch
 ```
 
-Without `--watch`, you trigger rebuilds manually from the dev mode terminal with **Ctrl+R** (see [Rebuilding workloads](#rebuilding-workloads)).
+Without `--watch`, you trigger rebuilds manually from the dev mode terminal with Ctrl+R (see [Rebuilding workloads](#rebuilding-workloads)).
 
 Watch mode also watches the Stacktape configuration file. A rebuild cannot apply a configuration change, so dev mode tells you to restart it instead.
 
@@ -20572,12 +20507,12 @@ The dev mode terminal accepts these keys while running:
 
 | Key | Action |
 |---|---|
-| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
-| **Ctrl+A** | Rebuild all workloads |
-| **Tab** | Switch between the overview and the logs |
-| **Ctrl+C** | Stop dev mode and exit |
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode and exit |
 
-The rebuild keys work in the overview, not in the logs view. When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, press **Ctrl+R** after editing code to see changes. Pick a single workload to rebuild it without restarting others — useful when iterating on one service in a multi-resource config.
+When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, press Ctrl+R after editing code to see changes. Pick a single workload to rebuild it without restarting others — useful when iterating on one service in a multi-resource config.
 
 A workload whose rebuild fails, for example because of a syntax error, shows the error and stays failed until a rebuild succeeds. A Lambda function keeps its previous code until then. A rebuild deploys code only: after a change to the configuration file, stop dev mode and start it again.
 
@@ -20862,13 +20797,13 @@ By default, supported databases run locally. To connect to the real deployed AWS
 To switch a single resource to remote at runtime:
 
 ```bash
-stacktape dev --remote-resources mainDb
+stacktape dev --stage local --region eu-west-1 --remote-resources mainDb
 ```
 
 To switch multiple resources, separate names with commas:
 
 ```bash
-stacktape dev --remote-resources mainDb,cache
+stacktape dev --stage local --region eu-west-1 --remote-resources mainDb,cache
 ```
 
 Alternatively, set `dev.remote: true` on the resource in your config for a persistent setting:
@@ -20915,7 +20850,7 @@ Local emulation avoids AWS database service charges and isolates test data. Depl
 Data persists across sessions in host directories mounted into the containers. Use `--fresh-db` to reset databases that startup prepares:
 
 ```bash
-stacktape dev --fresh-db
+stacktape dev --stage local --region eu-west-1 --fresh-db
 ```
 
 `--fresh-db` deletes data, schema and local password/identity files when startup prepares a database. This includes selected databases and databases prepared for deployed-workload relay connections, which can include unselected resources. Databases never prepared are untouched; this is not a stage-wide wipe. The stage password can be reused, so it does not promise a new password.
@@ -21441,7 +21376,7 @@ Every deployed [stage](/configuration/stages-and-environments) consumes AWS reso
 Review your stacks regularly in the Stacktape Console or with [`stacktape stack list`](/cli/info-stacks). Delete any stage that's no longer needed:
 
 ```bash
-stacktape delete --stage old-feature
+stacktape delete --stage old-feature --region eu-west-1
 ```
 
 For PR-preview workflows, see the [stacks-per-git-branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) and make cleanup part of the workflow so old stages are deleted after branches are merged.
@@ -22295,7 +22230,7 @@ The `issues:*` commands are now `error list`, `error ignore`, `error resolve`, a
 
 ## When to use
 
-Stacktape error tracking gives you structured error tracking with no additional SDK or external service. It is on by default once the Console is connected, and fits when:
+Stacktape error tracking gives you structured error tracking with no additional SDK or external service. It is on by default and fits when:
 
 - You want to see which runtime errors are recurring across projects and stages without scanning raw log lines.
 - You need a lightweight triage workflow — open, resolve, or ignore issues — without leaving Stacktape.
@@ -22313,7 +22248,9 @@ Stacktape error tracking displays recorded runtime errors in the Console and CLI
 
 ## Turning error tracking off or limiting stages
 
-Error tracking needs the [Stacktape Console](/getting-started/open-source-cli) (the Free plan works). Once your AWS account is connected, it is on for every stage of every stack by default. Without the Console, deploys print `Error tracking: off` and nothing is collected, and a configuration that turns it on with `deploymentConfig.errorTracking` stops at validation with `CONFIG_NEEDS_CONSOLE`. With the Console, nothing needs to be set up: each deployment subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged.
+With the Console, error tracking is on by default. It subscribes Standard log groups for application Lambda functions with Stacktape-managed packaging and containers packaged with `js-bundle`, provided the workload uses a supported language and has log forwarding off.
+
+Without the Console, error tracking defaults to off. Setting `errorTracking.enabled: true` or listing stages for enabled tracking stops the deploy with `CONFIG_NEEDS_CONSOLE`.
 
 The stack's configuration decides. Turn error tracking off for a stack, or limit it to some stages, in `deploymentConfig.errorTracking`; the change takes effect at the stack's next deployment.
 
@@ -24030,8 +23967,6 @@ Route: `/observability/uptime-checks`
 
 Uptime checks probe your HTTP endpoints from multiple AWS regions and alert you when an endpoint stops responding successfully. The probes run inside your own AWS account — Stacktape provisions a small prober Lambda in each monitoring region, so there is no external monitoring vendor and no per-check subscription fee. The Console shows live status, availability and latency history, and an incident timeline for every check.
 
-Uptime checks need the [Stacktape Console](/getting-started/open-source-cli) (the Free plan works), because the Console decides when a check is down and sends the alerts. Without a Console connection, a deploy with an uptime check stops at validation with `CONFIG_NEEDS_CONSOLE` and changes nothing. Connect with `stacktape connect`, or remove the check.
-
 ## When to use
 
 Add an uptime check to every public endpoint whose downtime you want to hear about before your users do: production APIs, customer-facing web apps, and webhook receivers. Checks are cheap (a few Lambda invocations per minute), so the practical default is one check per public-facing service in every production stage.
@@ -24044,7 +23979,7 @@ Add an uptime check to every public endpoint whose downtime you want to hear abo
 
 ## Configuration
 
-An uptime check is a standalone resource. The only required property is `url`:
+An uptime check is a standalone resource. The only required property is `url`. A deploy with any uptime check needs the Console and stops with `CONFIG_NEEDS_CONSOLE` without it.
 
 ```yaml
 resources:
@@ -25273,7 +25208,7 @@ To pull from a private registry that requires authentication, store your credent
 Create the secret using the Stacktape CLI [`secret set`](/cli/secret-set) command. The command accepts `--secret-name` to set the secret name and `--value` to provide the JSON credentials inline. See the [CLI reference](/cli/secret-set) for the full list of flags (including `--file` and `--region`).
 
 ```bash
-stacktape secret set my-registry-creds --value '{"username":"my-user","password":"my-token"}'
+stacktape secret set my-registry-creds --region eu-west-1 --value '{"username":"my-user","password":"my-token"}'
 ```
 
 Then reference the secret ARN in your config:
@@ -25963,7 +25898,7 @@ npm run build
 ```
 
 ```bash
-stacktape deploy --stage production
+stacktape deploy --stage production --region eu-west-1
 ```
 
 The build step is entirely decoupled from Stacktape — Stacktape reads the artifact at `packagePath` at deploy time.
@@ -27724,16 +27659,16 @@ The `iamRoleStatements` property is available on all Stacktape compute resources
 
 Stacktape generates CloudFormation logical names for its managed resources internally. If a raw CloudFormation resource uses a name that collides with a Stacktape-generated one, the deployment will fail.
 
-To inspect the logical names Stacktape has assigned, run:
+To inspect the logical names Stacktape has assigned, run [`stacktape synth`](/cli/synth) and open the generated CloudFormation template:
 
 ```bash
-stacktape status
+stacktape synth --stage production --region eu-west-1
 ```
 
-Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk. If your CLI build supports [`stacktape synth`](/cli/synth), it can also be used to preview the full generated CloudFormation template before deploying.
+Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk.
 
 
-> **Warning:** Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names with `stacktape status` rather than guessing or hardcoding references to Stacktape-managed names.
+> **Warning:** Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names in the generated template rather than guessing or hardcoding references to Stacktape-managed names.
 
 
 ## Choosing an escape hatch
@@ -29930,6 +29865,8 @@ Stacktape's Convex resource provisions a complete self-hosted [Convex](https://w
 
 The smallest viable Convex configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate backend, 0.25 vCPU / 512 MB dashboard, ALB, S3) costs approximately **$45–65/month idle**.
 
+Without the Console, set custom domains for the cloud and site endpoints and for the dashboard if enabled. The deploy stops with `CONFIG_NEEDS_CONSOLE` if a required domain is missing.
+
 ## When to use
 
 Self-hosted Convex is the right choice when you want Convex's reactive programming model — real-time queries, transactional mutations, and built-in file storage — but need to run on your own AWS infrastructure. Common reasons:
@@ -29979,7 +29916,7 @@ export default defineConfig(() => {
 ```
 
 
-With the dashboard enabled (the default), this provisions the full Convex stack: a backend container on ECS Fargate, a PostgreSQL database (`db.t4g.micro` by default), five S3 buckets, an Application Load Balancer, and the admin dashboard. Set `dashboard.enabled` to `false` to skip the dashboard container and reduce cost. The `appDirectory` points to the directory containing your `schema.ts` and Convex function files. Without `customDomains`, this example is served on a `*.stacktape-app.com` domain from the [Stacktape Console](/getting-started/open-source-cli), so without the Console connected the deploy stops. Add [custom domains](#custom-domains) to deploy it without an account.
+With the dashboard enabled (the default), this provisions the full Convex stack: a backend container on ECS Fargate, a PostgreSQL database (`db.t4g.micro` by default), five S3 buckets, an Application Load Balancer, and the admin dashboard. Set `dashboard.enabled` to `false` to skip the dashboard container and reduce cost. The `appDirectory` points to the directory containing your `schema.ts` and Convex function files.
 
 After the infrastructure is healthy, Stacktape runs `npx convex deploy` against the configured `appDirectory` to push your function code to the backend. The admin key is managed by Stacktape and resolved from AWS Secrets Manager — Stacktape enables ECS Exec internally because it is required to generate the key after the backend starts.
 
@@ -30372,7 +30309,7 @@ Enable `versioning` for production stages to keep previous versions of overwritt
 
 ## Custom domains
 
-Convex exposes three distinct HTTP origins that serve different purposes. If `customDomains` is omitted entirely, Stacktape serves the backend on a `*.stacktape-app.com` default domain with port-based routing: 3210 for cloud, 3211 for site, and 6791 for dashboard. That domain comes from the [Stacktape Console](/getting-started/open-source-cli). Without the Console connected, set custom domains for `cloud` and `site`, and for `dashboard` unless you turn the dashboard off, or the deploy stops with `CONFIG_NEEDS_CONSOLE`. Port-based routing works for dev/staging but is not recommended for production, because clients hard-code the URL.
+Convex exposes three distinct HTTP origins that serve different purposes. If `customDomains` is omitted entirely, Stacktape uses the ALB's default DNS with port-based routing: 3210 for cloud, 3211 for site, and 6791 for dashboard. Port-based routing works for dev/staging but is not recommended for production — the ALB DNS is unstable across stack recreations, and clients hard-code the URL.
 
 | Origin | Port | Purpose | Example domain |
 |---|---|---|---|
@@ -32326,7 +32263,7 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 Source: `apps/docs/content/resources/compute/private-service.mdx`
 Route: `/resources/compute/private-service`
 
-A Stacktape private service runs always-on containers with no public endpoint, reachable only from other resources in your stack or VPC. Use it for internal microservices, gRPC backends, or any service that should never be exposed to the internet. Stacktape handles service discovery and horizontal scaling. In the default `service-connect` mode, nothing checks that your app responds unless you add a [health check](#health-checks), which lets ECS replace a container that runs but stops answering.
+A Stacktape private service runs always-on containers with no public endpoint, reachable only from other resources in your stack or VPC. Use it for internal microservices, gRPC backends, or any service that should never be exposed to the internet. Stacktape handles service discovery and horizontal scaling. Configure `internalHealthCheck` to check the container’s health in the default Service Connect mode.
 
 **Pricing context:** A minimal Fargate task (0.25 vCPU, 512 MB) costs approximately **~$9/month** for compute. The default `service-connect` networking adds approximately **~$0.50/month**. Switching to an Application Load Balancer adds approximately **~$18/month** in base fees.
 
@@ -32520,6 +32457,8 @@ With Service Connect, other containers in the stack can reach this service via b
 
 ### Using an Application Load Balancer
 
+This mode requires the Console. Without it, the deploy stops with `CONFIG_NEEDS_CONSOLE`.
+
 
 Example (TypeScript):
 
@@ -32543,8 +32482,6 @@ export default defineConfig(() => {
 
 
 With an ALB, the private service gets a stable internal DNS hostname reachable from any resource in the same VPC. Any workload or script that `connectTo`s this service receives the `ADDRESS` parameter injected as `STP_[RESOURCE_NAME]_ADDRESS`. See [connecting resources](/configuration/connecting-resources) for the full list of resource types that support `connectTo`.
-
-This mode needs the [Stacktape Console](/getting-started/open-source-cli) for now: without an account, the deploy stops with `CONFIG_NEEDS_CONSOLE`, because the CLI expects the Console's default domain for every load balancer without its own domain or certificate, and this one can't have either. Without an account, keep `service-connect`.
 
 ## Packaging
 
@@ -32835,13 +32772,13 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 Source: `apps/docs/content/resources/compute/web-service.mdx`
 Route: `/resources/compute/web-service`
 
-A Stacktape web service runs one always-on container with a public HTTPS URL. Use the `WebService` resource for APIs, backend web apps, and internet-facing container services that need TLS, horizontal scaling, and deployment behavior managed through Stacktape instead of hand-wired AWS networking. The default `http-api-gateway` mode doesn't check that your app responds; add an [`internalHealthCheck`](#health-checks) so a broken release rolls back instead of going live.
+A Stacktape web service runs one always-on container with a public HTTPS URL. Use the `WebService` resource for APIs, backend web apps, and internet-facing container services that need TLS, horizontal scaling, and deployment behavior managed through Stacktape instead of hand-wired AWS networking.
 
 **Pricing context:** Fargate bills for every running task; approximate us-east-1 monthly compute starts around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB memory. HTTP API Gateway load balancing is about ~$1/million requests; Application Load Balancer starts around ~$18/month plus usage.
 
 ## When to use
 
-A Stacktape web service is the right default for a single public HTTP container that should stay online all the time. Pick a web service when the workload serves request/response traffic, needs a stable HTTPS URL, and benefits from Stacktape-managed load balancing, TLS certificates, scaling, and logs.
+A Stacktape web service is the right default for a single public HTTP container that should stay online all the time. Pick a web service when the workload serves request/response traffic, needs a stable HTTPS URL, and benefits from Stacktape-managed load balancing, TLS certificates, scaling and logs. The default HTTP API mode needs `internalHealthCheck` to check application health.
 
 Common use cases:
 
@@ -32897,7 +32834,7 @@ A Stacktape web service can receive public traffic through three load balancing 
 | `application-load-balancer` | WebSockets, gradual deployments, top-level `useFirewall`, and high steady HTTP traffic | Adds a baseline monthly load balancer cost |
 | `network-load-balancer` | TCP/TLS protocols such as MQTT, game servers, or custom protocols | Requires explicit `ports`; does not support CDN, top-level firewall, or gradual deployments |
 
-Use `application-load-balancer` when the service needs WebSocket support, [gradual deployments](/deployment-and-lifecycle/gradual-deployments), or a regional [web application firewall](/resources/security/web-application-firewall) attached through top-level `useFirewall`. The ALB health check defaults are path `/`, interval `5` seconds, and timeout `4` seconds, and you can override those in `loadBalancing.properties`. Without `customDomains`, the load balancer is served on a `*.stacktape-app.com` domain that the [Stacktape Console](/getting-started/open-source-cli) provides. Without the Console connected, add a custom domain or the deploy stops with `CONFIG_NEEDS_CONSOLE`.
+Use `application-load-balancer` when the service needs WebSocket support, [gradual deployments](/deployment-and-lifecycle/gradual-deployments), or a regional [web application firewall](/resources/security/web-application-firewall) attached through top-level `useFirewall`. The ALB health check defaults are path `/`, interval `5` seconds, and timeout `4` seconds, and you can override those in `loadBalancing.properties`. When deploying without the Console, set `customDomains` for ALB mode and for NLB mode with a TLS listener. Without a domain, those deployments stop with `CONFIG_NEEDS_CONSOLE`.
 
 
 Example (TypeScript):
@@ -32909,7 +32846,6 @@ export default defineConfig(() => {
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
-    customDomains: [{ domainName: 'api.example.com' }],
     loadBalancing: {
       type: 'application-load-balancer',
       properties: {
@@ -32925,7 +32861,7 @@ export default defineConfig(() => {
 ```
 
 
-Use `network-load-balancer` only when the service is not ordinary HTTP. Each `ports` entry defines the public listener port, the protocol (`TLS` by default, or `TCP`), and optionally a different `containerPort` when the container listens on another port. Like the Application Load Balancer, a `TLS` port needs a custom domain when the Console isn't connected.
+Use `network-load-balancer` only when the service is not ordinary HTTP. Each `ports` entry defines the public listener port, the protocol (`TLS` by default, or `TCP`), and optionally a different `containerPort` when the container listens on another port.
 
 
 Example (TypeScript):
@@ -32937,7 +32873,6 @@ export default defineConfig(() => {
   const broker = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: './src/broker.ts' }),
     resources: { cpu: 1, memory: 2048 },
-    customDomains: [{ domainName: 'mqtt.example.com' }],
     loadBalancing: {
       type: 'network-load-balancer',
       properties: {
@@ -32964,7 +32899,7 @@ export default defineConfig(() => {
 
 <span id="custom-domain-names" />
 
-A Stacktape web service can attach custom domains directly through `customDomains`. Stacktape can auto-create DNS records and use the certificate that [`stacktape domain add`](/cli/domain-add) requested. The domain must first be added as a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing to that hosted zone. Run `stacktape domain add` before the first deploy that uses the domain and wait until the certificates are issued; without an issued certificate, the deploy stops with an error. When DNS records are managed outside Route 53, set `disableDnsRecordCreation: true` together with `customCertificateArn`, your own ACM certificate; the deploy rejects `disableDnsRecordCreation` on its own.
+A Stacktape web service can attach custom domains directly through `customDomains`. For managed DNS, point your registrar's nameservers at the Route 53 hosted zone, run [`stacktape domain add`](/cli/domain-add), and wait for ACM to show **Issued** before deploying. The deploy creates the DNS record. Set `disableDnsRecordCreation` when DNS records are managed outside Stacktape.
 
 
 Example (TypeScript):
@@ -32988,7 +32923,7 @@ export default defineConfig(() => {
 ```
 
 
-This minimal form assumes Stacktape creates both the DNS record and TLS certificate automatically. Set `disableDnsRecordCreation: true` when you manage DNS records outside Stacktape. Use `customCertificateArn` when you want Stacktape to use an ACM certificate you already manage, such as one with specific certificate requirements. `cors` is available only with the default `http-api-gateway` load balancing mode and overrides CORS headers returned by your application, so prefer application-level CORS when the app needs route-specific behavior.
+This minimal form uses the issued certificate from `stacktape domain add` and creates the DNS record at deploy time. Set `disableDnsRecordCreation: true` when you manage DNS records outside Stacktape. Use `customCertificateArn` when you want Stacktape to use an ACM certificate you already manage, such as one with specific certificate requirements. `cors` is available only with the default `http-api-gateway` load balancing mode and overrides CORS headers returned by your application, so prefer application-level CORS when the app needs route-specific behavior.
 
 ## CDN
 
@@ -33179,7 +33114,7 @@ The default `http-api-gateway` mode has no health check. Stacktape can tell that
 
 ## How deploys replace containers
 
-A deploy starts the new containers next to the old ones. Once the new containers are up, the old
+A deploy starts the new containers next to the old ones. Once the new containers are ready, the old
 containers stop receiving new requests, get 30 seconds to finish the requests they are handling, and shut down: ECS
 sends `SIGTERM` and, if the process is still running after `stopTimeout` (default 30 seconds), `SIGKILL`. Handle
 `SIGTERM` in your app so an old container exits once its requests are done. An app that ignores the signal keeps a full
@@ -33187,8 +33122,8 @@ deploy waiting for the whole `stopTimeout`.
 
 A full deployment finishes after the old containers have stopped, because CloudFormation waits for that. A
 [fast deployment](/deployment-and-lifecycle/deploying-stacks#fast-deployments), which Stacktape uses when only your code
-changed, lets the old containers drain and shut down in the background. What "up" means, and when the deploy finishes,
-depends on your health checks and load balancing:
+changed, lets the old containers drain and shut down in the background. When it finishes depends on your health checks
+and load balancing:
 
 - **Default `http-api-gateway`, no `internalHealthCheck`:** the deploy finishes once every new task is `RUNNING` and
   API Gateway can route to it, plus 4 seconds. Only tasks from the new deployment count; an old task still draining
@@ -33421,7 +33356,7 @@ Use the default `http-api-gateway` mode for most HTTP APIs and web apps. Choose 
 
 ### Why isn't my custom domain working?
 
-The most common cause is missing DNS setup: `customDomains` only works when the domain is already a Route53 hosted zone in your AWS account, with the registrar's nameservers pointing at that zone, and its certificate is issued. Run [`stacktape domain add`](/cli/domain-add) until it reports the certificates as validated. If you manage DNS elsewhere, set `disableDnsRecordCreation: true` and your own ACM certificate in `customCertificateArn`, then point the record yourself. Without `customCertificateArn`, the deploy rejects `disableDnsRecordCreation`. See [custom domains](/resources/networking/custom-domains).
+For managed DNS, check that your nameservers point to the Route 53 hosted zone, you have run `stacktape domain add`, and ACM shows the certificate as **Issued**. If you manage DNS elsewhere, set `disableDnsRecordCreation: true`, supply an issued ACM certificate via `customCertificateArn`, and point the DNS record yourself. See [custom domains](/resources/networking/custom-domains).
 
 ### Why are my `cors` settings being ignored?
 
@@ -41106,6 +41041,8 @@ Route: `/resources/networking/application-load-balancer`
 
 A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container workloads and [Lambda functions](/resources/compute/lambda-function) based on path, host, headers, query parameters, and source IPs. It uses AWS ALB underneath — flat ~$18/month pricing (AWS Free Tier eligible), WebSocket support, [firewall](/resources/security/web-application-firewall) attachment, and [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
 
+Without a custom domain or a listener certificate, the load balancer needs a Console-provided domain. A deploy without the Console stops with `CONFIG_NEEDS_CONSOLE`.
+
 ## When to use
 
 Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
@@ -41153,9 +41090,7 @@ Example (TypeScript):
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
 export default defineConfig(() => {
-  const myAlb = new ApplicationLoadBalancer({
-    customDomains: [{ domainName: 'api.example.com' }]
-  });
+  const myAlb = new ApplicationLoadBalancer({});
 
   return {
     resources: { myAlb }
@@ -41164,7 +41099,7 @@ export default defineConfig(() => {
 ```
 
 
-The ALB `myAlb` sets only its domain because its listener defaults handle the common case. Without `customDomains` (or `customCertificateArns` on its listeners), a load balancer is served on a `*.stacktape-app.com` domain that the [Stacktape Console](/getting-started/open-source-cli) provides. Without the Console connected, the deploy stops with `CONFIG_NEEDS_CONSOLE` and asks for a custom domain. [Lambda functions](/resources/compute/lambda-function) attach to the ALB through an `ApplicationLoadBalancerIntegration` event, while container workloads use the container ALB integration (type `application-load-balancer`) and must additionally specify `containerPort` to identify which container port receives the traffic.
+The ALB `myAlb` has no explicit configuration because its listener defaults handle the common case. [Lambda functions](/resources/compute/lambda-function) attach to the ALB through an `ApplicationLoadBalancerIntegration` event, while container workloads use the container ALB integration (type `application-load-balancer`) and must additionally specify `containerPort` to identify which container port receives the traffic.
 
 You can reference the deployed ALB domain with `$ResourceParam('myAlb', 'domain')` in your config or retrieve it via [`stacktape param get`](/cli/param-get).
 
@@ -41318,7 +41253,7 @@ For full details on domain management, see [Custom domains](/resources/networkin
 
 ## CDN
 
-The `cdn` property puts CloudFront in front of the load balancer for caching and lower latency worldwide. See the [CDN page](/resources/networking/cdn) for cache policy and forwarding details. Give the CDN its own `cdn.customDomains`: without them it needs a `*.stacktape-app.com` domain from the Stacktape Console, and without the Console connected the deploy stops with `CONFIG_NEEDS_CONSOLE`.
+The `cdn` property puts CloudFront in front of the load balancer for caching and lower latency worldwide. See the [CDN page](/resources/networking/cdn) for cache policy and forwarding details.
 
 **When to enable CDN:** Your API serves cacheable public data (product catalogs, static assets, content APIs), or your users are spread across continents and you need lower global latency.
 
@@ -41334,8 +41269,7 @@ export default defineConfig(() => {
     customDomains: [{ domainName: 'api.example.com' }],
     cdn: {
       enabled: true,
-      cloudfrontPriceClass: 'PriceClass_100',
-      customDomains: [{ domainName: 'cdn.example.com' }]
+      cloudfrontPriceClass: 'PriceClass_100'
     }
   });
 
@@ -41622,6 +41556,8 @@ Source: `apps/docs/content/resources/networking/cdn.mdx`
 Route: `/resources/networking/cdn`
 
 A Stacktape CDN attaches a CloudFront distribution to a parent resource — `bucket`, `http-api-gateway`, `application-load-balancer`, and `function` resources are supported. It caches content at edge locations worldwide so users hit the nearest server instead of your origin. Pay-per-use pricing: ~$0.01 per 10,000 requests plus data transfer, no monthly base cost. See [buckets](/resources/storage/s3-bucket), [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), and [Lambda functions](/resources/compute/lambda-function) for the parent resource pages.
+
+A CDN attached to an Application Load Balancer needs its own `cdn.customDomains` when you deploy without the Console. Without them, the deploy stops with `CONFIG_NEEDS_CONSOLE`. Bucket, function and API Gateway CDNs can use the CloudFront URL.
 
 ## When to use
 
@@ -41963,8 +41899,6 @@ If you have a pre-existing CloudFront origin request policy, pass its ID via `or
 Stacktape can attach your own domain (e.g., `cdn.example.com`) to the CDN distribution. Stacktape can automatically create DNS records and use the certificate that [`stacktape domain add`](/cli/domain-add) requested. Set `disableDnsRecordCreation: true` if you manage DNS records yourself, or provide `customCertificateArn` to use your own ACM certificate. Your domain must have a [Route53 hosted zone](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zones-working-with.html) in your AWS account — use [`stacktape domain add`](/cli/domain-add) to set one up.
 
 Run `stacktape domain add` before the first deploy that uses the domain, and run it again after the nameservers point at Route 53 until the certificates are issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the deploy stops with an error.
-
-A CDN in front of an [Application Load Balancer](/resources/networking/application-load-balancer) (including a web service's load balancer) needs its own `customDomains`. Without them, Stacktape uses a `*.stacktape-app.com` default domain that the Stacktape Console provides, so without the Console connected the deploy stops with `CONFIG_NEEDS_CONSOLE`. A CDN on a bucket, an HTTP API Gateway or a function falls back to its CloudFront URL. See [Use the CLI without an account](/getting-started/open-source-cli).
 
 **When to use a custom domain:** Production and customer-facing stages where a branded, stable URL matters (e.g., `api.yourproduct.com` or `app.yourproduct.com`). Custom domains also make it easier to switch infrastructure behind the scenes without breaking client integrations. **When the default CloudFront URL is fine:** Development stages, internal tools, and early validation where a generated `d1234.cloudfront.net` URL is acceptable. Custom domains add DNS propagation and certificate provisioning overhead that slows down initial deploys. For full domain management details, see [Custom domains](/resources/networking/custom-domains).
 
@@ -42328,7 +42262,7 @@ The certificate must be in ACM in your AWS account and cover the hostname in `do
 
 Keep DNS at your current provider if you want to keep editing records there or keep using features such as Cloudflare's proxy and firewall. With both `customCertificateArn` and `disableDnsRecordCreation: true`, Stacktape skips its managed hosted-zone lookup for this hostname.
 
-1. Request a public certificate in ACM. For anything served through CloudFront (a CDN, Next.js and the other frontend resources, static hosting), AppSync or a user pool domain, request it in `us-east-1`. For an API gateway or a load balancer, request it in the stack's region. Include each hostname you'll use. A certificate for `example.com` alone cannot serve `app.example.com`.
+1. Request a public certificate in ACM in the [region your resource needs](#tls-certificates). Include each hostname you'll use. A certificate for `example.com` alone cannot serve `app.example.com`.
 2. Add the validation CNAME records ACM gives you at your DNS provider. Wait for ACM to show **Issued**.
 3. Set `customCertificateArn` to the certificate ARN, set `disableDnsRecordCreation: true`, and deploy.
 4. At your DNS provider, point a CNAME for `app.example.com` to the AWS target hostname. Use the AWS hostname even if the application URL already shows your custom name.
@@ -42339,7 +42273,7 @@ Keep DNS at your current provider if you want to keep editing records there or k
 For the bare `example.com`, use an alias or CNAME flattening if your DNS provider supports it for that target. A standard CNAME only works below the root.
 
 
-Example (Load balancer (stack region)):
+Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
@@ -42356,29 +42290,6 @@ export default defineConfig(() => {
 
   return {
     resources: { myAlb }
-  };
-});
-```
-
-
-Example (Next.js on CloudFront (us-east-1)):
-
-```typescript
-import { defineConfig, NextjsWeb } from 'stacktape';
-export default defineConfig(() => {
-  const web = new NextjsWeb({
-    appDirectory: '.',
-    customDomains: [
-      {
-        domainName: 'www.example.com',
-        customCertificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/abc-def-123',
-        disableDnsRecordCreation: true
-      }
-    ]
-  });
-
-  return {
-    resources: { web }
   };
 });
 ```
@@ -42872,6 +42783,8 @@ Route: `/resources/networking/network-load-balancer`
 
 A Stacktape Network Load Balancer creates a managed TCP/TLS entry point that routes connections to container workloads at the transport layer (Layer 4). It uses AWS Network Load Balancer — ultra-low latency, millions of concurrent connections, and no HTTP-level processing overhead. Use it for non-HTTP protocols like MQTT, gRPC, database proxies, or game servers.
 
+A TLS listener without a custom domain or its own certificate needs a Console-provided domain. Without the Console, that deploy stops with `CONFIG_NEEDS_CONSOLE`.
+
 ## When to use
 
 Network Load Balancer is the right choice when your workload speaks a non-HTTP protocol or when you need raw TCP/TLS pass-through without HTTP-level processing. AWS NLB forwards connections directly to your containers with minimal latency overhead.
@@ -42934,7 +42847,7 @@ Listeners define which ports and protocols the Network Load Balancer accepts tra
 
 **TCP listeners** forward raw TCP connections with no encryption at the load balancer level. Use TCP when your application handles its own encryption, or when the traffic is on a private network and TLS overhead is unnecessary.
 
-**TLS listeners** terminate TLS at the load balancer and forward decrypted traffic to the container. This offloads certificate management from your application. TLS requires a certificate — either the one [`stacktape domain add`](/cli/domain-add) issued for a domain in `customDomains` on the NLB, or one explicitly provided via `customCertificateArns` on the listener. A TLS listener with neither gets a `*.stacktape-app.com` domain from the [Stacktape Console](/getting-started/open-source-cli); without the Console connected, the deploy stops with `CONFIG_NEEDS_CONSOLE` and asks for a domain or certificate. TCP listeners need neither.
+**TLS listeners** terminate TLS at the load balancer and forward decrypted traffic to the container. This offloads certificate management from your application. TLS requires a certificate — either auto-provisioned through `customDomains` on the NLB, or explicitly provided via `customCertificateArns` on the listener.
 
 **Choosing between TCP and TLS:** TCP is simpler and avoids double-encryption if your application already terminates TLS. TLS at the NLB offloads certificate management and works well when the backend doesn't need to inspect the TLS handshake. For mutual TLS (mTLS) or when the application needs access to client certificates, use TCP and terminate TLS inside the container.
 
@@ -43932,7 +43845,7 @@ Once connected, you can run commands on the bastion instance. Install the tools 
 The [`bastion tunnel`](/cli/bastion-tunnel) command creates a port-forwarding tunnel from your local machine to a private resource. The remote endpoint is mapped to a local port, so your local tools connect to `localhost` as if the resource were running on your machine.
 
 ```bash
-stacktape bastion tunnel --stage production --region eu-west-1
+stacktape bastion tunnel <resource-name> --stage production --region eu-west-1
 ```
 
 The tunnel target is a Stacktape resource name. See the [`bastion tunnel` CLI reference](/cli/bastion-tunnel) for command usage. Supported tunnel targets:

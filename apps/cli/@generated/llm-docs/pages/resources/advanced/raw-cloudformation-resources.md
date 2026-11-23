@@ -207,16 +207,16 @@ The `iamRoleStatements` property is available on all Stacktape compute resources
 
 Stacktape generates CloudFormation logical names for its managed resources internally. If a raw CloudFormation resource uses a name that collides with a Stacktape-generated one, the deployment will fail.
 
-To inspect the logical names Stacktape has assigned, run:
+To inspect the logical names Stacktape has assigned, run [`stacktape synth`](/cli/synth) and open the generated CloudFormation template:
 
 ```bash
-stacktape status
+stacktape synth --stage production --region eu-west-1
 ```
 
-Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk. If your CLI build supports [`stacktape synth`](/cli/synth), it can also be used to preview the full generated CloudFormation template before deploying.
+Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk.
 
 
-> **Warning:** Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names with `stacktape status` rather than guessing or hardcoding references to Stacktape-managed names.
+> **Warning:** Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names in the generated template rather than guessing or hardcoding references to Stacktape-managed names.
 
 
 ## Choosing an escape hatch

@@ -30,14 +30,14 @@ The stack goes to the AWS account those credentials belong to. Resources get AWS
 | Dev mode, scripts, bastion tunnels and container sessions | Works | Runs on your machine and in your AWS account |
 | Logs, metrics, secrets and parameters | Works | Read from your AWS account |
 | Alarms in your configuration, with `slack`, `ms-teams`, `discord`, `email` or `webhook` channels | Works | CloudWatch alarms live in your AWS account, and the stack delivers these notifications itself |
-| Synthetic tests | Works | CloudWatch Synthetics runs them in your AWS account |
-| Deploys and pull request previews from your own CI pipeline | Works | Your pipeline runs `stacktape deploy` and `stacktape delete` with AWS credentials; see [CI/CD without an account](#cicd-without-an-account) |
 | Deploy history, costs and team access | Needs the Console | Stored by Stacktape and shared by your team |
 | Alarm channels of type `console-channel` and `slack-app`, and deploy notifications | Needs the Console | The Console delivers these alerts |
-| Uptime checks | Needs the Console | The probes run in your AWS account, but the Console decides when a check is down and alerts you |
+| Synthetic tests | Works | CloudWatch Synthetics runs them in your AWS account |
+| Uptime checks | Needs the Console | Uptime probes run in your AWS account. The Console shows the results. |
 | Error tracking, incidents and incident AI | Needs the Console | Stacktape stores and groups the events |
 | Default `*.stacktape-app.com` domains, including the one a load balancer, a CDN in front of a load balancer, or a Convex backend without its own domain needs for HTTPS | Needs the Console | Stacktape owns that domain |
-| Git deployments: push to deploy, Console-managed pull request previews and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |
+| PR preview deploys from your own CI | Works | The CI job deploys and deletes stages with your AWS credentials |
+| Console Git deployments and Stacktape-managed runners | Needs the Console | The Console receives the Git events and runs the jobs |
 | Organization-wide guardrails, security reports and the audit log | Needs the Console | They apply to, and are shared by, the whole organization |
 
 Commands that are Console features by nature, such as `stacktape org list`, `stacktape project create`, `stacktape error list`, `stacktape incident list`, `stacktape whoami` and `stacktape deploy --runner ec2`, ask you to sign in and say why.

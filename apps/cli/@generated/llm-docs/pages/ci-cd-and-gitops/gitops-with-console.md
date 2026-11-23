@@ -107,7 +107,7 @@ creates a **Push to branch** Git deployment for that stage.
 | **Deploy to AWS account** | The connected AWS account. |
 | **Deploy to region** | The AWS region. |
 | **Config path** | The Stacktape config file in the repository. |
-| **Delete the preview when the pull request closes** | Shown only for **Pull request opened**. Deletes the preview stage when the pull request closes. The delete stops if the stage has a database with deletion protection, which `stacktape init` turns on; see [Runner cost](#runner-cost). |
+| **Delete the preview when the pull request closes** | Shown only for **Pull request opened**. Starts deleting the preview stack when the pull request closes. |
 
 5. Click **Create Git deployment**.
 
@@ -122,7 +122,9 @@ keep running. To remove a stage, delete it in the Console or run [`stacktape del
 | Push to a branch with a **Push to branch** rule | Deploys the rule's stage with the pushed commit. Creates the stage if it does not exist. |
 | Pull request opened (or reopened) into a branch with a **Pull request opened** rule | Deploys the preview stage `pr-<number>`. |
 | New commits pushed to that pull request | Redeploys `pr-<number>` with the latest commit. |
-| Pull request merged or closed | Deletes `pr-<number>` if the rule deletes previews. Otherwise the stage keeps running. |
+| Pull request merged or closed | Starts deleting `pr-<number>` if the rule deletes previews. Otherwise the stage keeps running. |
+
+If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
 These events do not deploy anything:
 
@@ -177,21 +179,6 @@ stays.
 Pull request previews also cost whatever their AWS resources cost, until the preview stage is deleted. Turn on
 **Delete the preview when the pull request closes** unless you need previews after merge, for example for
 post-merge QA.
-
-A database that `stacktape init` added has `deletionProtection: true` on every stage. The delete stops at it before it
-removes anything, so the preview keeps running and costing money. Protect only production. In `stacktape.ts`:
-
-```ts
-export default defineConfig(({ stage }) => {
-  const database = new RelationalDatabase({
-    // ...the rest of the database
-    deletionProtection: stage === 'production'
-  });
-  // ...
-});
-```
-
-Then close one test pull request and check that its stage is gone.
 
 ## Provider permissions for security fix pull requests
 

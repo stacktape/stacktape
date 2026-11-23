@@ -28,10 +28,10 @@ The open-source CLI deploys with the AWS credentials the job has. Set them befor
 
 ### With the Console
 
-Create an organization key in the Stacktape Console under [API keys](/stacktape-console/api-keys#creating-an-api-key) and store it as a secret in your CI provider. Use an organization key, not a personal one. A personal key acts as the person who created it and stops working when they leave the organization. Owners and Admins create organization keys with **New organization key**, with the Developer role limited to the projects and AWS accounts the pipeline deploys. You can authenticate the CLI in two ways:
+Create an API key in the Stacktape Console under [API keys](/stacktape-console/api-keys) and store it as a secret in your CI provider. You can authenticate the CLI in two ways:
 
 - **Explicit login step** — run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying. The login command verifies the key and saves it for subsequent CLI commands.
-- **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The CI examples on this page use this approach for brevity.
+- **Environment variable** — set `STACKTAPE_API_KEY` as an environment variable in your CI runner. The examples that use the Console set this variable.
 
 If the pipeline also sets AWS credentials, for example with `aws-actions/configure-aws-credentials`, Stacktape deploys to the connected account they belong to. Pass `--aws-account <name>` to choose the account explicitly; the AWS credentials must then belong to it. See [Choosing the account for a CLI command](/stacktape-console/connecting-your-aws-account#choosing-the-account-for-a-cli-command).
 
@@ -43,7 +43,7 @@ If the pipeline also sets AWS credentials, for example with `aws-actions/configu
 | CircleCI | Project Settings → Environment Variables |
 
 
-> **Tip:** Create a separate organization key for each pipeline. You can then rotate or revoke it without breaking the others.
+> **Tip:** For team CI/CD, create a dedicated organization API key. You can rotate it independently of developers’ keys.
 
 
 ## Essential CLI flags for CI
@@ -150,160 +150,103 @@ The `needs: test` dependency ensures the deploy only runs when tests pass.
 
 ### PR preview environments
 
-Two workflows deploy a stage for every pull request and delete it when the pull request closes. They need no
-Stacktape account: both get AWS credentials from an IAM role through GitHub's OIDC provider. Each PR stage creates
-real AWS resources for whatever your Stacktape config defines, so make sure the delete works.
+Deploy a separate stack for each pull request from a branch in your repository and tear it down on close. Both jobs skip pull requests from forks. Each PR stage creates real AWS resources for whatever your Stacktape config defines — delete preview stages promptly to avoid accumulating unused infrastructure.
 
-The deploy workflow, for example `.github/workflows/pr-preview.yml`:
+The jobs use GitHub OIDC for AWS credentials. Set the repository variable `AWS_PREVIEW_ROLE_ARN` to an IAM role that trusts your repository’s [pull-request OIDC subject](https://docs.github.com/en/actions/reference/security/oidc#filtering-for-pull_request-events) for the deploy job and the subject of the `preview-cleanup` [environment](https://docs.github.com/en/actions/reference/security/oidc#filtering-for-a-specific-environment) for the cleanup job, and can deploy and delete preview stacks. Replace `my-project` with your project name in both jobs. Both workflows use the same [concurrency group](https://docs.github.com/en/actions/concepts/workflows-and-actions/concurrency) per pull request. Each job checks the current PR state so a delayed run can skip a stale open or close event.
 
 ```yaml
 name: PR Preview
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-
-permissions:
-  id-token: write
-  contents: read
-  pull-requests: read
-
-# One group per pull request runs its deploys one at a time.
 concurrency:
-  group: preview-${{ github.event.pull_request.number }}
-
+  group: pr-preview-${{ github.event.pull_request.number }}
+  queue: max
 jobs:
   deploy-preview:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          role-to-assume: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
           aws-region: us-east-1
       - name: Deploy PR preview
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          # A run that waited in the queue must not recreate the preview of a closed pull request.
-          state=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq .state)
-          if [ "$state" != open ]; then exit 0; fi
-          npx stacktape deploy --project my-app --stage "pr-$PR_NUMBER" --region us-east-1 --yes
+          head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq 'select(.state == "open") | .head.sha')
+          checkout=$(git rev-parse HEAD)
+          if [ "$head" = "$checkout" ]; then
+            npx stacktape deploy --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes
+          fi
 ```
 
-The delete workflow, for example `.github/workflows/pr-preview-delete.yml`:
+Add a cleanup workflow that runs when the PR is closed. Both jobs check out the PR's head commit so cleanup can load delete hooks defined on that branch.
+
+The cleanup workflow uses `pull_request_target`, because GitHub doesn't run `pull_request` workflows for a pull request with merge conflicts, and that includes its close. GitHub runs the copy of this workflow on your default branch. The job names the `preview-cleanup` environment because a `pull_request_target` job otherwise gets the base branch's OIDC subject, not the pull request's. Keep the fork check: `pull_request_target` runs with your repository's permissions even for a pull request from a fork, and this job checks out the pull request's code. From December 2, 2026, GitHub blocks `pull_request_target` in public repositories unless an [Actions event policy](https://docs.github.com/actions/how-tos/administer/control-workflow-execution) allows it. Allow it for this workflow.
 
 ```yaml
-name: PR Preview Delete
+name: Cleanup PR Preview
 on:
   pull_request_target:
     types: [closed]
-
-permissions:
-  id-token: write
-  contents: read
-  actions: read
-
 concurrency:
-  group: preview-delete-${{ github.event.pull_request.number }}
-
+  group: pr-preview-${{ github.event.pull_request.number }}
+  queue: max
 jobs:
   delete-preview:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     environment: preview-cleanup
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: read
     steps:
-      # Checks out the default branch. Never check out the pull request's code in this workflow.
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Wait for a preview deploy that is still running
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: |
-          for id in $(gh run list --repo "${{ github.repository }}" --workflow "PR Preview" --branch "$HEAD_REF" \
-              --status in_progress --json databaseId --jq '.[].databaseId'); do
-            gh run watch "$id" --repo "${{ github.repository }}" > /dev/null
-          done
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          role-to-assume: ${{ vars.AWS_PREVIEW_ROLE_ARN }}
           aws-region: us-east-1
       - name: Delete PR preview
-        run: npx stacktape delete --project my-app --stage "pr-${{ github.event.pull_request.number }}" --region us-east-1 --yes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
+          if [ "$state" = closed ]; then
+            status=0
+            output=$(npx stacktape delete --project my-project --stage "pr-${PR_NUMBER}" --region us-east-1 --yes --json) || status=$?
+            printf '%s\n' "$output"
+            if [ "$status" -ne 0 ]; then
+              jq -es 'last | .type == "result" and .ok == false and (.code | IN("NON_EXISTING_STACK_E30", "NON_EXISTING_STACK_E32"))' <<< "$output" >/dev/null || exit "$status"
+            fi
+          fi
 ```
-
-Both commands name the project and the stage, so the stack name never depends on the runner or on the checkout. The
-delete always runs with the default branch's code, and its config may differ from the one the preview was deployed with.
-
-The delete is a separate workflow because GitHub doesn't run `pull_request` workflows for a pull request with merge
-conflicts, and that includes the close. `pull_request_target` runs anyway, with the workflow file and code of your
-default branch. Checking out the pull request's code there would let it run with the delete's AWS credentials. In a
-public repository, GitHub blocks `pull_request_target` by default from December 2, 2026: allow it for this workflow in
-an Actions policy under **Settings → Actions → Policies**.
-
-The two workflows also use separate concurrency groups. In a shared group, a deploy that GitHub queues after the close
-replaces the pending delete. Instead, the delete waits for a deploy that is still running, and a deploy that starts
-after the close finds the pull request closed and stops. Stacktape also makes a delete wait while a deploy of the same
-stage holds the stack.
-
-The role's trust policy must accept the deploy job's pull request subject and the delete job's environment subject.
-GitHub sends one of two subject formats: repositories created after July 15, 2026 (and older ones that opted in)
-include the owner and repository IDs. Trusting all four exact values works either way:
-
-```json
-"Condition": {
-  "StringEquals": {
-    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-    "token.actions.githubusercontent.com:sub": [
-      "repo:my-org/my-app:pull_request",
-      "repo:my-org@123456/my-app@456789:pull_request",
-      "repo:my-org/my-app:environment:preview-cleanup",
-      "repo:my-org@123456/my-app@456789:environment:preview-cleanup"
-    ]
-  }
-}
-```
-
-`gh api repos/my-org/my-app --jq '.owner.id, .id'` prints the two IDs. The delete job names an environment because
-GitHub then puts the environment in the subject, whatever event started the job. A role that trusts only
-`...:ref:refs/heads/main` refuses both jobs. Keep previews in an AWS account without production.
-
-With the Console, drop the `configure-aws-credentials` steps and set `STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}`
-in the `env` of both Stacktape steps, as in the deploy workflow above.
-
-The `if` conditions skip pull requests from forks. In the deploy workflow, a fork can edit its copy of the workflow,
-and the trust policy can't tell a fork's run from yours. What keeps forks out there is that GitHub gives fork pull
-request runs read-only permissions, so they can't request the OIDC token. Keep **Send write tokens to workflows from
-pull requests** turned off in the repository's **Settings → Actions → General**. The delete workflow is different:
-`pull_request_target` runs your default branch's copy, with the permissions it asks for, even for a fork's pull
-request, so its `if` condition is what keeps forks out. Don't remove it.
-
-A database that `stacktape init` added has `deletionProtection: true` on every stage. `stacktape delete` then stops
-before it deletes anything, the delete job fails, and the preview keeps running and costing money. Protect only
-production. In `stacktape.ts`, use the `stage` that `defineConfig` passes to your config:
-
-```ts
-export default defineConfig(({ stage }) => {
-  const database = new RelationalDatabase({
-    // ...the rest of the database
-    deletionProtection: stage === 'production'
-  });
-  // ...
-});
-```
-
-A preview deployed before this change keeps its protection until it is deployed again. After your first preview,
-close the pull request and check that the stage is gone, for example with `stacktape stack list --region us-east-1`.
 
 
 > **Warning:** Delete preview stages on PR close to avoid unused infrastructure and costs. Each preview stage provisions the full set of resources defined in your config — databases, functions, containers, and networking — all of which incur AWS charges while running.
+
+If cleanup doesn't run or fails, use the preview's AWS credentials and run `stacktape delete --project my-project --stage pr-<n> --region us-east-1 --yes` with the PR number in place of `<n>`.
+
+If the preview uses a database with deletion protection, [turn off protection for that stage](/ci-cd-and-gitops/stacks-per-git-branch-pattern#auto-delete-on-pr-close) before cleanup.
 
 
 For more on the branch-to-stage mapping pattern, see [stacks per git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern).
@@ -484,7 +427,7 @@ The first deploy of a new stage is the exception: until the stage exists, it has
 
 ### How do I authenticate Stacktape in a CI pipeline?
 
-Without a Stacktape account, give the job AWS credentials; nothing else is needed. With the Console, run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create the key in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use an organization key rather than a personal key, so the pipeline keeps working when the person who set it up leaves.
+Without a Stacktape account, give the job AWS credentials; nothing else is needed. With the Console, run [`stacktape login --api-key <key>`](/cli/login) as a pipeline step before deploying — the login command verifies the key and saves it for subsequent CLI commands. Alternatively, set `STACKTAPE_API_KEY` as an environment variable in your CI runner. Create API keys in the Stacktape Console under [API keys](/stacktape-console/api-keys). Use a dedicated organization key for team CI so you can rotate it independently of developers’ keys.
 
 ### When should I use custom CI/CD vs GitOps?
 

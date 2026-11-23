@@ -9,6 +9,8 @@ seoDescription: 'Create an HTTP/HTTPS load balancer with Stacktape using AWS ALB
 
 A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container workloads and [Lambda functions](/resources/compute/lambda-function) based on path, host, headers, query parameters, and source IPs. It uses AWS ALB underneath — flat ~$18/month pricing (AWS Free Tier eligible), WebSocket support, [firewall](/resources/security/web-application-firewall) attachment, and [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
 
+Without a custom domain or a listener certificate, the load balancer needs a Console-provided domain. A deploy without the Console stops with `CONFIG_NEEDS_CONSOLE`.
+
 ## When to use
 
 Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
@@ -59,9 +61,7 @@ An Application Load Balancer resource defines the load balancer itself — liste
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const myAlb = new ApplicationLoadBalancer({
-    customDomains: [{ domainName: 'api.example.com' }]
-  });
+  const myAlb = new ApplicationLoadBalancer({});
 
   return {
     resources: { myAlb }
@@ -72,7 +72,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The ALB `myAlb` sets only its domain because its listener defaults handle the common case. Without `customDomains` (or `customCertificateArns` on its listeners), a load balancer is served on a `*.stacktape-app.com` domain that the [Stacktape Console](/getting-started/open-source-cli) provides. Without the Console connected, the deploy stops with `CONFIG_NEEDS_CONSOLE` and asks for a custom domain. [Lambda functions](/resources/compute/lambda-function) attach to the ALB through an `ApplicationLoadBalancerIntegration` event, while container workloads use the container ALB integration (type `application-load-balancer`) and must additionally specify `containerPort` to identify which container port receives the traffic.
+The ALB `myAlb` has no explicit configuration because its listener defaults handle the common case. [Lambda functions](/resources/compute/lambda-function) attach to the ALB through an `ApplicationLoadBalancerIntegration` event, while container workloads use the container ALB integration (type `application-load-balancer`) and must additionally specify `containerPort` to identify which container port receives the traffic.
 
 You can reference the deployed ALB domain with `$ResourceParam('myAlb', 'domain')` in your config or retrieve it via [`stacktape param get`](/cli/param-get).
 
@@ -243,7 +243,7 @@ For full details on domain management, see [Custom domains](/resources/networkin
 
 ## CDN
 
-The `cdn` property puts CloudFront in front of the load balancer for caching and lower latency worldwide. See the [CDN page](/resources/networking/cdn) for cache policy and forwarding details. Give the CDN its own `cdn.customDomains`: without them it needs a `*.stacktape-app.com` domain from the Stacktape Console, and without the Console connected the deploy stops with `CONFIG_NEEDS_CONSOLE`.
+The `cdn` property puts CloudFront in front of the load balancer for caching and lower latency worldwide. See the [CDN page](/resources/networking/cdn) for cache policy and forwarding details.
 
 **When to enable CDN:** Your API serves cacheable public data (product catalogs, static assets, content APIs), or your users are spread across continents and you need lower global latency.
 
@@ -263,8 +263,7 @@ export default defineConfig(() => {
     customDomains: [{ domainName: 'api.example.com' }],
     cdn: {
       enabled: true,
-      cloudfrontPriceClass: 'PriceClass_100',
-      customDomains: [{ domainName: 'cdn.example.com' }]
+      cloudfrontPriceClass: 'PriceClass_100'
     }
   });
 

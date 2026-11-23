@@ -98,7 +98,7 @@ The certificate must be in ACM in your AWS account and cover the hostname in `do
 
 Keep DNS at your current provider if you want to keep editing records there or keep using features such as Cloudflare's proxy and firewall. With both `customCertificateArn` and `disableDnsRecordCreation: true`, Stacktape skips its managed hosted-zone lookup for this hostname.
 
-1. Request a public certificate in ACM. For anything served through CloudFront (a CDN, Next.js and the other frontend resources, static hosting), AppSync or a user pool domain, request it in `us-east-1`. For an API gateway or a load balancer, request it in the stack's region. Include each hostname you'll use. A certificate for `example.com` alone cannot serve `app.example.com`.
+1. Request a public certificate in ACM in the [region your resource needs](#tls-certificates). Include each hostname you'll use. A certificate for `example.com` alone cannot serve `app.example.com`.
 2. Add the validation CNAME records ACM gives you at your DNS provider. Wait for ACM to show **Issued**.
 3. Set `customCertificateArn` to the certificate ARN, set `disableDnsRecordCreation: true`, and deploy.
 4. At your DNS provider, point a CNAME for `app.example.com` to the AWS target hostname. Use the AWS hostname even if the application URL already shows your custom name.
@@ -109,7 +109,7 @@ Keep DNS at your current provider if you want to keep editing records there or k
 For the bare `example.com`, use an alias or CNAME flattening if your DNS provider supports it for that target. A standard CNAME only works below the root.
 
 
-Example (Load balancer (stack region)):
+Example (TypeScript):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
@@ -126,29 +126,6 @@ export default defineConfig(() => {
 
   return {
     resources: { myAlb }
-  };
-});
-```
-
-
-Example (Next.js on CloudFront (us-east-1)):
-
-```typescript
-import { defineConfig, NextjsWeb } from 'stacktape';
-export default defineConfig(() => {
-  const web = new NextjsWeb({
-    appDirectory: '.',
-    customDomains: [
-      {
-        domainName: 'www.example.com',
-        customCertificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/abc-def-123',
-        disableDnsRecordCreation: true
-      }
-    ]
-  });
-
-  return {
-    resources: { web }
   };
 });
 ```

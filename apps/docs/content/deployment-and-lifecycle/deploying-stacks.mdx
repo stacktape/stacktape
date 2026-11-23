@@ -7,7 +7,7 @@ seoDescription: 'Learn how Stacktape deploys infrastructure to AWS with CloudFor
 
 # Deploying Stacks
 
-The [`stacktape deploy`](/cli/deploy) command prepares your application artifacts, generates a CloudFormation template from your configuration, uploads artifacts, and asks CloudFormation to create or update the stack. Each stage of a project maps to one CloudFormation stack in your AWS account. A deployment that fails keeps what it already created; fix the error and deploy again, and it continues from where it stopped. See [When a deployment fails](#when-a-deployment-fails).
+The [`stacktape deploy`](/cli/deploy) command prepares your application artifacts, generates a CloudFormation template from your configuration, uploads artifacts, and asks CloudFormation to create or update the stack. Each stage of a project maps to one CloudFormation stack in your AWS account. By default, a failed deploy keeps the resources it created or updated. See [When a deployment fails](#when-a-deployment-fails) for recovery and rollback options.
 
 ## How deployment works
 
@@ -52,13 +52,13 @@ After the stack is stable, Stacktape completes several post-deployment tasks: sy
 
 ## Running a deployment
 
-Every Stacktape deployment targets a specific stage and AWS region. The stage name identifies a separate copy of your infrastructure — each stage maps to one CloudFormation stack — while the region determines where AWS provisions your resources. Both flags are required unless you have configured defaults with [`stacktape defaults set`](/cli/defaults-configure).
+Every Stacktape deployment targets a specific stage and AWS region. The stage name identifies an isolated copy of your infrastructure — each stage maps to one CloudFormation stack — while the region determines where AWS provisions your resources. Both flags are required unless you have configured defaults with [`stacktape defaults set`](/cli/defaults-configure).
 
 ```bash
 stacktape deploy --stage dev --region eu-west-1
 ```
 
-A **stage** is a separate copy of your infrastructure — typically one per environment (`dev`, `staging`, `production`) or per developer (`dev-john`). Stage names use lowercase letters, numbers and hyphens. See [Stages and environments](/configuration/stages-and-environments) for details. A **region** determines the AWS data center where your resources are created.
+A **stage** is an isolated copy of your infrastructure — typically one per environment (`dev`, `staging`, `production`) or per developer (`dev-john`). Stage names use lowercase letters, numbers and hyphens. See [Stages and environments](/configuration/stages-and-environments) for details. A **region** determines the AWS data center where your resources are created.
 
 Stacktape looks for `stacktape.ts` (or `stacktape.yml`) in the current directory by default. Use `--config` to point to a different file.
 
@@ -131,7 +131,6 @@ By default, a failed full deployment keeps everything it created or updated, and
 
 - A failed **first deployment** leaves the stack in `CREATE_FAILED`. Resources that were created stay, for example a database that took several minutes. Fix the error and run `stacktape deploy` again: it updates the stack, creates only what is missing and retries what failed. To remove everything instead, run [`stacktape delete`](/cli/delete).
 - A failed **update** leaves the stack in `UPDATE_FAILED`. Resources that updated successfully keep their new configuration, and the ones that failed return to their previous state. Fix the error and deploy again, or return the whole stack to the last successful deployment with [`stacktape stack recover`](/cli/cf-rollback).
-- When the deployment **succeeded but the app is broken**, the stack is in `UPDATE_COMPLETE` and nothing rolls back on its own. Return to an earlier release with [`stacktape rollback`](/cli/rollback), or deploy a fix.
 
 The CLI prints which state the stack is in and these options when a deployment fails. A deployment over a failed stack always goes through CloudFormation, even when only code changed. When it succeeds, Stacktape removes the deployment artifacts that the failed attempts left behind.
 
@@ -264,7 +263,7 @@ Run with `--debug` to see detailed timing for each phase.
 If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
 
 ```bash
-stacktape secret set --name mySecret --stage production --region eu-west-1
+stacktape secret set mySecret --region eu-west-1
 ```
 
 ## FAQ
@@ -279,7 +278,7 @@ By default, the stack keeps what the deployment created or updated and stays in 
 
 ### Can I deploy multiple stages from the same config?
 
-Yes. The same `stacktape.ts` config produces independent stacks per stage. Deploy with `--stage dev` and `--stage production` from the same config, and they create separate application resources. Non-production stages of an account and region usually share one VPC; see [Stages and environments](/configuration/stages-and-environments#are-stages-fully-isolated-from-each-other). Use [directives](/configuration/directives) like `$Stage()` inside your config to vary behavior per stage — for example, smaller instances in dev and larger ones in production.
+Yes. The same `stacktape.ts` config produces independent stacks per stage. Deploy with `--stage dev` and `--stage production` from the same config, and they create separate AWS resources with no shared state. Use [directives](/configuration/directives) like `$Stage()` inside your config to vary behavior per stage — for example, smaller instances in dev and larger ones in production.
 
 ### Do I have to choose between a fast and a full deployment?
 

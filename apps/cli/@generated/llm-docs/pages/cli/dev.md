@@ -154,16 +154,14 @@ Stop a running agent with [`dev stop`](/cli/dev-stop).
 
 ## Interactive commands
 
-While running in interactive mode, you can control dev mode with the following keys:
+Use these shortcuts in the interactive dev dashboard.
 
 | Key | Action |
 |---------|--------|
-| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
-| **Ctrl+A** | Rebuild all workloads |
-| **Tab** | Switch between the overview and the logs |
-| **Ctrl+C** | Stop dev mode and exit |
-
-The rebuild keys work in the overview, not in the logs view.
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode and exit |
 
 ## Examples
 
@@ -220,7 +218,7 @@ Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server fo
 Dev mode deploys and updates a dev stack in your AWS account, so it follows the same
 [Free plan cost limit](/stacktape-console/billing-and-subscription#free-plan-cost-limit) as
 [`stacktape deploy`](/cli/deploy#free-plan-cost-limit). When a Free organization's managed AWS costs this month are
-above $100, dev mode stops before it creates or deploys anything and prints the costs and the upgrade link. Upgrading
+above $200 and the grace period no longer applies, dev mode stops before it creates or deploys anything and prints the costs and the upgrade link. Upgrading
 to the Flexible plan lifts the limit immediately. Running infrastructure is not affected, and
 [`dev stop`](/cli/dev-stop) and [`delete`](/cli/delete) keep working.
 

@@ -69,18 +69,57 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
 ## Quick start
 
 
-### Start Stacktape in your project
+### Install Stacktape
 
 
-    Run it in your app's directory. It opens a wizard in your browser that reads your project, writes the config
-    file with you and shows the monthly price before anything is deployed.
+    Install globally, or locally to your project.
 
 
-Example (npm):
+Example (npm (global)):
 
 ```bash
-npx stacktape@latest init
+npm install -g stacktape
 ```
+
+
+Example (npm (local)):
+
+```bash
+npm install stacktape
+```
+
+
+Example (bun (global)):
+
+```bash
+bun add -g stacktape
+```
+
+
+Example (bun (local)):
+
+```bash
+bun add stacktape
+```
+
+
+Example (pnpm (global)):
+
+```bash
+pnpm add -g stacktape
+```
+
+
+Example (pnpm (local)):
+
+```bash
+pnpm add stacktape
+```
+
+
+    Or install the standalone binary, which needs no Node.js, and start `stacktape init` in the same command. The
+    installer picks the build for your processor, including Apple silicon, ARM64 and Alpine Linux. Leave out `init` to
+    only install. For a new project, pass `init --starter-project`.
 
 
 Example (macOS):
@@ -104,48 +143,41 @@ iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 ```
 
 
-    The macOS, Linux and Windows lines install the standalone binary, which needs no Node.js, and then start
-    `stacktape init`, so you don't run init again. Leave out `init` to only install. With the standalone binary,
-    run the commands below as `stacktape` instead of `npx stacktape@latest`, which needs Node.js. If the installer
-    added Stacktape to your PATH, open a new terminal first.
+### Initialize a project
 
 
-### Or start a new project
-
-
-    In an empty directory, pick a starter project instead.
+    If the standalone installer already started init, skip this step. Otherwise, run init in your existing repository. For a new project, add `--starter-project`. Open a new terminal if the installer added Stacktape to your PATH.
 
 
 Example (npm):
 
 ```bash
-npx stacktape@latest init --starter-project
+npx stacktape init
 ```
 
 
-Example (Standalone binary):
+Example (Standalone):
 
 ```bash
-stacktape init --starter-project
+stacktape init
 ```
 
 
 ### Deploy to AWS
 
 
-    The wizard deploys when you confirm. Stacktape builds, packages and provisions everything into your account with
-    your local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
-    To deploy from the terminal, pick a stage and a region:
+    Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
+    local AWS credentials. No Stacktape account is needed; see [Use the CLI without an account](/getting-started/open-source-cli).
 
 
 Example (npm):
 
 ```bash
-npx stacktape@latest deploy --stage dev --region us-east-1 --project {your-project-name}
+npx stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
 ```
 
 
-Example (Standalone binary):
+Example (Standalone):
 
 ```bash
 stacktape deploy --stage dev --region us-east-1 --project {your-project-name}
@@ -209,7 +241,7 @@ Example (stacktape.json):
 ```
 
 
-Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `stacktape deploy --config stacktape.json --stage dev --region us-east-1`.
+Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `stacktape.js`) on its own. It does not look for `stacktape.json`, so pass a JSON file explicitly with `--config`, for example `npx stacktape deploy --config stacktape.json --stage dev --region us-east-1`. With the standalone CLI, omit `npx`.
 
 ## A development workflow built for speed
 
@@ -218,10 +250,17 @@ Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `s
 Run your services in development mode to iterate faster — your code runs locally, connected to real cloud resources, so you can test changes without redeploying every time.
 
 
-Example (bash):
+Example (npm):
 
 ```bash
-stacktape dev --stage dev --region us-east-1
+npx stacktape dev --stage local --region us-east-1
+```
+
+
+Example (Standalone):
+
+```bash
+stacktape dev --stage local --region us-east-1
 ```
 
 
@@ -255,7 +294,14 @@ export default defineConfig(() => {
 ```
 
 
-Example (bash):
+Example (npm):
+
+```bash
+npx stacktape script run migrate --stage dev --region us-east-1
+```
+
+
+Example (Standalone):
 
 ```bash
 stacktape script run migrate --stage dev --region us-east-1

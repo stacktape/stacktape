@@ -246,7 +246,7 @@ Every deployed [stage](/configuration/stages-and-environments) consumes AWS reso
 Review your stacks regularly in the Stacktape Console or with [`stacktape stack list`](/cli/info-stacks). Delete any stage that's no longer needed:
 
 ```bash
-stacktape delete --stage old-feature
+stacktape delete --stage old-feature --region eu-west-1
 ```
 
 For PR-preview workflows, see the [stacks-per-git-branch pattern](/ci-cd-and-gitops/stacks-per-git-branch-pattern) and make cleanup part of the workflow so old stages are deleted after branches are merged.

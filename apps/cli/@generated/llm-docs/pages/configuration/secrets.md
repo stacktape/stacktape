@@ -159,9 +159,7 @@ export default defineConfig(() => {
       cpu: 0.25,
       memory: 512
     },
-    environment: {
-      DISCORD_BOT_TOKEN: $Secret('discord-bot-token')
-    }
+    secrets: [{ name: 'DISCORD_BOT_TOKEN', valueFrom: $Secret('discord-bot-token') }]
   });
 
   return {

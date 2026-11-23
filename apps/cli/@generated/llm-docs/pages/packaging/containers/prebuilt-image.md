@@ -70,7 +70,7 @@ To pull from a private registry that requires authentication, store your credent
 Create the secret using the Stacktape CLI [`secret set`](/cli/secret-set) command. The command accepts `--secret-name` to set the secret name and `--value` to provide the JSON credentials inline. See the [CLI reference](/cli/secret-set) for the full list of flags (including `--file` and `--region`).
 
 ```bash
-stacktape secret set my-registry-creds --value '{"username":"my-user","password":"my-token"}'
+stacktape secret set my-registry-creds --region eu-west-1 --value '{"username":"my-user","password":"my-token"}'
 ```
 
 Then reference the secret ARN in your config:

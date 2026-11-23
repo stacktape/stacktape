@@ -92,7 +92,7 @@ Auto-rebuild workloads when source files change:
 stacktape dev --stage dev --region us-east-1 --resources all --watch
 ```
 
-Without `--watch`, you trigger rebuilds manually from the dev mode terminal with **Ctrl+R** (see [Rebuilding workloads](#rebuilding-workloads)).
+Without `--watch`, you trigger rebuilds manually from the dev mode terminal with Ctrl+R (see [Rebuilding workloads](#rebuilding-workloads)).
 
 Watch mode also watches the Stacktape configuration file. A rebuild cannot apply a configuration change, so dev mode tells you to restart it instead.
 
@@ -169,12 +169,12 @@ The dev mode terminal accepts these keys while running:
 
 | Key | Action |
 |---|---|
-| **Ctrl+R** | Rebuild. With several workloads, pick one by its number, `a` for all, or Esc to cancel |
-| **Ctrl+A** | Rebuild all workloads |
-| **Tab** | Switch between the overview and the logs |
-| **Ctrl+C** | Stop dev mode and exit |
+| Ctrl+R | From Overview, rebuild a workload. If there are several, pick one by number. |
+| Ctrl+A | From Overview, rebuild all workloads |
+| Tab | Switch between the dashboard and logs |
+| Ctrl+C | Stop dev mode and exit |
 
-The rebuild keys work in the overview, not in the logs view. When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, press **Ctrl+R** after editing code to see changes. Pick a single workload to rebuild it without restarting others — useful when iterating on one service in a multi-resource config.
+When running with `--watch`, workloads rebuild automatically on file changes. Without `--watch`, press Ctrl+R after editing code to see changes. Pick a single workload to rebuild it without restarting others — useful when iterating on one service in a multi-resource config.
 
 A workload whose rebuild fails, for example because of a syntax error, shows the error and stays failed until a rebuild succeeds. A Lambda function keeps its previous code until then. A rebuild deploys code only: after a change to the configuration file, stop dev mode and start it again.
 

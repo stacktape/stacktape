@@ -2,8 +2,6 @@
 
 Uptime checks probe your HTTP endpoints from multiple AWS regions and alert you when an endpoint stops responding successfully. The probes run inside your own AWS account — Stacktape provisions a small prober Lambda in each monitoring region, so there is no external monitoring vendor and no per-check subscription fee. The Console shows live status, availability and latency history, and an incident timeline for every check.
 
-Uptime checks need the [Stacktape Console](/getting-started/open-source-cli) (the Free plan works), because the Console decides when a check is down and sends the alerts. Without a Console connection, a deploy with an uptime check stops at validation with `CONFIG_NEEDS_CONSOLE` and changes nothing. Connect with `stacktape connect`, or remove the check.
-
 ## When to use
 
 Add an uptime check to every public endpoint whose downtime you want to hear about before your users do: production APIs, customer-facing web apps, and webhook receivers. Checks are cheap (a few Lambda invocations per minute), so the practical default is one check per public-facing service in every production stage.
@@ -16,7 +14,7 @@ Add an uptime check to every public endpoint whose downtime you want to hear abo
 
 ## Configuration
 
-An uptime check is a standalone resource. The only required property is `url`:
+An uptime check is a standalone resource. The only required property is `url`. A deploy with any uptime check needs the Console and stops with `CONFIG_NEEDS_CONSOLE` without it.
 
 ```yaml
 resources:

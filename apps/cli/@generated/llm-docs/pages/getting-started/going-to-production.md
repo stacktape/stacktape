@@ -71,7 +71,7 @@ A budget watches the whole AWS account. It cannot filter by project or stage. If
 
 ## Custom domains
 
-Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. Provide your domain name, and Stacktape creates DNS records in Route53 and provisions TLS certificates automatically. The example below shows the most common case — a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
+Stacktape [web services](/resources/compute/web-service) support custom domains through the `customDomains` property. After you set up the domain and its certificate, Stacktape creates the DNS record in Route 53. The example below shows the most common case — a web service API. Other public resources are covered in the [Custom domains](/resources/networking/custom-domains) guide.
 
 
 Example (TypeScript):
@@ -93,7 +93,7 @@ export default defineConfig(() => {
 ```
 
 
-Your domain must have a Route53 hosted zone in your AWS account. Use the [`stacktape domain add`](/cli/domain-add) command to register a domain, or add the hosted zone manually in the AWS Console. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
+For managed DNS, run [`stacktape domain add`](/cli/domain-add) even if the Route 53 hosted zone already exists. Wait for the certificate to show **Issued** in ACM before deploying. A CloudFront distribution needs its viewer certificate in `us-east-1`. See [Custom domains](/resources/networking/custom-domains) for full setup details including domains registered with external providers.
 
 Custom domains add no Stacktape cost, but Route53 hosted-zone and DNS-query charges apply in AWS. For production, custom domains are worth the cost — they give users a branded URL instead of an auto-generated AWS hostname, and TLS certificates are provisioned and renewed automatically.
 

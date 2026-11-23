@@ -311,7 +311,7 @@ See [hooks and scripts configuration](/configuration/hooks-and-scripts) for the 
 Run any named script with the [`stacktape script run`](/cli/script-run) command:
 
 ```bash
-stacktape script run migrate
+stacktape script run migrate --stage staging
 ```
 
 ## Deployment scripts
@@ -475,7 +475,7 @@ export const handler = async (event: { bucketName: string }) => {
 Use [`stacktape deployment-script run`](/cli/deployment-script-run) to execute a deployment script outside of the normal deploy lifecycle. This is useful during development or when a migration needs to be re-applied. See the [CLI reference](/cli/deployment-script-run) for the available flags.
 
 ```bash
-stacktape deployment-script run migrate
+stacktape deployment-script run migrate --stage staging --region eu-west-1
 ```
 
 ### Memory, timeout, and storage
@@ -590,10 +590,10 @@ The script inherits the `api` function's IAM role, which has DynamoDB access thr
 
 ## Debugging
 
-View logs from deployment scripts using [`stacktape logs`](/cli/logs):
+View logs from the Lambda function behind the `migrate` deployment script using [`stacktape logs`](/cli/logs):
 
 ```bash
-stacktape logs migrate
+stacktape logs migrateScriptFunction --stage staging --region eu-west-1
 ```
 
 Local script and bastion script output is visible in your terminal when running the script. See [hooks and scripts configuration](/configuration/hooks-and-scripts) for any output-handling options exposed by each script type.

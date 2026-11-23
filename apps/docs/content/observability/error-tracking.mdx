@@ -17,7 +17,7 @@ The `issues:*` commands are now `error list`, `error ignore`, `error resolve`, a
 
 ## When to use
 
-Stacktape error tracking gives you structured error tracking with no additional SDK or external service. It is on by default once the Console is connected, and fits when:
+Stacktape error tracking gives you structured error tracking with no additional SDK or external service. It is on by default and fits when:
 
 - You want to see which runtime errors are recurring across projects and stages without scanning raw log lines.
 - You need a lightweight triage workflow — open, resolve, or ignore issues — without leaving Stacktape.
@@ -35,7 +35,9 @@ Stacktape error tracking displays recorded runtime errors in the Console and CLI
 
 ## Turning error tracking off or limiting stages
 
-Error tracking needs the [Stacktape Console](/getting-started/open-source-cli) (the Free plan works). Once your AWS account is connected, it is on for every stage of every stack by default. Without the Console, deploys print `Error tracking: off` and nothing is collected, and a configuration that turns it on with `deploymentConfig.errorTracking` stops at validation with `CONFIG_NEEDS_CONSOLE`. With the Console, nothing needs to be set up: each deployment subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged.
+With the Console, error tracking is on by default. It subscribes Standard log groups for application Lambda functions with Stacktape-managed packaging and containers packaged with `js-bundle`, provided the workload uses a supported language and has log forwarding off.
+
+Without the Console, error tracking defaults to off. Setting `errorTracking.enabled: true` or listing stages for enabled tracking stops the deploy with `CONFIG_NEEDS_CONSOLE`.
 
 The stack's configuration decides. Turn error tracking off for a stack, or limit it to some stages, in `deploymentConfig.errorTracking`; the change takes effect at the stack's next deployment.
 

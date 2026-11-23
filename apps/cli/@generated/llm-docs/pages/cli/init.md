@@ -163,7 +163,7 @@ Initialize from a ready-made project instead of reading yours. These skip the wi
 with their estimated price, and prints the commands that run it in dev mode and deploy it.
 
 ```bash
-stacktape init --starter-id hono-api
+stacktape init --starter-id expressjs-api-postgres
 ```
 
 ### `--initialize-project-to`

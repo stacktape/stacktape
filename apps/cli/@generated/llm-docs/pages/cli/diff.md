@@ -1,6 +1,6 @@
 # diff
 
-The `diff` command shows what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with your current configuration. It packages workloads, uploads the synthesized CloudFormation template, and creates a change set against the live stack to print a summary of new, updated, replaced, and removed resources. The change set is never executed, so your running resources stay as they are. The command is not read-only, though: [How it works](#how-it-works) lists what it writes to AWS.
+The `diff` command shows what would change in your deployed stack if you ran [`deploy`](/cli/deploy) with your current configuration. It packages workloads, uploads the synthesized CloudFormation template, and creates a change set against the live stack to print a summary of new, updated, replaced, and removed resources. The change set is not executed. The command can create missing secrets and SSM parameters or restore secrets scheduled for deletion.
 
 ## Usage
 
@@ -32,14 +32,6 @@ For resources that will be replaced, the output distinguishes between **will rep
 
 > **Warning:** Replaced resources are destroyed and recreated. For databases or stateful resources, replacement can cause data loss. Always review `diff` output before deploying changes that touch database engines, instance classes, or storage configuration.
 
-
-`diff` leaves your running resources alone, but to build the preview it does what a deploy does up to the point of applying it:
-
-- **Secrets and SSM parameters.** It restores secrets referenced by the config that are scheduled for deletion. In a terminal, it asks for the values of missing secrets and parameters and creates them. With `--agent` or without a terminal, a missing secret or parameter stops the command instead. Missing database passwords are generated and stored as new secrets, after a confirmation in a terminal.
-- **The template.** It uploads the template to the stage's deployment bucket and deletes it after the preview.
-- **The change set.** It creates a CloudFormation change set on the stack to read the changes, then deletes it.
-
-That's why coding agents need your approval before they run `diff` through the [MCP server](/using-with-ai/mcp-server-setup#safety-model), the same as for a deploy. [`synth`](/cli/synth) builds the template without changing anything in AWS.
 
 ## Important flags
 
@@ -148,7 +140,7 @@ Meaningful Stacktape resource changes
 
 ### Does diff make any changes to my stack?
 
-It doesn't update your stack's resources: the change set it creates is never executed and is deleted after the preview. It can still write to AWS. It creates missing secrets and SSM parameters, restores secrets scheduled for deletion, and uploads a temporary template to the deployment bucket. See [How it works](#how-it-works).
+The change set is not executed and no stack updates are applied. `diff` can create missing secrets and SSM parameters or restore secrets scheduled for deletion.
 
 ### What does "no meaningful Stacktape resource changes" mean?
 

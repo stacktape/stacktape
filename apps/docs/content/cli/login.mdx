@@ -28,7 +28,7 @@ For CI/CD, prefer setting `STACKTAPE_API_KEY` as a masked secret in the runner e
 stacktape login --api-key "$STACKTAPE_API_KEY" --agent
 ```
 
-For CI, Owners and Admins create an [organization key](/stacktape-console/api-keys#creating-an-api-key) on the Stacktape Console's API keys page, so the pipeline keeps working when people leave. Manual API keys are bearer secrets and should be treated as shown-once credentials.
+You can create CI keys from the [Stacktape Console's API keys page](/stacktape-console/api-keys). Manual API keys are bearer secrets and should be treated as shown-once credentials.
 
 ## What happens during login
 

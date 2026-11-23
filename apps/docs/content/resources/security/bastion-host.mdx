@@ -74,7 +74,7 @@ Once connected, you can run commands on the bastion instance. Install the tools 
 The [`bastion tunnel`](/cli/bastion-tunnel) command creates a port-forwarding tunnel from your local machine to a private resource. The remote endpoint is mapped to a local port, so your local tools connect to `localhost` as if the resource were running on your machine.
 
 ```bash
-stacktape bastion tunnel --stage production --region eu-west-1
+stacktape bastion tunnel <resource-name> --stage production --region eu-west-1
 ```
 
 The tunnel target is a Stacktape resource name. See the [`bastion tunnel` CLI reference](/cli/bastion-tunnel) for command usage. Supported tunnel targets:
