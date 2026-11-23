@@ -24,11 +24,6 @@ A resource is one part of your stack: a service, a database, a bucket, a queue. 
 - [Batch job](/resources/compute/batch-job): A job that runs to completion, with GPUs if needed
 - [Triggers](/resources/triggers/overview): Code on a schedule, a file upload or a queue message
 
-**Serve a frontend**
-
-- [Framework pages](#frontend): A Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start or Remix app
-- [Static hosting](/resources/frontend/static-hosting): A static site or a single-page app
-
 **Store data**
 
 - [Relational database](/resources/databases/relational-database): PostgreSQL or MySQL
@@ -36,6 +31,11 @@ A resource is one part of your stack: a service, a database, a bucket, a queue. 
 - [Redis](/resources/databases/redis): A cache or user sessions
 - [Upstash Redis](/resources/databases/upstash-redis): A cache for Lambda-heavy apps, paid per request
 - [S3 bucket](/resources/storage/s3-bucket): Files and uploads
+
+**Serve a frontend**
+
+- [Framework pages](#frontend): A Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start or Remix app
+- [Static hosting](/resources/frontend/static-hosting): A static site or a single-page app
 
 **Connect and extend**
 
@@ -172,8 +172,6 @@ Triggers are not resources of their own. You add them to a Lambda function, and 
 | [AWS CDK constructs](/resources/advanced/aws-cdk-constructs) | Any | Adding an existing CDK construct to the stack |
 | [Raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) | Any | Declaring any AWS resource directly |
 
-</Directory>
-
 ## What else goes in a stack
 
 [Uptime checks](/observability/uptime-checks) and [synthetic tests](/observability/synthetic-tests) are configured in the stack too, and [alarms](/observability/alarms) are set on the resource they watch. Their pages are under Observability.
@@ -181,3 +179,5 @@ Triggers are not resources of their own. You add them to a Lambda function, and 
 ## What resources cost
 
 Always-on resources bill by the hour even with no traffic. These include web, private and worker services, multi-container workloads, relational databases, Redis, OpenSearch, load balancers, Kafka clusters, bastion hosts and Convex. Most other resources bill per request, per message or per GB stored. Each resource page has a pricing note, and [Managing costs](/managing-costs/overview) explains how to track the bill.
+
+</Directory>

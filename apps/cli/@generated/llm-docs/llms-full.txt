@@ -21977,11 +21977,6 @@ A resource is one part of your stack: a service, a database, a bucket, a queue. 
 - [Batch job](/resources/compute/batch-job): A job that runs to completion, with GPUs if needed
 - [Triggers](/resources/triggers/overview): Code on a schedule, a file upload or a queue message
 
-**Serve a frontend**
-
-- [Framework pages](#frontend): A Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start or Remix app
-- [Static hosting](/resources/frontend/static-hosting): A static site or a single-page app
-
 **Store data**
 
 - [Relational database](/resources/databases/relational-database): PostgreSQL or MySQL
@@ -21989,6 +21984,11 @@ A resource is one part of your stack: a service, a database, a bucket, a queue. 
 - [Redis](/resources/databases/redis): A cache or user sessions
 - [Upstash Redis](/resources/databases/upstash-redis): A cache for Lambda-heavy apps, paid per request
 - [S3 bucket](/resources/storage/s3-bucket): Files and uploads
+
+**Serve a frontend**
+
+- [Framework pages](#frontend): A Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start or Remix app
+- [Static hosting](/resources/frontend/static-hosting): A static site or a single-page app
 
 **Connect and extend**
 
@@ -22123,7 +22123,6 @@ Triggers are not resources of their own. You add them to a Lambda function, and 
 | [Custom resources](/resources/advanced/custom-resources) | Lambda | Provisioning, with your own code, what AWS templates do not support |
 | [AWS CDK constructs](/resources/advanced/aws-cdk-constructs) | Any | Adding an existing CDK construct to the stack |
 | [Raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources) | Any | Declaring any AWS resource directly |
-
 
 ## What else goes in a stack
 

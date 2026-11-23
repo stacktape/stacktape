@@ -218,6 +218,7 @@
 /* The first-use suggestions (see DocSearch.tsx). The hint above them lines up with the list. */
 .DocSearch-StartScreen:has(.docs-search-start) {
   width: 100%;
+  padding: 0;
   text-align: left;
 }
 .DocSearch-StartScreen:has(.docs-search-start) .DocSearch-Help {

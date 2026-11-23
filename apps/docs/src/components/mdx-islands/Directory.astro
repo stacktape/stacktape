@@ -32,6 +32,7 @@ const { label, layout = 'rows', items } = Astro.props;
       data-directory-filter
     />
   </label>
+  <p class="docs-directory-count" data-directory-count aria-live="polite" hidden></p>
   <div class="docs-directory-body" data-directory-body><slot /></div>
   <p class="docs-directory-empty" data-directory-empty hidden>
     Nothing here matches. <button type="button" class="docs-directory-search-all" data-directory-search>

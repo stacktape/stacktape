@@ -9,6 +9,7 @@ const setUp = (root: HTMLElement) => {
   const input = root.querySelector<HTMLInputElement>('[data-directory-filter]');
   const body = root.querySelector<HTMLElement>('[data-directory-body]');
   const empty = root.querySelector<HTMLElement>('[data-directory-empty]');
+  const count = root.querySelector<HTMLElement>('[data-directory-count]');
   if (!input || input.closest('[hidden]') || !body || root.dataset.directoryReady) return;
   root.dataset.directoryReady = '';
 
@@ -42,7 +43,12 @@ const setUp = (root: HTMLElement) => {
       shown.set(block, visible);
     });
     for (const [block, visible] of shown) block.hidden = !visible;
-    if (empty) empty.hidden = !filtering || items.some((item) => !item.hidden);
+    const matches = items.filter((item) => !item.hidden).length;
+    if (empty) empty.hidden = !filtering || matches > 0;
+    if (count) {
+      count.hidden = !filtering || matches === 0;
+      count.textContent = `${matches} ${matches === 1 ? 'match' : 'matches'}`;
+    }
   };
 
   input.addEventListener('input', apply);

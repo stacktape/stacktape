@@ -459,12 +459,13 @@
     display: none;
   }
   @media (min-width: 1300px) {
+    /* Stuck, the rail's title lines up with a heading the reader jumped to (the anchor line). */
     .docs-toc {
       position: sticky;
-      top: var(--docs-header-h);
+      top: var(--docs-anchor-offset);
       display: block;
-      max-height: calc(100dvh - var(--docs-header-h));
-      padding: var(--docs-space-4) 0 var(--docs-space-48);
+      max-height: calc(100dvh - var(--docs-anchor-offset));
+      padding: 0 0 var(--docs-space-48);
       overflow-y: auto;
       scrollbar-width: none;
     }

@@ -314,8 +314,9 @@ type Path = {
 };
 
 /**
- * Three goals, one card each, built the same way: the title links to the guide, one sentence says what happens, and a
- * sunken strip at the bottom holds one detail (the wizard steps, the command, or the questions answered).
+ * Three goals, one card each, built the same way: the title links to the guide, one sentence says what happens, and
+ * a footer under a hairline holds one detail. Only a command sits in a code well; the wizard steps and the questions
+ * answered are quiet text.
  */
 export function HomePaths({ title, items }: { title: string; items: Path[] }) {
   return (
@@ -339,13 +340,16 @@ export function HomePaths({ title, items }: { title: string; items: Path[] }) {
               />
             </h3>
             <p className="m-0 mt-2 mb-4 text-[14px] leading-[1.6] text-ink-muted">{item.text}</p>
-            <div className="mt-auto flex min-h-[46px] items-center gap-2 rounded-lg border border-line bg-surface-sunken py-1.5 pr-1.5 pl-3">
+            <div className="mt-auto flex min-h-[66px] items-end border-t border-line pt-3">
               {item.steps && (
-                <ol className="m-0 flex list-none flex-wrap items-center gap-x-3 gap-y-1 p-0" aria-label="Wizard steps">
+                <ol
+                  className="m-0 flex list-none flex-wrap items-center gap-x-3.5 gap-y-1 p-0"
+                  aria-label="Wizard steps"
+                >
                   {item.steps.map((step, index) => (
                     <li
                       key={step}
-                      className="before:hidden m-0 flex items-center gap-1.5 p-0 text-[13px] leading-[1.5] font-medium text-ink"
+                      className="before:hidden m-0 flex items-baseline gap-1.5 p-0 text-[13px] leading-[1.5] font-medium text-ink-muted"
                     >
                       <span className="text-[12px] font-semibold text-accent-text tabular-nums" aria-hidden="true">
                         {index + 1}
@@ -356,15 +360,15 @@ export function HomePaths({ title, items }: { title: string; items: Path[] }) {
                 </ol>
               )}
               {item.command && (
-                <>
+                <div className="flex w-full items-center gap-2 rounded-lg border border-line bg-surface-sunken py-1.5 pr-1.5 pl-3">
                   <span className="min-w-0 flex-1">
                     <Command code={item.command} size="small" />
                   </span>
                   <CopyButton text={item.command} labelClassName="sr-only" />
-                </>
+                </div>
               )}
               {item.topics && (
-                <p className="m-0 py-1 text-[13px] leading-[1.5] font-medium text-ink">{item.topics.join(', ')}</p>
+                <p className="m-0 text-[13px] leading-[1.5] font-medium text-ink-muted">{item.topics.join(', ')}</p>
               )}
             </div>
             {item.links && item.links.length > 0 && (

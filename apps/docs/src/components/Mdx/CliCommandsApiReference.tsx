@@ -1,6 +1,6 @@
 import type { ApiTypeInfo } from '@/utils/api-reference-dto';
 import { cliCommandReference } from 'virtual:stacktape/cli-command-reference';
-import { Search } from 'react-feather';
+import { ChevronDown, Search } from 'react-feather';
 import { renderDocsMarkdown } from '@/utils/docs-markdown';
 import { stripHtml } from '@/utils/api-reference-text';
 import { AllowedValues } from './api-reference';
@@ -34,6 +34,9 @@ const optionName = (arg: CliCommandArg) =>
   `${arg.alias ? `-${arg.alias}, ` : ''}--${arg.flag}${arg.positional !== undefined ? ` (positional ${arg.positional + 1})` : ''}`;
 
 const optionId = (command: string, arg: CliCommandArg) => `option-${command}-${arg.flag}`;
+
+/** Rendered Markdown of one sentence without its paragraph, for use inside a `<summary>`. */
+const unwrapParagraph = (html: string) => html.trim().replace(/^<p>([\s\S]*)<\/p>$/, '$1');
 
 /**
  * An option's description from the CLI metadata is a title (`#### AWS Region`), `---`, then the explanation. The row
@@ -125,19 +128,22 @@ export function CliCommandsApiReference({ command }: { command: string }) {
                       <TypeView typeInfo={getShortTypeInfo(typeInfo)} />
                     </span>
                   </div>
-                  {stripHtml(shortHtml) && (
-                    <div className="docs-prop-description" dangerouslySetInnerHTML={{ __html: shortHtml }} />
-                  )}
-                  {allowedValues && allowedValues.length > 3 && (
-                    <AllowedValues values={allowedValues} quoteStrings={false} />
-                  )}
-                  {stripHtml(longHtml) && (
+                  {/* The first sentence opens the rest of the explanation, so a row needs no separate toggle line. */}
+                  {stripHtml(longHtml) ? (
                     <details className="docs-prop-more">
-                      <summary className="docs-prop-toggle">
-                        More about <code>--{arg.flag}</code>
+                      <summary className="docs-prop-description docs-prop-summary">
+                        <span dangerouslySetInnerHTML={{ __html: unwrapParagraph(shortHtml) }} />
+                        <ChevronDown size={14} className="docs-prop-summary-icon" aria-label="More" />
                       </summary>
                       <div className="docs-prop-details" dangerouslySetInnerHTML={{ __html: longHtml }} />
                     </details>
+                  ) : (
+                    stripHtml(shortHtml) && (
+                      <div className="docs-prop-description" dangerouslySetInnerHTML={{ __html: shortHtml }} />
+                    )
+                  )}
+                  {allowedValues && allowedValues.length > 3 && (
+                    <AllowedValues values={allowedValues} quoteStrings={false} />
                   )}
                 </div>
               </li>

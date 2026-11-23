@@ -52,6 +52,31 @@ const toRow = (item: HastNode) => {
   ];
 };
 
+const attributeOf = (node: HastNode, name: string) =>
+  (node.attributes as { name?: string; value?: unknown }[] | undefined)?.find((attribute) => attribute.name === name)
+    ?.value;
+
+/** A picker's groups (a label paragraph and its list) each in one element, so they can sit in a grid. */
+const groupPicker = (directory: HastNode) => {
+  const grouped: HastNode[] = [];
+  for (const node of directory.children ?? []) {
+    const last = grouped.at(-1);
+    if (node.tagName === 'p') {
+      grouped.push({
+        type: 'element',
+        tagName: 'div',
+        properties: { className: ['docs-dir-group'] },
+        children: [node]
+      });
+    } else if (last?.tagName === 'div' && (node.tagName === 'ul' || isBlank(node))) {
+      last.children?.push(node);
+    } else {
+      grouped.push(node);
+    }
+  }
+  directory.children = grouped;
+};
+
 /**
  * Lookup lists inside `<Directory>` (the command index, the resource catalog). Each Markdown item written as
  * `[name](url) (Tag): description` becomes a row with the name, the description and the optional tag in fixed
@@ -60,11 +85,12 @@ const toRow = (item: HastNode) => {
  */
 export function rehypeDirectory() {
   return (tree: AstNode) => {
-    visit(tree, 'mdxJsxFlowElement', (directory: AstNode) => {
+    visit(tree, 'mdxJsxFlowElement', (directory: HastNode) => {
       if (directory.name !== 'Directory') return;
       visit(directory, 'element', (node: HastNode) => {
         if (node.tagName === 'li') toRow(node);
       });
+      if (attributeOf(directory, 'layout') === 'picker') groupPicker(directory);
     });
   };
 }

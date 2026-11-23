@@ -451,7 +451,8 @@
   }
   /* A word moves to the next line whole, so `--region` never breaks after its hyphens. A URL or a long word wraps
      inside, preferably after a `/`. */
-  .docs-code.is-command .docs-code-word:not(.is-long) {
+  .docs-code.is-command .stacktape-code-block.twoslash .stacktape-shiki-pre .line span.docs-code-word:not(.is-long),
+  .docs-code.is-command .docs-code-plain .line .docs-code-word:not(.is-long) {
     white-space: nowrap;
   }
 }

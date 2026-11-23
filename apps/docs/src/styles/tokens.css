@@ -48,6 +48,8 @@
   /* ── Lines ──────────────────────────────────────────────────────────────────────────────── */
   --docs-border: rgb(255 255 255 / 0.085);
   --docs-border-strong: rgb(255 255 255 / 0.15);
+  /* Inline code: a quiet tint, no border, so several in a line do not read as buttons. */
+  --docs-code-inline-bg: rgb(255 255 255 / 0.07);
   /* The edge a code block shows where more code is out of view. */
   --docs-code-edge: rgb(255 255 255 / 0.16);
 

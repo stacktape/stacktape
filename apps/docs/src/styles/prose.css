@@ -143,19 +143,19 @@
     font-weight: inherit;
     text-decoration: none;
   }
-  /* A link that is inline code keeps the code look and gets the underline. */
+  /* A link that is inline code keeps the code look in the link colour, and the link's underline. */
   .mdx-content a code {
     color: inherit;
+    background: var(--docs-accent-soft);
   }
 
   /* Inline code: neutral monospace, never teal, so it does not read as a link. Long tokens wrap only when they
    * cannot fit on a line of their own. */
   .mdx-content :not(pre) > code,
   .docs-inline-code {
-    padding: 0.12em 0.36em;
-    border: 1px solid var(--docs-border);
+    padding: 0.1em 0.32em;
     border-radius: var(--docs-radius-sm);
-    background: var(--docs-bg-raised);
+    background: var(--docs-code-inline-bg);
     color: var(--docs-text-strong);
     font-size: 0.875em;
     font-weight: var(--docs-weight-body);
@@ -164,7 +164,8 @@
     box-decoration-break: clone;
   }
   /* A short token (a flag, a file name) never splits across lines. See rehype-inline-code.ts. */
-  .mdx-content code.docs-code-token {
+  .mdx-content code.docs-code-token,
+  .mdx-content code .docs-code-token {
     white-space: nowrap;
   }
   .mdx-content :is(h2, h3, h4) code {

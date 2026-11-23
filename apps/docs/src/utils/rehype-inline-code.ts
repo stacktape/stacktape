@@ -18,10 +18,28 @@ export function rehypeInlineCode() {
     visit(tree, 'element', (node: AstNode, _index: number | undefined, parent: AstNode | undefined) => {
       if (node.tagName !== 'code' || parent?.tagName === 'pre') return;
       const text = textOf(node);
-      if (text.length > SHORT_TOKEN_MAX) return;
       const properties = (node.properties ?? {}) as Record<string, unknown>;
       const className = Array.isArray(properties.className) ? properties.className : [];
-      node.properties = { ...properties, className: [...className, 'docs-code-token'] };
+      if (text.length <= SHORT_TOKEN_MAX) {
+        node.properties = { ...properties, className: [...className, 'docs-code-token'] };
+        return;
+      }
+      // Longer code (`--project hono-api --region eu-west-1`) breaks between its words, never after a hyphen.
+      const children = Array.isArray(node.children) ? (node.children as AstNode[]) : [];
+      if (children.length !== 1 || children[0].type !== 'text') return;
+      node.children = text
+        .split(/(\s+)/)
+        .filter(Boolean)
+        .map((part) =>
+          /^\s/.test(part) || part.length > SHORT_TOKEN_MAX
+            ? { type: 'text', value: part }
+            : {
+                type: 'element',
+                tagName: 'span',
+                properties: { className: ['docs-code-token'] },
+                children: [{ type: 'text', value: part }]
+              }
+        );
     });
   };
 }
