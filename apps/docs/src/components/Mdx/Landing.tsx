@@ -5,9 +5,10 @@ import {
   LuBoxes,
   LuCheck,
   LuCode,
+  LuCompass,
   LuContainer,
+  LuFolderGit2,
   LuGitBranch,
-  LuGithub,
   LuLayers,
   LuRefreshCw,
   LuShield,
@@ -16,6 +17,7 @@ import {
   LuZap
 } from 'react-icons/lu';
 import type { IconType } from 'react-icons';
+import siteConfig from '@/site-config';
 import { colors } from '@/styles/variables';
 import { Button } from '@/components/Button/Button';
 import StacktapeCover from '@/assets/cover-transparent.png';
@@ -42,7 +44,9 @@ const iconRegistry: Record<string, IconType> = {
   wallet: LuWallet,
   sparkles: LuSparkles,
   container: LuContainer,
-  arrow: LuArrowRight
+  arrow: LuArrowRight,
+  repo: LuFolderGit2,
+  compass: LuCompass
 };
 
 const Icon = ({ name, size = 22, color }: { name?: string; size?: number; color?: string }) => {
@@ -206,6 +210,86 @@ export function FeatureGrid({ items, columns = 3 }: { items: Feature[]; columns?
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Paths by goal (cards whose body is MDX, so it can hold inline code)
+// ────────────────────────────────────────────────────────────────────────────
+
+type PathLink = { label: string; href: string };
+
+export function GoalPath({
+  icon,
+  title,
+  links,
+  children
+}: {
+  icon?: string;
+  title: string;
+  links: PathLink[];
+  children?: ReactNode;
+}) {
+  return (
+    <div className="stp-box flex flex-col p-[20px_20px_18px_20px]">
+      <div className="flex items-center gap-[10px] mb-[10px]">
+        <div className="w-[34px] h-[34px] shrink-0 rounded-[9px] flex items-center justify-center bg-[rgba(54,190,190,0.1)] shadow-[inset_0_0_0_1px_rgba(54,190,190,0.22)]">
+          <Icon name={icon} size={18} />
+        </div>
+        <h3 className="m-0 text-[1.02rem] font-[650] text-fc-primary">{title}</h3>
+      </div>
+      <div className="flex-1 text-[0.875rem] leading-[1.6] text-fc-lighter [&_p]:m-0 [&_p+p]:mt-2">{children}</div>
+      <div className="mt-4 flex flex-col gap-[6px]">
+        {links.map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            className="group/link inline-flex items-center gap-[6px] text-[0.86rem] font-semibold text-brand no-underline hover:text-fc-primary"
+          >
+            {link.label}
+            <LuArrowRight size={14} className="transition-transform group-hover/link:translate-x-[2px]" />
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function GoalPaths({ children }: { children: ReactNode }) {
+  return <div className="font-sans grid grid-cols-3 gap-[14px] my-[22px] max-[1000px]:grid-cols-1">{children}</div>;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Docs map (one card per sidebar section; title and icon come from the sidebar config)
+// ────────────────────────────────────────────────────────────────────────────
+
+type MapItem = { section: string; href: string; text: string };
+
+export function DocsMap({ items }: { items: MapItem[] }) {
+  const groups = siteConfig.sidebar.groups;
+  return (
+    <div className="font-sans grid grid-cols-3 gap-[10px] my-[22px] max-[1000px]:grid-cols-2 max-[650px]:grid-cols-1">
+      {items.map((item) => {
+        const group = groups.find((candidate) => candidate.path === item.section);
+        if (!group) throw new Error(`DocsMap: no sidebar section ${item.section}`);
+        const SectionIcon = group.icon;
+        return (
+          <a
+            key={item.section}
+            href={item.href}
+            className="group/map flex gap-3 rounded-lg p-[12px_14px] no-underline shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)] transition-[background-color,box-shadow] hover:bg-element hover:shadow-[inset_0_0_0_1px_rgba(54,190,190,0.35)]"
+          >
+            <span className="mt-[2px] shrink-0 text-brand">
+              <SectionIcon size={17} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[0.9rem] font-[650] text-fc-primary">{group.title}</span>
+              <span className="block mt-[2px] text-[0.8rem] leading-[1.5] text-fc-light">{item.text}</span>
+            </span>
+          </a>
+        );
+      })}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Steps (numbered vertical timeline; children may include CodeBlocks)
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -261,41 +345,6 @@ export function CTASection({
         {subtitle && <p className="mt-3 text-base text-fc-lighter max-w-[600px] mx-auto leading-[1.6]">{subtitle}</p>}
         <div className="flex flex-wrap gap-3 justify-center mt-6">{children}</div>
       </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Open-source banner
-// ────────────────────────────────────────────────────────────────────────────
-
-export function OpenSourceBanner({ children }: { children?: ReactNode }) {
-  return (
-    <div
-      className="font-sans relative overflow-hidden my-6 px-[22px] py-5 rounded-[14px] flex items-center gap-[18px] bg-[linear-gradient(120deg,rgba(54,190,190,0.12),rgba(74,166,220,0.07))] max-[650px]:flex-col max-[650px]:items-start"
-      style={{ boxShadow: `inset 0 0 0 1px ${colors.stacktapeGreen}33` }}
-    >
-      <div
-        className="shrink-0 w-[46px] h-[46px] rounded-xl flex items-center justify-center bg-[rgba(54,190,190,0.14)]"
-        style={{ boxShadow: `inset 0 0 0 1px ${colors.stacktapeGreen}44` }}
-      >
-        <LuSparkles size={24} color={colors.stacktapeGreen} />
-      </div>
-      <div className="flex-1">
-        <div className="text-[1.05rem] font-bold text-fc-primary mb-1">Stacktape is now open source</div>
-        <div className="m-0 text-[0.9rem] leading-[1.55] text-fc-lighter [&_p]:m-0">
-          {children ||
-            'After years as a closed-source product, our DevOps-free cloud development framework is now MIT-licensed and open to the community.'}
-        </div>
-      </div>
-      <a
-        href="https://github.com/stacktape/stacktape"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="shrink-0 inline-flex items-center gap-2 px-4 py-[10px] rounded-[9px] text-[0.86rem] font-semibold text-fc-primary bg-element shadow-[0_2px_8px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.12)] no-underline"
-      >
-        <LuGithub size={17} /> Star on GitHub
-      </a>
     </div>
   );
 }
