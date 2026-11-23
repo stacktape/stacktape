@@ -30,7 +30,7 @@ Use the MCP server when your AI coding assistant supports the [Model Context Pro
 - **Configuration help** — the assistant searches Stacktape's bundled documentation index for resource types, config syntax, and deployment patterns without opening a browser.
 - **Dev mode** — start, monitor, rebuild, and stop [dev mode](/local-development/dev-mode-overview) sessions from within your AI conversation.
 
-## When NOT to use
+## When not to use
 
 Skip the MCP server if your AI client does not support the Model Context Protocol — use the [Stacktape CLI](/cli/deploy) directly or the [Stacktape Console](/stacktape-console/console-overview) instead. For long-running deployments, prefer the CLI when you want to watch the command directly in your own terminal. MCP command responses are consolidated and may be truncated. The MCP server runs CLI commands as subprocesses and returns a consolidated response; if an optional caller-specified timeout is exceeded, the subprocess is terminated and an error is returned.
 

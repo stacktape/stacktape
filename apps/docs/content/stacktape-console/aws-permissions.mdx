@@ -30,7 +30,12 @@ The role gets one of two AWS managed policies:
 | **Can deploy** | `AdministratorAccess` | Deploy, update and delete your stacks, and read their logs, metrics and costs |
 | **Read-only** | `ReadOnlyAccess` | Read logs, metrics and costs. Deploys, budgets and other writes fail. |
 
-A connection made in the Console or with `stacktape connect` can deploy. The **Status** column of the AWS accounts page shows **Can deploy** or **Read-only** next to **Connected**. An Owner or Admin can switch a read-only account with **Allow deploys**.
+A connection made in the Console or with `stacktape connect` can deploy. The connection stack's `StacktapeConnectionMode` parameter decides: `PRIVILEGED` can deploy, `BASIC` is read-only. To make an account read-only:
+
+- **New connection:** on the AWS page that **Open AWS CloudFormation** opens, change **StacktapeConnectionMode** to `BASIC` before you choose **Create stack**.
+- **Existing connection:** in the AWS CloudFormation console, in `eu-west-1`, update the stack `stacktape-<connection ID>`, keep its current template and set **StacktapeConnectionMode** to `BASIC`.
+
+The **Status** column of the AWS accounts page then shows **Read-only** next to **Connected**, and in IAM the role has `ReadOnlyAccess` and the reporting policy, nothing else. An Owner or Admin can switch it back with **Allow deploys**.
 
 Deploy access is administrator access because a stack can contain almost any AWS service: functions, containers, databases, networking, IAM roles for your workloads and more. A policy limited to some services would fail on the next resource you add. Your workloads don't get these permissions: each one runs with its own role that allows only what its config declares.
 

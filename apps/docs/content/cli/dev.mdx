@@ -104,19 +104,19 @@ stacktape dev --stage dev --region eu-west-1 --no-emulation
 
 ### --agent / --agent-port
 
-The `--agent` flag runs dev mode as a detached daemon and enables the agent HTTP server for programmatic control. Agent mode is intended for programmatic/LLM consumption and AI coding-agent workflows. The daemon spawns in the background and the parent process exits after confirming the agent is ready.
+On `dev`, `--agent` does more than on other commands, where it only switches the output to JSONL. It runs dev mode as a background session with a local HTTP API that a coding agent uses to check status, rebuild workloads, read logs and query local databases. The command returns once the session is ready. [Agent mode in dev](/using-with-ai/agent-mode-in-dev) documents the API.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --agent
 ```
 
-Agent mode does not confirm anything. When the project named with `--project` does not exist yet, `dev --agent` fails with `CONFIRMATION_REQUIRED` before it deploys. Check the name and run it again with `--yes` to create the project:
+The background session does not confirm anything. When the project named with `--project` does not exist yet, `dev --agent` fails with `CONFIRMATION_REQUIRED` before it deploys. Check the name and run it again with `--yes` to create the project:
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --agent --yes
 ```
 
-Providing `--agent-port` also enables agent mode, so `--agent` is optional when you pass a port. Use `--agent-port` to specify a custom port for the agent HTTP server:
+Passing `--agent-port` also starts the background session, so `--agent` is optional when you pass a port. Use it to choose the HTTP API's port:
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --agent-port 8080
