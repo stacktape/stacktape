@@ -101,7 +101,7 @@ and creates the Git deployment.
 |---|---|
 | **Branch** / **Pull requests into** | The branch that is pushed to, or that pull requests merge into. The name must match exactly; patterns are not supported. |
 | **Deploys stage** | The stage to deploy, such as `production`. Only for pushes. Previews always use `pr-<number>`. |
-| **Delete the preview when the pull request closes** | Only for pull requests, on by default. |
+| **Delete the preview when the pull request closes** | Only for pull requests, on by default. The delete stops if the stage has a database with deletion protection, which `stacktape init` turns on; see [Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests). |
 | **Stacktape config** | Shown only when the repository has more than one Stacktape config. |
 | **Deploys to** | The AWS account and region, preset to where the project's newest stage runs. Click **Change** to pick others. |
 
@@ -171,7 +171,10 @@ deployment that uses its AWS account and region. A deployment that is already ru
 runner stays.
 
 Previews also cost whatever their AWS resources cost, until they are deleted. Keep **Delete the preview when the pull
-request closes** on unless you need previews after merge, for example for QA.
+request closes** on unless you need previews after merge, for example for QA. A database that `stacktape init` added
+has deletion protection on every stage, and the delete stops at it, so the preview keeps running. Turn the protection
+off for previews as described in [Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests),
+then close one test pull request and check that its stage is gone.
 
 ## Provider permissions for security fix pull requests
 

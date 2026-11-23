@@ -11,6 +11,9 @@ Everything your functions, containers and batch jobs write to stdout and stderr 
 account. Each resource has its own log group, kept for 90 days unless you set `logging.retentionDays`. You read the
 logs in the Stacktape Console or with [`stacktape logs`](/cli/logs).
 
+These are the logs of a running app. If a deploy failed before your app started, the error is in the deploy output
+or in the stack's CloudFormation events. See [If a deploy fails](/getting-started/after-the-first-deploy#if-a-deploy-fails).
+
 ## Read logs in the Console
 
 1. Open **Observability → Logs**.

@@ -3316,6 +3316,18 @@ export const lanes: readonly Lane[] = [
     selections: ['docs']
   },
   {
+    id: 'docs-browser',
+    command: ['pnpm', '--filter', '@stacktape/docs', 'run', 'test:e2e'],
+    level: 'browser',
+    tier: 'change',
+    tests: ['apps/docs/e2e/navigation.spec.ts'],
+    requires: ['chromium'],
+    release: 'every-candidate',
+    proves:
+      'On the built docs site, the phone drawer keeps keyboard focus, the outline follows the command filter and old heading fragments land on their current sections.',
+    selections: ['docs']
+  },
+  {
     id: 'docs-3',
     command: ['pnpm', '--filter', '@stacktape/docs', 'run', 'test:build-contracts'],
     level: 'process',
@@ -5467,6 +5479,7 @@ export const slices: readonly Slice[] = [
     journeys: ['J12'],
     paths: ['apps/docs/**'],
     tests: [
+      'apps/docs/e2e/navigation.spec.ts',
       'apps/docs/scripts/test-build-contracts.ts',
       'apps/docs/tests/api-reference-data.test.ts',
       'apps/docs/tests/cdn-redirects.test.ts',
@@ -5477,7 +5490,7 @@ export const slices: readonly Slice[] = [
       'apps/docs/tests/twoslash-types.test.ts',
       'apps/docs/tests/v3-archive.test.ts'
     ],
-    lanes: ['docs', 'docs-2', 'docs-3', 'docs-test']
+    lanes: ['docs', 'docs-2', 'docs-3', 'docs-browser', 'docs-test']
   },
   {
     id: 'S38',

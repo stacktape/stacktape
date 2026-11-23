@@ -118,13 +118,18 @@ tested. Then a Stacktape release never changes what the pipeline does.
 
 ### Pull request previews
 
-One workflow deploys a stage for every pull request and deletes it when the pull request closes:
+One workflow deploys a stage for every pull request and deletes it when the pull request closes. It needs no
+Stacktape account: both jobs get AWS credentials from an IAM role through GitHub's OIDC provider.
 
 ```yaml
 name: Preview
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
+
+permissions:
+  id-token: write
+  contents: read
 
 # One group per pull request keeps its deploys and the delete in order.
 concurrency:
@@ -136,9 +141,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          aws-region: eu-west-1
       - name: Deploy preview
-        env:
-          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
         run: npx stacktape deploy --stage pr-${{ github.event.pull_request.number }} --region eu-west-1 --yes
 
   delete:
@@ -146,11 +153,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          aws-region: eu-west-1
       - name: Delete preview
-        env:
-          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
         run: npx stacktape delete --stage pr-${{ github.event.pull_request.number }} --region eu-west-1 --yes
 ```
+
+The role's trust policy must accept pull request jobs. Their OIDC subject is `repo:<owner>/<repo>:pull_request`, so a
+role that trusts only `repo:<owner>/<repo>:ref:refs/heads/main` refuses them. Keep previews in an AWS account without
+production.
+
+With the Console, drop the `configure-aws-credentials` steps and set `STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}`
+in the `env` of both Stacktape steps, as in the deploy workflow above.
 
 The shared group matters. Without it, a delete that runs before a queued deploy leaves that deploy to create the
 preview again after the pull request closed. With it, closing the pull request replaces any deploy that hasn't started
@@ -158,6 +174,11 @@ yet, and the delete runs after the one that is running.
 
 The `if` conditions skip pull requests from forks. GitHub doesn't give fork pull requests your repository's secrets,
 and code from outside your repository shouldn't deploy into your AWS account.
+
+A database that `stacktape init` added has deletion protection on every stage. The delete job then fails, and the
+preview keeps running and costing money. Turn the protection off for previews as described in
+[Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests). After your first preview,
+close the pull request and check that the stage is gone.
 
 [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) covers naming and the cost of previews.
 

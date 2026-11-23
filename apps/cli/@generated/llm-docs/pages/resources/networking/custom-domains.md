@@ -128,8 +128,10 @@ Keep DNS at your current provider, such as Cloudflare, when you want to keep man
 and firewall. With `customCertificateArn` and `disableDnsRecordCreation: true`, Stacktape doesn't look for a Route 53
 zone for that hostname.
 
-1. Request a public certificate in ACM, in the region the resource needs. Include every hostname you'll serve: a
-   certificate for `example.com` alone doesn't cover `app.example.com`.
+1. Request a public certificate in ACM. For anything served through CloudFront (a CDN, Next.js and the other frontend
+   resources, static hosting), AppSync or a user pool domain, request it in `us-east-1`. For an API gateway or a load
+   balancer, request it in the stack's region. Include every hostname you'll serve: a certificate for `example.com`
+   alone doesn't cover `app.example.com`.
 2. Add the validation CNAME records that ACM shows at your DNS provider, and wait for **Issued**.
 3. Set `customCertificateArn` and `disableDnsRecordCreation: true`, then deploy.
 4. At your DNS provider, add a CNAME from your hostname to the AWS hostname:
@@ -140,7 +142,7 @@ zone for that hostname.
 A plain CNAME doesn't work on the bare `example.com`. Use your provider's ALIAS record or CNAME flattening there.
 
 
-Example (TypeScript):
+Example (Load balancer (stack region)):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
@@ -158,6 +160,30 @@ export default defineConfig(() => {
 
   return {
     resources: { myAlb }
+  };
+});
+```
+
+
+Example (Next.js on CloudFront (us-east-1)):
+
+```typescript
+import { defineConfig, NextjsWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: '.',
+    customDomains: [
+      {
+        domainName: 'www.example.com',
+        customCertificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/abc-def-123',
+        disableDnsRecordCreation: true
+      }
+    ]
+  });
+
+  return {
+    resources: { web }
   };
 });
 ```

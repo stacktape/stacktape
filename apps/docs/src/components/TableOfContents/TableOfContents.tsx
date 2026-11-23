@@ -48,14 +48,15 @@ const useActiveHeading = (ids: string[]) => {
       }
       // A heading counts as reached a few pixels early, so sub-pixel positions after a jump never miss it.
       const line = anchorLine() + 4;
+      const shown = elements.filter((element) => !element.hidden);
       let current = '';
-      for (const element of elements) {
+      for (const element of shown) {
         if (element.getBoundingClientRect().top > line) break;
         current = element.id;
       }
       // At the very bottom the last sections may never reach the line: mark the last one.
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
-        current = elements.at(-1)!.id;
+      if (shown.length > 0 && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) {
+        current = shown.at(-1)!.id;
       }
       setActiveId(current);
     };
@@ -106,6 +107,29 @@ const useActiveHeading = (ids: string[]) => {
     };
   }, [ids]);
   return activeId;
+};
+
+/**
+ * The ids of headings that are hidden right now. A page filter (the command index and resource catalog `<Directory>`)
+ * hides the sections without a match; the outline leaves them out until the filter is cleared.
+ */
+const useHiddenIds = (ids: string[]) => {
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    const elements = ids.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => el !== null);
+    if (elements.length === 0) return;
+    const read = () => {
+      const next = elements.filter((element) => element.hidden).map((element) => element.id);
+      setHidden((previous) =>
+        previous.size === next.length && next.every((id) => previous.has(id)) ? previous : new Set(next)
+      );
+    };
+    read();
+    const observer = new MutationObserver(read);
+    for (const element of elements) observer.observe(element, { attributes: true, attributeFilter: ['hidden'] });
+    return () => observer.disconnect();
+  }, [ids]);
+  return hidden;
 };
 
 function OutlineList({
@@ -171,9 +195,23 @@ export function TableOfContents({
   tableOfContents: TableOfContentsItem[];
   variant: 'rail' | 'bar';
 }) {
-  const sections = useMemo(() => toSections(tableOfContents), [tableOfContents]);
-  const ids = useMemo(() => sections.flatMap((s) => [s.id, ...s.children.map((c) => c.id)]), [sections]);
+  const allSections = useMemo(() => toSections(tableOfContents), [tableOfContents]);
+  const ids = useMemo(() => allSections.flatMap((s) => [s.id, ...s.children.map((c) => c.id)]), [allSections]);
   const activeId = useActiveHeading(ids);
+  const hiddenIds = useHiddenIds(ids);
+  const sections = useMemo(
+    () =>
+      hiddenIds.size === 0
+        ? allSections
+        : allSections
+            .filter((section) => !hiddenIds.has(section.id))
+            .map(({ item, id, children }) => ({
+              item,
+              id,
+              children: children.filter((child) => !hiddenIds.has(child.id))
+            })),
+    [allSections, hiddenIds]
+  );
   const [isOpen, setIsOpen] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -192,7 +230,7 @@ export function TableOfContents({
     };
   }, [isOpen]);
 
-  if (sections.length === 0) return null;
+  if (allSections.length === 0) return null;
 
   if (variant === 'rail') {
     return (
@@ -218,7 +256,10 @@ export function TableOfContents({
       >
         <span className="docs-toc-bar-label">On this page</span>
         <span className="docs-toc-bar-current" aria-hidden>
-          {activeText ?? `${sections.length} sections`}
+          {activeText ??
+            (hiddenIds.size > 0
+              ? `${sections.length} of ${allSections.length} sections match`
+              : `${sections.length} sections`)}
         </span>
         <ChevronDown size={16} aria-hidden />
       </button>

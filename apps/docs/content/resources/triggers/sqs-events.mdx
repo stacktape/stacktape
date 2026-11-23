@@ -65,23 +65,29 @@ The function receives the standard Lambda SQS event. Each record has the message
 export default async (event: { Records: Array<{ messageId: string; body: string }> }) => {
   for (const record of event.Records) {
     const order = JSON.parse(record.body);
-    await saveOrder(order);
+    // Replace the log line with your own processing, such as saving the order.
+    console.info(`Processed order ${order.orderId}, message ${record.messageId}`);
   }
 };
 ```
 
-After `stacktape deploy`, send a test message and watch the function pick it up:
+After `stacktape deploy`, send a test message and check that the function processed it. Print the queue URL:
 
 ```bash
 stacktape param get orderQueue url --stage dev --region eu-west-1
 ```
 
-```bash
-aws sqs send-message --queue-url <queue-url> --message-body '{"orderId":"42"}'
-```
+Send a message to that URL, in place of `<queue-url>`. The command prints the message's `MessageId`:
 
 ```bash
-stacktape logs orderProcessor --stage dev
+aws sqs send-message --region eu-west-1 --queue-url <queue-url> --message-body '{"orderId":"42"}'
+```
+
+Read the function's logs. A line `Processed order 42, message <MessageId>` with the same ID means the message was
+consumed:
+
+```bash
+stacktape logs orderProcessor --stage dev --region eu-west-1
 ```
 
 ## Batching

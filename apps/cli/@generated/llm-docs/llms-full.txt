@@ -212,13 +212,18 @@ tested. Then a Stacktape release never changes what the pipeline does.
 
 ### Pull request previews
 
-One workflow deploys a stage for every pull request and deletes it when the pull request closes:
+One workflow deploys a stage for every pull request and deletes it when the pull request closes. It needs no
+Stacktape account: both jobs get AWS credentials from an IAM role through GitHub's OIDC provider.
 
 ```yaml
 name: Preview
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
+
+permissions:
+  id-token: write
+  contents: read
 
 # One group per pull request keeps its deploys and the delete in order.
 concurrency:
@@ -230,9 +235,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          aws-region: eu-west-1
       - name: Deploy preview
-        env:
-          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
         run: npx stacktape deploy --stage pr-${{ github.event.pull_request.number }} --region eu-west-1 --yes
 
   delete:
@@ -240,11 +247,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/github-preview
+          aws-region: eu-west-1
       - name: Delete preview
-        env:
-          STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
         run: npx stacktape delete --stage pr-${{ github.event.pull_request.number }} --region eu-west-1 --yes
 ```
+
+The role's trust policy must accept pull request jobs. Their OIDC subject is `repo:<owner>/<repo>:pull_request`, so a
+role that trusts only `repo:<owner>/<repo>:ref:refs/heads/main` refuses them. Keep previews in an AWS account without
+production.
+
+With the Console, drop the `configure-aws-credentials` steps and set `STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}`
+in the `env` of both Stacktape steps, as in the deploy workflow above.
 
 The shared group matters. Without it, a delete that runs before a queued deploy leaves that deploy to create the
 preview again after the pull request closed. With it, closing the pull request replaces any deploy that hasn't started
@@ -252,6 +268,11 @@ yet, and the delete runs after the one that is running.
 
 The `if` conditions skip pull requests from forks. GitHub doesn't give fork pull requests your repository's secrets,
 and code from outside your repository shouldn't deploy into your AWS account.
+
+A database that `stacktape init` added has deletion protection on every stage. The delete job then fails, and the
+preview keeps running and costing money. Turn the protection off for previews as described in
+[Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests). After your first preview,
+close the pull request and check that the stage is gone.
 
 [Stacks per Git branch](/ci-cd-and-gitops/stacks-per-git-branch-pattern) covers naming and the cost of previews.
 
@@ -497,7 +518,7 @@ and creates the Git deployment.
 |---|---|
 | **Branch** / **Pull requests into** | The branch that is pushed to, or that pull requests merge into. The name must match exactly; patterns are not supported. |
 | **Deploys stage** | The stage to deploy, such as `production`. Only for pushes. Previews always use `pr-<number>`. |
-| **Delete the preview when the pull request closes** | Only for pull requests, on by default. |
+| **Delete the preview when the pull request closes** | Only for pull requests, on by default. The delete stops if the stage has a database with deletion protection, which `stacktape init` turns on; see [Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests). |
 | **Stacktape config** | Shown only when the repository has more than one Stacktape config. |
 | **Deploys to** | The AWS account and region, preset to where the project's newest stage runs. Click **Change** to pick others. |
 
@@ -567,7 +588,10 @@ deployment that uses its AWS account and region. A deployment that is already ru
 runner stays.
 
 Previews also cost whatever their AWS resources cost, until they are deleted. Keep **Delete the preview when the pull
-request closes** on unless you need previews after merge, for example for QA.
+request closes** on unless you need previews after merge, for example for QA. A database that `stacktape init` added
+has deletion protection on every stage, and the delete stops at it, so the preview keeps running. Turn the protection
+off for previews as described in [Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests),
+then close one test pull request and check that its stage is gone.
 
 ## Provider permissions for security fix pull requests
 
@@ -901,7 +925,9 @@ admits only that preview's workloads. A new preview therefore doesn't create a V
 To keep previews cheap:
 
 - **Delete them when the pull request closes.** Keep the checkbox on in the Git deployment, or run `stacktape delete`
-  on close in your pipeline. Forgotten previews with a database are the usual cause of a surprise bill.
+  on close in your pipeline. Forgotten previews with a database are the usual cause of a surprise bill. A database
+  that `stacktape init` added has deletion protection, which stops the delete; turn it off for previews as described
+  in [Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests).
 - **Make them smaller.** Use [stage-specific configuration](/configuration/stages-and-environments) to give previews a
   smaller database instance or fewer containers than production.
 - **Set a budget.** A [budget](/managing-costs/budgets) alerts you when the account's spend passes a threshold.
@@ -13104,8 +13130,10 @@ it. See [Start a new project](/getting-started/start-a-new-project).
 ## What it costs
 
 - The CLI is free and open source under the MIT license.
-- AWS bills you for the resources in your account. The wizard shows the monthly estimate before you deploy, and one
-  command removes everything when you're done.
+- AWS bills you for the resources in your account. The wizard shows the monthly estimate before you deploy; usage
+  charges, such as requests and data transfer, come on top. One command removes the stage when you're done, after you
+  turn off the deletion protection of a database init added. See
+  [Delete the stage](/getting-started/after-the-first-deploy#delete-the-stage).
 - The [Stacktape Console](/getting-started/add-the-console) is optional. It's free while your organization's AWS spend
   managed by Stacktape stays at or under $200 a month.
 
@@ -13502,7 +13530,8 @@ Source: `apps/docs/content/getting-started/deploy-an-existing-app.mdx`
 Route: `/getting-started/deploy-an-existing-app`
 
 `stacktape init` reads your project, works out the AWS setup it needs and writes it to one file. You see every
-resource and its monthly price before the file is saved. Nothing is created in AWS until you confirm the deploy. This
+resource and its estimated monthly cost before the file is saved. Usage charges, such as requests and data transfer,
+come on top. Nothing is created in AWS until you confirm the deploy. This
 guide follows the wizard screen by screen.
 
 ## Before you start
@@ -13514,6 +13543,8 @@ guide follows the wizard screen by screen.
   updates `package.json`.
 - AWS credentials are needed only for the last step. You can set them up when the wizard asks. See
   [Set up AWS credentials](/getting-started/aws-credentials).
+- Docker, if the deploy builds a container image or a Python, Go or Java function. The wizard reads your app and saves
+  the config without it; only the deploy needs it.
 
 ## Start the wizard
 
@@ -13636,7 +13667,14 @@ Nothing on the page is lost.
 ### Before you deploy
 
 - **Secrets.** For each secret, the wizard gives you a command such as `stacktape secret set stripe_api_key --region
-  eu-west-1`. Run it in your terminal. It asks for the value, so the value never lands in the file or your shell
+  eu-west-1`. Run it in another terminal, with the same AWS profile you started `init` with. A new terminal doesn't
+  inherit `AWS_PROFILE=...` from the `init` command, so without it the secret can end up in a different account:
+
+  ```bash
+  AWS_PROFILE=my-dev-account stacktape secret set stripe_api_key --region eu-west-1
+  ```
+
+  Use your own profile and region. The command asks for the value, so the value never lands in the file or your shell
   history.
 - **Settings nothing sets yet.** If your app needs one of them to start, add it under `environment` in the saved file.
 
@@ -13767,6 +13805,11 @@ wizard explains other errors. The identity also needs permission to create the r
 A stack with the same name already exists and belongs to another tool or another Stacktape project, or AWS is still
 working on it. Pick another stage name, or wait and click **Check again**. A failed first deploy can leave a stack that
 AWS only allows deleting; the wizard gives you the delete command.
+
+### The deploy fails
+
+The deploy output says whether the build failed or AWS refused a resource. To find the error and continue, see
+[If a deploy fails](/getting-started/after-the-first-deploy#if-a-deploy-fails).
 
 ---
 
@@ -16241,7 +16284,7 @@ Run it in your project directory:
 - Windows: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"`
 - npm: `npx stacktape@latest init`
 
-It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed.
+It opens a wizard in your browser. You review the setup and its estimated monthly AWS cost before usage charges, then deploy. No Stacktape account needed.
 
 - [Quickstart](/getting-started)
 - [Starting a new project?](/getting-started/start-a-new-project)
@@ -16251,7 +16294,7 @@ It opens a wizard in your browser. You review the setup and its monthly price, t
 
 ### Deploy an existing app
 
-Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.
+Run init in your app directory. The wizard proposes the AWS setup, estimates its monthly cost and deploys when you confirm.
 
 Steps: Start, Analyze, Review, Deploy.
 
@@ -16420,7 +16463,7 @@ Logs, metrics and alarms stay in CloudWatch and work from the CLI. The Console a
 
 ### Costs
 
-Init estimates the monthly price from AWS list prices before the first deploy. The Console shows what each stage costs and alerts you on budgets. [Managing costs](/managing-costs/overview)
+Init estimates the monthly cost from AWS list prices before the first deploy. Usage charges, such as requests and data transfer, come on top. The Console shows what each stage costs and alerts you on budgets. [Managing costs](/managing-costs/overview)
 
 ### Access
 
@@ -16449,10 +16492,10 @@ The Console has roles per organization and project, two-factor sign-in and an au
 
 ### Operate
 
+- [Fix a failed deploy](/getting-started/after-the-first-deploy#if-a-deploy-fails)
 - [Logs](/observability/logs)
 - [Alarms](/observability/alarms)
 - [Error tracking](/observability/error-tracking)
-- [Costs](/managing-costs/overview)
 - [Dev mode](/local-development/dev-mode-overview)
 - [Stacktape Console](/stacktape-console/console-overview)
 
@@ -19392,6 +19435,9 @@ Route: `/observability/logs`
 Everything your functions, containers and batch jobs write to stdout and stderr goes to CloudWatch Logs in your AWS
 account. Each resource has its own log group, kept for 90 days unless you set `logging.retentionDays`. You read the
 logs in the Stacktape Console or with [`stacktape logs`](/cli/logs).
+
+These are the logs of a running app. If a deploy failed before your app started, the error is in the deploy output
+or in the stack's CloudFormation events. See [If a deploy fails](/getting-started/after-the-first-deploy#if-a-deploy-fails).
 
 ## Read logs in the Console
 
@@ -30892,7 +30938,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, AstroWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const site = new AstroWeb({
     appDirectory: '.'
   });
@@ -30904,10 +30950,24 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  site:
+    type: astro-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is the folder with `astro.config.mjs`, relative to the Stacktape config. `.` (the default) fits an app at the
 repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page and a static asset.
 
 ## Build and dev mode
@@ -31084,7 +31144,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NextjsWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const web = new NextjsWeb({
     appDirectory: '.'
   });
@@ -31096,6 +31156,19 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  web:
+    type: nextjs-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is required: the folder with `next.config.js` (or `.ts`/`.mjs`), relative to the Stacktape config. `.`
 fits an app at the repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
@@ -31103,7 +31176,8 @@ Next.js image optimization uses `sharp`, which needs a Linux build for Lambda. O
 Stacktape builds it in Docker, so Docker must be running there. On x64 Linux, such as most CI runners, it usually isn't
 needed.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page, a static asset and an optimized image (`/_next/image`).
 
 What Stacktape creates:
@@ -31318,7 +31392,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NuxtWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const web = new NuxtWeb({
     appDirectory: '.'
   });
@@ -31330,10 +31404,24 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  web:
+    type: nuxt-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is the folder with `nuxt.config.ts`, relative to the Stacktape config. `.` (the default) fits an app at the
 repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page and a static asset.
 
 ## Build and dev mode
@@ -31513,7 +31601,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, RemixWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const web = new RemixWeb({
     appDirectory: '.'
   });
@@ -31525,10 +31613,24 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  web:
+    type: remix-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is the folder with `vite.config.ts`, relative to the Stacktape config. `.` (the default) fits an app at the
 repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page and a static asset.
 
 ## Build and dev mode
@@ -31708,7 +31810,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, SolidStartWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const web = new SolidStartWeb({
     appDirectory: '.'
   });
@@ -31720,10 +31822,24 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  web:
+    type: solidstart-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is the folder with `app.config.ts`, relative to the Stacktape config. `.` (the default) fits an app at the
 repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page and a static asset.
 
 ## Build and dev mode
@@ -32111,7 +32227,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, SvelteKitWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const web = new SvelteKitWeb({
     appDirectory: '.'
   });
@@ -32123,10 +32239,24 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  web:
+    type: sveltekit-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is the folder with `svelte.config.js`, relative to the Stacktape config. `.` (the default) fits an app at the
 repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page and a static asset.
 
 ## Build and dev mode
@@ -32307,7 +32437,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, TanStackWeb } from 'stacktape';
-export default defineConfig(() => {
+export default defineConfig({ projectName: 'my-app', region: 'eu-west-1' }, () => {
   const web = new TanStackWeb({
     appDirectory: '.'
   });
@@ -32319,10 +32449,24 @@ export default defineConfig(() => {
 ```
 
 
+Example (YAML):
+
+```yaml
+projectName: my-app
+region: eu-west-1
+resources:
+  web:
+    type: tanstack-web
+    properties:
+      appDirectory: .
+```
+
+
 `appDirectory` is the folder with `app.config.ts`, relative to the Stacktape config. `.` (the default) fits an app at the
 repository root; in a monorepo, point it at the app's folder, such as `./apps/web`.
 
-Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
+Set your own `projectName` and `region`. In an existing app, [`stacktape init`](/getting-started/deploy-an-existing-app)
+writes this file for you. Run `stacktape deploy --stage dev`. The deploy builds the app and prints its URL, a CloudFront address until you add a
 custom domain. Open it and check a server-rendered page and a static asset.
 
 ## Build and dev mode
@@ -34721,8 +34865,10 @@ Keep DNS at your current provider, such as Cloudflare, when you want to keep man
 and firewall. With `customCertificateArn` and `disableDnsRecordCreation: true`, Stacktape doesn't look for a Route 53
 zone for that hostname.
 
-1. Request a public certificate in ACM, in the region the resource needs. Include every hostname you'll serve: a
-   certificate for `example.com` alone doesn't cover `app.example.com`.
+1. Request a public certificate in ACM. For anything served through CloudFront (a CDN, Next.js and the other frontend
+   resources, static hosting), AppSync or a user pool domain, request it in `us-east-1`. For an API gateway or a load
+   balancer, request it in the stack's region. Include every hostname you'll serve: a certificate for `example.com`
+   alone doesn't cover `app.example.com`.
 2. Add the validation CNAME records that ACM shows at your DNS provider, and wait for **Issued**.
 3. Set `customCertificateArn` and `disableDnsRecordCreation: true`, then deploy.
 4. At your DNS provider, add a CNAME from your hostname to the AWS hostname:
@@ -34733,7 +34879,7 @@ zone for that hostname.
 A plain CNAME doesn't work on the bare `example.com`. Use your provider's ALIAS record or CNAME flattening there.
 
 
-Example (TypeScript):
+Example (Load balancer (stack region)):
 
 ```typescript
 import { defineConfig, ApplicationLoadBalancer } from 'stacktape';
@@ -34751,6 +34897,30 @@ export default defineConfig(() => {
 
   return {
     resources: { myAlb }
+  };
+});
+```
+
+
+Example (Next.js on CloudFront (us-east-1)):
+
+```typescript
+import { defineConfig, NextjsWeb } from 'stacktape';
+
+export default defineConfig(() => {
+  const web = new NextjsWeb({
+    appDirectory: '.',
+    customDomains: [
+      {
+        domainName: 'www.example.com',
+        customCertificateArn: 'arn:aws:acm:us-east-1:123456789012:certificate/abc-def-123',
+        disableDnsRecordCreation: true
+      }
+    ]
+  });
+
+  return {
+    resources: { web }
   };
 });
 ```
@@ -39774,23 +39944,29 @@ The function receives the standard Lambda SQS event. Each record has the message
 export default async (event: { Records: Array<{ messageId: string; body: string }> }) => {
   for (const record of event.Records) {
     const order = JSON.parse(record.body);
-    await saveOrder(order);
+    // Replace the log line with your own processing, such as saving the order.
+    console.info(`Processed order ${order.orderId}, message ${record.messageId}`);
   }
 };
 ```
 
-After `stacktape deploy`, send a test message and watch the function pick it up:
+After `stacktape deploy`, send a test message and check that the function processed it. Print the queue URL:
 
 ```bash
 stacktape param get orderQueue url --stage dev --region eu-west-1
 ```
 
-```bash
-aws sqs send-message --queue-url <queue-url> --message-body '{"orderId":"42"}'
-```
+Send a message to that URL, in place of `<queue-url>`. The command prints the message's `MessageId`:
 
 ```bash
-stacktape logs orderProcessor --stage dev
+aws sqs send-message --region eu-west-1 --queue-url <queue-url> --message-body '{"orderId":"42"}'
+```
+
+Read the function's logs. A line `Processed order 42, message <MessageId>` with the same ID means the message was
+consumed:
+
+```bash
+stacktape logs orderProcessor --stage dev --region eu-west-1
 ```
 
 ## Batching

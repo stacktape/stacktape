@@ -107,7 +107,9 @@ admits only that preview's workloads. A new preview therefore doesn't create a V
 To keep previews cheap:
 
 - **Delete them when the pull request closes.** Keep the checkbox on in the Git deployment, or run `stacktape delete`
-  on close in your pipeline. Forgotten previews with a database are the usual cause of a surprise bill.
+  on close in your pipeline. Forgotten previews with a database are the usual cause of a surprise bill. A database
+  that `stacktape init` added has deletion protection, which stops the delete; turn it off for previews as described
+  in [Preview pull requests](/getting-started/after-the-first-deploy#preview-pull-requests).
 - **Make them smaller.** Use [stage-specific configuration](/configuration/stages-and-environments) to give previews a
   smaller database instance or fewer containers than production.
 - **Set a budget.** A [budget](/managing-costs/budgets) alerts you when the account's spend passes a threshold.

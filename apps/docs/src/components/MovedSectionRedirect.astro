@@ -1,11 +1,21 @@
 ---
 import { MOVED_SECTIONS } from '@/utils/moved-sections';
 const pathname = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
-const sections = MOVED_SECTIONS[pathname];
+const sections = MOVED_SECTIONS[pathname] ?? null;
 ---
-{sections && (
-    <script is:inline define:vars={{ sections }}>
+{/* Runs on every page, including pages the client router swaps in, so a page without moved sections clears the map
+    of the previous one. A fragment that changes without a page load (an old link or search result on the same page)
+    is followed too. */}
+<script is:inline define:vars={{ sections }}>
+window.stpMovedSections = sections;
+  const followMovedSection = () => {
+    const map = window.stpMovedSections;
     const id = decodeURIComponent(location.hash.slice(1));
-      if (id && !document.getElementById(id) && Object.hasOwn(sections, id)) location.replace(sections[id]);
-    </script>
-  )}
+    if (map && id && !document.getElementById(id) && Object.hasOwn(map, id)) location.replace(map[id]);
+  };
+  followMovedSection();
+  if (!window.stpMovedSectionsListening) {
+    window.stpMovedSectionsListening = true;
+    window.addEventListener('hashchange', followMovedSection);
+  }
+</script>

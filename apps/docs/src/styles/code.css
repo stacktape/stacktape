@@ -204,13 +204,19 @@
   font-size: var(--docs-text-sm);
   line-height: 1.5;
   text-align: left;
+  /* Hidden popups stay out of the tab order and the accessibility tree; visibility switches after the fade-out. */
+  visibility: hidden;
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--docs-duration-fast) var(--docs-ease);
+  transition:
+    opacity var(--docs-duration-fast) var(--docs-ease),
+    visibility 0s linear var(--docs-duration-fast);
 }
 .stacktape-code-block.twoslash .twoslash-popup-container.visible {
+  visibility: visible;
   opacity: 1;
   pointer-events: auto;
+  transition-delay: 0s;
 }
 .stacktape-code-block.twoslash .twoslash-popup-code {
   padding: 8px 12px;

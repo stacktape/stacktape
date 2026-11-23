@@ -9,7 +9,7 @@ Run it in your project directory:
 - Windows: `iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"`
 - npm: `npx stacktape@latest init`
 
-It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed.
+It opens a wizard in your browser. You review the setup and its estimated monthly AWS cost before usage charges, then deploy. No Stacktape account needed.
 
 - [Quickstart](/getting-started)
 - [Starting a new project?](/getting-started/start-a-new-project)
@@ -19,7 +19,7 @@ It opens a wizard in your browser. You review the setup and its monthly price, t
 
 ### Deploy an existing app
 
-Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.
+Run init in your app directory. The wizard proposes the AWS setup, estimates its monthly cost and deploys when you confirm.
 
 Steps: Start, Analyze, Review, Deploy.
 
@@ -188,7 +188,7 @@ Logs, metrics and alarms stay in CloudWatch and work from the CLI. The Console a
 
 ### Costs
 
-Init estimates the monthly price from AWS list prices before the first deploy. The Console shows what each stage costs and alerts you on budgets. [Managing costs](/managing-costs/overview)
+Init estimates the monthly cost from AWS list prices before the first deploy. Usage charges, such as requests and data transfer, come on top. The Console shows what each stage costs and alerts you on budgets. [Managing costs](/managing-costs/overview)
 
 ### Access
 
@@ -217,10 +217,10 @@ The Console has roles per organization and project, two-factor sign-in and an au
 
 ### Operate
 
+- [Fix a failed deploy](/getting-started/after-the-first-deploy#if-a-deploy-fails)
 - [Logs](/observability/logs)
 - [Alarms](/observability/alarms)
 - [Error tracking](/observability/error-tracking)
-- [Costs](/managing-costs/overview)
 - [Dev mode](/local-development/dev-mode-overview)
 - [Stacktape Console](/stacktape-console/console-overview)
 
