@@ -750,7 +750,7 @@ class DeploymentArtifactManager {
     await Promise.all([
       this.deleteImagesFromEcrRepo(
         obsoleteImages.filter(({ tag }) => tag).map(({ tag }) => tag),
-        obsoleteImages.filter(({ tag }) => !tag).map(({ dockerDigest }) => dockerDigest)
+        await this.#digestsStillUntagged(obsoleteImages)
       ),
       // When previous objects are loaded, user Lambdas and custom-resource Lambdas both have the type "user-lambda".
       this.deleteObjectsFromDeploymentBucket(
@@ -832,6 +832,22 @@ class DeploymentArtifactManager {
         })
       : obsolete;
 
+  /**
+   * The digests of the untagged obsolete images that are still untagged. The inventory is read before uploads, and an
+   * upload can tag one of those manifests, for example when a retry pushes the image a failed deployment left untagged.
+   * Deleting by digest would delete that manifest with its new tag, so the repository is listed again first.
+   */
+  #digestsStillUntagged = async (obsoleteImages: { tag: string; dockerDigest: string }[]) => {
+    const untagged = obsoleteImages.filter(({ tag }) => !tag).map(({ dockerDigest }) => dockerDigest);
+    if (!untagged.length) return untagged;
+    const tagged = new Set(
+      (await awsSdkManager.ecr.listImages(this.repositoryName))
+        .filter(({ imageTag }) => imageTag)
+        .map(({ imageDigest }) => imageDigest)
+    );
+    return untagged.filter((digest) => !tagged.has(digest));
+  };
+
   /** See `keepLayersOfRetainedReleases`. The retained templates are read only when a layer is about to go. */
   #withoutLayersOfRetainedReleases = async <T extends { s3Key: string; name: string }>(obsolete: T[]) => {
     const obsoleteLayers = obsolete.filter(({ name }) => name.startsWith('shared-layer-'));
@@ -890,7 +906,7 @@ class DeploymentArtifactManager {
         this.deleteImagesFromEcrRepo(
           obsoleteImages.filter((img) => img.tag).map((img) => img.tag),
           // for deleting untagged images
-          obsoleteImages.filter(({ tag }) => !tag).map(({ dockerDigest }) => dockerDigest)
+          await this.#digestsStillUntagged(obsoleteImages)
         ),
         this.deleteObjectsFromDeploymentBucket([...obsoleteObjects.map((obj) => obj.s3Key), ...obsoleteSourceMapKeys])
       ]);

@@ -125,6 +125,8 @@ describe('cleanup keeps the artifacts in use', () => {
   let deletedImages: string[];
   let deletedDigests: string[];
   let deletedObjects: string[];
+  /** What ECR lists when cleanup reads the repository again; by default the inventory loaded before uploads. */
+  let currentImages: { imageTag?: string; imageDigest: string }[] | undefined;
   const spies: { mockRestore: () => void }[] = [];
 
   beforeEach(() => {
@@ -150,6 +152,7 @@ describe('cleanup keeps the artifacts in use', () => {
     deletedImages = [];
     deletedDigests = [];
     deletedObjects = [];
+    currentImages = undefined;
     for (const [key, value] of Object.entries(config))
       Object.defineProperty(configManager, key, { configurable: true, value });
     spies.push(
@@ -157,6 +160,14 @@ describe('cleanup keeps the artifacts in use', () => {
         deletedImages.push(...tags);
         deletedDigests.push(...digests);
       }),
+      spyOn(awsSdkManager.ecr, 'listImages').mockImplementation(
+        async () =>
+          currentImages ??
+          manager.previousImages.map(({ tag, dockerDigest }) => ({
+            imageTag: tag || undefined,
+            imageDigest: dockerDigest
+          }))
+      ),
       spyOn(manager, 'deleteObjectsFromDeploymentBucket').mockImplementation(async (keys) => {
         deletedObjects.push(...keys);
       }),
@@ -207,6 +218,29 @@ describe('cleanup keeps the artifacts in use', () => {
     expect(deletedImages).toEqual(['v000002', 'v000003', 'v000004'].map(imageTag));
     expect(deletedDigests).toEqual(['sha256:prebuilt']);
   });
+
+  // A failed deployment left manifest D untagged; the retry pushed the same manifest under the tag it deploys. The
+  // inventory loaded before uploads still lists D as untagged, and deleting D by digest would delete the new tag too.
+  test.each(['deleteAllObsoleteArtifacts', 'deleteArtifactsFixedDeploy'] as const)(
+    '%s keeps an untagged manifest that this deployment tagged',
+    async (cleanup) => {
+      const retriedTag = 'web--retried--v000030';
+      manager.previousImages.push(
+        { name: undefined, version: undefined, digest: undefined, tag: '', dockerDigest: 'sha256:retried' },
+        { name: undefined, version: undefined, digest: undefined, tag: '', dockerDigest: 'sha256:orphan' }
+      );
+      manager.successfullyUploadedImages = [{ tag: retriedTag, name: 'web' }];
+      currentImages = [
+        ...manager.previousImages.map(({ tag, dockerDigest }) => ({
+          imageTag: tag || undefined,
+          imageDigest: dockerDigest
+        })),
+        { imageTag: retriedTag, imageDigest: 'sha256:retried' }
+      ];
+      await manager[cleanup]({ deployedTemplate: templateNaming({ image: `${repository}:${retriedTag}` }) });
+      expect(deletedDigests).toEqual(['sha256:orphan']);
+    }
+  );
 
   // Retrying a failed deployment with `--no-cache` uploads unchanged artifacts again under the same key and tag.
   test('after fixing a failed deployment, keeps what this deployment uploaded again', async () => {
