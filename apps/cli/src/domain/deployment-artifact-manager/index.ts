@@ -56,7 +56,7 @@ import {
 } from './utils';
 import {
   artifactsNamedByTemplate,
-  keepImagesOfRunningServices,
+  keepImagesInUse,
   keepLayersOfRetainedReleases,
   selectObsoleteArtifacts,
   type StoredArtifact
@@ -732,32 +732,32 @@ class DeploymentArtifactManager {
     });
   };
 
-  // this is ran after a stack which was in UPDATE_FAILED state gets successfully updated
-  deleteArtifactsFixedDeploy = async () => {
+  /**
+   * Runs after a deployment fixed a stack that an earlier failed deployment left in a failed state. The failed attempts
+   * can leave artifacts with the version this deployment used. Those not in use are deleted. This deployment can have
+   * uploaded the same key or tag again, for example with `--no-cache`, so its uploads are in use too.
+   */
+  deleteArtifactsFixedDeploy = async ({ deployedTemplate }: { deployedTemplate: CloudFormationTemplate }) => {
     await operationReporter.startEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
       description: 'Deleting obsolete artifacts'
     });
+    const inUse = this.#artifactsInUse(deployedTemplate);
+    const obsoleteImages = await this.#withoutImagesInUse(
+      this.previousImages.filter(({ version, tag }) => !tag || version === stackManager.nextVersion),
+      inUse
+    );
     await Promise.all([
-      // we are deleting all image tags with current version that are not used
       this.deleteImagesFromEcrRepo(
-        this.previousImages
-          .filter(
-            ({ version, tag }) =>
-              version === stackManager.nextVersion && !this.previouslyUploadedImageTagsUsedInDeployment.includes(tag)
-          )
-          .map(({ tag }) => tag),
-        this.previousImages.filter(({ tag }) => !tag).map(({ dockerDigest }) => dockerDigest)
+        obsoleteImages.filter(({ tag }) => tag).map(({ tag }) => tag),
+        obsoleteImages.filter(({ tag }) => !tag).map(({ dockerDigest }) => dockerDigest)
       ),
-      // when loading previous objects both userLambda and userCustomResourceLambda are of type "userLambda"
-      // we are deleting all lambda artifacts in current version but not being used
+      // When previous objects are loaded, user Lambdas and custom-resource Lambdas both have the type "user-lambda".
       this.deleteObjectsFromDeploymentBucket(
         this.previousObjects
           .filter(
             ({ version, s3Key, type }) =>
-              version === stackManager.nextVersion &&
-              type === 'user-lambda' &&
-              !this.previouslyUploadedS3KeysUsedInDeployment.includes(s3Key)
+              version === stackManager.nextVersion && type === 'user-lambda' && !inUse.s3Keys.has(s3Key)
           )
           .map(({ s3Key }) => s3Key)
       )
@@ -769,14 +769,32 @@ class DeploymentArtifactManager {
     });
   };
 
-  getObsoleteItems = <T extends StoredArtifact>(previousItems: T[]): T[] => {
-    // After a fast deployment, CloudFormation still runs the template of the last full one. See artifactsNamedByTemplate.
-    const deployed = artifactsNamedByTemplate({
-      template: templateManager.oldTemplate,
-      repositoryUrl: this.repositoryUrl
-    });
-    const deployedS3Keys = new Set(deployed.s3Keys);
-    return selectObsoleteArtifacts({
+  /**
+   * Artifacts that cleanup never deletes: those the deployed template names, and those this deployment uploaded or
+   * reused. See `artifactsNamedByTemplate` for which template is deployed.
+   */
+  #artifactsInUse = (deployedTemplate: CloudFormationTemplate) => {
+    const named = artifactsNamedByTemplate({ template: deployedTemplate, repositoryUrl: this.repositoryUrl });
+    const storedS3Keys = new Set(this.previousObjects.map(({ s3Key }) => s3Key));
+    const imageTags = [
+      ...this.successfullyUploadedImages.map(({ tag }) => tag),
+      ...this.previouslyUploadedImageTagsUsedInDeployment
+    ];
+    return {
+      s3Keys: new Set([
+        ...named.s3Keys.filter((s3Key) => storedS3Keys.has(s3Key)),
+        ...this.successfullyCreatedObjects.map(({ s3Key }) => s3Key),
+        ...this.previouslyUploadedS3KeysUsedInDeployment
+      ]),
+      images: [...named.images, ...imageTags.map((tag) => getEcrImageUrl(this.repositoryUrl, tag))]
+    };
+  };
+
+  getObsoleteItems = <T extends StoredArtifact>(
+    previousItems: T[],
+    inUse: { s3Keys: Set<string> } = this.#artifactsInUse(templateManager.oldTemplate)
+  ): T[] =>
+    selectObsoleteArtifacts({
       // Helpers survive release retention so running tasks and rollbacks can still pull them.
       // Code-swap artifacts are collected after history finalization, with live-task and rollback references.
       artifacts: previousItems.filter(
@@ -785,11 +803,9 @@ class DeploymentArtifactManager {
       usage: {
         uploadedObjects: this.successfullyCreatedObjects,
         uploadedImages: this.successfullyUploadedImages,
-        reusedS3Keys: [
-          ...this.previouslyUploadedS3KeysUsedInDeployment,
-          ...previousItems.flatMap(({ s3Key }) => (s3Key && deployedS3Keys.has(s3Key) ? [s3Key] : []))
-        ],
-        reusedImageTags: [...this.previouslyUploadedImageTagsUsedInDeployment, ...deployed.imageTags],
+        reusedS3Keys: [...inUse.s3Keys],
+        // Images in use are kept by tag and by digest afterwards, in #withoutImagesInUse.
+        reusedImageTags: this.previouslyUploadedImageTagsUsedInDeployment,
         versionsToKeepPerName: this.maxArtifactVersionsToKeep,
         // Every job that builds an image can export a registry cache (`getCacheRef` in the packaging manager).
         registryCacheTags: [
@@ -798,17 +814,19 @@ class DeploymentArtifactManager {
         ].map(({ jobName }) => getEcrCacheImageTag(jobName))
       }
     });
-  };
 
   /**
-   * Images that running services still use. After a code swap, a service keeps its older task revision, whose image can
-   * fall out of the retention window; deleting it would make replacement and scale-out tasks fail to pull.
+   * See `keepImagesInUse`. Running services count as well: after a code swap, a service keeps its older task revision,
+   * whose image can fall out of the retention window.
    */
-  #withoutLiveImages = async <T extends { tag: string; dockerDigest: string }>(obsolete: T[]) =>
+  #withoutImagesInUse = async <T extends { tag: string; dockerDigest: string }>(
+    obsolete: T[],
+    inUse: { images: string[] }
+  ) =>
     obsolete.length
-      ? keepImagesOfRunningServices({
+      ? keepImagesInUse({
           obsolete,
-          liveImages: await codeSwapIntegration.liveImages(),
+          imagesInUse: [...inUse.images, ...(await codeSwapIntegration.liveImages())],
           repositoryUrl: this.repositoryUrl,
           storedImages: this.previousImages
         })
@@ -836,9 +854,18 @@ class DeploymentArtifactManager {
     }
   };
 
-  deleteAllObsoleteArtifacts = async () => {
-    const obsoleteImages = await this.#withoutLiveImages(this.getObsoleteItems(this.previousImages));
-    const obsoleteObjects = await this.#withoutLayersOfRetainedReleases(this.getObsoleteItems(this.previousObjects));
+  /**
+   * Deletes the artifacts of releases that are no longer kept. `deployedTemplate` is the template CloudFormation runs:
+   * the one a full deployment just deployed, or the one loaded before a fast deployment, which leaves it unchanged.
+   */
+  deleteAllObsoleteArtifacts = async ({
+    deployedTemplate = templateManager.oldTemplate
+  }: { deployedTemplate?: CloudFormationTemplate } = {}) => {
+    const inUse = this.#artifactsInUse(deployedTemplate);
+    const obsoleteImages = await this.#withoutImagesInUse(this.getObsoleteItems(this.previousImages, inUse), inUse);
+    const obsoleteObjects = await this.#withoutLayersOfRetainedReleases(
+      this.getObsoleteItems(this.previousObjects, inUse)
+    );
     const deletedKeys = new Set(obsoleteObjects.map(({ s3Key }) => s3Key));
     const obsoleteSourceMapKeys = selectObsoleteSourceMapKeys({
       storedKeys: this.#storedSourceMapKeys,

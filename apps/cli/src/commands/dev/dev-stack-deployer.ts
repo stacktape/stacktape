@@ -346,15 +346,16 @@ export const deployDevStack = async ({
     throw err;
   }
 
+  // The template just deployed is the deployed one for cleanup and for the rest of the session.
+  templateManager.oldTemplate = templateManager.getTemplate();
   // If we have just fixed stack from UPDATE FAILED state, clean up artifacts
   if (stackManager.existingStackDetails?.StackStatus === 'UPDATE_FAILED') {
-    await deploymentArtifactManager.deleteArtifactsFixedDeploy();
+    await deploymentArtifactManager.deleteArtifactsFixedDeploy({ deployedTemplate: templateManager.oldTemplate });
   }
 
-  await deploymentArtifactManager.deleteAllObsoleteArtifacts();
+  await deploymentArtifactManager.deleteAllObsoleteArtifacts({ deployedTemplate: templateManager.oldTemplate });
 
-  // Refresh stack details. The template just deployed is the deployed one for the rest of the session.
-  templateManager.oldTemplate = templateManager.getTemplate();
+  // Refresh stack details.
   await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
   await deployedStackOverviewManager.refreshStackInfoMap({
     stackDetails: stackManager.existingStackDetails,
