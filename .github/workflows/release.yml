@@ -31,6 +31,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_verification:
+        description: Skip check:public and the packaging gate when Public CI already passed on this commit
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -51,6 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release-registry
     permissions:
+      actions: read
       contents: read
       id-token: write
     steps:
@@ -136,8 +142,20 @@ jobs:
             echo "GitHub release $RELEASE_VERSION already exists."
             exit 1
           fi
-      - run: pnpm check:public
+      - name: Require a passing Public CI run on this commit
+        if: inputs.skip_verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&status=success" --jq '.total_count')
+          if [ "$passed" -lt 1 ]; then
+            echo "::error::skip_verification needs a successful Public CI run on $GITHUB_SHA."
+            exit 1
+          fi
+      - if: ${{ !inputs.skip_verification }}
+        run: pnpm check:public
       - name: Execute packaging artifacts in real runtimes
+        if: ${{ !inputs.skip_verification }}
         run: |
           # The Railpack scenarios need the pinned binary, and the E2E scripts cannot use the CLI's downloader.
           railpack_directory="$RUNNER_TEMP/railpack"
