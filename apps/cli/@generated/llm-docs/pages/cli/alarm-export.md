@@ -33,7 +33,7 @@ The Console channels a rule sent to become `console-channel` entries. When the o
 2. Add each entry to the `alarms` list of every resource it should watch. Where a rule applies only to some stages, use [stage-based configuration](/configuration/stages-and-environments).
 3. On the same resources, add the rule's name to `disabledGlobalAlarms`. Without it the Console rule keeps applying next to your new alarm, and the resource gets two alarms that notify twice.
 4. Deploy each affected stage.
-5. Check the alarms on the Console's Alarms page or with [`stacktape alarm list`](/cli/alarms). Once every stack the rule applies to has deployed, delete the legacy rule in the Console.
+5. Check the alarms on the Console's Alarms page or with [`stacktape alarm list`](/cli/alarm-list). Once every stack the rule applies to has deployed, delete the legacy rule in the Console.
 
 For the `api-error-rate` rule above, the function's configuration looks like this:
 
@@ -72,5 +72,5 @@ resources:
 
 ## Related commands
 
-- [`alarm list`](/cli/alarms) shows the state of the alarms of a deployed stack.
+- [`alarm list`](/cli/alarm-list) shows the state of the alarms of a deployed stack.
 - [`deploy`](/cli/deploy) creates the alarms you added to the configuration.

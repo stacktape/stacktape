@@ -17,6 +17,7 @@ import {
   getDefinition,
   getPropertyChildren,
   getShortTypeInfo,
+  isWideNamedUnion,
   sectionAnchorId,
   sortRequiredFirst,
   TypeView,
@@ -25,7 +26,7 @@ import {
 
 const MAX_DEPTH = 6;
 /** Enums longer than this list their first values and fold the rest. */
-const VALUES_SHOWN = 12;
+const VALUES_SHOWN = 6;
 
 type OpenState = { isOpen: (key: string) => boolean; toggle: (key: string) => void };
 
@@ -46,11 +47,11 @@ export function AllowedValues({
 }) {
   return (
     <div className="docs-prop-values">
-      Allowed values: {renderValues(values.slice(0, VALUES_SHOWN), quoteStrings)}
+      {values.length > VALUES_SHOWN ? `${values.length} allowed values: ` : 'Allowed values: '}
+      {renderValues(values.slice(0, VALUES_SHOWN), quoteStrings)}
       {values.length > VALUES_SHOWN && (
         <details className="inline">
-          <summary>{values.length - VALUES_SHOWN} more</summary>{' '}
-          {renderValues(values.slice(VALUES_SHOWN), quoteStrings)}
+          <summary>Show all</summary> {renderValues(values.slice(VALUES_SHOWN), quoteStrings)}
         </details>
       )}
     </div>
@@ -118,9 +119,11 @@ function PropertyRow({
             {property.name}
           </a>
           {property.required && <span className="docs-prop-badge">Required</span>}
-          <span className="docs-prop-type">
-            <TypeView typeInfo={getShortTypeInfo(property.typeInfo)} />
-          </span>
+          {!isWideNamedUnion(property.typeInfo) && (
+            <span className="docs-prop-type">
+              <TypeView typeInfo={getShortTypeInfo(property.typeInfo)} />
+            </span>
+          )}
           {property.defaultValue !== undefined && (
             <span className="docs-prop-default">
               Default <code>{property.defaultValue}</code>

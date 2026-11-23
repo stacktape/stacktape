@@ -1,6 +1,6 @@
 # aws-profile create
 
-The `aws-profile create` command creates a new AWS profile on your local machine. It prompts you for a profile name, AWS Access Key ID, and AWS Secret Access Key, then stores them in the default AWS credentials location in your home directory. Other AWS tools — including the AWS CLI — can use these profiles.
+`stacktape aws-profile create` creates a new AWS profile on your local machine. It prompts you for a profile name, AWS Access Key ID, and AWS Secret Access Key, then stores them in the default AWS credentials location in your home directory. Other AWS tools — including the AWS CLI — can use these profiles.
 
 ## Usage
 
@@ -44,9 +44,7 @@ stacktape aws-profile create --log-level error
 
 Credentials are stored in the default AWS credentials location in your home directory. This is the same location used by the AWS CLI and AWS SDKs, so profiles created with Stacktape work with any AWS tooling on the same machine.
 
-
-> **Info:** For Console-managed AWS access, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
-
+To let the Stacktape Console manage AWS access instead of keeping keys on your machine, see [Connecting your AWS account](/stacktape-console/connecting-your-aws-account).
 
 ## Options
 

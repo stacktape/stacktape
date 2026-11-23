@@ -57,7 +57,7 @@ ORM at it and keep the command running while you work. A Redis cache with a read
 [application load balancers](/resources/networking/application-load-balancer) and
 [private services](/resources/compute/private-service) behind a load balancer.
 
-[`bastion shell`](/cli/bastion-session) opens a shell on the instance itself:
+[`bastion shell`](/cli/bastion-shell) opens a shell on the instance itself:
 
 ```bash
 stacktape bastion shell --stage production
@@ -90,17 +90,17 @@ heavy scripts on the bastion.
       lang: 'typescript',
       code: `import { defineConfig, Bastion } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const bastion = new Bastion({
     instanceSize: 't3.small'
   });
+  // [!code focus-end]
 
   return {
     resources: { bastion }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -118,17 +118,17 @@ instance runs Amazon Linux 2023, so use `dnf` or `yum`.
       lang: 'typescript',
       code: `import { defineConfig, Bastion } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const bastion = new Bastion({
     runCommandsAtLaunch: ['yum install -y postgresql15', 'yum install -y redis6']
   });
+  // [!code focus-end]
 
   return {
     resources: { bastion }
   };
 });
-// [!code focus-end]
 `
     }
   ]}
@@ -157,8 +157,8 @@ The bastion sends three system logs to CloudWatch, each with its own retention:
       lang: 'typescript',
       code: `import { defineConfig, Bastion } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const bastion = new Bastion({
     logging: {
       messages: { retentionDays: 14 },
@@ -166,12 +166,12 @@ export default defineConfig(() => {
       audit: { disabled: true }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { bastion }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -182,3 +182,9 @@ Each log type also supports [log forwarding](/observability/log-forwarding).
 ## Configuration reference
 
 <ApiReference definitionName="BastionProps" />
+
+## Next steps
+
+- [`stacktape bastion tunnel`](/cli/bastion-tunnel): open a tunnel from your machine.
+- [Hooks and scripts](/configuration/hooks-and-scripts): run scripts through the bastion.
+- [Relational database](/resources/databases/relational-database): keep the database private and reach it this way.

@@ -225,3 +225,10 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `domainName` | yes | `string` | - |
 | `customCertificateArn` | no | `string` | - |
 | `disableDnsRecordCreation` | no | `boolean` | `false` |
+
+
+## Next steps
+
+- [Going to production](/getting-started/going-to-production): the rest of the production checklist.
+- [CDN](/resources/networking/cdn): cache responses close to your users.
+- [`stacktape domain add`](/cli/domain-add): the command's steps and options.

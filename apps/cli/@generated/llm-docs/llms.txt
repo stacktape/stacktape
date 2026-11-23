@@ -29,22 +29,20 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [ai connect](/cli/ai-connect) - source: apps/docs/content/cli/ai-connect.mdx
 - [ai disconnect](/cli/ai-disconnect) - source: apps/docs/content/cli/ai-disconnect.mdx
 - [alarm export](/cli/alarm-export) - source: apps/docs/content/cli/alarm-export.mdx
-- [alarm list](/cli/alarms) - source: apps/docs/content/cli/alarms.mdx
+- [alarm list](/cli/alarm-list) - source: apps/docs/content/cli/alarm-list.mdx
 - [aws call](/cli/aws-call) - source: apps/docs/content/cli/aws-call.mdx
 - [aws-profile create](/cli/aws-profile-create) - source: apps/docs/content/cli/aws-profile-create.mdx
 - [aws-profile delete](/cli/aws-profile-delete) - source: apps/docs/content/cli/aws-profile-delete.mdx
 - [aws-profile list](/cli/aws-profile-list) - source: apps/docs/content/cli/aws-profile-list.mdx
 - [aws-profile update](/cli/aws-profile-update) - source: apps/docs/content/cli/aws-profile-update.mdx
-- [bastion shell](/cli/bastion-session) - source: apps/docs/content/cli/bastion-session.mdx
+- [bastion shell](/cli/bastion-shell) - source: apps/docs/content/cli/bastion-shell.mdx
 - [bastion tunnel](/cli/bastion-tunnel) - source: apps/docs/content/cli/bastion-tunnel.mdx
 - [bucket sync](/cli/bucket-sync) - source: apps/docs/content/cli/bucket-sync.mdx
-- [stack update-modules](/cli/cf-module-update) - source: apps/docs/content/cli/cf-module-update.mdx
-- [stack recover](/cli/cf-rollback) - source: apps/docs/content/cli/cf-rollback.mdx
 - [connect](/cli/connect) - source: apps/docs/content/cli/connect.mdx
 - [container exec](/cli/container-exec) - source: apps/docs/content/cli/container-exec.mdx
-- [container shell](/cli/container-session) - source: apps/docs/content/cli/container-session.mdx
-- [defaults set](/cli/defaults-configure) - source: apps/docs/content/cli/defaults-configure.mdx
+- [container shell](/cli/container-shell) - source: apps/docs/content/cli/container-shell.mdx
 - [defaults list](/cli/defaults-list) - source: apps/docs/content/cli/defaults-list.mdx
+- [defaults set](/cli/defaults-set) - source: apps/docs/content/cli/defaults-set.mdx
 - [delete](/cli/delete) - source: apps/docs/content/cli/delete.mdx
 - [deploy](/cli/deploy) - source: apps/docs/content/cli/deploy.mdx
 - [deployment-script run](/cli/deployment-script-run) - source: apps/docs/content/cli/deployment-script-run.mdx
@@ -54,20 +52,16 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [dev](/cli/dev) - source: apps/docs/content/cli/dev.mdx
 - [diff](/cli/diff) - source: apps/docs/content/cli/diff.mdx
 - [domain add](/cli/domain-add) - source: apps/docs/content/cli/domain-add.mdx
-- [error ignore](/cli/errors-ignore) - source: apps/docs/content/cli/errors-ignore.mdx
-- [error list](/cli/errors-list) - source: apps/docs/content/cli/errors-list.mdx
-- [error reopen](/cli/errors-reopen) - source: apps/docs/content/cli/errors-reopen.mdx
-- [error resolve](/cli/errors-resolve) - source: apps/docs/content/cli/errors-resolve.mdx
+- [error ignore](/cli/error-ignore) - source: apps/docs/content/cli/error-ignore.mdx
+- [error list](/cli/error-list) - source: apps/docs/content/cli/error-list.mdx
+- [error reopen](/cli/error-reopen) - source: apps/docs/content/cli/error-reopen.mdx
+- [error resolve](/cli/error-resolve) - source: apps/docs/content/cli/error-resolve.mdx
 - [help](/cli/help) - source: apps/docs/content/cli/help.mdx
-- [incident ack](/cli/incidents-ack) - source: apps/docs/content/cli/incidents-ack.mdx
-- [incident resolve](/cli/incidents-resolve) - source: apps/docs/content/cli/incidents-resolve.mdx
-- [incident show](/cli/incidents-show) - source: apps/docs/content/cli/incidents-show.mdx
-- [incident watch](/cli/incidents-watch) - source: apps/docs/content/cli/incidents-watch.mdx
-- [incident list](/cli/incidents) - source: apps/docs/content/cli/incidents.mdx
-- [stack history](/cli/info-operations) - source: apps/docs/content/cli/info-operations.mdx
-- [status](/cli/info-stack) - source: apps/docs/content/cli/info-stack.mdx
-- [stack list](/cli/info-stacks) - source: apps/docs/content/cli/info-stacks.mdx
-- [whoami](/cli/info-whoami) - source: apps/docs/content/cli/info-whoami.mdx
+- [incident ack](/cli/incident-ack) - source: apps/docs/content/cli/incident-ack.mdx
+- [incident list](/cli/incident-list) - source: apps/docs/content/cli/incident-list.mdx
+- [incident resolve](/cli/incident-resolve) - source: apps/docs/content/cli/incident-resolve.mdx
+- [incident show](/cli/incident-show) - source: apps/docs/content/cli/incident-show.mdx
+- [incident watch](/cli/incident-watch) - source: apps/docs/content/cli/incident-watch.mdx
 - [init](/cli/init) - source: apps/docs/content/cli/init.mdx
 - [login](/cli/login) - source: apps/docs/content/cli/login.mdx
 - [logout](/cli/logout) - source: apps/docs/content/cli/logout.mdx
@@ -93,10 +87,16 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [secret delete](/cli/secret-delete) - source: apps/docs/content/cli/secret-delete.mdx
 - [secret get](/cli/secret-get) - source: apps/docs/content/cli/secret-get.mdx
 - [secret set](/cli/secret-set) - source: apps/docs/content/cli/secret-set.mdx
+- [stack history](/cli/stack-history) - source: apps/docs/content/cli/stack-history.mdx
+- [stack list](/cli/stack-list) - source: apps/docs/content/cli/stack-list.mdx
+- [stack recover](/cli/stack-recover) - source: apps/docs/content/cli/stack-recover.mdx
+- [stack update-modules](/cli/stack-update-modules) - source: apps/docs/content/cli/stack-update-modules.mdx
+- [status](/cli/status) - source: apps/docs/content/cli/status.mdx
 - [synth](/cli/synth) - source: apps/docs/content/cli/synth.mdx
 - [upgrade](/cli/upgrade) - source: apps/docs/content/cli/upgrade.mdx
 - [validate](/cli/validate) - source: apps/docs/content/cli/validate.mdx
 - [version](/cli/version) - source: apps/docs/content/cli/version.mdx
+- [whoami](/cli/whoami) - source: apps/docs/content/cli/whoami.mdx
 - [Configuration files](/configuration/configuration-files) - source: apps/docs/content/configuration/configuration-files.mdx
 - [Connecting resources](/configuration/connecting-resources) - source: apps/docs/content/configuration/connecting-resources.mdx
 - [Directives](/configuration/directives) - source: apps/docs/content/configuration/directives.mdx
@@ -105,11 +105,11 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Referenceable parameters](/configuration/referenceable-parameters) - source: apps/docs/content/configuration/referenceable-parameters.mdx
 - [Declaring resources](/configuration/resources) - source: apps/docs/content/configuration/resources.mdx
 - [Secrets](/configuration/secrets) - source: apps/docs/content/configuration/secrets.mdx
+- [Shared non-production network](/configuration/shared-network) - source: apps/docs/content/configuration/shared-network.mdx
 - [Stages and environments](/configuration/stages-and-environments) - source: apps/docs/content/configuration/stages-and-environments.mdx
 - [Variables and reuse](/configuration/variables-and-reuse) - source: apps/docs/content/configuration/variables-and-reuse.mdx
 - [In-place code swap](/deployment-and-lifecycle/code-swap) - source: apps/docs/content/deployment-and-lifecycle/code-swap.mdx
 - [Deploying stacks](/deployment-and-lifecycle/deploying-stacks) - source: apps/docs/content/deployment-and-lifecycle/deploying-stacks.mdx
-- [Deployment scripts and hooks](/deployment-and-lifecycle/deployment-scripts-and-hooks) - source: apps/docs/content/deployment-and-lifecycle/deployment-scripts-and-hooks.mdx
 - [Deleting stacks](/deployment-and-lifecycle/destroying-stacks) - source: apps/docs/content/deployment-and-lifecycle/destroying-stacks.mdx
 - [Gradual deployments](/deployment-and-lifecycle/gradual-deployments) - source: apps/docs/content/deployment-and-lifecycle/gradual-deployments.mdx
 - [Multi-region deployments](/deployment-and-lifecycle/multi-region-deployments) - source: apps/docs/content/deployment-and-lifecycle/multi-region-deployments.mdx
@@ -121,6 +121,9 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [After the first deploy](/getting-started/after-the-first-deploy) - source: apps/docs/content/getting-started/after-the-first-deploy.mdx
 - [Set up AWS credentials](/getting-started/aws-credentials) - source: apps/docs/content/getting-started/aws-credentials.mdx
 - [Deploy an existing app](/getting-started/deploy-an-existing-app) - source: apps/docs/content/getting-started/deploy-an-existing-app.mdx
+- [Evaluate Stacktape](/getting-started/evaluate) - source: apps/docs/content/getting-started/evaluate/index.mdx
+- [Move to Stacktape](/getting-started/evaluate/move-to-stacktape) - source: apps/docs/content/getting-started/evaluate/move-to-stacktape.mdx
+- [Stop using Stacktape](/getting-started/evaluate/stop-using-stacktape) - source: apps/docs/content/getting-started/evaluate/stop-using-stacktape.mdx
 - [Going to production](/getting-started/going-to-production) - source: apps/docs/content/getting-started/going-to-production.mdx
 - [Use the CLI without an account](/getting-started/open-source-cli) - source: apps/docs/content/getting-started/open-source-cli.mdx
 - [Start a new project](/getting-started/start-a-new-project) - source: apps/docs/content/getting-started/start-a-new-project.mdx
@@ -131,7 +134,7 @@ Use the concise index below to locate the canonical documentation page for a tas
 - [Guardrails overview](/guardrails/overview) - source: apps/docs/content/guardrails/overview.mdx
 - [Resource limit guardrails](/guardrails/resource-limits) - source: apps/docs/content/guardrails/resource-limits.mdx
 - [Security and data protection guardrails](/guardrails/security-and-data-protection) - source: apps/docs/content/guardrails/security-and-data-protection.mdx
-- [Introduction](/) - source: apps/docs/content/index.mdx
+- [Start here](/) - source: apps/docs/content/index.mdx
 - [Debugging Lambda functions](/local-development/debugging-lambda-functions) - source: apps/docs/content/local-development/debugging-lambda-functions.mdx
 - [Dev mode](/local-development/dev-mode-overview) - source: apps/docs/content/local-development/dev-mode-overview.mdx
 - [Local databases](/local-development/local-databases) - source: apps/docs/content/local-development/local-databases.mdx

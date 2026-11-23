@@ -1,6 +1,6 @@
 ---
 title: 'Directives'
-order: 6
+order: 7
 seoTitle: 'Stacktape Directives — Dynamic Config Values | Docs'
 seoDescription: 'Use Stacktape directives like $Secret, $ResourceParam, $File, and $CfFormat to inject dynamic values into your infrastructure config. Full reference with TypeScript examples.'
 ---
@@ -308,7 +308,7 @@ References an exported output from another deployed CloudFormation stack. The re
 
 Arguments: `$StackOutput('stackName', 'outputName')` with an optional third argument for `region` when importing from a stack in another AWS region.
 
-The `stackName` is the full CloudFormation stack name. The `outputName` must match the CloudFormation output key of the referenced stack. Use [`stacktape status`](/cli/info-stack) to discover available output keys for a deployed stack.
+The `stackName` is the full CloudFormation stack name. The `outputName` must match the CloudFormation output key of the referenced stack. Use [`stacktape status`](/cli/status) to discover available output keys for a deployed stack.
 
 <Warning>The referenced output must be exported from its stack. Unexported outputs cannot be referenced and will cause a deployment error. The referenced stack must also be deployed before the stack that uses the directive.</Warning>
 
@@ -732,7 +732,7 @@ In a terminal, `stacktape deploy` lists the missing secrets and SSM parameters a
 
 ### Can I import an output from a stack in another region?
 
-Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at config-parse time, so its optional `region` argument lets it read an export from a stack in a different region. `$CfStackOutput` produces a CloudFormation `ImportValue`, which only resolves within the deployment region: cross-region imports don't work with it. Use [`stacktape status`](/cli/info-stack) to find the exact `outputName` (it must match the stack's CloudFormation `OutputKey`).
+Use `$StackOutput`, not `$CfStackOutput`. `$StackOutput` fetches the value at config-parse time, so its optional `region` argument lets it read an export from a stack in a different region. `$CfStackOutput` produces a CloudFormation `ImportValue`, which only resolves within the deployment region: cross-region imports don't work with it. Use [`stacktape status`](/cli/status) to find the exact `outputName` (it must match the stack's CloudFormation `OutputKey`).
 
 ### How do I access JSON properties from $Secret?
 

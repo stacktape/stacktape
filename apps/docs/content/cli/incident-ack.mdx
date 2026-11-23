@@ -1,0 +1,36 @@
+---
+title: 'incident ack'
+order: 181
+seoTitle: 'incident ack CLI Command | Stacktape Docs'
+seoDescription: 'Acknowledge a Stacktape incident from the CLI with stacktape incident ack to record that someone is working on it and stop repeat pages for the same signal.'
+---
+
+# incident ack
+
+`stacktape incident ack` acknowledges an open incident: "someone is on it". The same signal getting worse no longer re-pages the team, while a new signal joining the incident still notifies. Acknowledging does not resolve anything; the incident stays in the active queue until its signals recover or you resolve it. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI.
+
+## Usage
+
+```bash
+stacktape incident ack <incident-id>
+```
+
+You need the incident ID. Use [`incident list`](/cli/incident-list) to find it. Acknowledging an incident that is not `OPEN` changes nothing and reports so.
+
+## Examples
+
+Acknowledge an incident in agent mode for use in scripts or AI coding assistants:
+
+```bash
+stacktape incident ack inc_abc123def456 --agent
+```
+
+## Options
+
+<CliCommandsApiReference command="incidents:ack" />
+
+## Related commands
+
+- [`incident list`](/cli/incident-list) — list incidents and find their IDs
+- [`incident show`](/cli/incident-show) — print the incident's handoff bundle
+- [`incident resolve`](/cli/incident-resolve) — resolve an incident manually after verifying a fix

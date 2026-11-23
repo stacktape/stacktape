@@ -5,9 +5,11 @@ An `sns` event subscribes a [Lambda function](/resources/compute/lambda-function
 copy. Use it to fan one event out to several independent consumers: an order is placed, and billing, inventory and email
 each get the message.
 
-With a single consumer, an [SQS queue](/resources/triggers/sqs-events) is simpler and adds batching and retention. To
-route on fields inside the message body, use an [event bus](/resources/triggers/event-bus-events). Batch jobs accept
-`sns` events too.
+SNS invokes the function once per message; the trigger has no `batchSize`. To process messages in batches, or with a
+single consumer, subscribe an [SQS queue](/resources/triggers/sqs-events) to the topic instead: it adds batching and
+keeps messages while the consumer is down. To route on fields inside the message body, use an
+[event bus](/resources/triggers/event-bus-events). Batch jobs accept `sns` events too. Delivery to Lambda is free; the
+[SNS topic](/resources/messaging/sns-topic#standard-or-fifo) page explains what publishing costs.
 
 ## Basic example
 
@@ -132,20 +134,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `snsTopicArn` | no | `string` | - |
 | `snsTopicName` | no | `string` | - |
 
-
-## SNS events FAQ
-
-### Does the SNS trigger support batching?
-
-No. SNS invokes the function per message, and the integration has no `batchSize`. To process messages in batches,
-subscribe an SQS queue to the topic and consume the queue with an [SQS event](/resources/triggers/sqs-events). The
-queue also keeps messages while the consumer is down.
-
-### What does it cost?
-
-For a standard topic, AWS charges per publish request ($0.50 per million in US East after the first million each month)
-and nothing for delivery to Lambda or SQS. A FIFO topic is billed per published and delivered message and per GB of
-payload. See [SNS pricing](https://aws.amazon.com/sns/pricing/).
 
 ## Next steps
 

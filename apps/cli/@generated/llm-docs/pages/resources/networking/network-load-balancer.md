@@ -49,6 +49,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const mqttBroker = new NetworkLoadBalancer({
     customDomains: [{ domainName: 'mqtt.example.com' }],
@@ -75,6 +76,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const grpcLb = new NetworkLoadBalancer({
     listeners: [
@@ -107,10 +109,11 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const tcpLb = new NetworkLoadBalancer({
-    customDomains: [{ domainName: 'tcp.example.com' }, { domainName: 'mqtt.example.com' }],
-    listeners: [{ protocol: 'TLS', port: 8883 }]
+    listeners: [{ protocol: 'TLS', port: 8883 }],
+    customDomains: [{ domainName: 'tcp.example.com' }, { domainName: 'mqtt.example.com' }]
   });
 
   return {
@@ -135,10 +138,11 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const internalLb = new NetworkLoadBalancer({
-    interface: 'internal',
-    listeners: [{ protocol: 'TCP', port: 50051 }]
+    listeners: [{ protocol: 'TCP', port: 50051 }],
+    interface: 'internal'
   });
 
   return {
@@ -158,6 +162,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NetworkLoadBalancer } from 'stacktape';
+
 export default defineConfig(() => {
   const dbProxy = new NetworkLoadBalancer({
     listeners: [
@@ -203,3 +208,9 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | --- | --- | --- |
 | `domain` | default domain name of load balancer | `$ResourceParam("<<resource-name>>", "domain")` |
 | `customDomains` | Comma-separated list of custom domain names assigned to the Load balancer (only available if you use [custom domain names](/resources/networking/custom-domains/)) | `$ResourceParam("<<resource-name>>", "customDomains")` |
+
+
+## Next steps
+
+- [Multi-container workload](/resources/compute/multi-container-workload): expose a TCP port of a container.
+- [Application load balancer](/resources/networking/application-load-balancer): for HTTP routing, WebSockets or a firewall.

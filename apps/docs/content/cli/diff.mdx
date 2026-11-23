@@ -51,7 +51,7 @@ A stateful resource is marked replaced only when the AWS resource that holds its
 
 - **Secrets and SSM parameters.** It restores secrets referenced by the config that are scheduled for deletion. In a terminal, it asks for the values of missing secrets and parameters and creates them. With `--agent` or without a terminal, a missing secret or parameter stops the command instead. Missing database passwords are generated and stored as new secrets, after a confirmation in a terminal.
 - **The template.** It uploads the template to the stage's deployment bucket and deletes it after the preview.
-- **The change set.** It creates a CloudFormation change set on the stack. The change set stays there, unexecuted.
+- **The change set.** It creates a CloudFormation change set on the stack, reads it and deletes it without executing it, also when the change set has no changes or fails. If the delete fails, the preview still succeeds.
 
 That's why coding agents need your approval before they run `diff` through the [MCP server](/using-with-ai/mcp-server-setup#safety-model), the same as for a deploy. [`synth`](/cli/synth) builds the template without changing anything in AWS.
 

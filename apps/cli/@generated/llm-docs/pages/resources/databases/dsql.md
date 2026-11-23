@@ -192,3 +192,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | `region` | AWS region containing the cluster. | `$ResourceParam("<<resource-name>>", "region")` |
 | `id` | DSQL cluster ID. | `$ResourceParam("<<resource-name>>", "id")` |
 | `arn` | DSQL cluster ARN. | `$ResourceParam("<<resource-name>>", "arn")` |
+
+
+## Next steps
+
+- [Release commands](/deployment-and-lifecycle/release-commands): run schema migrations during each deploy.
+- [Connecting resources](/configuration/connecting-resources#aurora-dsql): the variables `connectTo` injects.
+- [Relational database](/resources/databases/relational-database): when you need full PostgreSQL or MySQL.

@@ -407,3 +407,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 | Parameter | Description | Usage |
 | --- | --- | --- |
 | `connectionString` | Connection string (URL) that allows connecting to the cluster. | `$ResourceParam("<<resource-name>>", "connectionString")` |
+
+
+## Next steps
+
+- [Connecting resources](/configuration/connecting-resources#mongodb-atlas-cluster): the connection variables your code gets.
+- [Secrets](/configuration/secrets): store the Atlas API keys.
+- [Relational database](/resources/databases/relational-database): a database that runs in your own AWS account.

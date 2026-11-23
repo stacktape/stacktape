@@ -70,8 +70,8 @@ DynamoDB supports two key types:
       lang: 'typescript',
       code: `import { defineConfig, DynamoDbTable } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const ordersTable = new DynamoDbTable({
     primaryKey: {
       partitionKey: {
@@ -84,12 +84,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { ordersTable }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -120,12 +120,12 @@ Provisioned mode lets you set fixed read and write capacity units for predictabl
       lang: 'typescript',
       code: `import { defineConfig, DynamoDbTable } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const sessionsTable = new DynamoDbTable({
+  const sessionsTable = new DynamoDbTable({ // [!code focus]
     primaryKey: {
       partitionKey: { name: 'sessionId', type: 'string' }
     },
+    // [!code focus-start]
     provisionedThroughput: {
       readUnits: 50,
       writeUnits: 25,
@@ -141,12 +141,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { sessionsTable }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -179,12 +179,12 @@ Without secondary indexes, you can only query items by their primary key. A glob
       lang: 'typescript',
       code: `import { defineConfig, DynamoDbTable } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const usersTable = new DynamoDbTable({
+  const usersTable = new DynamoDbTable({ // [!code focus]
     primaryKey: {
       partitionKey: { name: 'userId', type: 'string' }
     },
+    // [!code focus-start]
     secondaryIndexes: [
       {
         name: 'byEmail',
@@ -198,12 +198,12 @@ export default defineConfig(() => {
       }
     ]
   });
+  // [!code focus-end]
 
   return {
     resources: { usersTable }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -224,20 +224,20 @@ DynamoDB Streams capture item-level changes. Stacktape exposes a [DynamoDB strea
       lang: 'typescript',
       code: `import { defineConfig, DynamoDbTable } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const productsTable = new DynamoDbTable({
+  const productsTable = new DynamoDbTable({ // [!code focus]
     primaryKey: {
       partitionKey: { name: 'productId', type: 'string' }
     },
+    // [!code focus-start]
     streamType: 'NEW_AND_OLD_IMAGES'
   });
+  // [!code focus-end]
 
   return {
     resources: { productsTable }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -268,20 +268,20 @@ in us-east-1. Turn it on for production tables.
       lang: 'typescript',
       code: `import { defineConfig, DynamoDbTable } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
-  const ordersTable = new DynamoDbTable({
+  const ordersTable = new DynamoDbTable({ // [!code focus]
     primaryKey: {
       partitionKey: { name: 'orderId', type: 'string' }
     },
+    // [!code focus-start]
     enablePointInTimeRecovery: true
   });
+  // [!code focus-end]
 
   return {
     resources: { ordersTable }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -312,7 +312,6 @@ item operations inside it, so no extra permission is needed. It also gets these 
   JsBundleLambdaPackaging
 } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const itemsTable = new DynamoDbTable({
     primaryKey: {
@@ -320,18 +319,19 @@ export default defineConfig(() => {
     }
   });
 
-  const api = new LambdaFunction({
+  const api = new LambdaFunction({ // [!code focus]
     packaging: new JsBundleLambdaPackaging({
       entryfilePath: './src/handler.ts'
     }),
+    // [!code focus-start]
     connectTo: [itemsTable]
   });
+  // [!code focus-end]
 
   return {
     resources: { itemsTable, api }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -409,3 +409,9 @@ Deletion can lag the expiry time by a day or two, so filter expired items out of
 ## Referenceable parameters
 
 <ReferenceableParams resource="dynamo-db-table" />
+
+## Next steps
+
+- [DynamoDB streams](/resources/triggers/dynamodb-streams): run a function when items change.
+- [Local databases](/local-development/local-databases): run the table on your machine in dev mode.
+- [`stacktape query dynamodb`](/cli/query-dynamodb): look at items from your terminal.

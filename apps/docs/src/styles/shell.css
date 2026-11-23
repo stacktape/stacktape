@@ -30,8 +30,6 @@
     height: var(--docs-header-h);
     border-bottom: 1px solid var(--docs-border);
     background: var(--docs-bg-header);
-    -webkit-backdrop-filter: saturate(140%) blur(14px);
-    backdrop-filter: saturate(140%) blur(14px);
   }
   .docs-header-inner {
     display: grid;
@@ -169,6 +167,9 @@
   .docs-main.is-home {
     grid-template-columns: minmax(0, var(--docs-home-measure));
   }
+  .docs-main.is-lookup {
+    grid-template-columns: minmax(0, var(--docs-lookup-measure));
+  }
   .docs-article-column {
     min-width: 0;
   }
@@ -176,6 +177,9 @@
   @media (min-width: 1300px) {
     .docs-main.has-toc {
       grid-template-columns: minmax(0, var(--docs-measure)) var(--docs-toc-w);
+    }
+    .docs-main.has-toc.is-lookup {
+      grid-template-columns: minmax(0, var(--docs-lookup-measure)) var(--docs-toc-w);
     }
   }
 
@@ -322,6 +326,10 @@
     color: var(--docs-text-strong);
     font-weight: var(--docs-weight-heading);
   }
+  .docs-nav-row.is-root {
+    color: var(--docs-text-strong);
+    font-weight: var(--docs-weight-heading);
+  }
   .docs-nav-row.is-branch {
     color: var(--docs-text);
     font-weight: var(--docs-weight-medium);
@@ -411,11 +419,41 @@
     }
     .docs-drawer .docs-sidebar-scroller {
       height: auto;
+      overflow: visible;
       padding: var(--docs-space-16) var(--docs-space-12) var(--docs-space-64);
     }
     .docs-drawer .docs-nav-row {
       min-height: 40px;
       font-size: 0.9375rem;
+    }
+    /* The open section and sub-section stay at the top while their pages scroll under them, so a page opened deep in
+       the tree never shows without its section. The bottom edge fades where more navigation follows. */
+    .docs-drawer::after {
+      content: '';
+      position: sticky;
+      bottom: 0;
+      display: block;
+      height: 40px;
+      margin-top: -40px;
+      background: linear-gradient(to bottom, transparent, var(--docs-bg));
+      pointer-events: none;
+    }
+    .docs-drawer .docs-nav-row.is-group[aria-expanded='true'],
+    .docs-drawer li:has(> .docs-nav-children.is-open) > :first-child {
+      position: sticky;
+      z-index: 3;
+      top: 0;
+      background: var(--docs-bg);
+      box-shadow:
+        -12px 0 0 var(--docs-bg),
+        12px 0 0 var(--docs-bg);
+    }
+    .docs-drawer li:has(> .docs-nav-children.is-open) > :first-child {
+      z-index: 2;
+      top: 40px;
+    }
+    .docs-drawer .docs-nav-children > .docs-nav-list {
+      overflow: clip;
     }
     html[data-mobile-nav-open] {
       overflow: hidden;
@@ -427,12 +465,13 @@
     display: none;
   }
   @media (min-width: 1300px) {
+    /* Stuck, the rail's title lines up with a heading the reader jumped to (the anchor line). */
     .docs-toc {
       position: sticky;
-      top: var(--docs-header-h);
+      top: var(--docs-anchor-offset);
       display: block;
-      max-height: calc(100dvh - var(--docs-header-h));
-      padding: var(--docs-space-4) 0 var(--docs-space-48);
+      max-height: calc(100dvh - var(--docs-anchor-offset));
+      padding: 0 0 var(--docs-space-48);
       overflow-y: auto;
       scrollbar-width: none;
     }
@@ -507,8 +546,6 @@
     padding: 0 var(--docs-gutter);
     border-bottom: 1px solid var(--docs-border);
     background: var(--docs-bg-header);
-    -webkit-backdrop-filter: saturate(140%) blur(14px);
-    backdrop-filter: saturate(140%) blur(14px);
   }
   @media (max-width: 799px) {
     .docs-toc-bar {
@@ -525,7 +562,7 @@
     align-items: center;
     gap: var(--docs-space-8);
     width: 100%;
-    height: 40px;
+    height: calc(var(--docs-toc-bar-h) - 1px);
     color: var(--docs-text-muted);
     font-size: var(--docs-text-sm);
     text-align: left;
@@ -553,12 +590,20 @@
   .docs-toc-bar-button[aria-expanded='true'] svg {
     transform: rotate(180deg);
   }
+  /* The open outline lies over the article instead of pushing it down, so choosing a section never moves the page
+     under the reader before it scrolls. */
   .docs-toc-bar-panel {
-    background: var(--docs-bg);
+    position: absolute;
+    top: 100%;
+    right: 0;
+    left: 0;
     max-height: min(60dvh, 520px);
-    padding: var(--docs-space-4) 0 var(--docs-space-16);
+    padding: var(--docs-space-4) var(--docs-gutter) var(--docs-space-16);
     overflow-y: auto;
     overscroll-behavior: contain;
+    border-bottom: 1px solid var(--docs-border);
+    background: var(--docs-bg);
+    box-shadow: var(--docs-shadow-sheet);
   }
   .docs-toc-bar-panel .docs-toc-link {
     padding-block: 7px;

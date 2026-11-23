@@ -115,6 +115,15 @@
   .docs-table code {
     white-space: nowrap;
   }
+  @media (max-width: 799px) {
+    .docs-table th,
+    .docs-table td {
+      min-width: 6rem;
+    }
+    .docs-table thead th {
+      white-space: normal;
+    }
+  }
   .docs-table td > p:first-child {
     margin-top: 0;
   }
@@ -430,29 +439,6 @@
     outline: 2px solid var(--docs-accent-muted);
     outline-offset: 0;
   }
-  .docs-ref-jump {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: var(--docs-space-12) var(--docs-space-16);
-    border-bottom: 1px solid var(--docs-border);
-  }
-  .docs-ref-jump a {
-    padding: 1px 7px;
-    border: 1px solid var(--docs-border);
-    border-radius: var(--docs-radius-sm);
-    color: var(--docs-text-muted);
-    font-family: var(--docs-font-mono);
-    font-size: var(--docs-text-xs);
-    line-height: 1.6;
-    transition:
-      color var(--docs-duration-fast) var(--docs-ease),
-      border-color var(--docs-duration-fast) var(--docs-ease);
-  }
-  .docs-ref-jump a:hover {
-    border-color: var(--docs-border-strong);
-    color: var(--docs-text-strong);
-  }
   .docs-ref-list {
     margin: 0;
     padding: 0;
@@ -467,9 +453,8 @@
   .docs-prop {
     margin: 0;
     padding: 0;
-    scroll-margin-top: calc(var(--docs-header-h) + var(--docs-space-48));
   }
-  .docs-ref-list > .docs-prop + .docs-prop,
+  .docs-ref-list > .docs-prop:not([hidden]) ~ .docs-prop:not([hidden]),
   .docs-prop-children > .docs-ref-list > .docs-prop + .docs-prop {
     border-top: 1px solid var(--docs-border);
   }
@@ -564,6 +549,7 @@
   }
   .docs-prop-values summary {
     display: inline;
+    margin-left: var(--docs-space-4);
     color: var(--docs-text-muted);
     cursor: pointer;
     text-decoration: underline;
@@ -590,6 +576,40 @@
   }
   .docs-prop-toggle:hover {
     color: var(--docs-text-strong);
+  }
+  /* An option's first sentence is the control that opens the rest of its explanation. */
+  .docs-prop-summary {
+    display: block;
+    cursor: pointer;
+    list-style: none;
+    transition: color var(--docs-duration-fast) var(--docs-ease);
+  }
+  .docs-prop-summary::-webkit-details-marker {
+    display: none;
+  }
+  .docs-prop-summary:hover {
+    color: var(--docs-text-strong);
+  }
+  .docs-prop-summary:focus-visible {
+    outline-offset: 2px;
+    border-radius: var(--docs-radius-sm);
+  }
+  .docs-prop-summary-icon {
+    display: inline-block;
+    margin-left: var(--docs-space-4);
+    color: var(--docs-text-faint);
+    vertical-align: -2px;
+    transition: transform var(--docs-duration) var(--docs-ease-out);
+  }
+  .docs-prop-more[open] .docs-prop-summary-icon {
+    transform: rotate(180deg);
+  }
+  .docs-prop-toggle code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-family: var(--docs-font-mono);
   }
   .docs-prop-toggle svg {
     flex: none;
@@ -734,30 +754,13 @@
 }
 
 @layer components {
-  /* The CLI reference folds long option explanations with a native disclosure (no client JavaScript). */
+  /* The CLI reference folds long option explanations with a native disclosure (no client JavaScript); its summary is
+     the option's first sentence (.docs-prop-summary). */
   .docs-prop-more {
-    margin: var(--docs-space-8) 0 0;
+    margin: var(--docs-space-4) 0 0;
   }
-  .docs-prop-more > summary {
-    list-style: none;
-    cursor: pointer;
-    width: fit-content;
-  }
-  .docs-prop-more > summary::-webkit-details-marker {
-    display: none;
-  }
-  .docs-prop-more > summary::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    margin: 0 6px 0 3px;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: rotate(-45deg);
-    transition: transform var(--docs-duration) var(--docs-ease-out);
-  }
-  .docs-prop-more[open] > summary::before {
-    transform: rotate(45deg);
+  .docs-prop-more > .docs-prop-details {
+    margin-top: var(--docs-space-8);
   }
 }
 
@@ -984,24 +987,15 @@
   }
 
   /* ── 404 ───────────────────────────────────────────────────────────────────────────────── */
-  .docs-404 {
-    padding-top: var(--docs-space-24);
-  }
-  .docs-404-code {
-    margin: 0 0 var(--docs-space-8);
-    color: var(--docs-accent-text);
-    font-family: var(--docs-font-mono);
-    font-size: var(--docs-text-sm);
-    font-weight: var(--docs-weight-medium);
-  }
-  .docs-404-actions {
+  .docs-404-search {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--docs-space-12);
-    margin-top: var(--docs-space-24);
+    gap: var(--docs-space-8);
+    margin-block: var(--docs-space-24) var(--docs-space-8);
   }
-  .docs-404-links {
-    margin-top: var(--docs-space-32);
+  .docs-404-search .docs-directory-search {
+    flex: 1 1 16rem;
+    margin: 0;
   }
   .docs-button {
     display: inline-flex;
@@ -1028,5 +1022,264 @@
   }
   .docs-button.is-primary:hover {
     background: color-mix(in oklab, var(--docs-accent-solid) 85%, white);
+  }
+
+  /* ── Directory: lookup lists (command index, resource catalog) ────────────────────────────────────── */
+  .docs-directory {
+    margin-block: var(--docs-flow-block);
+  }
+  [data-directory] [hidden] {
+    display: none !important;
+  }
+  .docs-directory-search {
+    display: block;
+    margin-bottom: var(--docs-space-8);
+  }
+  .docs-directory-search input {
+    height: 38px;
+    font-size: var(--docs-text-ui);
+  }
+  .docs-directory-body > :first-child {
+    margin-top: var(--docs-space-24);
+  }
+  .docs-directory-count {
+    margin: 0 0 var(--docs-space-8);
+    color: var(--docs-text-faint);
+    font-size: var(--docs-text-sm);
+  }
+  .docs-directory-empty {
+    color: var(--docs-text-muted);
+    font-size: var(--docs-text-ui);
+  }
+  .docs-directory-search-all {
+    color: var(--docs-accent-text);
+    font-weight: var(--docs-weight-medium);
+    text-decoration: underline;
+    text-decoration-color: var(--docs-accent-line);
+    text-underline-offset: 0.22em;
+  }
+  .docs-directory-search-all:hover {
+    color: var(--docs-accent-text-hover);
+  }
+
+  /* Directory tables share one column grid, so the service column starts at the same place in every category. */
+  @media (min-width: 800px) {
+    .docs-directory .docs-table {
+      table-layout: fixed;
+    }
+    .docs-directory .docs-table th:first-child {
+      width: 24%;
+    }
+    .docs-directory .docs-table th:nth-child(2):not(:last-child) {
+      width: 29%;
+    }
+    .docs-directory .docs-table th:nth-child(4) {
+      width: 15%;
+    }
+    .docs-directory .docs-table :is(th, td) {
+      padding-inline: var(--docs-space-12);
+    }
+  }
+
+  /* Rows: name, description and an optional tag in fixed columns. The whole row opens the page. */
+  .mdx-content ul:has(> .docs-dir-row) {
+    margin: var(--docs-space-12) 0 0;
+    padding: 0;
+    list-style: none;
+    border-top: 1px solid var(--docs-border);
+  }
+  .mdx-content .docs-dir-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 13.5rem minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 2px var(--docs-space-16);
+    margin: 0;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--docs-border);
+    border-radius: 0;
+    line-height: 1.5;
+  }
+  /* The hover wash reaches a little past the text, so names stay flush with the heading above them. */
+  .mdx-content .docs-dir-row::before {
+    content: '';
+    position: absolute;
+    inset: 1px calc(-1 * var(--docs-space-8));
+    z-index: -1;
+    border-radius: var(--docs-radius-sm);
+    transition: background var(--docs-duration-fast) var(--docs-ease);
+  }
+  .mdx-content .docs-dir-row:has(.is-stretched):hover::before {
+    background: var(--docs-bg-hover);
+  }
+  .mdx-content ul:has(> .docs-dir-row) {
+    isolation: isolate;
+  }
+  .docs-dir-name {
+    min-width: 0;
+    color: var(--docs-accent-text);
+    font-size: var(--docs-text-ui);
+    font-weight: var(--docs-weight-medium);
+    overflow-wrap: anywhere;
+  }
+  .docs-dir-name code {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  .docs-dir-row:hover .docs-dir-name {
+    color: var(--docs-accent-text-hover);
+  }
+  .docs-dir-name.is-stretched::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  .docs-dir-name:focus-visible {
+    outline: none;
+  }
+  .docs-dir-name:focus-visible::after {
+    outline: 2px solid var(--docs-focus);
+    outline-offset: -2px;
+    border-radius: var(--docs-radius-sm);
+  }
+  .docs-dir-text {
+    min-width: 0;
+    grid-column: 2;
+    color: var(--docs-text-muted);
+    font-size: var(--docs-text-ui);
+  }
+  /* A marker, not a control: quiet text in its own column. */
+  .docs-dir-tag {
+    grid-column: 3;
+    color: var(--docs-text-faint);
+    font-size: var(--docs-text-xs);
+    font-weight: var(--docs-weight-medium);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  /* Task first: what you want to do on the left, the page to use on the right. Wide screens set the groups in two
+     columns so the whole picker fits on one screen. */
+  .is-picker .docs-dir-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .is-picker .docs-dir-name {
+    text-align: right;
+  }
+  .is-picker .docs-dir-text {
+    text-wrap: pretty;
+  }
+  @media (min-width: 1100px) {
+    .is-picker .docs-directory-body {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+      gap: var(--docs-space-32);
+      margin-top: var(--docs-space-24);
+    }
+    /* The grid's own margin sets the space, so the first group starts on the same line as the second. */
+    .is-picker .docs-directory-body > .docs-dir-group,
+    .is-picker .docs-directory-body > .docs-dir-group > p {
+      margin-top: 0;
+    }
+  }
+  .is-picker .docs-dir-text {
+    grid-column: 1;
+    grid-row: 1;
+    color: var(--docs-text);
+  }
+  .is-picker .docs-dir-name {
+    grid-column: 2;
+    font-family: var(--docs-font-sans);
+  }
+  .is-picker p + ul:has(> .docs-dir-row) {
+    margin-top: var(--docs-space-8);
+  }
+  .is-picker .docs-dir-group > p,
+  .is-picker p:has(+ ul > .docs-dir-row) {
+    margin: var(--docs-space-24) 0 0;
+    color: var(--docs-text-strong);
+    font-size: var(--docs-text-ui);
+    font-weight: var(--docs-weight-heading);
+  }
+
+  @media (max-width: 799px) {
+    .mdx-content .docs-dir-row,
+    .is-picker .docs-dir-row {
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 10px 0;
+    }
+    .docs-dir-name,
+    .is-picker .docs-dir-name {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .docs-dir-tag {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .docs-dir-text,
+    .is-picker .docs-dir-text {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+    .is-picker .docs-dir-text {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .is-picker .docs-dir-name {
+      grid-column: 2;
+      grid-row: 1;
+      max-width: 9.5rem;
+    }
+
+    /* Directory tables read as rows on a phone: the name and its service on one line, the use below. */
+    .docs-directory .docs-table-wrap {
+      overflow: visible;
+    }
+    .docs-directory .docs-table,
+    .docs-directory .docs-table tbody {
+      display: block;
+    }
+    .docs-directory .docs-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    .docs-directory .docs-table tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 2px var(--docs-space-12);
+      padding: 10px var(--docs-space-12);
+    }
+    .docs-directory .docs-table tbody tr + tr {
+      border-top: 1px solid var(--docs-border);
+    }
+    .docs-directory .docs-table tbody tr + tr > * {
+      border-top: 0;
+    }
+    .docs-directory .docs-table td {
+      min-width: 0;
+      padding: 0;
+    }
+    .docs-directory .docs-table td:nth-child(2):not(:last-child) {
+      color: var(--docs-text-faint);
+      font-size: var(--docs-text-sm);
+      text-align: right;
+    }
+    .docs-directory .docs-table td:nth-child(2):last-child,
+    .docs-directory .docs-table td:nth-child(n + 3) {
+      grid-column: 1 / -1;
+      color: var(--docs-text-muted);
+    }
+    .docs-directory .docs-table td:nth-child(4) {
+      color: var(--docs-text-faint);
+      font-size: var(--docs-text-sm);
+    }
   }
 }

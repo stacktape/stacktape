@@ -1,14 +1,10 @@
 # logs
 
-The `stacktape logs` command fetches logs from a deployed resource's CloudWatch log group. It operates in two modes: standard mode retrieves recent log events with optional start-time and pattern filtering, while Insights mode runs a CloudWatch Logs Insights query for aggregation and structured analysis. The command requires a Stacktape configuration file and a deployed stack.
-
-If the resource uses `logging.logClass: infrequent-access`, the ordinary command automatically runs a bounded Logs Insights snapshot and preserves the usual formatted or JSON event shape. CloudWatch does not support live tail or filter-pattern reads for this class, so the command exits after the snapshot. Use `--query` instead of `--filter` when you need to narrow an Infrequent Access group.
-
-
-> **Info:** This command requires a Stacktape configuration file (set via `--config` or auto-detected in the working directory). The configuration is used to resolve the deployed stack and locate the correct CloudWatch log group for the specified resource.
-
+`stacktape logs` prints the logs of a deployed resource from its CloudWatch log group. By default it shows recent log lines, optionally filtered by time and pattern. With `--query`, it runs a CloudWatch Logs Insights query instead.
 
 ## Usage
+
+The command finds the log group through your Stacktape config and the deployed stack, so run it in the project directory or pass `--config`.
 
 Fetch the last hour of logs from a resource named `myApi`.
 
@@ -49,6 +45,8 @@ Pass a `--query` flag to run a CloudWatch Logs Insights query instead. Insights 
 ```bash
 stacktape logs myApi --stage prod --region eu-west-1 --query "fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20"
 ```
+
+A resource with `logging.logClass: infrequent-access` can't be filtered or followed: CloudWatch supports neither for that log class. The command then runs a bounded Logs Insights snapshot instead, prints the events in the usual shape and exits. Use `--query` instead of `--filter` to narrow such a log group.
 
 In Insights mode, non-agent output prints each result row with a highlighted timestamp and message. In agent mode, that JSON payload is text in a `type: "log"` record's `message` within the CLI NDJSON stream; the final `result` record is separate.
 
@@ -129,7 +127,7 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent
 
 ## Output format
 
-In standard mode, the default output is formatted by the CLI for terminal display via an internal formatter. Pass `--raw` to get raw JSON output, or use `--agent` for machine-readable JSON optimized for programmatic consumption.
+In standard mode, the output is formatted for the terminal. Pass `--raw` for plain JSON, or `--agent` for the CLI's JSONL protocol.
 
 `--raw` prints this JSON object for standard retrieval. With `--agent` without `--follow`, this is the payload encoded as text in a log record's `message`:
 
@@ -158,9 +156,7 @@ In Insights mode with `--agent`, the log record's JSON message payload includes 
 }
 ```
 
-
-> **Tip:** If no log streams exist for the resource, the command prints an empty result. In agent mode, a log record's `message` contains `{"logGroup": "...", "events": []}`; the final result remains separate.
-
+If the resource has no log streams yet, the command prints an empty result. With `--agent`, the log record's `message` then contains `{"logGroup": "...", "events": []}`.
 
 ## How log group resolution works
 
@@ -208,29 +204,9 @@ stacktape logs myApi --stage prod --region eu-west-1 --agent --since "30m" --fil
 
 ## FAQ
 
-### How do I filter logs for errors only?
-
-Use `--filter "ERROR"` for simple text matching, or `--filter '{ $.level = "error" }'` for structured JSON logs. The filter runs server-side in CloudWatch, so only matching events are returned — faster and cheaper than fetching all logs and filtering locally. See the [AWS filter pattern syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html) for the full query language. The `--filter` flag applies in standard mode only; for Insights mode, use filter clauses inside the `--query` string.
-
-### What is the difference between --filter and --query?
-
-The `--filter` flag applies a CloudWatch Logs filter pattern in standard mode — it returns individual log events that match the pattern. The `--query` flag runs a CloudWatch Logs Insights query, which supports aggregation, sorting, field extraction, and statistical analysis across your logs. Use `--filter` for quick searches like "show me lines containing ERROR". Use `--query` when you need to compute counts, percentiles, group results by time window, or extract fields from structured logs.
-
-### How far back can I fetch logs?
-
-The `--since` flag controls how far back the command looks — there is no hard limit in the CLI itself, only what CloudWatch has retained for the log group's retention period. When omitted, `--since` defaults to 1 hour ago. It accepts relative shorthand (`1h`, `30m`, `1d`, `5s`) or any string the JavaScript `Date` constructor parses, such as `2026-05-28T14:00:00Z`.
-
-### Does stacktape logs live-tail?
-
-Yes. In a terminal, `stacktape logs` shows the newest events and then prints new ones as they arrive until you press Ctrl+C. Without a terminal it prints the events once, unless you pass `--follow`. For log viewing in the browser, see [Logs](/observability/logs).
-
 ### How much does CloudWatch Logs cost?
 
-CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/analysis usage. Logs Insights queries (via `--query`) charge per GB of data scanned. For most development workloads, costs are minimal. High-throughput production services should consider setting log retention limits or using [log forwarding](/observability/log-forwarding) to cheaper storage. Check the [AWS CloudWatch pricing page](https://aws.amazon.com/cloudwatch/pricing/) for current rates.
-
-### What is the difference between --raw and --agent?
-
-`--raw` prints the standard `logGroup`/`events` payload as JSON. `--agent` without `--follow` wraps that payload as JSON text inside a log record's `message` in the CLI NDJSON protocol, followed by a separate result record. Parse both layers, or use MCP `stacktape_cli`. With `--agent --follow`, each batch of new events arrives as its own log record with the same payload. In Insights mode, `--raw` is not honored; use `--agent` to receive the `logGroup`, `query` and `results` payload inside that protocol.
+CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/analysis usage. Logs Insights queries (via `--query`) charge per GB of data scanned. High-throughput production services should consider setting log retention limits or using [log forwarding](/observability/log-forwarding) to cheaper storage. Check the [AWS CloudWatch pricing page](https://aws.amazon.com/cloudwatch/pricing/) for current rates.
 
 ## Options
 
@@ -262,7 +238,7 @@ CloudWatch Logs pricing depends on ingestion, storage, retrieval, and query/anal
 
 ## Related commands
 
-- [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics of a deployed function, database or HTTP API.
-- [`stacktape alarm list`](/cli/alarms) — view CloudWatch alarm states for resources in your stack.
+- [`stacktape metrics`](/cli/metrics) — fetch CloudWatch metrics of a deployed function, container, database or HTTP API.
+- [`stacktape alarm list`](/cli/alarm-list) — view CloudWatch alarm states for resources in your stack.
 - [`stacktape container exec`](/cli/container-exec) — run a command inside a deployed container for live debugging.
 - [`stacktape query sql`](/cli/query-sql) — run read-only SQL queries against a deployed database from the command line.

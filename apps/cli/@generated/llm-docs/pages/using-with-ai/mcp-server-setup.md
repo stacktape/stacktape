@@ -19,11 +19,11 @@ To undo the setup, run [`stacktape mcp remove`](/cli/mcp-remove).
 Use the MCP server when your AI coding assistant supports the [Model Context Protocol](https://modelcontextprotocol.io). The structured tool interface is better than raw CLI output for several workflows:
 
 - **Deploying or deleting stacks** — the assistant plans the command, validates arguments against CLI metadata, and executes with safety gates, all through tool calls.
-- **Debugging** — query [logs](/cli/logs), [metrics](/cli/metrics), [alarms](/cli/alarms), [database contents](/cli/query-sql), or [DynamoDB items](/cli/query-dynamodb) during a conversation. The assistant gets structured JSON instead of parsing terminal output.
+- **Debugging** — query [logs](/cli/logs), [metrics](/cli/metrics), [alarms](/cli/alarm-list), [database contents](/cli/query-sql), or [DynamoDB items](/cli/query-dynamodb) during a conversation. The assistant gets structured JSON instead of parsing terminal output.
 - **Configuration help** — the assistant searches Stacktape's bundled documentation index for resource types, config syntax, and deployment patterns without opening a browser.
 - **Dev mode** — start, monitor, rebuild, and stop [dev mode](/local-development/dev-mode-overview) sessions from within your AI conversation.
 
-## When NOT to use
+## When not to use
 
 Skip the MCP server if your AI client does not support the Model Context Protocol — use the [Stacktape CLI](/cli/deploy) directly or the [Stacktape Console](/stacktape-console/console-overview) instead. For long-running deployments, prefer the CLI when you want to watch the command directly in your own terminal. MCP command responses are consolidated and may be truncated. The MCP server runs CLI commands as subprocesses and returns a consolidated response; if an optional caller-specified timeout is exceeded, the subprocess is terminated and an error is returned.
 
@@ -209,7 +209,7 @@ Use the canonical names in each tool schema. CLI invocation arguments and `stack
 
 `stacktape_incident` is where an assistant starts an [incident](/observability/incidents) investigation. `action: "show"`
 with an `incidentId` returns the incident handoff as markdown, the same document
-[`incident show`](/cli/incidents-show) prints. It contains the incident's signals with their evidence, release and
+[`incident show`](/cli/incident-show) prints. It contains the incident's signals with their evidence, release and
 configuration changes, the timeline, earlier related incidents, the AI assessment (when your organization has
 connected an AI API key), the reports of any hosted AI runs and read-only next steps.
 `action: "list"` finds incidents by `projectName`, `stage` and `status` (`ACTIVE` by default, `ALL` for resolved history
@@ -257,7 +257,7 @@ The `orient` action returns the same scan data with stronger next-action guidanc
 
 ### CLI tool
 
-`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/diff), [rollbacks](/cli/rollback), diagnostics ([`logs`](/cli/logs), [`metrics`](/cli/metrics), [`alarm list`](/cli/alarms), [`query sql`](/cli/query-sql), [`query dynamodb`](/cli/query-dynamodb), [`query redis`](/cli/query-redis), [`query opensearch`](/cli/query-opensearch), [`aws call`](/cli/aws-call)), incidents (`incidents`, `incident show`, `incident watch`), [secrets](/configuration/secrets) (`secret set`, `secret get`, `secret delete`), parameters (`param get`), stack info (`status`, `stack list`), and deployment scripts (`script run`).
+`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/diff), [rollbacks](/cli/rollback), diagnostics ([`logs`](/cli/logs), [`metrics`](/cli/metrics), [`alarm list`](/cli/alarm-list), [`query sql`](/cli/query-sql), [`query dynamodb`](/cli/query-dynamodb), [`query redis`](/cli/query-redis), [`query opensearch`](/cli/query-opensearch), [`aws call`](/cli/aws-call)), incidents (`incidents`, `incident show`, `incident watch`), [secrets](/configuration/secrets) (`secret set`, `secret get`, `secret delete`), parameters (`param get`), stack info (`status`, `stack list`), and deployment scripts (`script run`).
 
 The actions:
 
@@ -338,7 +338,7 @@ The MCP server classifies every CLI command into a safety level and enforces per
 | `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion shell` |
 
-`diff` needs your approval like a deploy. It never applies its changes, but before the preview it restores secrets scheduled for deletion, stores generated database passwords as new secrets, uploads a template and creates a CloudFormation change set in your account. See [what diff changes](/cli/diff#what-diff-changes-in-aws).
+`diff` needs your approval like a deploy. It never applies its changes, but before the preview it restores secrets scheduled for deletion, stores generated database passwords as new secrets, uploads a template and creates a temporary CloudFormation change set in your account. See [what diff changes](/cli/diff#what-diff-changes-in-aws).
 
 For destructive commands, the MCP server asks the user directly through their AI client's confirmation form: an input-required round trip on the `2026-07-28` revision, a standard elicitation request on the 2025 revisions. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
 

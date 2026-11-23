@@ -1,6 +1,8 @@
 # synth
 
-The `stacktape synth` command compiles your Stacktape configuration into a CloudFormation template and writes it to a local file. Use it when you need the generated CloudFormation template on disk for inspection or downstream tooling. No stack is created or modified.
+`stacktape synth` turns your configuration into a CloudFormation template and writes it to a file, `compiled-template.yaml` by default. Use it to read the template or hand it to other tools. It doesn't create or change a stack.
+
+The file isn't exactly what a deploy sends to CloudFormation. `synth` doesn't build your code, so the code locations are empty, and a deploy adds a few resources that `synth` doesn't write. To take over a deployed stack, save its deployed template instead, as [Stop using Stacktape](/getting-started/evaluate/stop-using-stacktape) shows.
 
 ## Usage
 
@@ -16,9 +18,7 @@ To write the template to a custom path, use `--out`.
 stacktape synth --stage dev --region eu-west-1 --out ./infra/template.yaml
 ```
 
-
-> **Info:** Unlike [`deploy`](/cli/deploy), `synth` does not create or modify any stack resources. It does not require a previously deployed stack, and it does not require a Stacktape subscription.
-
+`synth` needs no deployed stack and no Stacktape account.
 
 ## Important flags
 
@@ -86,7 +86,7 @@ stacktape synth --stage dev --region eu-west-1 --keep-temp-files --out ./debug-t
 |---------|-------------|---------------|------------------------|
 | [`synth`](/cli/synth) | Writes the CloudFormation template to a file | Nothing | No |
 | [`validate`](/cli/validate) | Checks the config and, with `--thorough`, the template | A temporary template object with `--thorough` | No |
-| [`diff`](/cli/diff) | Shows what a deploy would change | Missing secrets, a template and a change set it never applies | Yes |
+| [`diff`](/cli/diff) | Shows what a deploy would change | Missing secrets, a template and a temporary change set | Yes |
 
 Use `synth` when you need the template file on disk for inspection or downstream tooling. Use [`validate`](/cli/validate) for a quick pass/fail check without writing artifacts. Use [`diff`](/cli/diff) when you want to compare your current config against what is already deployed.
 
@@ -98,11 +98,7 @@ Stacktape needs both values before synthesis so it can resolve a concrete stack 
 
 ### Can I feed the synthesized template into CloudFormation linting or policy tools?
 
-Yes — that is a primary use case. The output is a finalized CloudFormation YAML template, so you can pass it to any tool that accepts CloudFormation: linters, policy-as-code scanners, or your own scripts. A common CI pattern is to run `synth` and then run a scanner against the output. In non-TTY environments output is plain text automatically; pass `--output-format plain` to force it, or `--agent` for JSONL.
-
-### The synthesized template doesn't match what I expected — how do I debug it?
-
-Run `synth` with `--keep-temp-files` to keep the intermediate files generated during synthesis under `.stacktape/[invocation-id]`, and add `--debug` to trace how your configuration is resolved. This lets you inspect the synthesis pipeline rather than only the final template.
+Yes. The file is a finished CloudFormation template, so linters, policy scanners and your own scripts can read it. A common CI step runs `synth` and then a scanner on the file.
 
 ## Options
 

@@ -20,6 +20,10 @@ Stacktape can open incidents from:
 Signals are grouped by project, stage, region, release, resource and time. An incident keeps all its signals and its
 history, including signals that already recovered.
 
+
+> Screenshot: A critical incident in the Console: its title, project and stage, Acknowledge and Resolve buttons, its status and likely cause, and a chart of the five signals that started failing around a failed deploy Caption: One incident groups the alarm, errors, uptime check and synthetic test that failed after the same deploy.
+
+
 A new runtime error enters the incident queue without alerting anyone. An error that returns after you resolved it, or
 that occurs 20 times, alerts the incident's channels. Uptime, synthetic and alarm signals alert when they open the
 incident. Which channels receive incident alerts is set by [notification rules](/observability/notifications).
@@ -99,8 +103,8 @@ fix.
 
 ## Related CLI commands
 
-- [`incident list`](/cli/incidents) — list and filter incidents
-- [`incident show`](/cli/incidents-show) — print the agent handoff bundle
-- [`incident ack`](/cli/incidents-ack) — acknowledge ownership
-- [`incident resolve`](/cli/incidents-resolve) — resolve after manual verification
-- [`incident watch`](/cli/incidents-watch) — wait for sustained recovery
+- [`incident list`](/cli/incident-list) — list and filter incidents
+- [`incident show`](/cli/incident-show) — print the agent handoff bundle
+- [`incident ack`](/cli/incident-ack) — acknowledge ownership
+- [`incident resolve`](/cli/incident-resolve) — resolve after manual verification
+- [`incident watch`](/cli/incident-watch) — wait for sustained recovery

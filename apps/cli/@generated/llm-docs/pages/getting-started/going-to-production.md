@@ -205,7 +205,7 @@ Before sending real traffic, run through these concrete checks:
 
 ## What's next
 
-That's the end of Getting started. From here:
+From here:
 
 - [Resources](/configuration/resources) — the full resource catalogue with configuration guides
 - [Observability](/observability/overview) — logs, metrics, alarms, and alerting in depth

@@ -185,6 +185,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, SqsQueue, EventBus } from 'stacktape';
+
 export default defineConfig(() => {
   const orderBus = new EventBus({});
   const orderQueue = new SqsQueue({

@@ -192,8 +192,8 @@ The default caching behavior depends on the origin type:
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
@@ -205,12 +205,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -233,8 +233,8 @@ The cache key determines what makes each cached response unique. By default, buc
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
@@ -248,12 +248,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -278,10 +278,10 @@ Path patterns support wildcards, for example `/api/*`, `*.jpg`, and `/docs/v2/*`
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway, Bucket } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
   const assetsBucket = new Bucket({});
 
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
@@ -299,12 +299,12 @@ export default defineConfig(() => {
       ]
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { assetsBucket, myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -347,8 +347,8 @@ Forwarding options control which headers, cookies, and query parameters the CDN 
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
@@ -360,12 +360,12 @@ export default defineConfig(() => {
       }
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -396,20 +396,20 @@ an Application Load Balancer needs a custom domain, or a `*.stacktape-app.com` d
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
       customDomains: [{ domainName: 'api.example.com' }]
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -505,20 +505,20 @@ For users in North America and Europe, `PriceClass_100` is the cheapest with no 
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
       cloudfrontPriceClass: 'PriceClass_100'
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -572,20 +572,20 @@ a content hash, set `disableInvalidationAfterDeploy: true` to keep old files cac
       lang: 'typescript',
       code: `import { defineConfig, HttpApiGateway } from 'stacktape';
 
-// [!code focus-start]
 export default defineConfig(() => {
+  // [!code focus-start]
   const myApi = new HttpApiGateway({
     cdn: {
       enabled: true,
       disableInvalidationAfterDeploy: true
     }
   });
+  // [!code focus-end]
 
   return {
     resources: { myApi }
   };
-});
-// [!code focus-end]`
+});`
     }
   ]}
 />
@@ -613,3 +613,9 @@ Available CDN parameters:
 | `cdnCustomDomainUrls` | Custom domain URL value(s) for the CDN |
 | `cdnCanonicalDomain` | The primary domain for the CDN |
 | `cdnCanonicalUrl` | The primary URL for the CDN |
+
+## Next steps
+
+- [Static hosting](/resources/frontend/static-hosting): host a frontend behind the CDN.
+- [Edge function](/resources/compute/edge-function): run code on requests at the edge.
+- [Web application firewall](/resources/security/web-application-firewall): block malicious requests before they reach your origin.

@@ -6,7 +6,9 @@ stream works for ordered, high-volume data such as clickstreams, telemetry or ch
 independently.
 
 For plain background jobs, an [SQS queue](/resources/triggers/sqs-events) is cheaper and simpler: it has no hourly
-charge and no ordering to manage. Batch jobs accept `kinesis-stream` events too.
+charge and no ordering to manage. Batch jobs accept `kinesis-stream` events too. A container reads the stream with its
+own consumer, such as the Kinesis Client Library, in a [worker service](/resources/compute/worker-service) with
+[`connectTo`](/configuration/connecting-resources).
 
 ## Basic example
 
@@ -94,6 +96,10 @@ invocation payload limit.
 `parallelizationFactor` runs up to 10 batches from one shard at the same time. Records with the same partition key are
 still processed in order; records with different keys may run in parallel.
 
+When the function can't keep up, its `IteratorAge` metric in CloudWatch grows: records wait longer before they're
+processed. Raise `batchSize` or `parallelizationFactor`, give the function more memory, or add shards to a provisioned
+stream.
+
 ### Enhanced fan-out
 
 By default the trigger shares each shard's read throughput (2 MB/s) with every other consumer of the stream. Set
@@ -156,19 +162,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `startingPosition` | no | `string: "LATEST" \| "TRIM_HORIZON"` | `TRIM_HORIZON` |
 | `streamArn` | no | `string` | - |
 
-
-## Kinesis events FAQ
-
-### How do I tell that the function can't keep up?
-
-Watch the function's `IteratorAge` metric in CloudWatch. It grows when records wait longer before they're processed.
-Raise `batchSize` or `parallelizationFactor`, give the function more memory, or add shards to a provisioned stream.
-
-### Can a container consume the stream?
-
-Not with this trigger. Run a consumer, such as the Kinesis Client Library, in a
-[worker service](/resources/compute/worker-service) and give it access with
-[`connectTo`](/configuration/connecting-resources).
 
 ## Next steps
 

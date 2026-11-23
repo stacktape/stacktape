@@ -25,7 +25,7 @@ Projects are listed on the **Projects** home, the most recently deployed first.
 
 ## Stages
 
-A stage is a complete, isolated set of AWS resources, with its own CloudFormation stack, databases, functions and URLs. Stages don't share resources unless you [reference one on purpose](/configuration/stages-and-environments). Most teams deploy the same config to every stage and change sizes per stage in the config.
+A stage is one deployment of the project: its own CloudFormation stack, with its own databases, functions and URLs. Non-production stages in an AWS account and region usually share one VPC; [Stages and environments](/configuration/stages-and-environments#are-stages-fully-isolated-from-each-other) explains what that means. Most teams deploy the same config to every stage and change sizes per stage in the config.
 
 Each stage costs money for its always-on resources. Delete stages you no longer use.
 

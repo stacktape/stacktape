@@ -88,13 +88,15 @@
 /* ───────────────────────────── Document ───────────────────────────── */
 @layer base {
   html {
-    scroll-padding-top: calc(var(--docs-header-h) + var(--docs-space-24));
+    scroll-padding-top: var(--docs-anchor-offset);
     -webkit-text-size-adjust: 100%;
     scrollbar-width: thin;
     scrollbar-color: var(--docs-border-strong) transparent;
   }
+  /* Smooth only for jumps the reader makes on the page. The layout sets the attribute after load, so opening a link
+     with a fragment lands on its target at once instead of animating through a long page. */
   @media (prefers-reduced-motion: no-preference) {
-    html {
+    html[data-smooth-scroll] {
       scroll-behavior: smooth;
     }
   }

@@ -1,0 +1,85 @@
+---
+title: 'status'
+order: 187
+seoTitle: 'status CLI Command | Stacktape Docs'
+seoDescription: 'Use stacktape status to view deployed stack details — outputs, endpoints, and AWS resources. Supports JSON output for CI pipelines and scripting.'
+---
+
+# status
+
+`stacktape status` displays detailed information about a deployed stack, including its outputs (URLs, endpoints, resource identifiers) and the list of AWS resources in the stack. Use it after [deploying](/cli/deploy) to discover endpoints, verify resource creation, or feed stack data into scripts and CI pipelines. It needs a Console sign-in: [`stacktape login`](/cli/login), or `STACKTAPE_API_KEY` in CI. It reads the stage's record in the Console. Without an account, open the stack `<project>-<stage>` in the AWS CloudFormation console, in the stage's region, to see its outputs and resources.
+
+## Usage
+
+```bash
+stacktape status --region eu-west-1 --project my-project --stage prod
+```
+
+Alternatively, pass the stack name directly.
+
+```bash
+stacktape status --region eu-west-1 --stack-name my-project-prod
+```
+
+The `--region` flag is the only required argument. You identify the target stack in one of two ways: provide `--stack-name` directly (formatted as `projectName-stage`), or provide both `--project` and `--stage` together. If neither combination is supplied, the command exits with an error: *"Provide either --stack-name OR both --project and --stage"*.
+
+With `--agent`, `status` skips the interactive stack-details view and uses the CLI's JSONL protocol. The final `result` event contains a versioned `stacktape.info-stack.v1` document at `data.result`, including the resolved stack name, region, outputs, Stacktape resource map, and CloudFormation resources. Read the final result event rather than parsing informational log messages.
+
+The `--aws-account` flag selects which connected AWS account to query. The account must first be connected in the [Stacktape Console](/stacktape-console/connecting-your-aws-account). Omit it when the default account selection is sufficient.
+
+## Examples
+
+Inspect a production stack to retrieve its outputs (URLs, resource identifiers).
+
+```bash
+stacktape status --region us-east-1 --project my-api --stage prod
+```
+
+Use the combined stack name instead of separate project and stage flags.
+
+```bash
+stacktape status --region us-east-1 --stack-name my-api-prod
+```
+
+Get versioned JSONL output for a CI pipeline, coding agent, or script.
+
+```bash
+stacktape status --region eu-west-1 --project my-api --stage staging --agent
+```
+
+The stable command document is nested in the final event:
+
+```json
+{
+  "type": "result",
+  "ok": true,
+  "data": {
+    "result": {
+      "schemaVersion": "stacktape.info-stack.v1",
+      "stackName": "my-api-staging",
+      "region": "eu-west-1",
+      "description": null,
+      "stackOutput": {},
+      "stackInfoMap": null,
+      "resources": []
+    }
+  }
+}
+```
+
+Query a stack in a specific connected AWS account.
+
+```bash
+stacktape status --region us-west-2 --project payments --stage prod --aws-account production-account
+```
+
+## Options
+
+<CliCommandsApiReference command="info:stack" />
+
+## Related commands
+
+- [`stack list`](/cli/stack-list) — List all stacks deployed in a region. Use this to discover stack names before drilling into one with `status`.
+- [`stack history`](/cli/stack-history) — View recent deployment operations and their success/failure status for a project or stage.
+- [`deploy`](/cli/deploy) — Deploy or update a stack. After deploying, use `status` to retrieve the resulting outputs and endpoints.
+- [`param get`](/cli/param-get) — Retrieve a single parameter value from a resource in a deployed stack, rather than the full stack overview.

@@ -99,6 +99,7 @@ Example (TypeScript):
 
 ```typescript
 import { defineConfig, NextjsWeb, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+
 export default defineConfig(() => {
   const mainDatabase = new RelationalDatabase({
     engine: new RdsEnginePostgres({ version: '16', primaryInstance: { instanceSize: 'db.t4g.micro' } }),
@@ -144,14 +145,16 @@ new NextjsWeb({
 })
 ```
 
-Set the domain up once before the first deploy that uses it: run `stacktape domain add --region <your region>` for the
-root domain, point your registrar at the Route 53 hosted zone it creates, and run it again until the certificates are
-issued. The CDN needs a certificate in `us-east-1`, which the command requests too. Without an issued certificate, the
-deploy stops with an error. Stacktape then creates the DNS record and renews the certificate.
+Set the domain up once, before the first deploy that uses it. First decide where its DNS lives:
 
-To keep DNS at another provider, request an ACM certificate in `us-east-1` yourself, set `customCertificateArn` and
-`disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. [Custom domains](/resources/networking/custom-domains)
-covers both paths.
+- **DNS in Route 53.** Follow [Set up the domain](/resources/networking/custom-domains#set-up-the-domain). If the
+  domain already serves a website or email at another DNS provider, copy those records into the new hosted zone before
+  you change the name servers at your registrar, or they stop working. The command also requests the certificate the
+  CDN needs in `us-east-1`. Without an issued certificate, the deploy stops with an error. After that, Stacktape
+  creates the DNS record and renews the certificate.
+- **DNS stays at your current provider.** Request an ACM certificate in `us-east-1` yourself, set
+  `customCertificateArn` and `disableDnsRecordCreation: true`, and point a CNAME at the CloudFront domain. See
+  [External DNS](/resources/networking/custom-domains#external-dns).
 
 ## Firewall
 

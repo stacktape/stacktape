@@ -51,13 +51,24 @@ can override shared component styles.
 `public` is committed app-owned static content. Generated assets go to `dist` during build; builds must not rewrite
 `public`.
 
+## Search
+
+Algolia DocSearch serves search from the index the Algolia crawler builds from the live site (app `PFTWPISD3F`, index
+`Docs crawler`); its configuration lives in the Algolia dashboard. Every v4 page carries `docsearch:lvl0` (the result
+group, such as `Guides · Observability` or `Commands`) and `docsearch:type` (`Guide`, `Resource`, `Command` or
+`Console`) meta tags from `src/components/Search/search-context.ts`. The crawler's record extractor reads them and takes
+headings and text only from the article (`.docs-page-title`, `.mdx-content`), never from the header, sidebar, outline or
+footer. The search dialog derives the same groups from each result's URL, so a stale index still groups correctly.
+Recrawl from the dashboard after pages move.
+
 ## Publishing
 
 `stacktape.ts` deploys the site: `pnpm deploy:docs:preview` publishes `https://preview-docs.stacktape.com`, and
 `pnpm deploy:docs` publishes production. Redirects live in `src/utils/site-redirects.ts`; Astro renders them as
-meta-refresh pages and the CDN answers them with a 301 through a CloudFront Function, whose code must stay under 10 KB
-(`tests/cdn-redirects.test.ts`). The procedure, verification and rollback are in
-[releasing](../../docs/releasing.md#documentation-site).
+meta-refresh pages, and the CDN answers them with a 301 through a CloudFront Function that reads the table from a
+CloudFront KeyValueStore. An `afterDeploy` hook writes the table after the upload (`src/build/cdn-redirects.ts`,
+`src/build/redirect-store-sync.ts`, `scripts/write-redirect-store.ts`, `tests/cdn-redirects.test.ts`). The procedure,
+verification and rollback are in [releasing](../../docs/releasing.md#documentation-site).
 
 ## Checks
 
