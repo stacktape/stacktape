@@ -2,6 +2,7 @@ import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import type { StpKinesisStream } from '@domain-services/config-manager/resolved-types/kinesis-streams';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -17,6 +18,11 @@ export const resolveKinesisStreams = async () => {
 const resolveKinesisStream = ({ resource }: { resource: StpKinesisStream }) => {
   const streamAwsName = awsResourceNames.kinesisStream(resource.name, calculatedStackOverviewManager.context.stackName);
   const capacityMode = resource.capacityMode || 'ON_DEMAND';
+  if (resource.enableEnhancedFanOut) {
+    tuiManager.warn(
+      `kinesis-stream "${resource.name}": \`enableEnhancedFanOut\` is deprecated and has no effect. To give a function its own enhanced fan-out consumer, set \`autoCreateConsumer: true\` on its kinesis-stream trigger.`
+    );
+  }
 
   calculatedStackOverviewManager.addCfChildResource({
     nameChain: resource.nameChain,

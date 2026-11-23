@@ -262,7 +262,11 @@ const seedContainer = async (
     kind: 'json',
     body: {
       services: [
-        { clusterArn, deployments: [{ status: 'PRIMARY', rolloutState: 'COMPLETED', taskDefinition: 'j9-task:1' }] }
+        {
+          clusterArn,
+          serviceName: 'j9-service',
+          deployments: [{ status: 'PRIMARY', rolloutState: 'COMPLETED', taskDefinition: 'j9-task:1' }]
+        }
       ]
     }
   }));
@@ -270,13 +274,15 @@ const seedContainer = async (
     kind: 'json',
     body: { taskDefinition: { containerDefinitions: [{ name: 'main' }, { name: 'sidecar' }] } }
   }));
-  fixture.aws.on('ecs.ListTasks', () => ({ kind: 'json', body: { taskArns: ids.map(taskArn) } }));
+  // A release command's one-off task runs in the same cluster and is listed first; it is never a target.
+  fixture.aws.on('ecs.ListTasks', () => ({ kind: 'json', body: { taskArns: ['release', ...ids].map(taskArn) } }));
   fixture.aws.on('ecs.DescribeTasks', () => ({
     kind: 'json',
     body: {
-      tasks: ids.map((id) => ({
+      tasks: ['release', ...ids].map((id) => ({
         taskArn: taskArn(id),
         clusterArn,
+        group: id === 'release' ? 'family:j9-release' : 'service:j9-service',
         containers: [
           { name: 'main', runtimeId: `j9-main-${id}` },
           { name: 'sidecar', runtimeId: `j9-sidecar-${id}` }
@@ -351,9 +357,25 @@ test.skipIf(process.platform === 'win32')(
       expect(parseCliJsonl(failed.stdout, 'container:exec').result.code).toBe('CONTAINER_EXEC_FAILED');
       expect(failed.stdout).toContain('j9-exec-failed');
       expect(failed.stdout + failed.stderr).not.toContain(token);
+      await seedContainer(fixture, 'exec');
+      const withoutTaskArn = await fixture.run([
+        'container:exec',
+        '--resourceName',
+        'service',
+        '--container',
+        'sidecar',
+        '--command',
+        'true',
+        ...targetArgs,
+        '--agent'
+      ]);
+      expect(withoutTaskArn.exitCode, withoutTaskArn.stdout + withoutTaskArn.stderr).toBe(0);
+      // Without --taskArn the first task of the service is used, never the release task listed before it.
+      expect(fixture.aws.callsTo('ecs.ExecuteCommand').at(-1).input.task).toBe(taskArn('first'));
       expect(fixture.aws.callsTo('ssm.TerminateSession').map(({ input }) => input.SessionId)).toEqual([
         'exec',
-        'exec-fail'
+        'exec-fail',
+        'exec'
       ]);
       assertRequests(fixture);
     } finally {

@@ -1,11 +1,10 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { runEcsExecSsmShellSession } from '@utils/ssm-session';
 import { CliError } from '@utils/errors';
 import { containerErrors } from '../_utils/container-errors';
+import { isServiceTask, resolveDeployedEcsService } from '../_utils/deployed-ecs-service';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandContainerSession = async () => {
@@ -26,28 +25,11 @@ export const commandContainerSession = async () => {
 };
 
 const resolveTargetContainer = async ({ resourceName, container }: { resourceName: string; container?: string }) => {
-  const workloadInfo = deployedStackOverviewManager.deployedWorkloadsWithEcsTaskDefinition.find(
-    ({ nameChain }) => nameChain[0] === resourceName
-  );
-  if (!workloadInfo) {
-    throw containerErrors.invalidResource(resourceName);
-  }
-  const ecsServiceCfLogicalName = Object.entries(workloadInfo.resource.cloudformationChildResources).find(
-    ([, { cloudformationResourceType }]) => {
-      return (
-        cloudformationResourceType === 'AWS::ECS::Service' ||
-        cloudformationResourceType === 'Stacktape::ECSBlueGreenV1::Service'
-      );
-    }
-  )[0];
-
   const {
-    ecsServiceTaskDefinition,
-    ecsService: { clusterArn }
-  } = stackManager.existingStackResources.find(
-    ({ LogicalResourceId }) => LogicalResourceId === ecsServiceCfLogicalName
-  );
-  const containersInTaskDefinition = ecsServiceTaskDefinition.containerDefinitions.map(({ name }) => name);
+    clusterArn,
+    serviceName,
+    containerNames: containersInTaskDefinition
+  } = resolveDeployedEcsService(resourceName);
   if (
     (containersInTaskDefinition.length > 1 && !container) ||
     (container && !containersInTaskDefinition.includes(container))
@@ -55,10 +37,12 @@ const resolveTargetContainer = async ({ resourceName, container }: { resourceNam
     throw containerErrors.selectionRequired({ resourceName, availableContainers: containersInTaskDefinition });
   }
 
-  const tasks = await awsSdkManager.ecs.listTasks({
-    ecsClusterName: clusterArn,
-    desiredStatus: DesiredStatus.RUNNING
-  });
+  const tasks = (
+    await awsSdkManager.ecs.listTasks({
+      ecsClusterName: clusterArn,
+      desiredStatus: DesiredStatus.RUNNING
+    })
+  ).filter((task) => isServiceTask(task, serviceName));
 
   if (tasks.length === 0) {
     throw new CliError({

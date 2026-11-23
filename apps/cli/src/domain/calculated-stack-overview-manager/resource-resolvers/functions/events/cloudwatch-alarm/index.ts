@@ -65,8 +65,8 @@ const getEventBusEventRule = ({
   eventDetails: AlarmIntegrationProps;
   configParentResourceType: StpLambdaFunction['configParentResourceType'];
 }) => {
-  // this resolving is just for checking that referenced alarm exists
-  resolveReferenceToAlarm({
+  // The rule must target the alarm's logical ID, which is built from its resolved name, not from the reference.
+  const alarm = resolveReferenceToAlarm({
     activeConfig: configManager,
     stpAlarmReference: eventDetails.alarmName,
     referencedFrom: workloadName,
@@ -77,7 +77,7 @@ const getEventBusEventRule = ({
     EventPattern: {
       source: ['aws.cloudwatch'],
       'detail-type': ['CloudWatch Alarm State Change'],
-      resources: [getAtt(cfLogicalNames.cloudwatchAlarm(eventDetails.alarmName), 'Arn')],
+      resources: [getAtt(cfLogicalNames.cloudwatchAlarm(alarm.name), 'Arn')],
       detail: {
         state: {
           value: ['ALARM']

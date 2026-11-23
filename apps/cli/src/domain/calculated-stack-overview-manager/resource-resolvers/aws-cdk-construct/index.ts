@@ -127,7 +127,8 @@ export const resolveAwsCdkConstructs = async () => {
         calculatedStackOverviewManager.addUserCustomStackOutput({
           cloudformationOutputName: cfLogicalName,
           value: cfOutput.Value,
-          description: String(cfOutput.Description),
+          // An output without a description must not get the text "undefined".
+          description: typeof cfOutput.Description === 'string' ? cfOutput.Description : undefined,
           exportOutput: Boolean(cfOutput.Export)
         });
       });

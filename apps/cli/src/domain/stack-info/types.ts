@@ -19,6 +19,7 @@ import type { StpDeploymentScript } from '@domain-services/config-manager/resolv
 import type { StpDynamoTable } from '@domain-services/config-manager/resolved-types/dynamo-db-tables';
 import type { StpDsqlDatabase } from '@domain-services/config-manager/resolved-types/dsql-databases';
 import type { StpKafkaCluster } from '@domain-services/config-manager/resolved-types/kafka-clusters';
+import type { StpKinesisStream } from '@domain-services/config-manager/resolved-types/kinesis-streams';
 import type { StpEdgeLambdaFunction } from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
 import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
 import type { StpEventBus } from '@domain-services/config-manager/resolved-types/event-buses';
@@ -193,4 +194,6 @@ export type ResourcePropsFromConfig<T extends StpResourceType> = T extends 'appl
                                                                                 ? StpOpenSearchDomain // []
                                                                                 : T extends 'efs-filesystem'
                                                                                   ? StpEfsFilesystem
-                                                                                  : never;
+                                                                                  : T extends 'kinesis-stream'
+                                                                                    ? StpKinesisStream
+                                                                                    : never;
