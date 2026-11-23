@@ -26,12 +26,13 @@ Alarms are not the right tool for every monitoring need:
 
 ## Supported resources
 
-Stacktape supports inline alarms on five resource types. Each resource accepts a specific set of trigger types:
+Stacktape supports inline alarms on these resource types. Each resource accepts a specific set of trigger types:
 
 | Resource | Config property | Accepted alarm triggers |
 |---|---|---|
 | [Lambda function](/resources/compute/lambda-function) | `alarms` | `lambda-error-rate`, `lambda-duration` |
 | [Relational database](/resources/databases/relational-database) | `alarms` | `database-cpu-utilization`, `database-connection-count`, `database-read-latency`, `database-write-latency`, `database-free-storage`, `database-free-memory` |
+| [Web service](/resources/compute/web-service) | `alarms` | `http-api-gateway-error-rate`, `http-api-gateway-latency` with the default load balancing; the Application Load Balancer triggers with `application-load-balancer` |
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | `alarms` | `http-api-gateway-error-rate`, `http-api-gateway-latency` |
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `alarms` | `application-load-balancer-error-rate`, `application-load-balancer-unhealthy-targets`, `application-load-balancer-custom` |
 | [SQS queue](/resources/messaging/sqs-queue) | `alarms` | `sqs-queue-received-messages-count`, `sqs-queue-not-empty` |
