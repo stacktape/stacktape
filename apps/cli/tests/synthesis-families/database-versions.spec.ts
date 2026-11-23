@@ -122,3 +122,20 @@ describe('database versions', () => {
     expect(instanceVersion(await synthesize({ db: database('postgres', '16') }, deployed))).toBe('16.1');
   });
 });
+
+describe('Oracle license model', () => {
+  // RDS sells Enterprise Edition only as bring-your-own-license; asking for license-included fails the deploy in AWS.
+  test('Enterprise Edition brings its own license, Standard Edition 2 includes it', async () => {
+    const oracleVersion = (versions.rds['oracle-ee'] as string[])[0]!;
+    const template = await synthesize({
+      ee: database('oracle-ee', oracleVersion),
+      se2: database('oracle-se2', (versions.rds['oracle-se2'] as string[])[0]!),
+      pg: database('postgres', '17')
+    });
+    const licenseModel = (name: string) =>
+      template.Resources[cfLogicalNames.dbInstance(name)]!.Properties!.LicenseModel;
+    expect(licenseModel('ee')).toBe('bring-your-own-license');
+    expect(licenseModel('se2')).toBe('license-included');
+    expect(licenseModel('pg')).toBeUndefined();
+  });
+});

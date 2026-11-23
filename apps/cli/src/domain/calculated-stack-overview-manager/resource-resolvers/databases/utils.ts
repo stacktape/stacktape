@@ -539,8 +539,13 @@ export const getBasicRdsInstance = ({
         : undefined,
     EnableCloudwatchLogsExports: logExports.length ? logExports : undefined,
     DBParameterGroupName: ref(cfLogicalNames.dbInstanceParameterGroup(stpResourceName)),
+    // RDS sells Oracle Enterprise Edition only with your own Oracle license; Standard Edition 2 can include it.
     LicenseModel:
-      resource.engine.type === 'oracle-ee' || resource.engine.type === 'oracle-se2' ? 'license-included' : undefined,
+      resource.engine.type === 'oracle-ee'
+        ? 'bring-your-own-license'
+        : resource.engine.type === 'oracle-se2'
+          ? 'license-included'
+          : undefined,
     Port: `${resolveDatabasePort({ definition: resource })}`,
     BackupRetentionPeriod: replicaNum === undefined ? resource.automatedBackupRetentionDays : undefined,
     MasterUsername: replicaNum === undefined ? getDbMasterUserName({ resource }) : undefined,

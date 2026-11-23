@@ -55,6 +55,7 @@ import {
   shouldRedeployStoredFunctionCode
 } from './utils';
 import {
+  artifactsNamedByTemplate,
   keepImagesOfRunningServices,
   keepLayersOfRetainedReleases,
   selectObsoleteArtifacts,
@@ -768,8 +769,14 @@ class DeploymentArtifactManager {
     });
   };
 
-  getObsoleteItems = <T extends StoredArtifact>(previousItems: T[]): T[] =>
-    selectObsoleteArtifacts({
+  getObsoleteItems = <T extends StoredArtifact>(previousItems: T[]): T[] => {
+    // After a fast deployment, CloudFormation still runs the template of the last full one. See artifactsNamedByTemplate.
+    const deployed = artifactsNamedByTemplate({
+      template: templateManager.oldTemplate,
+      repositoryUrl: this.repositoryUrl
+    });
+    const deployedS3Keys = new Set(deployed.s3Keys);
+    return selectObsoleteArtifacts({
       // Helpers survive release retention so running tasks and rollbacks can still pull them.
       // Code-swap artifacts are collected after history finalization, with live-task and rollback references.
       artifacts: previousItems.filter(
@@ -778,8 +785,11 @@ class DeploymentArtifactManager {
       usage: {
         uploadedObjects: this.successfullyCreatedObjects,
         uploadedImages: this.successfullyUploadedImages,
-        reusedS3Keys: this.previouslyUploadedS3KeysUsedInDeployment,
-        reusedImageTags: this.previouslyUploadedImageTagsUsedInDeployment,
+        reusedS3Keys: [
+          ...this.previouslyUploadedS3KeysUsedInDeployment,
+          ...previousItems.flatMap(({ s3Key }) => (s3Key && deployedS3Keys.has(s3Key) ? [s3Key] : []))
+        ],
+        reusedImageTags: [...this.previouslyUploadedImageTagsUsedInDeployment, ...deployed.imageTags],
         versionsToKeepPerName: this.maxArtifactVersionsToKeep,
         // Every job that builds an image can export a registry cache (`getCacheRef` in the packaging manager).
         registryCacheTags: [
@@ -788,6 +798,7 @@ class DeploymentArtifactManager {
         ].map(({ jobName }) => getEcrCacheImageTag(jobName))
       }
     });
+  };
 
   /**
    * Images that running services still use. After a code swap, a service keeps its older task revision, whose image can

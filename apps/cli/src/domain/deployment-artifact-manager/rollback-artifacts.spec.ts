@@ -2,6 +2,8 @@ import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource'
 import { afterEach, beforeEach, expect, spyOn, test } from 'bun:test';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { configManager } from '@domain-services/config-manager';
+import { templateManager } from '@domain-services/template-manager';
 import { deploymentArtifactManager as manager } from './index';
 import { CLOUD_MAP_DRAIN_IMAGES, cloudMapDrainImageTag } from './cloud-map-drain-image';
 import { getCfTemplateS3Key } from './artifact-names';
@@ -92,4 +94,55 @@ test('missing Lambda images still refuse rollback, even for a known drain digest
   template.Resources.ApiFunction = { Type: 'AWS::Lambda::Function', Properties: { Code: { ImageUri: image } } };
   await expect(manager.verifyArtifactsForVersion('v000001')).rejects.toThrow('cannot be restored');
   expect(restore).not.toHaveBeenCalled();
+});
+
+// After fast deployments, CloudFormation still runs the template of the last full deployment. A later update that fails
+// rolls the function code back to the objects that template names, so retention must not delete them.
+test('retention keeps the artifacts of the template CloudFormation runs', () => {
+  const versions = Array.from({ length: 30 }, (_, index) => `v${String(index + 1).padStart(6, '0')}`);
+  manager.previousObjects = versions.map((version) => ({
+    name: 'api',
+    version,
+    digest: `digest-${version}`,
+    type: 'user-lambda',
+    s3Key: `api/${version}-digest-${version}.zip`
+  }));
+  manager.previousImages = versions.map((version) => ({
+    name: 'web',
+    version,
+    digest: `digest-${version}`,
+    tag: `web--digest-${version}--${version}`,
+    dockerDigest: `sha256:${version}`
+  }));
+  const deployedTemplate = templateManager.oldTemplate;
+  templateManager.oldTemplate = {
+    Resources: {
+      Api: {
+        Type: 'AWS::Lambda::Function',
+        Properties: { Code: { S3Bucket: 'deployment-bucket', S3Key: 'api/v000001-digest-v000001.zip' } }
+      },
+      Task: {
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: { ContainerDefinitions: [{ Name: 'web', Image: `${repository}:web--digest-v000001--v000001` }] }
+      }
+    }
+  } as unknown as CloudFormationTemplate;
+  const config = {
+    deploymentConfig: { previousVersionsToKeep: 25 },
+    allContainersRequiringPackaging: [],
+    agentCoreRuntimesRequiringPackaging: []
+  };
+  for (const [key, value] of Object.entries(config))
+    Object.defineProperty(configManager, key, { configurable: true, value });
+  try {
+    const obsoleteObjects = manager.getObsoleteItems(manager.previousObjects).map(({ version }) => version);
+    const obsoleteImages = manager.getObsoleteItems(manager.previousImages).map(({ version }) => version);
+    // 1 + 25 versions stay; of the four older ones, the template still names v000001.
+    expect(obsoleteObjects).toEqual(['v000002', 'v000003', 'v000004']);
+    expect(obsoleteImages).toEqual(['v000002', 'v000003', 'v000004']);
+  } finally {
+    // The own properties shadowed the class getters; removing them restores those.
+    for (const key of Object.keys(config)) delete (configManager as unknown as Record<string, unknown>)[key];
+    templateManager.oldTemplate = deployedTemplate;
+  }
 });

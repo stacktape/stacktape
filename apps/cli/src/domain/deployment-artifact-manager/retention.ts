@@ -20,9 +20,12 @@ export type DeploymentArtifactUsage = {
   uploadedObjects: { s3Key: string; name: string }[];
   /** Images this run pushed to the repository. */
   uploadedImages: { tag: string; name: string }[];
-  /** Objects already present that this run's template references, shared layers among them. */
+  /**
+   * Objects already present that this run's template references, shared layers among them, and the objects the
+   * template CloudFormation runs names (`artifactsNamedByTemplate`).
+   */
   reusedS3Keys: string[];
-  /** Images already present that this run's template references. */
+  /** Images already present that this run's template or the template CloudFormation runs references. */
   reusedImageTags: string[];
   /** Versions to keep per artifact name, including the one being deployed. */
   versionsToKeepPerName: number;
@@ -76,6 +79,39 @@ export const selectObsoleteArtifacts = <Artifact extends StoredArtifact>({
     );
     return !keptVersions.includes(artifact.version);
   });
+};
+
+/**
+ * The stored objects and images a template names: S3 keys as written, images as `<repositoryUrl>:<tag>`.
+ *
+ * A fast deployment updates code directly and leaves CloudFormation on the template of the last full deployment. That
+ * template names the objects and images that deployment uploaded. A function or service that changed in more fast
+ * deployments than the keep window holds pushes them out of the window, yet CloudFormation still needs them: a later
+ * update that fails rolls the code back to them, and an image is pulled again whenever ECS starts a task of the
+ * template's revision. So whatever the template CloudFormation runs names is referenced, as if this run reused it.
+ *
+ * Every string in the template is a candidate key, wherever it sits (function code, layer content, custom resource
+ * properties); one that names no stored object matches nothing.
+ */
+export const artifactsNamedByTemplate = ({
+  template,
+  repositoryUrl
+}: {
+  template: { Resources?: Record<string, unknown> } | undefined;
+  repositoryUrl: string;
+}) => {
+  const s3Keys = new Set<string>();
+  const imageTags = new Set<string>();
+  const imagePrefix = `${repositoryUrl}:`;
+  const visit = (value: unknown) => {
+    if (typeof value === 'string') {
+      s3Keys.add(value);
+      if (value.startsWith(imagePrefix)) imageTags.add(value.slice(imagePrefix.length));
+    } else if (Array.isArray(value)) value.forEach(visit);
+    else if (value && typeof value === 'object') Object.values(value).forEach(visit);
+  };
+  visit(template?.Resources);
+  return { s3Keys: [...s3Keys], imageTags: [...imageTags] };
 };
 
 /**

@@ -511,8 +511,8 @@ export function ReviewStep({
           {existingDeployments.some((deployment) => deployment.managesAws) ? (
             <>
               Those files may describe resources that are already running. This Stacktape configuration is separate: it
-              does not import, change or delete anything they own. Databases and other stored data declared there are
-              left alone by default; any new copy is shown under <strong>Decided for you</strong> before you save.
+              does not import, change or delete anything they own. A database in this file is a new one, separate from
+              any database those files manage, and it starts empty. Move the data yourself.
             </>
           ) : (
             <>

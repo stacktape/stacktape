@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import type { DeploymentArtifactUsage } from './retention';
-import { keepImagesOfRunningServices, keepLayersOfRetainedReleases, selectObsoleteArtifacts } from './retention';
+import {
+  artifactsNamedByTemplate,
+  keepImagesOfRunningServices,
+  keepLayersOfRetainedReleases,
+  selectObsoleteArtifacts
+} from './retention';
 
 const noUsage: DeploymentArtifactUsage = {
   uploadedObjects: [],
@@ -125,5 +130,47 @@ describe('images of running services', () => {
     expect(
       keepImagesOfRunningServices({ obsolete: stored, liveImages: [], repositoryUrl, storedImages: stored })
     ).toEqual(stored);
+  });
+});
+
+describe('artifacts the deployed template names', () => {
+  const repositoryUrl = '123456789012.dkr.ecr.eu-west-1.amazonaws.com/deployment';
+  const template = {
+    Resources: {
+      Api: {
+        Type: 'AWS::Lambda::Function',
+        Properties: { Code: { S3Bucket: 'deployment-bucket', S3Key: 'api/v1.zip' }, Handler: 'index.handler' }
+      },
+      Layer: { Type: 'AWS::Lambda::LayerVersion', Properties: { Content: { S3Key: 'shared-layer-1/v1.zip' } } },
+      Task: {
+        Type: 'AWS::ECS::TaskDefinition',
+        Properties: {
+          ContainerDefinitions: [
+            { Image: `${repositoryUrl}:web--v1` },
+            { Image: 'public.ecr.aws/docker/library/busybox:latest' }
+          ]
+        }
+      }
+    }
+  };
+
+  test('names the S3 keys and the tags of images in the stack repository, wherever they sit', () => {
+    const named = artifactsNamedByTemplate({ template, repositoryUrl });
+    expect(named.s3Keys).toEqual(expect.arrayContaining(['api/v1.zip', 'shared-layer-1/v1.zip']));
+    expect(named.imageTags).toEqual(['web--v1']);
+  });
+
+  // Fast deployments moved api and web far past the window; CloudFormation still runs the v1 template.
+  test('keeps what the template names once fast deployments pushed it out of the window', () => {
+    const versions = ['v1', 'v2', 'v3', 'v4', 'v5', 'v6'];
+    const named = artifactsNamedByTemplate({ template, repositoryUrl });
+    const obsolete = selectObsoleteArtifacts({
+      artifacts: [
+        ...versions.map((version) => objectArtifact('api', version)),
+        ...versions.map((version) => imageArtifact('web', version))
+      ],
+      usage: { ...noUsage, reusedS3Keys: named.s3Keys, reusedImageTags: named.imageTags }
+    });
+    expect(namesOf(obsolete)).toEqual(['api/v2.zip', 'api/v3.zip', 'web--v2', 'web--v3']);
   });
 });
