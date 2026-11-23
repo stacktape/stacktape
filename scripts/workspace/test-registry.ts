@@ -2688,6 +2688,7 @@ export const lanes: readonly Lane[] = [
       'apps/cli/src/domain/coding-agent-setup/setup.spec.ts',
       'apps/cli/src/commands/script-run/stdio.spec.ts',
       'apps/cli/src/config/local-state-paths.spec.ts',
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/cdn.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/configuration-errors.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/connect-to-helper.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/log-groups.spec.ts',
@@ -4366,6 +4367,7 @@ export const slices: readonly Slice[] = [
       'apps/cli/src/domain/email-sender-manager/template.ts'
     ],
     tests: [
+      'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/cdn.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/configuration-errors.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/connect-to-helper.spec.ts',
       'apps/cli/src/domain/calculated-stack-overview-manager/resource-resolvers/_utils/log-groups.spec.ts',

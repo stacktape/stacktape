@@ -50,6 +50,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stacktapeCloudfrontHeaders } from '@helper-lambdas/cloudfront/cloudfront-origin-headers';
 import { shortHash } from '@stacktape/naming/short-hash';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
+import { getApexDomain } from '@utils/domains';
 import { ExpectedError } from '@utils/errors';
 import objectHash from 'object-hash';
 import { getStpServiceCustomResource } from './custom-resource';
@@ -814,6 +815,11 @@ export const getCloudfrontOriginAccessIdentityResource = (stpResourceNameName: s
     CloudFrontOriginAccessIdentityConfig: { Comment: `${stpResourceNameName} attached distros - Access Identity` }
   });
 
+/**
+ * One distribution per apex domain, as in v3: a distribution's index is part of its logical ID, so grouping differently
+ * moves aliases between existing distributions, which CloudFront refuses (CNAMEAlreadyExists). Within an apex domain,
+ * a different certificate or DNS setting still gets its own distribution.
+ */
 export const getCloudfrontDistributionConfigs = (cdnCompatibleResource: ResourceWithPresentCdn) => {
   const cloudfrontDistributions: {
     [distributionKey: string]: { domains: Set<string>; certificateArn: string; disableDns: boolean };
@@ -821,7 +827,11 @@ export const getCloudfrontDistributionConfigs = (cdnCompatibleResource: Resource
   cdnCompatibleResource.cdn.customDomains.forEach((domainConfig) => {
     const certificateArn =
       domainConfig.customCertificateArn || domainManager.getCertificateForDomain(domainConfig.domainName, 'cdn');
-    const distributionKey = `${certificateArn}-${domainConfig.disableDnsRecordCreation ? 'disable-dns' : 'create-dns'}`;
+    const distributionKey = [
+      getApexDomain(domainConfig.domainName),
+      certificateArn,
+      domainConfig.disableDnsRecordCreation ? 'disable-dns' : 'create-dns'
+    ].join('|');
     if (distributionKey in cloudfrontDistributions) {
       cloudfrontDistributions[distributionKey].domains.add(domainConfig.domainName);
     } else {
