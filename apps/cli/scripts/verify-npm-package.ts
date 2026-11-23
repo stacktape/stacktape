@@ -105,6 +105,7 @@ export const verifyNpmPackage = async ({
   );
   const requiredPaths = [
     'package.json',
+    'README.md',
     'index.js',
     'index.d.ts',
     'types.d.ts',
