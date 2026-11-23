@@ -772,7 +772,7 @@ const composeDependency = (
               version: resolved.version
             }
           },
-          deletionProtection: true,
+          deletionProtection: profile.database.deletionProtection,
           automatedBackupRetentionDays: profile.database.backupRetentionDays,
           ...(privateDatabase
             ? {

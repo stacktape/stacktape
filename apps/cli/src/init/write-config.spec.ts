@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { parse } from 'yaml';
 import { composeConfig } from '@stacktape/config-inference/compose';
+import { resolveGeneratedValuesForStage } from '@stacktape/config-inference/compose/preferences';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '@stacktape/config-inference/facts';
 import * as authoring from '@stacktape/config-authoring';
 import { projectSettingsFromSource } from '@domain-services/config-manager/project-settings';
@@ -109,7 +110,7 @@ describe('renderYaml', () => {
  * something callable without a bundler. Everything else — the classes, `defineConfig`, the
  * compilation they perform — is the real implementation the user's own file would use.
  */
-const evaluateEmitted = (source: string): Record<string, unknown> => {
+const evaluateEmitted = (source: string, stage = 'dev'): Record<string, unknown> => {
   const factory = new Function(
     'exports',
     'defineConfig',
@@ -128,8 +129,7 @@ const evaluateEmitted = (source: string): Record<string, unknown> => {
       .map(([, value]) => value)
   );
 
-  return module.default!({ stage: 'dev', region: 'eu-west-1', cliArgs: {}, command: 'deploy', awsProfile: 'default' })
-    .config;
+  return module.default!({ stage, region: 'eu-west-1', cliArgs: {}, command: 'deploy', awsProfile: 'default' }).config;
 };
 
 describe('the two formats', () => {
@@ -138,11 +138,32 @@ describe('the two formats', () => {
     // Not a string comparison, which would only prove they were edited together: this evaluates the
     // emitted TypeScript against the real authoring classes. Someone who picks TypeScript has to get
     // what the YAML user gets, or the format choice on the Review step is a trap.
-    const fromTypeScript = evaluateEmitted(await renderTypeScript(composed));
-    const fromYaml = parse(renderYaml(composed)) as Record<string, unknown>;
+    const typescript = await renderTypeScript(composed);
+    const yaml = parse(renderYaml(composed)) as Record<string, unknown>;
 
-    expect(fromTypeScript.resources).toEqual(fromYaml.resources);
-    expect(fromTypeScript.projectName).toEqual(fromYaml.projectName);
+    for (const stage of ['dev', 'production', 'pr-42']) {
+      const fromTypeScript = evaluateEmitted(typescript, stage);
+      const fromYaml = resolveGeneratedValuesForStage(yaml, stage) as Record<string, unknown>;
+      expect(fromTypeScript.resources).toEqual(fromYaml.resources);
+      expect(fromTypeScript.projectName).toEqual(fromYaml.projectName);
+    }
+  });
+
+  it('protect the database on every stage except pull-request previews, and say why', async () => {
+    const composed = composition();
+    const yaml = renderYaml(composed);
+    const typescript = await renderTypeScript(composed);
+    const comment =
+      'Protected on every stage except pull-request previews (pr-<number>), which are deleted when the pull request closes.';
+
+    expect(yaml).toContain(`      # ${comment}\n      deletionProtection: $IfStageStartsWith('pr-', false, true)\n`);
+    expect(typescript).toContain(`    // ${comment}\n    deletionProtection: !stage.startsWith('pr-'),\n`);
+    expect(
+      (evaluateEmitted(typescript, 'production').resources as any).mainDatabase.properties.deletionProtection
+    ).toBe(true);
+    expect((evaluateEmitted(typescript, 'pr-42').resources as any).mainDatabase.properties.deletionProtection).toBe(
+      false
+    );
   });
 
   it('declare the project name and region where the CLI reads them without running the config', async () => {
@@ -151,7 +172,7 @@ describe('the two formats', () => {
     const yaml = parse(renderYaml(composed, { region: 'eu-central-1' })) as Record<string, unknown>;
 
     expect(typescript).toContain(
-      "export default defineConfig({ projectName: 'orders', region: 'eu-central-1' }, () => {"
+      "export default defineConfig({ projectName: 'orders', region: 'eu-central-1' }, ({ stage }) => {"
     );
     expect(await projectSettingsFromSource({ source: typescript, filePath: 'stacktape.ts' })).toEqual({
       projectName: 'orders',

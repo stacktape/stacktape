@@ -8,6 +8,7 @@ import {
 import type { ServiceFactInput } from '../facts/service';
 import { classifyService } from './classify';
 import { composeConfig } from './compose';
+import { DATABASE_DELETION_PROTECTION } from './preferences';
 
 const service = (overrides: Partial<ServiceFactInput> = {}): ServiceFactInput => ({
   name: 'web',
@@ -260,11 +261,11 @@ describe('composeConfig', () => {
       }).config.resources.mainDatabase?.properties as Record<string, unknown>;
 
     expect(withDatabase('low-cost')).toMatchObject({
-      deletionProtection: true,
+      deletionProtection: DATABASE_DELETION_PROTECTION,
       automatedBackupRetentionDays: 1
     });
     expect(withDatabase('production')).toMatchObject({
-      deletionProtection: true,
+      deletionProtection: DATABASE_DELETION_PROTECTION,
       automatedBackupRetentionDays: 14,
       engine: { properties: { primaryInstance: { multiAz: true } } }
     });
@@ -304,7 +305,7 @@ describe('composeConfig', () => {
       scaling: { minInstances: 2, maxInstances: 10 }
     });
     expect(config.resources.mainDatabase?.properties).toMatchObject({
-      deletionProtection: true,
+      deletionProtection: DATABASE_DELETION_PROTECTION,
       automatedBackupRetentionDays: 1,
       engine: {
         properties: {

@@ -3107,6 +3107,7 @@ export const lanes: readonly Lane[] = [
       'apps/init-ui/src/deploy-model.spec.ts',
       'apps/init-ui/src/sign-in.spec.ts',
       'apps/init-ui/src/steps/ReviewStep.spec.ts',
+      'apps/vscode-extension/src/language-server/directive-values.test.ts',
       'apps/vscode-extension/src/language-server/references.test.ts',
       'apps/vscode-extension/src/language-server/schema-resolver.test.ts',
       'packages/analytics/src/posthog.test.ts',
@@ -5453,6 +5454,7 @@ export const slices: readonly Slice[] = [
     journeys: [],
     paths: ['apps/vscode-extension/**'],
     tests: [
+      'apps/vscode-extension/src/language-server/directive-values.test.ts',
       'apps/vscode-extension/src/language-server/references.test.ts',
       'apps/vscode-extension/src/language-server/schema-resolver.test.ts',
       'apps/vscode-extension/scripts/build.ts',

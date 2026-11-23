@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '../facts/project-facts';
-import { defaultDeploymentPreferences, isDeploymentPreferenceChange, profileForPreferences } from './preferences';
+import {
+  DATABASE_DELETION_PROTECTION,
+  defaultDeploymentPreferences,
+  isDeletionProtectedOnStage,
+  isDeploymentPreferenceChange,
+  profileForPreferences
+} from './preferences';
 
 const factsForExecutionModel = (executionModel: 'long-running' | 'per-request') =>
   projectFactsSchema.parse({
@@ -52,7 +58,7 @@ describe('deployment preferences', () => {
     ).toMatchObject({
       container: { cpu: 0.25, memory: 512 },
       scaling: { minInstances: 1, maxInstances: 1 },
-      database: { multiAz: false, deletionProtection: true, backupRetentionDays: 1 },
+      database: { multiAz: false, deletionProtection: DATABASE_DELETION_PROTECTION, backupRetentionDays: 1 },
       bucket: { versioning: false }
     });
 
@@ -66,7 +72,7 @@ describe('deployment preferences', () => {
     ).toMatchObject({
       container: { cpu: 1, memory: 2048 },
       scaling: { minInstances: 2, maxInstances: 10 },
-      database: { multiAz: true, deletionProtection: true, backupRetentionDays: 7 },
+      database: { multiAz: true, deletionProtection: DATABASE_DELETION_PROTECTION, backupRetentionDays: 7 },
       bucket: { versioning: true }
     });
   });
@@ -113,5 +119,21 @@ describe('deployment preferences', () => {
     });
 
     expect(defaultDeploymentPreferences(facts).databaseAccess).toBe('private');
+  });
+});
+
+describe('isDeletionProtectedOnStage', () => {
+  it('protects a generated database on every stage except pull-request previews', () => {
+    expect(DATABASE_DELETION_PROTECTION).toBe("$IfStageStartsWith('pr-', false, true)");
+    for (const stage of ['dev', 'staging', 'production', 'prod-eu', 'preview', 'prx-1'])
+      expect(isDeletionProtectedOnStage(DATABASE_DELETION_PROTECTION, stage)).toBe(true);
+    for (const stage of ['pr-1', 'pr-42'])
+      expect(isDeletionProtectedOnStage(DATABASE_DELETION_PROTECTION, stage)).toBe(false);
+  });
+
+  it('reads plain booleans as they are', () => {
+    expect(isDeletionProtectedOnStage(true, 'pr-1')).toBe(true);
+    expect(isDeletionProtectedOnStage(false, 'production')).toBe(false);
+    expect(isDeletionProtectedOnStage(undefined, 'production')).toBe(false);
   });
 });

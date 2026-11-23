@@ -119,7 +119,8 @@ size and safety setting in the generated configuration, and it is the only thing
 cannot tell us.
 
 - **low-cost** — one small copy of everything. Trying it out, a side project, staging.
-- **standard** — room for real traffic, a week of backups, deletion protection on your database.
+- **standard** — room for real traffic, a week of backups, deletion protection on your database except on
+  pull-request preview stages (`pr-<number>`).
 - **production** — two copies of your app so one failure changes nothing, and a standby database in a
   second datacentre.
 

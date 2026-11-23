@@ -1,3 +1,5 @@
+import { isDeletionProtectedOnStage } from '@stacktape/config-inference/compose/preferences';
+
 /**
  * Copyable stack commands shown by the wizard.
  *
@@ -38,14 +40,16 @@ export const secretCommand = (name: string, region: string, awsAccount?: string)
   `stacktape secret set ${name} --region ${region}${awsAccount === undefined ? '' : ` --aws-account ${quoteArgument(awsAccount)}`}`;
 
 /**
- * Resources whose configuration turns deletion protection on, by name.
+ * Resources whose configuration turns deletion protection on for `stage`, by name. A generated database is protected
+ * on every stage except pull-request previews.
  *
  * `stacktape delete` refuses a stack that still has one, and it never turns the protection off on
  * its own. The wizard names them so its removal steps can say what to change first.
  */
 export const deletionProtectedResources = (
-  resources: Record<string, { type: string; properties: Record<string, unknown> }>
+  resources: Record<string, { type: string; properties: Record<string, unknown> }>,
+  stage: string
 ): string[] =>
   Object.entries(resources)
-    .filter(([, resource]) => resource.properties.deletionProtection === true)
+    .filter(([, resource]) => isDeletionProtectedOnStage(resource.properties.deletionProtection, stage))
     .map(([name]) => name);

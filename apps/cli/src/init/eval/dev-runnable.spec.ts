@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'bun:test';
 import type { StacktapeConfig } from '@stacktape/config';
+import { resolveGeneratedValuesForStage } from '@stacktape/config-inference/compose/preferences';
 import { ConfigManager } from '@domain-services/config-manager';
 import { assessSecurityPosture } from '@domain-services/config-manager/utils/security-posture';
 import { validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
@@ -43,7 +44,11 @@ type Resource = { type: string; properties: Record<string, unknown> };
 
 /** The checks `stacktape validate` runs without AWS: the config schema, then the security posture rules. */
 const resourcesOf = (result: GreenfieldResult): Record<string, Resource> => {
-  const config = { ...result.composition.config, region: 'eu-west-2' } as unknown as StacktapeConfig;
+  // The CLI resolves directives before it validates, and a generated database's protection depends on the stage.
+  const config = resolveGeneratedValuesForStage(
+    { ...result.composition.config, region: 'eu-west-2' },
+    'dev'
+  ) as unknown as StacktapeConfig;
   const validation = validateConfigWithZod({ config, configPath: 'stacktape.yml' });
   if (!validation.valid) {
     throw new Error(`Generated config was rejected: ${'errorMessage' in validation ? validation.errorMessage : ''}`);

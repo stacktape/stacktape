@@ -16,6 +16,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument';
 import { URI } from 'vscode-uri';
 import { getLanguageService, type LanguageService as YamlLanguageService } from 'yaml-language-server';
 import { isStacktapeYamlPath } from '../stacktape-files';
+import { isDirectiveValueDiagnostic } from './directive-values';
 import {
   getReferenceCompletions,
   getReferenceDefinition,
@@ -94,7 +95,9 @@ const validate = async (document: TextDocument): Promise<void> => {
   }
 
   try {
-    const schemaDiagnostics = await languageService.doValidation(document, false);
+    const schemaDiagnostics = (await languageService.doValidation(document, false)).filter(
+      (diagnostic) => !isDirectiveValueDiagnostic(diagnostic, document)
+    );
     const diagnostics = settings.validateReferences
       ? [...schemaDiagnostics, ...getReferenceDiagnostics(document)]
       : schemaDiagnostics;

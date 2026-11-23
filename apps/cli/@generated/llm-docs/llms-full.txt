@@ -5248,7 +5248,8 @@ size and safety setting in the generated configuration, and it is the only thing
 cannot tell us.
 
 - **low-cost** — one small copy of everything. Trying it out, a side project, staging.
-- **standard** — room for real traffic, a week of backups, deletion protection on your database.
+- **standard** — room for real traffic, a week of backups, deletion protection on your database except on
+  pull-request preview stages (`pr-<number>`).
 - **production** — two copies of your app so one failure changes nothing, and a standby database in a
   second datacentre.
 
@@ -10354,6 +10355,7 @@ In TypeScript configs, nesting constraints rarely apply because you use native J
 | `$FileRaw()` | Local | `(filePath)` | Read file as raw string |
 | `$GitInfo()` | Local | `(property)` | Git repository information |
 | `$CliArgs()` | Local | `(argName, defaultValue?)` | CLI arguments passed after `--` |
+| `$IfStageStartsWith()` | Local | `(prefix, matchingValue, otherValue)` | `matchingValue` when the stage name starts with `prefix`, otherwise `otherValue` |
 | `$StackOutput()` | Local | `(stackName, outputName, region?)` | Exported output from another deployed stack |
 | `$Secret()` | Runtime | `(secretName, jsonKey?)` | AWS Secrets Manager value, or one key of a JSON secret |
 | `$SsmParam()` | Runtime | `(paramName)` | SSM Parameter Store value |

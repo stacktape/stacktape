@@ -47,14 +47,46 @@ export const isDeploymentPreferenceChange = (input: unknown): input is Deploymen
   );
 };
 
+/**
+ * The stage-name prefix of a pull-request preview. The Console's Git deployments deploy a pull request to `pr-<number>`,
+ * and the docs recommend the same name for previews deployed from your own CI.
+ */
+export const PREVIEW_STAGE_PREFIX = 'pr-';
+
+/**
+ * Deletion protection for a generated database: on for every stage except pull-request previews. A preview is deleted
+ * when its pull request closes, and `stacktape delete` refuses a stack with a protected database, which would leave the
+ * preview's database running. The same expression in TypeScript is `!stage.startsWith('pr-')`.
+ */
+export const DATABASE_DELETION_PROTECTION = `$IfStageStartsWith('${PREVIEW_STAGE_PREFIX}', false, true)` as const;
+
+/** Whether a generated `deletionProtection` value protects the resource when deployed to `stage`. */
+export const isDeletionProtectedOnStage = (value: unknown, stage: string): boolean =>
+  value === true || (value === DATABASE_DELETION_PROTECTION && !stage.startsWith(PREVIEW_STAGE_PREFIX));
+
+/**
+ * A generated configuration with its stage-dependent values resolved for `stage`, as the CLI resolves them. For checks
+ * that read the composed object directly, such as schema validation, which would otherwise see the directive text.
+ */
+export const resolveGeneratedValuesForStage = <Value>(value: Value, stage: string): Value =>
+  (value === DATABASE_DELETION_PROTECTION
+    ? isDeletionProtectedOnStage(value, stage)
+    : Array.isArray(value)
+      ? value.map((item) => resolveGeneratedValuesForStage(item, stage))
+      : value !== null && typeof value === 'object'
+        ? Object.fromEntries(
+            Object.entries(value).map(([key, item]) => [key, resolveGeneratedValuesForStage(item, stage)])
+          )
+        : value) as Value;
+
 export type InfrastructureProfile = {
   container: { cpu: number; memory: number };
   scaling: { minInstances: number; maxInstances: number };
   database: {
     instanceSize: string;
     multiAz: boolean;
-    /** Cost-free guardrail. Retention preferences never turn this off. */
-    deletionProtection: true;
+    /** Cost-free guardrail. Retention preferences never turn this off; only pull-request previews go without it. */
+    deletionProtection: typeof DATABASE_DELETION_PROTECTION;
     backupRetentionDays: 1 | 7 | 14;
   };
   redis: { instanceSize: string };
@@ -130,7 +162,7 @@ export const profileForPreferences = (preferences: DeploymentPreferences): Infra
     database: {
       instanceSize: capacity.databaseInstanceSize,
       multiAz: preferences.availability === 'redundant',
-      deletionProtection: true,
+      deletionProtection: DATABASE_DELETION_PROTECTION,
       backupRetentionDays: preferences.dataProtection === 'protected' ? 7 : 1
     },
     redis: { instanceSize: capacity.redisInstanceSize },

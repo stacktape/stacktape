@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from 'bun:test';
 import Ajv from 'ajv';
+import { resolveGeneratedValuesForStage } from './preferences';
 import configSchema from '@stacktape/config/config-schema.json' with { type: 'json' };
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema, type ProjectFactsInput } from '../facts/project-facts';
 import { DIRECT_INVOCATION_SOURCE, type ServiceFactInput } from '../facts/service';
@@ -52,7 +53,8 @@ const composeFrom = (input: Omit<ProjectFactsInput, 'schemaVersion'>) => {
 };
 
 const expectValid = (config: unknown): void => {
-  const valid = validateConfig(config);
+  // The CLI resolves directives before it validates, and a generated database's protection depends on the stage.
+  const valid = validateConfig(resolveGeneratedValuesForStage(config, 'dev'));
   if (!valid) {
     throw new Error(`Composed configuration was rejected by the Stacktape schema:\n${describeErrors()}`);
   }

@@ -119,4 +119,63 @@ describe('configuration conversion', () => {
     });
     expect(seen).toEqual([{ projectName: 'shop', region: 'eu-central-1' }]);
   });
+  test('$IfStageStartsWith with literal arguments becomes a stage check in TypeScript', () => {
+    const yaml = `projectName: shop
+resources:
+  db:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: not-a-secret-test-value
+      engine:
+        type: postgres
+        properties:
+          version: '16'
+          primaryInstance:
+            instanceSize: $IfStageStartsWith('pr-', 'db.t4g.micro', 'db.t4g.small')
+      deletionProtection: $IfStageStartsWith('pr-', false, true)
+  uploads:
+    type: bucket
+    properties:
+      versioning: $IfStageStartsWith("pr-", true, false)
+      cors:
+        enabled: $IfStageStartsWith('pr-', $Var().a, true)
+`;
+    const typescript = convertYamlToTypescript(yaml);
+
+    expect(typescript).toContain('export default defineConfig({ projectName: "shop" }, ({ stage }) => {');
+    expect(typescript).toContain('deletionProtection: !stage.startsWith("pr-")');
+    expect(typescript).toContain('instanceSize: stage.startsWith("pr-") ? "db.t4g.micro" : "db.t4g.small"');
+    expect(typescript).toContain('versioning: stage.startsWith("pr-")');
+    // An argument that is not a literal keeps the directive for the CLI to resolve.
+    expect(typescript).toContain(`enabled: "$IfStageStartsWith('pr-', $Var().a, true)"`);
+
+    const defined = evaluateGeneratedTypescript(typescript);
+    const propertiesOn = (stage: string) => {
+      const config = defined({
+        stage,
+        projectName: 'shop',
+        region: 'eu-west-1',
+        cliArgs: {},
+        command: 'deploy'
+      } as never);
+      const resources = (config as unknown as { config: { resources: unknown } }).config.resources as Record<
+        string,
+        { properties: Record<string, unknown> }
+      >;
+      return { db: resources.db!.properties, uploads: resources.uploads!.properties };
+    };
+    expect(propertiesOn('production').db.deletionProtection).toBe(true);
+    expect(propertiesOn('production').uploads.versioning).toBe(false);
+    expect(propertiesOn('pr-12').db.deletionProtection).toBe(false);
+    expect(propertiesOn('pr-12').uploads.versioning).toBe(true);
+  });
+
+  test('YAML without a stage-dependent value keeps the callback without parameters', () => {
+    expect(
+      convertYamlToTypescript(
+        "resources:\n  uploads:\n    type: bucket\n    properties:\n      versioning: '$IfStageStartsWith'\n"
+      )
+    ).toContain('export default defineConfig(() => {');
+  });
 });

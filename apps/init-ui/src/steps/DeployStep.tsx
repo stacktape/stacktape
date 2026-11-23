@@ -131,7 +131,8 @@ export function DeployStep({
 
   const resources = Object.entries(state.composition?.resources ?? {});
   const hasDatabase = resources.some(([, resource]) => resource.type === 'relational-database');
-  const protectedNames = deletionProtectedResources(state.composition?.resources ?? {});
+  // The removal steps describe the stage that was deployed: a pull-request preview has no protected database.
+  const protectedNames = deletionProtectedResources(state.composition?.resources ?? {}, deployment?.stage ?? stage);
 
   if (file === undefined) {
     return (

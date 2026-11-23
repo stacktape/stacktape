@@ -61,8 +61,44 @@ const DEFAULT_CONFIG_PARAMS: GetConfigParams = {
   user: { id: '123', name: 'John Doe', email: 'john.doe@example.com' }
 };
 
+/** A literal directive argument: a quoted string, a boolean or a number. */
+const parseLiteralArgument = (source: string): { value: string | number | boolean } | undefined => {
+  const trimmed = source.trim();
+  if (trimmed === 'true' || trimmed === 'false') return { value: trimmed === 'true' };
+  if (trimmed !== '' && !Number.isNaN(Number(trimmed))) return { value: Number(trimmed) };
+  if (/^'[^'\\]*'$/.test(trimmed)) return { value: trimmed.slice(1, -1) };
+  if (/^"[^"\\]*"$/.test(trimmed)) return { value: trimmed.slice(1, -1) };
+  return undefined;
+};
+
+/**
+ * `$IfStageStartsWith(prefix, matchingValue, otherValue)` with literal arguments, as the TypeScript expression it
+ * stands for, or undefined for any other value. In TypeScript the config function reads the stage directly.
+ */
+const stagePrefixExpression = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const argumentList = /^\$IfStageStartsWith\(([^()]*)\)$/.exec(value.trim())?.[1];
+  if (argumentList === undefined) return undefined;
+  // Literal arguments contain no commas, so splitting on them is exact; anything else stays a directive.
+  const args = argumentList.split(',').map(parseLiteralArgument);
+  const [prefix, matching, other] = args;
+  if (args.length !== 3 || typeof prefix?.value !== 'string' || matching === undefined || other === undefined) {
+    return undefined;
+  }
+  const condition = `stage.startsWith(${JSON.stringify(prefix.value)})`;
+  if (matching.value === false && other.value === true) return `!${condition}`;
+  if (matching.value === true && other.value === false) return condition;
+  return `${condition} ? ${JSON.stringify(matching.value)} : ${JSON.stringify(other.value)}`;
+};
+
+const usesStagePrefixExpression = (value: unknown): boolean =>
+  stagePrefixExpression(value) !== undefined ||
+  (value !== null && typeof value === 'object' && Object.values(value).some(usesStagePrefixExpression));
+
 /** Keep directives as configuration values so the CLI resolves their original syntax and phase. */
 const generateValueCode = (value: unknown): string => {
+  const stageExpression = stagePrefixExpression(value);
+  if (stageExpression !== undefined) return stageExpression;
   if (Array.isArray(value)) {
     const items = value.map((v) => generateValueCode(v));
     return `[${items.join(', ')}]`;
@@ -270,10 +306,11 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
   const settingsEntries = SETTINGS_KEYS.filter((key) => config[key] !== undefined).map(
     (key) => `${key}: ${generateValueCode(config[key])}`
   );
+  const configParams = usesStagePrefixExpression([config.resources, config.scripts]) ? '({ stage })' : '()';
   lines.push(
     settingsEntries.length
-      ? `export default defineConfig({ ${settingsEntries.join(', ')} }, () => {`
-      : 'export default defineConfig(() => {'
+      ? `export default defineConfig({ ${settingsEntries.join(', ')} }, ${configParams} => {`
+      : `export default defineConfig(${configParams} => {`
   );
 
   // Resource declarations
@@ -374,7 +411,7 @@ const generatePropsCode = (
       for (const item of value as Array<{ name: string; value: string }>) {
         if (item.name && item.value !== undefined) {
           const val = item.value;
-          envEntries.push(`${JSON.stringify(item.name)}: ${JSON.stringify(String(val))}`);
+          envEntries.push(`${JSON.stringify(item.name)}: ${stagePrefixExpression(val) ?? JSON.stringify(String(val))}`);
         }
       }
       entries.push(`${k}: { ${envEntries.join(', ')} }`);

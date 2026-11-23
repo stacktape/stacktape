@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'bun:test';
+import { DATABASE_DELETION_PROTECTION } from '@stacktape/config-inference/compose/preferences';
 import { deletionProtectedResources, secretCommand, stackCommand } from './deploy-commands';
 
 describe('stackCommand', () => {
@@ -57,12 +58,23 @@ describe('secretCommand', () => {
 describe('deletionProtectedResources', () => {
   it('names only the resources that delete would refuse', () => {
     expect(
-      deletionProtectedResources({
-        db: { type: 'relational-database', properties: { deletionProtection: true } },
-        cache: { type: 'redis-cluster', properties: {} },
-        oldDb: { type: 'relational-database', properties: { deletionProtection: false } },
-        api: { type: 'web-service', properties: {} }
-      })
+      deletionProtectedResources(
+        {
+          db: { type: 'relational-database', properties: { deletionProtection: true } },
+          cache: { type: 'redis-cluster', properties: {} },
+          oldDb: { type: 'relational-database', properties: { deletionProtection: false } },
+          api: { type: 'web-service', properties: {} }
+        },
+        'dev'
+      )
     ).toEqual(['db']);
+  });
+
+  it('leaves out a generated database on a pull-request preview stage', () => {
+    const resources = {
+      db: { type: 'relational-database', properties: { deletionProtection: DATABASE_DELETION_PROTECTION } }
+    };
+    expect(deletionProtectedResources(resources, 'production')).toEqual(['db']);
+    expect(deletionProtectedResources(resources, 'pr-42')).toEqual([]);
   });
 });

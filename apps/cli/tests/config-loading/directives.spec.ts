@@ -160,6 +160,33 @@ describe('a YAML config with directives, references and stage-specific values sy
     expect(functionEnvironment(template, 'ApiFunction').STAGE).toBe('staging');
   });
 
+  test('$IfStageStartsWith turns database deletion protection off on pull-request previews only', async () => {
+    // What init writes for a generated database: a preview is deleted when its pull request closes.
+    const dir = await fixtureWithConfig(`projectName: directive-project
+resources:
+  db:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: not-a-secret-test-value
+      engine:
+        type: postgres
+        properties:
+          version: '16'
+          primaryInstance:
+            instanceSize: db.t4g.micro
+      deletionProtection: $IfStageStartsWith('pr-', false, true)
+`);
+    const isProtected = async (stage: string) => {
+      const template = await synthesizeYaml(stage, dir);
+      expect(template.Resources.DbDbInstance?.Type).toBe('AWS::RDS::DBInstance');
+      return template.Resources.DbDeletionProtectionCustomResource !== undefined;
+    };
+    expect(await isProtected('production')).toBe(true);
+    expect(await isProtected('staging')).toBe(true);
+    expect(await isProtected('pr-7')).toBe(false);
+  });
+
   test('custom directive property paths survive standalone, nested and embedded use in YAML and TypeScript', async () => {
     const dir = await fixtureWithConfig(`projectName: directive-project
 directives:

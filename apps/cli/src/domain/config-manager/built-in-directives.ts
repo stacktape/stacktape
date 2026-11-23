@@ -197,6 +197,27 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       resolveFunction: () => () => context.stage
     },
     {
+      // A YAML config's only way to give one stage family another value, such as no deletion protection on
+      // pull-request previews: `$IfStageStartsWith('pr-', false, true)`. TypeScript writes `stage.startsWith('pr-')`.
+      name: 'IfStageStartsWith',
+      isRuntime: false,
+      requiredParams: { prefix: 'string' },
+      resolveFunction:
+        () =>
+        (...params: unknown[]) => {
+          if (params.length !== 3) {
+            throw new CliError({
+              category: 'DIRECTIVE',
+              code: 'DIRECTIVE_PARAMETER_REQUIRED',
+              message: `\`$IfStageStartsWith\` takes 3 parameters, the stage prefix, the value for a matching stage and the value for every other stage, but received ${params.length}.`,
+              hints: "Example: `$IfStageStartsWith('pr-', false, true)`."
+            });
+          }
+          const [prefix, matchingValue, otherValue] = params as [string, unknown, unknown];
+          return context.stage.startsWith(prefix) ? matchingValue : otherValue;
+        }
+    },
+    {
       name: 'Region',
       isRuntime: false,
       requiredParams: {},

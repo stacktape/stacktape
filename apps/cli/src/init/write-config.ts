@@ -19,6 +19,7 @@ import { convertYamlToTypescript } from '@stacktape/config-authoring/converter';
 import { stringifyToYaml } from '@utils/yaml';
 import prettier from 'prettier';
 import type { CompositionResult } from '@stacktape/config-inference/compose';
+import { DATABASE_DELETION_PROTECTION, PREVIEW_STAGE_PREFIX } from '@stacktape/config-inference/compose/preferences';
 
 export type ConfigFormat = 'yaml' | 'typescript';
 
@@ -41,8 +42,23 @@ const withDeclaredSettings = (composition: CompositionResult, { region }: Declar
   return { ...(projectName === undefined ? {} : { projectName }), region, ...rest };
 };
 
+/** Why a generated database's protection depends on the stage, written above the line that says so. */
+const PREVIEW_PROTECTION_COMMENT =
+  'Protected on every stage except pull-request previews (pr-<number>), which are deleted when the pull request closes.';
+
+/** The serialisers write no comments, so this one goes in above each line that sets the stage-dependent protection. */
+const withPreviewProtectionComment = (source: string, line: string, commentPrefix: '#' | '//'): string =>
+  source.replaceAll(`deletionProtection: ${line}`, (match, offset: number) => {
+    const indentation = /[ \t]*$/.exec(source.slice(0, offset))?.[0] ?? '';
+    return `${commentPrefix} ${PREVIEW_PROTECTION_COMMENT}\n${indentation}${match}`;
+  });
+
 export const renderYaml = (composition: CompositionResult, settings: DeclaredSettings = {}): string =>
-  stringifyToYaml(withDeclaredSettings(composition, settings));
+  withPreviewProtectionComment(
+    stringifyToYaml(withDeclaredSettings(composition, settings)),
+    DATABASE_DELETION_PROTECTION,
+    '#'
+  );
 
 /**
  * The same configuration as TypeScript.
@@ -55,7 +71,12 @@ export const renderYaml = (composition: CompositionResult, settings: DeclaredSet
 export const renderTypeScript = async (
   composition: CompositionResult,
   settings: DeclaredSettings = {}
-): Promise<string> => yamlConfigToTypeScript(renderYaml(composition, settings));
+): Promise<string> =>
+  withPreviewProtectionComment(
+    await yamlConfigToTypeScript(renderYaml(composition, settings)),
+    `!stage.startsWith('${PREVIEW_STAGE_PREFIX}')`,
+    '//'
+  );
 
 /** A YAML configuration rewritten as a formatted `stacktape.ts`. */
 export const yamlConfigToTypeScript = (yaml: string): Promise<string> =>

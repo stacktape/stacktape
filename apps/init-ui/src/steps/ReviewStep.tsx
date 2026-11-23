@@ -83,7 +83,8 @@ const PREFERENCE_COPY: {
   },
   dataProtection: {
     title: 'How much history should your data keep?',
-    description: 'Accidental database deletion is blocked either way. This controls backup and file-version history.',
+    description:
+      'Accidental database deletion is blocked either way, except on pull-request previews. This controls backup and file-version history.',
     options: [
       {
         value: 'lean',
