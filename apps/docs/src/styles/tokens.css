@@ -32,7 +32,8 @@
   --docs-bg-sunken: color-mix(in oklab, var(--docs-bg) 70%, black);
   /* Dialogs, menus, popovers. */
   --docs-bg-overlay: color-mix(in oklab, var(--docs-bg) 93%, white);
-  --docs-bg-header: color-mix(in oklab, var(--docs-bg) 96%, transparent);
+  /* The sticky header and outline bar: opaque, so text never shows through them on phones. */
+  --docs-bg-header: var(--docs-bg);
   --docs-bg-hover: rgb(255 255 255 / 0.045);
   --docs-bg-active: rgb(255 255 255 / 0.07);
   --docs-scrim: rgb(0 0 0 / 0.6);
@@ -47,6 +48,10 @@
   /* ── Lines ──────────────────────────────────────────────────────────────────────────────── */
   --docs-border: rgb(255 255 255 / 0.085);
   --docs-border-strong: rgb(255 255 255 / 0.15);
+  /* Inline code: a quiet tint, no border, so several in a line do not read as buttons. */
+  --docs-code-inline-bg: rgb(255 255 255 / 0.07);
+  /* The edge a code block shows where more code is out of view. */
+  --docs-code-edge: rgb(255 255 255 / 0.16);
 
   /* ── Status: callouts, badges and comparison marks ──────────────────────────────────────── */
   --docs-note: rgb(150 163 173);
@@ -104,6 +109,8 @@
   /* ── Elevation: only things that float above the page cast a shadow ─────────────────────── */
   --docs-shadow-popover: 0 10px 30px rgb(0 0 0 / 0.45), 0 0 0 1px var(--docs-border-strong);
   --docs-shadow-dialog: 0 24px 64px rgb(0 0 0 / 0.55), 0 0 0 1px var(--docs-border-strong);
+  /* A panel that drops from a sticky bar over the article. */
+  --docs-shadow-sheet: 0 16px 32px rgb(0 0 0 / 0.35);
 
   /* ── Motion ─────────────────────────────────────────────────────────────────────────────── */
   --docs-duration-fast: var(--stp-motion-duration-fast);
@@ -113,6 +120,12 @@
 
   /* ── Layout ─────────────────────────────────────────────────────────────────────────────── */
   --docs-header-h: 56px;
+  /* The "On this page" bar under the header on screens without the outline rail (border included). */
+  --docs-toc-bar-h: 41px;
+  /* Where a linked heading or row lands below the sticky chrome. The outline uses the same line to decide which
+     section is being read, so a jump and the highlighted section always agree. */
+  --docs-anchor-gap: var(--docs-space-24);
+  --docs-anchor-offset: calc(var(--docs-header-h) + var(--docs-anchor-gap));
   --docs-shell-max: 1480px;
   --docs-sidebar-w: 280px;
   --docs-toc-w: 232px;
@@ -141,9 +154,17 @@
   }
 }
 
+/* Below the rail breakpoint a page with an outline also has the sticky bar under the header. */
+@media (max-width: 1299px) {
+  :root:has(.docs-toc-bar) {
+    --docs-anchor-offset: calc(var(--docs-header-h) + var(--docs-toc-bar-h) + var(--docs-anchor-gap));
+  }
+}
+
 @media (max-width: 799px) {
   :root {
     --docs-header-h: 52px;
+    --docs-anchor-gap: var(--docs-space-16);
     --docs-text-h1: 1.75rem;
     --docs-text-h2: 1.375rem;
     --docs-text-h3: 1.125rem;

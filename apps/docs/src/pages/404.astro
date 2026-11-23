@@ -1,4 +1,5 @@
 ---
+import { Search } from 'react-feather';
 import DocsLayout from '@/layouts/DocsLayout.astro';
 import { getAllDocPages } from '@/utils/docs-data';
 import { SITE_URL, type DocsSeo } from '@/utils/seo';
@@ -14,45 +15,52 @@ const seo: DocsSeo = {
   breadcrumb: [{ name: 'Docs', url: `${SITE_URL}/` }],
   noindex: true
 };
-
-const popular = [
-  { title: 'Quickstart', href: '/getting-started/' },
-  { title: 'Deploy an existing app', href: '/getting-started/deploy-an-existing-app/' },
-  { title: 'Resource catalog', href: '/resources/' },
-  { title: 'CLI commands', href: '/cli/' }
-];
 ---
 
 <DocsLayout
-  title="Page not found"
+  title="This page doesn't exist"
   seo={seo}
   allDocPages={allDocPages}
   tableOfContents={[]}
   currentPath="/404/"
-  hideTitle
 >
-  <div class="docs-404">
-    <p class="docs-404-code">404</p>
-    <h1>This page doesn't exist</h1>
-    <p>It may have moved when the docs were reorganized for Stacktape v4. Search usually finds the new place.</p>
-    <div class="docs-404-actions">
-      <button type="button" class="docs-button is-primary" data-docs-open-search>Search the docs</button>
-      <a href="/" class="docs-button docs-unstyled-link">Docs home</a>
-    </div>
-    <div class="docs-404-links">
-      <p>Pages people often look for:</p>
-      <ul>
-        {popular.map((page) => <li><a href={page.href}>{page.title}</a></li>)}
-      </ul>
-    </div>
-  </div>
+  <p slot="before-title" class="docs-page-section">Error 404</p>
+  <p>It may have moved when the docs were reorganized for Stacktape v4. Search usually finds the new place.</p>
+  <form class="docs-404-search" role="search" data-docs-404-search>
+    <label class="docs-ref-search docs-directory-search">
+      <Search size={14} aria-hidden="true" />
+      <input type="search" name="q" placeholder="Search the docs" aria-label="Search the docs" autocomplete="off" />
+    </label>
+    <button type="submit" class="docs-button is-primary">Search</button>
+  </form>
+  <h2>Or start from one of these</h2>
+  <ul>
+    <li class="docs-dir-row">
+      <a href="/getting-started/" class="docs-dir-name docs-unstyled-link is-stretched">Quickstart</a>
+      <span class="docs-dir-text">Install the CLI and deploy your app</span>
+    </li>
+    <li class="docs-dir-row">
+      <a href="/getting-started/deploy-an-existing-app/" class="docs-dir-name docs-unstyled-link is-stretched"
+      >Deploy an existing app</a>
+      <span class="docs-dir-text">The init wizard, step by step</span>
+    </li>
+    <li class="docs-dir-row">
+      <a href="/resources/" class="docs-dir-name docs-unstyled-link is-stretched">Resource catalog</a>
+      <span class="docs-dir-text">Every resource and the AWS service behind it</span>
+    </li>
+    <li class="docs-dir-row">
+      <a href="/cli/" class="docs-dir-name docs-unstyled-link is-stretched">Command index</a>
+      <span class="docs-dir-text">Every CLI command, with a filter</span>
+    </li>
+    <li class="docs-dir-row">
+      <a href="/" class="docs-dir-name docs-unstyled-link is-stretched">Docs home</a>
+      <span class="docs-dir-text">What Stacktape is and where to start</span>
+    </li>
+  </ul>
 </DocsLayout>
 
 <script>
-// Opens the header's search dialog, which listens for Ctrl/Cmd+K.
-  document.addEventListener('click', (event) => {
-    if (!(event.target instanceof Element) || !event.target.closest('[data-docs-open-search]')) return;
-    const button = document.querySelector<HTMLButtonElement>('.DocSearch-Button');
-    if (button) button.click();
-  });
+import { setUpNotFoundSearch } from '@/components/Search/not-found-search';
+
+  setUpNotFoundSearch();
 </script>

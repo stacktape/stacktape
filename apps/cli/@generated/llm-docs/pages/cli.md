@@ -1,8 +1,7 @@
 # Command index
 
-Every command runs as `stacktape <command>`, or `stp <command>` for short. `stacktape help <command>` prints a command's flags in the terminal. Each page below has the same flags, with examples.
+Every command runs as `stacktape <command>`, or `stp <command>` for short, and `stacktape help <command>` prints its flags. Commands that act on a stack use your local AWS credentials. The ones marked Console also need a Stacktape sign-in: [`stacktape login`](/cli/login), or a `STACKTAPE_API_KEY` in CI.
 
-Most commands work without a Stacktape account. Commands that act on a stack use your local AWS credentials. Commands marked (Console) need a Stacktape sign-in, from [`stacktape login`](/cli/login) or a `STACKTAPE_API_KEY` in CI.
 
 ## Set up
 

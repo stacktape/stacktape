@@ -12,6 +12,7 @@ import { TableOfContents } from '@/components/TableOfContents/TableOfContents';
 import PostHogAnalytics from '@/components/PostHogAnalytics.astro';
 import MovedSectionRedirect from '@/components/MovedSectionRedirect.astro';
 import { getSectionTrail } from '@/components/Navigation/SidebarNavigation/navigation-data';
+import { searchContextFor } from '@/components/Search/search-context';
 
 type Props = {
   title: string;
@@ -35,6 +36,9 @@ const hasToc = outline.filter((item) => item.level === 2).length >= 2;
 // Where the page sits ("Resources / Compute"), shown above the title of every page below a section.
 const sectionTrail = version === 'v4' ? getSectionTrail(currentPath, allDocPages) : [];
 const showTrail = !hideTitle && sectionTrail.length > 0;
+// The search result group and page type of this page, for the Algolia crawler (apps/docs/AGENTS.md, "Search"). The
+// search dialog derives the same values from the URL, so results group correctly before a recrawl too.
+const searchContext = version === 'v4' && !seo.noindex ? searchContextFor(currentPath) : null;
 
 // The navigation islands below carry explicit `transition:persist` names. Without them Astro
 // auto-generates names from element order, which can mismatch across pages (different island
@@ -119,6 +123,8 @@ const siteJsonLd = isHome ? [
     <meta name="description" content={seo.description} />
     {seo.noindex && <meta name="robots" content="noindex, follow" />}
     {!seo.noindex && <link rel="canonical" href={seo.canonical} />}
+    {searchContext && <meta name="docsearch:lvl0" content={searchContext.group} />}
+    {searchContext && <meta name="docsearch:type" content={searchContext.type} />}
 
     <meta property="og:title" content={seo.title} />
     <meta property="og:description" content={seo.description} />
@@ -149,6 +155,15 @@ const siteJsonLd = isHome ? [
     {siteJsonLd.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
     {pageJsonLd.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
 
+    <script is:inline>
+    // See `html[data-smooth-scroll]` in global.css. The router replaces the root attributes on every navigation.
+      function stpSmoothScroll() {
+        requestAnimationFrame(() => document.documentElement.setAttribute('data-smooth-scroll', ''));
+      }
+      if (document.readyState === 'complete') stpSmoothScroll();
+      else addEventListener('load', stpSmoothScroll, { once: true });
+      document.addEventListener('astro:page-load', stpSmoothScroll);
+    </script>
     <ClientRouter />
     <PostHogAnalytics />
   </head>

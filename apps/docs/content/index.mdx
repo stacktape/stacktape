@@ -18,6 +18,10 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
     { label: 'npm', code: 'npx stacktape@latest init' }
   ]}
   commandNote="It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed."
+  links={[
+    { label: 'Quickstart', href: '/getting-started' },
+    { label: 'Starting a new project?', href: '/getting-started/start-a-new-project' }
+  ]}
 />
 
 <HomePaths
@@ -25,26 +29,21 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
   items={[
     {
       title: 'Deploy an existing app',
+      href: '/getting-started/deploy-an-existing-app',
       text: 'Run init in your app directory. The wizard proposes the AWS setup, shows its monthly price and deploys when you confirm.',
-      steps: ['Start', 'Analyze', 'Review', 'Deploy'],
-      links: [
-        { label: 'Quickstart', href: '/getting-started' },
-        { label: 'The wizard, step by step', href: '/getting-started/deploy-an-existing-app' }
-      ]
+      steps: ['Start', 'Analyze', 'Review', 'Deploy']
     },
     {
       title: 'Start a new project',
+      href: '/getting-started/start-a-new-project',
       text: 'Start from a working starter, such as Express with Postgres, Next.js or FastAPI.',
-      command: 'npx stacktape@latest init --starter-project',
-      links: [
-        { label: 'Walkthrough', href: '/getting-started/start-a-new-project' },
-        { label: 'Browse starters', href: '/getting-started/starter-projects' }
-      ]
+      command: 'npx stacktape@latest init --starter-project'
     },
     {
       title: 'Evaluate Stacktape for your team',
-      text: 'Short answers on where it runs, what leaves your account, lock-in, networking, CI/CD, observability, costs and access.',
-      links: [{ label: 'Answers for teams', href: '#for-teams' }]
+      href: '#for-teams',
+      text: 'Short answers for a team lead or CTO before a pilot.',
+      topics: ['Where it runs', 'data', 'lock-in', 'networking', 'CI/CD', 'costs', 'access']
     }
   ]}
 />
@@ -54,9 +53,21 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
   lead="An API container and a Postgres database that only the API can reach. Init writes a file like this for you, and you can change it by hand. TypeScript configs get type checking and autocomplete."
   stack="my-api-dev"
   resources={[
-    { category: 'network', service: 'HTTP API Gateway', name: 'api', detail: 'Public HTTPS URL for the service' },
-    { category: 'compute', service: 'ECS on Fargate', name: 'api', detail: 'Your container, 0.25 vCPU and 512 MB', inVpc: true },
-    { category: 'database', service: 'RDS Postgres 18', name: 'database', detail: 'db.t4g.micro, reachable only from `api`', inVpc: true }
+    {
+      name: 'api',
+      kind: 'WebService',
+      via: 'HTTPS requests',
+      services: [
+        { category: 'network', service: 'HTTP API Gateway', detail: 'The public URL' },
+        { category: 'compute', service: 'ECS on Fargate', detail: 'Your container, 0.25 vCPU and 512 MB, in the VPC' }
+      ]
+    },
+    {
+      name: 'database',
+      kind: 'RelationalDatabase',
+      via: '`connectTo`: private, inside the VPC',
+      services: [{ category: 'database', service: 'RDS Postgres 18', detail: 'db.t4g.micro, reachable only from `api`' }]
+    }
   ]}
   extras={[
     '`STP_DATABASE_CONNECTION_STRING` in the container environment',
@@ -86,6 +97,7 @@ seoDescription: 'Stacktape is an open-source CLI that reads your project, writes
 } from 'stacktape';
 
 export default defineConfig(() => {
+  // [!code focus-start]
   const database = new RelationalDatabase({
     engine: new RdsEnginePostgres({
       version: '18',
@@ -108,6 +120,7 @@ export default defineConfig(() => {
   });
 
   return { resources: { api, database } };
+  // [!code focus-end]
 });
 `
     },

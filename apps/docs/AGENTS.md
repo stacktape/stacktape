@@ -51,6 +51,16 @@ can override shared component styles.
 `public` is committed app-owned static content. Generated assets go to `dist` during build; builds must not rewrite
 `public`.
 
+## Search
+
+Algolia DocSearch serves search from the index the Algolia crawler builds from the live site (app `PFTWPISD3F`, index
+`Docs crawler`); its configuration lives in the Algolia dashboard. Every v4 page carries `docsearch:lvl0` (the result
+group, such as `Guides · Observability` or `Commands`) and `docsearch:type` (`Guide`, `Resource`, `Command` or
+`Console`) meta tags from `src/components/Search/search-context.ts`. The crawler's record extractor reads them and takes
+headings and text only from the article (`.docs-page-title`, `.mdx-content`), never from the header, sidebar, outline or
+footer. The search dialog derives the same groups from each result's URL, so a stale index still groups correctly.
+Recrawl from the dashboard after pages move.
+
 ## Publishing
 
 `stacktape.ts` deploys the site: `pnpm deploy:docs:preview` publishes `https://preview-docs.stacktape.com`, and

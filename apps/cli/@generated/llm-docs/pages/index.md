@@ -11,6 +11,9 @@ Run it in your project directory:
 
 It opens a wizard in your browser. You review the setup and its monthly price, then deploy. No Stacktape account needed.
 
+- [Quickstart](/getting-started)
+- [Starting a new project?](/getting-started/start-a-new-project)
+
 
 ## Where to start
 
@@ -20,8 +23,7 @@ Run init in your app directory. The wizard proposes the AWS setup, shows its mon
 
 Steps: Start, Analyze, Review, Deploy.
 
-- [Quickstart](/getting-started)
-- [The wizard, step by step](/getting-started/deploy-an-existing-app)
+- [Deploy an existing app](/getting-started/deploy-an-existing-app)
 
 ### Start a new project
 
@@ -31,12 +33,13 @@ Start from a working starter, such as Express with Postgres, Next.js or FastAPI.
 npx stacktape@latest init --starter-project
 ```
 
-- [Walkthrough](/getting-started/start-a-new-project)
-- [Browse starters](/getting-started/starter-projects)
+- [Start a new project](/getting-started/start-a-new-project)
 
 ### Evaluate Stacktape for your team
 
-Short answers on where it runs, what leaves your account, lock-in, networking, CI/CD, observability, costs and access.
+Short answers for a team lead or CTO before a pilot.
+
+Covers: Where it runs, data, lock-in, networking, CI/CD, costs, access.
 
 
 ## A config and what it creates
@@ -117,9 +120,11 @@ resources:
 
 What it creates in your AWS account, in the stack `my-api-dev`:
 
-- HTTP API Gateway (`api`): Public HTTPS URL for the service
-- ECS on Fargate (`api`, in the VPC): Your container, 0.25 vCPU and 512 MB
-- RDS Postgres 18 (`database`, in the VPC): db.t4g.micro, reachable only from `api`
+- `api` (WebService), connected by HTTPS requests:
+  - HTTP API Gateway: The public URL
+  - ECS on Fargate: Your container, 0.25 vCPU and 512 MB, in the VPC
+- `database` (RelationalDatabase), connected by `connectTo`: private, inside the VPC:
+  - RDS Postgres 18: db.t4g.micro, reachable only from `api`
 - `STP_DATABASE_CONNECTION_STRING` in the container environment
 - Security groups, an IAM role and CloudWatch logs
 - The password read from AWS Secrets Manager
