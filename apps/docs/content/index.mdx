@@ -103,8 +103,8 @@ Run `stacktape deploy` and you get a live API Gateway endpoint with your custom 
     ]} />
   </Step>
   <Step title="Initialize a project">
-    Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
-    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape init` }]} />
+    If the standalone installer already started init, skip this command. Otherwise, run it in your existing repository. For a new project, add `--starter-project` to the init command, including when you pass it to the standalone installer.
+    <CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `npx stacktape@latest init` }]} />
   </Step>
   <Step title="Deploy to AWS">
     Pick a stage and a region — Stacktape builds, packages and provisions everything into your account with your
@@ -165,7 +165,7 @@ Stacktape finds `stacktape.ts` and `stacktape.yml` (also `stacktape.yaml` and `s
 
 Run your services in development mode to iterate faster — your code runs locally, connected to real cloud resources, so you can test changes without redeploying every time.
 
-<CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape dev --stage dev --region us-east-1` }]} />
+<CodeBlock tabs={[{ label: 'bash', lang: 'bash', code: `stacktape dev --stage local --region us-east-1` }]} />
 
 ### Scripts & migrations
 

@@ -2,6 +2,8 @@
 
 A Stacktape Network Load Balancer creates a managed TCP/TLS entry point that routes connections to container workloads at the transport layer (Layer 4). It uses AWS Network Load Balancer — ultra-low latency, millions of concurrent connections, and no HTTP-level processing overhead. Use it for non-HTTP protocols like MQTT, gRPC, database proxies, or game servers.
 
+A TLS listener without a custom domain or its own certificate needs a Console-provided domain. Without the Console, that deploy stops with `CONFIG_NEEDS_CONSOLE`.
+
 ## When to use
 
 Network Load Balancer is the right choice when your workload speaks a non-HTTP protocol or when you need raw TCP/TLS pass-through without HTTP-level processing. AWS NLB forwards connections directly to your containers with minimal latency overhead.

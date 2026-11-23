@@ -1,12 +1,12 @@
 # Web Service
 
-A Stacktape web service runs one always-on container with a public HTTPS URL. Use the `WebService` resource for APIs, backend web apps, and internet-facing container services that need TLS, health checks, horizontal scaling, and deployment behavior managed through Stacktape instead of hand-wired AWS networking.
+A Stacktape web service runs one always-on container with a public HTTPS URL. Use the `WebService` resource for APIs, backend web apps, and internet-facing container services that need TLS, horizontal scaling, and deployment behavior managed through Stacktape instead of hand-wired AWS networking.
 
 **Pricing context:** Fargate bills for every running task; approximate us-east-1 monthly compute starts around ~$7.29/month per 0.25 vCPU plus ~$1.60/month per 512 MB memory. HTTP API Gateway load balancing is about ~$1/million requests; Application Load Balancer starts around ~$18/month plus usage.
 
 ## When to use
 
-A Stacktape web service is the right default for a single public HTTP container that should stay online all the time. Pick a web service when the workload serves request/response traffic, needs a stable HTTPS URL, and benefits from Stacktape-managed load balancing, TLS certificates, scaling, logs, and health checks.
+A Stacktape web service is the right default for a single public HTTP container that should stay online all the time. Pick a web service when the workload serves request/response traffic, needs a stable HTTPS URL, and benefits from Stacktape-managed load balancing, TLS certificates, scaling and logs. The default HTTP API mode needs `internalHealthCheck` to check application health.
 
 Common use cases:
 
@@ -62,7 +62,7 @@ A Stacktape web service can receive public traffic through three load balancing 
 | `application-load-balancer` | WebSockets, gradual deployments, top-level `useFirewall`, and high steady HTTP traffic | Adds a baseline monthly load balancer cost |
 | `network-load-balancer` | TCP/TLS protocols such as MQTT, game servers, or custom protocols | Requires explicit `ports`; does not support CDN, top-level firewall, or gradual deployments |
 
-Use `application-load-balancer` when the service needs WebSocket support, [gradual deployments](/deployment-and-lifecycle/gradual-deployments), or a regional [web application firewall](/resources/security/web-application-firewall) attached through top-level `useFirewall`. The ALB health check defaults are path `/`, interval `5` seconds, and timeout `4` seconds, and you can override those in `loadBalancing.properties`.
+Use `application-load-balancer` when the service needs WebSocket support, [gradual deployments](/deployment-and-lifecycle/gradual-deployments), or a regional [web application firewall](/resources/security/web-application-firewall) attached through top-level `useFirewall`. The ALB health check defaults are path `/`, interval `5` seconds, and timeout `4` seconds, and you can override those in `loadBalancing.properties`. Load-balancer modes that require a Console-provided domain stop with `CONFIG_NEEDS_CONSOLE` when you deploy without the Console. Configure your own domain or certificate as described in the [ALB](/resources/networking/application-load-balancer) and [NLB](/resources/networking/network-load-balancer) guides.
 
 
 Example (TypeScript):
@@ -342,7 +342,7 @@ The default `http-api-gateway` mode has no health check. Stacktape can tell that
 
 ## How deploys replace containers
 
-A deploy starts the new containers next to the old ones. Once every new container passes its health check, the old
+A deploy starts the new containers next to the old ones. Once the new containers are ready, the old
 containers stop receiving new requests, get 30 seconds to finish the requests they are handling, and shut down: ECS
 sends `SIGTERM` and, if the process is still running after `stopTimeout` (default 30 seconds), `SIGKILL`. Handle
 `SIGTERM` in your app so an old container exits once its requests are done. An app that ignores the signal keeps a full

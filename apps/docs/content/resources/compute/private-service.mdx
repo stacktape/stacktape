@@ -7,7 +7,7 @@ seoDescription: 'Deploy always-on internal containers reachable only within your
 
 # Private Service
 
-A Stacktape private service runs always-on containers with no public endpoint, reachable only from other resources in your stack or VPC. Use it for internal microservices, gRPC backends, or any service that should never be exposed to the internet. Stacktape handles service discovery, health checks, and horizontal scaling.
+A Stacktape private service runs always-on containers with no public endpoint, reachable only from other resources in your stack or VPC. Use it for internal microservices, gRPC backends, or any service that should never be exposed to the internet. Stacktape handles service discovery and horizontal scaling. Configure `internalHealthCheck` to check the container’s health in the default Service Connect mode.
 
 **Pricing context:** A minimal Fargate task (0.25 vCPU, 512 MB) costs approximately **~$9/month** for compute. The default `service-connect` networking adds approximately **~$0.50/month**. Switching to an Application Load Balancer adds approximately **~$18/month** in base fees.
 
@@ -225,6 +225,8 @@ export default defineConfig(() => {
 With Service Connect, other containers in the stack can reach this service via built-in service discovery. Use `connectTo` on the calling resource to have Stacktape inject the service address as an environment variable — this is the recommended approach rather than hard-coding addresses or hostnames.
 
 ### Using an Application Load Balancer
+
+An ALB without a custom domain or listener certificate needs a Console-provided domain. Without the Console, that deploy stops with `CONFIG_NEEDS_CONSOLE`.
 
 <CodeBlock
   intellisense

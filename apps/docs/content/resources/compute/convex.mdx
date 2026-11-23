@@ -11,6 +11,8 @@ Stacktape's Convex resource provisions a complete self-hosted [Convex](https://w
 
 The smallest viable Convex configuration (single-AZ `db.t4g.micro` Postgres, 0.5 vCPU / 1 GB Fargate backend, 0.25 vCPU / 512 MB dashboard, ALB, S3) costs approximately **$45–65/month idle**.
 
+Without the Console, set custom domains for the cloud and site endpoints and for the dashboard if enabled. The deploy stops with `CONFIG_NEEDS_CONSOLE` if a required domain is missing.
+
 ## When to use
 
 Self-hosted Convex is the right choice when you want Convex's reactive programming model — real-time queries, transactional mutations, and built-in file storage — but need to run on your own AWS infrastructure. Common reasons:

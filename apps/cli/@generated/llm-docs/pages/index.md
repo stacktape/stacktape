@@ -146,13 +146,13 @@ iex "& { $(irm https://installs.stacktape.com/windows.ps1) } init"
 ### Initialize a project
 
 
-    Scaffold a starter, or drop a `stacktape.ts` into an existing repo.
+    If the standalone installer already started init, skip this command. Otherwise, run it in your existing repository. For a new project, add `--starter-project` to the init command, including when you pass it to the standalone installer.
 
 
 Example (bash):
 
 ```bash
-stacktape init
+npx stacktape@latest init
 ```
 
 
@@ -239,7 +239,7 @@ Run your services in development mode to iterate faster — your code runs local
 Example (bash):
 
 ```bash
-stacktape dev --stage dev --region us-east-1
+stacktape dev --stage local --region us-east-1
 ```
 
 

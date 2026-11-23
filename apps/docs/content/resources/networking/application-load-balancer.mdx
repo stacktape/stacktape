@@ -9,6 +9,8 @@ seoDescription: 'Create an HTTP/HTTPS load balancer with Stacktape using AWS ALB
 
 A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container workloads and [Lambda functions](/resources/compute/lambda-function) based on path, host, headers, query parameters, and source IPs. It uses AWS ALB underneath — flat ~$18/month pricing (AWS Free Tier eligible), WebSocket support, [firewall](/resources/security/web-application-firewall) attachment, and [gradual deployments](/deployment-and-lifecycle/gradual-deployments).
 
+Without a custom domain or a listener certificate, the load balancer needs a Console-provided domain. A deploy without the Console stops with `CONFIG_NEEDS_CONSOLE`.
+
 ## When to use
 
 Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).

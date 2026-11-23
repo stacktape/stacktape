@@ -330,10 +330,10 @@ The MCP server classifies every CLI command into a safety level and enforces per
 
 | Safety level | Behavior | Examples |
 |-------------|----------|---------|
-| `readOnly` | Executes without confirmation | `diff`, `status`, `stack list`, `logs`, `metrics`, `alarm list`, `incident show` |
+| `readOnly` | Executes without confirmation | `status`, `stack list`, `logs`, `metrics`, `alarm list`, `incident show` |
 | `diagnostic` | Executes without confirmation | `query sql`, `query dynamodb`, `query redis`, `query opensearch`, `aws call` |
 | `local` | Executes without confirmation | `synth`, `validate`, `package` |
-| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret set`](/cli/secret-set), [`rollback`](/cli/rollback) |
+| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`diff`](/cli/diff), [`secret set`](/cli/secret-set), [`rollback`](/cli/rollback) |
 | `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion shell` |
 

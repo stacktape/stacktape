@@ -22,19 +22,19 @@ Run [`stacktape dev`](/cli/dev) to start dev mode. Lambda functions appear as se
 Run all dev-compatible resources in your config:
 
 ```bash
-stacktape dev --stage dev --resources all
+stacktape dev --stage dev --region eu-west-1 --resources all
 ```
 
 Run only specific Lambda functions by name (comma-separated):
 
 ```bash
-stacktape dev --stage dev --resources myApi,myWorker
+stacktape dev --stage dev --region eu-west-1 --resources myApi,myWorker
 ```
 
 Run everything except specific resources:
 
 ```bash
-stacktape dev --stage dev --skip-resources myWorker
+stacktape dev --stage dev --region eu-west-1 --skip-resources myWorker
 ```
 
 Without `--resources` or `--skip-resources`, Stacktape displays an interactive multi-select picker listing all dev-compatible resources. All resources are pre-selected by default — deselect any you don't need and confirm to start.
@@ -130,7 +130,7 @@ Outside of dev mode, use [`stacktape logs`](/cli/logs) to fetch logs for a Stack
 View logs for a specific function:
 
 ```bash
-stacktape logs myApi --stage production
+stacktape logs myApi --stage production --region eu-west-1
 ```
 
 By default, `stacktape logs` uses a one-hour start time and returns up to 100 events.
@@ -138,19 +138,19 @@ By default, `stacktape logs` uses a one-hour start time and returns up to 100 ev
 View the last 30 minutes of logs:
 
 ```bash
-stacktape logs myApi --stage production --since 30m
+stacktape logs myApi --stage production --region eu-west-1 --since 30m
 ```
 
 Filter logs containing a specific pattern:
 
 ```bash
-stacktape logs myApi --stage production --filter "ERROR"
+stacktape logs myApi --stage production --region eu-west-1 --filter "ERROR"
 ```
 
 Run a CloudWatch Logs Insights query for structured searching:
 
 ```bash
-stacktape logs myApi --stage production --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
+stacktape logs myApi --stage production --region eu-west-1 --query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc | limit 20"
 ```
 
 The `--since` flag accepts relative values (`1h`, `30m`, `1d`, `5s`) and absolute ISO timestamps. Use `--limit` to control how many log events are returned. `--until` sets the upper time boundary for `--query` Logs Insights queries. `--raw` switches the standard log-fetching output to machine-readable JSON; the `--query` path prints formatted results unless agent mode is active.
@@ -215,7 +215,7 @@ The first session in an account and region creates the dev network with CloudFor
 Dev mode uses an isolated dev stack and emulates supported databases locally. When a function needs a real deployed database or Redis resource, pass its name through `--remote-resources`:
 
 ```bash
-stacktape dev --stage dev --remote-resources myDatabase
+stacktape dev --stage dev --region eu-west-1 --remote-resources myDatabase
 ```
 
 This keeps the dev stack isolated while wiring the selected resource to its deployed AWS counterpart.
@@ -240,7 +240,7 @@ Dev mode does not change deployed functions at session start or exit: they are d
 For AI-assisted debugging workflows, dev mode supports an `--agent` flag that starts a background daemon with an HTTP API. Agent mode registers rebuild handlers and keeps workload and local-resource state updated for the agent server. See [agent mode in dev](/using-with-ai/agent-mode-in-dev) for the supported API surface.
 
 ```bash
-stacktape dev --stage dev --agent
+stacktape dev --stage dev --region eu-west-1 --agent
 ```
 
 The agent daemon starts on port 7331 when available. If you do not pass `--agent-port`, Stacktape finds an available port starting at 7331. Use `--agent-port` to request a specific agent port. Stop a running agent with [`stacktape dev stop`](/cli/dev-stop):

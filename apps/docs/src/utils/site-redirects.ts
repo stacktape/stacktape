@@ -20,6 +20,7 @@ export const V4_RENAMED_PAGES: Record<string, string> = {
  * The other old v3 URLs, and links printed by the 3.7.1 CLI, go to the /v3/ archive.
  */
 export const SITE_REDIRECTS: Record<string, string> = {
+  '/resources/': '/configuration/resources/',
   ...V4_RENAMED_PAGES,
   ...V3_REDIRECTS_TO_V4,
   ...V3_ARCHIVE_REDIRECTS

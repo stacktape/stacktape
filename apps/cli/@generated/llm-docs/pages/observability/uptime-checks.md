@@ -14,7 +14,7 @@ Add an uptime check to every public endpoint whose downtime you want to hear abo
 
 ## Configuration
 
-An uptime check is a standalone resource. The only required property is `url`:
+An uptime check is a standalone resource. The only required property is `url`. A deploy with any uptime check needs the Console and stops with `CONFIG_NEEDS_CONSOLE` without it.
 
 ```yaml
 resources:

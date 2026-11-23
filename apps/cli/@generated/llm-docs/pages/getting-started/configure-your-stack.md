@@ -6,7 +6,7 @@ A `stacktape.ts` file defines your AWS infrastructure — APIs, functions, datab
 > **Info:** Already have a `stacktape.ts`? Skip to [using dev mode](/getting-started/use-the-dev-mode) or [deploying your first stage](/getting-started/deploy-your-first-stage).
 
 
-> **Tip:** **Recommended starting path:** Run `stacktape init` in your repository. It reads the code and proposes the infrastructure, or starts a new project from a starter template. Either way, understanding the config format below will help you customize what you get.
+> **Tip:** **Recommended starting path:** Run `stacktape init` in your repository. It reads the code and proposes the infrastructure. For a new project, run `stacktape init --starter-project`. Either way, understanding the config format below will help you customize what you get.
 
 
 ## Install the package

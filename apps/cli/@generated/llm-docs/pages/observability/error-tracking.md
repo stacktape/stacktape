@@ -28,7 +28,7 @@ Stacktape error tracking displays recorded runtime errors in the Console and CLI
 
 ## Turning error tracking off or limiting stages
 
-Error tracking is on for every stage of every stack by default. Nothing needs to be set up: each deployment subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged.
+With the Console, error tracking is on by default. It stays off without the Console. Each deployment with error tracking enabled subscribes the stack's function and container log groups to Stacktape's error detector, and errors appear on the Error tracking page within a minute of being logged.
 
 The stack's configuration decides. Turn error tracking off for a stack, or limit it to some stages, in `deploymentConfig.errorTracking`; the change takes effect at the stack's next deployment.
 

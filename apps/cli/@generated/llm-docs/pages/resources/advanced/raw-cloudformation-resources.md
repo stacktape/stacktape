@@ -210,7 +210,7 @@ Stacktape generates CloudFormation logical names for its managed resources inter
 To inspect the logical names Stacktape has assigned, run:
 
 ```bash
-stacktape status
+stacktape status --stack-name my-project-production --region eu-west-1
 ```
 
 Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk. If your CLI build supports [`stacktape synth`](/cli/synth), it can also be used to preview the full generated CloudFormation template before deploying.

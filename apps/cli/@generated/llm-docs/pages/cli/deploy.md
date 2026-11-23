@@ -172,15 +172,15 @@ stacktape diff --stage production --region us-east-1
 
 ## Free plan cost limit
 
-A Free organization cannot deploy once its managed AWS costs for the current calendar month (UTC) are above $100. The
-deploy stops before it touches AWS with a `Free Plan Limit Reached` error that shows this month's costs, the limit and
-the link to upgrade:
+Deploys pause when a Free organization’s managed AWS costs for the current calendar month (UTC) are above $200
+and its one-time seven-day grace period has ended. The CLI stops before changing your stack and prints a
+`Free Plan Limit Reached` error with this month’s costs, the limit and the link to upgrade.
 
 ```text
 [x] Free Plan Limit Reached
 
 Deploys are paused. This organization is on the Free plan, and the AWS costs Stacktape manages for it are
-$142.17 in October 2026 (UTC), above the plan's limit of $100 a month.
+$242.17 in October 2026 (UTC), above the plan's limit of $200 a month.
 ```
 
 Upgrading to the Flexible plan lifts the limit immediately; otherwise deploys resume when the next month starts.
@@ -197,7 +197,7 @@ Stacktape does not currently check CloudFormation resource drift before deployin
 
 | Command | Description |
 |---|---|
-| [`diff`](/cli/diff) | Shows what a deploy would change without applying anything. |
+| [`diff`](/cli/diff) | Previews a deploy without updating the live stack. It can write to AWS. |
 | [`rollback`](/cli/rollback) | Rolls back to a previous Stacktape deployment version. |
 | [`stack recover`](/cli/cf-rollback) | Recovers a CloudFormation stack stuck in `UPDATE_FAILED` or `UPDATE_ROLLBACK_FAILED` state. |
 
