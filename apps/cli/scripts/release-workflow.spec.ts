@@ -122,8 +122,13 @@ describe('release publication policy', () => {
     expect(
       isRecord(jobs['upload-error-tracking-source-maps']) && jobs['upload-error-tracking-source-maps'].environment
     ).toBe('error-tracking');
-    // The verify job's role can only issue an ECR Public pull token.
-    expect(isRecord(jobs.verify) && jobs.verify.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
+    // The verify job's role can only issue an ECR Public pull token; it reads Actions runs to check Public CI when
+    // skip_verification is set.
+    expect(isRecord(jobs.verify) && jobs.verify.permissions).toEqual({
+      actions: 'read',
+      contents: 'read',
+      'id-token': 'write'
+    });
     expect(isRecord(jobs.verify) && jobs.verify.environment).toBe('release-registry');
     for (const jobName of ['build-binaries', 'assemble']) {
       expect(isRecord(jobs[jobName]) && jobs[jobName].permissions).toBeUndefined();
