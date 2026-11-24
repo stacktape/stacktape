@@ -1,0 +1,69 @@
+---
+import type { HTMLAttributes } from 'astro/types';
+import './tokens.css';
+
+type Props = HTMLAttributes<'span'> & {
+  variant?: 'label' | 'count' | 'marker' | 'strip';
+  tone?: 'teal' | 'gray';
+};
+
+const { variant = 'label', tone = variant === 'count' || variant === 'strip' ? 'gray' : 'teal', class: className, ...attrs } =
+  Astro.props;
+---
+
+<span {...attrs} class:list={['tape', `tape--${variant}`, `tape--${tone}`, className]}><slot /></span>
+
+<style>
+  .tape {
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    max-inline-size: 100%;
+    padding: 0.25em 0.72em;
+    color: var(--brand-text);
+    font-size: var(--brand-type-sm);
+    font-weight: var(--brand-weight-label);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .tape::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    content: '';
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    clip-path: var(--brand-tape-clip);
+  }
+
+  .tape--teal {
+    color: var(--brand-on-teal);
+  }
+
+  .tape--teal::before {
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+  }
+
+  .tape--count {
+    min-inline-size: 2em;
+    padding: 0.2em 0.55em;
+    font-size: var(--brand-type-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tape--marker {
+    font-family: var(--brand-font-mono);
+    font-size: var(--brand-type-xs);
+  }
+
+  .tape--strip {
+    justify-content: flex-start;
+    inline-size: 100%;
+    min-block-size: 1.55em;
+    padding-inline: 1em;
+  }
+</style>
