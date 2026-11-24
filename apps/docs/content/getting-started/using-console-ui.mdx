@@ -43,7 +43,13 @@ The **Error tracking** page in the Observability group is a built-in error inbox
 
 With the Console, error tracking is on by default. Without the Console, it defaults to off, and enabling it in config stops the deploy with `CONFIG_NEEDS_CONSOLE`. Deployed workloads that meet the [error tracking requirements](/observability/error-tracking#turning-error-tracking-off-or-limiting-stages) send errors to the Console. A stack turns it off or limits it to some stages with `deploymentConfig.errorTracking`. Issues can be filtered by status (All, Open, Resolved, Ignored), project, stage and search text.
 
-<ConsoleScreenshot src="/static/screenshots/console-issues-page.png" alt="Stacktape Console Error tracking page showing summary cards (Open/Resolved/Ignored counts), filters, and a table of runtime errors with occurrence counts and status" caption="The Error tracking page groups repeated runtime errors so you don't search logs by hand." />
+<ConsoleScreenshot
+  src="/static/screenshots/console-error-tracking-list.png"
+  width={1176}
+  height={366}
+  alt="Stacktape Console Error tracking page showing the status filter with Open, Resolved, Ignored and All counts, search, project and stage filters, and a table of open runtime errors with columns for error, events and last seen"
+  caption="The TypeError in the issue list"
+/>
 
 Detection is log-pattern based, not a full APM trace. It catches most recurring runtime failures but can miss errors that don't match standard patterns. Keep a dedicated tracing or APM tool when you need custom context, release tracking or client-side error capture. See [Observability: Error tracking](/observability/error-tracking) for configuration details and the CLI commands [`stacktape error list`](/cli/errors-list) and [`stacktape error resolve`](/cli/errors-resolve).
 

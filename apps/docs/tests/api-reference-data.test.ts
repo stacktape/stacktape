@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { CLI_API_REFERENCE_DATA } from '../src/build/cli-generated-inputs.ts';
 import { sanitizeHtml, stripHtml } from '../src/utils/api-reference-text.ts';
+import { renderDocsMarkdown } from '../src/utils/docs-markdown.ts';
 import type { ApiReferenceData } from '../src/utils/api-reference-dto.ts';
 
 /**
@@ -48,6 +49,12 @@ test('flattening description HTML decodes entities and drops the internal requir
   // The HTML path leaves entities alone — the browser decodes them when it parses the markup.
   assert.equal(sanitizeHtml(generated), generated);
   assert.equal(sanitizeHtml('--stp-required--<p>Required.</p>'), '<p>Required.</p>');
+});
+
+test('CLI reference descriptions preserve angle brackets in inline code', () => {
+  const html = renderDocsMarkdown('Sensitive values appear as `<<OMITTED>>`.');
+
+  assert.match(html, /<code>&lt;&lt;OMITTED&gt;&gt;<\/code>/);
 });
 
 test('no generated description reaches a reader as a raw entity', () => {

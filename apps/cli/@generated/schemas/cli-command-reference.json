@@ -119,7 +119,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -464,7 +464,7 @@
       },
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -593,7 +593,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -733,7 +733,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -892,7 +892,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -1075,7 +1075,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -1166,7 +1166,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -1375,7 +1375,7 @@
       },
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -1534,7 +1534,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -1792,7 +1792,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -1931,7 +1931,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -1960,7 +1960,8 @@
           "af-south-1",
           "eu-south-1"
         ],
-        "flag": "region"
+        "flag": "region",
+        "conditionallyRequired": true
       },
       {
         "name": "stage",
@@ -1970,7 +1971,8 @@
         "allowedTypes": [
           "string"
         ],
-        "flag": "stage"
+        "flag": "stage",
+        "conditionallyRequired": true
       },
       {
         "name": "autoConfirmOperation",
@@ -2039,7 +2041,7 @@
       },
       {
         "name": "dockerArgs",
-        "description": "#### Docker Arguments\n---\nAdditional arguments to pass to the `docker run` or `docker build` commands.",
+        "description": "#### Docker Arguments\n---\nAdditional arguments for `docker run` when `stacktape dev` starts local workload containers.",
         "required": false,
         "allowedTypes": [
           "array"
@@ -2166,7 +2168,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -2305,7 +2307,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -2413,7 +2415,7 @@
       },
       {
         "name": "dockerArgs",
-        "description": "#### Docker Arguments\n---\nAdditional arguments to pass to the `docker run` or `docker build` commands.",
+        "description": "#### Docker Arguments\n---\nAdditional arguments for `docker run` when `stacktape dev` starts local workload containers.",
         "required": false,
         "allowedTypes": [
           "array"
@@ -2552,7 +2554,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -2662,7 +2664,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -2889,7 +2891,7 @@
       },
       {
         "name": "stage",
-        "description": "#### Stage\n---\nThe stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults set` command. Stage names use lowercase letters, numbers and dashes, with at least 2 characters. The project name, a dash and the stage form the CloudFormation stack name, which can have at most 128 characters. Stacktape shortens an AWS resource name that would be too long and adds a hash.",
+        "description": "#### Stage\n---\nSelects the stage for the operation. Without `--all`, container cleanup covers every stage in the project directory unless you pass `--stage` explicitly.",
         "required": false,
         "alias": "s",
         "allowedTypes": [
@@ -2905,7 +2907,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -3043,7 +3045,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -3800,7 +3802,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -3909,7 +3911,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -4347,7 +4349,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -4728,7 +4730,7 @@
       },
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -5037,7 +5039,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -5179,7 +5181,7 @@
       },
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -5363,7 +5365,7 @@
       },
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": false,
         "alias": "r",
         "allowedTypes": [
@@ -5504,7 +5506,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -5690,7 +5692,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -5876,7 +5878,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -6072,7 +6074,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -6248,7 +6250,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -6524,7 +6526,7 @@
       },
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": false,
         "alias": "r",
         "allowedTypes": [
@@ -6565,7 +6567,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -6668,7 +6670,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -6780,7 +6782,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -6908,7 +6910,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [
@@ -7098,7 +7100,7 @@
     "args": [
       {
         "name": "region",
-        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nInside a project whose config declares `region`, the flag is optional and overrides the config.",
+        "description": "#### AWS Region\n---\nThe AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html).\n\nFor commands such as `deploy`, this flag overrides the project's configured region. If you omit it, Stacktape checks the project's config, `AWS_DEFAULT_REGION`, the default saved with `defaults set`, then the AWS profile.",
         "required": true,
         "alias": "r",
         "allowedTypes": [

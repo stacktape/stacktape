@@ -39,6 +39,8 @@ Each rule lists the events it watches. The **New notification rule** dialog grou
 
 A new rule starts with the failure events, the incident events and new security findings selected. A single rule can watch several event types, so related alerts can go to one channel through one rule.
 
+[Error tracking](/observability/error-tracking) sends notifications only through [incidents](/observability/incidents) on production stages.
+
 ## Managing notification rules
 
 Open **Channels** in the Alerting group of the Stacktape Console and click a channel. Its page lists what the channel receives, one rule per row:

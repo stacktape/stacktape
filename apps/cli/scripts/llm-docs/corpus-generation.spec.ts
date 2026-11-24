@@ -60,6 +60,11 @@ test('generates a retrievable corpus with unique identities and readable, accura
       .map(({ content }) => content)
       .join('\n');
     const full = await readFile(join(outputDirectory, 'llms-full.txt'), 'utf8');
+    const deployPage = renderedPages.find(({ route }) => route === '/cli/deploy');
+    expect(deployPage?.content).toContain('| `-s, --stage` | conditional |');
+    expect(deployPage?.content).toContain('| `-r, --region` | conditional |');
+    const showSecretsRow = deployPage?.content.split('\n').find((line) => line.startsWith('| `--show-secrets` |'));
+    expect(showSecretsRow).toContain('`<<OMITTED>>`');
     for (const representation of [pageText, chunkText, indexedText, full]) {
       expect(representation).toMatch(/explicit allowlist/i);
       expect(representation).toContain('BatchWriteItem');

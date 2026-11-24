@@ -2206,8 +2206,8 @@ export interface DeploymentConfig {
    *
    * ---
    *
-   * On by default for every stage. Turn it off here, or limit it to some stages. See `ErrorTrackingConfig` for what is sent
-   * and how sensitive text is masked.
+   * On by default for every stage when the deployment uses the Console. Turn it off here, or limit it to some stages.
+   * See `ErrorTrackingConfig` for what is sent and how sensitive text is masked.
    *
    * **Example (YAML):**
    *
@@ -4165,17 +4165,17 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * **Example (TypeScript):**
    *
    * ```ts
-   * import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
+   * import { $Secret, $SsmParam, JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
    *
    * export default defineConfig(() => {
    *   const api = new WebService({
    *     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
    *     resources: { cpu: 0.25, memory: 512 },
    *     // stp-focus
-   *     secrets: {
-   *       DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
-   *       ROTATING_API_KEY: $Secret('rotating-api-key')
-   *     }
+   *     secrets: [
+   *       { name: 'DATABASE_PASSWORD', valueFrom: $SsmParam('/my-app/production/database-password') },
+   *       { name: 'ROTATING_API_KEY', valueFrom: $Secret('rotating-api-key') }
+   *     ]
    *     // stp-end-focus
    *   });
    *
