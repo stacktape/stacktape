@@ -40,6 +40,29 @@ values where a hard-coded config value would work without added cost or complexi
 You can create secrets from the Stacktape Console or the CLI. The Console Secrets page works per AWS account and
 AWS region — the list request passes the selected region to AWS Secrets Manager.
 
+### Using the CLI
+
+Run [`stacktape secret set`](/cli/secret-set) in your project directory. It asks for the value and uses the region from
+your config. Pass `--region` to choose another region.
+
+```bash cli-check=defaults:region
+stacktape secret set stripe-key
+```
+
+To store the content of a file, such as a JSON service-account key:
+
+```bash cli-check=defaults:region
+stacktape secret set firebase-creds --file ./key.json
+```
+
+In CI, pipe the value from a CI variable. `--force-update` overwrites an existing secret instead of asking:
+
+```bash cli-check=defaults:region
+echo "$STRIPE_KEY" | stacktape secret set production-stripe-key --force-update
+```
+
+See the [`secret set` CLI reference](/cli/secret-set) for supported options.
+
 ### Using the Stacktape Console
 
 The Secrets page in the [Stacktape Console](/stacktape-console/console-overview) lets you create, view, edit, and
@@ -53,17 +76,116 @@ edit it, or delete it.
 > Screenshot: Stacktape Console Secrets page showing a table of secrets with name, date columns, description, and action icons for view, edit, and delete Caption: Manage secrets per AWS account and region in the Stacktape Console.
 
 
-### Using the CLI
-
-The CLI also provides a [`stacktape secret set`](/cli/secret-set) command for creating secrets from the
-terminal. See the [`secret set` CLI reference](/cli/secret-set) for supported options.
-
 ## Referencing secrets with $Secret()
 
 The `$Secret()` [directive](/configuration/directives) references a secret by name. During deployment, Stacktape
 fetches the secret from AWS Secrets Manager, records its current version ID, and inserts a CloudFormation dynamic
 reference (`{{resolve:secretsmanager:...}}`) into the template. The actual secret value never appears in the
 CloudFormation template — AWS resolves it at resource creation time.
+
+### Basic usage
+
+Import `$Secret` from `stacktape` and use it as a value in your config. This example injects a Discord bot token into
+a [worker service](/resources/compute/worker-service) as an environment variable:
+
+
+Example (TypeScript):
+
+```typescript
+import { $Secret, WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+export default defineConfig(() => {
+  const bot = new WorkerService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/index.ts'
+    }),
+    resources: {
+      cpu: 0.25,
+      memory: 512
+    },
+    secrets: [{ name: 'DISCORD_BOT_TOKEN', valueFrom: $Secret('discord-bot-token') }]
+  });
+
+  return {
+    resources: { bot }
+  };
+});
+```
+
+
+Your application code reads the value from the environment variable — `process.env.DISCORD_BOT_TOKEN`. If the secret
+named `discord-bot-token` does not exist yet, `stacktape deploy` and `stacktape dev` ask for its value in the terminal
+and create it. In CI, create the secret before deploying with [`stacktape secret set`](/cli/secret-set). If it is
+missing, the deployment fails and names it. The identity that deploys also needs permission to read the secret.
+
+The worker gets the token through `secrets`, not `environment`, so the value stays out of the task definition. See
+[native secret injection](#native-secret-injection-for-containers).
+
+### JSON secrets
+
+When a secret stores a JSON object, pass the key you need as the second argument: `$Secret('secretName', 'keyName')`.
+This is useful for database credentials where a single secret holds multiple related fields. The first argument is the
+exact secret name, so a name such as `billing.api` works too. Stacktape 3 configurations that write
+`$Secret('secretName.keyName')` keep working and read the same secret and key.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  $Secret,
+  RelationalDatabase,
+  RdsEnginePostgres,
+  WebService,
+  defineConfig,
+  JsBundleImagePackaging
+} from 'stacktape';
+export default defineConfig(() => {
+  const mainDatabase = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: $Secret('mainDatabase', 'password')
+    },
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    })
+  });
+
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({
+      entryfilePath: './src/index.ts'
+    }),
+    resources: { cpu: 0.25, memory: 512 },
+    connectTo: [mainDatabase]
+  });
+
+  return {
+    resources: { mainDatabase, api }
+  };
+});
+```
+
+
+In this example, `$Secret('mainDatabase', 'password')` reads the `password` key from a JSON secret named `mainDatabase`.
+The secret value in AWS Secrets Manager would look like:
+
+```json
+{ "password": "my-db-password-here" }
+```
+
+You do not need to create this secret yourself. When a database password (`masterUserPassword`, or the password of a
+Redis cluster or MongoDB Atlas cluster) references a secret that does not exist, `stacktape deploy` and
+`stacktape dev` generate a random value and create the secret. In a terminal, the CLI asks before generating it. In
+CI and agent mode, it generates it without asking.
+
+The `api` service reads the database URL from `STP_MAIN_DATABASE_CONNECTION_STRING`. The URL includes the password;
+see [who can read a secret](#who-can-read-a-secret).
+
+
+> **Warning:** Reading a key requires the secret value to be a JSON object. If it is not, or the key is missing, the deployment
+fails with an error naming the secret and the key.
+
 
 ### Native secret injection for containers
 
@@ -123,8 +245,8 @@ resources:
 
 Every `valueFrom` must be one exact `$SsmParam(...)` or `$Secret(...)` directive. SSM parameters used here must be
 `SecureString`. Stacktape grants the container execution role read access only to the referenced parameters and
-secrets. If a SecureString uses a customer-managed KMS key, also grant `kms:Decrypt` for that key with
-`iamRoleStatements`.
+secrets. If a SecureString or secret uses a customer-managed KMS key, the key policy must allow the execution role to
+use `kms:Decrypt`. `iamRoleStatements` don't apply to that role.
 
 Stacktape records the current SSM parameter version as non-sensitive task metadata, so redeploying after a parameter
 update creates and rolls out a new task definition. Secrets Manager references are pinned to the current version ID.
@@ -140,98 +262,6 @@ Describe APIs.
 environment variables and database credential fields — config properties that accept runtime
 [directives](/configuration/directives).
 
-### Basic usage
-
-Import `$Secret` from `stacktape` and use it as a value in your config. This example injects a Discord bot token into
-a [worker service](/resources/compute/worker-service) as an environment variable:
-
-
-Example (TypeScript):
-
-```typescript
-import { $Secret, WorkerService, defineConfig, JsBundleImagePackaging } from 'stacktape';
-export default defineConfig(() => {
-  const bot = new WorkerService({
-    packaging: new JsBundleImagePackaging({
-      entryfilePath: './src/index.ts'
-    }),
-    resources: {
-      cpu: 0.25,
-      memory: 512
-    },
-    secrets: [{ name: 'DISCORD_BOT_TOKEN', valueFrom: $Secret('discord-bot-token') }]
-  });
-
-  return {
-    resources: { bot }
-  };
-});
-```
-
-
-Your application code reads the value from the environment variable — `process.env.DISCORD_BOT_TOKEN`. The secret
-named `discord-bot-token` must be fetchable by Stacktape before deployment. If it cannot be fetched, the deployment
-fails with an error and a hint to create it using [`stacktape secret set`](/cli/secret-set).
-
-### JSON secrets
-
-When a secret stores a JSON object, pass the key you need as the second argument: `$Secret('secretName', 'keyName')`.
-This is useful for database credentials where a single secret holds multiple related fields. The first argument is the
-exact secret name, so a name such as `billing.api` works too. Stacktape 3 configurations that write
-`$Secret('secretName.keyName')` keep working and read the same secret and key.
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  $Secret,
-  RelationalDatabase,
-  RdsEnginePostgres,
-  WebService,
-  defineConfig,
-  JsBundleImagePackaging
-} from 'stacktape';
-export default defineConfig(() => {
-  const mainDatabase = new RelationalDatabase({
-    credentials: {
-      masterUserPassword: $Secret('mainDatabase', 'password')
-    },
-    engine: new RdsEnginePostgres({
-      version: '16',
-      primaryInstance: {
-        instanceSize: 'db.t4g.micro'
-      }
-    })
-  });
-
-  const api = new WebService({
-    packaging: new JsBundleImagePackaging({
-      entryfilePath: './src/index.ts'
-    }),
-    resources: { cpu: 0.25, memory: 512 },
-    connectTo: [mainDatabase]
-  });
-
-  return {
-    resources: { mainDatabase, api }
-  };
-});
-```
-
-
-In this example, `$Secret('mainDatabase', 'password')` reads the `password` key from a JSON secret named `mainDatabase`.
-The secret value in AWS Secrets Manager would look like:
-
-```json
-{ "password": "my-db-password-here" }
-```
-
-
-> **Warning:** Dot notation requires the secret value to be valid JSON. If the value is not valid JSON, or the selected key does
-not resolve to a truthy value, the deployment fails with a descriptive error.
-
-
 ## How $Secret() resolution works
 
 The `$Secret()` directive resolves differently at deploy time and when the CLI reads values locally.
@@ -239,19 +269,42 @@ The `$Secret()` directive resolves differently at deploy time and when the CLI r
 **At deploy time**, Stacktape fetches the secret from AWS Secrets Manager, records the current version ID as a
 CloudFormation stack output, and inserts a dynamic reference (`{{resolve:secretsmanager:secretName:SecretString:jsonKey::versionId}}`)
 into the template. AWS CloudFormation resolves the actual value when creating or updating the resource. The secret
-value never appears in the CloudFormation template itself — only the reference string does.
+value never appears in the CloudFormation template itself — only the reference string does. Container `secrets` are
+the exception: the template gets the secret's ARN and version ID, and ECS or AWS Batch fetch the value when the
+container starts.
 
 **During local resolution**, including [dev mode](/local-development/dev-mode-overview) (`stacktape dev`) and
 scripts, `$Secret()` reads the current value from AWS Secrets Manager (`AWSCURRENT`), just as `$SsmParam()` reads the
 current parameter value. Updating a secret takes effect the next time the CLI resolves it locally, even if the stack
 was deployed with an older version. This applies to both whole secrets and JSON keys.
 
-Commands that connect to deployed databases, such as `query-sql` and `query-redis`, use the secret version embedded in
+Commands that connect to deployed databases, such as `stacktape query sql` and `stacktape query redis`, use the secret version embedded in
 the deployed connection string so their credentials match the database.
 
 **Version pinning**: Each deployment pins to the secret version that was current at deploy time. If someone updates
 the secret value between deployments, deployed workloads continue using the pinned version until the next redeployment.
 This means updating a secret requires a redeploy to take effect in deployed workloads.
+
+## Who can read a secret
+
+Stacktape stores secrets in AWS Secrets Manager in your AWS account. Anyone whose AWS credentials allow
+`secretsmanager:GetSecretValue` on a secret can read it, and `kms:Decrypt` too when the secret uses your own KMS key.
+That includes the identity that deploys. `stacktape secret get --show-secrets` prints the value.
+
+What the deployed workload stores depends on the config field you use:
+
+| You use | What the workload stores |
+| --- | --- |
+| Container `secrets` | A reference. ECS or AWS Batch fetch the value when the container starts. |
+| `environment` | The value. Anyone who can view the task definition or function can read it. |
+| `connectTo` a database | The connection string with the password, readable the same way as `environment`. |
+
+With `secrets`, the stack's container roles can read only the secrets the stack references. Lambda functions have no
+`secrets` field, so a secret in a function always uses `environment`.
+
+In the [Stacktape Console](/stacktape-console/console-overview), Owners, Admins and Developers can view and change
+secrets. Viewers can't. If you can access only some projects, you can read the secrets their stacks use. When you view a
+value, your browser reads it from AWS with short-lived credentials.
 
 ## Retrieving and managing secrets
 
@@ -267,6 +320,14 @@ options.
 In the Stacktape Console, click the **view** action (eye icon) next to a secret to reveal its value.
 
 ### Update a secret
+
+Run [`stacktape secret set`](/cli/secret-set) with the same name. It asks for the new value and confirms before it
+overwrites the secret. Then redeploy every stage that reads it:
+
+```bash cli-check=defaults:region
+stacktape secret set production-stripe-key
+stacktape deploy --stage production
+```
 
 In the Console, click the **edit** action next to a secret to open the update modal.
 
@@ -284,8 +345,9 @@ The CLI provides [`stacktape secret delete`](/cli/secret-delete) for removing se
 In the Console, click the **delete** action next to a secret.
 
 
-> **Warning:** Do not delete secrets that are referenced by active stacks. The next deployment that references the missing secret
-will fail because the dynamic reference cannot resolve. Remove the `$Secret()` reference from your config and
+> **Warning:** Do not delete secrets that are referenced by active stacks. Deleting schedules the secret for deletion, and AWS keeps
+it for 30 days. In that time, containers that read it at start can't read it, and the next deployment that references
+it restores it. After that, the deployment treats it as missing. Remove the `$Secret()` reference from your config and
 redeploy before deleting the secret, or delete the stack first.
 
 
@@ -302,13 +364,13 @@ parameters. Both are [directives](/configuration/directives).
 | Feature | $Secret() | $SsmParam() |
 | --- | --- | --- |
 | Backing store | AWS Secrets Manager | AWS SSM Parameter Store |
-| JSON key extraction (dot notation) | yes | Not implemented |
+| JSON key extraction | yes | Not implemented |
 | Encryption | Always encrypted (KMS) | SecureString type uses KMS |
 | CF dynamic reference type | secretsmanager | ssm / ssm-secure |
 | Version pinning | Pins to VersionId | Pins to Version number |
 
 
-Use `$Secret()` when you need Secrets Manager features such as managed rotation. Use a SecureString `$SsmParam()` for
+Use `$Secret()` when you need Secrets Manager features such as managed rotation, then redeploy after each rotation. Use a SecureString `$SsmParam()` for
 credentials that do not rotate and where Parameter Store's lower storage cost is preferable. Standard String
 parameters remain useful for non-secret configuration shared across stacks.
 
@@ -318,13 +380,36 @@ parameters remain useful for non-secret configuration shared across stacks.
 
 Yes. Secrets in AWS Secrets Manager are independent of Stacktape stacks. If you create a secret called `stripe-key` in
 `eu-west-1`, every stack deployed to that region can reference it with `$Secret('stripe-key')`. Use naming conventions
-like `production-stripe-key` and `staging-stripe-key` if you need stage-specific values.
+like `production-stripe-key` and `staging-stripe-key` if you need stage-specific values. Use the stage in the secret
+name. For production, this reads `production-stripe-key`:
+
+
+Example (TypeScript):
+
+```typescript
+import { $Secret, WebService, defineConfig, JsBundleImagePackaging } from 'stacktape';
+
+export default defineConfig(({ stage }) => {
+  const api = new WebService({
+    packaging: new JsBundleImagePackaging({ entryfilePath: './src/server.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
+    secrets: [{ name: 'STRIPE_KEY', valueFrom: $Secret(`${stage}-stripe-key`) }]
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+Secrets belong to one AWS account and region. A stage deployed to another account or region needs its own secret with
+the same name.
 
 ### What happens if a referenced secret does not exist?
 
-The deployment fails with an error naming the missing secret and a hint suggesting you create it using
-[`stacktape secret set`](/cli/secret-set). Create all referenced secrets in the deployment region before running
-`stacktape deploy`.
+In a terminal, `stacktape deploy` and `stacktape dev` list the missing secrets, ask for their values and create them.
+Missing database passwords are generated. In CI or agent mode the CLI can't ask, so the deployment fails with the
+names of the missing secrets and a hint to create them with [`stacktape secret set`](/cli/secret-set). Database
+passwords are generated there too.
 
 ### Where can I use $Secret() in my config?
 
@@ -333,7 +418,8 @@ accepts runtime directives. It is most commonly used in workload environment var
 fields, across [Lambda functions](/resources/compute/lambda-function),
 [web services](/resources/compute/web-service), [worker services](/resources/compute/worker-service),
 [batch jobs](/resources/compute/batch-job), and
-[multi-container workloads](/resources/compute/multi-container-workload).
+[multi-container workloads](/resources/compute/multi-container-workload). Lambda functions have no `secrets` field,
+so a function stores the resolved value in its configuration. See [who can read a secret](#who-can-read-a-secret).
 
 ### How much does AWS Secrets Manager cost?
 
