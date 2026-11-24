@@ -1,0 +1,114 @@
+<h2>Introduction: The Load Balancer Dilemma</h2>
+<p>
+  From the moment I stepped into the world of AWS and containerized applications using ECS (Elastic Container Service),
+  I felt overwhelmed by the necessity of an Application Load Balancer (ALB). Need to build a backend API? Use ECS
+  containers? You need a load balancer. Almost every tutorial or guide I found strongly encouraged, if not outright
+  mandated, the use of an ALB.
+</p>
+<p>
+  But here's the catch: ALB costs money. At least $16 per month (plus another $7 for its public IPs). If I'm developing
+  multiple APIs or maintaining multiple environments (like development, testing, and production), these costs can
+  skyrocket rapidly. While it's possible to reuse the same ALB for multiple apps, this introduces significant
+  configuration challenges. Setting up the load balancer rules becomes complex, and you lose isolation since everything
+  needs to reside in one VPC. For someone like me, who develops multiple unrelated apps, using a single load balancer is
+  not an option.
+</p>
+<p>
+  When I set up a test environment, I want the flexibility to tear it down and rebuild it at any time. And I certainly
+  don't want my testing environment to share anything with production. The mandatory ALB business feels frustrating.
+</p>
+<h2>The Cost Factor</h2>
+<p>
+  One of the main reasons I avoid AWS Load Balancers is the cost. Many AWS services are pay-as-you-go, but ALBs have a
+  base cost of $16 per month, regardless of usage. This cost can be justified for high-traffic applications, but for
+  smaller projects, testing environments, or multiple microservices, it quickly becomes a financial burden.
+</p>
+<p>
+  For example, I use a t3.nano instance for my testing environment, which costs me under $4 a month. Yet, I have to pay
+  four times that for an ALB? This disparity makes it clear how quickly ALB costs can outweigh the actual compute costs
+  of running my services.
+</p>
+<p>
+  Imagine having five different APIs for various projects. That's $80 per month just for load balancers. And if I set up
+  multiple environments (development, staging, production), the costs multiply. AWS's pay-per-use model becomes a myth
+  with ALBs, as I'm stuck with a significant fixed cost.
+</p>
+<h2>Configuration Complexity and Lack of Isolation</h2>
+<p>
+  Theoretically, I could use one ALB for multiple apps. However, this comes with its own challenges. Configuring load
+  balancer rules for multiple services is not straightforward and often leads to a tangled mess. This approach destroys
+  isolation. All services need to be in one VPC, making it hard to maintain separation of concerns.
+</p>
+<p>
+  For a developer like me who works on multiple unrelated applications, this lack of isolation is unacceptable. Each
+  application should function independently without risking interference from others. When setting up a testing
+  environment, I want the freedom to destroy and rebuild it without worrying about impacting my production setup.
+  Sharing a load balancer between environments is a recipe for disaster.
+</p>
+<h2>The Alternative: Getting Rid of the Load Balancer</h2>
+<p>
+  But wait, there is a way to get rid of the load balancer. I don't even have to resort to custom hacky solutions. AWS
+  already has everything needed:
+</p>
+<ul>
+  <li>HTTP API Gateway</li>
+  <li>VPC Link</li>
+  <li>CloudMap</li>
+</ul>
+<img
+  alt="Integrating ECS with HTTP API Gateway using CloudMap"
+  height="400"
+  loading="lazy"
+  src="/blog/legacy/http-api-integration.fbd18592.png"
+  width="800"
+/>
+<p>It's just a matter of setting it up.</p>
+<h2>HTTP API Gateway: A Cost-Effective Entry Point</h2>
+<p>
+  HTTP API Gateway is a powerful tool that can act as the entry point to my ECS containers. It is pay-per-use, so I only
+  pay for what I use, making it an economical choice for low-traffic applications. It can handle authentication and
+  throttling, reducing the need for additional infrastructure.
+</p>
+<h2>VPC Link: Secure and Scalable Networking</h2>
+<p>
+  VPC Link lets the API Gateway to connect to my ECS containers running in a VPC. By using VPC Link, my gateway can
+  reach containers protected in my VPC. And it is free to use.
+</p>
+<h2>CloudMap: Service Discovery Made Simple</h2>
+<p>
+  Cloud Map keeps track of containers by registering their endpoints for service discovery. It can also track their
+  health when ECS runs container health checks. There is a small cost associated with Cloud Map, including charges for
+  the Route 53 private hosted zone.
+</p>
+<h2>But What About Load Balancing?</h2>
+<p>
+  A common concern might be how HTTP API Gateway handles load balancing compared to an ALB. The API Gateway selects from
+  available containers randomly, distributing traffic in a less predictable manner. This method works well for my
+  purposes, especially for low-traffic applications where perfect distribution isn't critical.
+</p>
+<p>
+  In contrast, an ALB uses round robin by default, systematically distributing incoming traffic across all targets in a
+  more balanced manner. While this can be beneficial for high-traffic applications requiring precise load distribution,
+  for many of my applications, the random selection by API Gateway suffices.
+</p>
+<h2>Pay-Per-Use: The Economic Advantage</h2>
+<p>
+  All the resources mentioned above—API Gateway, VPC Link, CloudMap, and ECS—are pay-per-use. This means I only pay for
+  what I use, making it a cost-effective solution for low-traffic applications. If my API or website doesn't handle a
+  high volume of requests, this approach is ideal.
+</p>
+<p>
+  For most of the apps I deploy, this setup is sufficient. Especially when combined with a CDN in front of the origin,
+  the amount of traffic hitting my ECS containers is minimal. This drastically reduces costs compared to using an ALB.
+  If my traffic grows to a point where a load balancer becomes more economical, I can always switch. But for the
+  majority of applications, this setup is more than adequate.
+</p>
+<h2>Conclusion: A Better Way Forward</h2>
+<p>
+  I'm not saying that load balancers are a bad thing. They have their place, especially for high-traffic applications
+  where the benefits outweigh the costs. Load balancers also have features that HTTP API Gateway does not, so for
+  applications needing those features, an ALB is the way to go. But for a lot of apps and setups, using an ALB is
+  overkill. By leveraging AWS's other offerings—API Gateway, VPC Link, CloudMap, and ECS—I can build a cost-effective,
+  scalable, and isolated infrastructure without the need for an ALB. This approach is more than enough for many
+  applications, saving both money and configuration headaches.
+</p>

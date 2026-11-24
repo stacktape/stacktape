@@ -1,8 +1,7 @@
 ---
 /**
  * The shell for the site's plain pages (pricing, blog): the wordmark, one column of text on the
- * page's surface, and a way back. Used by the pages the homepage links to before those pages have
- * their real design; it deliberately carries no variant's styling so it fits under any of them.
+ * page's surface, and a way back. Used by the pages the homepage links to and the archived articles and legal documents.
  */
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Logo from './Logo.astro';
@@ -12,12 +11,13 @@ type Props = {
   description: string;
   /** The line under the title. */
   lead?: string;
+  noindex?: boolean;
 };
 
-const { title, description, lead } = Astro.props;
+const { title, description, lead, noindex = false } = Astro.props;
 ---
 
-<BaseLayout title={`${title} — Stacktape`} description={description}>
+<BaseLayout title={`${title} — Stacktape`} description={description} noindex={noindex}>
   <Fragment slot="head">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
   </Fragment>
@@ -28,7 +28,7 @@ const { title, description, lead } = Astro.props;
         <a href="https://docs.stacktape.com">Docs</a>
         <a href="/pricing">Pricing</a>
         <a href="/blog">Blog</a>
-        <a href="https://console.stacktape.com">Sign in</a>
+        <a href="https://console.stacktape.com">Console</a>
       </nav>
     </header>
     <main class="pp-main">
@@ -38,7 +38,10 @@ const { title, description, lead } = Astro.props;
     </main>
     <footer class="pp-footer">
       <span>© 2026 Stacktape</span>
-      <a href="/">Back to the homepage</a>
+      <nav aria-label="Legal">
+        <a href="/privacy-policy">Privacy policy</a>
+        <a href="/terms-of-use">Terms of use</a>
+      </nav>
     </footer>
   </div>
 </BaseLayout>
@@ -90,6 +93,7 @@ const { title, description, lead } = Astro.props;
     margin: 0 auto;
     padding: 64px 24px 96px;
     flex: 1;
+    overflow-wrap: anywhere;
   }
 
   .pp-main :global(h1) {
@@ -121,7 +125,8 @@ const { title, description, lead } = Astro.props;
     color: var(--stp-color-brand);
   }
 
-  .pp-main :global(ul) {
+  .pp-main :global(ul),
+  .pp-main :global(ol) {
     margin: 0 0 16px;
     padding-left: 20px;
     color: #b7c0c2;
@@ -138,6 +143,12 @@ const { title, description, lead } = Astro.props;
     border-top: 1px solid var(--stp-border-subtle);
     font-size: 14px;
     color: var(--stp-text-muted);
+  }
+
+  .pp-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
   }
 
   @media (max-width: 600px) {

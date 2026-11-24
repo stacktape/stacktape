@@ -1,0 +1,23 @@
+---
+import PlainPage from '../components/PlainPage.astro';
+import contactDetails from '../content/legacy/contact-details.html?raw';
+import privacy from '../content/legacy/privacy-policy.html?raw';
+import terms from '../content/legacy/terms-of-use.html?raw';
+
+export const getStaticPaths = () => [
+  {
+    params: { legal: 'privacy-policy' },
+    props: { title: 'Privacy policy', body: privacy }
+  },
+  {
+    params: { legal: 'terms-of-use' },
+    props: { title: 'Terms of use', body: terms }
+  }
+];
+
+const { title, body } = Astro.props;
+---
+
+<PlainPage title={title} description={`Stacktape ${title.toLowerCase()}.`}>
+  <Fragment set:html={body.replace('<!-- contact-details -->', contactDetails.trim())} />
+</PlainPage>

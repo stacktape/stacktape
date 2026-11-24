@@ -2,6 +2,9 @@ import react from '@astrojs/react';
 import posthog from '@posthog/rollup-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
+import { websitePublication } from './src/build/publish.mjs';
+
+const deployStage = process.env.STACKTAPE_WEBSITE_STAGE;
 
 const posthogSourceMapsEnabled = Boolean(process.env.POSTHOG_API_KEY && process.env.POSTHOG_PROJECT_ID);
 
@@ -9,7 +12,7 @@ export default defineConfig({
   site: 'https://stacktape.com',
   // The README concept became the homepage; the address it was reviewed under keeps working.
   redirects: { '/readme': '/' },
-  integrations: [react()],
+  integrations: [react(), ...(deployStage ? [websitePublication(deployStage)] : [])],
   vite: {
     plugins: [
       tailwindcss(),
