@@ -185,7 +185,9 @@ Use \`--cleanup-containers\` to remove the Docker containers that crashed dev se
     args: {
       ...universalArgs,
       ...configDependentArgs,
-      stage: stage.optional(),
+      stage: stage.optional().describe(`#### Stage
+---
+Selects the stage for the operation. Without \`--all\`, container cleanup covers every stage in the project directory unless you pass \`--stage\` explicitly.`),
       agentPort: devStopAgentPort.optional(),
       cleanupContainers: cleanupContainers.optional(),
       all: allDevContainers.optional()

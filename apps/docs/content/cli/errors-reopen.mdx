@@ -14,7 +14,7 @@ The `error reopen` command sets a previously resolved or ignored issue back to O
 The `error reopen` command takes one required argument, the issue ID, to identify the issue to reopen. It requires a valid Stacktape API key (configured via [`stacktape login`](/cli/login)).
 
 ```bash
-stacktape error reopen iss_abc123def456
+stacktape error reopen clx9r4w1m000008l8d3g7k2p5
 ```
 
 On success, the command calls the Stacktape API and prints `Issue <issueId> reopened.`
@@ -24,19 +24,19 @@ On success, the command calls the Stacktape API and prints `Issue <issueId> reop
 Reopen an issue by its ID:
 
 ```bash
-stacktape error reopen iss_abc123def456
+stacktape error reopen clx9r4w1m000008l8d3g7k2p5
 ```
 
 Reopen using the short alias:
 
 ```bash
-stacktape error reopen iss_abc123def456
+stacktape error reopen clx9r4w1m000008l8d3g7k2p5
 ```
 
 Reopen in agent mode for programmatic consumption:
 
 ```bash
-stacktape error reopen iss_abc123def456 --agent
+stacktape error reopen clx9r4w1m000008l8d3g7k2p5 --agent
 ```
 
 ## Arguments reference

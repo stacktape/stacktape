@@ -65,16 +65,16 @@ secrets that do not need automatic rotation; use Secrets Manager when rotation o
 are useful.
 
 **Example (TypeScript):**
-import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
+import { $Secret, $SsmParam, JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
-    secrets: {
-      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
-      ROTATING_API_KEY: $Secret('rotating-api-key')
-    }
+    secrets: [
+      { name: 'DATABASE_PASSWORD', valueFrom: $SsmParam('/my-app/production/database-password') },
+      { name: 'ROTATING_API_KEY', valueFrom: $Secret('rotating-api-key') }
+    ]
   });
 
   return { resources: { api } };
@@ -1148,16 +1148,16 @@ secrets that do not need automatic rotation; use Secrets Manager when rotation o
 are useful.
 
 **Example (TypeScript):**
-import { JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
+import { $Secret, $SsmParam, JsBundleImagePackaging, WebService, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {
   const api = new WebService({
     packaging: new JsBundleImagePackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.25, memory: 512 },
-    secrets: {
-      DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
-      ROTATING_API_KEY: $Secret('rotating-api-key')
-    }
+    secrets: [
+      { name: 'DATABASE_PASSWORD', valueFrom: $SsmParam('/my-app/production/database-password') },
+      { name: 'ROTATING_API_KEY', valueFrom: $Secret('rotating-api-key') }
+    ]
   });
 
   return { resources: { api } };

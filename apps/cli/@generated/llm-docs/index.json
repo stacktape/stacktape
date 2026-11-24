@@ -18256,7 +18256,7 @@
         "page:/deployment-and-lifecycle/deploying-stacks#stack-name-too-long",
         "page:/deployment-and-lifecycle/deploying-stacks#no-changes-to-deploy",
         "page:/deployment-and-lifecycle/deploying-stacks#deployment-is-slow",
-        "page:/deployment-and-lifecycle/deploying-stacks#secrets-prompt-blocking-ci-cd",
+        "page:/deployment-and-lifecycle/deploying-stacks#missing-secrets-in-ci-cd",
         "page:/deployment-and-lifecycle/deploying-stacks#faq",
         "page:/deployment-and-lifecycle/deploying-stacks#how-long-does-a-stacktape-deployment-take",
         "page:/deployment-and-lifecycle/deploying-stacks#what-happens-if-a-cloudformation-deployment-fails-midway",

@@ -1,4 +1,4 @@
-import { decode } from 'html-entities';
+import { decode, encode } from 'html-entities';
 import { Marked } from 'marked';
 import config from '@/site-config';
 import { ensureTrailingSlash } from './seo';
@@ -15,7 +15,7 @@ import { ensureTrailingSlash } from './seo';
 const markedDocsData: Marked = new Marked({
   renderer: {
     codespan(code): string {
-      return `<code>${decode(code.text)}</code>`;
+      return `<code>${encode(decode(code.text), { mode: 'specialChars' })}</code>`;
     },
     blockquote(quote): string {
       const renderedContent = markedDocsData.parse(quote.text, { async: false });

@@ -194,8 +194,8 @@ export default defineConfig(() => {
 
 Error tracking: runtime errors read from this stack's logs and grouped in the Console.
 
-On by default for every stage. Turn it off here, or limit it to some stages. See `ErrorTrackingConfig` for what is sent
-and how sensitive text is masked.
+On by default for every stage when the deployment uses the Console. Turn it off here, or limit it to some stages.
+See `ErrorTrackingConfig` for what is sent and how sensitive text is masked.
 
 ### Example 1 (yaml)
 

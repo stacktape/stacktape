@@ -234,7 +234,7 @@ const escapeMarkdownTableCell = (value: unknown): string =>
     .trim();
 
 const markdownToTableText = (value = ''): string => {
-  const lines = htmlToMarkdownText(value)
+  const lines = value
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
@@ -680,8 +680,9 @@ const cliCommandReferenceToMarkdown = (
   for (const arg of args) {
     const option = `${arg.alias ? `-${arg.alias}, ` : ''}--${arg.flag}${arg.positional !== undefined ? ` (positional ${arg.positional + 1})` : ''}`;
     const description = markdownToTableText(arg.description);
+    const requirement = arg.conditionallyRequired ? 'conditional' : arg.required ? 'yes' : 'no';
     lines.push(
-      `| \`${escapeMarkdownTableCell(option)}\` | ${arg.required ? 'yes' : 'no'} | \`${escapeMarkdownTableCell((arg.allowedTypes || []).join(' | ') || 'unknown')}\` | ${escapeMarkdownTableCell(description) || '-'} | ${escapeMarkdownTableCell((arg.allowedValues || []).map((value: string) => `\`${value}\``).join(', ') || '-')} |`
+      `| \`${escapeMarkdownTableCell(option)}\` | ${requirement} | \`${escapeMarkdownTableCell((arg.allowedTypes || []).join(' | ') || 'unknown')}\` | ${escapeMarkdownTableCell(description) || '-'} | ${escapeMarkdownTableCell((arg.allowedValues || []).map((value: string) => `\`${value}\``).join(', ') || '-')} |`
     );
   }
   return `${lines.join('\n')}\n\n`;
@@ -689,13 +690,20 @@ const cliCommandReferenceToMarkdown = (
 
 const generatedCommandSchemaInfo = generateCommandSchemaInfo();
 
-type GeneratedCliArg = ReturnType<typeof generateCommandSchemaInfo>[string]['args'][string] & { name: string };
+type GeneratedCliArg = ReturnType<typeof generateCommandSchemaInfo>[string]['args'][string] & {
+  name: string;
+  conditionallyRequired?: true;
+};
 
 const getGeneratedCliArgs = (command: string): GeneratedCliArg[] => {
   const info = generatedCommandSchemaInfo[command];
   if (!info) throw new Error(`CLI command "${command}" was not found`);
   return Object.entries(info.args)
-    .map(([name, arg]): GeneratedCliArg => ({ name, ...arg }))
+    .map(([name, arg]): GeneratedCliArg => ({
+      name,
+      ...arg,
+      ...(command === 'deploy' && (name === 'stage' || name === 'region') ? { conditionallyRequired: true } : {})
+    }))
     .sort(
       (left, right) =>
         Number(Boolean(right.required)) - Number(Boolean(left.required)) || compareLlmDocPaths(left.name, right.name)

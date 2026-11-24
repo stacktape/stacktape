@@ -380,7 +380,7 @@ export function TypeView({ typeInfo, mode = 'inline' }: { typeInfo: ApiTypeInfo;
  * Visual atoms shared by every variant. These mirror `Badge` from console-app.
  * -------------------------------------------------------------------------------------------- */
 
-function RequiredPill() {
+function RequiredPill({ label = 'required' }: { label?: string }) {
   return (
     <span
       className="font-sans inline-block rounded-[6px] border px-[7px] py-[2px] text-[10.5px] font-semibold leading-[1.2] tracking-[0.4px]"
@@ -390,7 +390,7 @@ function RequiredPill() {
         borderColor: tokens.requiredBorder
       }}
     >
-      required
+      {label}
     </span>
   );
 }
@@ -418,14 +418,22 @@ function TypeBadge({ typeInfo, compact = false }: { typeInfo: ApiTypeInfo; compa
   );
 }
 
-export function PropertyHeading({ property, level = 1 }: { property: ApiProperty; level?: number }) {
+export function PropertyHeading({
+  property,
+  level = 1,
+  requiredLabel
+}: {
+  property: ApiProperty;
+  level?: number;
+  requiredLabel?: string;
+}) {
   const fontSize = level === 1 ? '18px' : level === 2 ? '15px' : '13.5px';
   return (
     <div className="flex flex-wrap items-center gap-[10px]">
       <code className="font-mono font-semibold leading-[1.3]" style={{ color: tokens.text, fontSize }}>
         {property.name}
       </code>
-      {property.required && <RequiredPill />}
+      {property.required && <RequiredPill label={requiredLabel} />}
       <TypeBadge typeInfo={property.typeInfo} />
       {property.defaultValue !== undefined && (
         <span className="font-sans text-[11.5px]" style={{ color: tokens.dimText }}>

@@ -15,7 +15,7 @@ The `stacktape deploy` command deploys your stack to AWS. If the stack does not 
 stacktape deploy --stage <stage> --region <region>
 ```
 
-The CLI needs a stage and a region, so the flag list marks both required. The stage can also come from [`defaults set`](/cli/defaults-configure). Without `--region`, Stacktape uses the first region it finds in the config's `region`, `AWS_DEFAULT_REGION`, `defaults set` or your AWS profile, and asks in a terminal. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--config`.
+A deploy needs a stage and a region. If you omit `--stage`, Stacktape uses the stage saved with [`defaults set`](/cli/defaults-configure). Without `--region`, Stacktape uses the first region it finds in the config's `region`, `AWS_DEFAULT_REGION`, `defaults set` or your AWS profile. If it finds none, it prompts in a terminal. The command requires a valid Stacktape configuration file (usually `stacktape.ts`, with `stacktape.yml` still supported) in the current directory, or a path passed with `--config`.
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --config ./infra/stacktape.ts

@@ -248,11 +248,11 @@ Common causes of slow Stacktape deployments:
 - **Slow local builds** — Use a machine with more CPU and memory, improve package and Docker caching, or use Console GitOps with its [dedicated EC2 runner](/ci-cd-and-gitops/build-runners).
 - **First deploy of a stage** — Stacktape creates the stage's deployment bucket and ECR repository directly while your workloads build (a few seconds), then creates the whole stack in one CloudFormation operation after the upload. For a new CDN, it also looks up the default domain certificate and creates the version of Stacktape's edge functions (URL normalization, single-page-app rewrites) in us-east-1 during the build, so CloudFormation starts the distribution without waiting for them.
 
-Run with `--debug` to see detailed timing for each phase.
+Run with `--log-level debug` for more detailed logs.
 
-### Secrets prompt blocking CI/CD
+### Missing secrets in CI/CD
 
-If your config references `$Secret()` values that don't exist, the CLI prompts you to create them interactively. In CI/CD, this causes the deploy to hang. Create secrets before deploying using [`secret set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
+If your config references missing `$Secret()` values that require input, the CLI prompts you to create them in an interactive terminal outside agent mode. Without a terminal or with `--agent`, the deploy fails when it finds them. Create secrets before deploying using [`secret set`](/cli/secret-set) or the [Stacktape Console](/configuration/secrets):
 
 ```bash
 stacktape secret set mySecret --region eu-west-1

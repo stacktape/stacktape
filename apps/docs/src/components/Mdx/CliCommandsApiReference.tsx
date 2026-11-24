@@ -8,6 +8,7 @@ export type CliCommandArg = {
   flag: string;
   positional?: number;
   required: boolean;
+  conditionallyRequired?: true;
   description?: string;
   alias?: string;
   allowedValues?: string[];
@@ -76,7 +77,11 @@ export function CliCommandsApiReference({ command }: { command: string }) {
               className="px-[16px] py-[14px]"
               style={idx > 0 ? { borderTop: `1px solid ${tokens.subtleBorder}` } : undefined}
             >
-              <PropertyHeading property={property} level={2} />
+              <PropertyHeading
+                property={property}
+                level={2}
+                requiredLabel={arg.conditionallyRequired ? 'conditionally required' : undefined}
+              />
               <PropertyDescription property={property} />
             </div>
           );

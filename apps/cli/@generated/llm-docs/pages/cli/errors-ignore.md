@@ -28,13 +28,13 @@ You can find issue IDs by running [`error list`](/cli/errors-list). This command
 Ignore a specific issue by its ID:
 
 ```bash
-stacktape error ignore iss_abc123def456
+stacktape error ignore clx9r4w1m000008l8d3g7k2p5
 ```
 
 Use agent mode for scripted or CI workflows where you need structured JSON output:
 
 ```bash
-stacktape error ignore iss_abc123def456 --agent
+stacktape error ignore clx9r4w1m000008l8d3g7k2p5 --agent
 ```
 
 ## When to Ignore vs Resolve
