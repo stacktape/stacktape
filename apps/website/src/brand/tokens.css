@@ -19,6 +19,8 @@
   --brand-primary-bottom: #14706d;
   --brand-primary: linear-gradient(180deg, var(--brand-primary-top), var(--brand-primary-bottom));
   --brand-control: linear-gradient(180deg, #343c3c, #2c3333);
+  --brand-control-hover: inset 0 0 0 100px rgb(255 255 255 / 4%);
+  --brand-control-active: inset 0 0 0 100px rgb(0 0 0 / 12%);
   --brand-focus: var(--brand-teal);
   --brand-edge: inset 0 1px 0 rgb(255 255 255 / 9%);
   --brand-edge-primary: inset 0 1px 0 rgb(255 255 255 / 16%);
@@ -41,6 +43,7 @@
   --brand-leading-heading: 1.08;
   --brand-tracking-heading: -0.035em;
 
+  --brand-control-height: 2.75rem;
   --brand-radius: 8px;
   --brand-radius-small: 4px;
   --brand-space-1: 0.25rem;

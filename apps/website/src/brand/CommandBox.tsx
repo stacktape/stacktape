@@ -2,7 +2,9 @@ import { Button } from '@stacktape/ui-react/button';
 import { detectInstallPlatform } from '@stacktape/ui-react/install-platform';
 import { Tabs } from '@stacktape/ui-react/tabs';
 import { useEffect, useId, useRef, useState } from 'react';
-import { COMMAND_HINT, COMMANDS } from './data';
+import './command-box.css';
+import './controls.css';
+import { COMMAND_HINT, COMMANDS } from './install-commands';
 
 type CommandId = (typeof COMMANDS)[number]['id'];
 type Arch = (typeof COMMANDS)[number]['variants'][number]['arch'];
@@ -40,25 +42,19 @@ const CheckIcon = () => (
   </svg>
 );
 
+type Props = {
+  label?: string;
+  hint?: boolean;
+  id?: string;
+  appearance?: 'brand' | 'readme';
+};
+
 /**
- * The README's fenced code block, and the page's only call to action: a header row with the
- * install method on the left and Copy on the right, the commands below it behind `$` prompts,
- * and (in the Install section only) a shell comment saying what the last command does.
- *
- * The npx tab is one command. The install tabs are two: the installer, then `stacktape init`, the
- * next command after installing. Copy takes the first line only — the second is what to run once
- * the installer has finished, and pasting both would run it against a CLI that is not there yet.
- *
- * Each operating system tab has one installer per CPU architecture, chosen with the small toggle
- * beside Copy. After hydration the block opens on the visitor's operating system and architecture
- * (`detectInstallPlatform`); on a phone or an unknown system it stays on npx. A choice the visitor
- * made before detection finished is kept.
- *
- * Server-rendered so it reads before hydration. The button keeps one width across "Copy", "Copied"
- * and "Select and copy": the three labels share a grid cell. The block never changes height when a
- * tab switches: the pre has room for the tallest tab, and a long command scrolls inside its row.
+ * The first line is the command Copy puts on the clipboard. For standalone installs,
+ * the second line shows what to run once the installer has finished.
  */
-export function CodeBlock({ label = 'Install', hint = true, id }: { label?: string; hint?: boolean; id?: string }) {
+export function CommandBox({ label = 'Install', hint = true, id, appearance = 'brand' }: Props) {
+  const branded = appearance === 'brand';
   const [current, setCurrent] = useState<CommandId>('npx');
   const [arches, setArches] = useState(INITIAL_ARCHES);
   const [state, setState] = useState<CopyState>('idle');
@@ -154,12 +150,15 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
   const panelId = `${uid}-panel`;
 
   return (
-    <div className={`rm-code rm-code--${state}${hint ? ' rm-code--hint' : ''}`} id={id}>
-      <div className="rm-code__head">
+    <div
+      className={`install-code install-code--${state}${hint ? ' install-code--hint' : ''}${branded ? ' brand-command' : ''}`}
+      id={id}
+    >
+      <div className="install-code__head">
         <Tabs
           appearance="underline"
           ariaLabel={`${label}: install method`}
-          className="rm-code__tabs"
+          className="install-code__tabs"
           onValueChange={switchTo}
           size="small"
           tabs={TABS.map((tab) => ({ value: tab.value, label: tab.label, panelId }))}
@@ -168,9 +167,9 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
         />
         {entry.variants.length > 1 ? (
           <Tabs
-            appearance="segmented"
+            appearance={branded ? 'underline' : 'segmented'}
             ariaLabel={`${entry.label}: CPU architecture`}
-            className="rm-code__arch"
+            className="install-code__arch"
             onValueChange={switchArch}
             size="small"
             tabs={entry.variants.map((candidate) => ({
@@ -183,48 +182,55 @@ export function CodeBlock({ label = 'Install', hint = true, id }: { label?: stri
             width="fit"
           />
         ) : null}
-        <Button aria-label={`Copy: ${command}`} className="rm-code__copy" onClick={copy} variant="primary">
-          <span className="rm-code__labels" aria-hidden="true">
-            <span className="rm-code__label rm-code__label--copy">
+        <Button
+          aria-label={`Copy: ${command}`}
+          className={branded ? 'install-code__copy brand-button' : 'install-code__copy'}
+          onClick={copy}
+          variant="primary"
+        >
+          <span className="install-code__labels" aria-hidden="true">
+            <span className="install-code__label install-code__label--copy">
               <CopyIcon />
               Copy
             </span>
-            <span className="rm-code__label rm-code__label--copied">
+            <span className="install-code__label install-code__label--copied">
               <CheckIcon />
               Copied
             </span>
-            <span className="rm-code__label rm-code__label--failed">Select and copy</span>
+            <span className="install-code__label install-code__label--failed">Select and copy</span>
           </span>
         </Button>
       </div>
 
       <pre
-        className={overflows ? 'rm-code__pre rm-code__pre--overflow' : 'rm-code__pre'}
+        className={overflows ? 'install-code__pre install-code__pre--overflow' : 'install-code__pre'}
         id={panelId}
         ref={preRef}
         role="tabpanel"
+        aria-label={`${entry.label} commands`}
+        tabIndex={branded ? 0 : undefined}
       >
         {variant.lines.map((line) => (
-          <span className="rm-code__line" key={line}>
-            <span aria-hidden="true" className="rm-code__prompt">
+          <span className="install-code__line" key={line}>
+            <span aria-hidden="true" className="install-code__prompt">
               $
             </span>
-            <code className="rm-code__cmd" data-cmd>
+            <code className="install-code__cmd" data-cmd>
               {line}
             </code>
           </span>
         ))}
         {hint ? (
-          <span className="rm-code__line rm-code__line--comment">
-            <span aria-hidden="true" className="rm-code__prompt">
+          <span className="install-code__line install-code__line--comment">
+            <span aria-hidden="true" className="install-code__prompt">
               #
             </span>
-            <code className="rm-code__comment">{COMMAND_HINT}</code>
+            <code className="install-code__comment">{COMMAND_HINT}</code>
           </span>
         ) : null}
       </pre>
 
-      <p aria-live="polite" className="rm-visually-hidden">
+      <p aria-live="polite" className="sr-only">
         {status}
       </p>
     </div>

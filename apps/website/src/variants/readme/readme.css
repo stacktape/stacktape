@@ -26,7 +26,7 @@
   --rm-brand-rgb: 54 190 190;
   --rm-green: #22c55e;
   --rm-amber: #f59e0b;
-  --rm-code-bg: rgb(17, 22, 22);
+  --install-code-bg: rgb(17, 22, 22);
   --rm-chip: rgba(255, 255, 255, 0.05);
 
   /* The Console material every product window is made of. */
@@ -362,7 +362,7 @@
 
 /* The header is sticky, so anything an in-page link lands on has to clear its height. The code
  * block is one of those targets: "Get started" points straight at it. */
-.rm-doc :where(.rm-h2, .rm-h3, .rm-section, .rm-code) {
+.rm-doc :where(.rm-h2, .rm-h3, .rm-section, .install-code) {
   scroll-margin-top: calc(var(--rm-header) + 24px);
 }
 
@@ -638,16 +638,16 @@ a:hover .rm-arrow {
 
 /* ── The fenced code block: the call to action ───────────────────────────────────────────────── */
 
-.rm-code {
+.install-code {
   margin: 0 0 12px;
   overflow: hidden;
   border: 1px solid var(--rm-rule-strong);
   border-radius: 6px;
-  background: var(--rm-code-bg);
+  background: var(--install-code-bg);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
 }
 
-.rm-code__head {
+.install-code__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -657,7 +657,7 @@ a:hover .rm-arrow {
   box-shadow: inset 0 -1px 0 var(--rm-rule);
 }
 
-.rm-code__tabs {
+.install-code__tabs {
   --stp-tab-font-size: 12.5px;
   --stp-tabs-border: transparent;
   flex: none;
@@ -665,7 +665,7 @@ a:hover .rm-arrow {
   max-width: 100%;
 }
 
-.rm-code__tabs .stp-ui-tab {
+.install-code__tabs .stp-ui-tab {
   flex: none;
   height: 40px;
   padding: 0 12px;
@@ -674,12 +674,12 @@ a:hover .rm-arrow {
 
 /* These read as file names in a code block's header, not as buttons, so they do not shrink under
  * the press the shared component gives a tab. */
-.rm-code__tabs .stp-ui-tab:active:not(:disabled) {
+.install-code__tabs .stp-ui-tab:active:not(:disabled) {
   transform: none;
 }
 
 /* The CPU architecture of the selected operating system, beside Copy and as tall as it. */
-.rm-code__arch {
+.install-code__arch {
   --stp-tabs-padding: 2px;
   --stp-tabs-radius: 7px;
   --stp-tab-radius: 5px;
@@ -693,11 +693,11 @@ a:hover .rm-arrow {
   font-family: var(--rm-mono);
 }
 
-.rm-code__arch .stp-ui-tab:active:not(:disabled) {
+.install-code__arch .stp-ui-tab:active:not(:disabled) {
   transform: none;
 }
 
-.rm-code__copy {
+.install-code__copy {
   --stp-control-height: 28px;
   --stp-button-padding-x: 10px;
   --stp-button-radius: 6px;
@@ -706,11 +706,11 @@ a:hover .rm-arrow {
   font-size: 12.5px;
 }
 
-.rm-code__labels {
+.install-code__labels {
   display: grid;
 }
 
-.rm-code__label {
+.install-code__label {
   grid-area: 1 / 1;
   display: inline-flex;
   align-items: center;
@@ -724,23 +724,23 @@ a:hover .rm-arrow {
     transform 160ms ease;
 }
 
-.rm-code__label svg {
+.install-code__label svg {
   flex: none;
 }
 
-.rm-code--idle .rm-code__label--copy,
-.rm-code--copied .rm-code__label--copied,
-.rm-code--failed .rm-code__label--failed {
+.install-code--idle .install-code__label--copy,
+.install-code--copied .install-code__label--copied,
+.install-code--failed .install-code__label--failed {
   opacity: 1;
   transform: none;
 }
 
-.rm-code--copied .rm-code__copy {
+.install-code--copied .install-code__copy {
   --stp-button-primary-surface: linear-gradient(180deg, rgb(30, 150, 122), rgb(22, 120, 100));
 }
 
 /* Room for the tallest tab (installer + init, plus the comment), so switching tabs never moves the page. */
-.rm-code__pre {
+.install-code__pre {
   display: grid;
   align-content: start;
   gap: 2px;
@@ -756,22 +756,22 @@ a:hover .rm-arrow {
   scrollbar-width: none;
 }
 
-.rm-code--hint .rm-code__pre {
+.install-code--hint .install-code__pre {
   min-height: calc(3 * 1.6em + 4px + 29px);
 }
 
-.rm-code__pre::-webkit-scrollbar {
+.install-code__pre::-webkit-scrollbar {
   display: none;
 }
 
-.rm-code__pre--overflow {
+.install-code__pre--overflow {
   mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
   -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
 }
 
 /* Exactly one line high: baseline alignment otherwise adds a pixel or two per line, and the pre's reserved height
  * would no longer match the tallest tab. */
-.rm-code__line {
+.install-code__line {
   display: flex;
   height: 1.6em;
   align-items: baseline;
@@ -779,21 +779,21 @@ a:hover .rm-arrow {
   white-space: nowrap;
 }
 
-.rm-code__prompt {
+.install-code__prompt {
   flex: none;
   font-weight: 500;
   color: var(--rm-brand);
   user-select: none;
 }
 
-.rm-code__cmd {
+.install-code__cmd {
   font-weight: 500;
   color: #fff;
   user-select: text;
 }
 
-.rm-code__line--comment .rm-code__prompt,
-.rm-code__comment {
+.install-code__line--comment .install-code__prompt,
+.install-code__comment {
   font-weight: 400;
   color: var(--rm-faint);
 }
@@ -2783,7 +2783,7 @@ a:hover .rm-arrow {
   overflow: hidden;
   border: 1px solid var(--rm-rule-strong);
   border-radius: 6px;
-  background: var(--rm-code-bg);
+  background: var(--install-code-bg);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
 }
 
@@ -2984,7 +2984,7 @@ a:hover .rm-arrow {
   padding: 14px 16px 12px;
   border: 1px solid var(--rm-rule-strong);
   border-radius: 6px;
-  background: var(--rm-code-bg);
+  background: var(--install-code-bg);
 }
 
 .rm-bh__head {
@@ -3164,42 +3164,42 @@ a:hover .rm-arrow {
 
   /* Two rows: the operating systems, then the architecture and Copy. Every tab has the second row,
    * so switching tabs never changes the block's height. */
-  .rm-code__head {
+  .install-code__head {
     flex-wrap: wrap;
     row-gap: 0;
     padding-left: 0;
   }
 
   /* The tab strip scrolls sideways if it must. */
-  .rm-code__tabs {
+  .install-code__tabs {
     flex: 1 0 100%;
     overflow-x: auto;
     scrollbar-width: none;
   }
 
-  .rm-code__arch {
+  .install-code__arch {
     margin-left: 8px;
   }
 
-  .rm-code__copy {
+  .install-code__copy {
     margin-left: auto;
   }
 
-  .rm-code__tabs::-webkit-scrollbar {
+  .install-code__tabs::-webkit-scrollbar {
     display: none;
   }
 
-  .rm-code__tabs .stp-ui-tab {
+  .install-code__tabs .stp-ui-tab {
     padding: 0 10px;
   }
 
-  .rm-code__pre {
+  .install-code__pre {
     min-height: calc(2 * 1.6em + 2px + 25px);
     padding: 12px 14px 13px;
     font-size: 13.5px;
   }
 
-  .rm-code--hint .rm-code__pre {
+  .install-code--hint .install-code__pre {
     min-height: calc(3 * 1.6em + 4px + 25px);
   }
 
@@ -3256,11 +3256,11 @@ a:hover .rm-arrow {
 
 /* "Apple silicon" and Copy no longer share a row; the short label keeps the block at two rows. */
 @media (max-width: 359px) {
-  .rm-code__arch .stp-ui-tab__label--full {
+  .install-code__arch .stp-ui-tab__label--full {
     display: none;
   }
 
-  .rm-code__arch .stp-ui-tab__label--compact {
+  .install-code__arch .stp-ui-tab__label--compact {
     display: inline;
   }
 }

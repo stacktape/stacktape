@@ -1,0 +1,40 @@
+@import './tokens.css';
+
+.brand-button.stp-ui-button {
+  --stp-button-radius: var(--brand-radius);
+  --stp-button-padding-x: var(--brand-space-4);
+  --stp-control-height: var(--brand-control-height);
+  --stp-button-primary-text: var(--brand-on-teal);
+  --stp-button-primary-surface: var(--brand-primary);
+  --stp-button-primary-shadow: var(--brand-edge-primary);
+  --stp-button-primary-shadow-hover: var(--brand-edge-primary), var(--brand-control-hover);
+  --stp-button-primary-shadow-active: var(--brand-edge-primary), var(--brand-control-active);
+  --stp-button-secondary-text: var(--brand-text);
+  --stp-button-secondary-surface: var(--brand-control);
+  --stp-button-secondary-shadow: var(--brand-edge);
+  --stp-button-secondary-shadow-hover: var(--brand-edge), var(--brand-control-hover);
+  --stp-button-secondary-shadow-active: var(--brand-edge), var(--brand-control-active);
+  font-family: var(--brand-font-body);
+  font-size: var(--brand-type-sm);
+  font-weight: var(--brand-weight-label);
+}
+
+.brand-link {
+  color: var(--brand-teal);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.brand-link:hover {
+  color: var(--brand-text);
+}
+
+.brand-link--muted {
+  color: var(--brand-muted);
+  text-decoration-line: none;
+}
+
+.brand-link--muted:hover {
+  text-decoration-line: underline;
+}

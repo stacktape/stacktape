@@ -1,0 +1,142 @@
+.brand-command {
+  container-type: inline-size;
+  min-inline-size: 0;
+  border: 1px solid var(--brand-border);
+  border-radius: var(--brand-radius);
+  background: var(--brand-inset);
+  box-shadow: var(--brand-shadow);
+  color: var(--brand-text);
+}
+
+.brand-command .install-code__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--brand-space-2);
+  padding: var(--brand-space-2);
+  border-bottom: 1px solid var(--brand-border);
+  border-start-start-radius: inherit;
+  border-start-end-radius: inherit;
+  background: var(--brand-surface);
+}
+
+.brand-command .stp-ui-tabs {
+  --stp-tabs-border: transparent;
+  --stp-tab-text: var(--brand-muted);
+  --stp-tab-text-hover: var(--brand-text);
+  --stp-tab-text-active: var(--brand-text);
+  font-family: var(--brand-font-body);
+}
+
+.brand-command .install-code__tabs {
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.brand-command .stp-ui-tab {
+  isolation: isolate;
+  flex: none;
+  margin: 0;
+  border: 0;
+  transition: none;
+}
+
+.brand-command .stp-ui-tab:focus-visible {
+  outline-offset: -2px;
+}
+
+.brand-command .stp-ui-tab--active::before {
+  position: absolute;
+  z-index: -1;
+  inset: 2px 0;
+  content: '';
+  background: var(--brand-control);
+  box-shadow: var(--brand-edge);
+  clip-path: var(--brand-tape-clip);
+}
+
+.brand-command .install-code__arch .stp-ui-tabs__list {
+  border: 1px solid var(--brand-border);
+  border-radius: var(--brand-radius-small);
+  background: var(--brand-inset);
+}
+
+.brand-command .brand-button.install-code__copy {
+  --stp-control-height: 2.25rem;
+  --stp-button-padding-x: var(--brand-space-3);
+  grid-column: 3;
+  justify-self: end;
+  font-size: var(--brand-type-xs);
+}
+
+.brand-command .install-code__labels {
+  display: grid;
+  align-items: center;
+}
+
+.brand-command .install-code__label {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--brand-space-2);
+  visibility: hidden;
+}
+
+.brand-command.install-code--idle .install-code__label--copy,
+.brand-command.install-code--copied .install-code__label--copied,
+.brand-command.install-code--failed .install-code__label--failed {
+  visibility: visible;
+}
+
+.brand-command .install-code__pre {
+  display: grid;
+  align-content: start;
+  row-gap: var(--brand-space-1);
+  min-block-size: calc(2lh + 2 * var(--brand-space-4) + var(--brand-space-1));
+  padding: var(--brand-space-4);
+  overflow-x: auto;
+  font: var(--brand-type-sm) / var(--brand-leading-body) var(--brand-font-mono);
+}
+
+.brand-command.install-code--hint .install-code__pre {
+  min-block-size: calc(3lh + 2 * var(--brand-space-4) + 2 * var(--brand-space-1));
+}
+
+.brand-command .install-code__line {
+  display: flex;
+  gap: var(--brand-space-3);
+}
+
+.brand-command .install-code__prompt {
+  color: var(--brand-teal);
+  user-select: none;
+}
+
+.brand-command .install-code__line--comment,
+.brand-command .install-code__line--comment .install-code__prompt {
+  color: var(--brand-muted);
+}
+
+@container (max-width: 34rem) {
+  .brand-command .install-code__head {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .brand-command .install-code__tabs {
+    grid-column: 1 / -1;
+  }
+
+  .brand-command .brand-button.install-code__copy {
+    --stp-control-height: var(--brand-control-height);
+    grid-column: 2;
+  }
+
+  .brand-command .stp-ui-tab__label--full:has(+ .stp-ui-tab__label--compact) {
+    display: none;
+  }
+
+  .brand-command .stp-ui-tab__label--compact {
+    display: inline;
+  }
+}

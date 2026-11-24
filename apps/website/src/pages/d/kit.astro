@@ -1,8 +1,10 @@
 ---
+import { ButtonLink } from '@stacktape/ui-react/button';
 import BrandHead from '../../brand/BrandHead.astro';
+import { CommandBox } from '../../brand/CommandBox';
 import Logo from '../../brand/Logo.astro';
 import Tape from '../../brand/Tape.astro';
-import '../../brand/tokens.css';
+import '../../brand/controls.css';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 ---
 
@@ -29,20 +31,35 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <h2 id="tape">Tape</h2>
         <div class="tape-samples">
           <Tape>New in v4</Tape>
-          <Tape variant="count" aria-label="3 incidents">3</Tape>
-          <Tape variant="marker" tone="gray">Deploys</Tape>
+          <Tape variant="count">3</Tape>
+          <Tape variant="marker">Deploys</Tape>
           <Tape variant="strip">Production</Tape>
         </div>
       </section>
 
-      <section class="specimen type" aria-labelledby="type">
+      <section class="specimen" aria-labelledby="install">
+        <h2 id="install">Install</h2>
+        <CommandBox client:load />
+      </section>
+
+      <section class="specimen" aria-labelledby="controls">
+        <h2 id="controls">Buttons and links</h2>
+        <div class="control-samples">
+          <ButtonLink variant="primary" className="brand-button" href="#install">Get started</ButtonLink>
+          <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com">Docs</ButtonLink>
+          <a class="brand-link" href="/pricing">Pricing</a>
+          <a class="brand-link brand-link--muted" href="https://console.stacktape.com">Console</a>
+        </div>
+      </section>
+
+      <section class="specimen" aria-labelledby="type">
         <h2 id="type">Type</h2>
-        <p class="type-display">AWS DevOps,<br /> fully automated.</p>
+        <p class="type-display">AWS DevOps, fully automated.</p>
         <p class="type-lead">Deploy your apps and infrastructure to your own AWS account.</p>
         <code class="type-mono">npx stacktape init</code>
       </section>
 
-      <section class="specimen palette" aria-labelledby="palette">
+      <section class="specimen" aria-labelledby="palette">
         <h2 id="palette">Palette</h2>
         <dl class="swatches">
           <div class="swatch swatch--page"><dt>Graphite</dt><dd>Page</dd></div>
@@ -51,13 +68,17 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           <div class="swatch swatch--primary"><dt>Primary</dt><dd>Logo and controls</dd></div>
         </dl>
       </section>
+      <section class="specimen social" aria-labelledby="social">
+        <h2 id="social">Social card</h2>
+        <img src="/brand/open-graph.png" width="1200" height="630" alt="Stacktape wordmark on graphite" loading="lazy" />
+      </section>
     </div>
   </main>
 </BaseLayout>
 
 <style>
   .kit {
-    width: min(72rem, 100% - 2 * var(--brand-space-5));
+    width: min(80rem, 100% - 2 * var(--brand-space-5));
     margin-inline: auto;
     padding-block: var(--brand-space-7) var(--brand-space-8);
   }
@@ -96,11 +117,16 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   }
 
   .logo-samples,
-  .tape-samples {
+  .tape-samples,
+  .control-samples {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--brand-space-3) var(--brand-space-5);
+  }
+
+  .control-samples {
+    column-gap: var(--brand-space-3);
   }
 
   .logo-samples {
@@ -110,6 +136,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   .type-display {
     font: var(--brand-weight-heading) var(--brand-type-display) / var(--brand-leading-heading) var(--brand-font-heading);
     letter-spacing: var(--brand-tracking-heading);
+    text-wrap: balance;
   }
 
   .type-lead {
@@ -162,7 +189,30 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     color: var(--brand-on-teal);
   }
 
+  .social {
+    grid-column: 1 / -1;
+  }
+
+  .social img {
+    width: min(100%, 600px);
+    height: auto;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+  }
+
   @media (max-width: 48rem) {
+    .kit {
+      padding-block-start: var(--brand-space-5);
+    }
+
+    .kit-header {
+      gap: var(--brand-space-4);
+    }
+
+    .logo-samples {
+      min-block-size: auto;
+    }
+
     .specimens {
       grid-template-columns: minmax(0, 1fr);
     }
