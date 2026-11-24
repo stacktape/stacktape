@@ -46,33 +46,34 @@ The Console has one organization-wide switch as well. Click **Settings** on the 
 
 ### What reports errors
 
-Error tracking reads a resource's logs, so a resource reports errors when all of these hold:
+Error tracking reads your logs. A resource reports errors when it meets all of these:
 
 - The stack is deployed with the CLI signed in to the [Stacktape Console](/stacktape-console/console-overview).
-- It is a Lambda function packaged with [`js-bundle`](/packaging/function/js-bundle) or [`buildpack`](/packaging/function/buildpack), or a web, private or worker service or multi-container workload whose container is packaged with [`js-bundle`](/packaging/containers/js-bundle). Containers built from a `buildpack`, a `dockerfile` or a prebuilt image don't report, and neither do edge functions or batch jobs.
-- Its `entryfilePath` is JavaScript, TypeScript, Python, Go, Java, .NET, Ruby or PHP.
-- It has no `logging.logForwarding`.
+- **Lambda functions** are packaged with [`js-bundle`](/packaging/function/js-bundle), or with [`buildpack`](/packaging/function/buildpack) and a Python, Go, Java, .NET or Ruby entry file. Rust functions, edge functions and functions packaged as a `custom-artifact` or a container image don't report.
+- **Containers** of web, private and worker services and multi-container workloads are packaged with [`js-bundle`](/packaging/containers/js-bundle). Containers built from a `buildpack`, a `dockerfile` or a prebuilt image don't report, and neither do batch jobs.
+- Its logging is on: no `logging.disabled: true` and no `logging.logForwarding`.
 - Its log group uses the Standard log class. With `logging.logClass: infrequent-access`, AWS does not support the required log subscription filters. Those logs remain available through bounded Logs Insights snapshots in the Console and CLI.
 
-`stacktape deploy` prints whether error tracking is on for the stage and why, for example `Error tracking: on (on by default).`
+`stacktape deploy` prints whether error tracking is on for the stage and why, for example `Error tracking: on (on by default).` That line covers the stage. Which of its resources report follows from the list above.
 
 ## How you get alerted
 
 Errors reach your [alert channels](/observability/alert-channels) through [incidents](/observability/incidents), and only from production stages. Whether a stage counts as production is set by its [stage type](/configuration/stages-and-environments#production-and-non-production-stages).
 
-- A new error opens an incident, or joins an open one, without notifying anyone. It shows on the Incidents page.
-- The incident notifies your channels once the error has happened 20 times, or when an error you resolved comes back.
-- A channel receives it when one of its [notification rules](/observability/notifications) includes incident events. A new Slack channel has such a rule by default.
+- A new error opens an incident, or joins an open one, and shows on the Incidents page. An incident that holds only new errors doesn't notify anyone.
+- The incident notifies your channels once the error reaches 20 occurrences, or when an error you resolved comes back. An error that joins an incident that already notifies, for example one opened by a firing alarm, notifies at once.
+- A muted incident doesn't notify. An incident opened during a deployment notifies only if it outlasts the deployment.
+- A channel receives these notifications through a [notification rule](/observability/notifications) with both **Incident opened** and **Incident escalated**. New channels start with one, except Slack channels marked for previews.
 
-Errors from other stages show only on the Error tracking page and in [alert history](/observability/alert-history).
+Errors from other stages still show on the Error tracking page and in `stacktape error list`. New and reopened issues also appear in [alert history](/observability/alert-history).
 
 ## What leaves your AWS account
 
-For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line (a few kilobytes at most), the request id and, for a Lambda function, the version its execution environment ran and the time that environment started. It also sends where the error happened (project, stage, region, function name and log group) and how many occurrences the report stands for. Logs themselves stay in your account.
+For each detected error, the detector running in your account sends the error message and type, the parsed stack frames, the matching log line, or for a multi-line stack trace the lines around it (4,000 characters at most), the request id and, for a Lambda function, the version its execution environment ran and the time that environment started. It also sends where the error happened (project, stage, region, function name and log group) and how many occurrences the report stands for. Logs themselves stay in your account.
 
 Before sending, known shapes of sensitive text are masked: secrets and tokens (AWS keys, GitHub, Stripe, Slack and Google tokens, JWTs, private key blocks), values under sensitive key names such as `password`, `token` or `authorization`, credentials in URLs, email addresses (the domain stays), IP addresses, card numbers and user home directories in file paths. Masked text reads `[redacted:email]`, `[redacted:secret]` and so on. The Console masks the same shapes again on arrival. Names, street addresses and phone numbers are not detected, because those patterns would also match ids and timestamps in log lines.
 
-During an error storm the detector reports each distinct error once per log batch with its occurrence count, and the Console stores a few occurrence samples per issue per minute. Occurrence counts stay exact, except for ignored issues, which stop counting. The Console keeps the newest 100 occurrence samples of each issue.
+During an error storm the detector reports each distinct error once per log batch with its occurrence count, and the Console stores a few occurrence samples per issue per minute. Occurrence counts include every reported occurrence, also those without a stored sample. The detector reports at most 20 distinct errors per log batch and skips log lines older than ten minutes, so a large burst of different errors can be undercounted. Ignored issues stop counting. The Console keeps the newest 100 occurrence samples of each issue.
 
 ## Stack traces of bundled JavaScript
 
@@ -106,14 +107,22 @@ Every issue has one of three statuses. The status filter on the Error tracking p
 | Status | Meaning |
 |---|---|
 | **Open** | Active error that needs attention |
-| **Resolved** | Marked as fixed. If the error happens again, the issue reopens, and on a production stage it notifies your channels. |
-| **Ignored** | New occurrences are not counted, kept or alerted on, and the issue no longer opens or joins incidents. Reopen it to track it again. |
+| **Resolved** | Marked as fixed. If the error happens again, the issue reopens. See [How you get alerted](#how-you-get-alerted) for production notifications. |
+| **Ignored** | While the issue is ignored, Stacktape skips new occurrences, and the issue doesn't open or join incidents. Reopen it to count them again. |
 
 The CLI has separate commands for resolving, ignoring, and reopening errors: [`error resolve`](/cli/errors-resolve), [`error ignore`](/cli/errors-ignore), and [`error reopen`](/cli/errors-reopen).
 
 ## Viewing issues in the Console
 
-The Error tracking page in the Stacktape Console provides a filterable, paginated view of all recorded issues across your organization. The status filter at the top shows how many issues are open, resolved and ignored.
+The Error tracking page in the Stacktape Console provides a filterable, paginated view of all recorded issues across your organization. Open it from **Observability → Error tracking** in the Console sidebar. The status filter at the top shows how many issues are open, resolved and ignored.
+
+<ConsoleScreenshot
+  src="/static/screenshots/console-error-tracking-list.png"
+  width={1176}
+  height={366}
+  alt="Stacktape Console Error tracking page showing the status filter with Open, Resolved, Ignored and All counts, search, project and stage filters, and a table of open runtime errors with columns for error, events and last seen"
+  caption="The TypeError in the issue list"
+/>
 
 ### Issue table
 
@@ -122,11 +131,11 @@ Below the filters, a table lists issues with these columns:
 | Column | Shows |
 |---|---|
 | **Error** | The error message, with the project, stage, function name and, when known, the code location below it |
-| **Events** | Total occurrences of this error and since when, for example "214 since 24m ago" |
+| **Events** | How many times the error has occurred and when it started, for example "214 since 24m ago" |
 | **Last seen** | Time of the most recent occurrence |
 | **Status** | Open, Resolved or Ignored. Shown when the status filter is not Open. |
 
-Clicking a row opens the issue's page. If your role can manage errors, the menu at the end of a row resolves, ignores or reopens the issue.
+Clicking a row navigates to the selected issue. If your role can manage errors, the menu at the end of a row resolves, ignores or reopens the issue.
 
 ### Filtering
 
@@ -139,26 +148,22 @@ The Console provides four combinable filters that let you narrow the issue list:
 
 The table shows as many rows as fit in the window and uses Last seen as the default sort column. Changing any filter resets to the first page.
 
-<ConsoleScreenshot
-  src="/static/screenshots/console-error-tracking-list.png"
-  alt="Stacktape Console Error tracking page showing the status filter with Open, Resolved, Ignored and All counts, search, project and stage filters, and a table of open runtime errors with columns for error, events and last seen"
-  caption="Error tracking page with filters and the error table"
-/>
-
 ### Issue page
 
 The issue's page shows:
 
-- where the issue stands: open, still happening, back after a resolve, resolved or ignored, and the open incident it belongs to;
-- the error message and stack trace, in your source files for [bundled JavaScript](#stack-traces-of-bundled-javascript);
-- the log lines of the failing request, read from CloudWatch in your account. When those logs have expired or can't be read, it shows the line saved with the error;
-- the function that threw it, the deployment that was live when it first appeared and any deployment since;
+- the issue's status, for example **Still happening** or **Came back**, and a link to its open incident, if it has one;
+- the error message and stack trace, in your source files for [bundled JavaScript](#stack-traces-of-bundled-javascript) when the maps match;
+- the failing request's CloudWatch logs. If the Console can't find or read them, for example because they expired or the log line has no request id, it shows the log line saved with the error;
+- the function that reported the error, the deploy that was live when it first appeared and the latest deploy since then;
 - links to the resource's failed traces and metrics around the error, and to other open errors on the same stage.
 
 <ConsoleScreenshot
   src="/static/screenshots/console-error-tracking-issue.png"
+  width={1176}
+  height={706}
   alt="Stacktape Console issue page for a TypeError: it is still happening and part of an open incident, with the stack trace in source files, the log lines of the failing request, and the function and deployments in an About this error panel"
-  caption="An issue's page with its stack trace and the logs of the failing request"
+  caption="The same TypeError with its stack trace and request logs"
 />
 
 ## Managing issues from the CLI
@@ -195,7 +200,7 @@ The CLI has separate commands for changing issue status:
 - [`stacktape error ignore`](/cli/errors-ignore)
 - [`stacktape error reopen`](/cli/errors-reopen)
 
-Each takes the issue ID from the **ID** column of `error list`:
+Replace `<issue-id>` with the value from the **ID** column of `stacktape error list`:
 
 ```bash
 stacktape error resolve <issue-id>
@@ -227,7 +232,7 @@ Set `deploymentConfig.errorTracking.enabled: false` in the stack's configuration
 
 ### Why aren't my issues showing up?
 
-The log subscriptions that report errors are added during deployment, so a stack reports only after it has been deployed with Stacktape v4. Check the resource against [what reports errors](#what-reports-errors); `stacktape deploy` prints whether error tracking is on for the stage and why. Open **Error tracking settings** with the **Settings** button on the Error tracking page: it lists each deployed stack and whether its last deployment wired error tracking. Also check that the organization switch is on.
+The log subscriptions that report errors are added during deployment, so a stack reports only after it has been deployed with Stacktape v4. Check whether the resource [can report errors](#what-reports-errors); `stacktape deploy` prints whether error tracking is on for the stage and why. Open **Error tracking settings** with the **Settings** button on the Error tracking page: it lists each deployed stack and whether its last deployment wired error tracking. Also check that the organization switch is on.
 
 ### Does issue monitoring add cost?
 

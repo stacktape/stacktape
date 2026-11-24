@@ -3,19 +3,25 @@ import clsx from 'clsx';
 /**
  * A Console capture with an optional caption. Rendered statically — the built-site validator fails
  * the build when a referenced capture is missing, so there is no runtime placeholder to hydrate for.
+ * `width` and `height` are the file's pixel size; with them the browser reserves the image's space before the lazy
+ * load, so the text below does not jump.
  */
 export function ConsoleScreenshot({
   src,
   alt,
   caption,
   maxWidth = 900,
-  border = true
+  border = true,
+  width,
+  height
 }: {
   src: string;
   alt: string;
   caption?: string;
   maxWidth?: number;
   border?: boolean;
+  width?: number;
+  height?: number;
 }) {
   return (
     <figure className="my-[30px] flex flex-col items-center">
@@ -32,7 +38,7 @@ export function ConsoleScreenshot({
             border && 'shadow-[0_24px_64px_-28px_rgba(0,0,0,0.95),0_12px_32px_-24px_rgba(20,184,178,0.42)]'
           )}
         >
-          <img src={src} alt={alt} loading="lazy" className="block h-auto w-full" />
+          <img src={src} alt={alt} width={width} height={height} loading="lazy" className="block h-auto w-full" />
           {border && (
             <div
               aria-hidden="true"
