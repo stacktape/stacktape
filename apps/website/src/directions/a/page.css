@@ -1,0 +1,15 @@
+@import '../../brand/controls.css';
+
+.direction-a {
+  --a-gutter: clamp(1.25rem, 3vw, 2.5rem);
+  --a-width: 90rem;
+}
+
+.direction-a body {
+  overflow-x: clip;
+}
+
+.a-container {
+  inline-size: min(var(--a-width), 100% - 2 * var(--a-gutter));
+  margin-inline: auto;
+}

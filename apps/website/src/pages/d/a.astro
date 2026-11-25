@@ -1,0 +1,19 @@
+---
+import BrandHead from '../../brand/BrandHead.astro';
+import Header from '../../directions/a/Header.astro';
+import Hero from '../../directions/a/Hero.astro';
+import '../../directions/a/page.css';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Stacktape: AWS DevOps, fully automated"
+  description="Stacktape reads your repository, designs the infrastructure and runs it in your own AWS account."
+  htmlClass="brand direction-a"
+>
+  <BrandHead slot="head" />
+  <Header />
+  <main>
+    <Hero />
+  </main>
+</BaseLayout>
