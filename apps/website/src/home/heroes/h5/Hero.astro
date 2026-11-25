@@ -170,10 +170,13 @@ const facts = [
     text-wrap: balance;
   }
 
-  /* The command box sits on the page's centre line, like the headline and the window; the docs button hangs beside it. */
+  /*
+   * The command box sits on the page's centre line, like the headline and the window; the docs button hangs beside
+   * it. The box is wide enough for the longest one-line install.
+   */
   .h5__actions {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 36rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 44rem) minmax(0, 1fr);
     align-items: center;
     gap: var(--brand-space-4);
     inline-size: 100%;
@@ -187,6 +190,11 @@ const facts = [
 
   .h5__actions :global(.h5__docs) {
     justify-self: start;
+  }
+
+  /* Every install is one command now, so the box is as tall as its two lines instead of keeping room for a third. */
+  .h5__actions :global(.brand-command .install-code__pre) {
+    min-block-size: 0;
   }
 
   .h5__owned {
@@ -354,10 +362,11 @@ const facts = [
     line-height: 1.45;
   }
 
-  @media (max-width: 64rem) {
+  /* Below this width the docs button no longer fits beside the box; it moves under it. */
+  @media (max-width: 72rem) {
     .h5__actions {
       grid-template-columns: minmax(0, 1fr);
-      inline-size: min(36rem, 100%);
+      inline-size: min(44rem, 100%);
     }
 
     .h5__actions :global(.brand-command) {
@@ -367,7 +376,9 @@ const facts = [
     .h5__actions :global(.h5__docs) {
       justify-self: center;
     }
+  }
 
+  @media (max-width: 64rem) {
     .h5__trust {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
