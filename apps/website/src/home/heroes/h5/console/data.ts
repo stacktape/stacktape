@@ -2,7 +2,7 @@
  * One example app, `acme-shop`, as the Console shows it on 25 Nov 2026 at 13:06 UTC. The screens, and the
  * structure B steps that reuse this data, tell one story: release "Show order totals in the cart" went out at 10:12,
  * order totals threw a TypeError for empty carts from 10:16, the API error-rate incident opened at 10:17, the
- * api-health check was down from 10:18 to 10:23, and the fix a41c9e2 deployed at 11:04. Now one incident is open: the
+ * apiHealth check was down from 10:18 to 10:23, and the fix a41c9e2 went live at 11:04 (its deploy ran 11:02–11:04). Now one incident is open: the
  * homepage's TLS certificate expires on 9 December. Every figure below agrees with the others. Relative times are
  * counted from 13:06 and rounded to the nearest unit, as the structure B steps count them: 10:17 is "3h ago".
  */
@@ -83,7 +83,7 @@ export const COSTS = [
 ] as const;
 
 /**
- * The 11:04 deploy, 158 seconds from start to finish. `from` and `to` are seconds into the deploy. The new API image
+ * The deploy that made the fix live at 11:04: started 11:02, 158 seconds from start to finish. `from` and `to` are seconds into the deploy. The new API image
  * updates two CloudFormation resources: the task definition and the service.
  */
 export const DEPLOY_STEPS = [
@@ -99,7 +99,7 @@ export const DEPLOY_TOTAL = 158;
 export const DEPLOY_FACTS = [
   { label: 'Commit', value: 'a41c9e2', kind: 'commit' },
   { label: 'Started by', value: 'Push to main · Maya Chen', kind: '' },
-  { label: 'Started', value: 'Nov 25, 2026, 11:04', kind: '' },
+  { label: 'Started', value: 'Nov 25, 2026, 11:02', kind: '' },
   { label: 'Took', value: '2 min', kind: '' },
   { label: 'Configuration', value: 'api changed', kind: 'link' },
   { label: 'Region', value: 'us-east-1', kind: '' }

@@ -44,20 +44,17 @@ const CONSOLE = {
           ><path d="M4 5h16v14H4zM8 10l2.5 2L8 14M12.5 14H16"></path></svg
         >Run the setup wizard
       </h2>
-      <p class="h5__setup-text">Run this in your app's folder. It opens the setup wizard in your browser.</p>
+      <p class="h5__setup-text">
+        Run this in your app's folder to review the proposed AWS resources and estimated cost before you deploy.
+      </p>
       <CommandBox client:load id="install" preselect={false} />
-      <ol class="h5__steps">
-        <li>Reads your app on your own machine</li>
-        <li>Shows the setup and its monthly cost</li>
-        <li>Deploys to your AWS account when you say so</li>
-      </ol>
     </section>
   </div>
 
   <div class="h5__product">
     <p class="h5__open">
       <span class="h5__label">Open source</span>
-      The CLI is MIT-licensed and works without an account. What it deploys is standard CloudFormation in your AWS account.
+      The MIT-licensed CLI deploys CloudFormation stacks in your AWS account. No Stacktape account required.
     </p>
     <div class="h5__strip" role="tablist" aria-label="What Stacktape runs for you" data-h5-tabs>
       {
@@ -219,7 +216,7 @@ const CONSOLE = {
   }
 
   .h5__lead {
-    max-inline-size: 36rem;
+    max-inline-size: 46rem;
     margin: 0;
     color: var(--h5-soft);
     font-size: clamp(1.05rem, 0.95rem + 0.35vw, 1.3rem);
@@ -262,38 +259,6 @@ const CONSOLE = {
     color: var(--brand-muted);
     font-size: var(--brand-type-sm);
     line-height: 1.55;
-  }
-
-  .h5__steps {
-    display: grid;
-    gap: var(--brand-space-3);
-    margin: var(--brand-space-5) 0 0;
-    padding: var(--brand-space-5) 0 0;
-    border-block-start: 1px solid rgb(255 255 255 / 7%);
-    color: var(--h5-soft);
-    font-size: var(--brand-type-sm);
-    list-style: none;
-    counter-reset: h5-step;
-  }
-
-  .h5__steps li {
-    display: flex;
-    align-items: center;
-    gap: var(--brand-space-3);
-    counter-increment: h5-step;
-  }
-
-  .h5__steps li::before {
-    display: grid;
-    flex: none;
-    place-items: center;
-    inline-size: 1.6rem;
-    block-size: 1.6rem;
-    border: 1px solid rgb(255 255 255 / 16%);
-    border-radius: 50% !important;
-    color: var(--brand-text);
-    content: counter(h5-step);
-    font: 600 var(--brand-type-xs) / 1 var(--brand-font-heading);
   }
 
   /* "Open source" on grey label tape, as a line over the Console window. */
@@ -424,32 +389,52 @@ const CONSOLE = {
       --h5-frame: calc(100% - 2 * var(--brand-space-4));
     }
 
+    /*
+     * On a phone the Console comes right after the words, so the first screen shows what Stacktape did; the setup card
+     * follows the window. The header's Get started button jumps to it (#install). The top block's parts join the
+     * hero's own column for that.
+     */
+    .h5 {
+      display: flex;
+      flex-direction: column;
+    }
+
     .h5__top {
-      gap: var(--brand-space-5);
-      padding-block-start: var(--brand-space-5);
+      display: contents;
+    }
+
+    .h5__title,
+    .h5__words {
+      inline-size: var(--h5-frame);
+      margin-inline: auto;
     }
 
     .h5__title {
+      margin-block-start: var(--brand-space-5);
       font-size: 2.45rem;
+    }
+
+    .h5__words {
+      margin-block-start: var(--brand-space-4);
     }
 
     .h5__lead {
       font-size: 1rem;
     }
 
-    /* The card runs edge to edge, so the command gets the phone's whole width; its steps wait for a wider screen. */
+    .h5__product {
+      order: 1;
+    }
+
+    /* The card runs edge to edge, so the command gets the phone's whole width. */
     .h5__setup {
-      margin-inline: calc(-1 * var(--brand-space-4));
+      order: 2;
+      margin-block-start: var(--brand-space-6);
       padding: var(--brand-space-5) var(--brand-space-4);
       border-inline: 0;
     }
 
-    .h5__setup-text,
-    .h5__steps {
-      display: none;
-    }
-
-    .h5__setup-title {
+    .h5__setup-text {
       margin-block-end: var(--brand-space-4);
     }
 
@@ -458,7 +443,7 @@ const CONSOLE = {
     }
 
     .h5__product {
-      margin-block-start: var(--brand-space-6);
+      margin-block-start: var(--brand-space-5);
       gap: var(--brand-space-2);
     }
 

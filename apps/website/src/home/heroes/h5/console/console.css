@@ -1614,6 +1614,30 @@
     padding-inline-start: calc(10 * var(--u));
   }
 
+  /* The share keeps its percentage; the meter needs the table's wider column. */
+  .cx-table--costs .cx-meter {
+    display: none;
+  }
+
+  .cx-table--costs .cx-td:nth-child(3) {
+    grid-template-columns: auto;
+    justify-content: end;
+  }
+
+  .cx-table--costs .cx-td:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Without the table's header the earlier month needs its own label. */
+  .cx-table--costs .cx-td:nth-child(4) {
+    gap: calc(5 * var(--u));
+  }
+
+  .cx-table--costs .cx-td:nth-child(4)::before {
+    content: 'Oct';
+  }
+
   .cx-table--costs .cx-td:nth-child(5) {
     grid-area: e;
   }
@@ -1683,20 +1707,15 @@
 
 /*
  * Crops. Each screen shows the part of its page that carries the evidence, as the page looks after a short scroll.
- * Infrastructure is scrolled past the project title, so the stage selector, the open incident, the deployed version
- * and its resources fill the window.
+ * Infrastructure is scrolled past the project and stage headers, so the window opens on the open incident, the
+ * deployed release, the last 24 hours and the resources.
  */
-.cx-view-overview .cx-project {
+.cx-view-overview :is(.cx-project, .cx-stages, .cx-page > .cx-sections) {
   display: none;
 }
 
-.cx-view-overview .cx-stages {
-  margin-block-start: 0;
-}
-
-/* The scroll stops on a row boundary: five complete resources, the sixth below the window's edge. */
 .cx-view-overview .cx-page {
-  padding-block-start: calc(14 * var(--u));
+  padding-block-start: calc(16 * var(--u));
 }
 
 /*
