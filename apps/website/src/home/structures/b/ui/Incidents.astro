@@ -11,7 +11,7 @@ import Window from './console/Window.astro';
  * and the caption says so. Release v000041 ("Show order totals in the cart", 7d3f0b1 by Tomas Berg, as in the
  * Deploys picture) was deployed at 10:12; v000040 is "Show stock on product pages" (8a41d07).
  * From 10:16 order totals throw a TypeError
- * for empty carts; the API error-rate alarm fires at 10:17, when the incident opens, and the api-health uptime check is
+ * for empty carts; the API error-rate alarm fires at 10:17, when the incident opens, and the apiHealth uptime check is
  * down from 10:18 to 10:23. It is 10:35: open for 18 minutes, deployed 5 minutes before it opened. Fix with AI has
  * opened draft pull request #219, not merged or deployed; the fix ships at 11:04 as a41c9e2 "Fix order totals for
  * empty carts". The error has 31 occurrences at 10:35, below the 56 that step 04 counts by 13:06. The shell's
@@ -25,7 +25,7 @@ const at = (minute: number) => `${(((minute - START) / (NOW - START)) * 100).toF
 const LANES = [
   { label: 'TypeError: Cannot read properties of undefined (reading ‘total’)', from: 10 * 60 + 16, to: null },
   { label: 'API error rate above 5%', from: 10 * 60 + 17, to: null },
-  { label: 'Uptime check “api-health”', from: 10 * 60 + 18, to: 10 * 60 + 23 }
+  { label: 'Uptime check “apiHealth”', from: 10 * 60 + 18, to: 10 * 60 + 23 }
 ];
 const TICKS = [
   { label: '10:05', minute: START },
@@ -40,7 +40,7 @@ const DEPLOY_SHARE = (10 * 60 + 12 - START) / (NOW - START);
 const CARD_SIGNALS = [
   { title: 'TypeError: Cannot read properties of undefined (reading ‘total’)', kind: 'error group', failing: true },
   { title: 'API error rate above 5%', kind: 'alarm firing', failing: true },
-  { title: 'Uptime check “api-health” is down', kind: 'uptime down', failing: false }
+  { title: 'Uptime check “apiHealth” is down', kind: 'uptime down', failing: false }
 ];
 const CARD_MENU = ['Mute 1 hour', 'Mute 24 hours', 'Resolve', 'Roll back to v000040', 'Open in Console'];
 
