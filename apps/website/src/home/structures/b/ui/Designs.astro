@@ -1,17 +1,17 @@
 ---
 import '@stacktape/ui-react/isometric-diagram.css';
+import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { getResourceVisual } from '@stacktape/ui-react/resource-icon/catalog';
 import diagram from './designs/diagram.svg?raw';
-import icons from './designs/icons.json';
 
 /**
  * The init wizard's Review for acme-shop (apps/init-ui/src/steps/ReviewStep.tsx and ReviewSettings.tsx on
  * ui/init-wizard-redesign): the diagram of what gets created, the monthly estimate, and a row per resource, most
  * expensive first, with its size, its price and the line of code it is there for (the wizard's EvidenceLine).
  *
- * `designs/diagram.svg` and `designs/icons.json` are the real IsometricDiagram and ResourceIcon from
- * @stacktape/ui-react, rendered once with `renderToStaticMarkup` under Bun for this config (the icon pack cannot load in
- * Astro's server renderer), so the page ships no script for them:
+ * The row icons are the real ResourceIcon, rendered on the server. `designs/diagram.svg` is the real IsometricDiagram
+ * from @stacktape/ui-react, rendered once with `renderToStaticMarkup` under Bun for this config, cropped to its content
+ * with its labels 1.55× larger (as the wizard's minLabelSize does in a small frame), so the page ships no script for it:
  *
  *   web: hosting-bucket (single-page app) · api: web-service, buildpack, 0.5 vCPU, 1 GB, connectTo database, cache,
  *   jobQueue · worker: worker-service, buildpack, 0.25 vCPU, 0.5 GB, connectTo jobQueue, database, cache ·
@@ -23,8 +23,6 @@ import icons from './designs/icons.json';
  * Postgres db.t4g.small with 20 GB gp3 ($23.36 + $2.30), Fargate tasks of 0.5 vCPU / 1 GB ($18.02) and 0.25 vCPU /
  * 0.5 GB ($9.01), a cache.t4g.micro Valkey node ($9.34). Traffic adds HTTP API requests at $1.00 per million.
  */
-const icon = (type: string) => (icons as Record<string, string>)[type] ?? '';
-
 /** The rows, most expensive first. `why` is what the line says and `where` the file and line, as EvidenceLine prints them. */
 const ROWS = [
   {
@@ -176,7 +174,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
                 ROWS.map((row) => (
                   <li class="wz-row">
                     <span class="wz-tile" style={`--wz-tone: ${tone(row.type)}`}>
-                      <Fragment set:html={icon(row.type)} />
+                      <ResourceIcon resourceType={row.type} size={20} />
                     </span>
                     <span class="wz-row__name">
                       <strong>{row.title}</strong>
