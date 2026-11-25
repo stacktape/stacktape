@@ -1,0 +1,129 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import Logo from '../../brand/Logo.astro';
+
+const links = [
+  { label: 'Docs', href: 'https://docs.stacktape.com' },
+  { label: 'Pricing', href: '/pricing' },
+  { label: 'Benchmarks', href: '/benchmarks' },
+  { label: 'Blog', href: '/blog' },
+  { label: 'GitHub', href: 'https://github.com/stacktape/stacktape' }
+];
+---
+
+<header class="h4-header">
+  <div class="h4-wrap h4-header__row">
+    <a class="h4-header__logo" href="/d/h4"><Logo width={124} /></a>
+    <nav class="h4-header__nav" aria-label="Main">
+      {links.map((link) => <a class="brand-link brand-link--muted" href={link.href}>{link.label}</a>)}
+    </nav>
+    <div class="h4-header__end">
+      <a class="brand-link brand-link--muted h4-header__console" href="https://console.stacktape.com">Console</a>
+      <ButtonLink variant="primary" className="brand-button" href="#install">Get started</ButtonLink>
+      <details class="h4-header__menu">
+        <summary aria-label="Menu">
+          <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+            <path d="M3 6h14M3 10h14M3 14h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path>
+          </svg>
+        </summary>
+        <div class="h4-header__sheet">
+          {links.map((link) => <a href={link.href}>{link.label}</a>)}
+          <a href="https://console.stacktape.com">Console</a>
+        </div>
+      </details>
+    </div>
+  </div>
+</header>
+
+<style>
+  .h4-header {
+    position: sticky;
+    z-index: 20;
+    top: 0;
+    border-bottom: 1px solid transparent;
+    background: var(--brand-page);
+  }
+
+  .h4-header__row {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-7);
+    min-block-size: 4.5rem;
+  }
+
+  .h4-header__logo {
+    display: flex;
+  }
+
+  .h4-header__nav {
+    display: flex;
+    gap: var(--brand-space-6);
+    font-size: var(--brand-type-sm);
+  }
+
+  .h4-header__end {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-5);
+    margin-inline-start: auto;
+    font-size: var(--brand-type-sm);
+  }
+
+  .h4-header__menu {
+    display: none;
+    position: relative;
+  }
+
+  .h4-header__menu summary {
+    display: grid;
+    place-items: center;
+    inline-size: var(--brand-control-height);
+    block-size: var(--brand-control-height);
+    border-radius: var(--brand-radius);
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .h4-header__menu summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .h4-header__sheet {
+    position: absolute;
+    top: calc(100% + var(--brand-space-2));
+    right: 0;
+    display: grid;
+    min-inline-size: 12rem;
+    padding: var(--brand-space-2);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-surface);
+    box-shadow: var(--brand-shadow-menu);
+  }
+
+  .h4-header__sheet a {
+    padding: var(--brand-space-2) var(--brand-space-3);
+    border-radius: var(--brand-radius-small);
+  }
+
+  .h4-header__sheet a:hover {
+    background: var(--brand-control);
+  }
+
+  @media (max-width: 60rem) {
+    .h4-header__nav,
+    .h4-header__console {
+      display: none;
+    }
+
+    .h4-header__menu {
+      display: block;
+    }
+
+    .h4-header__end {
+      gap: var(--brand-space-2);
+    }
+  }
+</style>

@@ -1,0 +1,104 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { CommandBox } from '../../brand/CommandBox';
+import Annotated from './Annotated.astro';
+---
+
+<section class="h4-hero" aria-labelledby="h4-title">
+  <div class="h4-wrap h4-hero__grid">
+    <div class="h4-hero__copy">
+      <h1 id="h4-title">AWS DevOps, <em>fully automated.</em></h1>
+      <p class="h4-hero__lede">
+        Stacktape reads your repo, designs the infrastructure, then deploys, monitors and secures it in your own AWS
+        account.
+      </p>
+      <CommandBox client:load id="install" label="Start" preselect={false} />
+      <div class="h4-hero__next">
+        <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com">
+          Read the docs
+        </ButtonLink>
+        <p>
+          Runs in your AWS account on standard CloudFormation. Stop using Stacktape and your app keeps running.
+        </p>
+      </div>
+    </div>
+    <Annotated />
+  </div>
+</section>
+
+<style>
+  .h4-hero {
+    padding-block: clamp(3rem, 11vh, 10rem) clamp(5rem, 14vh, 11rem);
+  }
+
+  .h4-hero__grid {
+    display: grid;
+    grid-template-columns: minmax(0, clamp(34.5rem, 36vw, 44rem)) minmax(0, 1fr);
+    align-items: center;
+    column-gap: clamp(3rem, 4.4vw, 7rem);
+  }
+
+  .h4-hero__copy {
+    display: grid;
+    gap: var(--brand-space-5);
+  }
+
+  h1 {
+    margin: 0 0 var(--brand-space-2);
+    font: 600 clamp(2.6rem, 0.6rem + 3.6vw, 6.4rem) / 1 var(--h4-font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.03em;
+  }
+
+  h1 em {
+    display: block;
+    color: var(--brand-teal);
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  .h4-hero__lede {
+    max-inline-size: 30rem;
+    margin: 0 0 var(--brand-space-2);
+    color: var(--brand-text);
+    font-size: clamp(1.05rem, 0.9rem + 0.3vw, 1.3rem);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .h4-hero__next {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-5);
+  }
+
+  .h4-hero__next p {
+    margin: 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.45;
+  }
+
+  .h4-hero__next :global(.brand-button) {
+    flex: none;
+  }
+
+  @media (max-width: 60rem) {
+    .h4-hero {
+      padding-block: var(--brand-space-6) var(--brand-space-8);
+    }
+
+    .h4-hero__grid {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--brand-space-7);
+    }
+
+    .h4-hero__copy {
+      gap: var(--brand-space-4);
+    }
+
+    .h4-hero__next {
+      flex-wrap: wrap;
+    }
+  }
+</style>

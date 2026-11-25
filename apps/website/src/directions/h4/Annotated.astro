@@ -1,0 +1,216 @@
+---
+import Dispenser from './Dispenser.astro';
+import reviewLarge from './shots/review-2880.webp';
+import reviewSmall from './shots/review-1440.webp';
+
+/**
+ * Notes taped onto the real init wizard. Positions are percentages of the wizard picture;
+ * `to` is where the pencil arrow ends, on the part of the product the note names.
+ */
+const notes = [
+  {
+    id: 'database',
+    text: 'your database, in your AWS account',
+    x: -6,
+    y: 29.5,
+    turn: -2.5,
+    from: [13.5, 34.4],
+    via: [21.5, 35],
+    to: [22.4, 45.4]
+  },
+  {
+    id: 'cost',
+    text: '$32 a month, before anything exists',
+    x: 38.5,
+    y: 11.6,
+    turn: 1.6,
+    from: [39.6, 15.4],
+    via: [29.2, 16.5],
+    to: [31.6, 25.4]
+  },
+  {
+    id: 'config',
+    text: 'the config it wrote, in your repo',
+    x: 70.5,
+    y: 36,
+    turn: -1.8,
+    from: [73, 35.6],
+    via: [69.5, 31],
+    to: [68.6, 24]
+  }
+] as const;
+
+/** The pencil's viewBox matches the picture's 16:10 shape, so percentages map to 16 and 10 units. */
+const px = (x: number) => Math.round(x * 16 * 10) / 10;
+const py = (y: number) => Math.round(y * 10 * 10) / 10;
+const arrow = (note: (typeof notes)[number]) => {
+  const [fx, fy] = note.from;
+  const [vx, vy] = note.via;
+  const [tx, ty] = note.to;
+  return `M ${px(fx)} ${py(fy)} Q ${px(vx)} ${py(vy)} ${px(tx)} ${py(ty)}`;
+};
+/** A small open arrowhead at the end, along the curve's last direction. */
+const head = (note: (typeof notes)[number]) => {
+  const [vx, vy] = note.via;
+  const [tx, ty] = note.to;
+  const angle = Math.atan2(py(ty) - py(vy), px(tx) - px(vx));
+  const wing = (offset: number) =>
+    `${Math.round((px(tx) - 15 * Math.cos(angle + offset)) * 10) / 10} ${Math.round((py(ty) - 15 * Math.sin(angle + offset)) * 10) / 10}`;
+  return `M ${wing(0.5)} L ${px(tx)} ${py(ty)} L ${wing(-0.5)}`;
+};
+---
+
+<figure class="h4-art">
+  <div class="h4-art__stage">
+    <div class="h4-art__dispenser"><Dispenser /></div>
+    <div class="h4-art__window">
+      <img
+        src={reviewSmall.src}
+        srcset={`${reviewSmall.src} 1440w, ${reviewLarge.src} 2880w`}
+        sizes="(max-width: 60rem) 100vw, 56vw"
+        width="1440"
+        height="900"
+        alt="The Stacktape init wizard's Review step for saas-starter, a Next.js app with a Postgres database: a diagram of the resources, an estimated $32 a month, and the generated stacktape.yml."
+      />
+    </div>
+    <svg class="h4-art__pencil" viewBox="0 0 1600 1000" aria-hidden="true">
+      {
+        notes.map((note) => (
+          <g class={`h4-art__arrow h4-art__arrow--${note.id}`}>
+            <path d={arrow(note)} />
+            <path d={head(note)} />
+          </g>
+        ))
+      }
+    </svg>
+    {
+      notes.map((note) => (
+        <p
+          class={`h4-note h4-note--${note.id}`}
+          style={`--x: ${note.x}%; --y: ${note.y}%; --turn: ${note.turn}deg`}
+        >
+          {note.text}
+        </p>
+      ))
+    }
+  </div>
+  <figcaption>The real init wizard, after reading a Next.js app that uses Postgres.</figcaption>
+</figure>
+
+<style>
+  .h4-art {
+    position: relative;
+    margin: 0;
+  }
+
+  .h4-art__stage {
+    position: relative;
+    aspect-ratio: 16 / 10;
+  }
+
+  .h4-art__window {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border: 1px solid var(--brand-border);
+    border-radius: calc(var(--brand-radius) + 4px);
+    background: var(--brand-inset);
+    box-shadow:
+      0 2px 0 rgb(255 255 255 / 3%) inset,
+      0 40px 90px rgb(0 0 0 / 50%);
+  }
+
+  .h4-art__window img {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  .h4-art__dispenser {
+    position: absolute;
+    z-index: 5;
+    left: -4.5%;
+    bottom: -16%;
+    inline-size: 40%;
+  }
+
+  .h4-art__dispenser :global(svg) {
+    inline-size: 100%;
+    block-size: auto;
+  }
+
+  .h4-art__pencil {
+    position: absolute;
+    z-index: 3;
+    inset: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .h4-art__arrow path {
+    fill: none;
+    stroke: var(--h4-sand);
+    stroke-width: 2.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .h4-note {
+    position: absolute;
+    z-index: 4;
+    left: var(--x);
+    top: var(--y);
+    padding: 0.32em 0.9em 0.4em;
+    color: var(--brand-on-teal);
+    font: italic 560 clamp(0.8rem, 0.35rem + 0.62vw, 1.2rem) / 1.2 var(--h4-font-display);
+    white-space: nowrap;
+    transform: rotate(var(--turn));
+    filter: drop-shadow(0 6px 10px rgb(0 0 0 / 45%));
+  }
+
+  .h4-note::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    content: '';
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+    clip-path: var(--brand-tape-clip);
+  }
+
+  @media (max-width: 60rem) {
+    .h4-note {
+      font-size: 0.72rem;
+    }
+
+    .h4-note--config,
+    .h4-art__arrow--config {
+      display: none;
+    }
+
+    .h4-art__arrow path {
+      stroke-width: 4;
+    }
+
+    .h4-art__dispenser {
+      left: -3%;
+      bottom: -22%;
+      inline-size: 46%;
+    }
+
+    .h4-note--database {
+      left: -2%;
+    }
+
+    .h4-art > figcaption {
+      margin-block-start: 4rem;
+    }
+  }
+
+  .h4-art figcaption {
+    margin-block-start: var(--brand-space-4);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
+    text-align: end;
+  }
+</style>
