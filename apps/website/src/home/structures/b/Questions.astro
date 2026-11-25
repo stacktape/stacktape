@@ -136,11 +136,14 @@ const QUESTIONS: Question[] = [
     display: none;
   }
 
-  /* A plain plus that turns into a minus: square, flat, in the brand teal. */
+  /*
+   * No teal anywhere in this section (owner, 25 Nov): a plain grey plus that turns into a minus, brightening on hover,
+   * and a white focus outline instead of the brand's teal one.
+   */
   summary::after {
     flex: none;
     width: 1ch;
-    color: var(--brand-teal);
+    color: var(--brand-muted);
     font: var(--brand-weight-label) var(--brand-type-lead) / 1 var(--brand-font-mono);
     content: '+';
   }
@@ -149,12 +152,12 @@ const QUESTIONS: Question[] = [
     content: '−';
   }
 
-  summary:hover {
-    color: var(--brand-teal);
+  summary:hover::after {
+    color: var(--brand-text);
   }
 
-  summary:focus-visible {
-    outline: 2px solid var(--brand-focus);
+  .b-questions :focus-visible {
+    outline: 2px solid var(--brand-text);
     outline-offset: 2px;
   }
 
