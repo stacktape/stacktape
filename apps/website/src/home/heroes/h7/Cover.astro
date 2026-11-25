@@ -248,9 +248,10 @@ const deployed = [
   /* The frame fills its container's width, reserves the canvas' aspect ratio and carries the scale. */
   .h7-cover {
     --cover-scale: 0.45;
-    --c-chrome: #101515;
-    --c-window: #141919;
-    --c-tile: #1e2424;
+    /* The cover's own graphite, one step lighter than the page so the window stands off it; the texture is gone. */
+    --c-chrome: rgb(27 33 33);
+    --c-window: rgb(27 33 33);
+    --c-tile: linear-gradient(145deg, rgb(32 39 39 / 98%), rgb(28 35 35 / 98%));
     --c-line: var(--brand-border);
     --c-text: rgb(255 255 255 / 87%);
     --c-muted: rgb(160 160 160);
@@ -660,11 +661,25 @@ const deployed = [
     font-weight: 600;
   }
 
+  /* The cover's one moving part, as in the original: the deploying stage's status dot pulses. */
   .dot {
     inline-size: 6px;
     block-size: 6px;
     border-radius: 50%;
     background: var(--c-teal);
+    animation: h7-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  @keyframes h7-pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dot {
+      animation: none;
+    }
   }
 
   .main {
@@ -734,9 +749,9 @@ const deployed = [
     border-radius: var(--brand-radius);
     background: var(--c-tile);
     box-shadow:
-      0 2px 8px rgb(0 0 0 / 50%),
-      0 0 0 1px rgb(255 255 255 / 8%),
-      inset 0 1px 0 rgb(255 255 255 / 9%);
+      0 2px 8px rgb(0 0 0 / 75%),
+      0 0 0 1px rgb(255 255 255 / 10%),
+      inset 0 1px 0 rgb(255 255 255 / 15%);
   }
 
   .resource {

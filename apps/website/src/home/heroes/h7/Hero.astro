@@ -57,16 +57,17 @@ const {
     inline-size: clamp(35rem, 16rem + 20vw, 42rem);
   }
 
+  /* Two lines, each kept whole. */
   h1 {
     margin: 0;
+    white-space: nowrap;
+    letter-spacing: var(--brand-tracking-heading);
     font: var(--brand-weight-heading) clamp(2.5rem, 0.9rem + 3.1vw, 5rem) / var(--brand-leading-heading)
       var(--brand-font-heading);
-    letter-spacing: var(--brand-tracking-heading);
   }
 
-  h1 span {
+  h1 > span {
     display: block;
-    white-space: nowrap;
   }
 
   .h7-lead {
@@ -120,13 +121,15 @@ const {
       max-inline-size: 44rem;
     }
 
+    /* The console's left edge sits 60 of the canvas' 1517 px in; shift it onto the copy's left edge. */
     .h7-art {
-      inline-size: 100%;
+      inline-size: 104%;
       margin-block: 0 -4%;
+      margin-inline-start: -4%;
     }
   }
 
-  /* Phones: the cover is shown larger than the screen and cropped on the right, so the terminal stays readable. */
+  /* Phones: the cover is shown larger than the screen and cropped on the right, through the terminal's 3m 02s. */
   @media (max-width: 40rem) {
     .h7 {
       padding-block: var(--brand-space-6) var(--brand-space-6);
@@ -143,7 +146,8 @@ const {
     }
 
     .h7-art {
-      inline-size: 165%;
+      inline-size: 150%;
+      margin-inline-start: -6%;
     }
   }
 </style>
