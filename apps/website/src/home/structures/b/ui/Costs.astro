@@ -1,36 +1,28 @@
 ---
+import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
+
 /*
  * The Console's stage page, Costs tab (apps/console/ui/src/pages/ProjectsPage/StageDetails/Costs.tsx), and a budget's
  * page (BudgetsPage/BudgetDetailPage.tsx) for the example app acme-shop, re-created in HTML in the tape look.
  *
  * The figures are the hero's (heroes/h5/console/data.ts COSTS): $286.40 for 1–25 November, $331.95 for October, and the
  * Console's pace, the month so far over 25 days times 30: $343.68, 4% more. Shares are rounded, as the Console rounds
- * them. The budget watches the whole acme-production account (docs/managing-costs/budgets.mdx:10, the docs' example
- * name), which runs this stage plus a little account-wide spend: $320 limit, alerts at 80% and on a forecast; spend
- * passed $256 on 22 November and AWS forecast $352.80 a day ago.
+ * them. Row icons are the Console's ResourceIcon, rendered on the server.
+ *
+ * The budget watches the whole acme-production account (docs/managing-costs/budgets.mdx:10, the docs' example name),
+ * which runs this stage plus a little account-wide spend: $320 limit, alerts at 80% and on a forecast; spend passed
+ * $256 on 22 November and AWS forecast $352.80 a day ago.
  */
-/**
- * Each row's icon as the Console draws it (packages/ui-react/src/resource-icon/catalog.ts): the AWS service's square in
- * its category colour with a white glyph. The glyphs are simplified; the AWS icon package does not load in the website's
- * server render.
- */
-const ICONS = {
-  rds: { category: 'database', glyph: '<ellipse cx="12" cy="6.5" rx="6" ry="2.4"/><path d="M6 6.5v11c0 1.3 2.7 2.4 6 2.4s6-1.1 6-2.4v-11M6 12c0 1.3 2.7 2.4 6 2.4s6-1.1 6-2.4"/>' },
-  fargate: { category: 'compute', glyph: '<path d="M12 3.5 4.5 7.7v8.6l7.5 4.2 7.5-4.2V7.7zM4.5 7.7 12 12l7.5-4.3M12 12v8.5"/>' },
-  elasticache: { category: 'database', glyph: '<path d="m12 4.5 7.5 3.7-7.5 3.7-7.5-3.7zM4.5 12.2l7.5 3.7 7.5-3.7M4.5 16l7.5 3.7 7.5-3.7"/>' },
-  cloudfront: { category: 'network', glyph: '<circle cx="12" cy="12" r="7.5"/><path d="M4.5 12h15M12 4.5c2.4 2.5 2.4 12.5 0 15M12 4.5c-2.4 2.5-2.4 12.5 0 15"/>' },
-  sqs: { category: 'integration', glyph: '<path d="M3.5 8h17v8h-17zM8 8v8M12 8v8M16 8v8"/>' }
-};
 
-/** `icon` is the AWS service the Console's icon for the resource type shows; null for costs outside resources. */
-const ROWS: { name: string; type: string; icon: keyof typeof ICONS | null; share: number; october: string; november: string }[] = [
-  { name: 'api', type: 'Web service', icon: 'fargate', share: 32, october: '$108.40', november: '$92.10' },
-  { name: 'database', type: 'SQL database', icon: 'rds', share: 25, october: '$85.20', november: '$71.40' },
-  { name: 'Not tied to one resource', type: 'Other AWS costs', icon: null, share: 17, october: '$50.55', november: '$47.30' },
-  { name: 'worker', type: 'Worker service', icon: 'fargate', share: 13, october: '$44.10', november: '$38.60' },
-  { name: 'cache', type: 'Redis', icon: 'elasticache', share: 9, october: '$29.75', november: '$24.80' },
-  { name: 'web', type: 'Website', icon: 'cloudfront', share: 4, october: '$12.90', november: '$11.30' },
-  { name: 'jobQueue', type: 'SQS queue', icon: 'sqs', share: 0, october: '$1.05', november: '$0.90' }
+/** `resource` is the Stacktape resource type the Console's ResourceIcon draws; null for costs outside resources. */
+const ROWS: { name: string; type: string; resource: string | null; share: number; october: string; november: string }[] = [
+  { name: 'api', type: 'Web service', resource: 'web-service', share: 32, october: '$108.40', november: '$92.10' },
+  { name: 'database', type: 'SQL database', resource: 'relational-database', share: 25, october: '$85.20', november: '$71.40' },
+  { name: 'Not tied to one resource', type: 'Other AWS costs', resource: null, share: 17, october: '$50.55', november: '$47.30' },
+  { name: 'worker', type: 'Worker service', resource: 'worker-service', share: 13, october: '$44.10', november: '$38.60' },
+  { name: 'cache', type: 'Redis', resource: 'redis', share: 9, october: '$29.75', november: '$24.80' },
+  { name: 'web', type: 'Website', resource: 'hosting-bucket', share: 4, october: '$12.90', november: '$11.30' },
+  { name: 'jobQueue', type: 'SQS queue', resource: 'sqs-queue', share: 0, october: '$1.05', november: '$0.90' }
 ];
 
 const ALERTS = [
@@ -90,18 +82,8 @@ const ALERTS = [
           {
             ROWS.map((row) => (
               <>
-                <span class:list={['cst__name', !row.icon && 'cst__dim']}>
-                  {row.icon ? (
-                    <svg
-                      class="cst__icon"
-                      viewBox="0 0 24 24"
-                      style={`--cst-icon: var(--stp-aws-category-${ICONS[row.icon].category})`}
-                      aria-hidden="true"
-                      set:html={ICONS[row.icon].glyph}
-                    />
-                  ) : (
-                    <span class="cst__icon" />
-                  )}
+                <span class:list={['cst__name', !row.resource && 'cst__dim']}>
+                  <span class="cst__icon">{row.resource && <ResourceIcon resourceType={row.resource} size={20} />}</span>
                   {row.name}
                 </span>
                 <span class="cst__type cst__dim">{row.type}</span>
@@ -415,14 +397,11 @@ const ALERTS = [
   }
 
   .cst__icon {
+    display: grid;
     flex: none;
+    place-items: center;
     width: 1.3rem;
     height: 1.3rem;
-    background: var(--cst-icon, transparent);
-    fill: none;
-    stroke: #fff;
-    stroke-width: 1.5;
-    stroke-linejoin: round;
   }
 
   .cst__share {
