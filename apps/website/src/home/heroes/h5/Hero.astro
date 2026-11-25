@@ -262,12 +262,13 @@ const facts = [
   }
 
   .h5__tab[aria-selected='true'] {
-    color: var(--brand-on-teal);
+    color: var(--brand-text);
   }
 
+  /* The Console's grey tape: the secondary control's surface with its light top edge. */
   .h5__tab[aria-selected='true']::before {
-    background: var(--brand-primary);
-    box-shadow: var(--brand-edge-primary);
+    background: var(--stp-control-surface, var(--brand-control));
+    box-shadow: var(--brand-edge);
   }
 
   /* Outside the piece, so the ring never hides the torn ends. */
