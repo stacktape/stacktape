@@ -10,7 +10,11 @@ const proof = [
     text: 'A Lambda change, live. CDK hotswap: 13.2 s. Preliminary run, 22 Oct 2026.',
     href: '/benchmarks'
   },
-  { figure: '$0', text: 'Stacktape fee while your AWS spend is up to $200 a month.', href: '/pricing' }
+  {
+    figure: '$0',
+    text: 'Stacktape fee while the stacks it manages spend up to $200 a month on AWS.',
+    href: '/pricing'
+  }
 ];
 ---
 
@@ -36,7 +40,7 @@ const proof = [
       {
         VIEWS.map((view, index) => (
           <picture id={`screen-${view.key}`} role="tabpanel" aria-labelledby={`see-${view.key}`} hidden={index > 0}>
-            <source media="(max-width: 40rem)" srcset={`/d/h3/${view.key}-phone.webp`} width="900" height="622" />
+            <source media="(max-width: 40rem)" srcset={`/d/h3/${view.key}-phone.webp`} width="960" height="600" />
             <img
               src={`/d/h3/${view.key}-1280.webp`}
               srcset={`/d/h3/${view.key}-1280.webp 1280w, /d/h3/${view.key}-2560.webp 2560w`}
@@ -390,7 +394,70 @@ const proof = [
     }
 
     .atmo__copy {
-      padding-inline: var(--brand-space-4);
+      padding: var(--brand-space-6) var(--brand-space-4) 0;
+    }
+
+    .atmo__start {
+      margin-block-start: var(--brand-space-5);
+    }
+
+    /*
+     * The kit's box gives Copy its own row on narrow screens and keeps room for a third line. On the phone hero,
+     * Copy sits beside the command instead, and the box is only as tall as its lines.
+     */
+    .atmo__start :global(.brand-command) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .atmo__start :global(.brand-command)::before {
+      grid-area: 1 / 1 / 3 / -1;
+      content: '';
+      border-block-end: 1px solid var(--brand-border);
+      border-start-start-radius: inherit;
+      border-start-end-radius: inherit;
+      background: var(--brand-surface);
+    }
+
+    .atmo__start :global(.brand-command .install-code__head) {
+      display: contents;
+    }
+
+    .atmo__start :global(.brand-command .install-code__tabs) {
+      grid-area: 1 / 1 / 2 / -1;
+      padding: var(--brand-space-2);
+    }
+
+    .atmo__start :global(.brand-command .install-code__arch) {
+      grid-area: 2 / 1 / 3 / -1;
+      justify-self: start;
+      margin: 0 var(--brand-space-2) var(--brand-space-2);
+    }
+
+    .atmo__start :global(.brand-command .install-code__copy) {
+      --stp-control-height: 2rem;
+      z-index: 1;
+      grid-area: 3 / 2 / 4 / 3;
+      align-self: start;
+      margin: 0.6rem var(--brand-space-2) 0 0;
+    }
+
+    /* The lines use the full width; only the first one leaves room for Copy. */
+    .atmo__start :global(.brand-command .install-code__pre) {
+      grid-area: 3 / 1 / 4 / -1;
+      grid-template-columns: minmax(0, 1fr);
+      min-block-size: 0;
+    }
+
+    .atmo__start :global(.brand-command .install-code__line:first-child) {
+      max-inline-size: calc(100% - 6.75rem);
+    }
+
+    /* A long installer line ends in an ellipsis here; Copy still takes the whole command. */
+    .atmo__start :global(.brand-command .install-code__line:first-child .install-code__cmd) {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .atmo__lead {
@@ -399,6 +466,7 @@ const proof = [
 
     .atmo__stage {
       inline-size: calc(100% - 2.5rem);
+      margin-block-start: var(--brand-space-7);
     }
 
     .atmo__tape {
