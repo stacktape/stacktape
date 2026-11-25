@@ -1,0 +1,8 @@
+/* JetBrains Mono (SIL Open Font License, see fonts/LICENSE) for the cover's terminal, under a name only this hero uses. */
+@font-face {
+  font-family: 'H7 JetBrains Mono';
+  src: url('./fonts/jetbrains-mono-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}

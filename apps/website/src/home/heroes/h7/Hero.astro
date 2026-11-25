@@ -1,0 +1,149 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { CommandBox } from '../../../brand/CommandBox';
+import '../../../brand/site.css';
+import Cover from './Cover.astro';
+
+type Props = { subheadline?: string };
+
+/* The README page's subheadline on `main` (src/variants/readme/data.ts), verbatim. */
+const {
+  subheadline = 'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.'
+} = Astro.props;
+---
+
+<section class="h7" aria-labelledby="h7-title">
+  <div class="site-frame h7-grid">
+    <div class="h7-copy">
+      <h1 id="h7-title"><span>AWS DevOps,</span> <span>fully automated.</span></h1>
+      <p class="h7-lead">{subheadline}</p>
+      <div class="h7-start">
+        <CommandBox client:load id="install" preselect={false} />
+        <div class="h7-next">
+          <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com">
+            Read the docs
+          </ButtonLink>
+          <p class="h7-own">Runs in your AWS account on standard CloudFormation. Stop using Stacktape and your app keeps running.</p>
+        </div>
+      </div>
+    </div>
+    <div class="h7-art">
+      <Cover />
+    </div>
+  </div>
+</section>
+
+<style>
+  /*
+   * The copy keeps the header's left edge; the cover takes the rest of the row and, on wide screens, reaches past the
+   * content frame towards the right edge of the window, up to its own maximum size.
+   */
+  .h7 {
+    --h7-gap: clamp(var(--brand-space-6), 3.4vw, 5rem);
+    container-type: inline-size;
+    overflow: clip;
+    padding-block: clamp(var(--brand-space-6), 4vw, 5rem) clamp(var(--brand-space-7), 4vw, 5rem);
+    background: var(--brand-page);
+  }
+
+  .h7-grid {
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--h7-gap);
+  }
+
+  .h7-copy {
+    inline-size: clamp(35rem, 16rem + 20vw, 42rem);
+  }
+
+  h1 {
+    margin: 0;
+    font: var(--brand-weight-heading) clamp(2.5rem, 0.9rem + 3.1vw, 5rem) / var(--brand-leading-heading)
+      var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  h1 span {
+    display: block;
+    white-space: nowrap;
+  }
+
+  .h7-lead {
+    margin: clamp(1rem, 1.3vw, 1.75rem) 0 0;
+    color: var(--brand-muted);
+    font-size: clamp(1.0625rem, 0.9rem + 0.3vw, 1.3rem);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .h7-start {
+    display: grid;
+    gap: var(--brand-space-4);
+    margin-block-start: clamp(1.75rem, 2.2vw, 2.75rem);
+  }
+
+  .h7-next {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-4);
+  }
+
+  .h7-next :global(.brand-button) {
+    flex: none;
+  }
+
+  .h7-own {
+    margin: 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.45;
+  }
+
+  /* How far past the content frame the cover may reach: up to the page gutter, and never wider than 86 rem in all. */
+  .h7-art {
+    --h7-bleed: max(0px, (100cqi - var(--site-width, 76rem)) / 2 - var(--brand-space-6));
+    inline-size: min(100% + var(--h7-bleed), 86rem);
+    /* The canvas has empty margins around the windows; pull them in so the windows line up with the copy. */
+    margin-block: -3% -6%;
+    margin-inline-start: -1.5%;
+  }
+
+  @media (max-width: 72rem) {
+    .h7-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--brand-space-6);
+    }
+
+    .h7-copy {
+      inline-size: auto;
+      max-inline-size: 44rem;
+    }
+
+    .h7-art {
+      inline-size: 100%;
+      margin-block: 0 -4%;
+    }
+  }
+
+  /* Phones: the cover is shown larger than the screen and cropped on the right, so the terminal stays readable. */
+  @media (max-width: 40rem) {
+    .h7 {
+      padding-block: var(--brand-space-6) var(--brand-space-6);
+    }
+
+    h1 {
+      font-size: clamp(2.1rem, 9.4vw, 2.6rem);
+    }
+
+    .h7-next {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--brand-space-3);
+    }
+
+    .h7-art {
+      inline-size: 165%;
+    }
+  }
+</style>
