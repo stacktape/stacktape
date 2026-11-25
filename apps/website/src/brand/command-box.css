@@ -1,13 +1,13 @@
 /*
  * The install command as the Console's new project page shows it ("Run the setup wizard",
- * NewProjectChoices.tsx InitCommand): tape tabs, 12px, then a dark, sunken command field whose labelled Copy button
- * sits inside its right end.
+ * NewProjectChoices.tsx InitCommand), made slimmer (owner, 25 Nov 2026): a 32px row of tape tabs, 8px, then a 40px
+ * dark, sunken command field whose labelled Copy button fills its right end at the field's full height.
  */
 .brand-command {
   container-type: inline-size;
   display: grid;
   align-content: start;
-  gap: var(--brand-space-3);
+  gap: var(--brand-space-2);
   min-inline-size: 0;
   color: var(--brand-text);
 }
@@ -19,12 +19,18 @@
   scrollbar-width: none;
 }
 
+/* 28px tabs in a 2px well. Three classes, so it beats the shared small and segmented tab sizes. */
+.brand-command .brand-command__tabs.stp-ui-tabs {
+  --stp-tab-height: 1.75rem;
+  --stp-tabs-padding: 2px;
+}
+
 .brand-command__field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--brand-space-3);
-  padding: var(--brand-space-1) var(--brand-space-1) var(--brand-space-1) var(--brand-space-4);
+  padding-inline-start: var(--brand-space-4);
   border: 1px solid rgb(255 255 255 / 7%);
   border-radius: var(--brand-radius);
   background: rgb(0 0 0 / 32%);
@@ -124,7 +130,7 @@
 astro-island:has(> .brand-command) + .brand-button,
 .brand-command + .brand-button {
   align-self: end;
-  margin-block-end: calc((3rem - var(--stp-control-height, var(--brand-control-height))) / 2);
+  margin-block-end: calc((2.5rem - var(--stp-control-height, var(--brand-control-height))) / 2);
 }
 
 /* Narrow: the Console's 13px tabs keep all six in one row. */
@@ -152,12 +158,13 @@ astro-island:has(> .brand-command) + .brand-button,
 }
 
 /*
- * Touch screens: every tab and Copy is a 44px tap target. The tab row spans the box and the six tabs share its width,
- * so each one is wider too, and all six stay on one row down to 360px. A mouse keeps the Console's compact sizes.
+ * Touch screens: a little taller than with a mouse, still slim. 32px tabs (a 36px row) and a 40px Copy, so the field is
+ * 42px. The tab row spans the box and the six tabs share its width, so each is wide enough to tap, and all six stay on
+ * one row down to 360px.
  */
 @media (pointer: coarse) {
   .brand-command .brand-command__tabs.stp-ui-tabs {
-    --stp-tab-height: 2.75rem;
+    --stp-tab-height: 2rem;
     justify-self: stretch;
     inline-size: 100%;
   }
@@ -171,6 +178,6 @@ astro-island:has(> .brand-command) + .brand-button,
   }
 
   .brand-command .brand-button.brand-command__copy {
-    --stp-control-height: 2.75rem;
+    --stp-control-height: 2.5rem;
   }
 }
