@@ -42,11 +42,18 @@ const ALERTS = [
 <div
   class="cst"
   role="img"
-  aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $286.40 so far in November, $350.69 by the end of the month at this pace, split by resource with the API service at 32%. Below it, the budget page of the production AWS account: AWS forecasts $352.80 of the $320.00 limit, and the alerts it sent at 80% and on the forecast."
+  aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $286.40 so far in November, $350.69 by the end of the month at this pace, split by resource with the API service at 32%. In front of its lower right, the budget page of the production AWS account: AWS forecasts $352.80 of the $320.00 limit, and the alerts it sent at 80% and on the forecast."
 >
-  <p class="cst__scope">
-    <Tape tone="gray" variant="count">Stage</Tape> acme-shop / production. The pace is this stage’s, from the 12:00 cost report.
-  </p>
+  <div class="cst__scopes">
+    <p class="cst__scope">
+      <Tape tone="gray" variant="count">Stage</Tape> acme-shop / production. Its pace comes from the 12:00 cost report.
+    </p>
+    <p class="cst__scope">
+      <Tape tone="gray" variant="count">AWS account</Tape> acme-production. The budget counts the whole account, and AWS makes
+      its own forecast.
+    </p>
+  </div>
+  <div class="cst__stack">
   <Window label="The Costs tab of acme-shop’s production stage in the Stacktape Console" page="acme-shop" pageMenu current="projects" openErrors={4}>
     <div class="cst__page">
       <div class="cst__project">
@@ -130,9 +137,6 @@ const ALERTS = [
     </div>
   </Window>
 
-  <p class="cst__scope cst__scope--next">
-    <Tape tone="gray" variant="count">AWS account</Tape> acme-production. The budget counts the whole account, and AWS makes its own forecast.
-  </p>
   <div class="cst__budget">
     <p class="cst__dim">Budgets</p>
     <p class="cst__budget-title"><b>Production account</b> <span class="cst__dim">Budget · Whole AWS account</span></p>
@@ -170,6 +174,7 @@ const ALERTS = [
     </p>
   </div>
 </div>
+</div>
 
 <style>
   .cst {
@@ -203,8 +208,10 @@ const ALERTS = [
 
 
   /* The page inside the Console shell; the table drops columns by its width, which the sidebar narrows. */
+  /* The page leaves room at its lower right for the budget, which lies over that corner. */
   .cst__page {
     container: cstp / inline-size;
+    padding-bottom: 12rem;
   }
 
   .cst__project {
@@ -363,29 +370,41 @@ const ALERTS = [
     background: var(--brand-teal);
   }
 
-  /* Each page's scope, above it. */
+  /* Each page's scope, above the pair. */
+  .cst__scopes {
+    display: grid;
+    gap: 0.4rem;
+    margin-bottom: 0.9rem;
+  }
+
   .cst__scope {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.4rem 0.6rem;
-    margin-bottom: 0.75rem;
     color: var(--brand-muted);
     font-size: var(--brand-type-sm);
   }
 
-  .cst__scope--next {
-    margin-top: 1.75rem;
+  .cst__stack {
+    position: relative;
+    padding-bottom: 2.5rem;
   }
 
-  /* The budget's own page, below the Costs tab with a straight break between them. */
+  /* The budget's own page, laid over the Costs tab's lower right and hanging a little below. */
   .cst__budget {
+    position: absolute;
+    right: 1.5rem;
+    bottom: 0;
     display: grid;
     gap: 0.5rem;
+    width: min(38rem, 56%);
     padding: 1rem 1.1rem 1.1rem;
     border: 1px solid var(--brand-border);
     background: var(--brand-page);
-    box-shadow: var(--brand-shadow);
+    box-shadow:
+      0 22px 52px rgb(0 0 0 / 50%),
+      0 0 0 1px rgb(0 0 0 / 25%);
   }
 
   .cst__budget-title b {
@@ -526,8 +545,23 @@ const ALERTS = [
     }
   }
 
-  /* On a phone the budget's alerts keep the time, event and delivery. */
+  /* On a phone the budget follows the Costs tab, and its alerts keep the time, event and delivery. */
   @container cst (max-width: 34rem) {
+    .cst__stack {
+      padding-bottom: 0;
+    }
+
+    .cst__page {
+      padding-bottom: 0;
+    }
+
+    .cst__budget {
+      position: static;
+      width: auto;
+      margin-top: 1rem;
+      box-shadow: var(--brand-shadow);
+    }
+
     .cst__drives,
     .cst__sent-row > span:nth-child(3) {
       display: none;

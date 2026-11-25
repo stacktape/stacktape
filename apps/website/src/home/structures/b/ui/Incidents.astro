@@ -14,8 +14,8 @@ import Window from './console/Window.astro';
  * for empty carts; the API error-rate alarm fires at 10:17, when the incident opens, and the apiHealth uptime check is
  * down from 10:18 to 10:23. It is 10:35: open for 18 minutes, deployed 5 minutes before it opened. Fix with AI has
  * opened draft pull request #219, not merged or deployed; the fix ships at 11:04 as a41c9e2 "Fix order totals for
- * empty carts". The error has 31 occurrences at 10:35, below the 56 that step 04 counts by 13:06. The shell's
- * incident badge counts the incidents open now, so this 10:35 view leaves it out.
+ * empty carts". The error has 31 occurrences at 10:35, below the 56 that step 04 counts by 13:06. At 10:35 two
+ * incidents were open, this one and the certificate warning the hero lists (opened about 07:00), so the shell shows 2.
  */
 const START = 10 * 60 + 5;
 const NOW = 10 * 60 + 35;
@@ -58,7 +58,7 @@ const FRAMES = [
 >
   <p class="inc__when"><Tape tone="gray" variant="count">10:35</Tape> Before the 11:04 fix</p>
   <div class="inc__stage">
-  <Window label="The incident page in the Stacktape Console" page="Incidents" current="incidents">
+  <Window label="The incident page in the Stacktape Console" page="Incidents" current="incidents" openIncidents={2}>
   <div class="inc__page">
     <p class="inc__crumb">Incidents</p>
     <div class="inc__head">
@@ -335,11 +335,6 @@ const FRAMES = [
   /* The page inside the Console shell; the grid below folds by its width, which the sidebar narrows. */
   .inc__page {
     container: incp / inline-size;
-  }
-
-  /* At 10:35 two incidents were open, not the shell's current one: the badge is left out of this earlier view. */
-  .inc :global(.cn-side__item[aria-current='page'] .cn-count) {
-    display: none;
   }
 
   .inc__when {

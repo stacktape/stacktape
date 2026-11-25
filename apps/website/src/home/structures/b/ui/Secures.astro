@@ -83,8 +83,9 @@ const FILTERS = [
 <div
   class="sec"
   role="img"
-  aria-label="The Stacktape Console’s Security page for acme-shop: 3 findings to fix now and 3 to fix when you can, each with its stage and the fix, such as “Upgrade axios to 1.8.2”. Below it, the Guardrails page: “Keep SQL and OpenSearch private” blocks the next deploy of acme-shop / staging."
+  aria-label="The Stacktape Console’s Security page for acme-shop: 3 findings to fix now and 3 to fix when you can, each with its stage and the fix, such as “Upgrade axios to 1.8.2”. In front of its lower right, the Guardrails page: “Keep SQL and OpenSearch private” blocks the next deploy of acme-shop / staging."
 >
+  <div class="sec__stack">
     <div class="sec__sheet">
       <h3 class="sec__title">
         Security
@@ -183,6 +184,7 @@ const FILTERS = [
     </div>
     </div>
   </div>
+  </div>
 </div>
 
 <style>
@@ -222,8 +224,14 @@ const FILTERS = [
 
 
   /* A crop of the Console's page: its graphite sheet, cut out of the window. */
+  /* The Security page fills the width; the Guardrails page lies over its lower right and hangs a little below. */
+  .sec__stack {
+    position: relative;
+    padding-bottom: 2.5rem;
+  }
+
   .sec__sheet {
-    padding: 1.6rem 2rem 2rem;
+    padding: 1.6rem 2rem 10rem;
     border: 1px solid var(--brand-border);
     background: var(--brand-page);
     box-shadow: var(--brand-shadow);
@@ -441,13 +449,18 @@ const FILTERS = [
     color: var(--stp-text-muted);
   }
 
-  /* The Guardrails page, a second crop below the Security page, with a straight break between them. */
+  /* The Guardrails page, a second crop laid over the Security page's lower right. */
   .sec__rails {
-    margin-top: 1.5rem;
+    position: absolute;
+    right: 1.5rem;
+    bottom: 0;
+    width: min(40rem, 53%);
     padding: 1.2rem 1.25rem 1.25rem;
     border: 1px solid var(--brand-border);
     background: var(--brand-page);
-    box-shadow: var(--brand-shadow);
+    box-shadow:
+      0 22px 52px rgb(0 0 0 / 50%),
+      0 0 0 1px rgb(0 0 0 / 25%);
   }
 
   .sec__rails-title {
@@ -597,9 +610,16 @@ const FILTERS = [
       white-space: normal;
     }
 
+    .sec__stack {
+      padding-bottom: 0;
+    }
+
     .sec__rails {
+      position: static;
+      width: auto;
       margin-top: 1rem;
       padding: 1rem 0.9rem;
+      box-shadow: var(--brand-shadow);
     }
 
     .sec__rule {
