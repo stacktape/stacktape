@@ -1,5 +1,6 @@
 ---
 import Window from './console/Window.astro';
+import './phone/phone.css';
 
 /**
  * One request's trace in the Console (apps/console/ui TraceDetailPage): a `GET /cart` on acme-shop's production API at
@@ -11,7 +12,7 @@ import Window from './console/Window.astro';
  * The API is a container: Stacktape adds an OpenTelemetry collector to the task and the app's OpenTelemetry SDK sends
  * its spans there (docs/observability/tracing.mdx, "Container services"). The sidebar is the hero's 13:06.
  *
- * A phone shows the failure and the waterfall; the selected step's panel is for wider screens.
+ * A phone shows its own card: the request, the failure with where it happened, and the steps with their times.
  */
 const TOTAL = 46;
 const STEPS = [
@@ -36,6 +37,7 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
   current="traces"
   openErrors={4}
   organization={false}
+  class="ph-desktop"
 >
   <p class="tr-crumbs cn-muted">Traces</p>
   <div class="tr-head">
@@ -113,7 +115,96 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
   </div>
 </Window>
 
+<div
+  class="ph ph-phone"
+  role="img"
+  aria-label="A trace in the Stacktape Console: GET /cart on acme-shop's production API at 10:16 failed with error 500 after 46 ms, with TypeError: Cannot read properties of undefined (reading 'total') in orderTotals, totals.ts line 18. Its steps: a Redis read and two Postgres queries."
+>
+  <div aria-hidden="true" class="tr-ph">
+    <div>
+      <p class="ph-title">GET /cart <span class="ph-red tr-ph__status">Error 500</span></p>
+      <p class="ph-muted">api · acme-shop / production · 10:16</p>
+    </div>
+    <div class="ph-box ph-box--red">
+      <p>TypeError: Cannot read properties of undefined (reading 'total')</p>
+      <p class="ph-mono">orderTotals · totals.ts:18</p>
+    </div>
+    <ol class="tr-ph__steps">
+      {
+        STEPS.map((step) => (
+          <li class:list={{ 'is-error': step.error }}>
+            <span class="tr-ph__name" style={`--tr-depth: ${step.depth}`}>
+              {step.name}
+            </span>
+            <span class="tr-ph__time">{duration(step.ms)}</span>
+            <span class="tr-ph__track">
+              <i style={`left: ${at(step.start)}; width: max(3px, ${at(step.ms)})`} />
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</div>
+
 <style>
+  /* The phone card. */
+  .tr-ph {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .tr-ph__status {
+    margin-left: 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .tr-ph__steps {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .tr-ph__steps li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.3rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .tr-ph__name {
+    padding-left: calc(var(--tr-depth) * 0.9rem);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .tr-ph__time {
+    color: var(--brand-muted);
+  }
+
+  .tr-ph__track {
+    position: relative;
+    grid-column: 1 / -1;
+    height: 0.55rem;
+    background: rgb(255 255 255 / 5%);
+  }
+
+  .tr-ph__track i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: #1c9e95;
+  }
+
+  .is-error .tr-ph__track i {
+    background: #eb6161;
+  }
+
+  .is-error .tr-ph__name {
+    font-weight: 600;
+  }
+
   .tr-head {
     display: flex;
     flex-wrap: wrap;

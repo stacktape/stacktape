@@ -223,3 +223,28 @@
     --bn-bar: 0.9rem;
   }
 }
+
+/* A phone: the headline result and its chart, compact; the smaller charts are for wider screens. */
+@media (max-width: 40rem) {
+  .bn-more,
+  .bn-stat__how {
+    display: none;
+  }
+
+  .bn-main {
+    gap: var(--brand-space-4);
+    padding: 1.1rem;
+  }
+
+  .bn-stat__value {
+    font-size: 2.75rem;
+  }
+
+  .bn-chart--large {
+    --bn-bar: 0.8rem;
+  }
+
+  .bn-chart--large ol {
+    gap: 0.55rem;
+  }
+}

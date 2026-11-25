@@ -11,9 +11,11 @@ type Props = {
   pack: (typeof SECTION_PACKS)[number];
   index: number;
   docs?: { label: string; href: string };
+  /** On a phone, the label above the picture: which product screen it comes from. */
+  shows?: string;
 };
 
-const { pack, index, docs } = Astro.props;
+const { pack, index, docs, shows } = Astro.props;
 const number = String(index + 1).padStart(2, '0');
 /** Text with backtick-marked code set in mono. */
 const words = (text: string) => codeParts(text);
@@ -32,6 +34,13 @@ const words = (text: string) => codeParts(text);
       ) : null
     }
   </header>
+  {
+    shows ? (
+      <p class="b-step__shows">
+        <Tape tone="gray">{shows}</Tape>
+      </p>
+    ) : null
+  }
   <slot />
   {
     pack.gets.length > 0 ? (
@@ -83,6 +92,22 @@ const words = (text: string) => codeParts(text);
 
   .b-step__docs {
     font-size: var(--brand-type-sm);
+  }
+
+  /* On a phone the picture says which screen it is; on wider screens the window around it does. */
+  .b-step__shows {
+    display: none;
+    margin: 0 0 -1rem;
+  }
+
+  .b-step__shows :global(.tape) {
+    font-size: var(--brand-type-xs);
+  }
+
+  @media (max-width: 40rem) {
+    .b-step__shows {
+      display: block;
+    }
   }
 
   /*

@@ -2,6 +2,7 @@
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import Tape from '../../../../brand/Tape.astro';
 import Window from './console/Window.astro';
+import './phone/phone.css';
 
 /*
  * The Console's stage page, Costs tab (apps/console/ui/src/pages/ProjectsPage/StageDetails/Costs.tsx), in the Console
@@ -33,6 +34,10 @@ const ROWS: { name: string; type: string; resource: string | null; share: number
   { name: 'jobQueue', type: 'SQS queue', resource: 'sqs-queue', share: 0, october: '$1.05', november: '$0.90' }
 ];
 
+/** On a phone, the four largest rows and the other three summed: $24.80 + $11.30 + $0.90. */
+const PHONE_ROWS = ROWS.slice(0, 4);
+const PHONE_REST = { count: ROWS.length - PHONE_ROWS.length, november: '$37.00' };
+
 const ALERTS = [
   { when: '1d ago', event: 'Forecast over', spend: '$352.80 of $320.00' },
   { when: '3d ago', event: 'Reached 80%', spend: '$257.40 of $320.00' }
@@ -40,7 +45,7 @@ const ALERTS = [
 ---
 
 <div
-  class="cst"
+  class="cst ph-desktop"
   role="img"
   aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $286.40 so far in November, $350.69 by the end of the month at this pace, split by resource with the API service at 32%. In front of its lower right, the budget page of the production AWS account: AWS forecasts $352.80 of the $320.00 limit, and the alerts it sent at 80% and on the forecast."
 >
@@ -178,7 +183,52 @@ const ALERTS = [
 </div>
 </div>
 
+<div
+  class="ph ph-phone"
+  role="img"
+  aria-label="Costs of acme-shop's production stage in the Stacktape Console: $286.40 so far in November, by resource: the API $92.10, the database $71.40, $47.30 not tied to one resource, the worker $38.60 and three more resources $37.00. The AWS account's budget alert: forecast over by $32.80."
+>
+  <div aria-hidden="true" class="cst-ph">
+    <div>
+      <p class="ph-muted">acme-shop / production · November so far</p>
+      <p class="ph-big">$286.40</p>
+    </div>
+    <ul class="ph-rows">
+      {
+        PHONE_ROWS.map((row) => (
+          <li class="ph-row">
+            <span class="cst-ph__icon">{row.resource ? <ResourceIcon resourceType={row.resource} size={16} /> : null}</span>
+            <span>{row.name}</span>
+            <b>{row.november}</b>
+          </li>
+        ))
+      }
+      <li class="ph-row">
+        <span class="cst-ph__icon"></span>
+        <span class="ph-muted">{PHONE_REST.count} more resources</span>
+        <b>{PHONE_REST.november}</b>
+      </li>
+    </ul>
+    <div class="ph-box">
+      <p class="ph-muted">Budget · whole AWS account</p>
+      <p class="ph-amber"><b>Forecast over by $32.80</b></p>
+    </div>
+  </div>
+</div>
+
 <style>
+  /* The phone card. */
+  .cst-ph {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .cst-ph__icon {
+    display: grid;
+    place-items: center;
+    width: 1.25rem;
+  }
+
   .cst {
     --cst-warn: #ed8b00;
     --cst-hair: var(--stp-border-subtle);

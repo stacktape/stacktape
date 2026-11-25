@@ -1,4 +1,5 @@
 ---
+import './phone/phone.css';
 /*
  * Where help comes from, in two parts. First a crop of the Console's top bar with the Help menu open under Help, as
  * apps/console/ui/src/components/Header/HelpMenu.tsx builds it: Documentation, Keyboard shortcuts, Email support, and on
@@ -37,7 +38,7 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
 ---
 
 <div
-  class="hlp"
+  class="hlp ph-desktop"
   role="img"
   aria-label="The Help menu open in the Stacktape Console's top bar: Documentation, Keyboard shortcuts, Email support, Book a call with an engineer and Request a Slack channel. Next to it, an example support conversation in a shared channel: Maya Chen from Acme asks which IPs their payment provider should allowlist for the worker, and Stacktape answers with the two settings and the trade-off."
 >
@@ -111,7 +112,75 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
   </div>
 </div>
 
+<div
+  class="ph ph-phone"
+  role="img"
+  aria-label="An example support conversation in a shared Slack channel: Maya Chen from Acme asks which IPs their payment provider should allowlist for the worker. Stacktape answers with the two settings that send the worker's traffic through one Elastic IP per availability zone."
+>
+  <div aria-hidden="true" class="hlp-ph">
+    <p class="hlp-ph__channel"># support-acme-shop</p>
+    <div class="hlp-ph__msg">
+      <span class="hlp-ph__face brand-round">MC</span>
+      <div>
+        <p><b>Maya Chen</b> <span class="ph-muted">Acme</span></p>
+        <p>Our payment provider wants to allowlist the IPs our worker calls them from. Which IPs do we give them?</p>
+      </div>
+    </div>
+    <div class="hlp-ph__msg">
+      <span class="hlp-ph__face hlp-ph__face--team brand-round">S</span>
+      <div>
+        <p><b>Stacktape</b> <span class="ph-muted">founder</span></p>
+        <p>
+          Set <code>usePrivateSubnetsWithNAT: true</code> on the worker and <code>nat: ha-ec2</code>. Its traffic then
+          leaves through one Elastic IP per zone. Give the provider both.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>
+  /* The phone card. */
+  .hlp-ph {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .hlp-ph__channel {
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--brand-border);
+    font-weight: 700;
+  }
+
+  .hlp-ph__msg {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+    gap: 0.7rem;
+    font-size: 0.9rem;
+  }
+
+  .hlp-ph__msg code {
+    padding: 0 0.2em;
+    background: rgb(255 255 255 / 7%);
+    font: 0.85em var(--brand-font-mono);
+  }
+
+  .hlp-ph__face {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background: #2c3333;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .hlp-ph__face--team {
+    background: var(--brand-primary);
+    color: var(--brand-on-teal);
+  }
+
   .hlp {
     container: hlp / inline-size;
     color: var(--stp-text-primary);
