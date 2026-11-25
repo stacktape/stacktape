@@ -51,10 +51,7 @@ type Props = {
   preselect?: boolean;
 };
 
-/**
- * The first line is the command Copy puts on the clipboard. For standalone installs,
- * the second line shows what to run once the installer has finished.
- */
+/** Every tab shows one command, the one Copy puts on the clipboard. */
 export function CommandBox({ label = 'Install', hint = true, id, appearance = 'brand', preselect = true }: Props) {
   const branded = appearance === 'brand';
   const [current, setCurrent] = useState<CommandId>('npx');
@@ -68,9 +65,7 @@ export function CommandBox({ label = 'Install', hint = true, id, appearance = 'b
   const uid = useId();
   const entry = COMMANDS.find((candidate) => candidate.id === current) ?? COMMANDS[0];
   const variant = entry.variants.find((candidate) => candidate.arch === arches[entry.id]) ?? entry.variants[0];
-  /** What the tab shows, and what Copy puts on the clipboard. */
-  const text = variant.lines.join('\n');
-  const command = variant.lines[0];
+  const command = variant.command;
 
   useEffect(() => {
     if (!preselect) return;
@@ -97,7 +92,7 @@ export function CommandBox({ label = 'Install', hint = true, id, appearance = 'b
     measure();
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [text]);
+  }, [command]);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
@@ -210,19 +205,17 @@ export function CommandBox({ label = 'Install', hint = true, id, appearance = 'b
         id={panelId}
         ref={preRef}
         role="tabpanel"
-        aria-label={`${entry.label} commands`}
+        aria-label={`${entry.label} command`}
         tabIndex={branded ? 0 : undefined}
       >
-        {variant.lines.map((line) => (
-          <span className="install-code__line" key={line}>
-            <span aria-hidden="true" className="install-code__prompt">
-              $
-            </span>
-            <code className="install-code__cmd" data-cmd>
-              {line}
-            </code>
+        <span className="install-code__line">
+          <span aria-hidden="true" className="install-code__prompt">
+            $
           </span>
-        ))}
+          <code className="install-code__cmd" data-cmd>
+            {command}
+          </code>
+        </span>
         {hint ? (
           <span className="install-code__line install-code__line--comment">
             <span aria-hidden="true" className="install-code__prompt">
