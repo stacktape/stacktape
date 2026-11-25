@@ -7,9 +7,14 @@ import { barsOf, runOf, slowest } from './bench/data';
  * `empty-cache`): seconds to package 1, 5 and 25 Lambda functions with an empty build cache, median of 10 runs, on the
  * 22 October 2026 run. Every tool's bar, fastest first. The run date links to the run's results on GitHub.
  */
-const large = barsOf('packaging', 'empty-cache', 'lambda-25');
-const one = barsOf('packaging', 'empty-cache', 'lambda-1');
-const five = barsOf('packaging', 'empty-cache', 'lambda-5');
+/**
+ * SST has no packaging-only command, so its time includes `sst diff`; CDK's is its synth, without the zipping it does
+ * during the deploy (the data file's notes). The labels say so at the bars.
+ */
+const LABELS = { sst: 'SST (diff)', cdk: 'AWS CDK (synth)' };
+const large = barsOf('packaging', 'empty-cache', 'lambda-25', {}, LABELS);
+const one = barsOf('packaging', 'empty-cache', 'lambda-1', {}, LABELS);
+const five = barsOf('packaging', 'empty-cache', 'lambda-5', {}, LABELS);
 const us = large.find((bar) => bar.us);
 if (!us) throw new Error('The packaging benchmark has no Stacktape value');
 const small = slowest(one, five);

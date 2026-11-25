@@ -7,13 +7,22 @@ import { BENCHMARKS, findGroup, toolName } from '../../../../../variants/readme/
 
 export type Bar = { label: string; seconds: number; us: boolean; note?: string };
 
-/** One benchmark group's bars, fastest first. `notes` puts a line under a tool's bar, e.g. how it deployed. */
-export const barsOf = (comparison: string, view: string, app: string, notes: Record<string, string> = {}): Bar[] =>
+/**
+ * One benchmark group's bars, fastest first. `notes` puts a line under a tool's bar, e.g. how it deployed; `labels`
+ * replaces a tool's name, e.g. to say what its time includes.
+ */
+export const barsOf = (
+  comparison: string,
+  view: string,
+  app: string,
+  notes: Record<string, string> = {},
+  labels: Record<string, string> = {}
+): Bar[] =>
   findGroup(comparison, view, app)
     .group.values.toSorted((left, right) => left.median - right.median)
     .map((value) => {
       const bar: Bar = {
-        label: toolName(BENCHMARKS, value.tool),
+        label: labels[value.tool] ?? toolName(BENCHMARKS, value.tool),
         seconds: value.median,
         us: value.tool === 'stacktape'
       };

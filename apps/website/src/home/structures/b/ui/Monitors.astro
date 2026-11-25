@@ -55,6 +55,7 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
     <div>
       <p class="tr-failure__where">Failed in GET /cart</p>
       <p class="cn-muted">TypeError: Cannot read properties of undefined (reading 'total')</p>
+      <p class="tr-failure__at cn-mono cn-muted">orderTotals · totals.ts:18</p>
     </div>
     <span class="tr-logs cn-wide">Logs of this request</span>
   </div>
@@ -138,6 +139,11 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
   .tr-failure__where {
     color: var(--cn-red);
     font-weight: 600;
+  }
+
+  /* Where it failed: a phone has no step panel, so the failure says it. */
+  .tr-failure__at {
+    display: none;
   }
 
   .tr-logs {
@@ -308,6 +314,11 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
 
     .tr-failure {
       padding-inline: 0.9em;
+    }
+
+    .tr-failure__at {
+      display: block;
+      margin-top: 0.3em !important;
     }
 
     .tr-id {
