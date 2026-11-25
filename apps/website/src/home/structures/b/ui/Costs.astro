@@ -1,0 +1,607 @@
+---
+/*
+ * The Console's stage page, Costs tab (apps/console/ui/src/pages/ProjectsPage/StageDetails/Costs.tsx), and a budget's
+ * page (BudgetsPage/BudgetDetailPage.tsx) for the example app acme-shop, re-created in HTML in the tape look.
+ *
+ * The figures add up: the rows sum to $315.20 for 1–24 November and $370.30 for October. The pace is the Console's,
+ * the month so far over 24 days times 30: $394.00, 6% more than October. The budget watches acme-shop / production at
+ * $350 with alerts at 80% and on a forecast; spend passed $280 on 22 November and AWS forecast $391.70 two days ago.
+ * Shares are rounded, as the Console rounds them.
+ */
+type Kind = 'database' | 'compute' | 'storage' | 'integration' | 'other';
+
+const ROWS: { name: string; type: string; kind: Kind; share: number; october: string; november: string }[] = [
+  { name: 'database', type: 'SQL database', kind: 'database', share: 38, october: '$139.20', november: '$118.40' },
+  { name: 'api', type: 'Web service', kind: 'compute', share: 27, october: '$101.60', november: '$86.10' },
+  { name: 'cache', type: 'Redis', kind: 'database', share: 13, october: '$48.90', november: '$41.30' },
+  { name: 'worker', type: 'Worker service', kind: 'compute', share: 11, october: '$39.50', november: '$33.70' },
+  { name: 'Not tied to one resource', type: 'Other AWS costs', kind: 'other', share: 9, october: '$31.80', november: '$27.20' },
+  { name: 'web', type: 'Website', kind: 'storage', share: 2, october: '$7.40', november: '$6.90' },
+  { name: 'orders', type: 'SQS queue', kind: 'integration', share: 1, october: '$1.90', november: '$1.60' }
+];
+
+const ALERTS = [
+  { when: '2d ago', event: 'Forecast over', spend: '$391.70 of $350.00' },
+  { when: '3d ago', event: 'Reached 80%', spend: '$280.40 of $350.00' }
+];
+---
+
+<div
+  class="cst"
+  role="img"
+  aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $315.20 so far in November, $394.00 by the end of the month at this pace, split by resource with the database at 38%. In front of it, the stage’s budget: AWS forecasts $391.70 of the $350.00 limit, and the alerts it sent at 80% and on the forecast."
+>
+  <div class="cst__window">
+    <div class="cst__chrome">
+      <span class="cst__brand">stack<span>tape</span></span>
+      <span class="cst__where"><span>Acme</span><span>/</span><span>Projects</span><span>/</span><b>acme-shop</b></span>
+    </div>
+    <div class="cst__body">
+      <div class="cst__project">
+        <h3>acme-shop</h3>
+        <span class="cst__repo"><u>acme/acme-shop</u><u>Deploys on push: on</u></span>
+      </div>
+      <div class="cst__stages">
+        <span class="cst__seg"
+          ><span class="is-on"><i></i>production</span><span><i></i>staging</span></span
+        >
+        <span class="cst__btn"><b>+</b> New stage</span>
+        <span class="cst__account">acme-production · eu-central-1</span>
+      </div>
+      <div class="cst__nav">
+        <span>Overview</span><span>Activity</span><span class="is-on">Costs</span><span>Configuration</span><span
+          >Diagram</span
+        ><span>Danger zone</span>
+        <span class="cst__running">Running 4c1e9a2 on main · <u>View deploy</u></span>
+        <span class="cst__btn cst__btn--primary">Deploy stage</span>
+      </div>
+
+      <div class="cst__panel">
+        <div class="cst__total">
+          <span>
+            <span class="cst__dim">November 2026 so far</span>
+            <strong>$315.20</strong>
+            <span class="cst__dim"
+              >$394.00 by Nov 30 at this pace, 6% more than October ($370.30) · Report updated 1h ago</span
+            >
+          </span>
+          <span class="cst__month"><span class="cst__dim">Month</span> November 2026</span>
+        </div>
+        <div class="cst__grid">
+          <span class="cst__th">Resource</span>
+          <span class="cst__th cst__type">Type</span>
+          <span class="cst__th cst__num">Share</span>
+          <span class="cst__th cst__num cst__oct">All of October</span>
+          <span class="cst__th cst__num">↓ November so far</span>
+          {
+            ROWS.map((row) => (
+              <>
+                <span class:list={['cst__name', row.kind === 'other' && 'cst__dim']}>
+                  <i class:list={['cst__icon', `is-${row.kind}`]} />
+                  {row.name}
+                </span>
+                <span class="cst__type cst__dim">{row.type}</span>
+                <span class="cst__num cst__share">
+                  <span class="cst__meter">
+                    <span style={`width: ${row.share}%`} />
+                  </span>
+                  {row.share}%
+                </span>
+                <span class="cst__num cst__oct cst__dim">{row.october}</span>
+                <span class="cst__num">
+                  <b>{row.november}</b>
+                </span>
+              </>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cst__budget">
+    <p class="cst__dim">Budgets</p>
+    <p class="cst__budget-title"><b>Production</b> <span class="cst__dim">Budget · acme-shop / production</span></p>
+    <div class="cst__alert">
+      <i></i>
+      <span>
+        <b class="cst__warn">Forecast over by $41.70</b>
+        <span class="cst__dim">AWS forecasts $391.70 of $350.00, AWS alert 2d ago</span>
+        <span class="cst__full"></span>
+      </span>
+      <span class="cst__drives">See what drives it</span>
+    </div>
+    <div class="cst__sent">
+      <b>Alerts sent</b>
+      {
+        ALERTS.map((alert) => (
+          <span class="cst__sent-row">
+            <span class="cst__dim">{alert.when}</span>
+            <span class="cst__warn">
+              <i />
+              {alert.event}
+            </span>
+            <span>{alert.spend}</span>
+            <span class="cst__ok">
+              <i />
+              Sent
+            </span>
+          </span>
+        ))
+      }
+    </div>
+    <p class="cst__fact"><span class="cst__dim">Over the limit</span> It alerts; nothing stops</p>
+  </div>
+</div>
+
+<style>
+  .cst {
+    --cst-warn: #ed8b00;
+    --cst-hair: var(--stp-border-subtle);
+    --cst-raised: linear-gradient(var(--stp-surface-element), color-mix(in srgb, var(--stp-surface-element) 88%, #000));
+    container: cst / inline-size;
+    display: grid;
+    padding-bottom: 9rem;
+    color: var(--stp-text-primary);
+    font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
+  }
+
+  .cst :is(b, strong) {
+    font-weight: 600;
+  }
+
+  .cst u {
+    text-decoration: underline dotted rgb(255 255 255 / 50%);
+    text-underline-offset: 0.22em;
+  }
+
+  .cst__dim {
+    color: var(--stp-text-muted);
+  }
+
+  .cst__window {
+    grid-area: 1 / 1;
+    border: 1px solid var(--brand-border);
+    background: var(--brand-inset);
+    box-shadow: var(--brand-shadow);
+  }
+
+  .cst__chrome {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    padding: 0.7rem 1rem;
+  }
+
+  .cst__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.13em;
+    font: 700 1.05rem / 1 var(--brand-font-heading);
+    letter-spacing: -0.03em;
+  }
+
+  .cst__brand span {
+    clip-path: var(--brand-tape-clip);
+    padding: 0.17em 0.36em 0.21em;
+    background: var(--brand-primary);
+    color: var(--brand-on-teal);
+  }
+
+  .cst__where {
+    display: flex;
+    gap: 0.7rem;
+    font-weight: 600;
+  }
+
+  .cst__where span:nth-child(even) {
+    color: var(--stp-text-subtle);
+  }
+
+  .cst__body {
+    padding: 1.4rem 2rem 12rem;
+    background: var(--brand-page);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 7.5%);
+  }
+
+  .cst__project {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1.5rem;
+  }
+
+  .cst__project h3 {
+    color: var(--stp-text-strong);
+    font: 600 1.5rem / 1.2 var(--brand-font-heading);
+    letter-spacing: -0.02em;
+  }
+
+  .cst__repo {
+    display: flex;
+    gap: 1.25rem;
+    color: var(--stp-text-muted);
+  }
+
+  .cst__stages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+
+  .cst__seg {
+    display: flex;
+    padding: 3px;
+    background: var(--stp-surface-input);
+  }
+
+  .cst__seg > span {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 1rem;
+  }
+
+  .cst__seg i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--stp-status-success);
+  }
+
+  /* The chosen stage is the filled piece of the tape strip, torn on the side where the next piece starts. */
+  .cst__seg > .is-on::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    content: '';
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    /* Teeth 3.4 px deep on the right end, eight per side, as on the Console's segmented tabs. */
+    clip-path: polygon(0 0, 100% 0, calc(100% - 3.4px) 12.5%, 100% 25%, calc(100% - 3.4px) 37.5%, 100% 50%, calc(100% - 3.4px) 62.5%, 100% 75%, calc(100% - 3.4px) 87.5%, 100% 100%, 0 100%);
+  }
+
+  .cst__btn {
+    padding: 0.5rem 0.95rem;
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .cst__btn--primary {
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+    color: var(--brand-on-teal);
+  }
+
+  .cst__account {
+    margin-left: auto;
+    color: var(--stp-text-muted);
+  }
+
+  .cst__nav {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin: 0.9rem 0 1.2rem;
+    border-bottom: 1px solid var(--cst-hair);
+    font-weight: 500;
+  }
+
+  .cst__nav > span:not(.cst__btn) {
+    position: relative;
+    padding-block: 0.65rem;
+  }
+
+  .cst__nav > .is-on::after {
+    position: absolute;
+    bottom: -2px;
+    left: 2px;
+    width: calc(100% - 4px);
+    height: 5px;
+    content: '';
+    background: var(--brand-primary);
+    clip-path: polygon(0 50%, 2px 0, calc(100% - 2px) 0, 100% 50%, calc(100% - 2px) 100%, 2px 100%);
+  }
+
+  .cst__nav .cst__running {
+    margin-left: auto;
+    color: var(--stp-text-muted);
+    font-weight: 450;
+  }
+
+  .cst__nav .cst__btn {
+    margin-bottom: 0.4rem;
+  }
+
+  .cst__panel {
+    background: var(--cst-raised);
+    box-shadow:
+      0 2px 6px rgb(0 0 0 / 35%),
+      inset 0 1px 0 rgb(255 255 255 / 9%);
+  }
+
+  .cst__total {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .cst__total > span:first-child {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .cst__total strong {
+    font: 700 1.5rem / 1.25 var(--brand-font-heading);
+  }
+
+  .cst__month {
+    padding: 0.55rem 1rem;
+    border: 1px solid var(--cst-hair);
+    background: var(--stp-surface-input);
+    white-space: nowrap;
+  }
+
+  .cst__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 11rem 8rem 9rem;
+  }
+
+  .cst__grid > * {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    min-height: 2.9rem;
+    padding-inline: 1rem;
+    border-top: 1px solid var(--cst-hair);
+  }
+
+  .cst__grid .cst__th {
+    min-height: 2.2rem;
+    background: color-mix(in srgb, var(--stp-surface-element) 92%, #000);
+    color: var(--stp-text-muted);
+    font-size: var(--stp-font-size-caption);
+    font-weight: 500;
+  }
+
+  .cst__num {
+    justify-content: flex-end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cst__name {
+    gap: 0.6rem;
+    font-weight: 600;
+  }
+
+  .cst__icon {
+    flex: none;
+    width: 1.05rem;
+    height: 1.05rem;
+    border: 1.5px solid currentcolor;
+  }
+
+  .cst__icon.is-database {
+    border-radius: 50% / 22%;
+    color: var(--stp-aws-category-database);
+  }
+
+  .cst__icon.is-compute {
+    color: var(--stp-aws-category-compute);
+  }
+
+  .cst__icon.is-storage {
+    color: var(--stp-aws-category-storage);
+  }
+
+  .cst__icon.is-integration {
+    color: var(--stp-aws-category-integration);
+    border-style: dashed;
+  }
+
+  .cst__icon.is-other {
+    visibility: hidden;
+  }
+
+  .cst__share {
+    gap: 1.1rem;
+  }
+
+  .cst__meter {
+    position: relative;
+    width: 5.5rem;
+    height: 4px;
+    background: rgb(255 255 255 / 8%);
+  }
+
+  .cst__meter span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    min-width: 4px;
+    background: var(--brand-teal);
+  }
+
+  /* The budget's page, laid over the bottom of the Costs tab like a second window. */
+  .cst__budget {
+    z-index: 1;
+    grid-area: 1 / 1;
+    align-self: end;
+    justify-self: end;
+    display: grid;
+    gap: 0.5rem;
+    width: min(37rem, 70%);
+    margin: 0 1.25rem -9rem 0;
+    padding: 1rem 1.1rem 1.1rem;
+    border: 1px solid var(--brand-border);
+    background: var(--brand-page);
+    box-shadow: 0 22px 52px rgb(0 0 0 / 50%);
+  }
+
+  .cst__budget-title b {
+    margin-right: 0.5rem;
+    font: 600 1.15rem / 1.3 var(--brand-font-heading);
+  }
+
+  .cst__alert {
+    display: grid;
+    grid-template-columns: 0.5rem minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.75rem;
+    margin-top: 0.4rem;
+    padding: 0.8rem 1rem;
+    background: var(--cst-raised);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 9%);
+  }
+
+  .cst__alert > i,
+  .cst__sent i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--cst-warn);
+  }
+
+  .cst__alert > i {
+    margin-top: 0.4rem;
+  }
+
+  .cst__alert > span:nth-child(2) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.1rem 0.5rem;
+  }
+
+  .cst__warn {
+    color: var(--cst-warn);
+  }
+
+  .cst__full {
+    width: min(100%, 22rem);
+    height: 4px;
+    margin-top: 0.35rem;
+    background: var(--cst-warn);
+  }
+
+  .cst__drives {
+    align-self: center;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .cst__sent {
+    display: grid;
+    padding: 0.7rem 1rem 0.3rem;
+    background: var(--cst-raised);
+  }
+
+  .cst__sent > b {
+    margin-bottom: 0.3rem;
+  }
+
+  .cst__sent-row {
+    display: grid;
+    grid-template-columns: 4rem 8.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding-block: 0.45rem;
+    border-top: 1px solid var(--cst-hair);
+  }
+
+  .cst__sent-row > span:nth-child(2),
+  .cst__ok {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 600;
+  }
+
+  .cst__ok {
+    font-weight: 450;
+  }
+
+  .cst__ok i {
+    background: var(--stp-status-success);
+  }
+
+  .cst__fact .cst__dim {
+    margin-right: 0.5rem;
+  }
+
+  @container cst (max-width: 62rem) {
+    .cst__running,
+    .cst__oct,
+    .cst__nav > span:nth-child(n + 4):not(.cst__btn) {
+      display: none;
+    }
+
+    .cst__grid {
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 9.5rem 8.5rem;
+    }
+
+    .cst__nav .cst__btn {
+      margin-left: auto;
+    }
+  }
+
+  /* A phone: resource, share and this month's spend; the budget follows the table instead of covering it. */
+  @container cst (max-width: 34rem) {
+    .cst {
+      padding-bottom: 0;
+      font-size: 0.8rem;
+    }
+
+    .cst__chrome {
+      justify-content: space-between;
+    }
+
+    .cst__where span:not(:last-child) {
+      display: none;
+    }
+
+    .cst__body {
+      padding: 1rem 0.9rem 1.2rem;
+    }
+
+    .cst__repo,
+    .cst__account,
+    .cst__month,
+    .cst__type,
+    .cst__meter,
+    .cst__btn:not(.cst__btn--primary),
+    .cst__nav > span:nth-child(-n + 2) {
+      display: none;
+    }
+
+    .cst__grid {
+      grid-template-columns: minmax(0, 1fr) 3.5rem 5.5rem;
+    }
+
+    .cst__grid > * {
+      padding-inline: 0.7rem;
+    }
+
+    .cst__budget {
+      grid-area: auto;
+      width: auto;
+      margin: 1rem 0 0;
+      box-shadow: var(--brand-shadow);
+    }
+
+    .cst__sent-row {
+      grid-template-columns: 3.2rem minmax(0, 1fr) auto;
+    }
+
+    .cst__sent-row > span:nth-child(3) {
+      display: none;
+    }
+  }
+</style>

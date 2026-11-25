@@ -1,0 +1,693 @@
+---
+/*
+ * The Console's Security page and Guardrails page for the example app acme-shop, re-created in HTML from
+ * apps/console/ui/src/pages/SecurityPage/SecurityOverviewPage.tsx and GuardrailsPage, in the tape look.
+ *
+ * Finding titles, fixes and severities are the Console's own (packages/console-api/src/security.ts,
+ * SecurityPage/fix-summary.ts; a public database outside production is Low). The two package findings are real
+ * advisories: axios < 1.8.2 (GHSA-jr5f-v2jv-69x6) and micromatch < 4.0.8 (CVE-2024-4067). The score follows the
+ * Console's formula (100 − 25 per critical, 10 per high, 3 per medium, 1 per low, averaged over scanned stacks):
+ * production 61, staging 96, so 79. The guardrail blocks staging because its database is the public one.
+ */
+type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
+
+const FINDINGS: { severity: Severity; title: string; fix: string; stage: string; what: string; seen: string }[] = [
+  {
+    severity: 'Critical',
+    title: 'Secret stored as a plain environment variable',
+    fix: 'Move it to a secret and replace the credential',
+    stage: 'production',
+    what: 'worker · Worker service',
+    seen: '2h ago'
+  },
+  {
+    severity: 'High',
+    title: 'Possible SSRF and credential leakage via absolute URL',
+    fix: 'Upgrade axios to 1.8.2',
+    stage: 'production',
+    what: 'axios · npm',
+    seen: '2h ago'
+  },
+  {
+    severity: 'Medium',
+    title: 'Production database without deletion protection',
+    fix: 'Turn on deletion protection',
+    stage: 'production',
+    what: 'database · SQL database',
+    seen: '2h ago'
+  },
+  {
+    severity: 'Medium',
+    title: 'Regular expression denial of service in micromatch',
+    fix: 'Upgrade micromatch to 4.0.8',
+    stage: 'staging',
+    what: 'micromatch · npm',
+    seen: '5h ago'
+  },
+  {
+    severity: 'Low',
+    title: 'Database reachable from the internet',
+    fix: 'Restrict database access to the services that need it',
+    stage: 'staging',
+    what: 'database · SQL database',
+    seen: '5h ago'
+  },
+  {
+    severity: 'Low',
+    title: 'Queue without a dead-letter queue',
+    fix: 'Add a dead-letter queue',
+    stage: 'production',
+    what: 'orders · SQS queue',
+    seen: '2h ago'
+  }
+];
+
+const TILES = [
+  { label: 'Fix now', value: '2', sub: '1 critical, 1 high', tone: 'bad' },
+  { label: 'Fix when you can', value: '4', sub: '2 medium, 2 low', tone: '' },
+  { label: 'Stacks scanned', value: '2 of 2', sub: 'Every deployed stack', tone: '' },
+  { label: 'Score of scanned stacks', value: '79/100', sub: '100 is best', tone: 'warn' }
+];
+
+const FILTERS = [
+  ['Project', 'acme-shop'],
+  ['Stage', 'All'],
+  ['Status', 'Open'],
+  ['Severity', 'All']
+];
+---
+
+<div
+  class="sec"
+  role="img"
+  aria-label="The Stacktape Console’s Security page for acme-shop: 2 findings to fix now and 4 to fix when you can, each with its stage and the fix, such as “Upgrade axios to 1.8.2”. Below it, the Guardrails page: “Keep SQL and OpenSearch private” blocks the next deploy of acme-shop / staging."
+>
+  <div class="sec__window">
+    <div class="sec__bar">
+      <span class="sec__logo">stack<span>tape</span></span>
+      <span class="sec__crumbs">
+        <span>Acme</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+        <span class="sec__slash">/</span>
+        <b>Security</b>
+      </span>
+      <span class="sec__find">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m20 20-4.2-4.2"></path></svg>
+        Find<kbd>Ctrl K</kbd>
+      </span>
+    </div>
+
+    <div class="sec__sheet">
+      <h3 class="sec__title">
+        Security
+        <svg viewBox="0 0 24 24" aria-hidden="true"
+          ><circle cx="12" cy="12" r="9"></circle><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.3"></path><path
+            d="M12 16.8v.2"></path></svg
+        >
+      </h3>
+
+      <div class="sec__tiles">
+        {
+          TILES.map((tile) => (
+            <div class="sec__tile">
+              <span class="sec__tile-label">{tile.label}</span>
+              <span class:list={['sec__tile-value', tile.tone && `is-${tile.tone}`]}>{tile.value}</span>
+              <span class="sec__tile-sub">{tile.sub}</span>
+            </div>
+          ))
+        }
+      </div>
+
+      <div class="sec__panel">
+        <div class="sec__tabs">
+          <span class="is-on">All fixes</span><span>Config</span><span>Packages</span><span>By stack</span>
+        </div>
+        <div class="sec__filters">
+          <span class="sec__search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m20 20-4.2-4.2"></path></svg>
+            Search findings
+          </span>
+          {
+            FILTERS.map(([label, value]) => (
+              <span class="sec__select">
+                <span class="sec__select-label">{label}</span>
+                {value}
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
+            ))
+          }
+        </div>
+        <div class="sec__table">
+          <div class="sec__row sec__row--head">
+            <span>Severity</span><span>What to fix</span><span class="sec__where">Where</span><span class="sec__seen">Last seen</span
+            ><span></span>
+          </div>
+          {
+            FINDINGS.map((finding) => (
+              <div class="sec__row">
+                <span>
+                  <span class:list={['sec__badge', `is-${finding.severity.toLowerCase()}`]}>{finding.severity}</span>
+                </span>
+                <span class="sec__what">
+                  <b>{finding.title}</b>
+                  <span>{finding.fix}</span>
+                </span>
+                <span class="sec__where">
+                  <span>acme-shop / {finding.stage}</span>
+                  <span class="sec__muted">{finding.what}</span>
+                </span>
+                <span class="sec__seen">{finding.seen}</span>
+                <svg class="sec__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m9 6 6 6-6 6" />
+                </svg>
+              </div>
+            ))
+          }
+          <div class="sec__foot">1 – 6 of 6</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec__rails">
+    <div class="sec__rails-head">
+      <b>Guardrails</b>
+      <span class="sec__tabs sec__tabs--small"
+        ><span class="is-on">On <i>2</i></span><span>All rules <i>18</i></span></span
+      >
+    </div>
+    <div class="sec__rule">
+      <span>
+        <b>Region restriction</b>
+        <span class="sec__muted">Deploys only to the AWS regions you list.</span>
+      </span>
+      <span class="sec__rule-value">eu-central-1</span>
+      <span class="sec__button">Edit</span>
+    </div>
+    <div class="sec__rule">
+      <span>
+        <b>Keep SQL and OpenSearch private</b>
+        <span class="sec__muted">Requires SQL databases and OpenSearch to accept traffic only from your AWS network.</span>
+        <span class="sec__blocks">Blocks the next deploy of <u>acme-shop / staging</u>.</span>
+      </span>
+      <span class="sec__rule-value"></span>
+      <span class="sec__switch" aria-hidden="true"></span>
+    </div>
+  </div>
+</div>
+
+<style>
+  .sec {
+    /* The Console's warning orange (statusWarning in its tokens.ts) has no shared token yet. */
+    --sec-warn: #ed8b00;
+    --sec-panel: linear-gradient(var(--stp-surface-element), color-mix(in srgb, var(--stp-surface-element) 88%, #000));
+    --sec-lift: 0 2px 6px rgb(0 0 0 / 35%), inset 0 1px 0 rgb(255 255 255 / 9%);
+    container: sec / inline-size;
+    position: relative;
+    padding-bottom: 9.5rem;
+    color: var(--stp-text-primary);
+    font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
+  }
+
+  svg {
+    flex: none;
+    width: 1em;
+    height: 1em;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  b {
+    font-weight: 600;
+  }
+
+  .sec__window {
+    overflow: hidden;
+    border: 1px solid var(--brand-border);
+    background: var(--brand-inset);
+    box-shadow: var(--brand-shadow);
+  }
+
+  .sec__bar {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    height: 3rem;
+    padding-inline: 1rem;
+  }
+
+  .sec__logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.13em;
+    font: 700 1.05rem / 1 var(--brand-font-heading);
+    letter-spacing: -0.03em;
+  }
+
+  .sec__logo span {
+    padding: 0.17em 0.36em 0.21em;
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+    color: var(--brand-on-teal);
+    clip-path: var(--brand-tape-clip);
+  }
+
+  .sec__crumbs {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 1.5rem;
+    font-weight: 600;
+  }
+
+  .sec__crumbs svg {
+    color: var(--stp-text-muted);
+  }
+
+  .sec__slash {
+    margin-inline: 0.5rem;
+    color: var(--stp-text-subtle);
+    font-weight: 400;
+  }
+
+  .sec__find {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 14rem;
+    height: 2.2rem;
+    margin-left: auto;
+    padding-inline: 0.75rem 0.4rem;
+    border: 1px solid var(--stp-border-subtle);
+    color: var(--stp-text-subtle);
+  }
+
+  .sec__find kbd {
+    margin-left: auto;
+    padding: 0 0.3rem;
+    border: 1px solid var(--stp-border-subtle);
+    font: inherit;
+    font-size: var(--stp-font-size-caption);
+  }
+
+  .sec__sheet {
+    padding: 1.6rem 2rem 2rem;
+    background: var(--brand-page);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 7.5%);
+  }
+
+  .sec__title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    color: var(--stp-text-strong);
+    font: 600 1.5rem / 1.2 var(--brand-font-heading);
+    letter-spacing: -0.02em;
+  }
+
+  .sec__title svg {
+    width: 1rem;
+    height: 1rem;
+    color: var(--stp-text-subtle);
+    stroke-width: 1.6;
+  }
+
+  .sec__tiles {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.9rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .sec__tile {
+    display: grid;
+    gap: 0.15rem;
+    padding: 0.75rem 1rem;
+    background: var(--sec-panel);
+    box-shadow: var(--sec-lift);
+  }
+
+  .sec__tile-label {
+    color: var(--stp-text-muted);
+    font-weight: 600;
+  }
+
+  .sec__tile-value {
+    font: 700 1.5rem / 1.15 var(--brand-font-heading);
+  }
+
+  .sec__tile-value.is-bad {
+    color: var(--stp-status-error);
+  }
+
+  .sec__tile-value.is-warn {
+    color: var(--sec-warn);
+  }
+
+  .sec__tile-sub {
+    color: var(--stp-text-muted);
+  }
+
+  .sec__panel {
+    overflow: hidden;
+    background: var(--sec-panel);
+    box-shadow: var(--sec-lift);
+  }
+
+  .sec__tabs {
+    display: flex;
+    width: max-content;
+    margin: 0.6rem;
+    padding: 3px;
+    background: var(--stp-surface-input);
+  }
+
+  /* Segmented tape tabs: pieces of one strip, torn where they meet; only the chosen piece is filled. */
+  .sec__tabs > span {
+    position: relative;
+    isolation: isolate;
+    padding: 0.4rem 1.05rem;
+  }
+
+  .sec__tabs > .is-on::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    content: '';
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    clip-path: polygon(
+      0 0,
+      100% 0,
+      calc(100% - 3.4px) 12.5%,
+      100% 25%,
+      calc(100% - 3.4px) 37.5%,
+      100% 50%,
+      calc(100% - 3.4px) 62.5%,
+      100% 75%,
+      calc(100% - 3.4px) 87.5%,
+      100% 100%,
+      0 100%
+    );
+  }
+
+  .sec__tabs i {
+    margin-left: 0.35rem;
+    color: var(--stp-text-subtle);
+    font-style: normal;
+  }
+
+  .sec__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.75rem 0.6rem;
+    border-top: 1px solid var(--stp-border-subtle);
+  }
+
+  .sec__search,
+  .sec__select {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 2.4rem;
+    padding-inline: 0.9rem 0.5rem;
+    border: 1px solid var(--stp-border-subtle);
+    background: var(--stp-surface-input);
+    box-shadow: inset 0 1px 3px rgb(0 0 0 / 30%);
+  }
+
+  .sec__search {
+    flex: 1.4 1 12rem;
+    color: var(--stp-text-subtle);
+  }
+
+  .sec__select {
+    flex: 1 1 8rem;
+    white-space: nowrap;
+  }
+
+  .sec__select svg {
+    margin-left: auto;
+    color: var(--stp-text-muted);
+  }
+
+  .sec__select-label {
+    color: var(--stp-text-muted);
+  }
+
+  .sec__row {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1.75fr) minmax(0, 1fr) 5.5rem 1.5rem;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3rem;
+    padding: 0.4rem 1rem;
+    border-top: 1px solid var(--stp-border-subtle);
+  }
+
+  .sec__row--head {
+    min-height: 2.25rem;
+    background: color-mix(in srgb, var(--stp-surface-element) 92%, #000);
+    color: var(--stp-text-muted);
+    font-size: var(--stp-font-size-caption);
+    font-weight: 500;
+  }
+
+  .sec__what,
+  .sec__where {
+    display: grid;
+    min-width: 0;
+  }
+
+  .sec__what > *,
+  .sec__where > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sec__what span,
+  .sec__muted,
+  .sec__seen {
+    color: var(--stp-text-muted);
+  }
+
+  .sec__badge {
+    display: inline-block;
+    padding: 0.1rem 0.6rem;
+    background-image: linear-gradient(rgb(255 255 255 / 5%), rgb(0 0 0 / 8%));
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    clip-path: var(--brand-tape-clip);
+  }
+
+  .sec__badge.is-critical {
+    background-color: color-mix(in srgb, var(--stp-status-error) 76%, #000);
+    color: rgb(255 238 238);
+  }
+
+  .sec__badge.is-high {
+    background-color: color-mix(in srgb, var(--stp-status-error) 20%, transparent);
+    color: color-mix(in srgb, var(--stp-status-error) 60%, #fff);
+  }
+
+  .sec__badge.is-medium {
+    background-color: color-mix(in srgb, var(--sec-warn) 20%, transparent);
+    color: color-mix(in srgb, var(--sec-warn) 55%, #fff);
+  }
+
+  .sec__badge.is-low {
+    background-color: rgb(255 255 255 / 8%);
+    color: var(--stp-text-muted);
+  }
+
+  .sec__chevron {
+    color: var(--stp-text-muted);
+  }
+
+  .sec__foot {
+    padding: 0.9rem 1rem;
+    border-top: 1px solid var(--stp-border-subtle);
+    color: var(--stp-text-muted);
+  }
+
+  /* The Guardrails page, laid over the bottom of the Security window like a second window. */
+  .sec__rails {
+    position: absolute;
+    right: 1.25rem;
+    bottom: 0;
+    width: min(40rem, 72%);
+    overflow: hidden;
+    border: 1px solid var(--brand-border);
+    background: var(--sec-panel), var(--brand-page);
+    box-shadow:
+      0 22px 52px rgb(0 0 0 / 50%),
+      inset 0 1px 0 rgb(255 255 255 / 9%);
+  }
+
+  .sec__rails-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.15rem 0.6rem 0.15rem 1rem;
+  }
+
+  .sec__rails-head b {
+    font-size: 0.95rem;
+  }
+
+  .sec__tabs--small {
+    margin: 0.45rem 0;
+  }
+
+  .sec__rule {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--stp-border-subtle);
+  }
+
+  .sec__rule > span:first-child {
+    display: grid;
+    gap: 0.1rem;
+  }
+
+  .sec__rule-value {
+    font-weight: 500;
+  }
+
+  .sec__blocks {
+    color: var(--sec-warn);
+  }
+
+  .sec__blocks u {
+    text-decoration-style: dotted;
+    text-underline-offset: 0.2em;
+  }
+
+  .sec__button {
+    padding: 0.45rem 0.9rem;
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    font-weight: 500;
+  }
+
+  .sec__switch {
+    position: relative;
+    width: 2.6rem;
+    height: 1.4rem;
+    background: var(--brand-primary-bottom);
+  }
+
+  .sec__switch::after {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+    width: 1rem;
+    height: 1rem;
+    content: '';
+    border-radius: 50%;
+    background: #fff;
+  }
+
+  @container sec (max-width: 60rem) {
+    .sec__find,
+    .sec__seen {
+      display: none;
+    }
+
+    .sec__row {
+      grid-template-columns: 6rem minmax(0, 1.6fr) minmax(0, 1fr) 1rem;
+    }
+
+    .sec__select:nth-of-type(n + 3) {
+      display: none;
+    }
+  }
+
+  /* A phone: the Console's narrow layout, one finding per row with where it is under the fix. */
+  @container sec (max-width: 34rem) {
+    .sec {
+      padding-bottom: 0;
+      font-size: 0.8rem;
+    }
+
+    .sec__crumbs {
+      margin-left: auto;
+    }
+
+    .sec__sheet {
+      padding: 1.1rem 0.9rem 1.2rem;
+    }
+
+    .sec__tiles {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.6rem;
+    }
+
+    .sec__tile-value {
+      font-size: 1.25rem;
+    }
+
+    .sec__filters,
+    .sec__row--head,
+    .sec__tabs > span:nth-child(n + 3) {
+      display: none;
+    }
+
+    .sec__row {
+      grid-template-columns: minmax(0, 1fr) 1rem;
+      grid-template-areas: 'badge chevron' 'what chevron' 'where chevron';
+      gap: 0.3rem 0.5rem;
+      padding-block: 0.7rem;
+    }
+
+    .sec__row > span:first-child {
+      grid-area: badge;
+    }
+
+    .sec__what {
+      grid-area: what;
+    }
+
+    .sec__where {
+      display: flex;
+      grid-area: where;
+      gap: 0.4rem;
+      font-size: var(--stp-font-size-caption);
+    }
+
+    .sec__chevron {
+      grid-area: chevron;
+    }
+
+    .sec__what > *,
+    .sec__where > * {
+      white-space: normal;
+    }
+
+    .sec__rails {
+      position: static;
+      width: auto;
+      margin: 1rem 0 0;
+    }
+
+    .sec__rule {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .sec__rule-value {
+      display: none;
+    }
+  }
+</style>
