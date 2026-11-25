@@ -101,6 +101,38 @@ html.brand {
   --stp-tab-indicator-radius: 0;
 }
 
+/*
+ * Square corners everywhere, like the Console's square look (brand session, tape_look.py square_css): this overrides
+ * any radius a page or component sets. Only true circles stay round (status dots, avatars, step and check marks, a
+ * switch knob). The circles on the pages today are listed by name; a new circle adds the `brand-round` class.
+ */
+html.brand
+  :not(
+    .brand-round,
+    .b-frame__dots i,
+    .cx-dot,
+    .cx-done,
+    .cn-dot,
+    .cn-avatar,
+    .hlp__avatar,
+    .hlp__face,
+    .wz-steps i,
+    .wz-running i,
+    .inc__status i,
+    .inc__slack-title i,
+    .pk-check,
+    .cst__seg i,
+    .cst__alert > i,
+    .cst__sent i,
+    .structure-a figcaption img,
+    .h7 .lights span,
+    .h7 .dot
+  ),
+html.brand :not(.brand-round, .sec__switch)::before,
+html.brand :not(.brand-round, .sec__switch)::after {
+  border-radius: 0 !important;
+}
+
 .brand body {
   background: var(--brand-page);
   color: var(--brand-text);
