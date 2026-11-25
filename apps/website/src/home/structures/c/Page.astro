@@ -1,0 +1,58 @@
+---
+/**
+ * Structure C, the short page: hero, two customer quotes, how it starts, then problem-first blocks (Deploys,
+ * Monitoring and incidents, Security, Costs), a small "also included" grid and the closing command box.
+ */
+import BrandHead from '../../../brand/BrandHead.astro';
+import SiteFooter from '../../../brand/SiteFooter.astro';
+import SiteHeader from '../../../brand/SiteHeader.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Block from './Block.astro';
+import Closing from './Closing.astro';
+import Deploys from './Deploys.astro';
+import Incidents from './Incidents.astro';
+import Included from './Included.astro';
+import { pack } from './packs';
+import Proof from './Proof.astro';
+import Shot from './Shot.astro';
+import Steps from './Steps.astro';
+import './structure.css';
+
+const secures = pack('secures');
+const costs = pack('costs');
+---
+
+<BaseLayout
+  title="Stacktape: AWS DevOps, fully automated"
+  description="Stacktape is a CLI and a Console that set up, deploy and run your app in your own AWS account."
+  htmlClass="brand structure-c"
+  noindex={Astro.url.pathname !== '/'}
+>
+  <BrandHead slot="head" />
+  <SiteHeader startHref="#install" />
+  <main>
+    <slot name="hero" />
+    <Proof />
+    <Steps />
+    <Deploys />
+    <Incidents />
+    <Block
+      id="security"
+      marker="Security"
+      problem="One wrong line of config can open a database to the internet."
+      title={secures.title}
+    >
+      <p>{secures.line}</p>
+      <p class="c-small">Every deploy is scanned and packages are checked again each night. Scanning reports; it never blocks a deploy.</p>
+      <Shot slot="picture" picture={secures.picture} />
+    </Block>
+    <Block id="costs" marker="Costs" problem="The AWS bill arrives once a month, as one number." title={costs.title}>
+      <p>{costs.line}</p>
+      <p class="c-small">AWS bills you directly. Stacktape’s fee is a separate invoice.</p>
+      <Shot slot="picture" picture={costs.picture} />
+    </Block>
+    <Included />
+    <Closing />
+  </main>
+  <SiteFooter />
+</BaseLayout>

@@ -1,0 +1,58 @@
+---
+/** Monitoring and incidents as one block: what breaks, and what the team sees when it does. */
+import Block from './Block.astro';
+import incident from './incident.webp';
+import { pack } from './packs';
+
+/** On phones the incident screen is unreadable, so the monitors pack's phone crop stands in. */
+const phone = pack('monitors').picture.phone;
+---
+
+<Block
+  id="incidents"
+  marker="Monitoring and incidents"
+  problem="Without a DevOps engineer, monitoring is the job nobody gets to."
+  title="Monitoring comes with the stack. No extra vendor."
+>
+  <p>
+    Error tracking is on for every stage. Related errors, alarms and failed checks become one incident, with the release
+    that was live when it opened.
+  </p>
+  <p class="c-small">
+    Tracing is one config property and an uptime check is a URL in the config. Connect Slack to acknowledge, mute or
+    roll back from the incident card.
+  </p>
+
+  <figure slot="picture" class="incidents__picture">
+    <picture>
+      <source
+        media="(max-width: 40rem)"
+        type="image/webp"
+        srcset={`${phone.small.src} 1x, ${phone.large.src} 2x`}
+        width={phone.small.width}
+        height={phone.small.height}
+      />
+      <img
+        class="c-frame"
+        src={incident.src}
+        width={incident.width}
+        height={incident.height}
+        loading="lazy"
+        alt="An incident in the Stacktape Console: API error rate above 5% on checkout-api production, with an AI assessment and a draft fix pull request. On phones: the Requests and Errors metric cards."
+      />
+    </picture>
+    <figcaption class="c-muted">
+      The AI assessment and fixes run on your organization's own Anthropic, OpenAI or xAI key. Nothing is deployed
+      without you.
+    </figcaption>
+  </figure>
+</Block>
+
+<style>
+  .incidents__picture {
+    display: grid;
+    gap: var(--brand-space-3);
+    margin: 0;
+    font-size: var(--brand-type-sm);
+  }
+</style>
