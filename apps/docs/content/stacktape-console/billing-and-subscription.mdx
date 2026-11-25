@@ -2,7 +2,7 @@
 title: 'Billing and Subscription'
 order: 135
 seoTitle: 'Billing and Subscription Plans | Stacktape Console'
-seoDescription: 'Stacktape Console plans: Free up to $200 a month of managed AWS spend, Flexible at 19–25% of it, and Enterprise. What pauses over the limit, the 7-day grace period, invoices and Paddle checkout.'
+seoDescription: 'Stacktape Console plans: Free up to $200 a month of managed AWS spend, Flexible at 19–25% of it, and Enterprise. What pauses over the limit, the Free grace period, invoices and Paddle checkout.'
 ---
 
 # Billing and Subscription
@@ -34,7 +34,7 @@ Stacktape bills based on the AWS costs of the stacks it manages — not per seat
 
 ### Free plan
 
-The Free plan is the whole Console except single sign-on and SCIM provisioning. It costs $0, needs no credit card and has no member limit. It covers managed AWS spend up to $200 a calendar month (UTC). When an organization passes $200, deploys keep working for 7 days the first time, and then pause until it upgrades or the next month starts (see [Free plan cost limit](#free-plan-cost-limit)).
+The Free plan is the whole Console except single sign-on and SCIM provisioning. It costs $0, needs no credit card and has no member limit. It covers managed AWS spend up to $200 a calendar month (UTC). The first time an organization passes $200, it gets [up to seven days of grace in that month](#free-plan-cost-limit).
 
 ### Flexible plan
 
@@ -57,7 +57,7 @@ For example:
 | $3,000 | $690 (23%) |
 | $8,000 | $1,680 (21%) |
 
-The Subscription Plans page shows what Flexible would cost your organization, in dollars, from its own costs. Stacktape does not charge for resources in your AWS account that exist outside Stacktape-managed stacks.
+The Subscription Plans page estimates the Flexible fee in dollars using your organization's managed AWS spend. On the 7th of each month, Stacktape checks which organizations are on Flexible and uses their reported managed AWS spend for the previous calendar month. Payments go through Paddle, with tax where applicable.
 
 On top of the Free plan, Flexible adds [single sign-on](/stacktape-console/single-sign-on) (SAML or OIDC) with SCIM provisioning, a shared Slack channel with the founders, and priority for your feature requests. Priority means your requests are worked on first; it comes with no SLA or delivery dates.
 
@@ -73,8 +73,8 @@ A Free organization can deploy while its managed AWS spend for the current calen
   stacks, summed over all AWS accounts connected to the organization, from the AWS billing data Stacktape reads. Other
   resources in your AWS accounts do not count. The Costs page shows the same numbers.
 - **Grace, once per organization.** The first time the organization is over the limit, Stacktape emails its Owners and
-  Admins and shows a banner in the Console. A 7-day grace period starts at that moment, and deploys keep working during
-  it. In any later month, deploys pause as soon as the organization passes the limit, with no new grace period.
+  Admins and shows a banner in the Console. Deploys keep working for seven days from that point or until the UTC
+  month ends, whichever comes first. In any later month, deploys pause as soon as the organization passes the limit.
 - **What pauses.** After the grace period, every new deploy: `stacktape deploy`, including code-only (fast) deploys,
   remote and runner deploys, deploys after a Git push and deploys started from the Console. `stacktape dev` does not
   start either, because it deploys and updates a dev stack. A deploy that already started finishes normally.
@@ -120,7 +120,7 @@ Payment management controls appear only when you have the `org:manage-billing` p
 
 ### Downgrading to the Free plan
 
-Open the Subscription Plans page. Under the Free plan card, click **Downgrade to FREE**. The button calls the Console's cancellation flow and refreshes your organization data on success. The Free plan card lists unlimited team members and up to $200 a month of managed AWS spend. If this month's managed spend is already above $200, the [Free plan cost limit](#free-plan-cost-limit) applies right after the downgrade.
+On the Subscription Plans page, click **Downgrade to Free** to open Paddle's cancellation flow. The Console switches your organization to Free when it receives Paddle's cancellation confirmation. The [Free plan cost limit](#free-plan-cost-limit) applies from then, including if this month's managed spend is already above $200.
 
 ### Viewing current plan status
 
@@ -175,11 +175,11 @@ Users with the `org:manage-billing` permission see the upgrade and downgrade con
 
 ### What happens if I exceed the Free plan's $200/month limit?
 
-The first time, deploys keep working for 7 days, and Owners and Admins are told by email and in the Console. After that, Stacktape refuses new deploys and `stacktape dev` sessions of the organization until it upgrades to the Flexible plan or the next calendar month starts. In later months, deploys pause as soon as the limit is passed. Your running infrastructure is not touched, and deleting or rolling back stages still works. See [Free plan cost limit](#free-plan-cost-limit).
+The first time, deploys keep working for up to seven days in that UTC month. Owners and Admins are told by email and in the Console. When the organization is over the limit without grace, Stacktape pauses new deploys and `stacktape dev` sessions until it upgrades or the next month starts. Work already in progress can finish. See [Free plan cost limit](#free-plan-cost-limit).
 
 ### Can I downgrade from Flexible to Free?
 
-Yes. Open the Subscription Plans page and click **Downgrade to FREE** under the Free plan card. This calls the Console's cancellation flow and refreshes your organization data on success. You need the `org:manage-billing` permission to see the button.
+Yes. You need the `org:manage-billing` permission. See [Downgrading to the Free plan](#downgrading-to-the-free-plan).
 
 ### How do I get Enterprise pricing?
 

@@ -1,13 +1,13 @@
 # Use the CLI Without an Account
 
-The Stacktape CLI is open source under the MIT license and works without a Stacktape account. It deploys with your own AWS credentials, straight to AWS. It also sends anonymous usage telemetry, which you can turn off (see [Telemetry](#telemetry)). You can deploy, update, roll back and delete stacks, run dev mode, and read logs and secrets without signing up for anything.
+The Stacktape CLI is open source under the MIT license and works without a Stacktape account. It deploys with your own AWS credentials, straight to AWS. It also sends usage telemetry, which you can turn off (see [Telemetry](#telemetry)). You can deploy, update, roll back and delete stacks, run dev mode, and read logs and secrets without signing up for anything.
 
 The [Stacktape Console](/stacktape-console/console-overview) adds what a team shares: deploy history, costs, alerts, error tracking and access control. It is free while your organization's managed AWS spend is up to $200 a month. You can connect it later with one command, and your existing stacks appear in it without a redeploy.
 
 ## How the CLI chooses its mode
 
 - **Signed in.** When the CLI has a Stacktape API key, from [`stacktape login`](/cli/login) or the `STACKTAPE_API_KEY` environment variable, it works with the Console.
-- **Without an account.** Otherwise, stack commands run on your local AWS credentials and the CLI does not call the Stacktape API. No command asks you to sign in first.
+- **Without an account.** Otherwise, stack commands use your local AWS credentials. No sign-in is needed.
 
 A stack is the same in both modes. The same configuration gives the same stack name, the same deployment bucket and the same resources. The only differences are additions that Console features need, such as organization-wide alarms.
 
@@ -112,21 +112,22 @@ A hint never opens a browser or asks a question. It appears only in an interacti
 
 ## Telemetry
 
-Without an account, the CLI sends anonymous usage data, so we can see which commands fail and fix them. The first time you run the CLI, it tells you what it sends and how to turn it off, before it sends anything.
+Without an account, the CLI sends usage data so we can see which commands fail. It shows a notice before sending its first account-free telemetry event.
 
 It sends only these fields:
 
 - the command name
-- whether the command succeeded, and the error code or class if it failed
+- the outcome and an error code if it failed
 - the CLI version, operating system and CPU architecture
 - whether it runs in CI
+- the app name, build environment and analytics schema version
 - a random installation ID
 
-It never sends project, stack, stage or AWS account names or IDs, file paths, configuration contents, or error messages.
+Account-free telemetry excludes project, stack, stage and AWS account names and IDs, file paths, configuration contents and error messages.
 
-Telemetry is off when `STP_DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1` is set, and always off in CI.
+Account-free telemetry is off in CI. In either mode, set `STP_DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1` to turn off telemetry from the local CLI.
 
-When you are signed in, the CLI sends more, such as crash reports linked to your user. See [What does the CLI send to Stacktape?](/getting-started/deploy-your-first-stage#what-does-the-cli-send-to-stacktape)
+Signing in can link earlier events from that installation ID to your Stacktape user. The signed-in CLI sends more, such as crash reports. See the [Privacy policy](https://stacktape.com/privacy-policy#cli) for CLI and Console reporting.
 
 ## License
 
@@ -144,10 +145,11 @@ No. `stacktape connect` finds the stacks already in your AWS account and shows t
 
 ### Does the CLI contact Stacktape when I'm not signed in?
 
-It does not call the Stacktape API, and a deploy never depends on a Stacktape service. It still makes these requests:
+A deploy uses your AWS credentials directly. The CLI can still make these requests:
 
-- the anonymous telemetry described above, unless you turn it off
+- a price estimate for `stacktape init`, which sends the proposed YAML configuration and AWS region to Stacktape's pricing API even with telemetry off
+- the telemetry described above, unless you turn it off
 - a check for a newer CLI version, and short notices such as planned maintenance
 - downloads of Stacktape's public CloudFormation resource types from a public S3 bucket, when a stack uses them. No sign-in is involved.
 
-The first two never stop or slow down a command.
+If the pricing API is unavailable, init can continue without an estimate.

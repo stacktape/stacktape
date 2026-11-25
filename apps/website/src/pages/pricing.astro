@@ -169,14 +169,14 @@ const PLANS: Plan[] = [
   <section class="details prose" aria-labelledby="free-limit">
     <h2 id="free-limit">When a Free organization passes $200</h2>
     <p>
-      The first time an organization goes over the limit, deploys keep working for 7 days and Owners and Admins are told
-      by email and in the Console. After those 7 days, new deploys pause until you upgrade or the next calendar month
-      starts. This grace period happens once per organization; in a later month, deploys pause as soon as the limit is
-      passed.
+      The first time an organization goes over the limit, Owners and Admins are told by email and in the Console.
+      The grace period lasts up to seven days and ends at the UTC month boundary if that comes first. When the
+      organization is over the limit without grace, new deploys and <code>stacktape dev</code> sessions pause until
+      you upgrade or the next month starts. Each organization gets one grace period.
     </p>
     <p>
-      A pause never touches running infrastructure. Deleting and rolling back stacks and the rest of the Console keep
-      working, and upgrading lifts the pause at once.
+      Work already in progress can finish, and deployed resources keep running. Deleting and rolling back stacks and
+      the rest of the Console keep working. Upgrading lifts the pause at once.
     </p>
   </section>
 

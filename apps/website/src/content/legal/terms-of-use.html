@@ -6,8 +6,7 @@
 <p>Stacktape has two parts, and they are covered differently:</p>
 <ul>
   <li>
-    <strong>The Stacktape CLI</strong> is open source under the MIT license and works without a Stacktape account. The
-    license, not these terms, says what you can do with it.
+    <strong>The Stacktape CLI</strong> is open source under the MIT license and works without a Stacktape account.
   </li>
   <li>
     <strong>The Stacktape Console</strong> at console.stacktape.com is a hosted service. These terms cover your Console
@@ -18,16 +17,16 @@
 
 <h2 id="cli">1. The open-source CLI</h2>
 <p>
-  The Stacktape CLI and the other code in the <a href="https://github.com/stacktape/stacktape">public repository</a> are
-  released under the <a href="https://github.com/stacktape/stacktape/blob/main/LICENSE">MIT license</a>. You may use,
-  copy, modify, merge, publish, distribute, sublicense and sell copies of it, as long as you keep the copyright and
-  license notice. The software is provided "as is", without warranty of any kind, as the license states. Nothing in
-  these terms limits what the license allows.
+  The <a href="https://github.com/stacktape/stacktape/blob/main/LICENSE">MIT license</a> covers the CLI and its
+  accompanying documentation. It lets you use, copy, modify, merge, publish, distribute, sublicense and sell the covered
+  material. Include the copyright and license notices in all copies or substantial portions. The material is provided
+  "as is", without warranty. Third-party material, such as the bundled Montserrat font, has its own license notices.
+  Nothing in these terms limits your rights under the MIT license.
 </p>
 <p>
-  Without an account, the CLI deploys to AWS with your own AWS credentials and does not call the Stacktape API. It sends
-  anonymous usage data, which you can turn off. The <a href="/privacy-policy#cli">privacy policy</a> lists what it
-  sends.
+  Without an account, the CLI deploys directly to AWS with your own AWS credentials. To estimate costs,
+  <code>stacktape init</code> sends the proposed configuration and AWS region to Stacktape, even with telemetry turned
+  off. The <a href="/privacy-policy#cli">privacy policy</a> lists what the CLI sends.
 </p>
 <p>When you sign the CLI in to the Console, the Console features it uses are covered by the rest of these terms.</p>
 
@@ -37,9 +36,9 @@
   information about yourself when we ask for it, and to keep it up to date.
 </p>
 <p>
-  You choose which AWS accounts to connect to the Console. Each connection creates an IAM role in your AWS account.
-  Stacktape uses that role, with temporary credentials, to deploy, monitor and manage the resources of your stacks. You
-  can remove a connection at any time.
+  You choose which AWS accounts to connect. The standard Console connection creates an IAM role with AWS
+  <code>AdministratorAccess</code>. The connection template also supports a read-only mode. The
+  <a href="https://docs.stacktape.com/stacktape-console/aws-permissions">AWS permissions guide</a> describes the role.
 </p>
 
 <h2 id="plans-and-fees">3. Plans and fees</h2>
@@ -48,13 +47,14 @@
   <li>
     <strong>Free</strong> costs nothing and needs no credit card. It covers up to $200 a month of managed AWS spend: the
     AWS costs of the resources in Stacktape-managed stacks, across all AWS accounts connected to your organization. The
-    first time your organization goes over the limit, deploys keep working for 7 days. After that, new deploys and
-    <code>stacktape dev</code> sessions pause until you upgrade or the next calendar month starts. In later months, they
-    pause as soon as you pass the limit. Your running infrastructure is never touched.
+    first time your organization's reported spend goes over the limit, you get up to seven days of grace in that UTC
+    billing month. Once the grace ends, new deploys and <code>stacktape dev</code> sessions pause until you upgrade or
+    the next month starts. In later months, the pause starts as soon as reported spend passes the limit. Work already in
+    progress can finish and deployed resources keep running.
   </li>
   <li>
-    <strong>Flexible</strong> has no spend limit. Its fee is a percentage of the month's managed AWS spend: 25%, falling
-    to 19% as the spend grows.
+    <strong>Flexible</strong> has no spend limit. Standard pricing applies one rate to the whole month's managed AWS
+    spend, from 25% down to 19% as spend grows. We can agree to custom pricing.
   </li>
   <li>
     <strong>Enterprise</strong> is a single-tenant Console in your own AWS account. Its price and terms are set in a
@@ -62,9 +62,10 @@
   </li>
 </ul>
 <p>
-  When you upgrade to Flexible, you agree to be charged automatically every month until you downgrade. After each
-  calendar month ends, we charge the Flexible fee for that month's managed AWS spend. Payments are processed by
-  <a href="https://www.paddle.com/">Paddle</a>.
+  When you upgrade to Flexible, you agree to automatic monthly charges through
+  <a href="https://www.paddle.com/">Paddle</a>, with tax where applicable. On the 7th of each month, we check which
+  organizations are on Flexible and use their reported managed AWS spend for the previous calendar month. This check
+  uses the full month's reports, including spend before an upgrade.
 </p>
 <p>
   AWS bills you separately for the infrastructure in your AWS account. Stacktape is not responsible for AWS charges or
@@ -74,20 +75,21 @@
 
 <h2 id="downgrading">4. Downgrading and cancelling</h2>
 <p>
-  A member who can manage billing can downgrade to Free at any time. Open
+  A member who can manage billing can downgrade from Flexible to Free. Open
   <a href="https://console.stacktape.com/subscription-plans">Subscription Plans</a> in the Console and click
-  <strong>Downgrade to Free</strong>. You can also cancel by emailing
-  <a href="mailto:info@stacktape.com">info@stacktape.com</a>.
+  <strong>Downgrade to Free</strong> to open Paddle's cancellation flow. You can also request cancellation by emailing
+  <a href="mailto:info@stacktape.com">info@stacktape.com</a>. Enterprise changes follow your agreement.
 </p>
 <p>
-  The Free plan's limit applies right after the downgrade, also when this month's managed AWS spend is already above
-  $200.
+  The Console switches your organization to Free when it receives Paddle's cancellation confirmation. The Free spend
+  limit applies from that point, including if this month's managed AWS spend is already above $200.
 </p>
 <p>We have no obligation to refund fees already charged.</p>
 <p>
-  Your stacks stay in your AWS account after a downgrade or after you stop using the Console. See
-  <a href="https://docs.stacktape.com/getting-started/open-source-cli">Use the CLI without an account</a> for managing
-  them without the Console.
+  Downgrading or disconnecting the Console leaves your deployed AWS resources running. A stage using a default
+  <code>*.stacktape-app.com</code> domain keeps serving on that domain. To redeploy it without an account, configure
+  your own domain first. See
+  <a href="https://docs.stacktape.com/getting-started/open-source-cli">Use the CLI without an account</a>.
 </p>
 
 <h2 id="acceptable-use">5. Acceptable use</h2>
@@ -102,7 +104,7 @@
   </li>
   <li>use them in any other way a reasonable person would consider not permitted.</li>
 </ul>
-<p>These rules do not limit what the MIT license lets you do with the CLI's code.</p>
+<p>These rules do not limit your rights under the MIT license, including for documentation it covers.</p>
 
 <h2 id="availability">6. Availability and changes to the service</h2>
 <p>
@@ -110,8 +112,8 @@
   are not liable for the effects of such changes on you or anyone else.
 </p>
 <p>
-  The <a href="https://status.stacktape.com">status page</a> shows current incidents. Your resources run in your AWS
-  account, not on Stacktape's servers.
+  The <a href="https://status.stacktape.com">status page</a> shows current incidents. AWS-native resources run in your
+  AWS account. Some resources, such as MongoDB Atlas and Upstash Redis, run with the provider you configure.
 </p>
 
 <h2 id="suspension">7. Suspension and termination</h2>
@@ -123,9 +125,11 @@
   <li>we suspect any of the above.</li>
 </ul>
 <p>
-  You can stop using the Console at any time. To remove Stacktape's access to an AWS account, delete the connection in
-  the Console, or delete the connection's CloudFormation stack in your AWS account. The
-  <a href="/privacy-policy#your-rights">privacy policy</a> explains how to delete your account.
+  You can stop using the Console at any time. To revoke Stacktape's AWS access, delete the connection's CloudFormation
+  stack in your AWS account. A member with permission to manage AWS accounts can also start that deletion from the
+  Console. The Console blocks disconnection while Git deployments still target the account, runner workloads are active,
+  or a runner removal is pending. The
+  <a href="/privacy-policy#your-rights">privacy policy</a> explains how to request account deletion.
 </p>
 
 <h2 id="liability">8. Liability</h2>
