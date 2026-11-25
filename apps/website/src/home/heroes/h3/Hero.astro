@@ -18,7 +18,7 @@ const image = (name: string) => {
   return url;
 };
 
-const sky = `--h3-sky: url(${image('sky-2400.webp')}); --h3-sky-small: url(${image('sky-1400.webp')}); --h3-sky-phone: url(${image('sky-phone.webp')})`;
+const sky = `--h3-sky-wide: url(${image('sky-3200.webp')}); --h3-sky: url(${image('sky-2400.webp')}); --h3-sky-small: url(${image('sky-1400.webp')}); --h3-sky-phone: url(${image('sky-phone.webp')})`;
 
 const proof = [
   { figure: 'MIT', text: 'Open-source CLI. Works without a Stacktape account.', href: 'https://github.com/stacktape/stacktape' },
@@ -118,22 +118,25 @@ const proof = [
 <style>
   .atmo {
     --h3-serif: 'H3 Newsreader', Georgia, 'Times New Roman', serif;
-    --h3-gutter: clamp(0.75rem, 2.4vw, 2.5rem);
     --h3-ink: color-mix(in srgb, var(--brand-text), transparent 14%);
     --h3-line: rgb(255 255 255 / 9%);
     position: relative;
     isolation: isolate;
-    inline-size: min(110rem, 100% - 2 * var(--h3-gutter));
-    margin: var(--brand-space-3) auto 0;
     overflow: hidden;
-    border: 1px solid var(--h3-line);
-    border-radius: var(--brand-radius);
+    border-block-end: 1px solid var(--h3-line);
     background: image-set(var(--h3-sky-small) 1x, var(--h3-sky) 2x) center bottom / cover no-repeat var(--brand-inset);
   }
 
   @media (min-width: 72rem) {
     .atmo {
       background-image: var(--h3-sky);
+    }
+  }
+
+  /* The sky runs edge to edge; on wide screens a wider painting keeps the mesas beside the window. */
+  @media (min-width: 110rem) {
+    .atmo {
+      background-image: var(--h3-sky-wide);
     }
   }
 
@@ -318,7 +321,7 @@ const proof = [
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     margin: clamp(3.25rem, 3.6vw, 3.75rem) 0 0;
-    padding: 0;
+    padding: 0 max(0rem, (100% - 110rem) / 2);
     border-block-start: 1px solid var(--h3-line);
     background: linear-gradient(rgb(12 19 19 / 30%), rgb(12 19 19 / 70%));
     list-style: none;
@@ -456,7 +459,7 @@ const proof = [
     }
 
     .atmo__start :global(.brand-command .install-code__arch) {
-      grid-area: 2 / 1 / 3 / -1;
+      grid-area: 2 / 1 / 3 / 2;
       justify-self: start;
       margin: 0 var(--brand-space-2) var(--brand-space-2);
     }
@@ -480,7 +483,23 @@ const proof = [
       max-inline-size: calc(100% - 6.75rem);
     }
 
-    /* A long installer line ends in an ellipsis here; Copy still takes the whole command. */
+    /* With an architecture row (the installer tabs), Copy moves there and the long command scrolls. */
+    .atmo__start :global(.brand-command:has(.install-code__arch) .install-code__copy) {
+      grid-area: 2 / 2 / 3 / 3;
+      align-self: center;
+      margin: 0 var(--brand-space-2) var(--brand-space-2) 0;
+    }
+
+    .atmo__start :global(.brand-command:has(.install-code__arch) .install-code__line:first-child) {
+      inline-size: max-content;
+      max-inline-size: none;
+    }
+
+    .atmo__start :global(.brand-command:has(.install-code__arch) .install-code__line:first-child .install-code__cmd) {
+      overflow: visible;
+    }
+
+    /* Without one (npx), the short command shares its line with Copy. */
     .atmo__start :global(.brand-command .install-code__line:first-child .install-code__cmd) {
       min-inline-size: 0;
       overflow: hidden;

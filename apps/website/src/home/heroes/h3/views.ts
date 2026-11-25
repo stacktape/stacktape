@@ -18,7 +18,7 @@ export const VIEWS = [
   {
     key: 'incidents',
     label: 'Incidents',
-    alt: 'An incident in the Console, "API error rate above 5%", with its AI assessment and a draft fix pull request.'
+    alt: 'The incident list in the Console: four active incidents with their severity, failing signals, stage and status.'
   },
   {
     key: 'security',
@@ -28,6 +28,6 @@ export const VIEWS = [
   {
     key: 'costs',
     label: 'Costs',
-    alt: 'The Console costs page: storefront spend this month, month by month, and the split by stage.'
+    alt: 'Costs in the Console for the orders-platform production stage: $96.00 so far this month, split by resource, from the HTTP API to each Lambda function.'
   }
 ] as const;
