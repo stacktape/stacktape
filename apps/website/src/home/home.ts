@@ -1,1 +1,1 @@
-export const home = { structure: 'a', hero: 'a' };
+export const home = { structure: 'b', hero: 'h5' };
