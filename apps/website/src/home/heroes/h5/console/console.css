@@ -569,6 +569,7 @@
 }
 
 .cx-running code {
+  padding: 0;
   background: none;
   color: var(--cx-muted);
 }
@@ -987,7 +988,19 @@
   font-size: calc(14 * var(--u));
 }
 
+/* The steps hang on one line, from the first check to the last. */
+.cx-step:has(+ .cx-step) .cx-done::after {
+  position: absolute;
+  inset: 100% auto auto 50%;
+  inline-size: calc(1.5 * var(--u));
+  block-size: calc(25 * var(--u));
+  content: '';
+  background: rgb(38 166 154 / 35%);
+  transform: translateX(-50%);
+}
+
 .cx-done {
+  position: relative;
   display: grid;
   place-items: center;
   inline-size: calc(20 * var(--u));
