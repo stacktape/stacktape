@@ -1,0 +1,438 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { Image } from 'astro:assets';
+import { CommandBox } from '../../brand/CommandBox';
+import { STEPS } from './steps';
+
+const pad = (index: number) => String(index + 1).padStart(2, '0');
+---
+
+<section class="b-hero" aria-labelledby="b-hero-title">
+  <div class="b-hero__top">
+    <div class="b-hero__copy">
+      <h1 id="b-hero-title">AWS DevOps,<br /> fully automated.</h1>
+      <p class="b-hero__lead">
+        Your developers ship app code. Stacktape’s CLI and Console build the AWS setup in your own account, deploy every
+        push and tell you when something breaks.
+      </p>
+    </div>
+    <div class="b-hero__start">
+      <CommandBox client:load id="install" label="Start in your repo" />
+      <div class="b-hero__more">
+        <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com">Read the docs</ButtonLink>
+        <a class="brand-link brand-link--muted" href="https://cal.com/stacktape/30min">Talk to a founder</a>
+      </div>
+      <p class="b-hero__own">
+        Runs in your AWS account as plain CloudFormation. Stop using Stacktape and your app keeps running.
+      </p>
+    </div>
+  </div>
+
+  <div class="b-journey" data-journey>
+    <div class="b-journey__rail">
+      <p class="b-journey__intro">From the first command to the first incident.</p>
+      <div class="b-journey__steps" role="tablist" aria-label="What Stacktape does, step by step" aria-orientation="vertical">
+        {
+          STEPS.map((step, index) => (
+            <button
+              class="b-journey__step"
+              type="button"
+              role="tab"
+              id={`b-tab-${step.id}`}
+              aria-controls={`b-panel-${step.id}`}
+              aria-selected={index === 0 ? 'true' : 'false'}
+              tabindex={index === 0 ? 0 : -1}
+            >
+              <span class="b-journey__num">{pad(index)}</span>
+              <span class="b-journey__name">
+                <span class="b-journey__tape">{step.name}</span>
+              </span>
+              <span class="b-journey__when">{step.when}</span>
+            </button>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="b-journey__window">
+      {
+        STEPS.map((step, index) => (
+          <figure
+            class="b-journey__panel"
+            role="tabpanel"
+            id={`b-panel-${step.id}`}
+            aria-labelledby={`b-tab-${step.id}`}
+            hidden={index !== 0}
+          >
+            <figcaption class="b-journey__caption">
+              <span class="b-journey__title">{step.title}</span>
+              <span class="b-journey__line">{step.line}</span>
+            </figcaption>
+            <div class="b-journey__frame">
+              <div class="b-journey__bar" aria-hidden="true">
+                <span class="b-journey__dots">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                <span class="b-journey__where">{step.where}</span>
+              </div>
+              {step.shot ? (
+                <Image
+                  class="b-journey__shot"
+                  src={step.shot.src}
+                  alt={step.shot.alt}
+                  widths={[800, 1224, 1800, 2448]}
+                  sizes="(min-width: 75rem) 68rem, 100vw"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  fetchpriority={index === 0 ? 'high' : undefined}
+                />
+              ) : (
+                <div class="b-journey__help">
+                  <p class="b-journey__help-big">A shared Slack channel with the founders who build Stacktape.</p>
+                  <p class="b-journey__help-small">
+                    Included in Flexible. Enterprise adds up to 24×7 support.{' '}
+                    <a class="brand-link" href="/pricing">
+                      See pricing
+                    </a>
+                  </p>
+                </div>
+              )}
+            </div>
+          </figure>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<script>
+  /*
+   * The kit's command box preselects the visitor's installer. Until the installers are confirmed to ship v4
+   * (launch item L5), this page keeps npx: the first automatic switch is undone before it paints. A visitor's
+   * own choice is left alone.
+   */
+  const install = document.getElementById('install');
+  if (install) {
+    let touched = false;
+    const stop = () => {
+      touched = true;
+    };
+    install.addEventListener('pointerdown', stop, { once: true });
+    install.addEventListener('keydown', stop, { once: true });
+    const observer = new MutationObserver(() => {
+      const tabs = Array.from(install.querySelectorAll<HTMLElement>('.install-code__tabs [role="tab"]'));
+      const npx = tabs.find((tab) => tab.textContent?.trim() === 'npx');
+      if (touched || !npx || npx.getAttribute('aria-selected') === 'true') return;
+      observer.disconnect();
+      npx.click();
+    });
+    observer.observe(install, { subtree: true, attributes: true, attributeFilter: ['aria-selected'] });
+    window.setTimeout(() => observer.disconnect(), 4000);
+  }
+
+  for (const journey of document.querySelectorAll<HTMLElement>('[data-journey]')) {
+    const tabs = Array.from(journey.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    const select = (next: HTMLButtonElement, focus = false, remember = false) => {
+      for (const tab of tabs) {
+        const selected = tab === next;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        const panel = document.getElementById(tab.getAttribute('aria-controls') ?? '');
+        if (panel) panel.hidden = !selected;
+      }
+      if (focus) next.focus();
+      if (remember) history.replaceState(null, '', `#${next.id}`);
+    };
+    const linked = tabs.find((tab) => `#${tab.id}` === location.hash);
+    if (linked) select(linked);
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => select(tab, false, true));
+      tab.addEventListener('keydown', (event) => {
+        const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[event.key];
+        if (!step) return;
+        event.preventDefault();
+        select(tabs[(index + step + tabs.length) % tabs.length], true, true);
+      });
+    });
+  }
+</script>
+
+<style>
+  .b-hero {
+    width: var(--b-width);
+    margin-inline: auto;
+    padding-block: clamp(3rem, 2rem + 3vw, 5.5rem) var(--brand-space-9);
+  }
+
+  .b-hero__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    align-items: end;
+    gap: var(--brand-space-6) clamp(2rem, 1rem + 4vw, 7rem);
+  }
+
+  h1 {
+    font: var(--brand-weight-heading) var(--b-type-hero) / 1.02 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+    text-wrap: balance;
+  }
+
+  .b-hero__lead {
+    max-width: 34rem;
+    margin-top: var(--brand-space-5);
+    color: var(--brand-muted);
+    font-size: clamp(1.0625rem, 1rem + 0.3vw, 1.3125rem);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .b-hero__start {
+    display: grid;
+    gap: var(--brand-space-3);
+    min-width: 0;
+  }
+
+  .b-hero__more {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--brand-space-3) var(--brand-space-5);
+    margin-top: var(--brand-space-2);
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-hero__own {
+    max-width: 34rem;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  /* The journey: eight steps on the left, the real product on the right. */
+  .b-journey {
+    display: grid;
+    grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr);
+    gap: clamp(2rem, 1rem + 2.5vw, 4rem);
+    margin-top: clamp(3rem, 2rem + 3vw, 5.5rem);
+  }
+
+  .b-journey__intro {
+    margin-bottom: var(--brand-space-5);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    text-wrap: balance;
+  }
+
+  .b-journey__steps {
+    display: grid;
+    border-left: 1px solid var(--brand-border);
+  }
+
+  .b-journey__step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr);
+    grid-template-areas: 'num name' '. when';
+    align-items: center;
+    row-gap: 0.125rem;
+    padding: 0.625rem 0 0.625rem var(--brand-space-4);
+    border: 0;
+    background: none;
+    color: var(--brand-muted);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .b-journey__step::before {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -1px;
+    width: 2px;
+    content: '';
+  }
+
+  .b-journey__step[aria-selected='true']::before {
+    background: var(--brand-teal);
+  }
+
+  .b-journey__num {
+    grid-area: num;
+    font: var(--brand-type-xs) / 1 var(--brand-font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .b-journey__name {
+    grid-area: name;
+    justify-self: start;
+    font: var(--brand-weight-label) var(--brand-type-base) / 1.2 var(--brand-font-heading);
+  }
+
+  .b-journey__tape {
+    position: relative;
+    isolation: isolate;
+    display: inline-block;
+    margin-left: -0.6em;
+    padding: 0.22em 0.6em;
+  }
+
+  .b-journey__when {
+    grid-area: when;
+    font-size: var(--brand-type-xs);
+  }
+
+  .b-journey__step:hover {
+    color: var(--brand-text);
+  }
+
+  .b-journey__step[aria-selected='true'] {
+    color: var(--brand-text);
+  }
+
+  .b-journey__step[aria-selected='true'] .b-journey__tape {
+    color: var(--brand-on-teal);
+  }
+
+  .b-journey__step[aria-selected='true'] .b-journey__tape::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    content: '';
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+    clip-path: var(--brand-tape-clip);
+  }
+
+  .b-journey__step:focus-visible {
+    outline: 2px solid var(--brand-focus);
+    outline-offset: 2px;
+  }
+
+  .b-journey__panel {
+    display: grid;
+    gap: var(--brand-space-4);
+    margin: 0;
+  }
+
+  .b-journey__caption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--brand-space-1) var(--brand-space-3);
+    min-height: 1.75rem;
+  }
+
+  .b-journey__title {
+    font: var(--brand-weight-heading) var(--brand-type-lead) / 1.3 var(--brand-font-heading);
+    letter-spacing: -0.01em;
+  }
+
+  .b-journey__line {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-journey__frame {
+    overflow: hidden;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-inset);
+    box-shadow: var(--brand-shadow);
+  }
+
+  .b-journey__bar {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-4);
+    height: 2.25rem;
+    padding-inline: var(--brand-space-4);
+    border-bottom: 1px solid var(--brand-border);
+    background: var(--brand-surface);
+    color: var(--brand-muted);
+    font: var(--brand-type-xs) / 1 var(--brand-font-mono);
+    white-space: pre;
+  }
+
+  .b-journey__dots {
+    display: flex;
+    gap: 0.375rem;
+  }
+
+  .b-journey__dots i {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--brand-border);
+  }
+
+  .b-journey__where {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .b-journey__shot {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 10;
+    object-fit: cover;
+    object-position: top left;
+  }
+
+  .b-journey__help {
+    display: grid;
+    align-content: center;
+    gap: var(--brand-space-4);
+    aspect-ratio: 16 / 10;
+    padding: clamp(2rem, 1rem + 4vw, 6rem);
+  }
+
+  .b-journey__help-big {
+    max-width: 22ch;
+    font: var(--brand-weight-heading) var(--brand-type-title) / 1.2 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  .b-journey__help-small {
+    color: var(--brand-muted);
+  }
+
+  @media (max-width: 64rem) {
+    .b-hero__top {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .b-journey {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--brand-space-5);
+    }
+
+    .b-journey__steps {
+      display: flex;
+      gap: var(--brand-space-2);
+      overflow-x: auto;
+      border-left: 0;
+      scrollbar-width: none;
+    }
+
+    .b-journey__step {
+      flex: none;
+      grid-template-areas: 'num name';
+      padding: var(--brand-space-2) var(--brand-space-2) var(--brand-space-2) 0;
+    }
+
+    .b-journey__step::before,
+    .b-journey__when {
+      display: none;
+    }
+
+    .b-journey__num {
+      width: 1.75rem;
+    }
+
+    .b-journey__intro {
+      margin-bottom: var(--brand-space-3);
+    }
+  }
+</style>

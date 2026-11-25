@@ -1,0 +1,31 @@
+---
+import BrandHead from '../../brand/BrandHead.astro';
+import '../../brand/controls.css';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from './Header.astro';
+import Hero from './Hero.astro';
+---
+
+<BaseLayout
+  title="Stacktape: AWS DevOps, fully automated"
+  description="Your developers ship app code. Stacktape's CLI and Console build the AWS setup in your own account, deploy every push and tell you when something breaks."
+  htmlClass="brand b-page"
+>
+  <BrandHead slot="head" />
+  <Header />
+  <main>
+    <Hero />
+  </main>
+</BaseLayout>
+
+<style is:global>
+  .b-page {
+    --b-width: min(90rem, 100% - 2 * clamp(1rem, 0.5rem + 2.5vw, 3rem));
+    --b-type-hero: clamp(2.5rem, 1.4rem + 3.6vw, 5.25rem);
+    scroll-padding-top: 5rem;
+  }
+
+  .b-page body {
+    overflow-x: clip;
+  }
+</style>
