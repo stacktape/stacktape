@@ -14,9 +14,11 @@ type Props = {
   layout?: 'side' | 'wide';
   /** Puts the picture on the right in the side layout, so sections alternate. */
   flip?: boolean;
+  /** Pack facts to leave out, by position, when they repeat the section's line. */
+  skipFacts?: number[];
 };
 
-const { pack: packId, index, title, line, layout = 'side', flip = false } = Astro.props;
+const { pack: packId, index, title, line, layout = 'side', flip = false, skipFacts = [] } = Astro.props;
 const pack = SECTION_PACKS.find((candidate) => candidate.id === packId);
 if (!pack?.picture) throw new Error(`Section pack ${packId} has no picture`);
 const { picture } = pack;
@@ -33,7 +35,11 @@ const shot = {
       {...shot}
       sizes={layout === 'wide' ? '(min-width: 92rem) 88rem, 94vw' : '(min-width: 92rem) 58rem, (min-width: 64rem) 64vw, 94vw'}
     />
-    <Facts figure={pack.figure} facts={pack.facts} row={layout === 'wide'} />
+    <Facts
+      figure={pack.figure}
+      facts={pack.facts.filter((_, position) => !skipFacts.includes(position))}
+      row={layout === 'wide'}
+    />
   </div>
 </Section>
 

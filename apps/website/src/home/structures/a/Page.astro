@@ -33,6 +33,7 @@ const homeHref = isHome ? '/' : Astro.url.pathname;
       pack="designs"
       index={1}
       line="Every resource shows why it’s there, the code behind it and its estimated monthly cost."
+      skipFacts={[0]}
     />
     <Packages />
     <Deploys />
@@ -42,9 +43,15 @@ const homeHref = isHome ? '/' : Astro.url.pathname;
       line="Logs, metrics and error tracking come with every stack. Tracing and uptime checks are a few config lines."
       flip
     />
-    <PackSection pack="secures" index={5} title="Least access by default. Rules checked before deploy." layout="wide" />
+    <PackSection
+      pack="secures"
+      index={5}
+      title="Least access by default. Rules checked before deploy."
+      layout="wide"
+      skipFacts={[0]}
+    />
     <Incidents />
-    <PackSection pack="costs" index={7} layout="wide" />
+    <PackSection pack="costs" index={7} layout="wide" skipFacts={[0]} />
     <Help />
     <Customers />
     <Closing />
