@@ -1,0 +1,109 @@
+---
+import Tape from '../../../brand/Tape.astro';
+import { FIRST_RUN, runDate } from '../../heroes/b/bench';
+import type { Step } from '../../heroes/b/steps';
+
+type Props = { step: Step; index: number; docs?: { label: string; href: string } };
+
+const { step, index, docs } = Astro.props;
+const number = String(index + 1).padStart(2, '0');
+---
+
+<section class="b-step" id={step.id} aria-labelledby={`${step.id}-title`}>
+  <header class="b-step__head">
+    <div class="b-step__intro">
+      <p class="b-step__marker">
+        <Tape variant="marker">{`${number} ${step.name}`}</Tape>
+        <span>{step.when}</span>
+      </p>
+      <p class="b-step__problem">{step.problem}</p>
+      <h2 id={`${step.id}-title`}>{step.title}</h2>
+    </div>
+    <div class="b-step__aside">
+      <p class="b-step__line">{step.line}</p>
+      {
+        step.bench ? (
+          <a class="brand-link brand-link--muted b-step__run" href="/benchmarks">
+            Preliminary benchmark run, {runDate(FIRST_RUN.date)}
+          </a>
+        ) : null
+      }
+      <slot name="aside" />
+      {
+        docs ? (
+          <a class="brand-link b-step__docs" href={docs.href}>
+            {docs.label}
+          </a>
+        ) : null
+      }
+    </div>
+  </header>
+  <slot />
+</section>
+
+<style>
+  .b-step {
+    display: grid;
+    gap: clamp(2rem, 1.5rem + 1.5vw, 3rem);
+    padding-block: clamp(4rem, 2.5rem + 4vw, 8rem);
+  }
+
+  .b-step__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    align-items: end;
+    gap: var(--brand-space-5) clamp(2rem, 1rem + 3vw, 5rem);
+  }
+
+  .b-step__marker {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-3);
+    margin-bottom: var(--brand-space-5);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-step__problem {
+    max-width: 30rem;
+    margin-bottom: var(--brand-space-3);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-base);
+  }
+
+  h2 {
+    max-width: 16ch;
+    font: var(--brand-weight-heading) clamp(2rem, 1.4rem + 1.8vw, 3.25rem) / 1.06 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+    text-wrap: balance;
+  }
+
+  .b-step__aside {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-3);
+  }
+
+  .b-step__line {
+    max-width: 32rem;
+    font-size: var(--brand-type-lead);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .b-step__docs,
+  .b-step__run {
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-step__run {
+    text-decoration-line: underline;
+    text-decoration-color: var(--brand-border);
+  }
+
+  @media (max-width: 52rem) {
+    .b-step__head {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

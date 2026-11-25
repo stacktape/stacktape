@@ -1,0 +1,76 @@
+---
+import { TESTIMONIALS } from '../../../variants/readme/data';
+
+/* Trigger.dev has left; its quote stays off the page until the owner confirms it may be used. */
+const QUOTES = TESTIMONIALS.filter((item) => !item.role.includes('Trigger.dev'));
+---
+
+<section class="b-proof site-frame" aria-labelledby="b-proof-title">
+  <h2 id="b-proof-title" class="b-proof__title">What customers told us</h2>
+  <ul class="b-proof__quotes">
+    {
+      QUOTES.map((item) => (
+        <li>
+          <blockquote>
+            <p>“{item.quote}”</p>
+          </blockquote>
+          <p class="b-proof__who">
+            <strong>{item.name}</strong>
+            <span>{item.role}</span>
+          </p>
+        </li>
+      ))
+    }
+  </ul>
+</section>
+
+<style>
+  .b-proof {
+    padding-block: var(--brand-space-7) clamp(2rem, 1rem + 3vw, 4rem);
+    border-top: 1px solid var(--brand-border);
+  }
+
+  .b-proof__title {
+    margin-bottom: var(--brand-space-6);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .b-proof__quotes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--brand-space-6) clamp(2rem, 1rem + 3vw, 5rem);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .b-proof__quotes li {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: var(--brand-space-5);
+  }
+
+  blockquote {
+    margin: 0;
+    font-size: var(--brand-type-base);
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+
+  .b-proof__who {
+    display: grid;
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-proof__who span {
+    color: var(--brand-muted);
+  }
+
+  @media (max-width: 64rem) {
+    .b-proof__quotes {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>
