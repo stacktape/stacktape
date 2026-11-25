@@ -7,7 +7,7 @@ import Window from './console/Window.astro';
  * opens is rolling out; the hero's 11:04 fix is live; the 10:12 release that broke order totals, and older ones, can be
  * rolled back to. Names, stages and the account follow the hero's Console (heroes/h5/console/data.ts).
  */
-const STAGES = [{ name: 'production', selected: true }, { name: 'staging' }, { name: 'pr-218' }, { name: 'dev-maya' }];
+const STAGES = [{ name: 'production', selected: true }, { name: 'staging' }, { name: 'pr-218' }, { name: 'dev-maya', wide: true }];
 const DEPLOYS = [
   {
     change: 'Add saved carts',
@@ -74,7 +74,7 @@ const DEPLOYS = [
     <span class="cn-segments">
       {
         STAGES.map((stage) => (
-          <span aria-selected={stage.selected ? 'true' : 'false'}>
+          <span aria-selected={stage.selected ? 'true' : 'false'} class:list={{ 'cn-wide': stage.wide }}>
             <i class="cn-dot" />
             {stage.name}
           </span>
