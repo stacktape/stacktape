@@ -1,0 +1,16 @@
+---
+/**
+ * A resource's icon as the Console draws it: the AWS architecture icon without its square, its lines in the AWS
+ * category's colour (the Console's `stp-ui-resource-icon` rules).
+ */
+import { AWS_ICONS } from './aws-icons';
+import { RESOURCES, type ResourceName } from './data';
+
+type Props = { name: ResourceName };
+
+const icon = AWS_ICONS[RESOURCES[Astro.props.name].icon];
+---
+
+<span class={`cx-res cx-res--${icon.geometry}`} style={`--cx-res: var(--cx-aws-${icon.category})`}
+  ><svg viewBox={icon.viewBox} aria-hidden="true" set:html={icon.markup} /></span
+>

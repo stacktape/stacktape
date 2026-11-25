@@ -1,0 +1,67 @@
+---
+/** Uptime checks for every stage, each with the last 24 hours as hourly bars. */
+import { CHECKS, PROJECT } from './data';
+import Icon from './Icon.astro';
+import Shell from './Shell.astro';
+
+const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+---
+
+<Shell crumb="Uptime" page="uptime" open="observability">
+  <div class="cx-title">
+    <span class="cx-h1">Uptime</span>
+    <Icon name="help" />
+    <span class="cx-ok"><i class="cx-dot" />All 4 checks up</span>
+    <span class="cx-quiet">99.91% available in the last 24 hours</span>
+  </div>
+  <div class="cx-card">
+    <div class="cx-toolbar">
+      <span class="cx-input"><Icon name="search" />Search checks and URLs</span>
+      <span class="cx-select">Project <b>All</b><Icon name="down" /></span>
+      <span class="cx-select">Stage <b>All</b><Icon name="down" /></span>
+      <span class="cx-select">Status <b>All</b><Icon name="down" /></span>
+    </div>
+    <div class="cx-table cx-table--uptime">
+      <span class="cx-th">Status</span>
+      <span class="cx-th">Check</span>
+      <span class="cx-th">Last 24 hours</span>
+      <span class="cx-th cx-num">Availability</span>
+      <span class="cx-th cx-num">Latency</span>
+      <span class="cx-th">Last checked</span>
+      <span class="cx-th"></span>
+      {
+        CHECKS.map((check) => (
+          <>
+            <span class="cx-td cx-stack">
+              <span>
+                <i class="cx-dot" />
+                Up
+              </span>
+              {check.warning && <span class="cx-amber">{check.warning}</span>}
+            </span>
+            <span class="cx-td cx-stack">
+              <b>{check.name}</b>
+              <span class="cx-quiet">
+                {PROJECT} / {check.stage} · {check.url}
+              </span>
+            </span>
+            <span class="cx-td cx-hours">
+              {HOURS.map((hour) => (
+                <i class:list={[(check.down as readonly number[]).includes(hour) && 'is-down']} />
+              ))}
+            </span>
+            <span class="cx-td cx-num">{check.availability}</span>
+            <span class="cx-td cx-num">{check.latency}</span>
+            <span class="cx-td cx-stack">
+              <span>41s ago</span>
+              <span class="cx-quiet">{check.every}</span>
+            </span>
+            <span class="cx-td cx-chev">
+              <Icon name="right" />
+            </span>
+          </>
+        ))
+      }
+    </div>
+  </div>
+</Shell>

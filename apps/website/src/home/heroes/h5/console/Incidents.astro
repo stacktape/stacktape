@@ -1,0 +1,58 @@
+---
+/** Every incident of the organization, with its severity printed on label tape. */
+import { INCIDENTS, PROJECT } from './data';
+import Icon from './Icon.astro';
+import Shell from './Shell.astro';
+---
+
+<Shell crumb="Incidents" page="incidents">
+  <div class="cx-title">
+    <span class="cx-h1">Incidents</span>
+    <Icon name="help" />
+  </div>
+  <div class="cx-card">
+    <div class="cx-toolbar">
+      <span class="cx-seg">
+        <span class="cx-seg__tab">Active <span class="cx-quiet">1</span></span>
+        <span class="cx-seg__tab">Resolved <span class="cx-quiet">3</span></span>
+        <span class="cx-seg__tab is-on">All <span class="cx-quiet">4</span></span>
+      </span>
+      <span class="cx-input"><Icon name="search" />Search incident titles</span>
+      <span class="cx-select">Project <b>All</b><Icon name="down" /></span>
+      <span class="cx-select">Stage <b>All</b><Icon name="down" /></span>
+    </div>
+    <div class="cx-table cx-table--incidents">
+      <span class="cx-th">Severity</span>
+      <span class="cx-th">Incident</span>
+      <span class="cx-th">Status</span>
+      <span class="cx-th">Opened</span>
+      <span class="cx-th"></span>
+      {
+        INCIDENTS.map((incident) => (
+          <>
+            <span class="cx-td">
+              <span class={`cx-label cx-label--${incident.severity.toLowerCase()}`}>{incident.severity}</span>
+            </span>
+            <span class="cx-td cx-stack">
+              <b>{incident.title}</b>
+              <span class="cx-quiet cx-clip">
+                {PROJECT} / {incident.where} · {incident.detail}
+              </span>
+            </span>
+            <span class="cx-td cx-stack">
+              <span class:list={[incident.status === 'Open' ? 'cx-red' : 'cx-ok']}>
+                <i class="cx-dot" />
+                {incident.status}
+              </span>
+              {incident.by && <span class="cx-quiet">{incident.by}</span>}
+            </span>
+            <span class="cx-td">{incident.opened}</span>
+            <span class="cx-td cx-chev">
+              <Icon name="right" />
+            </span>
+          </>
+        ))
+      }
+    </div>
+  </div>
+</Shell>

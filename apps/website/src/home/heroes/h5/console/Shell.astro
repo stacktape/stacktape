@@ -1,0 +1,95 @@
+---
+/**
+ * The Console's frame with its tape look: the top bar, the sidebar (the selected row is a piece of grey tape torn at
+ * its right end, counts are torn labels) and the raised page the screen's content sits on.
+ */
+import { ORG, USER } from './data';
+import Icon from './Icon.astro';
+
+type Section = 'observability' | 'security';
+type Page = 'projects' | 'incidents' | 'uptime' | 'security';
+type Props = { crumb: string; crumbMenu?: boolean; page: Page; open?: Section };
+
+const { crumb, crumbMenu = false, page, open } = Astro.props;
+
+const SECTIONS = [
+  { id: 'organization', label: 'Organization', count: 0, tone: '' },
+  {
+    id: 'observability',
+    label: 'Observability',
+    count: 4,
+    tone: 'red',
+    rows: [
+      { icon: 'logs', label: 'Logs' },
+      { icon: 'metrics', label: 'Metrics' },
+      { icon: 'traces', label: 'Traces' },
+      { icon: 'uptime', label: 'Uptime', page: 'uptime' },
+      { icon: 'synthetics', label: 'Synthetics' },
+      { icon: 'errors', label: 'Error tracking', count: 4, tone: 'red' }
+    ]
+  },
+  {
+    id: 'security',
+    label: 'Security',
+    count: 2,
+    tone: 'amber',
+    rows: [
+      { icon: 'shield', label: 'Overview', page: 'security', count: 2, tone: 'amber' },
+      { icon: 'globe', label: 'Exposure' },
+      { icon: 'guardrails', label: 'Guardrails' },
+      { icon: 'settings', label: 'Settings' }
+    ]
+  },
+  { id: 'alerting', label: 'Alerting', count: 0, tone: '' },
+  { id: 'configuration', label: 'Configuration', count: 0, tone: '' }
+] as const;
+---
+
+<div class="cx-app">
+  <div class="cx-top">
+    <img class="cx-logo" src="/brand/logo-wordmark.svg" alt="" width="132" height="32" />
+    <span class="cx-crumbs">
+      <span class="cx-crumb">{ORG}<Icon name="down" /></span>
+      <span class="cx-slash">/</span>
+      <span class="cx-crumb">{crumb}{crumbMenu && <Icon name="down" />}</span>
+    </span>
+    <span class="cx-find"><Icon name="search" />Find<kbd>Ctrl K</kbd></span>
+    <span class="cx-btn"><Icon name="plus" />New project</span>
+    <span class="cx-help"><Icon name="help" />Help<Icon name="down" /></span>
+    <span class="cx-avatar">{USER}<Icon name="down" /></span>
+  </div>
+  <div class="cx-side">
+    <span class:list={['cx-nav', page === 'projects' && 'is-on']}><Icon name="projects" />Projects</span>
+    <span class:list={['cx-nav', page === 'incidents' && 'is-on']}
+      ><Icon name="incidents" />Incidents<span class="cx-count cx-count--red">1</span></span
+    >
+    {
+      SECTIONS.map((section) => {
+        const expanded = 'rows' in section && section.id === open;
+        return (
+          <>
+            <span class="cx-group">
+              {section.label}
+              {section.count > 0 && !expanded && (
+                <span class={`cx-count cx-count--${section.tone}`}>{section.count}</span>
+              )}
+              <Icon name={expanded ? 'down' : 'right'} />
+            </span>
+            {expanded &&
+              section.rows.map((row) => (
+                <span class:list={['cx-nav', 'page' in row && row.page === page && 'is-on']}>
+                  <Icon name={row.icon} />
+                  {row.label}
+                  {'count' in row && <span class={`cx-count cx-count--${row.tone}`}>{row.count}</span>}
+                </span>
+              ))}
+          </>
+        );
+      })
+    }
+    <span class="cx-collapse"><Icon name="collapse" />Collapse</span>
+  </div>
+  <div class="cx-page">
+    <slot />
+  </div>
+</div>

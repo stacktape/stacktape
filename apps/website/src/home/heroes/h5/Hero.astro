@@ -2,6 +2,13 @@
 import { ButtonLink } from '@stacktape/ui-react/button';
 import { CommandBox } from '../../../brand/CommandBox';
 import './font.css';
+import Costs from './console/Costs.astro';
+import './console/console.css';
+import Deploy from './console/Deploy.astro';
+import Incidents from './console/Incidents.astro';
+import Overview from './console/Overview.astro';
+import Security from './console/Security.astro';
+import Uptime from './console/Uptime.astro';
 import { SCREENS } from './screens';
 
 type Props = { subheadline?: string };
@@ -9,6 +16,16 @@ type Props = { subheadline?: string };
 const {
   subheadline = 'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.'
 } = Astro.props;
+
+/** The Console screens behind the tabs, rebuilt in HTML from the real Console. */
+const CONSOLE = {
+  infrastructure: Overview,
+  deploys: Deploy,
+  monitoring: Uptime,
+  incidents: Incidents,
+  security: Security,
+  costs: Costs
+};
 
 /** Every picture in `images/`, by file name. Plain files the build copies, so no image service is needed. */
 const pictures = import.meta.glob<string>('./images/*', { eager: true, query: '?url', import: 'default' });
@@ -60,27 +77,22 @@ const facts = [
     </div>
     <div class="h5__window">
       {
-        SCREENS.map((screen, at) => (
-          <picture
-            id={`h5-screen-${screen.file}`}
-            role="tabpanel"
-            aria-labelledby={`h5-tab-${screen.file}`}
-            hidden={at > 0}
-          >
-            <source media="(max-width: 40rem)" srcset={url(`${screen.file}-phone.webp`)} width="960" height="600" />
-            <img
-              src={url(`${screen.file}-1280.webp`)}
-              srcset={`${url(`${screen.file}-1280.webp`)} 1280w, ${url(`${screen.file}-2560.webp`)} 2560w`}
-              sizes="(min-width: 92rem) 88rem, 96vw"
-              width="2560"
-              height="1369"
-              alt={screen.description}
-              loading={at === 0 ? 'eager' : 'lazy'}
-              fetchpriority={at === 0 ? 'high' : 'auto'}
-              decoding="async"
-            />
-          </picture>
-        ))
+        SCREENS.map((screen, at) => {
+          const Screen = CONSOLE[screen.file];
+          return (
+            <div
+              id={`h5-screen-${screen.file}`}
+              class="h5__screen"
+              role="tabpanel"
+              aria-labelledby={`h5-tab-${screen.file}`}
+              hidden={at > 0}
+            >
+              <div role="img" aria-label={screen.description}>
+                <Screen />
+              </div>
+            </div>
+          );
+        })
       }
     </div>
   </div>
@@ -279,7 +291,9 @@ const facts = [
     border-radius: var(--brand-radius-small);
   }
 
+  /* The window is the container the rebuilt Console scales to: it is laid out in Console pixels of `100cqw / 1280`. */
   .h5__window {
+    container: h5-console / inline-size;
     inline-size: 100%;
     border: 1px solid rgb(255 255 255 / 11%);
     border-radius: var(--brand-radius);
@@ -287,15 +301,11 @@ const facts = [
     box-shadow: 0 34px 80px rgb(0 0 0 / 42%);
   }
 
-  .h5__window picture,
-  .h5__window img {
-    display: block;
-    inline-size: 100%;
-    block-size: auto;
+  .h5__screen {
     border-radius: inherit;
   }
 
-  .h5__window picture[hidden] {
+  .h5__screen[hidden] {
     display: none;
   }
 

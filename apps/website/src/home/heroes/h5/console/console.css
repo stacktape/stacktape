@@ -1,0 +1,1214 @@
+/*
+ * The Console, rebuilt in HTML for the hero window. It is laid out on the Console's own 1280 x 684 px page and
+ * scaled to the window: `--u` is one Console pixel, so every size below is the Console's size in its own pixels.
+ * Colours are the Console's own (sampled from its tape-look preview); the tape shapes are the brand's.
+ */
+.cx-app {
+  --u: calc(100cqw / 1280);
+  --cx-page: rgb(16 21 21);
+  --cx-panel: rgb(20 25 25);
+  --cx-card: rgb(31 37 37);
+  --cx-field: rgb(20 26 26);
+  --cx-line: rgb(255 255 255 / 6.7%);
+  --cx-border: rgb(47 52 52);
+  --cx-text: rgb(255 255 255 / 87%);
+  --cx-strong: rgb(255 255 255 / 95%);
+  --cx-muted: rgb(172 172 172);
+  --cx-teal: rgb(38 166 154);
+  --cx-red: rgb(240 96 96);
+  --cx-amber: rgb(240 152 52);
+  --cx-grey-tape: var(--stp-control-surface, var(--brand-control));
+  --cx-tooth: calc(3.4 * var(--u));
+  position: relative;
+  display: grid;
+  grid-template-columns: calc(216 * var(--u)) minmax(0, 1fr);
+  grid-template-rows: calc(54 * var(--u)) minmax(0, 1fr);
+  block-size: calc(684 * var(--u));
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--cx-page);
+  color: var(--cx-text);
+  font: 450 calc(13.2 * var(--u)) / 1.45 var(--brand-font-heading);
+  text-align: start;
+  user-select: none;
+}
+
+.cx-app * {
+  box-sizing: border-box;
+}
+
+.cx-app p {
+  margin: 0;
+}
+
+.cx-app b {
+  color: var(--cx-strong);
+  font-weight: 600;
+}
+
+.cx-app u {
+  text-decoration: underline dotted rgb(255 255 255 / 45%);
+  text-underline-offset: calc(3 * var(--u));
+}
+
+.cx-app code {
+  padding: calc(1 * var(--u)) calc(6 * var(--u));
+  border-radius: calc(4 * var(--u));
+  background: rgb(255 255 255 / 7%);
+  color: var(--cx-strong);
+  font: 500 calc(12 * var(--u)) / 1.4 var(--brand-font-mono);
+}
+
+.cx-icon {
+  flex: none;
+  inline-size: calc(15 * var(--u));
+  block-size: calc(15 * var(--u));
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
+
+/* Resource icons, as the Console's `stp-ui-resource-icon` draws them: no square, lines in the category colour. */
+.cx-app {
+  --cx-aws-compute: rgb(237 113 0);
+  --cx-aws-database: #4d73f4;
+  --cx-aws-integration: #f64683;
+  --cx-aws-network: #8e58eb;
+}
+
+.cx-res {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: calc(20 * var(--u));
+  block-size: calc(20 * var(--u));
+  overflow: visible;
+}
+
+.cx-res svg {
+  flex: none;
+  inline-size: calc(32 * var(--u));
+  block-size: calc(32 * var(--u));
+  margin: calc(-6 * var(--u));
+}
+
+.cx-res--plain svg {
+  inline-size: calc(20 * var(--u));
+  block-size: calc(20 * var(--u));
+  margin: 0;
+}
+
+.cx-res--architecture svg path:first-of-type {
+  fill: transparent;
+}
+
+.cx-res--architecture svg path:nth-of-type(2) {
+  fill: var(--cx-res);
+}
+
+.cx-quiet {
+  color: var(--cx-muted);
+  font-weight: 450;
+}
+
+.cx-indent {
+  padding-inline-start: calc(18 * var(--u));
+}
+
+.cx-dot {
+  display: inline-block;
+  flex: none;
+  inline-size: calc(8 * var(--u));
+  block-size: calc(8 * var(--u));
+  margin-inline-end: calc(7 * var(--u));
+  border-radius: 50%;
+  background: var(--cx-teal);
+  vertical-align: calc(1 * var(--u));
+}
+
+.cx-red {
+  color: var(--cx-red);
+}
+
+.cx-red .cx-dot {
+  background: var(--cx-red);
+}
+
+.cx-amber {
+  color: var(--cx-amber);
+}
+
+.cx-teal {
+  color: var(--cx-teal);
+}
+
+.cx-ok {
+  color: var(--cx-text);
+}
+
+/* Top bar */
+.cx-top {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  padding: 0 calc(24 * var(--u)) 0 calc(15 * var(--u));
+}
+
+.cx-logo {
+  inline-size: calc(120 * var(--u));
+  block-size: auto;
+}
+
+.cx-crumbs {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+  margin-inline-start: calc(105 * var(--u));
+  color: var(--cx-strong);
+  font-weight: 600;
+}
+
+.cx-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+}
+
+.cx-crumb .cx-icon {
+  inline-size: calc(12 * var(--u));
+  color: var(--cx-muted);
+}
+
+.cx-slash {
+  color: var(--cx-muted);
+  font-weight: 400;
+}
+
+.cx-find {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  inline-size: calc(190 * var(--u));
+  block-size: calc(38 * var(--u));
+  margin-inline-start: auto;
+  padding: 0 calc(6 * var(--u)) 0 calc(12 * var(--u));
+  border: calc(1 * var(--u)) solid var(--cx-border);
+  border-radius: calc(8 * var(--u));
+  background: var(--cx-field);
+  box-shadow: inset 0 calc(1 * var(--u)) calc(3 * var(--u)) rgb(0 0 0 / 30%);
+  color: var(--cx-muted);
+}
+
+.cx-find kbd {
+  margin-inline-start: auto;
+  padding: calc(1 * var(--u)) calc(5 * var(--u));
+  border: calc(1 * var(--u)) solid var(--cx-border);
+  border-radius: calc(4 * var(--u));
+  font: 450 calc(11 * var(--u)) / 1.3 var(--brand-font-heading);
+}
+
+.cx-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  block-size: calc(37 * var(--u));
+  padding: 0 calc(16 * var(--u));
+  border-radius: calc(7 * var(--u));
+  background: var(--cx-grey-tape);
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 9%);
+  color: var(--cx-strong);
+  white-space: nowrap;
+}
+
+.cx-btn--primary {
+  background: var(--brand-primary);
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 16%);
+  color: #fff;
+}
+
+.cx-help,
+.cx-avatar {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  margin-inline-start: calc(8 * var(--u));
+}
+
+.cx-help .cx-icon:last-child,
+.cx-avatar .cx-icon {
+  inline-size: calc(12 * var(--u));
+}
+
+.cx-avatar {
+  gap: calc(8 * var(--u));
+  font-weight: 700;
+}
+
+/* Sidebar */
+.cx-side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: calc(12 * var(--u)) calc(7 * var(--u)) 0 calc(6 * var(--u));
+}
+
+.cx-nav,
+.cx-group {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  block-size: calc(34 * var(--u));
+  padding: 0 calc(10 * var(--u)) 0 calc(9 * var(--u));
+  color: var(--cx-muted);
+  white-space: nowrap;
+}
+
+.cx-nav .cx-icon {
+  inline-size: calc(16 * var(--u));
+  block-size: calc(16 * var(--u));
+}
+
+/* The selected row: a piece of grey tape, torn at its right end. */
+.cx-nav.is-on {
+  color: var(--cx-text);
+}
+
+.cx-nav.is-on::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: '';
+  background: var(--cx-grey-tape);
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 9%);
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--cx-tooth)) 0,
+    100% 10%,
+    calc(100% - var(--cx-tooth)) 20%,
+    100% 30%,
+    calc(100% - var(--cx-tooth)) 40%,
+    100% 50%,
+    calc(100% - var(--cx-tooth)) 60%,
+    100% 70%,
+    calc(100% - var(--cx-tooth)) 80%,
+    100% 90%,
+    calc(100% - var(--cx-tooth)) 100%,
+    0 100%
+  );
+}
+
+.cx-group {
+  block-size: calc(32 * var(--u));
+  margin-block-start: calc(2 * var(--u));
+  font-size: calc(12.6 * var(--u));
+}
+
+.cx-nav + .cx-group {
+  margin-block-start: calc(8 * var(--u));
+}
+
+.cx-group > .cx-icon {
+  inline-size: calc(12 * var(--u));
+  margin-inline-start: auto;
+}
+
+.cx-group .cx-count + .cx-icon {
+  margin-inline-start: calc(6 * var(--u));
+}
+
+.cx-nav .cx-count,
+.cx-group .cx-count {
+  margin-inline-start: auto;
+}
+
+.cx-nav.is-on .cx-count,
+.cx-nav .cx-count {
+  margin-inline-end: calc(6 * var(--u));
+}
+
+/* Counts and severities are printed on label tape, torn like the logo's label. */
+.cx-count,
+.cx-label {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  clip-path: var(--brand-tape-clip);
+  background-image: linear-gradient(rgb(255 255 255 / 5%), rgb(0 0 0 / 8%));
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 8%);
+}
+
+.cx-count {
+  block-size: calc(19 * var(--u));
+  padding: 0 calc(6 * var(--u));
+  font-size: calc(11 * var(--u));
+}
+
+.cx-count--red,
+.cx-label--critical {
+  background-color: rgb(184 66 66);
+  color: rgb(255 238 238);
+}
+
+.cx-count--amber {
+  background-color: rgb(168 114 36);
+  color: rgb(255 244 228);
+}
+
+.cx-collapse {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  block-size: calc(50 * var(--u));
+  padding-inline: calc(15 * var(--u));
+  border-block-start: calc(1 * var(--u)) solid var(--cx-line);
+  color: var(--cx-muted);
+}
+
+/* The page */
+.cx-page {
+  display: flex;
+  flex-direction: column;
+  gap: calc(16 * var(--u));
+  min-inline-size: 0;
+  padding: calc(28 * var(--u)) calc(24 * var(--u)) 0;
+  overflow: hidden;
+  border-start-start-radius: calc(12 * var(--u));
+  background: var(--cx-panel);
+  box-shadow: inset calc(1 * var(--u)) calc(1 * var(--u)) 0 rgb(255 255 255 / 7.5%);
+}
+
+.cx-h1 {
+  color: var(--cx-strong);
+  font-size: calc(24 * var(--u));
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.cx-title {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  margin-block: calc(2 * var(--u)) calc(4 * var(--u));
+}
+
+.cx-title > .cx-icon {
+  inline-size: calc(17 * var(--u));
+  block-size: calc(17 * var(--u));
+  color: var(--cx-muted);
+}
+
+.cx-title > .cx-ok {
+  margin-inline-start: calc(18 * var(--u));
+}
+
+.cx-card {
+  flex: none;
+  border-radius: calc(10 * var(--u));
+  background: var(--cx-card);
+  box-shadow: 0 calc(2 * var(--u)) calc(6 * var(--u)) rgb(0 0 0 / 35%);
+}
+
+.cx-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--cx-strong);
+  white-space: nowrap;
+}
+
+.cx-link .cx-icon {
+  margin-inline-start: calc(6 * var(--u));
+}
+
+/* Fields and toolbars */
+.cx-toolbar {
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  padding: calc(8 * var(--u));
+}
+
+.cx-toolbar > b {
+  padding-inline: calc(8 * var(--u)) calc(4 * var(--u));
+  white-space: nowrap;
+}
+
+.cx-input,
+.cx-select {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  block-size: calc(38 * var(--u));
+  padding: 0 calc(14 * var(--u));
+  border: calc(1 * var(--u)) solid var(--cx-border);
+  border-radius: calc(8 * var(--u));
+  background: var(--cx-field);
+  box-shadow: inset 0 calc(1 * var(--u)) calc(3 * var(--u)) rgb(0 0 0 / 30%);
+  color: var(--cx-muted);
+  white-space: nowrap;
+}
+
+.cx-input {
+  inline-size: calc(254 * var(--u));
+}
+
+.cx-select {
+  inline-size: calc(194 * var(--u));
+}
+
+.cx-select b {
+  font-weight: 450;
+}
+
+.cx-select .cx-icon {
+  margin-inline-start: auto;
+  color: var(--cx-text);
+}
+
+/* Segmented tabs: one strip of tape torn into pieces; only the selected piece is filled. */
+.cx-seg {
+  display: inline-flex;
+  flex: none;
+  padding: calc(3 * var(--u));
+  border: calc(1 * var(--u)) solid var(--cx-line);
+  border-radius: calc(8 * var(--u));
+  background: var(--cx-page);
+}
+
+.cx-seg__tab {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  block-size: calc(29 * var(--u));
+  padding: 0 calc(17 * var(--u));
+  white-space: nowrap;
+}
+
+.cx-seg__tab.is-on::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: '';
+  background: var(--cx-grey-tape);
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 9%);
+  clip-path: polygon(var(--cx-torn-right), var(--cx-torn-left));
+}
+
+.cx-seg__tab:first-child.is-on::before {
+  border-radius: calc(6 * var(--u)) 0 0 calc(6 * var(--u));
+  clip-path: polygon(0 0, var(--cx-torn-right), 0 100%);
+}
+
+.cx-seg__tab:last-child.is-on::before {
+  border-radius: 0 calc(6 * var(--u)) calc(6 * var(--u)) 0;
+  clip-path: polygon(100% 0, 100% 100%, var(--cx-torn-left));
+}
+
+.cx-app {
+  --cx-torn-right:
+    100% 0%, calc(100% - var(--cx-tooth)) 12.5%, 100% 25%, calc(100% - var(--cx-tooth)) 37.5%, 100% 50%,
+    calc(100% - var(--cx-tooth)) 62.5%, 100% 75%, calc(100% - var(--cx-tooth)) 87.5%, 100% 100%;
+  --cx-torn-left:
+    var(--cx-tooth) 100%, 0% 87.5%, var(--cx-tooth) 75%, 0% 62.5%, var(--cx-tooth) 50%, 0% 37.5%, var(--cx-tooth) 25%,
+    0% 12.5%, var(--cx-tooth) 0%;
+}
+
+/* Section tabs: the selected one is underlined with a short strip of teal tape. */
+.cx-sections {
+  display: flex;
+  align-items: center;
+  gap: calc(24 * var(--u));
+  min-block-size: calc(40 * var(--u));
+  border-block-end: calc(1 * var(--u)) solid var(--cx-line);
+  font-size: calc(14 * var(--u));
+}
+
+.cx-section {
+  position: relative;
+  padding-block: calc(9 * var(--u));
+}
+
+.cx-section.is-on::after {
+  position: absolute;
+  inset: auto calc(2 * var(--u)) calc(-3 * var(--u));
+  block-size: calc(5 * var(--u));
+  content: '';
+  background: var(--brand-primary);
+  clip-path: polygon(
+    calc(2 * var(--u)) 0,
+    calc(100% - calc(2 * var(--u))) 0,
+    100% 50%,
+    calc(100% - calc(2 * var(--u))) 100%,
+    calc(2 * var(--u)) 100%,
+    0 50%
+  );
+}
+
+.cx-sections > .cx-btn--primary {
+  margin-inline-start: auto;
+}
+
+.cx-running + .cx-btn--primary {
+  margin-inline-start: calc(18 * var(--u));
+}
+
+.cx-running {
+  margin-inline-start: auto;
+  color: var(--cx-muted);
+  font-size: calc(13.2 * var(--u));
+}
+
+.cx-running code {
+  background: none;
+  color: var(--cx-muted);
+}
+
+/* Stage pages */
+.cx-project {
+  display: flex;
+  align-items: center;
+  gap: calc(14 * var(--u));
+}
+
+.cx-star {
+  inline-size: calc(16 * var(--u));
+  block-size: calc(16 * var(--u));
+}
+
+.cx-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  margin-inline-start: auto;
+}
+
+.cx-repo .cx-icon {
+  inline-size: calc(16 * var(--u));
+  block-size: calc(16 * var(--u));
+  fill: currentcolor;
+  stroke: none;
+}
+
+.cx-gear {
+  inline-size: calc(17 * var(--u));
+  block-size: calc(17 * var(--u));
+  margin-inline: calc(14 * var(--u)) calc(6 * var(--u));
+}
+
+.cx-stages {
+  display: flex;
+  align-items: center;
+  gap: calc(16 * var(--u));
+  margin-block-start: calc(-4 * var(--u));
+}
+
+.cx-more {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+}
+
+.cx-more .cx-icon {
+  inline-size: calc(12 * var(--u));
+}
+
+.cx-account {
+  margin-inline-start: auto;
+  color: var(--cx-muted);
+  font-size: calc(12 * var(--u));
+}
+
+.cx-deployed {
+  display: flex;
+  align-items: center;
+  gap: calc(18 * var(--u));
+  padding: calc(16 * var(--u)) calc(24 * var(--u)) calc(16 * var(--u)) calc(16 * var(--u));
+}
+
+.cx-deployed > div {
+  display: grid;
+  flex: 1;
+  gap: calc(6 * var(--u));
+}
+
+.cx-urls {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  margin-block-start: calc(6 * var(--u));
+}
+
+.cx-urls span {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  margin-inline-start: calc(28 * var(--u));
+}
+
+.cx-urls .cx-icon {
+  inline-size: calc(14 * var(--u));
+}
+
+.cx-stats {
+  display: grid;
+  grid-template-columns: calc(145 * var(--u)) repeat(3, minmax(0, 1fr));
+  align-items: center;
+  block-size: calc(42 * var(--u));
+}
+
+.cx-stats__lead,
+.cx-stat {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  block-size: 100%;
+  padding-inline: calc(16 * var(--u));
+  white-space: nowrap;
+}
+
+.cx-stats__lead {
+  color: var(--cx-strong);
+  font-weight: 600;
+}
+
+.cx-stat {
+  border-inline-start: calc(1 * var(--u)) solid var(--cx-line);
+}
+
+.cx-stat b {
+  font-size: calc(17 * var(--u));
+}
+
+.cx-stat svg {
+  inline-size: calc(56 * var(--u));
+  block-size: calc(18 * var(--u));
+  margin-inline-start: auto;
+  overflow: visible;
+}
+
+.cx-stat polyline {
+  fill: none;
+  stroke: var(--cx-teal);
+  stroke-width: calc(1.4 * var(--u));
+  vector-effect: non-scaling-stroke;
+}
+
+.cx-total {
+  margin-inline-start: auto;
+  color: var(--cx-strong);
+  font-weight: 600;
+}
+
+/* Tables */
+.cx-table {
+  display: grid;
+  align-items: center;
+}
+
+.cx-th,
+.cx-td {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  min-inline-size: 0;
+  block-size: 100%;
+  padding: calc(4 * var(--u)) calc(12 * var(--u)) calc(4 * var(--u)) calc(16 * var(--u));
+  white-space: nowrap;
+}
+
+.cx-th {
+  block-size: calc(36 * var(--u));
+  box-shadow: inset 0 calc(1 * var(--u)) 0 var(--cx-line);
+  color: var(--cx-muted);
+  font-size: calc(12 * var(--u));
+  font-weight: 500;
+}
+
+.cx-td {
+  min-block-size: calc(40 * var(--u));
+  border-block-start: calc(1 * var(--u)) solid var(--cx-line);
+  color: var(--cx-strong);
+  font-weight: 500;
+}
+
+.cx-td.cx-quiet {
+  color: var(--cx-muted);
+  font-weight: 450;
+}
+
+.cx-num {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.cx-chev {
+  justify-content: flex-end;
+  color: var(--cx-muted);
+}
+
+.cx-chev .cx-icon {
+  inline-size: calc(13 * var(--u));
+}
+
+.cx-name {
+  gap: calc(10 * var(--u));
+}
+
+.cx-stack {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: calc(1 * var(--u));
+  min-block-size: calc(53 * var(--u));
+}
+
+.cx-stack > span,
+.cx-stack > b,
+.cx-clip {
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cx-table--overview {
+  grid-template-columns: 1.3fr 1.6fr 0.7fr 0.6fr 0.7fr 0.8fr calc(44 * var(--u));
+}
+
+.cx-table--uptime {
+  grid-template-columns: 1.5fr 1.9fr 1.35fr 0.75fr 0.6fr 0.8fr calc(40 * var(--u));
+}
+
+.cx-table--incidents {
+  grid-template-columns: calc(112 * var(--u)) minmax(0, 1fr) calc(160 * var(--u)) calc(110 * var(--u)) calc(
+      44 * var(--u)
+    );
+}
+
+.cx-table--security {
+  grid-template-columns: calc(112 * var(--u)) minmax(0, 1.55fr) minmax(0, 1fr) calc(110 * var(--u)) calc(44 * var(--u));
+}
+
+.cx-table--costs {
+  grid-template-columns: 1.6fr 1.4fr 1.1fr 0.9fr 1fr calc(44 * var(--u));
+}
+
+.cx-label {
+  block-size: calc(21 * var(--u));
+  padding: 0 calc(12 * var(--u));
+  font-size: calc(12 * var(--u));
+}
+
+.cx-label--error,
+.cx-label--high {
+  background-color: rgb(86 40 40);
+  color: rgb(255 140 140);
+}
+
+.cx-label--warning,
+.cx-label--medium {
+  background-color: rgb(84 64 34);
+  color: rgb(246 196 120);
+}
+
+.cx-label--low {
+  background-color: rgb(52 60 60);
+  color: rgb(214 220 220);
+}
+
+.cx-hours {
+  gap: calc(3 * var(--u));
+}
+
+.cx-hours i {
+  flex: 1;
+  max-inline-size: calc(6 * var(--u));
+  block-size: calc(22 * var(--u));
+  border-radius: calc(1.5 * var(--u));
+  background: rgb(30 140 130);
+}
+
+.cx-hours i.is-down {
+  background: var(--cx-red);
+}
+
+.cx-pages {
+  display: flex;
+  align-items: center;
+  gap: calc(22 * var(--u));
+  block-size: calc(52 * var(--u));
+  padding-inline: calc(16 * var(--u)) calc(24 * var(--u));
+  border-block-start: calc(1 * var(--u)) solid var(--cx-line);
+  color: var(--cx-text);
+}
+
+.cx-pages span {
+  margin-inline-end: auto;
+}
+
+.cx-pages .cx-icon {
+  color: var(--cx-muted);
+}
+
+/* Security */
+.cx-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(12 * var(--u));
+}
+
+.cx-summary .cx-card {
+  display: grid;
+  gap: calc(2 * var(--u));
+  padding: calc(14 * var(--u)) calc(16 * var(--u));
+}
+
+.cx-summary strong {
+  font-size: calc(22 * var(--u));
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* Costs */
+.cx-month {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: calc(20 * var(--u)) calc(16 * var(--u)) calc(20 * var(--u));
+}
+
+.cx-month > div {
+  display: grid;
+  gap: calc(4 * var(--u));
+}
+
+.cx-month strong {
+  color: var(--cx-strong);
+  font-size: calc(20 * var(--u));
+  font-weight: 700;
+}
+
+.cx-month .cx-select {
+  inline-size: calc(234 * var(--u));
+}
+
+.cx-share {
+  display: grid;
+  grid-template-columns: calc(70 * var(--u)) calc(40 * var(--u));
+  justify-content: end;
+  gap: calc(10 * var(--u));
+  color: var(--cx-text);
+  text-align: end;
+}
+
+.cx-meter {
+  position: relative;
+  inline-size: calc(70 * var(--u));
+  block-size: calc(4 * var(--u));
+  border-radius: calc(2 * var(--u));
+  background: rgb(255 255 255 / 8%);
+}
+
+.cx-meter i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--cx-teal);
+}
+
+/* Deploy */
+.cx-path {
+  color: var(--cx-muted);
+}
+
+.cx-path span {
+  margin-inline: calc(6 * var(--u));
+}
+
+.cx-deploy-head {
+  display: flex;
+  align-items: center;
+  gap: calc(12 * var(--u));
+  margin-block-start: calc(-6 * var(--u));
+}
+
+.cx-deploy-head > div {
+  display: grid;
+  flex: 1;
+  gap: calc(8 * var(--u));
+}
+
+.cx-deploy-head p {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+}
+
+.cx-deploy-head .cx-dot {
+  margin-inline: calc(6 * var(--u)) 0;
+}
+
+.cx-deploy-head .cx-link {
+  margin-inline-start: calc(18 * var(--u));
+}
+
+.cx-deploy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) calc(290 * var(--u));
+  align-items: start;
+  gap: calc(16 * var(--u));
+}
+
+.cx-sections--card {
+  padding-inline: calc(16 * var(--u));
+}
+
+.cx-copy {
+  margin-inline-start: auto;
+}
+
+.cx-step {
+  display: grid;
+  grid-template-columns: calc(26 * var(--u)) calc(16 * var(--u)) minmax(0, 1fr) calc(206 * var(--u)) calc(98 * var(--u));
+  align-items: center;
+  gap: calc(8 * var(--u));
+  block-size: calc(44 * var(--u));
+  padding-inline: calc(16 * var(--u));
+  border-block-end: calc(1 * var(--u)) solid var(--cx-line);
+  font-size: calc(14 * var(--u));
+}
+
+.cx-done {
+  display: grid;
+  place-items: center;
+  inline-size: calc(20 * var(--u));
+  block-size: calc(20 * var(--u));
+  border: calc(1.5 * var(--u)) solid rgb(38 166 154 / 55%);
+  border-radius: 50%;
+  color: var(--cx-teal);
+}
+
+.cx-done .cx-icon {
+  inline-size: calc(11 * var(--u));
+  block-size: calc(11 * var(--u));
+  stroke-width: 2;
+}
+
+.cx-step > .cx-num {
+  text-align: end;
+}
+
+.cx-step__open {
+  inline-size: calc(12 * var(--u));
+  color: var(--cx-muted);
+}
+
+.cx-bar {
+  position: relative;
+  block-size: calc(6 * var(--u));
+  border-radius: calc(3 * var(--u));
+  background: rgb(255 255 255 / 7%);
+}
+
+.cx-bar i {
+  position: absolute;
+  inset-block: 0;
+  border-radius: inherit;
+  background: var(--cx-teal);
+}
+
+.cx-changed {
+  display: grid;
+  gap: calc(6 * var(--u));
+  padding: calc(16 * var(--u));
+}
+
+.cx-changed > p:first-child {
+  display: flex;
+  justify-content: space-between;
+}
+
+.cx-diff {
+  display: flex;
+  align-items: center;
+  gap: calc(10 * var(--u));
+  margin-block-start: calc(6 * var(--u));
+}
+
+.cx-diff code {
+  background: none;
+}
+
+.cx-facts {
+  display: grid;
+  padding-block-end: calc(6 * var(--u));
+}
+
+.cx-facts > b {
+  padding: calc(14 * var(--u)) calc(16 * var(--u));
+  border-block-end: calc(1 * var(--u)) solid var(--cx-line);
+}
+
+.cx-facts p {
+  display: grid;
+  justify-items: start;
+  gap: calc(2 * var(--u));
+  padding: calc(9 * var(--u)) calc(16 * var(--u));
+  border-block-end: calc(1 * var(--u)) solid var(--cx-line);
+}
+
+.cx-facts p:last-child {
+  border-block-end: 0;
+}
+
+/*
+ * On a phone the window is laid out on a 520 px Console page, as the Console itself is on a narrow screen: no
+ * sidebar, the top bar keeps the logo and the place, and tables keep the columns that say the most.
+ */
+@container h5-console (max-width: 40rem) {
+  .cx-app {
+    --u: calc(100cqw / 520);
+    grid-template-columns: minmax(0, 1fr);
+    block-size: calc(600 * var(--u));
+  }
+
+  .cx-side,
+  .cx-find,
+  .cx-top > .cx-btn,
+  .cx-help,
+  .cx-crumb:first-child,
+  .cx-slash,
+  .cx-repo,
+  .cx-account,
+  .cx-stages > .cx-btn,
+  .cx-stages .cx-seg__tab:nth-child(n + 3),
+  .cx-toolbar > b ~ .cx-seg,
+  .cx-title > .cx-quiet,
+  .cx-month > .cx-select,
+  .cx-deployed > .cx-btn,
+  .cx-section:nth-child(n + 4),
+  .cx-running,
+  .cx-sections > .cx-btn--primary,
+  .cx-toolbar > :not(.cx-seg, b, .cx-input),
+  .cx-deployed > .cx-link,
+  .cx-stat:nth-child(n + 4),
+  .cx-deploy-head > .cx-btn,
+  .cx-deploy-head > .cx-link,
+  .cx-facts,
+  .cx-pages .cx-icon {
+    display: none;
+  }
+
+  .cx-top {
+    padding-inline: calc(14 * var(--u));
+  }
+
+  .cx-crumbs {
+    margin-inline-start: calc(24 * var(--u));
+  }
+
+  .cx-avatar {
+    margin-inline-start: auto;
+  }
+
+  .cx-page {
+    padding: calc(20 * var(--u)) calc(14 * var(--u)) 0;
+    border-start-start-radius: 0;
+    box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 7.5%);
+  }
+
+  .cx-deployed {
+    padding: calc(14 * var(--u));
+  }
+
+  .cx-stats {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .cx-stats__lead {
+    padding-inline: calc(14 * var(--u)) calc(8 * var(--u));
+  }
+
+  .cx-stat svg {
+    display: none;
+  }
+
+  .cx-toolbar .cx-input {
+    flex: 1;
+    inline-size: auto;
+  }
+
+  .cx-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cx-deploy {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cx-step {
+    grid-template-columns: calc(26 * var(--u)) calc(12 * var(--u)) minmax(0, 1fr) calc(64 * var(--u)) calc(
+        92 * var(--u)
+      );
+  }
+
+  .cx-step > .cx-num,
+  .cx-title > .cx-ok {
+    white-space: nowrap;
+  }
+
+  /* Tables keep their most telling columns: the cells are one flat grid, so a column is every nth cell. */
+  .cx-table--overview {
+    grid-template-columns: 1fr 1.3fr 0.8fr calc(30 * var(--u));
+  }
+
+  .cx-table--overview > :is(:nth-child(7n + 3), :nth-child(7n + 4), :nth-child(7n + 5)) {
+    display: none;
+  }
+
+  .cx-table--uptime {
+    grid-template-columns: 0.7fr 1.6fr 0.8fr calc(30 * var(--u));
+  }
+
+  .cx-table--uptime > :is(:nth-child(7n + 3), :nth-child(7n + 5), :nth-child(7n + 6)) {
+    display: none;
+  }
+
+  .cx-table--incidents {
+    grid-template-columns: calc(96 * var(--u)) minmax(0, 1fr) calc(30 * var(--u));
+  }
+
+  .cx-table--incidents > :is(:nth-child(5n + 3), :nth-child(5n + 4)) {
+    display: none;
+  }
+
+  .cx-table--security {
+    grid-template-columns: calc(90 * var(--u)) minmax(0, 1fr) calc(30 * var(--u));
+  }
+
+  .cx-table--security > :is(:nth-child(5n + 3), :nth-child(5n + 4)) {
+    display: none;
+  }
+
+  .cx-table--costs {
+    grid-template-columns: 1fr 0.9fr 0.8fr calc(30 * var(--u));
+  }
+
+  .cx-table--costs > :is(:nth-child(6n + 2), :nth-child(6n + 4)) {
+    display: none;
+  }
+
+  .cx-th,
+  .cx-td {
+    padding-inline: calc(12 * var(--u)) calc(8 * var(--u));
+  }
+}

@@ -1,0 +1,45 @@
+---
+/** The top of a stage page: the project, its stages as tape tabs, and the stage's section tabs. */
+import { ACCOUNT, PROJECT, REPO, STAGES } from './data';
+import Icon from './Icon.astro';
+
+type Props = { section: 'Overview' | 'Costs' };
+
+const { section } = Astro.props;
+const SECTIONS = ['Overview', 'Activity', 'Costs', 'Configuration', 'Diagram', 'Danger zone'];
+---
+
+<div class="cx-project">
+  <span class="cx-h1">{PROJECT}</span>
+  <Icon name="star" class="cx-star" />
+  <span class="cx-repo"
+    ><Icon name="github" /><u>{REPO}</u><u>Deploys on push to main · previews for pull requests</u></span
+  >
+  <Icon name="gear" class="cx-gear" />
+</div>
+<div class="cx-stages">
+  <span class="cx-seg">
+    {
+      STAGES.map((stage, at) => (
+        <span class:list={['cx-seg__tab', at === 0 && 'is-on']}>
+          <i class="cx-dot" />
+          {stage}
+        </span>
+      ))
+    }
+  </span>
+  <span class="cx-more">1 more<Icon name="down" /></span>
+  <span class="cx-btn"><Icon name="plus" />New stage</span>
+  <span class="cx-account">{ACCOUNT}</span>
+</div>
+<div class="cx-sections">
+  {SECTIONS.map((name) => <span class:list={['cx-section', name === section && 'is-on']}>{name}</span>)}
+  {
+    section !== 'Overview' && (
+      <span class="cx-running">
+        Running <code>a41c9e2</code> on main · <u>View deploy</u>
+      </span>
+    )
+  }
+  <span class="cx-btn cx-btn--primary">Deploy stage</span>
+</div>
