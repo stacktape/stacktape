@@ -9,24 +9,24 @@ import targetPhone from './deploy-target-phone.webp';
 
 const steps = [
   {
-    title: 'Run one command in your repo',
-    text: 'Claude Code or Codex reads the code on your machine, or the built-in scanner reads manifests and lockfiles. No source code goes to Stacktape.'
+    title: 'Run stacktape init in your repository',
+    text: 'Your coding agent, Claude Code or Codex, reads the code on your machine. Without an agent, a built-in scanner reads your manifests and lockfiles. No source code is sent to Stacktape.'
   },
   {
     title: 'Review the setup in your browser',
-    text: 'Every resource shows why it exists, the line of code behind it and a monthly estimate. What the code did not settle is listed and changes with one click.'
+    text: 'Each resource shows why it’s there, the line of code behind it and its monthly cost. Change any choice with one click, then save the config as YAML or TypeScript.'
   },
   {
     title: 'Deploy to your AWS account',
-    text: 'With your local AWS credentials and no Stacktape account. Later, a Git rule in the Console deploys every push to the branches you choose.'
+    text: 'The first deploy uses your local AWS credentials and needs no Stacktape account. Later, connect your Git repository and every push to the branches you choose deploys.'
   }
 ] as const;
 ---
 
 <section class="site-frame c-section steps" id="designs" aria-labelledby="designs-title">
   <div class="c-intro">
-    <Tape variant="marker">How it starts</Tape>
-    <h2 class="c-h2" id="designs-title">From your repo to AWS, with a look at every resource first.</h2>
+    <Tape variant="marker">How it works</Tape>
+    <h2 class="c-h2" id="designs-title">From your repository to your AWS account in three steps</h2>
     <ol class="steps__list">
       {
         steps.map((step, index) => (

@@ -4,8 +4,11 @@ import { CommandBox } from '../../../brand/CommandBox';
 
 <section class="closing" aria-labelledby="closing-title">
   <div class="site-frame inner">
-    <h2 id="closing-title">See what Stacktape makes of your app.</h2>
-    <p class="line">Run one command. You see the setup and its estimated cost before anything is created.</p>
+    <h2 id="closing-title">Try it on your repository</h2>
+    <p class="line">
+      <code>stacktape init</code> reads your code and opens the proposed setup in your browser. Nothing is created in AWS
+      until you click Deploy.
+    </p>
     <div class="box">
       <CommandBox client:visible id="install-closing" label="Try it" preselect={false} />
     </div>
@@ -39,6 +42,11 @@ import { CommandBox } from '../../../brand/CommandBox';
     color: var(--brand-muted);
     font-size: var(--brand-type-lead);
     text-wrap: balance;
+  }
+
+  .line code {
+    color: var(--brand-text);
+    font: 0.9em var(--brand-font-mono);
   }
 
   .box {

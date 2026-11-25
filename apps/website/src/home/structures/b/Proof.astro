@@ -1,15 +1,14 @@
 ---
 import { TESTIMONIALS } from '../../../variants/readme/data';
 
-/* Trigger.dev has left; its quote stays off the page until the owner confirms it may be used. */
-const QUOTES = TESTIMONIALS.filter((item) => !item.role.includes('Trigger.dev'));
+/* The old site's three quotes. The owner confirmed Trigger.dev's quote stays (25 Nov). */
 ---
 
 <section class="b-proof site-frame" aria-labelledby="b-proof-title">
-  <h2 id="b-proof-title" class="b-proof__title">What customers told us</h2>
+  <h2 id="b-proof-title" class="b-proof__title">What customers say</h2>
   <ul class="b-proof__quotes">
     {
-      QUOTES.map((item) => (
+      TESTIMONIALS.map((item) => (
         <li>
           <blockquote>
             <p>“{item.quote}”</p>
@@ -39,7 +38,7 @@ const QUOTES = TESTIMONIALS.filter((item) => !item.role.includes('Trigger.dev'))
 
   .b-proof__quotes {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--brand-space-6) clamp(2rem, 1rem + 3vw, 5rem);
     margin: 0;
     padding: 0;

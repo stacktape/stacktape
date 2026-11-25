@@ -1,17 +1,18 @@
 ---
 import type { ImageMetadata } from 'astro';
 import { TESTIMONIALS } from '../../../variants/session/data';
+import eric from './shots/eric-allam.webp';
 import henry from './shots/henry-garrett.webp';
 import rhys from './shots/rhys-williams.webp';
 
-/* The old site's quotes, verbatim. Trigger.dev stays out until the owner confirms it. */
-const photos: Record<string, ImageMetadata> = { 'Henry Garrett': henry, 'Rhys Williams': rhys };
+/* The old site's quotes, verbatim. The owner confirmed Trigger.dev's quote stays (25 Nov). */
+const photos: Record<string, ImageMetadata> = { 'Eric Allam': eric, 'Henry Garrett': henry, 'Rhys Williams': rhys };
 const quotes = TESTIMONIALS.filter((item) => item.name in photos);
 ---
 
 <section class="customers" aria-labelledby="customers-title">
   <div class="site-frame">
-    <h2 id="customers-title">What teams say about Stacktape</h2>
+    <h2 id="customers-title">What customers say</h2>
     <div class="grid">
       {
         quotes.map((item) => (
@@ -44,7 +45,7 @@ const quotes = TESTIMONIALS.filter((item) => item.name in photos);
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--brand-space-5);
   }
 

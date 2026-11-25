@@ -1,24 +1,25 @@
 ---
 /**
- * Three checkable facts right after the hero, each with a link to its evidence.
- * Sources: LICENSE:1 and docs/getting-started/open-source-cli.mdx:16; docs/managing-costs/overview.mdx:10, :26;
- * src/data/deploy-benchmarks.json.
+ * The three things a CTO checks first, right after the hero, each with a link to its evidence.
+ * Sources: docs/cli/synth.mdx and the owner's yes to "your app keeps running" (scores/pick, 25 Nov);
+ * LICENSE:1 and docs/getting-started/open-source-cli.mdx:17; docs/managing-costs/overview.mdx:10, :26 and
+ * src/pages/pricing.astro:13-14, :29.
  */
 const facts = [
   {
-    title: 'Open source (MIT)',
+    title: 'Your AWS account',
+    text: 'Stacktape deploys standard CloudFormation stacks to your account. Stop using it and your app keeps running.',
+    href: 'https://docs.stacktape.com/cli/synth'
+  },
+  {
+    title: 'Open-source CLI (MIT)',
     text: 'The CLI deploys with your own AWS credentials. No Stacktape account needed.',
     href: 'https://github.com/stacktape/stacktape'
   },
   {
-    title: 'Your AWS bill',
-    text: 'AWS bills you directly, at AWS prices. Our fee is a separate invoice.',
+    title: 'AWS prices',
+    text: 'AWS bills you directly. The Console is free up to $200 a month of AWS spend, then 19–25% of it.',
     href: '/pricing'
-  },
-  {
-    title: 'Benchmarked in public',
-    text: 'Deploy times against CDK, SST, Serverless, Heroku and Render, losses included.',
-    href: '/benchmarks'
   }
 ];
 ---

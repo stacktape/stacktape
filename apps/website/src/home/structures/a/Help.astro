@@ -1,18 +1,17 @@
 ---
-import { SECTION_PACKS } from '../../sections';
+import { sectionPack } from '../../sections';
 import Facts from './Facts.astro';
 import Section from './Section.astro';
 
-const pack = SECTION_PACKS.find((candidate) => candidate.id === 'expert-help');
-if (!pack) throw new Error('No expert help pack');
+const pack = sectionPack('expert-help');
 ---
 
 <Section
   id={pack.id}
   index={8}
   name={pack.name}
-  title={`${pack.title}.`}
-  line="On Flexible, your team gets a shared Slack channel with the founders."
+  title={pack.title}
+  line={pack.text}
 >
-  <Facts figure={pack.figure} facts={pack.facts} row />
+  <Facts facts={pack.gets} row />
 </Section>

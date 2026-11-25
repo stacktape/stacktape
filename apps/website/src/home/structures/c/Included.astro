@@ -19,13 +19,13 @@ const overrideExample = `resources:
 <section class="site-frame c-section included" id="included" aria-labelledby="included-title">
   <div class="c-intro">
     <Tape variant="marker">Also included</Tape>
-    <h2 class="c-h2" id="included-title">The rest of the job.</h2>
+    <h2 class="c-h2" id="included-title">What else comes with it</h2>
   </div>
   <ul class="included__grid">
     <li class="tile tile--previews">
       <h3>Pull request previews</h3>
       <p class="c-muted">
-        A pull request rule deploys each pull request to its own stage, and can delete it when the pull request closes.
+        Each pull request can deploy to its own stage, deleted when the pull request closes.
       </p>
       <img
         class="c-frame"
@@ -39,27 +39,27 @@ const overrideExample = `resources:
     <li class="tile tile--escape">
       <h3>Escape hatches</h3>
       <p class="c-muted">
-        Set any CloudFormation property Stacktape does not expose. Raw CloudFormation and CDK constructs deploy in the
+        Override any CloudFormation property Stacktape doesn’t set. Raw CloudFormation and CDK constructs deploy in the
         same stack.
       </p>
       <pre><code>{overrideExample}</code></pre>
     </li>
     <li class="tile tile--dev">
       <h3>Dev mode</h3>
-      <p class="c-muted">Run your workloads locally, connected to the stack’s cloud resources.</p>
+      <p class="c-muted">Run your services on your machine, connected to the stack’s cloud resources. No redeploy for each change.</p>
       <pre><code>stacktape dev --stage dev-john --region eu-west-1</code></pre>
     </li>
     <li class="tile tile--cli">
       <h3>Open-source CLI</h3>
       <p class="c-muted">
-        MIT licensed. It deploys with your own AWS credentials, with no Stacktape account. <a
+        MIT licensed. It deploys with your own AWS credentials and needs no Stacktape account. <a
           class="brand-link"
           href="https://github.com/stacktape/stacktape">GitHub</a
         >
       </p>
     </li>
     <li class="tile tile--help">
-      <h3>Engineers, not a ticket queue</h3>
+      <h3>Help from the founders</h3>
       <p class="c-muted">
         On Flexible, a shared Slack channel with the founders who build Stacktape. Enterprise adds up to 24×7 premium
         support. <a class="brand-link" href="/pricing">Pricing</a>

@@ -1,9 +1,14 @@
 ---
 /**
- * After Deploys: what customers said, as short verbatim excerpts with name, role and company. Receipts and
- * Lastmyle only; Trigger.dev waits for the owner's confirmation.
+ * After Deploys: what customers said, as short verbatim excerpts with name, role and company. The owner confirmed
+ * Trigger.dev's quote stays (25 Nov).
  */
 const quotes = [
+  {
+    text: 'Our development and production environments were operational in just two days.',
+    name: 'Eric Allam',
+    role: 'CTO & Founder, Trigger.dev'
+  },
   {
     text: 'They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration.',
     name: 'Henry Garrett',
@@ -36,7 +41,7 @@ const quotes = [
 <style>
   .proof {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--brand-space-7);
     padding-block: var(--brand-space-8);
   }

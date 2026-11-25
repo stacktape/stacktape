@@ -3,24 +3,22 @@
  * Deploys and packaging. Figures: `src/data/deploy-benchmarks.json`, preliminary run of 22 Oct 2026 (Git push on
  * 23 Oct). Charts go fastest to slowest and include the cases where Stacktape is slower.
  */
+import { sectionPack } from '../../sections';
 import BenchChart from './BenchChart.astro';
 import Block from './Block.astro';
+
+const deploys = sectionPack('deploys');
+
 ---
 
-<Block
-  id="deploys"
-  marker="Deploys"
-  problem="AWS CDK takes 71.8 seconds to get a code change to 25 Lambda functions live."
-  title="Stacktape does it in 14.5 seconds."
->
-  <p>Packaging those 25 functions takes 3.8 seconds from an empty cache. CDK takes 17.6.</p>
+<Block id="deploys" marker={deploys.name} title={deploys.title} text={deploys.text} points={deploys.gets}>
   <p class="c-small">
-    A container code change goes live in 4.1 to 7.6 seconds with code swap, which is opt-in and covers code changes
-    only. A dependency change uses a normal image deploy, which is slower than Heroku.
+    Container code changes use code swap, an opt-in setting. A dependency change needs a normal image deploy, which is
+    slower than Heroku.
   </p>
   <p class="c-small">
-    Preliminary results, medians in seconds. Measured on 22 Oct 2026, except Stacktape's Git pushes (23 Oct, code swapped
-    in place). Heroku's Git push time is its build from the pushed source.
+    Preliminary results, medians in seconds, measured on 22 Oct 2026. Stacktape’s Git pushes ran on 23 Oct, with the
+    code swapped in place. Heroku’s Git push time is its build from the pushed source.
   </p>
   <p class="c-small"><a class="brand-link" href="/benchmarks">How we measured, and every result</a></p>
 

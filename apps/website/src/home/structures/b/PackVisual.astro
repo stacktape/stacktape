@@ -3,15 +3,14 @@ import { ButtonLink } from '@stacktape/ui-react/button';
 import { bars, FIRST_RUN, runDate } from '../../heroes/b/bench';
 import Race from '../../heroes/b/Race.astro';
 import Shot from '../../heroes/b/Shot.astro';
-import { SECTION_PACKS } from '../../sections';
+import type { SECTION_PACKS } from '../../sections';
 import editorLarge from './shots/editor-1114.webp';
 import editorSmall from './shots/editor-557.webp';
 
-/** The picture and the headline figure for one capability from the section packs. */
+/** The picture and the points for one capability from the section packs. */
 type Props = { pack: (typeof SECTION_PACKS)[number] };
 
 const { pack } = Astro.props;
-const { figure } = pack;
 /*
  * Heroes show the wizard's Review screen (hero b, the pack's picture for Designs) and its Analyze screen (hero a), so
  * this page shows a different task: the generated config, open in the wizard's editor.
@@ -38,19 +37,7 @@ const SUPPORT = [
   { plan: 'Flexible', help: 'A shared Slack channel with the founders' },
   { plan: 'Enterprise', help: 'Up to 24×7 premium support' }
 ];
-/*
- * The monitoring pack says error tracking is on for every stage; that holds with the Console only
- * (docs/observability/error-tracking.mdx:34). The shared pack is the integrator's file, so the label is set here.
- */
-const FIGURES: Record<string, { value: string; label: string }> = {
-  monitors: {
-    value: 'On by default with the Console',
-    label: 'Error tracking is wired into each stack when it deploys. Without the Console it is off.'
-  }
-};
-/* Facts that repeat the step's own line (from the hero's steps) are left out. */
-const REPEATS: Record<string, string> = { designs: 'docs/cli/init.mdx:47-48', packages: 'docs/packaging/overview.mdx:37' };
-const facts = pack.facts.filter((fact) => fact.source !== REPEATS[pack.id]);
+
 const packaging = bars('packaging', 'empty-cache', 'lambda-25');
 const ratio = picture ? picture.desktop.small.width / picture.desktop.small.height : 1;
 const wide = ratio > 2.5;
@@ -112,15 +99,7 @@ const tall = ratio < 1.2;
   }
 
   <div class="b-pack__facts">
-    {
-      pack.id === 'packages' || !picture ? null : (
-        <div class="b-pack__figure">
-          <p class="b-pack__value">{(FIGURES[pack.id] ?? figure).value}</p>
-          <p class="b-pack__label">{(FIGURES[pack.id] ?? figure).label}</p>
-        </div>
-      )
-    }
-    {picture || pack.id === 'packages' ? <ul>{facts.map((fact) => <li>{fact.text.replaceAll('`', '')}</li>)}</ul> : null}
+    {picture || pack.id === 'packages' ? <ul>{pack.gets.map((point) => <li>{point.replaceAll('`', '')}</li>)}</ul> : null}
   </div>
 </div>
 

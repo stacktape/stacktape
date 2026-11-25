@@ -1,6 +1,6 @@
 ---
 /**
- * Structure C, the short page: hero, how it starts, Deploys, two customer quotes, then problem-first blocks
+ * Structure C, the short page: hero, how it works, Deploys, three customer quotes, then capability blocks
  * (Monitoring and incidents, Security, Costs), a small "also included" grid and the closing command box. The quotes
  * sit below Deploys so heroes with their own trust row (H3) don't stack two in a row.
  */
@@ -25,7 +25,7 @@ const costs = pack('costs');
 
 <BaseLayout
   title="Stacktape: AWS DevOps, fully automated"
-  description="Stacktape is a CLI and a Console that set up, deploy and run your app in your own AWS account."
+  description="Stacktape reads your repository, designs the AWS infrastructure, deploys it to your own AWS account and keeps it running."
   htmlClass="brand structure-c"
   noindex={Astro.url.pathname !== '/'}
 >
@@ -37,18 +37,10 @@ const costs = pack('costs');
     <Deploys />
     <Proof />
     <Incidents />
-    <Block
-      id="security"
-      marker="Security"
-      problem="One wrong line of config can open a database to the internet."
-      title={secures.title}
-    >
-      <p>{secures.line}</p>
-      <p class="c-small">Every deploy is scanned and packages are checked again each night. Scanning reports; it never blocks a deploy.</p>
+    <Block id="security" marker={secures.name} title={secures.title} text={secures.text} points={secures.gets}>
       <Shot slot="picture" picture={secures.picture} />
     </Block>
-    <Block id="costs" marker="Costs" problem="The AWS bill arrives once a month, as one number." title={costs.title}>
-      <p>{costs.line}</p>
+    <Block id="costs" marker={costs.name} title={costs.title} text={costs.text} points={costs.gets}>
       <p class="c-small">AWS bills you directly. Stacktape’s fee is a separate invoice.</p>
       <Shot slot="picture" picture={costs.picture} />
     </Block>

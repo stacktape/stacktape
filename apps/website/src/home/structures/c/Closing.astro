@@ -6,11 +6,14 @@ import Tape from '../../../brand/Tape.astro';
 <section class="site-frame c-section closing" aria-labelledby="closing-title">
   <div class="c-intro closing__intro">
     <Tape>Try it</Tape>
-    <h2 class="c-h2" id="closing-title">See what Stacktape makes of your app.</h2>
-    <p class="c-muted">Run one command. Review the setup and what it costs before anything is created.</p>
+    <h2 class="c-h2" id="closing-title">Try it on your repository</h2>
+    <p class="c-muted">
+      <code>stacktape init</code> reads your code and opens the proposed setup in your browser. Nothing is created in AWS
+      until you click Deploy.
+    </p>
   </div>
   <div class="closing__start">
-    <CommandBox client:visible id="install-closing" label="Install again" preselect={false} />
+    <CommandBox client:visible id="install-closing" label="Install" preselect={false} />
     <p class="c-muted closing__note">
       Already using Stacktape? <a class="brand-link" href="https://console.stacktape.com">Open the Console</a>
     </p>
@@ -18,6 +21,11 @@ import Tape from '../../../brand/Tape.astro';
 </section>
 
 <style>
+  .closing__intro code {
+    color: var(--brand-text);
+    font: 0.9em var(--brand-font-mono);
+  }
+
   .closing {
     display: grid;
     justify-items: center;

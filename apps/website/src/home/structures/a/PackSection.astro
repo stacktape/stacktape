@@ -1,6 +1,6 @@
 ---
 import type { ImageMetadata } from 'astro';
-import { SECTION_PACKS } from '../../sections';
+import { sectionPack, type SECTION_PACKS } from '../../sections';
 import Facts from './Facts.astro';
 import Section from './Section.astro';
 import Shot from './Shot.astro';
@@ -8,17 +8,10 @@ import Shot from './Shot.astro';
 type Props = {
   pack: (typeof SECTION_PACKS)[number]['id'];
   index: number;
-  /** Replaces the pack's title or line, for punctuation or a fact the pack overstates. */
-  title?: string;
-  line?: string;
   /** `side`: the picture beside the facts. `wide`: a wide picture above a row of facts. */
   layout?: 'side' | 'wide';
   /** Puts the picture on the right in the side layout, so sections alternate. */
   flip?: boolean;
-  /** Pack facts to leave out, by position, when they repeat the section's line. */
-  skipFacts?: number[];
-  /** Replaces the pack's headline fact, when the pack's wording overstates it. */
-  figure?: { value: string; label: string };
   /** Replaces the pack's picture, when the hero already shows it. */
   picture?: {
     desktop: { small: ImageMetadata; large: ImageMetadata };
@@ -27,9 +20,9 @@ type Props = {
   };
 };
 
-const { pack: packId, index, title, line, layout = 'side', flip = false, skipFacts = [], figure } = Astro.props;
-const pack = SECTION_PACKS.find((candidate) => candidate.id === packId);
-if (!pack?.picture) throw new Error(`Section pack ${packId} has no picture`);
+const { pack: packId, index, layout = 'side', flip = false } = Astro.props;
+const pack = sectionPack(packId);
+if (!pack.picture) throw new Error(`Section pack ${packId} has no picture`);
 const shot = Astro.props.picture ?? {
   desktop: { small: pack.picture.desktop.small, large: pack.picture.desktop.large },
   phone: { small: pack.picture.phone.small, large: pack.picture.phone.large },
@@ -37,17 +30,13 @@ const shot = Astro.props.picture ?? {
 };
 ---
 
-<Section id={pack.id} {index} name={pack.name} title={title ?? `${pack.title}.`} line={line ?? pack.line}>
+<Section id={pack.id} {index} name={pack.name} title={pack.title} line={pack.text}>
   <div class:list={['body', `body--${layout}`, flip && 'body--flip']}>
     <Shot
       {...shot}
       sizes={layout === 'wide' ? '(min-width: 92rem) 88rem, 94vw' : '(min-width: 92rem) 58rem, (min-width: 64rem) 64vw, 94vw'}
     />
-    <Facts
-      figure={figure ?? pack.figure}
-      facts={pack.facts.filter((_, position) => !skipFacts.includes(position))}
-      row={layout === 'wide'}
-    />
+    <Facts figure={pack.figure} facts={pack.gets} row={layout === 'wide'} />
   </div>
 </Section>
 

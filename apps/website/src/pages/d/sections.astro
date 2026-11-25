@@ -6,7 +6,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 
 <BaseLayout
   title="Stacktape section packs"
-  description="Words, proof and product pictures for six home page capabilities."
+  description="Words, proof and product pictures for the eight home page capabilities."
   htmlClass="brand"
 >
   <BrandHead slot="head" />
@@ -19,36 +19,35 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
             {pack.name}
           </p>
           <h2>{pack.title}</h2>
-          <p>{pack.line}</p>
-
-          <h3>Figure</h3>
-          <p>
-            <strong>{pack.figure.value}</strong> · {pack.figure.label}
-            {pack.figure.runDate && <> · run of {pack.figure.runDate}</>}
-            {pack.figure.link && (
-              <>
-                {' '}
-                · <a href={pack.figure.link}>benchmarks</a>
-              </>
-            )}
-          </p>
-          {pack.figure.bars && (
-            <ol class="bars">
-              {pack.figure.bars.map((bar) => (
-                <li class={bar.stacktape ? 'is-stacktape' : undefined}>
-                  {bar.tool}: {bar.seconds.toFixed(1)} s
-                </li>
-              ))}
-            </ol>
-          )}
-          <p class="source">{pack.figure.source}</p>
-
-          <h3>Facts</h3>
+          <p>{pack.text}</p>
           <ul>
-            {pack.facts.map((fact) => (
-              <li>
-                {fact.text} <span class="source">{fact.source}</span>
-              </li>
+            {pack.gets.map((point) => (
+              <li>{point}</li>
+            ))}
+          </ul>
+
+          {pack.figure && (
+            <>
+              <h3>Figure</h3>
+              <p>
+                <strong>{pack.figure.value}</strong> · {pack.figure.label} · run of {pack.figure.runDate} ·{' '}
+                <a href={pack.figure.link}>benchmarks</a>
+              </p>
+              <ol class="bars">
+                {pack.figure.bars.map((bar) => (
+                  <li class={bar.stacktape ? 'is-stacktape' : undefined}>
+                    {bar.tool}: {bar.seconds.toFixed(1)} s
+                  </li>
+                ))}
+              </ol>
+              <p class="source">{pack.figure.source}</p>
+            </>
+          )}
+
+          <h3>Sources</h3>
+          <ul>
+            {pack.sources.map((source) => (
+              <li class="source">{source}</li>
             ))}
           </ul>
 
@@ -85,7 +84,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
               </figcaption>
             </figure>
           ) : (
-            <p>{pack.noPicture}</p>
+            <p>Each structure shows its own screen for this section.</p>
           )}
 
           <h3>Do not claim</h3>

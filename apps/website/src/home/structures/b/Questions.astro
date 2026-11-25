@@ -2,7 +2,7 @@
 const QUESTIONS = [
   {
     q: 'Are we locked in?',
-    a: 'It deploys plain CloudFormation stacks into your account, and the config lives in your repo. stacktape synth writes the template.'
+    a: 'No. Stacktape deploys standard CloudFormation stacks to your AWS account, and the config lives in your repository. Stop using Stacktape and your app keeps running.'
   },
   {
     q: 'What if Stacktape disappears?',
@@ -10,11 +10,11 @@ const QUESTIONS = [
   },
   {
     q: 'What does the Console see?',
-    a: 'Error events, metrics, check results and security findings. Application logs, build artifacts and secrets stay in your account.'
+    a: 'Error events, metrics, check results and security findings. Application logs, build artifacts and secrets stay in your account, and init sends no source code.'
   },
   {
     q: 'What does it cost?',
-    a: 'The CLI is free at any spend. The Console is free up to $200 a month of managed AWS spend; above that, Flexible costs 19–25% of that managed spend. AWS bills you separately, at AWS prices. Never per seat.'
+    a: 'The CLI is free. The Console is free up to $200 a month of managed AWS spend, then 19–25% of it, never per seat. AWS bills you separately, at AWS prices.'
   },
   {
     q: 'What if we need something it doesn’t support?',
@@ -22,15 +22,14 @@ const QUESTIONS = [
   },
   {
     q: 'What if a release breaks production?',
-    a: 'One command redeploys a stored earlier release without a rebuild. It doesn’t roll back by itself.'
+    a: 'stacktape rollback redeploys an earlier release from its stored artifacts, without a rebuild. It doesn’t roll back on its own.'
   }
 ];
 ---
 
 <section class="b-questions site-frame" aria-labelledby="b-questions-title">
   <div class="b-questions__head">
-    <h2 id="b-questions-title">Before you bet on it</h2>
-    <p>What CTOs ask us first.</p>
+    <h2 id="b-questions-title">What CTOs ask us</h2>
   </div>
   <dl class="b-questions__list">
     {

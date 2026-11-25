@@ -1,11 +1,13 @@
 ---
 import Tape from '../../../brand/Tape.astro';
 import { FIRST_RUN, runDate } from '../../heroes/b/bench';
+import { codeParts } from '../../code-text';
 import type { Step } from '../../heroes/b/steps';
 
-type Props = { step: Step; index: number; docs?: { label: string; href: string } };
+/** `title` and `text` come from the section pack; the step adds its name, moment and benchmark link. */
+type Props = { step: Step; title: string; text: string; index: number; docs?: { label: string; href: string } };
 
-const { step, index, docs } = Astro.props;
+const { step, title, text, index, docs } = Astro.props;
 const number = String(index + 1).padStart(2, '0');
 ---
 
@@ -16,11 +18,10 @@ const number = String(index + 1).padStart(2, '0');
         <Tape variant="marker">{`${number} ${step.name}`}</Tape>
         <span>{step.when}</span>
       </p>
-      <p class="b-step__problem">{step.problem}</p>
-      <h2 id={`${step.id}-title`}>{step.title}</h2>
+      <h2 id={`${step.id}-title`}>{title}</h2>
     </div>
     <div class="b-step__aside">
-      <p class="b-step__line">{step.line}</p>
+      <p class="b-step__line">{codeParts(text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
       {
         step.bench ? (
           <a class="brand-link brand-link--muted b-step__run" href="/benchmarks">
@@ -64,13 +65,6 @@ const number = String(index + 1).padStart(2, '0');
     font-size: var(--brand-type-sm);
   }
 
-  .b-step__problem {
-    max-width: 30rem;
-    margin-bottom: var(--brand-space-3);
-    color: var(--brand-muted);
-    font-size: var(--brand-type-base);
-  }
-
   h2 {
     max-width: 16ch;
     font: var(--brand-weight-heading) clamp(2rem, 1.4rem + 1.8vw, 3.25rem) / 1.06 var(--brand-font-heading);
@@ -89,6 +83,10 @@ const number = String(index + 1).padStart(2, '0');
     font-size: var(--brand-type-lead);
     line-height: 1.5;
     text-wrap: pretty;
+  }
+
+  .b-step__line code {
+    font: 0.9em var(--brand-font-mono);
   }
 
   .b-step__docs,
