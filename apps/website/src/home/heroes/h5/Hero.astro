@@ -35,6 +35,10 @@ const {
   </div>
 </section>
 
+<script>
+  import './get-started';
+</script>
+
 <style>
   .h5 {
     --h5-soft: color-mix(in srgb, var(--brand-text), transparent 22%);
@@ -67,8 +71,14 @@ const {
     padding-block-start: clamp(4.5rem, 6.5vw, 8.5rem);
   }
 
+  /*
+   * The headline is sized against its own column: "fully automated." on its tape is about 8.4 times the font size,
+   * so 11.5cqi keeps it inside the column with a gutter before the card, and inside a 320 px phone. Below that cap
+   * the size follows the viewport as before.
+   */
   .h5__title {
     grid-area: title;
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -76,6 +86,10 @@ const {
     margin: 0;
     color: var(--brand-text);
     font: 800 clamp(2.75rem, 1.2rem + 3.9vw, 6rem) / 1.02 var(--brand-font-heading);
+  }
+
+  .h5__title > span {
+    font-size: min(1em, 11.5cqi);
     letter-spacing: -0.045em;
   }
 
