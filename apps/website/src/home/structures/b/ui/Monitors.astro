@@ -1,0 +1,211 @@
+---
+import Window from './console/Window.astro';
+
+/**
+ * Error tracking in the Console (apps/console/ui IssuesPage) for the Acme organization: runtime errors from the API
+ * container and the queue worker, grouped into issues with where each happens, how often and when it was last seen.
+ * No SDK in the code; the sidebar's Logs, Metrics, Traces, Uptime and Synthetics are the other monitoring pages.
+ */
+const ISSUES = [
+  {
+    type: 'TypeError',
+    message: "Cannot read properties of undefined (reading 'price')",
+    stage: 'production',
+    resource: 'api',
+    frame: 'applyDiscount',
+    file: 'discounts.ts:58',
+    events: 38,
+    since: '2h ago',
+    last: '3m ago'
+  },
+  {
+    type: 'PaymentProviderError',
+    message: 'POST https://api.payments.example/v1/charges answered 502 Bad Gateway',
+    stage: 'production',
+    resource: 'worker',
+    frame: 'chargeOrder',
+    file: 'charge.ts:41',
+    events: 9,
+    since: '1h ago',
+    last: '12m ago'
+  },
+  {
+    type: 'ZodError',
+    message: 'Invalid input: expected string, received undefined at "email"',
+    stage: 'staging',
+    resource: 'api',
+    frame: 'createAccount',
+    file: 'account.ts:27',
+    events: 14,
+    since: '20m ago',
+    last: '18m ago'
+  },
+  {
+    type: 'Error',
+    message: 'connect ETIMEDOUT [redacted:ip]:6379',
+    stage: 'production',
+    resource: 'api',
+    events: 6,
+    since: '5h ago',
+    last: '41m ago'
+  },
+  {
+    message: 'Task timed out after 30.00 seconds',
+    stage: 'production',
+    resource: 'worker',
+    events: 3,
+    since: '1d ago',
+    last: '2h ago'
+  }
+];
+const TABS = [
+  { name: 'Open', count: 5, selected: true },
+  { name: 'Resolved', count: 12 },
+  { name: 'Ignored', count: 1 },
+  { name: 'All', count: 18 }
+];
+---
+
+<Window
+  label="Error tracking in the Stacktape Console: five open issues in acme-shop, grouped from runtime errors in the API container and the queue worker, each with its stage, function and file line, the number of events and when it was last seen."
+  page="Error tracking"
+  current="errors"
+  openErrors={5}
+>
+  <div class="mn-head">
+    <h3 class="cn-h1">Error tracking</h3>
+    <span class="cn-button cn-wide">Settings</span>
+  </div>
+
+  <div class="cn-panel mn-list">
+    <div class="mn-filters">
+      <span class="cn-segments">
+        {
+          TABS.map((tab) => (
+            <span aria-selected={tab.selected ? 'true' : 'false'}>
+              {tab.name} <small>{tab.count}</small>
+            </span>
+          ))
+        }
+      </span>
+      <span class="mn-field mn-search cn-wide">Search error messages</span>
+      <span class="mn-field cn-wide"><span class="cn-muted">Project</span> acme-shop</span>
+    </div>
+    <div class="cn-table" style="--cn-columns: minmax(0, 1fr) 9.5em 6.5em 1.2em 0.6em">
+      <div class="cn-table__head">
+        <span>Error</span>
+        <span class="cn-right">Events</span>
+        <span>Last seen ↓</span>
+        <span class="cn-wide"></span>
+        <span></span>
+      </div>
+      {
+        ISSUES.map((issue) => (
+          <div>
+            <span class="mn-issue">
+              <span class="mn-message">
+                {issue.type ? <b>{issue.type}: </b> : null}
+                {issue.message}
+              </span>
+              <span class="cn-sub">
+                acme-shop / {issue.stage} · <span class="cn-link">{issue.resource}</span>
+                {issue.frame ? (
+                  <>
+                    {' · '}
+                    <span class="cn-mono">{issue.frame}</span> <span class="cn-mono cn-faint">{issue.file}</span>
+                  </>
+                ) : null}
+              </span>
+            </span>
+            <span class="cn-right">
+              <b class="mn-events">{issue.events}</b> <span class="cn-muted mn-since">since {issue.since}</span>
+            </span>
+            <span class="cn-status">
+              <i class="cn-dot cn-dot--red" />
+              {issue.last}
+            </span>
+            <span class="cn-wide mn-more">···</span>
+            <span class="cn-chevron" />
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</Window>
+
+<style>
+  .mn-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mn-list {
+    margin-top: 1.4em;
+  }
+
+  .mn-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6em;
+    padding: 0.7em;
+    border-bottom: 1px solid var(--cn-line-soft);
+  }
+
+  .mn-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    height: 2.8em;
+    padding: 0 1em;
+    border: 1px solid var(--cn-line);
+    border-radius: 6px;
+    background: var(--cn-page);
+    white-space: nowrap;
+  }
+
+  .mn-search {
+    flex: 1;
+    min-width: 12em;
+    color: var(--cn-faint);
+  }
+
+  .mn-issue {
+    min-width: 0;
+  }
+
+  .mn-message {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mn-message b {
+    font-weight: 700;
+  }
+
+  .mn-events {
+    font-weight: 700;
+  }
+
+  .mn-since {
+    font-size: 0.92em;
+  }
+
+  .mn-more {
+    color: var(--cn-muted);
+    letter-spacing: 0.05em;
+  }
+
+  @container (max-width: 520px) {
+    .mn-list .cn-table {
+      --cn-columns: minmax(0, 1fr) 3em 0.6em !important;
+    }
+
+    .mn-list .cn-table > * > :nth-child(3),
+    .mn-since {
+      display: none;
+    }
+  }
+</style>

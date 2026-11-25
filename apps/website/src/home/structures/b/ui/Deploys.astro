@@ -1,0 +1,226 @@
+---
+import Window from './console/Window.astro';
+
+/**
+ * acme-shop's production stage in the Console, Activity tab (apps/console/ui stage page): the project deploys on push
+ * to main and gives pull requests their own preview stages (pr-142, pr-139 in the stage tabs). A push is rolling out,
+ * the release before it is live, and older releases can be rolled back to. The live release is the deploy the Packages
+ * picture opens.
+ */
+const STAGES = [
+  { name: 'production', selected: true },
+  { name: 'staging' },
+  { name: 'pr-142' },
+  { name: 'pr-139' }
+];
+const DEPLOYS = [
+  {
+    change: 'Add saved carts',
+    commit: '9b13f0e',
+    trigger: 'Push to main',
+    by: 'Marek Novak',
+    status: 'running',
+    progress: 'Deploy: 3 of 9 resources',
+    done: 34,
+    duration: '—',
+    started: '31 s ago'
+  },
+  {
+    change: 'Retry failed payment jobs',
+    commit: '4c7e2a9',
+    trigger: 'Push to main',
+    by: 'Dana Okafor',
+    status: 'live',
+    duration: '17 s',
+    started: '1h ago'
+  },
+  {
+    change: 'Show stock on product pages',
+    commit: '8a41d07',
+    trigger: 'Push to main',
+    by: 'Marek Novak',
+    duration: '52 s',
+    started: '1d ago',
+    rollback: true
+  },
+  {
+    change: 'Cache category pages in Redis',
+    commit: '5d0a9f3',
+    trigger: 'Pull request #137',
+    by: 'Dana Okafor',
+    duration: '48 s',
+    started: '3d ago',
+    rollback: true
+  }
+];
+---
+
+<Window
+  label="The production stage of acme-shop in the Stacktape Console. The project deploys on push to main and has preview stages pr-142 and pr-139 for pull requests. A push, Add saved carts, is deploying (3 of 9 resources); Retry failed payment jobs is live; older releases have Roll back to this."
+  page="acme-shop"
+  pageMenu
+  current="projects"
+  openErrors={5}
+>
+  <div class="dp-head">
+    <h3 class="cn-h1">acme-shop</h3>
+    <span class="dp-repo cn-wide">
+      <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+        <path
+          d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"
+        ></path>
+      </svg>
+      <span class="cn-link">acme/acme-shop</span>
+      <span class="cn-link cn-muted">Deploys on push to main · previews for pull requests</span>
+    </span>
+  </div>
+
+  <div class="dp-stages">
+    <span class="cn-segments">
+      {
+        STAGES.map((stage) => (
+          <span aria-selected={stage.selected ? 'true' : 'false'}>
+            <i class="cn-dot" />
+            {stage.name}
+          </span>
+        ))
+      }
+    </span>
+    <span class="cn-button cn-wide">+ New stage</span>
+    <span class="dp-account cn-faint cn-wide">acme-production · eu-west-1</span>
+  </div>
+
+  <div class="cn-tabs dp-tabs">
+    <span>Overview</span>
+    <span aria-selected="true">Activity</span>
+    <span>Costs</span>
+    <span class="cn-wide">Configuration</span>
+    <span class="cn-wide">Diagram</span>
+    <span class="cn-wide">Danger zone</span>
+    <span class="cn-tabs__end cn-wide">
+      <span class="cn-muted dp-now">Running 4c7e2a9 on main · <span class="cn-link">View deploy</span></span>
+      <span class="cn-button cn-button--primary">Deploy stage</span>
+    </span>
+  </div>
+
+  <div class="cn-panel dp-list">
+    <div class="cn-table" style="--cn-columns: minmax(0, 1.5fr) minmax(0, 1fr) 4.5em 5.5em 8.5em 0.6em">
+      <div class="cn-table__head">
+        <span>Change</span>
+        <span>Status</span>
+        <span class="cn-right">Duration</span>
+        <span>Started ↓</span>
+        <span class="cn-wide"></span>
+        <span></span>
+      </div>
+      {
+        DEPLOYS.map((deploy) => (
+          <div>
+            <span>
+              {deploy.change}
+              <span class="cn-sub">
+                <span class="cn-mono">{deploy.commit}</span> · {deploy.trigger} · {deploy.by}
+              </span>
+            </span>
+            {deploy.status === 'running' ? (
+              <span class="dp-running">
+                <span class="cn-status cn-status--purple">
+                  <i class="cn-dot cn-dot--purple" />
+                  In progress
+                </span>
+                <span class="cn-progress" style={`--cn-done: ${deploy.done}%`}>
+                  <i />
+                </span>
+                <span class="cn-sub">{deploy.progress}</span>
+              </span>
+            ) : (
+              <span class="cn-status">
+                <i class="cn-dot" />
+                Succeeded
+                {deploy.status === 'live' ? <span class="cn-label">Live</span> : null}
+              </span>
+            )}
+            <span class="cn-right">{deploy.duration}</span>
+            <span>{deploy.started}</span>
+            <span class="cn-wide dp-rollback">{deploy.rollback ? 'Roll back to this' : ''}</span>
+            <span class="cn-chevron" />
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</Window>
+
+<style>
+  .dp-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5em 1.5em;
+  }
+
+  .dp-repo {
+    display: flex;
+    align-items: center;
+    gap: 0.6em;
+  }
+
+  .dp-repo .cn-muted {
+    margin-left: 0.6em;
+  }
+
+  .dp-stages {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75em 1em;
+    margin-top: 1.4em;
+  }
+
+  .dp-account {
+    margin-left: auto;
+    font-size: 0.95em;
+  }
+
+  .dp-tabs {
+    margin-top: 1.2em;
+  }
+
+  .dp-list {
+    margin-top: 1.4em;
+  }
+
+  .dp-running {
+    display: grid;
+    gap: 0.35em;
+    max-width: 13em;
+  }
+
+  .dp-running .cn-sub {
+    margin: 0;
+  }
+
+  .dp-rollback {
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  @container (max-width: 1180px) {
+    .dp-now {
+      display: none;
+    }
+  }
+
+  @container (max-width: 520px) {
+    .dp-list .cn-table {
+      --cn-columns: minmax(0, 1.3fr) minmax(0, 1fr) 0.6em !important;
+    }
+
+    .dp-list .cn-table > * > :nth-child(3),
+    .dp-list .cn-table > * > :nth-child(4) {
+      display: none;
+    }
+  }
+</style>

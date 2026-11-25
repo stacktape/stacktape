@@ -1,0 +1,319 @@
+---
+import Window from './console/Window.astro';
+
+/**
+ * A finished deploy of acme-shop production in the Console (deployment detail, Logs tab, Steps): the Build & package
+ * step open, with each workload's outcome in the CLI's own words (packages/packaging/src/runtime-contracts.ts
+ * `packagingMessages`, and the PACKAGE_ARTIFACTS summary in apps/cli/src/domain/packaging-manager/index.ts).
+ *
+ * The change touched only the queue worker, so its Lambda bundle is built and the API's container image is reused.
+ * Timings are those of a code change to one function; the benchmark figures beside the section are separate runs.
+ */
+const TOTAL = 17;
+const STEPS = [
+  { name: 'Initialize', start: 0, seconds: 2 },
+  {
+    name: 'Build & package',
+    start: 2,
+    seconds: 2,
+    open: true,
+    children: [
+      { name: 'Package artifacts', detail: 'Packaged 2 workloads · 1 built · 1 unchanged' },
+      { name: 'worker', detail: 'Lambda bundle · 1.9 MB (612 KB zipped)', code: true },
+      { name: 'api', detail: 'Unchanged (reused from previous deploy)', code: true }
+    ]
+  },
+  { name: 'Upload artifacts', start: 4, seconds: 1 },
+  { name: 'Deploy', note: '1 of 9 resources', start: 5, seconds: 12 }
+];
+const ABOUT = [
+  { label: 'Commit', value: '4c7e2a9', commit: true },
+  { label: 'Started by', value: 'Push to main · Dana Okafor' },
+  { label: 'Started', value: 'Nov 25, 2026, 13:02' },
+  { label: 'Took', value: '17 s' },
+  { label: 'Previous deploy', value: 'Show stock on product pages', link: true },
+  { label: 'Region', value: 'eu-west-1' }
+];
+const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
+---
+
+<Window
+  label="A finished deploy of acme-shop production in the Stacktape Console, 17 seconds in all. Build and package took 2 seconds: the queue worker's Lambda bundle was built (1.9 MB) and the API's container image was reused because it had not changed."
+  page="acme-shop"
+  pageMenu
+  current="projects"
+  openErrors={5}
+>
+  <p class="pk-crumbs cn-muted">acme-shop <span>/</span> production <span>/</span> Activity</p>
+  <div class="pk-title">
+    <h3 class="cn-h1">Retry failed payment jobs</h3>
+    <span class="cn-muted">Deploy</span>
+    <span class="cn-status"><i class="cn-dot"></i>Succeeded</span>
+    <span class="cn-button pk-deploy cn-wide">Deploy stage</span>
+  </div>
+  <div class="cn-tabs pk-tabs">
+    <span aria-selected="true">Logs</span>
+    <span>Configuration</span>
+    <span class="cn-wide">CloudFormation template</span>
+  </div>
+
+  <div class="pk-main">
+    <div class="cn-panel">
+      <div class="cn-tabs pk-subtabs">
+        <span aria-selected="true">Steps</span>
+        <span>Log</span>
+      </div>
+      <ol class="pk-steps">
+        {
+          STEPS.map((step) => (
+            <li class="pk-step">
+              <span class="pk-check" />
+              <span class:list={['pk-caret', { 'is-open': step.open }]} />
+              <span class="pk-name">
+                <b>{step.name}</b>
+                {step.note ? <span class="cn-muted"> {step.note}</span> : null}
+              </span>
+              <span class="pk-bar cn-wide">
+                <i style={`left: ${at(step.start)}; width: max(0.5em, ${at(step.seconds)})`} />
+              </span>
+              <span class="pk-time">{step.seconds} s</span>
+              {step.children ? (
+                <ul class="pk-children">
+                  {step.children.map((child) => (
+                    <li>
+                      <span class="pk-tick" />
+                      {child.code ? <code>{child.name}</code> : <b>{child.name}</b>}
+                      <span class="cn-muted">{child.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+
+    <dl class="cn-panel pk-about">
+      <dt class="pk-about__title">About this deploy</dt>
+      {
+        ABOUT.map((row) => (
+          <div>
+            <dt class="cn-muted">{row.label}</dt>
+            <dd>
+              {row.commit ? (
+                <span class="cn-commit">{row.value}</span>
+              ) : row.link ? (
+                <span class="cn-link">{row.value}</span>
+              ) : (
+                row.value
+              )}
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+</Window>
+
+<style>
+  .pk-crumbs span {
+    margin-inline: 0.45em;
+  }
+
+  .pk-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4em 0.9em;
+    margin-top: 0.55em;
+  }
+
+  .pk-deploy {
+    align-self: center;
+    margin-left: auto;
+    opacity: 0.75;
+  }
+
+  .pk-tabs {
+    margin-top: 1.1em;
+  }
+
+  .pk-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 16.5em);
+    align-items: start;
+    gap: 1.25em;
+    margin-top: 1.5em;
+  }
+
+  .pk-subtabs {
+    padding-inline: 1.4em;
+  }
+
+  .pk-steps {
+    display: grid;
+  }
+
+  .pk-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.5em 0.9em minmax(0, 1fr) minmax(0, 13em) 3.5em;
+    align-items: center;
+    gap: 0.4em 0.75em;
+    padding: 0.85em 1.4em;
+    border-top: 1px solid var(--cn-line-soft);
+  }
+
+  .pk-step:first-child {
+    border-top: 0;
+  }
+
+  /* The timeline line that joins the step checks. */
+  .pk-step:not(:last-child)::before {
+    position: absolute;
+    top: 2.2em;
+    bottom: -0.85em;
+    left: calc(1.4em + 0.75em - 0.5px);
+    width: 1px;
+    background: color-mix(in srgb, var(--cn-teal), transparent 50%);
+    content: '';
+  }
+
+  .pk-check {
+    position: relative;
+    width: 1.5em;
+    height: 1.5em;
+    border: 1.5px solid color-mix(in srgb, var(--cn-teal), transparent 30%);
+    border-radius: 50%;
+  }
+
+  .pk-check::after,
+  .pk-tick::after {
+    position: absolute;
+    top: 0.3em;
+    left: 0.5em;
+    width: 0.3em;
+    height: 0.55em;
+    border-right: 1.5px solid var(--cn-teal-text);
+    border-bottom: 1.5px solid var(--cn-teal-text);
+    transform: rotate(45deg);
+    content: '';
+  }
+
+  .pk-caret {
+    width: 0.42em;
+    height: 0.42em;
+    border-top: 1.5px solid var(--cn-muted);
+    border-right: 1.5px solid var(--cn-muted);
+    transform: rotate(45deg);
+  }
+
+  .pk-caret.is-open {
+    transform: rotate(135deg);
+  }
+
+  .pk-name b {
+    font-size: 1.08em;
+    font-weight: 600;
+  }
+
+  .pk-bar {
+    position: relative;
+    height: 0.5em;
+    border-radius: 1em;
+    background: var(--cn-line);
+  }
+
+  .pk-bar i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 1em;
+    background: var(--cn-teal);
+  }
+
+  .pk-time {
+    color: var(--cn-soft);
+    text-align: right;
+  }
+
+  .pk-children {
+    display: grid;
+    grid-column: 2 / -1;
+    gap: 0.55em;
+    padding: 0.35em 0 0.2em !important;
+  }
+
+  .pk-children li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2em 0.7em;
+  }
+
+  .pk-children li:not(:first-child) {
+    padding-left: 1.6em;
+  }
+
+  .pk-children b {
+    font-weight: 600;
+  }
+
+  .pk-children code {
+    color: var(--cn-soft);
+  }
+
+  .pk-tick {
+    position: relative;
+    width: 1em;
+    height: 0.8em;
+  }
+
+  .pk-tick::after {
+    top: -0.1em;
+    left: 0.3em;
+  }
+
+  .pk-about {
+    display: grid;
+  }
+
+  .pk-about > div {
+    display: grid;
+    gap: 0.2em;
+    padding: 0.85em 1.4em;
+    border-top: 1px solid var(--cn-line-soft);
+  }
+
+  .pk-about__title {
+    padding: 1.05em 1.4em;
+    font-size: 1.08em;
+    font-weight: 600;
+  }
+
+  @container (max-width: 860px) {
+    .pk-main {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pk-about {
+      display: none;
+    }
+  }
+
+  @container (max-width: 520px) {
+    .pk-step {
+      grid-template-columns: 1.5em 0.9em minmax(0, 1fr) 3em;
+      padding-inline: 0.9em;
+    }
+
+    .pk-step:not(:last-child)::before {
+      left: calc(0.9em + 0.75em - 0.5px);
+    }
+
+    .pk-subtabs {
+      padding-inline: 0.9em;
+    }
+  }
+</style>

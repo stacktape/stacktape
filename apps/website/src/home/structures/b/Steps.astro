@@ -1,38 +1,38 @@
 ---
-import Deploy from './Deploy.astro';
-import Incident from './Incident.astro';
-import { STEPS } from '../../heroes/b/steps';
-import { sectionPack } from '../../sections';
-import PackVisual from './PackVisual.astro';
+import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
+import { SECTION_PACKS } from '../../sections';
 import Step from './Step.astro';
+
+/**
+ * The eight sections in the order `sections.ts` lists them, each with its picture: `ui/<name>.astro`, where `<name>` is
+ * the section's `name` (Designs, Packages, …). A section without a picture file shows its words only.
+ */
+const pictures = import.meta.glob<{ default: AstroComponentFactory }>('./ui/*.astro', { eager: true });
+const pictureFor = (name: string) => pictures[`./ui/${name}.astro`]?.default;
 
 const DOCS: Record<string, { label: string; href: string }> = {
   designs: { label: 'How init works', href: 'https://docs.stacktape.com/cli/init' },
   packages: { label: 'Packaging', href: 'https://docs.stacktape.com/packaging/overview' },
   deploys: { label: 'Deploys and CI/CD', href: 'https://docs.stacktape.com/ci-cd-and-gitops/overview' },
-  secures: { label: 'Guardrails', href: 'https://docs.stacktape.com/guardrails/overview' },
   monitors: { label: 'Observability', href: 'https://docs.stacktape.com/observability/overview' },
+  secures: { label: 'Guardrails', href: 'https://docs.stacktape.com/guardrails/overview' },
   incidents: { label: 'Incidents', href: 'https://docs.stacktape.com/observability/incidents' },
   costs: { label: 'Costs', href: 'https://docs.stacktape.com/managing-costs/overview' },
   'expert-help': { label: 'Pricing', href: '/pricing' }
 };
-/** Each step with its section pack. Deploys and Incidents show their own screens instead of the pack's picture. */
-const ROWS = STEPS.map((step, index) => ({ step, index, pack: sectionPack(step.id) }));
+const ROWS = SECTION_PACKS.map((pack, index) => ({ pack, index, Picture: pictureFor(pack.name) }));
 const pad = (index: number) => String(index + 1).padStart(2, '0');
 ---
 
 <div class="b-steps site-frame" data-steps>
   <nav class="b-steps__rail" aria-label="Steps">
-    <ol class="b-stepper">
+    <ol>
       {
-        STEPS.map((step, index) => (
+        SECTION_PACKS.map((pack, index) => (
           <li>
-            <a class="b-stepper__item" href={`#${step.id}`} data-step-link={step.id}>
-              <span class="b-stepper__num">{pad(index)}</span>
-              <span class="b-stepper__name">
-                <span class="b-stepper__tape brand-tape-fill">{step.name}</span>
-              </span>
-              <span class="b-stepper__when">{step.when}</span>
+            <a class="b-steps__link" href={`#${pack.id}`} data-step-link={pack.id}>
+              <span class="b-steps__num">{pad(index)}</span>
+              <span class="b-steps__name">{pack.title}</span>
             </a>
           </li>
         ))
@@ -42,9 +42,9 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
 
   <div class="b-steps__body">
     {
-      ROWS.map(({ step, index, pack }) => (
-        <Step step={step} title={pack.title} text={pack.text} index={index} docs={DOCS[step.id]}>
-          {step.id === 'deploys' ? <Deploy /> : step.id === 'incidents' ? <Incident /> : <PackVisual pack={pack} />}
+      ROWS.map(({ pack, index, Picture }) => (
+        <Step pack={pack} index={index} docs={DOCS[pack.id]}>
+          {Picture ? <Picture /> : null}
         </Step>
       ))
     }
@@ -85,7 +85,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
 <style>
   .b-steps {
     display: grid;
-    grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr);
+    grid-template-columns: minmax(13rem, 15rem) minmax(0, 1fr);
     gap: clamp(2rem, 1rem + 2.5vw, 4rem);
   }
 
@@ -96,13 +96,73 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
   .b-steps__rail ol {
     position: sticky;
     top: calc(4.25rem + var(--brand-space-7));
+    display: grid;
     margin: 0;
     padding: 0;
+    border-left: 1px solid var(--brand-border);
     list-style: none;
   }
 
-  .b-steps__rail .b-stepper__item {
+  .b-steps__link {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    align-items: baseline;
+    padding: 0.55rem 0.75rem 0.55rem var(--brand-space-4);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.35;
     text-decoration: none;
+  }
+
+  /* The current step is a selected row, so it gets the Console's grey tape, torn at its right end. */
+  .b-steps__link::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    /* Four teeth, the logo label's, at the row's height. */
+    clip-path: polygon(
+      0 0,
+      calc(100% - 0.22rem) 0,
+      100% 12.5%,
+      calc(100% - 0.22rem) 25%,
+      100% 37.5%,
+      calc(100% - 0.22rem) 50%,
+      100% 62.5%,
+      calc(100% - 0.22rem) 75%,
+      100% 87.5%,
+      calc(100% - 0.22rem) 100%,
+      0 100%
+    );
+    content: '';
+    opacity: 0;
+  }
+
+  .b-steps__num {
+    font: var(--brand-type-xs) / 1 var(--brand-font-mono);
+  }
+
+  .b-steps__name {
+    justify-self: start;
+    font-family: var(--brand-font-heading);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .b-steps__link:hover,
+  .b-steps__link[aria-current='step'] {
+    color: var(--brand-text);
+  }
+
+  .b-steps__link[aria-current='step']::before {
+    opacity: 1;
+  }
+
+  .b-steps__link:focus-visible {
+    outline: 2px solid var(--brand-focus);
+    outline-offset: 2px;
   }
 
   .b-steps__body {

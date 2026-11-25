@@ -1,35 +1,53 @@
 ---
 import Tape from '../../../brand/Tape.astro';
-import { FIRST_RUN, runDate } from '../../heroes/b/bench';
 import { codeParts } from '../../code-text';
-import type { Step } from '../../heroes/b/steps';
+import type { SECTION_PACKS } from '../../sections';
 
-/** `title` and `text` come from the section pack; the step adds its name, moment and benchmark link. */
-type Props = { step: Step; title: string; text: string; index: number; docs?: { label: string; href: string } };
+/**
+ * One section: its number, title and text from the section pack, the measured figure when the text quotes one, the
+ * docs link, the picture (the slot), and the pack's three points under it.
+ */
+type Props = {
+  pack: (typeof SECTION_PACKS)[number];
+  index: number;
+  docs?: { label: string; href: string };
+};
 
-const { step, title, text, index, docs } = Astro.props;
+const { pack, index, docs } = Astro.props;
 const number = String(index + 1).padStart(2, '0');
+const figure = pack.figure;
+const slowest = figure ? Math.max(...figure.bars.map((bar) => bar.seconds)) : 1;
+/** Text with backtick-marked code set in mono. */
+const words = (text: string) => codeParts(text);
 ---
 
-<section class="b-step" id={step.id} aria-labelledby={`${step.id}-title`}>
+<section class="b-step" id={pack.id} aria-labelledby={`${pack.id}-title`}>
   <header class="b-step__head">
     <div class="b-step__intro">
-      <p class="b-step__marker">
-        <Tape variant="marker">{`${number} ${step.name}`}</Tape>
-        <span>{step.when}</span>
-      </p>
-      <h2 id={`${step.id}-title`}>{title}</h2>
+      <p class="b-step__marker"><Tape variant="marker">{number}</Tape></p>
+      <h2 id={`${pack.id}-title`}>{pack.title}</h2>
     </div>
     <div class="b-step__aside">
-      <p class="b-step__line">{codeParts(text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
+      <p class="b-step__line">{words(pack.text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
       {
-        step.bench ? (
-          <a class="brand-link brand-link--muted b-step__run" href="/benchmarks">
-            Preliminary benchmark run, {runDate(FIRST_RUN.date)}
-          </a>
+        figure ? (
+          <figure class="b-step__figure">
+            <figcaption>{figure.label}</figcaption>
+            <ol>
+              {figure.bars.map((bar) => (
+                <li class:list={{ 'is-us': bar.stacktape }}>
+                  <span>{bar.tool}</span>
+                  <i style={`--b-bar: ${(bar.seconds / slowest) * 100}%`} />
+                  <b>{bar.seconds.toFixed(1)} s</b>
+                </li>
+              ))}
+            </ol>
+            <a class="brand-link brand-link--muted" href={figure.link}>
+              Preliminary benchmark run, {figure.runDate}
+            </a>
+          </figure>
         ) : null
       }
-      <slot name="aside" />
       {
         docs ? (
           <a class="brand-link b-step__docs" href={docs.href}>
@@ -40,6 +58,9 @@ const number = String(index + 1).padStart(2, '0');
     </div>
   </header>
   <slot />
+  <ul class="b-step__points">
+    {pack.gets.map((point) => <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>)}
+  </ul>
 </section>
 
 <style>
@@ -51,18 +72,13 @@ const number = String(index + 1).padStart(2, '0');
 
   .b-step__head {
     display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: end;
     gap: var(--brand-space-5) clamp(2rem, 1rem + 3vw, 5rem);
   }
 
   .b-step__marker {
-    display: flex;
-    align-items: center;
-    gap: var(--brand-space-3);
-    margin-bottom: var(--brand-space-5);
-    color: var(--brand-muted);
-    font-size: var(--brand-type-sm);
+    margin-bottom: var(--brand-space-4);
   }
 
   h2 {
@@ -75,32 +91,95 @@ const number = String(index + 1).padStart(2, '0');
   .b-step__aside {
     display: grid;
     justify-items: start;
-    gap: var(--brand-space-3);
+    gap: var(--brand-space-4);
   }
 
   .b-step__line {
-    max-width: 32rem;
+    max-width: 34rem;
     font-size: var(--brand-type-lead);
     line-height: 1.5;
     text-wrap: pretty;
   }
 
-  .b-step__line code {
+  code {
     font: 0.9em var(--brand-font-mono);
   }
 
-  .b-step__docs,
-  .b-step__run {
+  .b-step__docs {
     font-size: var(--brand-type-sm);
   }
 
-  .b-step__run {
-    text-decoration-line: underline;
-    text-decoration-color: var(--brand-border);
+  .b-step__figure {
+    display: grid;
+    gap: var(--brand-space-2);
+    width: min(100%, 30rem);
+    margin: 0;
+    font-size: var(--brand-type-xs);
+  }
+
+  .b-step__figure figcaption {
+    color: var(--brand-muted);
+  }
+
+  .b-step__figure ol {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .b-step__figure li {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr) 3.5rem;
+    align-items: center;
+    gap: var(--brand-space-3);
+    color: var(--brand-muted);
+  }
+
+  .b-step__figure li i {
+    width: var(--b-bar);
+    height: 0.5rem;
+    border-radius: 2px;
+    background: var(--brand-border);
+  }
+
+  .b-step__figure li b {
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .b-step__figure li.is-us {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .b-step__figure li.is-us i {
+    background: var(--brand-teal);
+  }
+
+  .b-step__points {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--brand-space-5) clamp(1.5rem, 1rem + 2vw, 3rem);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .b-step__points li {
+    padding-top: var(--brand-space-4);
+    border-top: 1px solid var(--brand-border);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.55;
+    text-wrap: pretty;
   }
 
   @media (max-width: 52rem) {
-    .b-step__head {
+    .b-step__head,
+    .b-step__points {
       grid-template-columns: minmax(0, 1fr);
     }
   }
