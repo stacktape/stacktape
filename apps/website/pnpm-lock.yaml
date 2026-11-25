@@ -41,9 +41,6 @@ importers:
       '@stacktape/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
-      '@stacktape/config':
-        specifier: workspace:*
-        version: link:../../packages/config
       '@stacktape/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
@@ -93,6 +90,44 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+
+  ../..: {}
+
+  ../../packages/analytics: {}
+
+  ../../packages/aws-read-only: {}
+
+  ../../packages/cloudformation: {}
+
+  ../../packages/config: {}
+
+  ../../packages/config-authoring: {}
+
+  ../../packages/config-inference: {}
+
+  ../../packages/console-api: {}
+
+  ../../packages/design-tokens: {}
+
+  ../../packages/ministack: {}
+
+  ../../packages/naming: {}
+
+  ../../packages/packaging: {}
+
+  ../../packages/pricing: {}
+
+  ../../packages/stack-info: {}
+
+  ../../packages/ui-react: {}
+
+  ../cli: {}
+
+  ../docs: {}
+
+  ../init-ui: {}
+
+  ../vscode-extension: {}
 
 packages:
 

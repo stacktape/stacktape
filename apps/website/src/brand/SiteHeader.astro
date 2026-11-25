@@ -4,13 +4,11 @@ import Logo from './Logo.astro';
 import './site.css';
 
 type Props = {
-  /** The homepage address. Direction previews can pass their own route. */
-  homeHref?: string;
   /** Use #install when the command box is on the current page. */
   startHref?: string;
 };
 
-const { homeHref = '/', startHref = `${homeHref}#install` } = Astro.props;
+const { startHref = '/#install' } = Astro.props;
 const links = [
   { label: 'Docs', href: 'https://docs.stacktape.com' },
   { label: 'Pricing', href: '/pricing' },
@@ -24,7 +22,7 @@ const current = (href: string) => (path === href ? 'page' : path.startsWith(`${h
 
 <header class="brand-header">
   <div class="site-frame header-inner">
-    <a class="home" href={homeHref} aria-label="Stacktape home"><Logo alt="" /></a>
+    <a class="home" href="/" aria-label="Stacktape home"><Logo alt="" /></a>
     <nav class="desktop-nav" aria-label="Main">
       {
         links.map(({ href, label }) => (

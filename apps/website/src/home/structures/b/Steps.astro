@@ -2,13 +2,26 @@
 import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
 import { SECTION_PACKS } from '../../sections';
 import Step from './Step.astro';
+import Costs from './ui/Costs.astro';
+import Deploys from './ui/Deploys.astro';
+import Designs from './ui/Designs.astro';
+import Help from './ui/Help.astro';
+import Incidents from './ui/Incidents.astro';
+import Monitors from './ui/Monitors.astro';
+import Packages from './ui/Packages.astro';
+import Secures from './ui/Secures.astro';
 
-/**
- * The eight sections in the order `sections.ts` lists them, each with its picture: `ui/<name>.astro`, where `<name>` is
- * the section's `name` (Designs, Packages, …). A section without a picture file shows its words only.
- */
-const pictures = import.meta.glob<{ default: AstroComponentFactory }>('./ui/*.astro', { eager: true });
-const pictureFor = (name: string) => pictures[`./ui/${name}.astro`]?.default;
+type SectionId = (typeof SECTION_PACKS)[number]['id'];
+const PICTURES: Record<SectionId, AstroComponentFactory> = {
+  costs: Costs,
+  deploys: Deploys,
+  designs: Designs,
+  'expert-help': Help,
+  incidents: Incidents,
+  monitors: Monitors,
+  packages: Packages,
+  secures: Secures
+};
 
 const DOCS: Record<string, { label: string; href: string }> = {
   designs: { label: 'How init works', href: 'https://docs.stacktape.com/cli/init' },
@@ -31,7 +44,7 @@ const SHOWS: Record<string, string> = {
   costs: 'Stacktape Console · Costs',
   'expert-help': 'Slack · shared channel, an example'
 };
-const ROWS = SECTION_PACKS.map((pack, index) => ({ pack, index, Picture: pictureFor(pack.name) }));
+const ROWS = SECTION_PACKS.map((pack, index) => ({ pack, index, Picture: PICTURES[pack.id] }));
 const pad = (index: number) => String(index + 1).padStart(2, '0');
 ---
 
@@ -57,7 +70,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
     {
       ROWS.map(({ pack, index, Picture }) => (
         <Step pack={pack} index={index} docs={DOCS[pack.id]} shows={SHOWS[pack.id]}>
-          {Picture ? <Picture /> : null}
+          <Picture />
         </Step>
       ))
     }

@@ -1,11 +1,8 @@
 ---
 import { CommandBox } from '../../../brand/CommandBox';
 
-type Props = { subheadline?: string };
-
-const {
-  subheadline = 'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.'
-} = Astro.props;
+const subheadline =
+  'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.';
 ---
 
 <section class="h5" aria-labelledby="h5-title">
@@ -177,8 +174,8 @@ const {
 
   /*
    * The Console's card: its surface, a heading with the terminal icon, one sentence, the command. It is the header's
-   * Get started target (#install), so the jump lands on its heading and sentence. The page's scroll padding (5rem on
-   * structure B, 6rem on C) already clears the 69 px sticky header; the margin adds a little air above the card.
+   * Get started target (#install), so the jump lands on its heading and sentence. The page's scroll padding clears
+   * the sticky header, and the margin adds space above the card.
    */
   .h5__setup {
     grid-area: setup;

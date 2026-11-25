@@ -1,15 +1,10 @@
 /*
  * The marketing site's single stylesheet entry point.
  *
- * Layer order is declared before anything defines a layer: `stacktape-ui` sits between Tailwind's
- * `base` and `components`, so `@stacktape/ui-react` beats the element resets while a page's own
- * component classes and any utility passed through `class` still win over it without `!important`.
- *
  * Typography is deliberately not here. Fonts are a per-page decision: each page loads its own
  * families through BaseLayout's `head` slot and sets them on its own root element.
  */
-@layer theme, base, stacktape-ui, components, utilities;
-
+@import './layers.css';
 @import 'tailwindcss';
 @import '@stacktape/design-tokens/css';
 @import '@stacktape/ui-react/styles.css';

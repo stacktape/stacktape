@@ -1,0 +1,3 @@
+/* Declare the order in every stylesheet that can introduce a layer first. Shared controls
+ * override Tailwind's element resets, and page styles and utilities can override the controls. */
+@layer theme, base, stacktape-ui, components, utilities;

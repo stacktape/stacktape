@@ -3,8 +3,7 @@
  * The document shell every page shares: html/body, the stylesheet, the SEO head and analytics.
  *
  * It deliberately owns nothing visual below <body>. Each page composes its own sections, loads its own
- * fonts through the `head` slot, and sets its own root class, so two homepage studies can look
- * completely different without touching this file.
+ * fonts through the `head` slot, and sets its own root class.
  */
 import PlausibleAnalytics from '../components/PlausibleAnalytics.astro';
 import PostHogAnalytics from '../components/PostHogAnalytics.astro';
@@ -13,7 +12,7 @@ import '../styles/global.css';
 type Props = {
   title: string;
   description: string;
-  /** Keep unfinished studies out of the index. The production homepage passes `false`. */
+  /** Hide utility pages such as the 404 from search engines. */
   noindex?: boolean;
   /** Class applied to <html>, for page-level theming hooks. */
   htmlClass?: string;

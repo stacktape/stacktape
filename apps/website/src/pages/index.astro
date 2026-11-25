@@ -1,20 +1,8 @@
 ---
-import { heroes } from '../home/heroes/registry';
-import { home } from '../home/home';
-import { structures } from '../home/structures/registry';
-
-const structure = structures.find(({ id }) => id === home.structure);
-const hero = heroes.find(({ id }) => id === home.hero);
-const [Structure, Hero] = structure && hero ? await Promise.all([structure.load(), hero.load()]) : [];
-const ReadmeHome = Structure && Hero ? undefined : (await import('../variants/readme/Home.astro')).default;
+import Hero from '../home/heroes/h5/Hero.astro';
+import Page from '../home/structures/b/Page.astro';
 ---
 
-{
-  Structure && Hero ? (
-    <Structure>
-      <Hero slot="hero" />
-    </Structure>
-  ) : (
-    ReadmeHome && <ReadmeHome />
-  )
-}
+<Page>
+  <Hero slot="hero" />
+</Page>
