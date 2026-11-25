@@ -8,7 +8,7 @@ import Shell from './Shell.astro';
 const at = (seconds: number) => `${(seconds / DEPLOY_TOTAL) * 100}%`;
 ---
 
-<Shell crumb={PROJECT} crumbMenu page="projects" phoneCrumb={`${PROJECT} / production`}>
+<Shell crumb={PROJECT} crumbMenu page="projects" phoneCrumb={`${PROJECT} / production`} view="deploy">
   <p class="cx-path">{PROJECT} <span>/</span> production <span>/</span> Activity</p>
   <div class="cx-deploy-head">
     <div>

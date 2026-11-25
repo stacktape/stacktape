@@ -8,9 +8,11 @@ import Icon from './Icon.astro';
 
 type Section = 'observability' | 'security';
 type Page = 'projects' | 'incidents' | 'uptime' | 'security';
-type Props = { crumb: string; crumbMenu?: boolean; page: Page; open?: Section; phoneCrumb?: string };
+/** `view` names the screen, for the crops that differ per screen (console.css `.cx-view-*`). */
+type View = 'overview' | 'deploy' | 'uptime' | 'incidents' | 'security' | 'costs';
+type Props = { crumb: string; crumbMenu?: boolean; page: Page; open?: Section; phoneCrumb?: string; view: View };
 
-const { crumb, crumbMenu = false, page, open, phoneCrumb = crumb } = Astro.props;
+const { crumb, crumbMenu = false, page, open, phoneCrumb = crumb, view } = Astro.props;
 
 /** The phone's bottom bar, as the Console draws it below 40rem. */
 const BOTTOM = [
@@ -54,7 +56,7 @@ const SECTIONS = [
 ] as const;
 ---
 
-<div class="cx-app">
+<div class={`cx-app cx-view-${view}`}>
   <div class="cx-top">
     <img class="cx-logo" src="/brand/logo-wordmark.svg" alt="" width="132" height="32" />
     <span class="cx-crumbs">

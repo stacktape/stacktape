@@ -106,14 +106,22 @@ export const DEPLOY_FACTS = [
 ] as const;
 
 /**
- * Uptime: 24 hourly bars, oldest first, one per clock hour; the last is the current hour, so 10:00 is bar 20. The config gives every stage api-health and homepage
- * checks (every 5 min outside production) and production a checkout-page check, all three every minute. api-health
- * on production was down from 10:18 to 10:23: 5 failed probes of 1,440. Three one-minute and eight five-minute checks
- * make 6,624 probes a day, so 5 failures leave 99.92 % available. The certificate expires on 9 December, 13 full days
- * from now. The list shows the first eight checks.
+ * Uptime: 24 hourly bars, oldest first, one per clock hour; the last is the current hour, so 10:00 is bar 20. Every
+ * stage has `apiHealth` and `homepage` checks and production also `checkoutPage` (resource names are alphanumeric).
+ * Production probes every 30 s, the other stages every 60 s (the only two intervals), each from the default three
+ * regions. apiHealth on production failed in all three regions from 10:18 to 10:23: 10 probes per region of 2,880,
+ * so 99.65 %. The day has 3 × 2,880 + 8 × 1,440 = 20,160 probes per region, 10 of them failed: 99.95 % available.
+ * The certificate expires on 9 December, 13 full days from now. The list shows the first eight checks.
  */
-export const UPTIME = { checks: 11, available: '99.92%' };
-const check = (name: string, stage: string, url: string, latency: string, checked: string, every = 'every 5 min') => ({
+const CHECKS_PER_STAGE = { production: 3, other: 8 };
+const PROBES_PER_REGION = CHECKS_PER_STAGE.production * 2880 + CHECKS_PER_STAGE.other * 1440;
+const FAILED_PER_REGION = 10;
+const percent = (value: number) => `${(Math.floor(value * 10_000) / 100).toFixed(2)}%`;
+export const UPTIME = {
+  checks: CHECKS_PER_STAGE.production + CHECKS_PER_STAGE.other,
+  available: percent(1 - FAILED_PER_REGION / PROBES_PER_REGION)
+};
+const check = (name: string, stage: string, url: string, latency: string, checked: string, every = 'every 1 min') => ({
   name,
   stage,
   url,
@@ -126,23 +134,27 @@ const check = (name: string, stage: string, url: string, latency: string, checke
 });
 export const CHECKS = [
   {
-    ...check('api-health', 'production', 'api.acme-shop.com/health', '92 ms', '41s ago', 'every 1 min'),
+    ...check('apiHealth', 'production', 'api.acme-shop.com/health', '92 ms', '12s ago', 'every 30 s'),
     down: [20],
-    availability: '99.65%'
+    availability: percent(1 - FAILED_PER_REGION / 2880)
   },
   {
-    ...check('homepage', 'production', 'acme-shop.com', '64 ms', '12s ago', 'every 1 min'),
+    ...check('homepage', 'production', 'acme-shop.com', '64 ms', '21s ago', 'every 30 s'),
     warning: 'TLS certificate expires in 13d'
   },
-  check('checkout-page', 'production', 'acme-shop.com/checkout', '71 ms', '33s ago', 'every 1 min'),
-  check('api-health', 'staging', 'api.staging.acme-shop.com/health', '88 ms', '2m ago'),
-  check('homepage', 'staging', 'staging.acme-shop.com', '69 ms', '4m ago'),
-  check('api-health', 'pr-218', 'api.pr-218.acme-shop.com/health', '95 ms', '1m ago'),
-  check('homepage', 'pr-218', 'pr-218.acme-shop.com', '72 ms', '3m ago'),
-  check('api-health', 'dev-maya', 'api.dev-maya.acme-shop.com/health', '90 ms', '2m ago')
+  check('checkoutPage', 'production', 'acme-shop.com/checkout', '71 ms', '8s ago', 'every 30 s'),
+  check('apiHealth', 'staging', 'api.staging.acme-shop.com/health', '88 ms', '41s ago'),
+  check('homepage', 'staging', 'staging.acme-shop.com', '69 ms', '17s ago'),
+  check('apiHealth', 'pr-218', 'api.pr-218.acme-shop.com/health', '95 ms', '52s ago'),
+  check('homepage', 'pr-218', 'pr-218.acme-shop.com', '72 ms', '33s ago'),
+  check('apiHealth', 'dev-maya', 'api.dev-maya.acme-shop.com/health', '90 ms', '26s ago')
 ];
 
-/** Resolution reasons as the Console's list words them: recovered signals, or a person who resolved it. */
+/**
+ * The incident list as the Console's IncidentsPage words it: the line under an open incident says what fails; under a
+ * resolved one it lists the kinds of signal it had (`signalKindLabel`), and the status line says how it ended
+ * (`resolveReasonLabel`). The API incident's exception stays on its own page (step 06).
+ */
 export const INCIDENTS = [
   {
     severity: 'Warning',
@@ -157,7 +169,7 @@ export const INCIDENTS = [
     severity: 'Critical',
     title: 'API error rate above 5%',
     where: 'production',
-    detail: "3 failing signals · TypeError: Cannot read properties of undefined (reading 'total')",
+    detail: 'Application error, Alarm, Uptime check',
     status: 'Resolved',
     by: 'recovered on its own',
     opened: '3h ago'
@@ -166,16 +178,16 @@ export const INCIDENTS = [
     severity: 'Error',
     title: 'Worker restarted 4 times in 10 min',
     where: 'staging',
-    detail: '1 failing signal · Error: connect ECONNREFUSED',
+    detail: 'Stack health',
     status: 'Resolved',
-    by: 'manually by Maya Chen',
+    by: 'resolved manually by Maya Chen',
     opened: '1d ago'
   },
   {
     severity: 'Warning',
     title: 'Database CPU above 80% for 15 min',
     where: 'production',
-    detail: 'Alarm · database',
+    detail: 'Alarm',
     status: 'Resolved',
     by: 'recovered on its own',
     opened: '2d ago'
@@ -184,7 +196,7 @@ export const INCIDENTS = [
     severity: 'Warning',
     title: 'Messages waiting in jobQueue above 1,000',
     where: 'production',
-    detail: 'Alarm · jobQueue',
+    detail: 'Alarm',
     status: 'Resolved',
     by: 'recovered on its own',
     opened: '4d ago'
@@ -193,7 +205,7 @@ export const INCIDENTS = [
     severity: 'Error',
     title: 'API p95 latency above 1 s for 5 min',
     where: 'production',
-    detail: 'Alarm · api',
+    detail: 'Alarm',
     status: 'Resolved',
     by: 'recovered on its own',
     opened: '5d ago'
@@ -202,24 +214,28 @@ export const INCIDENTS = [
     severity: 'Warning',
     title: 'Redis memory above 80%',
     where: 'production',
-    detail: 'Alarm · cache',
+    detail: 'Alarm',
     status: 'Resolved',
-    by: 'manually by Maya Chen',
+    by: 'resolved manually by Maya Chen',
     opened: '6d ago'
   },
   {
     severity: 'Error',
     title: 'Deploy of pr-218 left the worker unhealthy',
     where: 'pr-218',
-    detail: '1 failing signal · Error: Cannot find module "./jobs/export"',
+    detail: 'Stack health, Application error',
     status: 'Resolved',
-    by: 'manually by Maya Chen',
+    by: 'resolved manually by Maya Chen',
     opened: '7d ago'
   }
 ] as const;
 
 /** The list's tabs: open incidents, resolved ones, all. */
-export const INCIDENT_TABS = { active: 1, resolved: 7, all: 8 };
+export const INCIDENT_TABS = {
+  active: INCIDENTS.filter((incident) => incident.status !== 'Resolved').length,
+  resolved: INCIDENTS.filter((incident) => incident.status === 'Resolved').length,
+  all: INCIDENTS.length
+};
 
 /**
  * The findings of step 05 (structures/b/ui/Secures.astro), with the Console's rules (packages/console-api security.ts):
@@ -278,8 +294,22 @@ export const FINDINGS = [
 ] as const;
 
 /**
- * The navigation's counts: open incidents; open errors (step 04's four error groups, all on production: the
- * TypeError, PaymentProviderError and two worker errors); security findings to fix now (step 05's 1 critical, 2 high).
- * Production's own open security items are the two config findings and the two package vulnerabilities in FINDINGS.
+ * The navigation's counts. Errors: the organization's open error groups, step 04's four, all on production, so the
+ * organization-wide badge and the production stage's "Also open" line are the same number. Incidents: the open ones.
+ * Security: the findings to fix now (critical and high).
  */
-export const COUNTS = { incidents: 1, errors: 4, security: 3 };
+export const COUNTS = {
+  incidents: INCIDENT_TABS.active,
+  errors: 4,
+  security: FINDINGS.filter((finding) => finding.severity === 'Critical' || finding.severity === 'High').length
+};
+
+/** The open incident the production overview leads with. */
+export const OPEN_INCIDENT = INCIDENTS.find((incident) => incident.status === 'Open') ?? INCIDENTS[0];
+
+/** Production's open security items, as the overview counts them: configuration findings and package vulnerabilities. */
+const productionFindings = FINDINGS.filter((finding) => finding.stage === 'production');
+export const PRODUCTION_SECURITY = {
+  findings: productionFindings.filter((finding) => !finding.where.endsWith('npm')).length,
+  vulnerabilities: productionFindings.filter((finding) => finding.where.endsWith('npm')).length
+};

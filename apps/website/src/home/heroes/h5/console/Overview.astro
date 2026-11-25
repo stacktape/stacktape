@@ -3,7 +3,7 @@
  * The production stage's overview: the open incident above the deployed version, the last 24 hours and every
  * resource, as the Console's StageOverview draws a stage that needs attention.
  */
-import { COUNTS, MONTH, OVERVIEW, PROJECT, TRAFFIC } from './data';
+import { COUNTS, MONTH, OPEN_INCIDENT, OVERVIEW, PRODUCTION_SECURITY, PROJECT, TRAFFIC } from './data';
 import Icon from './Icon.astro';
 import ResIcon from './ResIcon.astro';
 import Shell from './Shell.astro';
@@ -34,16 +34,17 @@ const STATS = [
 ];
 ---
 
-<Shell crumb={PROJECT} crumbMenu page="projects" phoneCrumb={`${PROJECT} / production`}>
+<Shell crumb={PROJECT} crumbMenu page="projects" phoneCrumb={`${PROJECT} / production`} view="overview">
   <StageHead section="Overview" />
   <div class="cx-card cx-status">
     <div class="cx-status__row">
       <p class="cx-status__text">
         <span class="cx-red"><i class="cx-dot brand-round" /><b>Open incident</b></span>
-        <span>TLS certificate for "homepage" expires 2026-12-09 · opened 6h ago</span>
+        <span>{OPEN_INCIDENT.title} · opened {OPEN_INCIDENT.opened}</span>
       </p>
       <p class="cx-indent cx-quiet cx-also">
-        Also open: <u>{COUNTS.errors} errors</u>, <u>2 security findings</u> and <u>2 vulnerabilities</u>
+        Also open: <u>{COUNTS.errors} errors</u>, <u>{PRODUCTION_SECURITY.findings} security findings</u> and{' '}
+        <u>{PRODUCTION_SECURITY.vulnerabilities} vulnerabilities</u>
       </p>
       <span class="cx-link">View incident</span>
     </div>
@@ -101,7 +102,7 @@ const STATS = [
               {row.name}
               {row.note && (
                 <span class="cx-note">
-                  <i class="cx-dot cx-dot--warn" />
+                  <i class="cx-dot cx-dot--warn brand-round" />
                   {row.note}
                 </span>
               )}

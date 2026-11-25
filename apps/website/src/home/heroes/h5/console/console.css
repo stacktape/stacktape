@@ -797,7 +797,7 @@
 }
 
 .cx-table--incidents {
-  grid-template-columns: calc(96 * var(--u)) minmax(0, 1fr) calc(196 * var(--u)) calc(72 * var(--u)) calc(30 * var(--u));
+  grid-template-columns: calc(96 * var(--u)) minmax(0, 1fr) calc(248 * var(--u)) calc(68 * var(--u)) calc(30 * var(--u));
 }
 
 /* Incident rows keep the error text whole: the cells sit closer than in other tables. */
@@ -1115,8 +1115,7 @@
 
 /* A stage that needs attention, and a resource with an open warning, get an amber square. */
 .cx-dot--warn {
-  border-radius: 0;
-  background: var(--cx-amber);
+  background: rgb(237 139 0);
 }
 
 .cx-note {
@@ -1679,5 +1678,108 @@
   .cx-step > .cx-num,
   .cx-title > .cx-ok {
     white-space: nowrap;
+  }
+}
+
+/*
+ * Crops. Each screen shows the part of its page that carries the evidence, as the page looks after a short scroll.
+ * Infrastructure is scrolled past the project title, so the stage selector, the open incident, the deployed version
+ * and its resources fill the window.
+ */
+.cx-view-overview .cx-project {
+  display: none;
+}
+
+.cx-view-overview .cx-stages {
+  margin-block-start: 0;
+}
+
+/* The scroll stops on a row boundary: five complete resources, the sixth below the window's edge. */
+.cx-view-overview .cx-page {
+  padding-block-start: calc(14 * var(--u));
+}
+
+/*
+ * Phone crops (the window is a 390 px Console page, 640 px tall). Each ends on its first complete piece of evidence:
+ * resource rows on Infrastructure, the deploy's steps on Deploys, the first findings with severity and fix on Security.
+ */
+@container h5-console (max-width: 40rem) {
+  .cx-app {
+    block-size: calc(640 * var(--u));
+  }
+
+  /* Infrastructure: the incident and the release in a few lines each, then the resources. */
+  .cx-view-overview .cx-status__row > .cx-link,
+  .cx-view-overview .cx-status__row > .cx-actions,
+  .cx-view-overview .cx-urls > span,
+  .cx-view-overview .cx-stats,
+  .cx-view-overview .cx-toolbar > .cx-total ~ *,
+  .cx-view-overview .cx-table--overview .cx-tr:nth-child(n + 5) {
+    display: none;
+  }
+
+  .cx-view-overview .cx-status__row {
+    padding-block: calc(12 * var(--u));
+  }
+
+  .cx-view-overview .cx-toolbar {
+    padding-block: calc(6 * var(--u));
+  }
+
+  /* Deploys: the facts that say what happened, then every step. */
+  .cx-view-deploy .cx-deploy-head > :not(div),
+  .cx-view-deploy .cx-page > .cx-sections,
+  .cx-view-deploy .cx-facts p:nth-of-type(3),
+  .cx-view-deploy .cx-facts p:nth-of-type(6) {
+    display: none;
+  }
+
+  .cx-view-deploy .cx-facts > b {
+    padding-block: calc(10 * var(--u));
+  }
+
+  .cx-view-deploy .cx-facts p {
+    padding-block: calc(5 * var(--u));
+  }
+
+  .cx-view-deploy .cx-sections--card {
+    min-block-size: calc(36 * var(--u));
+  }
+
+  .cx-view-deploy .cx-facts p:nth-of-type(4),
+  .cx-view-deploy .cx-facts p:nth-of-type(5) {
+    border-block-end: 0;
+  }
+
+  .cx-view-deploy .cx-step {
+    block-size: calc(40 * var(--u));
+  }
+
+  /* Security: what to fix now and later, then the first two findings in full. */
+  .cx-view-security .cx-summary .cx-card:nth-child(n + 3),
+  .cx-view-security .cx-table--security .cx-tr:nth-child(n + 4) {
+    display: none;
+  }
+}
+
+@container h5-console (max-width: 40rem) {
+  .cx-view-overview .cx-table--overview .cx-tr {
+    padding-block: calc(10 * var(--u));
+  }
+
+  /* The steps keep their names and times on one line; the shared timeline needs a wider page. */
+  .cx-view-deploy .cx-step {
+    grid-template-columns: calc(26 * var(--u)) calc(12 * var(--u)) minmax(0, 1fr) auto;
+    block-size: calc(35 * var(--u));
+  }
+
+  .cx-view-deploy .cx-bar {
+    display: none;
+  }
+
+  /* A finding's place is its stage; the package or resource is on its own page. */
+  .cx-view-security .cx-table--security .cx-td:nth-child(3) > .cx-quiet,
+  .cx-view-security .cx-table--security .cx-td:nth-child(3) > span:first-child::after {
+    display: none;
   }
 }
