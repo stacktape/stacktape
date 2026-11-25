@@ -1,0 +1,9 @@
+.direction-c {
+  --c-container: min(100rem, 100% - 2 * var(--brand-space-6));
+}
+
+@media (max-width: 40rem) {
+  .direction-c {
+    --c-container: calc(100% - 2 * var(--brand-space-4));
+  }
+}
