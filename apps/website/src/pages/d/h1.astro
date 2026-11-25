@@ -1,0 +1,25 @@
+---
+import BrandHead from '../../brand/BrandHead.astro';
+import newsreader from '../../directions/h1/fonts/newsreader-latin.woff2?url';
+import newsreaderItalic from '../../directions/h1/fonts/newsreader-latin-italic.woff2?url';
+import Header from '../../directions/h1/Header.astro';
+import Hero from '../../directions/h1/Hero.astro';
+import Trust from '../../directions/h1/Trust.astro';
+import '../../directions/h1/page.css';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Stacktape: AWS DevOps, fully automated"
+  description="Stacktape's CLI and Console design, deploy, monitor and secure your app's infrastructure in your own AWS account."
+  htmlClass="brand h1"
+>
+  <BrandHead slot="head" />
+  <link slot="head" rel="preload" href={newsreader} as="font" type="font/woff2" crossorigin />
+  <link slot="head" rel="preload" href={newsreaderItalic} as="font" type="font/woff2" crossorigin />
+  <Header />
+  <main>
+    <Hero />
+    <Trust />
+  </main>
+</BaseLayout>

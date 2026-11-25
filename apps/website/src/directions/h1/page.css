@@ -1,0 +1,273 @@
+@import '../../brand/controls.css';
+
+/* Newsreader (SIL OFL, Google Fonts), the one display face this page adds. Optical sizing follows the font size. */
+@font-face {
+  font-family: Newsreader;
+  src: url('./fonts/newsreader-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Newsreader;
+  src: url('./fonts/newsreader-latin-italic.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+.h1 {
+  --h1-font-display: Newsreader, Georgia, serif;
+  --h1-gutter: clamp(1rem, 4vw, 4rem);
+  --h1-width: 100rem;
+  --h1-header: 4.5rem;
+  /* The dusk: the page graphite, a teal sky and one warm light, low behind the world. */
+  --h1-sky-high: #121817;
+  --h1-sky-mid: #142422;
+  --h1-sky-low: #1a2f2d;
+  --h1-sun: 227 165 116;
+  --h1-haze: 54 190 190;
+}
+
+.h1 body {
+  overflow-x: clip;
+}
+
+.h1-wrap {
+  inline-size: min(var(--h1-width), 100% - 2 * var(--h1-gutter));
+  margin-inline: auto;
+}
+
+.h1 [id] {
+  scroll-margin-block-start: var(--brand-space-6);
+}
+
+/* ── Hero ── */
+
+.h1-hero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  align-items: center;
+  min-block-size: clamp(44rem, 100svh - 12rem, 70rem);
+  padding-block: calc(var(--h1-header) + var(--brand-space-6)) var(--brand-space-8);
+  overflow: clip;
+  background:
+    radial-gradient(50% 60% at 72% 40%, rgb(var(--h1-haze) / 0.11), transparent 100%),
+    linear-gradient(180deg, var(--h1-sky-high) 0%, var(--h1-sky-mid) 45%, var(--h1-sky-low) 78%, var(--brand-page) 100%);
+}
+
+/* The sun sits low behind the world; cloud banks catch its light on their upper edges. */
+.h1-sky {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  /* The clouds thin out behind the copy, so the command box always sits on clear sky. */
+  mask-image: linear-gradient(90deg, transparent 22%, #000 52%);
+}
+
+.h1-sky svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+/* The copy is not positioned, so the world inside it is placed against the whole hero on wide screens. */
+.h1-hero__copy > :not(.h1-world) {
+  position: relative;
+  z-index: 2;
+  max-inline-size: 36rem;
+}
+
+.h1-title {
+  font-family: var(--h1-font-display);
+  max-inline-size: none;
+  font-size: clamp(2.875rem, 1.5rem + 3.6vw, 6.25rem);
+  font-weight: 560;
+  line-height: 0.98;
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+.h1-title span,
+.h1-title em {
+  display: block;
+  white-space: nowrap;
+}
+
+.h1-title em {
+  color: var(--brand-teal);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.h1-sub {
+  margin-block-start: clamp(1.25rem, 1rem + 0.8vw, 2rem);
+  max-inline-size: 33rem;
+  color: #c4cdcb;
+  font-size: clamp(1.125rem, 1rem + 0.4vw, 1.4375rem);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.h1-start {
+  display: grid;
+  gap: var(--brand-space-4);
+  margin-block-start: clamp(2rem, 1.5rem + 1.4vw, 3rem);
+}
+
+.h1-start__more {
+  display: flex;
+  align-items: center;
+  gap: var(--brand-space-4);
+}
+
+.h1-start__more .brand-button {
+  flex: none;
+}
+
+.h1-own {
+  max-inline-size: 26rem;
+  color: var(--brand-muted);
+  font-size: var(--brand-type-sm);
+  line-height: 1.45;
+}
+
+/* The world floats to the right of the copy and bleeds off the page edge on narrow desktops. */
+.h1-world {
+  position: absolute;
+  z-index: 1;
+  inset-block: calc(var(--h1-header) + var(--brand-space-2)) var(--brand-space-5);
+  inset-inline: calc(max(var(--h1-gutter), (100% - var(--h1-width)) / 2) + clamp(36rem, 30vw, 46rem)) var(--h1-gutter);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  translate: var(--h1-lean-x, 0) var(--h1-lean-y, 0);
+  transition: translate 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.h1-world__art {
+  inline-size: min(100%, (100svh - 10rem) * 1.18, 78rem);
+}
+
+.h1-world__art svg {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  overflow: visible;
+}
+
+.h1-world .w-label {
+  fill: #c3cecb;
+  font: 600 7.5px var(--brand-font-body);
+}
+
+.h1-world .w-stage {
+  fill: #6c827f;
+  font: 600 6.5px var(--brand-font-mono);
+  letter-spacing: 0.02em;
+}
+
+.h1-world .w-print {
+  fill: #fff;
+  fill-opacity: 0.32;
+  font: 700 9px var(--brand-font-heading);
+  letter-spacing: 0.04em;
+}
+
+.h1-world .w-stage--live {
+  fill: #a3b7b3;
+}
+
+/* Labels stay about 10 to 12 px on screen while the world scales with the window. */
+@media (max-width: 112rem) {
+  .h1-world .w-label {
+    font-size: 10px;
+  }
+
+  .h1-world .w-stage {
+    font-size: 8.5px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .h1-world__art {
+    animation: h1-arrive 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+
+@keyframes h1-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem);
+  }
+}
+
+/* ── Trust row ── */
+
+.h1-trust {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--brand-space-6) clamp(2rem, 4vw, 5rem);
+  padding-block: var(--brand-space-7) var(--brand-space-9);
+  border-block-start: 1px solid var(--brand-border);
+}
+
+.h1-quote blockquote {
+  font-family: var(--h1-font-display);
+  font-size: clamp(1.125rem, 1rem + 0.35vw, 1.375rem);
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.h1-quote figcaption {
+  display: grid;
+  margin-block-start: var(--brand-space-4);
+  font-size: var(--brand-type-sm);
+}
+
+.h1-quote figcaption span {
+  color: var(--brand-muted);
+}
+
+/* ── Narrow screens: the world sits between the subheadline and the command box, in its own pool of light. ── */
+
+@media (max-width: 64rem) {
+  .h1-hero {
+    align-items: start;
+    min-block-size: 0;
+    padding-block-end: var(--brand-space-7);
+  }
+
+  .h1-sky {
+    display: none;
+  }
+
+  .h1-world {
+    position: relative;
+    inset: auto;
+    place-items: center;
+    margin-block: var(--brand-space-3) calc(-1 * var(--brand-space-4));
+    margin-inline: calc(-1 * var(--h1-gutter));
+    background: radial-gradient(48% 42% at 52% 62%, rgb(var(--h1-sun) / 0.22), transparent 100%);
+  }
+
+  /* Trim the empty sky the art keeps above and below the stack on wide screens. */
+  .h1-world__art {
+    inline-size: min(104%, 44rem);
+    margin-block: -11% -15%;
+  }
+
+  .h1-world .w-labels {
+    display: none;
+  }
+
+  .h1-trust {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .h1-start__more {
+    flex-wrap: wrap;
+  }
+}
