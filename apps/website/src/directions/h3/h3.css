@@ -1,0 +1,34 @@
+@import '../../brand/controls.css';
+
+/* The one extra font: Newsreader (SIL Open Font License), for display headings only. */
+@font-face {
+  font-family: Newsreader;
+  src: url('./fonts/newsreader-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+.h3 {
+  --h3-serif: Newsreader, Georgia, 'Times New Roman', serif;
+  --h3-gutter: clamp(0.75rem, 2.4vw, 2.5rem);
+  --h3-frame: min(110rem, 100% - 2 * var(--h3-gutter));
+  --h3-measure: min(80rem, 100% - 2 * var(--h3-gutter));
+  --h3-ink: color-mix(in srgb, var(--brand-text), transparent 14%);
+  --h3-line: rgb(255 255 255 / 9%);
+  scroll-padding-block-start: 6rem;
+}
+
+.h3 body {
+  overflow-x: clip;
+}
+
+.h3-display {
+  margin: 0;
+  font-family: var(--h3-serif);
+  font-weight: 500;
+  font-variation-settings: 'opsz' 72;
+  letter-spacing: -0.022em;
+  line-height: 1.02;
+  text-wrap: balance;
+}

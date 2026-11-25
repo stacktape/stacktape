@@ -1,0 +1,138 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import Logo from '../../brand/Logo.astro';
+
+const nav = [
+  ['Docs', 'https://docs.stacktape.com'],
+  ['Pricing', '/pricing'],
+  ['Benchmarks', '/benchmarks'],
+  ['Blog', '/blog'],
+  ['GitHub', 'https://github.com/stacktape/stacktape']
+] as const;
+---
+
+<header class="masthead">
+  <div class="masthead__bar">
+    <a href="/d/h3" class="masthead__logo" aria-label="Stacktape home"><Logo alt="" width={132} /></a>
+    <nav aria-label="Primary" class="masthead__links">
+      {nav.map(([label, href]) => <a href={href}>{label}</a>)}
+    </nav>
+    <a href="https://console.stacktape.com" class="masthead__console">Console</a>
+    <ButtonLink variant="primary" className="brand-button masthead__cta" href="#install">Get started</ButtonLink>
+    <details class="masthead__more">
+      <summary aria-label="Open menu"><span></span><span></span></summary>
+      <nav aria-label="Primary, compact">
+        {nav.map(([label, href]) => <a href={href}>{label}</a>)}
+        <a href="https://console.stacktape.com">Console</a>
+      </nav>
+    </details>
+  </div>
+</header>
+
+<style>
+  .masthead {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 20;
+    background: color-mix(in srgb, var(--brand-page), transparent 6%);
+    backdrop-filter: saturate(1.2) blur(12px);
+  }
+
+  .masthead__bar {
+    display: flex;
+    align-items: center;
+    column-gap: var(--brand-space-6);
+    inline-size: var(--h3-frame);
+    block-size: 4rem;
+    margin-inline: auto;
+    padding-inline: var(--brand-space-2);
+  }
+
+  .masthead__logo {
+    display: inline-flex;
+    margin-inline-end: var(--brand-space-4);
+  }
+
+  .masthead__links {
+    display: flex;
+    column-gap: var(--brand-space-6);
+  }
+
+  .masthead__links a,
+  .masthead__console {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    text-decoration: none;
+  }
+
+  .masthead__links a:hover,
+  .masthead__console:hover {
+    color: var(--brand-text);
+  }
+
+  .masthead__console {
+    margin-inline-start: auto;
+  }
+
+  .masthead__more {
+    display: none;
+  }
+
+  .masthead__more summary {
+    display: grid;
+    align-content: center;
+    gap: 5px;
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    padding-inline: 0.65rem;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .masthead__more summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .masthead__more summary span {
+    block-size: 1.5px;
+    border-radius: 1px;
+    background: var(--brand-text);
+  }
+
+  .masthead__more nav {
+    position: absolute;
+    inset-inline: var(--brand-space-3);
+    inset-block-start: calc(100% + var(--brand-space-1));
+    display: grid;
+    padding: var(--brand-space-2);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-surface);
+    box-shadow: var(--brand-shadow-menu);
+  }
+
+  .masthead__more nav a {
+    padding: var(--brand-space-3);
+    color: var(--brand-text);
+    text-decoration: none;
+  }
+
+  @media (max-width: 56rem) {
+    .masthead__bar {
+      column-gap: var(--brand-space-3);
+    }
+
+    .masthead__links,
+    .masthead__console {
+      display: none;
+    }
+
+    .masthead__logo {
+      margin-inline-end: auto;
+    }
+
+    .masthead__more {
+      display: block;
+    }
+  }
+</style>
