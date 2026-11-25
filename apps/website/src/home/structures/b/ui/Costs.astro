@@ -67,7 +67,7 @@ const ALERTS = [
         <span class="cn-segments">
           {
             STAGE_TABS.map((stage, at) => (
-              <span class:list={{ 'cst__tab-4': at === 3 }} aria-selected={at === 0 ? 'true' : 'false'}>
+              <span class:list={{ 'cst__tab-3': at === 2, 'cst__tab-4': at === 3 }} aria-selected={at === 0 ? 'true' : 'false'}>
                 <i class:list={['cn-dot', { cst__open: at === 0 }]} />
                 {stage}
               </span>
@@ -75,7 +75,9 @@ const ALERTS = [
           }
         </span>
         <span class="cst__more">
-          <span class="cst__more-wide">{STAGES - 4} more</span><span class="cst__more-narrow">{STAGES - 3} more</span>
+          <span class="cst__more-wide">{STAGES - 4} more</span><span class="cst__more-narrow">{STAGES - 3} more</span><span
+            class="cst__more-tiny">{STAGES - 2} more</span
+          >
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
         </span>
         <span class="cn-button cn-wide">+ New stage</span>
@@ -85,9 +87,9 @@ const ALERTS = [
         <span>Overview</span>
         <span>Activity</span>
         <span aria-selected="true">Costs</span>
-        <span class="cn-wide">Configuration</span>
-        <span class="cn-wide">Diagram</span>
-        <span class="cn-wide">Danger zone</span>
+        <span class="cn-wide cst__tab-late">Configuration</span>
+        <span class="cn-wide cst__tab-late">Diagram</span>
+        <span class="cn-wide cst__tab-late">Danger zone</span>
         <span class="cn-tabs__end cn-wide">
           <span class="cn-muted cst__running">Running a41c9e2 on main · <span class="cn-link">View deploy</span></span>
           <span class="cn-button cn-button--primary">Deploy stage</span>
@@ -253,7 +255,8 @@ const ALERTS = [
     stroke-width: 2;
   }
 
-  .cst__more-narrow {
+  .cst__more-narrow,
+  .cst__more-tiny {
     display: none;
   }
 
@@ -393,12 +396,13 @@ const ALERTS = [
 
   /* The budget's own page, laid over the Costs tab's lower right and hanging a little below. */
   .cst__budget {
+    container: cstb / inline-size;
     position: absolute;
     right: 1.5rem;
     bottom: 0;
     display: grid;
     gap: 0.5rem;
-    width: min(38rem, 56%);
+    width: min(38rem, 60%);
     padding: 1rem 1.1rem 1.1rem;
     border: 1px solid var(--brand-border);
     background: var(--brand-page);
@@ -472,7 +476,7 @@ const ALERTS = [
 
   .cst__sent-row {
     display: grid;
-    grid-template-columns: minmax(4rem, 0.8fr) minmax(8rem, 1.3fr) minmax(9rem, 1.5fr) minmax(4rem, 2fr);
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.3fr) minmax(0, 1.5fr) minmax(0, 2fr);
     align-items: center;
     gap: 0.75rem;
     padding-block: 0.45rem;
@@ -506,8 +510,15 @@ const ALERTS = [
   }
 
   /* The live release fits beside the tabs only on a wide page; Deploy stage stays. */
-  @container cstp (max-width: 56rem) {
+  @container cstp (max-width: 62rem) {
     .cst__running {
+      display: none;
+    }
+  }
+
+  /* On a narrow page the last three tabs give way, so Deploy stage stays on the row. */
+  @container cstp (max-width: 44rem) {
+    .cst__tab-late {
       display: none;
     }
   }
@@ -545,8 +556,39 @@ const ALERTS = [
     }
   }
 
-  /* On a phone the budget follows the Costs tab, and its alerts keep the time, event and delivery. */
-  @container cst (max-width: 34rem) {
+  /* The narrowest phones (320 px) fit two stage tabs. */
+  @container cstp (max-width: 18rem) {
+    .cst__tab-3,
+    .cst__more-narrow {
+      display: none;
+    }
+
+    .cst__more-tiny {
+      display: inline;
+    }
+  }
+
+  /* A narrow budget card keeps each alert's time, event and delivery, and puts See what drives it under the text. */
+  @container cstb (max-width: 34rem) {
+    .cst__sent-row {
+      grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+    }
+
+    .cst__sent-row > span:nth-child(3) {
+      display: none;
+    }
+
+    .cst__alert {
+      grid-template-columns: 0.5rem minmax(0, 1fr);
+    }
+
+    .cst__drives {
+      grid-column: 2;
+    }
+  }
+
+  /* Where the budget card would cover more than the last cost row, it follows the Costs tab instead. */
+  @container cst (max-width: 56rem) {
     .cst__stack {
       padding-bottom: 0;
     }
@@ -560,15 +602,6 @@ const ALERTS = [
       width: auto;
       margin-top: 1rem;
       box-shadow: var(--brand-shadow);
-    }
-
-    .cst__drives,
-    .cst__sent-row > span:nth-child(3) {
-      display: none;
-    }
-
-    .cst__sent-row {
-      grid-template-columns: 3.2rem minmax(0, 1fr) auto;
     }
   }
 </style>

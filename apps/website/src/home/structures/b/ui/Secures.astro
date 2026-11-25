@@ -553,6 +553,24 @@ const FILTERS = [
     }
   }
 
+  /* Where the Guardrails card would cover more than the last findings, it follows the Security page instead. */
+  @container sec (max-width: 48rem) {
+    .sec__stack {
+      padding-bottom: 0;
+    }
+
+    .sec__sheet {
+      padding-bottom: 2rem;
+    }
+
+    .sec__rails {
+      position: static;
+      width: auto;
+      margin-top: 1rem;
+      box-shadow: var(--brand-shadow);
+    }
+  }
+
   /* A phone: the Console's narrow layout, one finding per row with where it is under the fix. */
   @container sec (max-width: 34rem) {
     .sec__sheet,
@@ -610,16 +628,8 @@ const FILTERS = [
       white-space: normal;
     }
 
-    .sec__stack {
-      padding-bottom: 0;
-    }
-
     .sec__rails {
-      position: static;
-      width: auto;
-      margin-top: 1rem;
       padding: 1rem 0.9rem;
-      box-shadow: var(--brand-shadow);
     }
 
     .sec__rule {
