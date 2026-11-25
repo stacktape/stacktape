@@ -34,9 +34,15 @@ export const barsOf = (
 /** The slowest bar among several groups, so groups shown side by side share one scale. */
 export const slowest = (...groups: Bar[][]) => Math.max(...groups.flat().map((bar) => bar.seconds));
 
-/** A run: its date as the data writes it ("22 October 2026") and its results section in the public repository. */
+/** A run: its date ("22 Oct 2026") and its results section in the public repository. */
 export const runOf = (index: number) => {
   const run = BENCHMARKS.runs[index];
   if (!run) throw new Error(`The benchmark data has no run ${index}`);
-  return { label: run.label, link: run.readme };
+  const label = new Date(`${run.date}T12:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
+  return { label, link: run.readme };
 };

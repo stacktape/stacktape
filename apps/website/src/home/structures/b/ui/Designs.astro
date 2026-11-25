@@ -292,8 +292,11 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
     padding: 0.9rem 0.9rem 1.1rem;
   }
 
+  /* Drawn at about its own size: wider phones centre it rather than grow it. */
   .wz-diagram--phone {
-    aspect-ratio: 935 / 480;
+    justify-self: center;
+    width: min(100%, 22.5rem);
+    aspect-ratio: 360 / 440;
     margin: 0;
   }
 

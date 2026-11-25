@@ -36,13 +36,10 @@ const push = runOf(1);
     <div class="bn-stat">
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
       <p class="bn-stat__what">to deploy updated handlers to 25 Lambda functions and get a response from the new code</p>
-      <p class="bn-stat__how">Median of 10 runs; lower is better.</p>
-      <p class="bn-stat__run">
-        Preliminary runs, <a class="brand-link" href={cli.link}>{cli.label}</a> and, for Stacktape's Git push,{' '}
-        <a class="brand-link" href={push.link}>{push.label}</a>
-      </p>
+      <a class="brand-link bn-stat__run" href={cli.link}>Median of 10 CLI runs, {cli.label}</a>
+      <a class="brand-link bn-stat__run bn-stat__run--wide" href={push.link}>Git push: 5 runs, {push.label}</a>
     </div>
-    <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} />
+    <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} phoneTicks={[0, 40, 80]} />
   </div>
   <div class="bn-more">
     <Chart title="Containers" detail="A code change to a Node.js service" bars={container} scale={small} />

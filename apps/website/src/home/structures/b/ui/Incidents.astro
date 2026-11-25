@@ -43,12 +43,6 @@ const CARD_SIGNALS = [
   { title: 'API error rate above 5%', kind: 'alarm firing', failing: true },
   { title: 'Uptime check “apiHealth” is down', kind: 'uptime down', failing: false }
 ];
-/** On a phone, the same three signals by short names. */
-const PHONE_SIGNALS = [
-  { title: 'TypeError in orderTotals', failing: true },
-  { title: 'API error rate above 5%', failing: true },
-  { title: 'Uptime check apiHealth', failing: false }
-];
 const CARD_MENU = ['Mute 1 hour', 'Mute 24 hours', 'Resolve', 'Roll back to v000040', 'Open in Console'];
 
 const FRAMES = [
@@ -222,19 +216,8 @@ const FRAMES = [
     <div>
       <span class="ph-tag ph-tag--red">Critical</span>
       <p class="ph-title inc-ph__title">API error rate above 5%</p>
-      <p class="ph-muted">acme-shop / production · open for 18 min</p>
+      <p class="ph-muted">acme-shop / production · open for 18 min · 2 of 3 signals failing</p>
     </div>
-    <ul class="ph-rows">
-      {
-        PHONE_SIGNALS.map((signal) => (
-          <li class="ph-row">
-            <i class:list={['ph-dot brand-round', { 'ph-dot--red': signal.failing }]} />
-            <span class="inc-ph__signal">{signal.title}</span>
-            <span class="ph-muted">{signal.failing ? 'failing' : 'recovered'}</span>
-          </li>
-        ))
-      }
-    </ul>
     <div class="ph-box">
       <p><b>Likely cause:</b> release v000041, deployed 5 min before it opened</p>
       <p class="ph-mono">orderTotals · totals.ts:18</p>
@@ -252,12 +235,6 @@ const FRAMES = [
 
   .inc-ph__title {
     margin-top: 0.45rem !important;
-  }
-
-  .inc-ph__signal {
-    min-width: 0;
-    font-size: 0.875rem;
-    line-height: 1.35;
   }
 
   .inc-ph__fix {

@@ -196,7 +196,7 @@ const FILTERS = [
     <div
       class="ph ph-phone"
       role="img"
-      aria-label="In the Stacktape Console, a security finding: the acme-shop staging database is reachable from the internet. The guardrail “Keep SQL and OpenSearch private” blocks the next deploy of acme-shop / staging."
+      aria-label="In the Stacktape Console, a security finding: the acme-shop staging database is reachable from the internet. The guardrail “Keep SQL and OpenSearch private” blocks deploys that leave this database public."
     >
       <div aria-hidden="true" class="sec-ph">
         <p class="ph-eyebrow">Finding</p>
@@ -215,7 +215,7 @@ const FILTERS = [
             <b>Keep SQL and OpenSearch private</b>
             <span class="sec-ph__on brand-round" />
           </p>
-          <p class="ph-amber">Blocks the next deploy of acme-shop / staging.</p>
+          <p class="ph-amber">Blocks deploys that leave this database public.</p>
         </div>
       </div>
     </div>

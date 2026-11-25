@@ -55,11 +55,6 @@
   font-size: var(--brand-type-xs);
 }
 
-.bn-stat__how {
-  color: var(--brand-muted);
-  font-size: var(--brand-type-sm);
-}
-
 .bn-more {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -226,9 +221,11 @@
 
 /* A phone: the headline result and its chart, compact; the smaller charts are for wider screens. */
 @media (max-width: 40rem) {
+  /* The Git push run belongs to a chart phones leave out; the axis keeps every other tick. */
   .bn-more,
-  .bn-stat__how {
-    display: none;
+  .bn-stat__run--wide,
+  .bn-desktop-tick {
+    display: none !important;
   }
 
   .bn-main {

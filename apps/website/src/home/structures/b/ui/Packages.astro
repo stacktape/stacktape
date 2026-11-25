@@ -26,10 +26,9 @@ const run = runOf(0);
     <div class="bn-stat">
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
       <p class="bn-stat__what">to package 25 Lambda functions from an empty build cache</p>
-      <p class="bn-stat__how">Median of 10 runs; lower is better.</p>
-      <a class="brand-link bn-stat__run" href={run.link}>Preliminary run, {run.label}</a>
+      <a class="brand-link bn-stat__run" href={run.link}>Median of 10 runs, {run.label}</a>
     </div>
-    <Chart size="large" bars={large} scale={30} ticks={[0, 10, 20, 30]} />
+    <Chart size="large" bars={large} scale={30} ticks={[0, 10, 20, 30]} phoneTicks={[0, 15, 30]} />
   </div>
   <div class="bn-more">
     <Chart title="1 function" detail="Empty build cache" bars={one} scale={small} />

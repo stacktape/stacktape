@@ -237,11 +237,18 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
       scrollbar-width: none;
     }
 
+    /* Each step link is a 44 px tap target; the tape on the current one stays the label's size. */
     .b-steps__link {
       grid-template-columns: auto auto;
+      align-items: center;
       gap: var(--brand-space-2);
+      min-height: 2.75rem;
       padding: 0.35rem 0.75rem;
       white-space: nowrap;
+    }
+
+    .b-steps__link::before {
+      inset: 0.5rem 0;
     }
 
     .b-steps__name {
