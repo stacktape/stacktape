@@ -55,9 +55,10 @@ const QUOTES = ORDER.map((name) => {
     list-style: none;
   }
 
+  /* Each name sits right under its quote, not at the bottom of the tallest one. */
   .b-proof__quotes li {
     display: grid;
-    grid-template-rows: 1fr auto;
+    align-content: start;
     gap: var(--brand-space-5);
   }
 

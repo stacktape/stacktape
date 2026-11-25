@@ -4,13 +4,16 @@ import { codeParts } from '../../code-text';
 
 /*
  * The questions a CTO decides on, first the real choice (a PaaS, a DevOps hire or Stacktape), then cost, exit, scale,
- * networking, data and escape hatches. Sources: Heroku/Render = bench git-push / warm / container-node (23 Oct run,
- * code swap on every push); DevOps = the eight sections; cost = pages/pricing.astro (Free plan, Flexible bands, $250 at
- * $1,000, the Free limit and "A pause never touches running infrastructure"); lock-in =
- * docs/getting-started/open-source-cli.mdx:10-40; scale = docs/resources/compute/web-service.mdx:196, :253; private
- * database = docs/resources/databases/relational-database.mdx:252-261, :622; data = business/05-product-principles.md
- * §1, docs/observability/error-tracking.mdx:72, docs/stacktape-console/security-scanning.mdx (OSV.dev),
- * docs/cli/init.mdx:15-21; escape hatches = docs/configuration/overrides-and-escape-hatches.mdx:10-16.
+ * networking, data and escape hatches. Sources: Heroku/Render = bench git-push / warm / container-node (Stacktape 23 Oct
+ * rerun with code swap on every push, Heroku and Render 22 Oct); DevOps = the eight sections; cost =
+ * pages/pricing.astro (Free plan, Flexible bands, $250 at $1,000, "When a Free organization passes $200": one 7-day
+ * grace, then new deploys pause, running infrastructure untouched); lock-in = docs/getting-started/open-source-cli.mdx
+ * (what works without an account, "Go back to working without an account": the stacktape-app.com domain), uptime
+ * checks need the Console (docs/observability/uptime-checks.mdx); scale = docs/resources/compute/web-service.mdx:196,
+ * :253-262; private database = docs/resources/databases/relational-database.mdx:210-213, :252-261, :298, :622; data =
+ * business/05-product-principles.md §1, docs/observability/error-tracking.mdx:70-72, security-scanning.mdx (OSV.dev),
+ * docs/cli/init.mdx:15-21, docs/observability/incident-ai.mdx (what the providers receive); escape hatches =
+ * docs/configuration/overrides-and-escape-hatches.mdx:10-16.
  */
 const push = findGroup('git-push', 'warm', 'container-node').group.values;
 const pushSeconds = (tool: string) => {
@@ -18,41 +21,48 @@ const pushSeconds = (tool: string) => {
   if (!found) throw new Error(`No Git push time for ${tool}`);
   return found.median.toFixed(1);
 };
-const pushRun = BENCHMARKS.runs.find((run) => run.date === '2026-10-23');
-if (!pushRun) throw new Error('The benchmark data has no Git push run');
+/* Stacktape's pushes are the 23 Oct rerun; Heroku and Render are from 22 Oct. Both runs must be in the data. */
+for (const date of ['2026-10-22', '2026-10-23']) {
+  if (!BENCHMARKS.runs.some((run) => run.date === date)) throw new Error(`The benchmark data has no run of ${date}`);
+}
 
 type Question = { q: string; a: string; link?: { label: string; href: string } };
 
 const QUESTIONS: Question[] = [
   {
     q: 'Why not Heroku or Render?',
-    a: `Your app runs in your own AWS account at AWS prices, and it can use any AWS service. You keep push-to-deploy and pull request previews. In our Git push benchmark, a Node.js service using code swap was live in ${pushSeconds('stacktape')} seconds, against ${pushSeconds('heroku')} seconds on Heroku and ${pushSeconds('render')} seconds on Render. Heroku was faster for Python.`,
-    link: { label: `Benchmark run, ${pushRun.label}`, href: '/benchmarks' }
+    a: `Your app runs in your own AWS account at AWS prices, and you can add any AWS resource through CloudFormation or CDK. You still get push-to-deploy and pull request previews. For a warm Git push of a Node.js code change, Stacktape took ${pushSeconds('stacktape')} seconds with code swap turned on, Heroku ${pushSeconds('heroku')} seconds and Render ${pushSeconds('render')} seconds. Heroku was faster for Python.`,
+    link: { label: 'Preliminary Git push results, 22–23 October 2026', href: '/benchmarks' }
   },
   {
     q: 'Why not hire a DevOps engineer?',
-    a: 'Stacktape sets up the networking, permissions, deploy pipelines, monitoring, incident alerts and cost tracking a DevOps engineer would build first. Flexible costs a share of your AWS spend instead of a salary. When you get stuck, the founders answer in Slack.'
+    a: 'Stacktape gives your developers the deploy pipelines, permissions, monitoring, incident alerts and cost tracking a DevOps engineer would otherwise set up. Your team still owns the AWS account, approves changes and responds to incidents. On Flexible, you can ask the founders in Slack when you get stuck.'
   },
   {
     q: 'What does it cost?',
-    a: 'The CLI is free. The Console is free while the stacks it manages cost up to $200 a month in AWS. Above that, you need Flexible to keep deploying. It costs 19–25% of that AWS spend, $250 a month at $1,000, with no per-seat price. Running apps are never paused.',
+    a: 'The CLI is free. The Console is free up to $200 a month of managed AWS spend. The first time you go over, you have seven days to upgrade. After that, new deploys of Console-connected stacks pause until you upgrade or the next month starts, and your running apps are not affected. Flexible costs 19–25% of the whole managed spend, $250 a month at $1,000, for the whole team.',
     link: { label: 'Pricing', href: '/pricing' }
   },
   {
     q: 'Are we locked in?',
-    a: 'Your app runs on AWS resources in your account, created by standard CloudFormation, and the config lives in your repository. The CLI is open source (MIT) and deploys with your own AWS credentials, without the Console. Uptime checks, error tracking, incidents and deploy history need the Console.'
+    a: 'Your AWS resources run in your account as standard CloudFormation stacks, and the Stacktape config stays in your repository. The open-source CLI (MIT) deploys with your own AWS credentials, without the Console. To deploy that way, first replace a Stacktape-provided domain with your own and remove Console-only settings such as uptime checks. Deploy history, error tracking and incidents live in the Console.',
+    link: { label: 'Using the CLI without an account', href: 'https://docs.stacktape.com/getting-started/open-source-cli' }
   },
   {
     q: 'Will it scale with us?',
-    a: 'Your app runs on AWS services such as Lambda, ECS Fargate and Aurora. You set the minimum and maximum number of containers for each service, and AWS scales within those limits. Stacktape is AWS only. There’s no Kubernetes, and on Fargate no servers to maintain.'
+    a: 'Your app runs on AWS services such as Lambda, ECS Fargate and Aurora. For a container service, you set the minimum and maximum number of containers and the CPU or memory level that adds more. Lambda functions scale on their own. Stacktape is AWS only and needs no Kubernetes.'
   },
   {
     q: 'Can our database stay private?',
-    a: 'Yes, with one setting. By default, a database accepts connections from anywhere with its password. With `scoping-workloads-in-vpc`, only the services that list it in `connectTo` can reach it, and your team can connect through a bastion host.'
+    a: 'Yes. By default, an RDS database accepts connections from anywhere with valid credentials. With `scoping-workloads-in-vpc`, only the services that list it in `connectTo` and the IP addresses you allow can reach it. Add a bastion host if your team needs a tunnel. Aurora Serverless v2 always requires a VPC mode.'
   },
   {
     q: 'What leaves our AWS account?',
-    a: 'Application logs, build artifacts and application secrets stay in your account. The Console receives error messages with masked log excerpts, metrics, check results and security findings. Package names and versions go to OSV.dev for vulnerability checks. Init sends the generated config and region to Stacktape for pricing, never your source code. A coding agent you use sends the files it reads to its own provider.'
+    a: 'Application logs, build artifacts and application secrets stay in your account. The Console receives error details and short log excerpts with recognized sensitive patterns masked, plus metrics, check results and security findings. Dependency scans send package names and versions to OSV.dev. Init sends the generated config and region to Stacktape for pricing. If you turn on incident AI, its provider receives the incident evidence. A coding agent can also send source files and command output to its provider.',
+    link: {
+      label: 'What leaves your AWS account',
+      href: 'https://docs.stacktape.com/observability/error-tracking#what-leaves-your-aws-account'
+    }
   },
   {
     q: 'What if we need something Stacktape doesn’t support?',
@@ -85,10 +95,10 @@ const QUESTIONS: Question[] = [
 </section>
 
 <style>
+  /* The heading sits above the answers: a one-word title does not need a column of its own. */
   .b-questions {
     display: grid;
-    grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr);
-    gap: var(--brand-space-6) clamp(2rem, 1rem + 2.5vw, 4rem);
+    gap: var(--brand-space-6);
     padding-block: clamp(4rem, 2.5rem + 4vw, 8rem);
     border-top: 1px solid var(--brand-border);
   }
@@ -96,12 +106,6 @@ const QUESTIONS: Question[] = [
   h2 {
     font: var(--brand-weight-heading) var(--brand-type-title) / 1.15 var(--brand-font-heading);
     letter-spacing: var(--brand-tracking-heading);
-  }
-
-  .b-questions__head p {
-    margin-top: var(--brand-space-2);
-    color: var(--brand-muted);
-    font-size: var(--brand-type-sm);
   }
 
   .b-questions__list {
@@ -135,7 +139,6 @@ const QUESTIONS: Question[] = [
   }
 
   @media (max-width: 64rem) {
-    .b-questions,
     .b-questions__list {
       grid-template-columns: minmax(0, 1fr);
     }

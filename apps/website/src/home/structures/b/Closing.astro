@@ -5,20 +5,15 @@ import { CommandBox } from '../../../brand/CommandBox';
 
 <section class="b-closing site-frame" aria-labelledby="b-closing-title">
   <div class="b-closing__copy">
-    <p class="b-closing__marker"><Tape variant="marker">09 Try it</Tape></p>
+    <p class="b-closing__marker"><Tape variant="marker">Try it</Tape></p>
     <h2 id="b-closing-title">See what Stacktape proposes for your app</h2>
     <p class="b-closing__line">
-      Run <code>stacktape init</code> in your project. It opens a wizard in your browser. You can save the config
-      without a Stacktape account and without deploying anything.
+      Run the command in your project directory. A wizard opens in your browser with the proposed AWS setup. You can
+      save the config without a Stacktape account and deploy when you’re ready.
     </p>
   </div>
   <div class="b-closing__start">
     <CommandBox client:visible label="Run in your project" preselect={false} />
-    <p class="b-closing__trust">
-      <span>Open-source CLI (MIT)</span><span>Your app runs in your AWS account</span><span
-        >Console free up to $200 a month of managed AWS spend</span
-      >
-    </p>
     <a class="brand-link brand-link--muted" href="https://console.stacktape.com">Already using Stacktape? Open the Console</a>
   </div>
 </section>
@@ -49,11 +44,6 @@ import { CommandBox } from '../../../brand/CommandBox';
     font-size: var(--brand-type-lead);
   }
 
-  .b-closing__line code {
-    color: var(--brand-text);
-    font: 0.9em var(--brand-font-mono);
-  }
-
   .b-closing__start {
     display: grid;
     gap: var(--brand-space-3);
@@ -65,32 +55,9 @@ import { CommandBox } from '../../../brand/CommandBox';
     justify-self: start;
   }
 
-  .b-closing__trust {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--brand-space-1) var(--brand-space-3);
-    color: var(--brand-muted);
-    font-size: var(--brand-type-xs);
-  }
-
-  .b-closing__trust span + span::before {
-    margin-right: var(--brand-space-3);
-    content: '·';
-  }
-
   @media (max-width: 64rem) {
     .b-closing {
       grid-template-columns: minmax(0, 1fr);
-    }
-  }
-
-  @media (max-width: 30rem) {
-    .b-closing__trust {
-      flex-direction: column;
-    }
-
-    .b-closing__trust span + span::before {
-      content: none;
     }
   }
 </style>
