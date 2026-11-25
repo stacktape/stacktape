@@ -1,0 +1,58 @@
+---
+import type { ImageMetadata } from 'astro';
+
+type Crop = { small: ImageMetadata; large: ImageMetadata };
+
+type Props = {
+  desktop: Crop;
+  /** A tighter crop for phones, where the desktop picture's text would be too small. */
+  phone?: Crop;
+  alt: string;
+  /** The `sizes` attribute for the desktop picture. */
+  sizes: string;
+  /** Stretch to the row's height, cropping from the top left. */
+  fill?: boolean;
+  class?: string;
+};
+
+const { desktop, phone, alt, sizes, fill = false, class: className } = Astro.props;
+---
+
+<div class:list={['sa-frame', fill && 'fill', className]}>
+  <picture>
+    {
+      phone && (
+        <source
+          media="(max-width: 40rem)"
+          srcset={`${phone.small.src} ${phone.small.width}w, ${phone.large.src} ${phone.large.width}w`}
+          sizes="94vw"
+          width={phone.small.width}
+          height={phone.small.height}
+        />
+      )
+    }
+    <img
+      src={desktop.small.src}
+      srcset={`${desktop.small.src} ${desktop.small.width}w, ${desktop.large.src} ${desktop.large.width}w`}
+      {sizes}
+      width={desktop.small.width}
+      height={desktop.small.height}
+      {alt}
+      loading="lazy"
+      decoding="async"
+    />
+  </picture>
+</div>
+
+<style>
+  .fill picture {
+    display: block;
+    block-size: 100%;
+  }
+
+  .fill img {
+    block-size: 100%;
+    object-fit: cover;
+    object-position: left top;
+  }
+</style>

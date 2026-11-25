@@ -1,0 +1,71 @@
+/* Structure a: shared pieces of the page. Every class starts with `sa-`, so other structures are unaffected. */
+.structure-a {
+  --site-width: 88rem;
+  --sa-section-gap: clamp(6rem, 9vw, 10rem);
+}
+
+/* Anchors land below the sticky header with room to spare. */
+.structure-a [id] {
+  scroll-margin-top: 6rem;
+}
+
+/* A tape tab: plain text until selected, then teal tape behind the label. */
+.sa-tab {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  padding: 0.45em 0.95em;
+  border: 0;
+  background: none;
+  color: var(--brand-muted);
+  font: var(--brand-weight-label) var(--brand-type-sm) / 1.2 var(--brand-font-body);
+  cursor: pointer;
+}
+
+.sa-tab::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: '';
+  clip-path: var(--brand-tape-clip);
+}
+
+.sa-tab:hover {
+  color: var(--brand-text);
+}
+
+.sa-tab[aria-selected='true'] {
+  color: var(--brand-on-teal);
+}
+
+.sa-tab[aria-selected='true']::before {
+  background: var(--brand-primary);
+  box-shadow: var(--brand-edge-primary);
+}
+
+/* A framed product picture. */
+.sa-frame {
+  overflow: hidden;
+  border: 1px solid var(--brand-border);
+  border-radius: var(--brand-radius);
+  background: var(--brand-inset);
+  box-shadow: var(--brand-shadow);
+}
+
+.sa-frame img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+}
+
+.sa-caption {
+  color: var(--brand-muted);
+  font-size: var(--brand-type-sm);
+}
+
+.sa-caption strong {
+  color: var(--brand-text);
+  font-weight: var(--brand-weight-label);
+}

@@ -1,0 +1,73 @@
+---
+import { findGroup } from '../../../variants/readme/benchmarks';
+import { DEPLOY_VIEWS, RUN } from './bench';
+import Chart from './Chart.astro';
+import Section from './Section.astro';
+import Shot from './Shot.astro';
+import previewLarge from './shots/preview-2448.webp';
+import previewSmall from './shots/preview-1224.webp';
+
+const seconds = (comparison: string, view: string, app: string, tool: string) => {
+  const value = findGroup(comparison, view, app).group.values.find((candidate) => candidate.tool === tool);
+  if (!value) throw new Error(`No ${tool} value for ${comparison}/${view}/${app}`);
+  return `${value.median.toFixed(1)} s`;
+};
+---
+
+<Section
+  id="deploys"
+  index={3}
+  name="Deploys"
+  title="A code change is live in seconds."
+  line={`25 Lambda functions go live in ${seconds('lambda-deploy', 'handler', 'lambda-25', 'stacktape')}. AWS CDK takes ${seconds('lambda-deploy', 'handler', 'lambda-25', 'cdk')}.`}
+  source={{ label: `Preliminary run, ${RUN.label}`, href: '/benchmarks' }}
+>
+  <div class="body">
+    <Chart id="deploy" kicker="Seconds until the change is live" views={DEPLOY_VIEWS}>
+      Median times, lower is better. Lambda and container deploys ran from a dedicated EC2 machine. Stacktape also
+      loses one Lambda case: a shared-code change to 5 functions takes {seconds('lambda-deploy', 'shared', 'lambda-5', 'stacktape')},
+      CDK hotswap {seconds('lambda-deploy', 'shared', 'lambda-5', 'cdk-hotswap')}.{' '}
+      <a class="brand-link" href="/benchmarks">All results</a>
+    </Chart>
+    <figure class="shot">
+      <Shot
+        desktop={{ small: previewSmall, large: previewLarge }}
+        alt="The Stacktape Console showing pr-421, a pull request's preview stage: healthy, deployed an hour ago, with its requests, failures and latency."
+        sizes="(min-width: 92rem) 52rem, (min-width: 64rem) 56vw, 94vw"
+        fill
+      />
+      <figcaption class="sa-caption">
+        <strong>pr-421</strong>, the preview stage of a pull request. It can be deleted when the pull request closes.
+      </figcaption>
+    </figure>
+  </div>
+</Section>
+
+<style>
+  /* Two columns that share their rows: the chart beside the picture, and their notes beside each other. */
+  .body {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-rows: auto auto;
+    gap: var(--brand-space-3) var(--brand-space-5);
+  }
+
+  .body > :global(:not(script)) {
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    gap: inherit;
+  }
+
+  @media (max-width: 64rem) {
+    .body {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--brand-space-6);
+    }
+
+    .body > :global(:not(script)) {
+      grid-template-rows: auto auto;
+      row-gap: var(--brand-space-3);
+    }
+  }
+</style>

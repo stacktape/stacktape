@@ -1,0 +1,90 @@
+---
+import Tape from '../../../brand/Tape.astro';
+
+type Props = {
+  /** The section's anchor. `designs` is the target of the shared "How it works" link. */
+  id: string;
+  /** Its place among the eight capabilities, from 1. */
+  index: number;
+  name: string;
+  /** One confident sentence. */
+  title: string;
+  /** One short line under it. */
+  line: string;
+  /** Where the line's figures come from, shown under it as a link. */
+  source?: { label: string; href: string };
+};
+
+const { id, index, name, title, line, source } = Astro.props;
+---
+
+<section class="section" id={id} aria-labelledby={`${id}-title`}>
+  <div class="site-frame">
+    <header class="head">
+      <div class="name">
+        <Tape variant="marker">{`${String(index).padStart(2, '0')}  ${name}`}</Tape>
+        <h2 id={`${id}-title`}>{title}</h2>
+      </div>
+      <div class="line">
+        <p>{line}</p>
+        {
+          source && (
+            <a class="brand-link" href={source.href}>
+              {source.label}
+            </a>
+          )
+        }
+      </div>
+    </header>
+    <slot />
+  </div>
+</section>
+
+<style>
+  .section {
+    padding-block-start: var(--sa-section-gap);
+  }
+
+  .head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
+    align-items: end;
+    gap: var(--brand-space-5) var(--brand-space-8);
+    margin-block-end: var(--brand-space-7);
+  }
+
+  .name {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-4);
+  }
+
+  h2 {
+    max-inline-size: 22ch;
+    font: var(--brand-weight-heading) clamp(1.875rem, 1.4rem + 1.6vw, 3rem) / 1.1 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+    text-wrap: balance;
+  }
+
+  .line {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-2);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .line a {
+    font-size: var(--brand-type-sm);
+  }
+
+  @media (max-width: 64rem) {
+    .head {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+      margin-block-end: var(--brand-space-6);
+    }
+  }
+</style>

@@ -1,0 +1,81 @@
+---
+/**
+ * Three checkable facts right after the hero, each with a link to its evidence.
+ * Sources: LICENSE:1 and docs/getting-started/open-source-cli.mdx:16; docs/managing-costs/overview.mdx:10, :26;
+ * src/data/deploy-benchmarks.json.
+ */
+const facts = [
+  {
+    title: 'Open source (MIT)',
+    text: 'The CLI deploys with your own AWS credentials. No Stacktape account needed.',
+    href: 'https://github.com/stacktape/stacktape'
+  },
+  {
+    title: 'Your AWS bill',
+    text: 'AWS bills you directly, at AWS prices. Our fee is a separate invoice.',
+    href: '/pricing'
+  },
+  {
+    title: 'Benchmarked in public',
+    text: 'Deploy times against CDK, SST, Serverless, Heroku and Render, losses included.',
+    href: '/benchmarks'
+  }
+];
+---
+
+<section class="proof" aria-label="What you can check">
+  <ul class="site-frame list">
+    {
+      facts.map((fact) => (
+        <li>
+          <a class="brand-link title" href={fact.href}>
+            {fact.title}
+          </a>
+          <p>{fact.text}</p>
+        </li>
+      ))
+    }
+  </ul>
+</section>
+
+<style>
+  .proof {
+    padding-block-start: var(--brand-space-8);
+  }
+
+  .list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--brand-space-6);
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: grid;
+    align-content: start;
+    gap: var(--brand-space-1);
+    padding-block-start: var(--brand-space-4);
+    border-block-start: 1px solid var(--brand-border);
+  }
+
+  .title {
+    justify-self: start;
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+    text-decoration-color: var(--brand-border);
+  }
+
+  p {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 48rem) {
+    .list {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--brand-space-4);
+    }
+  }
+</style>

@@ -1,0 +1,74 @@
+---
+import { SECTION_PACKS } from '../../sections';
+import Facts from './Facts.astro';
+import Section from './Section.astro';
+import Shot from './Shot.astro';
+
+type Props = {
+  pack: (typeof SECTION_PACKS)[number]['id'];
+  index: number;
+  /** Replaces the pack's title or line, for punctuation or a fact the pack overstates. */
+  title?: string;
+  line?: string;
+  /** `side`: the picture beside the facts. `wide`: a wide picture above a row of facts. */
+  layout?: 'side' | 'wide';
+  /** Puts the picture on the right in the side layout, so sections alternate. */
+  flip?: boolean;
+};
+
+const { pack: packId, index, title, line, layout = 'side', flip = false } = Astro.props;
+const pack = SECTION_PACKS.find((candidate) => candidate.id === packId);
+if (!pack?.picture) throw new Error(`Section pack ${packId} has no picture`);
+const { picture } = pack;
+const shot = {
+  desktop: { small: picture.desktop.small, large: picture.desktop.large },
+  phone: { small: picture.phone.small, large: picture.phone.large },
+  alt: picture.alt
+};
+---
+
+<Section id={pack.id} {index} name={pack.name} title={title ?? `${pack.title}.`} line={line ?? pack.line}>
+  <div class:list={['body', `body--${layout}`, flip && 'body--flip']}>
+    <Shot
+      {...shot}
+      sizes={layout === 'wide' ? '(min-width: 92rem) 88rem, 94vw' : '(min-width: 92rem) 58rem, (min-width: 64rem) 64vw, 94vw'}
+    />
+    <Facts figure={pack.figure} facts={pack.facts} row={layout === 'wide'} />
+  </div>
+</Section>
+
+<style>
+  .body {
+    display: grid;
+    gap: var(--brand-space-7);
+  }
+
+  .body--side {
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    align-items: start;
+  }
+
+  .body--flip {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  }
+
+  .body--flip > :global(:first-child) {
+    order: 2;
+  }
+
+  .body--wide {
+    gap: var(--brand-space-6);
+  }
+
+  @media (max-width: 64rem) {
+    .body--side,
+    .body--flip {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--brand-space-6);
+    }
+
+    .body--flip > :global(:first-child) {
+      order: 0;
+    }
+  }
+</style>
