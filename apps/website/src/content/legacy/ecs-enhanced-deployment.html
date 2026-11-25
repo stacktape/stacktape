@@ -1,0 +1,140 @@
+<h2>Enhanced ECS deployment monitoring and improved error messages</h2>
+<p>
+  In the ever-evolving landscape of cloud computing, deploying applications using container services like Amazon ECS
+  (Elastic Container Service) has become a go-to strategy for many organizations seeking flexibility, scalability, and
+  efficiency. However, even the most seasoned developers can encounter stumbling blocks when it comes to deployment
+  issues, particularly with the often cryptic and unhelpful error messages that can arise.
+</p>
+<p>
+  A prime example of such perplexity is the "Circuit Breaker" or "Deployment timed out" errors, a messages that can
+  leave many developers scratching their heads, wondering where things went wrong in their ECS deployment process.
+</p>
+<p>
+  This technical blog post aims to demystify these error, offering insights and strategies to not only decipher this
+  particular message but to also implement more informative and actionable error handling in your ECS deployment
+  processes, exclusively using AWS tools and SDKs.
+</p>
+<h3>Motivation</h3>
+<p>
+  At <a href="https://stacktape.com/">Stacktape</a>,<!-- -->
+  <strong
+    >our mission is to simplify the application deployment on AWS, making it accessible and manageable for developers of
+    all skill levels</strong
+  >. We understand that wrestling with cryptic error messages, such as the dreaded "Circuit Breaker" or "Deployment
+  timed out" errors, can be a major roadblock to this goal. It's not just about deploying faster; it's about deploying
+  smarter, with clarity and confidence and ensuring that every developer, regardless of their experience with ECS, can
+  deploy their applications without getting lost.
+</p>
+<h3>I got "Circuit Breaker" error, please help</h3>
+<p>
+  Deploying containers on Amazon ECS offers a range of options including IaaC solutions such as AWS CloudFormation or
+  Terraform, AWS Management Console and many others. No matter which option you choose, chances are, you will encounter
+  "Circuit Breaker" or similar confusing errors.
+</p>
+<p>
+  Under the hood <a href="https://stacktape.com/">Stacktape</a> uses Cloudformation to deploy user environments into
+  their AWS accounts. When a user would get one of the dreaded, vague and confusing errors mentioned above in the past,
+  they would usually end up contacting our support team where conversation would go like this:
+</p>
+<p><strong>Client:</strong></p>
+<p>
+  Hey, during deploying I am getting following error:<!-- -->
+  <code
+    >Error occurred during operation 'ECS Deployment Circuit Breaker was triggered'." (HandlerErrorCode:
+    GeneralServiceException)</code
+  >. Can you help?
+</p>
+<p><strong>Support:</strong></p>
+<p>Yes. This can be caused by multiple root causes. Here is the process to debug the root cause:</p>
+<ol>
+  <li>Go to your AWS ECS console and find your cluster "XXXXXX". In the cluster go to your service "XXXXXX"</li>
+  <li>
+    If you are unable to find it, your stack has probably deleted the cluster and the service during rollback. Re-deploy
+    and continue with step 3.
+  </li>
+  <li>
+    Once you localize your service go to "Deployments" tab. Check the events to get possible root cause of the problem.
+    If not continue with step 4.
+  </li>
+  <li>In your service page go to "Tasks" tab, then filter tasks with "Stopped" status.</li>
+  <li>Click on one of the recent tasks (from recent deployment) to see the task detail.</li>
+  <li>
+    On the top of the task detail page there should be informative message why the tasked stopped. If the message is
+    <code>Essential container in task exited</code> continue with step 7. If the message is<!-- -->
+    <code>Cannot pull container error</code> continue with 8.
+  </li>
+  <li>Check the "Logs" tab of your task to see the logs of your containers. If there are no logs...</li>
+  <li>...</li>
+</ol>
+<p>
+  Even an incomplete answer already makes my head spin - and I do consider myself a seasoned ECS user pro.<!-- -->
+  <strong
+    >Going through this process must be a gruesome experience for new AWS users - let alone to figure out what to do
+    without some assistance must be impossible</strong
+  >.
+</p>
+<p>
+  The more instances of this conversation arose, the more we realised that there must be a better way to do this. Hence
+  we decided to find a solution to give users the answer faster and without the need to contact the support.
+</p>
+<h3>Deciphering errors</h3>
+<p>
+  Errors such as "Circuit Breaker" and "Deployment timed out" error messages serve merely as indicators that a
+  deployment has encountered significant issues, but importantly, they are symptoms rather than the root cause of the
+  problem. These errors can signal that the deployment process has failed to complete successfully, whether due to:
+</p>
+<ul>
+  <li>tasks not passing health checks,</li>
+  <li>resource allocation issues,</li>
+  <li>startup process failing,</li>
+  <li>... many other underlying problems.</li>
+</ul>
+<p>
+  And while a seasoned ECS developer might know where to look to uncover the actual root cause, for others, this might
+  turn into a rabbit hole.
+</p>
+<h3>Implementation</h3>
+<p>
+  Thankfully AWS provides a strong API and SDKs. This means that anything you can see in AWS console, you can also get
+  programmatically. We decided to implement a automated flow which would detect if something goes wrong during the ECS
+  service deployment and inform the user with details straight away. The flow looks like this:
+</p>
+<img
+  alt="Flow"
+  height="400"
+  loading="lazy"
+  src="/blog/legacy/ecs-deployment-failure-detection.drawio.ce2ccb6e.png"
+  width="800"
+/>
+<p>
+  During Cloudformation stack update/create, we detect a new ECS Service deployment by monitoring Cloudformation stack
+  events. Once we observe a stack event indicating that ECS Service is being created or updated, we start the flow.
+</p>
+<h3>Results</h3>
+<p>Before we implemented our new flow, this was the error that user would get:</p>
+<img
+  alt="Before implementation error"
+  height="400"
+  loading="lazy"
+  src="/blog/legacy/before-error.fca8a5d6.png"
+  width="800"
+/>
+<p>
+  After implementing the flow, users now receive invaluable details that can help them start addressing the failure
+  reasons immediately. Moreover, we can inform users about the problem as soon as we detect it, eliminating the need to
+  wait until the entire deployment fails after multiple attempts. This shortens the feedback loop, providing users with
+  answers more quickly.
+</p>
+<img
+  alt="After implementation error"
+  height="400"
+  loading="lazy"
+  src="/blog/legacy/after-error.9ae316a6.png"
+  width="800"
+/>
+<h3>Conclusion</h3>
+<p>
+  By going a bit deeper into AWS and ECS we have found a way to provide users with useful information enhancing their
+  cloud development experience. Importantly, our solution is simple and exclusively utilizes libraries provided directly
+  by AWS, avoiding any third-party dependencies - making it easy to maintain and build on.
+</p>

@@ -1,8 +1,11 @@
 ---
-/** The blog index. A stub until the first posts exist; the v4 announcement is listed so the homepage link resolves. */
 import PlainPage from '../../components/PlainPage.astro';
+import { legacyPosts } from '../../content/legacy/posts';
 
-const POSTS = [{ href: '/blog/stacktape-v4', title: 'Stacktape v4: what changed', date: 'September 2026' }];
+const POSTS = [
+  { href: '/blog/stacktape-v4', title: 'Stacktape v4: what changed', date: 'September 2026' },
+  ...legacyPosts.toReversed().map(({ slug, title, date }) => ({ href: `/blog/${slug}`, title, date }))
+];
 ---
 
 <PlainPage

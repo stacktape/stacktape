@@ -3295,6 +3295,17 @@ export const lanes: readonly Lane[] = [
     selections: ['website']
   },
   {
+    id: 'website-release',
+    command: ['pnpm', '--filter', '@stacktape/website', 'test'],
+    level: 'process',
+    tier: 'change',
+    tests: ['apps/website/tests/site-release.test.ts'],
+    requires: [],
+    release: 'every-candidate',
+    proves: 'The release build and CDN preserve legacy addresses and exclude review pages.',
+    selections: ['website']
+  },
+  {
     id: 'docs',
     command: ['pnpm', '--filter', '@stacktape/docs', 'typecheck'],
     level: 'focused',
@@ -5487,8 +5498,8 @@ export const slices: readonly Slice[] = [
     status: 'active',
     journeys: ['J12'],
     paths: ['apps/website/**'],
-    tests: [],
-    lanes: ['website', 'website-2']
+    tests: ['apps/website/tests/site-release.test.ts'],
+    lanes: ['website', 'website-2', 'website-release']
   },
   {
     id: 'S39',

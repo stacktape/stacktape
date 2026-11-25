@@ -1,0 +1,407 @@
+[
+  {
+    "url": "https://stacktape.com/",
+    "title": "Stacktape | Your AWS, but 97% easier",
+    "kind": "home"
+  },
+  {
+    "url": "https://stacktape.com/404.html",
+    "title": "404 - Page Not Found | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/blog",
+    "title": "Blog",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/blog.html",
+    "title": "Blog",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/blog/ecs-enhanced-deployment",
+    "title": "Improving ECS deployment",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/ecs-enhanced-deployment.html",
+    "title": "Improving ECS deployment",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/getting-your-apps-production-ready",
+    "title": "Getting your apps production-ready",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/getting-your-apps-production-ready.html",
+    "title": "Getting your apps production-ready",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/making-devops-enjoyable-for-developers",
+    "title": "Making DevOps Enjoyable For Developers",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/making-devops-enjoyable-for-developers.html",
+    "title": "Making DevOps Enjoyable For Developers",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/nextjs-hosting-does-neither-have-to-be-hard-nor-expensive",
+    "title": "Next.js Hosting: Neither Hard Nor Expensive",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/nextjs-hosting-does-neither-have-to-be-hard-nor-expensive.html",
+    "title": "Next.js Hosting: Neither Hard Nor Expensive",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/nextjs-price-performance-comparison-aws",
+    "title": "Next.js on AWS: comparing price and performance",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/nextjs-price-performance-comparison-aws.html",
+    "title": "Next.js on AWS: comparing price and performance",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/reshaping-devops-platform-as-a-service-2",
+    "title": "Reshaping DevOps: Platform as a Service 2.0",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/reshaping-devops-platform-as-a-service-2.html",
+    "title": "Reshaping DevOps: Platform as a Service 2.0",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/serverless-or-containers-why-not-both",
+    "title": "Serverless? Containers? Why not both?",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/serverless-or-containers-why-not-both.html",
+    "title": "Serverless? Containers? Why not both?",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/why-i-do-not-use-load-balancer",
+    "title": "Why I Do Not Use AWS Load Balancer for My ECS Containers",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/blog/why-i-do-not-use-load-balancer.html",
+    "title": "Why I Do Not Use AWS Load Balancer for My ECS Containers",
+    "kind": "blog post"
+  },
+  {
+    "url": "https://stacktape.com/careers",
+    "title": "Careers",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers.html",
+    "title": "Careers",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/QA-automation-engineer",
+    "title": "QA Automation engineer",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/QA-automation-engineer.html",
+    "title": "QA Automation engineer",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/aws-cloud-developer",
+    "title": "AWS Cloud developer",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/aws-cloud-developer.html",
+    "title": "AWS Cloud developer",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/developer-advocate",
+    "title": "Developer advocate",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/developer-advocate.html",
+    "title": "Developer advocate",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/fullstack-typescript-developer",
+    "title": "Fullstack Typescript developer",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/fullstack-typescript-developer.html",
+    "title": "Fullstack Typescript developer",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/sales-development-representative",
+    "title": "Sales development representative",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/sales-development-representative.html",
+    "title": "Sales development representative",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/technical-support-specialist",
+    "title": "Technical support specialist",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/careers/technical-support-specialist.html",
+    "title": "Technical support specialist",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/case-studies/receipts-xyz",
+    "title": "Stacktape x Receipts.xyz case study",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/case-studies/receipts-xyz.html",
+    "title": "Stacktape x Receipts.xyz case study",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/deploybot",
+    "title": "DeployBot | One-click deploy from Replit to AWS",
+    "kind": "docs-like"
+  },
+  {
+    "url": "https://stacktape.com/deploybot.html",
+    "title": "DeployBot | One-click deploy from Replit to AWS",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/enterprise",
+    "title": "Describe your use-case",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/enterprise.html",
+    "title": "Describe your use-case",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/example-projects",
+    "title": "Example Projects | Stacktape | Your AWS, but 97% easier",
+    "kind": "docs-like"
+  },
+  {
+    "url": "https://stacktape.com/example-projects.html",
+    "title": "Example Projects | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/index.html",
+    "title": "Stacktape | Your AWS, but 97% easier",
+    "kind": "home"
+  },
+  {
+    "url": "https://stacktape.com/pricing",
+    "title": "Pricing",
+    "kind": "pricing"
+  },
+  {
+    "url": "https://stacktape.com/pricing.html",
+    "title": "Pricing",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/privacy-policy",
+    "title": "Privacy Policy | Stacktape | Your AWS, but 97% easier",
+    "kind": "legal"
+  },
+  {
+    "url": "https://stacktape.com/privacy-policy.html",
+    "title": "Privacy Policy | Stacktape | Your AWS, but 97% easier",
+    "kind": "legal"
+  },
+  {
+    "url": "https://stacktape.com/robots.txt",
+    "title": "robots.txt",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/sitemap-0.xml",
+    "title": "sitemap-0.xml",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/sitemap.xml",
+    "title": "sitemap.xml",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-for/agencies",
+    "title": "Agencies | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-for/agencies.html",
+    "title": "Agencies | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-for/individuals",
+    "title": "Individuals | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-for/individuals.html",
+    "title": "Individuals | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-for/startups",
+    "title": "Startups | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-for/startups.html",
+    "title": "Startups | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/AWS-Lightsail",
+    "title": "AWS Lightsail vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/AWS-Lightsail.html",
+    "title": "AWS Lightsail vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Coolify",
+    "title": "Coolify vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Coolify.html",
+    "title": "Coolify vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Elastic-Beanstalk",
+    "title": "Elastic Beanstalk vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Elastic-Beanstalk.html",
+    "title": "Elastic Beanstalk vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Flightcontrol-dev",
+    "title": "Flightcontrol vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Flightcontrol-dev.html",
+    "title": "Flightcontrol vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Fly-io",
+    "title": "Fly.io vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Fly-io.html",
+    "title": "Fly.io vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Heroku",
+    "title": "Heroku vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Heroku.html",
+    "title": "Heroku vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Porter-run",
+    "title": "Porter.run vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Porter-run.html",
+    "title": "Porter.run vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Render",
+    "title": "Render vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Render.html",
+    "title": "Render vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Vercel",
+    "title": "Vercel vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/stacktape-vs/Vercel.html",
+    "title": "Vercel vs. Stacktape",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/startups-and-smbs",
+    "title": "Describe your use-case",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/startups-and-smbs.html",
+    "title": "Describe your use-case",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/support",
+    "title": "Support | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/support.html",
+    "title": "Support | Stacktape | Your AWS, but 97% easier",
+    "kind": "other"
+  },
+  {
+    "url": "https://stacktape.com/terms-of-use",
+    "title": "Terms of Use | Stacktape | Your AWS, but 97% easier",
+    "kind": "legal"
+  },
+  {
+    "url": "https://stacktape.com/terms-of-use.html",
+    "title": "Terms of Use | Stacktape | Your AWS, but 97% easier",
+    "kind": "legal"
+  },
+  {
+    "url": "https://stacktape.com/terms-of-use/",
+    "title": "Terms of Use | Stacktape | Your AWS, but 97% easier",
+    "kind": "legal"
+  }
+]

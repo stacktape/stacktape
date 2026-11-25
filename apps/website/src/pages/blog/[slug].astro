@@ -1,0 +1,28 @@
+---
+import PlainPage from '../../components/PlainPage.astro';
+import { legacyPosts } from '../../content/legacy/posts';
+
+export const getStaticPaths = () => legacyPosts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+const { post } = Astro.props;
+---
+
+<PlainPage title={post.title} description={post.note}>
+  <p>Simon Obetko · {post.date}</p>
+  <p>{post.note}</p>
+  <div class="article-body" set:html={post.body} />
+  <p><a href="/blog">Back to the blog</a></p>
+</PlainPage>
+
+<style>
+  .article-body :global(img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 24px auto;
+  }
+
+  .article-body :global(h3) {
+    margin: 24px 0 8px;
+    font-weight: 600;
+  }
+</style>
