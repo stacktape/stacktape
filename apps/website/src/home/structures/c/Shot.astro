@@ -10,7 +10,7 @@ const { desktop, phone } = picture;
 const set = (small: { src: string }, large: { src: string }) => `${small.src} 1x, ${large.src} 2x`;
 ---
 
-<picture class="shot">
+<picture class="c-shot">
   <source
     media="(max-width: 40rem)"
     type="image/webp"
@@ -35,19 +35,3 @@ const set = (small: { src: string }, large: { src: string }) => `${small.src} 1x
   />
 </picture>
 
-<style>
-  .shot {
-    display: block;
-    padding: var(--brand-space-4);
-    border: 1px solid var(--brand-border);
-    border-radius: var(--brand-radius);
-    background: var(--brand-page);
-    box-shadow: var(--brand-shadow);
-  }
-
-  .shot img {
-    display: block;
-    inline-size: 100%;
-    block-size: auto;
-  }
-</style>

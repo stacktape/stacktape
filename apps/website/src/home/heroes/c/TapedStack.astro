@@ -98,6 +98,7 @@ const jobsY = TOP_Y + STEP * 1.5 + THICK / 2;
 const jobsRight = CX - W - 56;
 ---
 
+<div class="stack-wrap">
 <div class="stack" style={`aspect-ratio: ${VIEW_W} / ${VIEW_H}`}>
   <svg class="stack__art" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} aria-hidden="true">
     <g class="stack__base">
@@ -119,7 +120,7 @@ const jobsRight = CX - W - 56;
     }
     <polygon class="stack__tape stack__tape--front" points={tapeFront} />
     <polygon class="stack__tape stack__tape--top" points={tapeTop} />
-    {labels.map((label) => <line class="stack__leader" x1={label.x1} x2={label.x2} y1={label.y} y2={label.y} />)}
+    {labels.map((label) => <line class="stack__leader stack__leader--plate" x1={label.x1} x2={label.x2} y1={label.y} y2={label.y} />)}
     <line class="stack__leader" x1={baseLabelX + 6} x2={baseLabelX + 6 + LEADER} y1={baseLabelY} y2={baseLabelY} />
   </svg>
 
@@ -155,11 +156,79 @@ const jobsRight = CX - W - 56;
   </ul>
 </div>
 
+<div class="stack__legend">
+  <ul class="stack__legend-jobs" aria-label="What Stacktape does">
+    {
+      jobs.map((job) => (
+        <li>
+          <Tape>{job}</Tape>
+        </li>
+      ))
+    }
+  </ul>
+  <dl class="stack__legend-parts" aria-label="Your stack">
+    {
+      layers.map((layer) => (
+        <div>
+          <dt>
+            <Tape tone="gray">{layer.name}</Tape>
+          </dt>
+          <dd>{layer.service}</dd>
+        </div>
+      ))
+    }
+  </dl>
+</div>
+</div>
+
 <style>
-  .stack {
+  .stack-wrap {
     container-type: inline-size;
+  }
+
+  .stack {
     position: relative;
     inline-size: 100%;
+  }
+
+  /* On narrow screens the drawing's labels are too small, so a compact legend under it names the same things. */
+  .stack__legend {
+    display: none;
+    gap: var(--brand-space-3);
+    font-size: var(--brand-type-xs);
+  }
+
+  .stack__legend ul,
+  .stack__legend dl {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .stack__legend-jobs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--brand-space-2);
+  }
+
+  .stack__legend-parts {
+    display: grid;
+    gap: var(--brand-space-2);
+  }
+
+  .stack__legend-parts div {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-3);
+  }
+
+  .stack__legend :global(.tape) {
+    font-size: inherit;
+  }
+
+  .stack__legend dd {
+    margin: 0;
+    color: var(--brand-muted);
   }
 
   .stack__jobs,
@@ -276,8 +345,13 @@ const jobsRight = CX - W - 56;
 
   @container (max-width: 30rem) {
     .stack__jobs,
-    .stack__service {
+    .stack__leader--plate,
+    .stack__label:not(.stack__label--base) {
       display: none;
+    }
+
+    .stack__legend {
+      display: grid;
     }
   }
 </style>

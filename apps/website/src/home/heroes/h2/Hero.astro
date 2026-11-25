@@ -37,8 +37,10 @@ const {
       <ButtonLink variant="secondary" className="brand-button docs" href="https://docs.stacktape.com">
         Read the docs
       </ButtonLink>
+      <p class="own">
+        Runs in your AWS account as plain CloudFormation. Stop using Stacktape and your app keeps running.
+      </p>
     </div>
-    <p class="own">Runs in your AWS account as plain CloudFormation. Stop using Stacktape and your app keeps running.</p>
   </div>
 </section>
 
@@ -100,6 +102,7 @@ const {
 
   .actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: flex-start;
     justify-content: center;
     gap: var(--brand-space-4);
@@ -178,9 +181,11 @@ const {
     text-wrap: balance;
   }
 
+  /* Its own row under the command and the docs; on phones it comes before the wizard's row. */
   .own {
+    flex: 1 1 100%;
     max-inline-size: 40rem;
-    margin-block-start: var(--brand-space-5);
+    margin-block-start: calc(var(--brand-space-5) - var(--brand-space-4));
     color: var(--brand-muted);
     font-size: var(--brand-type-sm);
     text-shadow: 0 1px 12px rgb(5 7 7 / 90%);
@@ -201,7 +206,7 @@ const {
       margin-block-start: var(--brand-space-6);
     }
 
-    /* The docs button follows the command box; the wizard's row comes after both. */
+    /* The command box, the docs and the ownership line stay together; the wizard's row follows them. */
     .command {
       display: contents;
     }
@@ -212,11 +217,17 @@ const {
       margin-block-start: 0;
     }
 
-    .proposal {
+    .own {
+      flex: none;
       order: 2;
+      margin-block-start: var(--brand-space-3);
+    }
+
+    .proposal {
+      order: 3;
       grid-template-columns: minmax(0, 1fr);
       justify-items: center;
-      margin-block-start: var(--brand-space-3);
+      margin-block-start: var(--brand-space-6);
       text-align: center;
     }
   }

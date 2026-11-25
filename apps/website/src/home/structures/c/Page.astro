@@ -1,7 +1,8 @@
 ---
 /**
- * Structure C, the short page: hero, two customer quotes, how it starts, then problem-first blocks (Deploys,
- * Monitoring and incidents, Security, Costs), a small "also included" grid and the closing command box.
+ * Structure C, the short page: hero, how it starts, Deploys, two customer quotes, then problem-first blocks
+ * (Monitoring and incidents, Security, Costs), a small "also included" grid and the closing command box. The quotes
+ * sit below Deploys so heroes with their own trust row (H3) don't stack two in a row.
  */
 import BrandHead from '../../../brand/BrandHead.astro';
 import SiteFooter from '../../../brand/SiteFooter.astro';
@@ -32,9 +33,9 @@ const costs = pack('costs');
   <SiteHeader startHref="#install" />
   <main>
     <slot name="hero" />
-    <Proof />
     <Steps />
     <Deploys />
+    <Proof />
     <Incidents />
     <Block
       id="security"
@@ -54,5 +55,5 @@ const costs = pack('costs');
     <Included />
     <Closing />
   </main>
-  <SiteFooter />
+  <SiteFooter homeHref={Astro.url.pathname} />
 </BaseLayout>

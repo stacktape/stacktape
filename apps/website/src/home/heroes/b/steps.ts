@@ -1,11 +1,11 @@
 import type { ImageMetadata } from 'astro';
 import { type Bar, bars } from './bench';
-import costsLarge from './shots/costs-2880.webp';
-import costsSmall from './shots/costs-1440.webp';
-import guardrailsLarge from './shots/guardrails-2880.webp';
-import guardrailsSmall from './shots/guardrails-1440.webp';
-import incidentLarge from './shots/incident-2880.webp';
-import incidentSmall from './shots/incident-1440.webp';
+import accessLarge from './shots/access-2880.webp';
+import accessSmall from './shots/access-1440.webp';
+import budgetLarge from './shots/budget-2880.webp';
+import budgetSmall from './shots/budget-1440.webp';
+import incidentsLarge from './shots/incidents-2880.webp';
+import incidentsSmall from './shots/incidents-1440.webp';
 import errorsLarge from './shots/errors-2880.webp';
 import errorsSmall from './shots/errors-1440.webp';
 import reviewPhoneLarge from './shots/review-phone-810.webp';
@@ -16,6 +16,9 @@ import reviewSmall from './shots/review-1440.webp';
 /**
  * The eight capabilities, in the order one app meets them: from the first command in the repository to the
  * first incident and the first bill. `when` is the moment in that app's life, not a measured time.
+ *
+ * The screens are examples from different demo projects, and the window bars say which. They are overview screens
+ * on purpose: the home page sections (section packs, structure b) show a different task for the same step.
  */
 export type Step = {
   id: string;
@@ -45,10 +48,10 @@ export const STEPS: Step[] = [
     id: 'designs',
     name: 'Design',
     when: 'First command',
-    where: 'stacktape init  ·  wizard in your browser',
+    where: 'Example: saas-starter  ·  init wizard in your browser',
     problem: 'Nobody on the team knows which AWS services the app needs, or what they will cost.',
     title: 'It starts from your code',
-    line: 'Stacktape reads your repo and proposes each AWS resource, with the code line behind it and its monthly cost.',
+    line: 'Stacktape reads your repo and proposes each AWS resource, with the code line behind it and its estimated monthly cost.',
     shot: {
       small: reviewSmall,
       large: reviewLarge,
@@ -91,24 +94,24 @@ export const STEPS: Step[] = [
     id: 'secures',
     name: 'Secure',
     when: 'Before anything changes',
-    where: 'console.stacktape.com  ·  guardrails',
+    where: 'Example: checkout-api  ·  production diagram, access layer',
     problem: 'One wrong setting can leave a database open to the internet.',
     title: 'Safe defaults, and rules you set',
     line: 'Each workload gets only the access it needs. Guardrails stop a public database or a wrong region before deploy.',
     shot: {
-      small: guardrailsSmall,
-      large: guardrailsLarge,
-      alt: 'The Console’s guardrails page with organization rules and how each one is enforced.'
+      small: accessSmall,
+      large: accessLarge,
+      alt: 'The access layer of checkout-api’s production diagram: the public HTTP API, its function, and a Postgres database marked “Open to the internet” and “Security risk”.'
     }
   },
   {
     id: 'monitors',
     name: 'Monitor',
     when: 'From then on',
-    where: 'console.stacktape.com  ·  errors',
+    where: 'Example: Northwind Labs  ·  error tracking',
     problem: 'Logs, errors and uptime checks usually mean another vendor to buy and wire up.',
     title: 'Monitoring comes with the stack',
-    line: 'Logs, metrics and error tracking work from the first deploy. Tracing is one config property, uptime checks need a URL and browser tests your script. No extra vendor.',
+    line: 'Logs and metrics work from the first deploy, and with the Console error tracking is on by default. Tracing is one config property, uptime checks need a URL and browser tests your script. No extra vendor.',
     shot: {
       small: errorsSmall,
       large: errorsLarge,
@@ -119,35 +122,35 @@ export const STEPS: Step[] = [
     id: 'incidents',
     name: 'Incident',
     when: 'When it breaks',
-    where: 'console.stacktape.com  ·  incident',
+    where: 'Example: Northwind Labs  ·  incidents',
     problem: 'When something breaks, one problem arrives as a dozen separate alerts.',
     title: 'One incident per problem, handled from Slack',
     line: 'Related errors, alarms and failed checks become one incident. Acknowledge, mute or roll back from Slack.',
     shot: {
-      small: incidentSmall,
-      large: incidentLarge,
-      alt: 'An incident in the Console: API error rate above 5%, with an AI assessment and a draft fix opened as a pull request.'
+      small: incidentsSmall,
+      large: incidentsLarge,
+      alt: 'The Console’s incident list: API error rate above 5% on checkout-api production with 5 failing signals, a function running too long, an expiring TLS certificate and an uptime check that stopped reporting.'
     }
   },
   {
     id: 'costs',
     name: 'Costs',
     when: 'End of the month',
-    where: 'console.stacktape.com  ·  costs',
+    where: 'Example: checkout-api  ·  production budget',
     problem: 'The AWS bill arrives once a month, as one number for everything.',
     title: 'See what every stage costs',
     line: 'Your AWS spend per project, stage and resource, updated daily. Budgets alert before the bill does.',
     shot: {
-      small: costsSmall,
-      large: costsLarge,
-      alt: 'Monthly spend in the Console for one project, with a projection and a breakdown by stage.'
+      small: budgetSmall,
+      large: budgetLarge,
+      alt: 'A production budget in the Console: $60.45 of a $60.00 limit, with the alerts it sent at 80%, on a forecast and over the limit. It alerts; nothing stops.'
     }
   },
   {
     id: 'expert-help',
     name: 'Help',
     when: 'When you’re stuck',
-    where: 'Slack  #stacktape-shared',
+    where: 'Support by plan',
     problem: 'A ticket queue doesn’t know how your stack is built.',
     title: 'Engineers, not a ticket queue',
     line: 'On Flexible, you get a shared Slack channel with the founders who build Stacktape.'

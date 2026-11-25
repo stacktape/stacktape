@@ -48,3 +48,19 @@
 .structure-c .c-small {
   font-size: var(--brand-type-sm);
 }
+
+/* A framed product picture with a little air around the capture. */
+.structure-c .c-shot {
+  display: block;
+  padding: var(--brand-space-4);
+  border: 1px solid var(--brand-border);
+  border-radius: var(--brand-radius);
+  background: var(--brand-page);
+  box-shadow: var(--brand-shadow);
+}
+
+.structure-c .c-shot img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+}

@@ -1,15 +1,16 @@
 ---
-/** How it starts: three steps of `stacktape init`, next to the wizard's real Review screen. */
+/**
+ * How it starts: three steps of `stacktape init`, next to the wizard's real Deploy step (where it deploys). Heroes
+ * already show the Review screen, so this section shows the next one.
+ */
 import Tape from '../../../brand/Tape.astro';
-import { pack } from './packs';
-import Shot from './Shot.astro';
-
-const designs = pack('designs');
+import target from './deploy-target.webp';
+import targetPhone from './deploy-target-phone.webp';
 
 const steps = [
   {
     title: 'Run one command in your repo',
-    text: 'Claude Code or Codex reads the code on your machine, or the built-in scanner reads only manifests. No source code goes to Stacktape.'
+    text: 'Claude Code or Codex reads the code on your machine, or the built-in scanner reads manifests and lockfiles. No source code goes to Stacktape.'
   },
   {
     title: 'Review the setup in your browser',
@@ -43,7 +44,17 @@ const steps = [
     </ol>
   </div>
   <figure class="steps__picture">
-    <Shot picture={designs.picture} />
+    <picture class="c-shot">
+      <source media="(max-width: 40rem)" srcset={`${targetPhone.src} 2x`} width={targetPhone.width / 2} height={targetPhone.height / 2} />
+      <img
+        src={target.src}
+        srcset={`${target.src} 2x`}
+        width={target.width / 2}
+        height={target.height / 2}
+        loading="lazy"
+        alt="The init wizard's Deploy step: Deploy to dev, stacktape.yml saved in the project, and where it deploys: AWS account acme-dev, region Ireland (eu-west-1), stage dev."
+      />
+    </picture>
   </figure>
 </section>
 
