@@ -75,6 +75,7 @@ type Figure = {
   source: string;
   /** The run date, shown next to the figure. The results page that used to back it is gone. */
   runDate: string;
+  /** The run's section in the public benchmark repository (github.com/stacktape/deploy-benchmarks). */
   link?: string;
   /** Every tool's value, fastest first, for a bar chart. */
   bars: { tool: string; seconds: number; stacktape: boolean }[];
@@ -129,6 +130,7 @@ const benchmarkFigure = (comparison: string, view: string, app: string, label: s
       label,
       source: `bench ${comparison} / ${view} / ${app}`,
       runDate: benchmarkRun.label,
+      link: benchmarkRun.readme,
       bars: sorted.map((value) => ({
         tool: toolName(BENCHMARKS, value.tool),
         seconds: value.median,
@@ -222,7 +224,7 @@ export const SECTION_PACKS: SectionPack[] = [
     doNotClaim: [
       'Container packaging speed: the figure covers Lambda functions only.',
       'A lead after a source change: every tool takes about the same time (bench packaging notes).',
-      'Any figure without its run date, until the rerun on the released CLI (L24). Don’t link to /benchmarks: the page is gone.',
+      'Any figure without its run date, until the rerun on the released CLI (L24). Link a figure to its run in the public benchmark repository (`figure.link`), never to /benchmarks: the page is gone.',
       'That builds need no Docker: Python, Java, Go, Ruby, .NET and Rust functions compile in Docker, just without a Dockerfile.'
     ]
   },

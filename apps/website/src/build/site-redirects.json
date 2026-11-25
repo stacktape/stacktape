@@ -6,6 +6,7 @@
   "/enterprise": "/pricing",
   "/support": "/pricing",
   "/readme": "/",
+  "/benchmarks": "/",
   "/launch-week": "/blog",
   "/blog.html": "/blog",
   "/blog/ecs-enhanced-deployment.html": "/blog/ecs-enhanced-deployment",

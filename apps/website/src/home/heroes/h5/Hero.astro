@@ -1,5 +1,6 @@
 ---
 import { ButtonLink } from '@stacktape/ui-react/button';
+import { runReadme } from '../../../variants/readme/benchmarks';
 import { CommandBox } from '../../../brand/CommandBox';
 import './font.css';
 import Costs from './console/Costs.astro';
@@ -40,7 +41,7 @@ const facts = [
   {
     figure: '10.7 s',
     note: 'One updated Lambda function serving requests. CDK hotswap: 13.2 s. Median of 10 runs, 22 Oct 2026.',
-    href: '/benchmarks'
+    href: runReadme('2026-10-22')
   },
   { figure: '$0', note: 'Console fee for up to $200 of monthly AWS spend managed by Stacktape.', href: '/pricing' }
 ];

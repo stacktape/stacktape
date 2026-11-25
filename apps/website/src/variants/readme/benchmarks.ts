@@ -65,6 +65,13 @@ export const formatValue = (value: number, unit: string) =>
 export const scaleMax = (comparison: Comparison) =>
   Math.max(...comparison.views.flatMap((view) => view.groups.flatMap((group) => group.values.map((v) => v.median))));
 
+/** The README section of one run in the public benchmark repository, where its method and results are. */
+export const runReadme = (date: string) => {
+  const run = BENCHMARKS.runs.find((candidate) => candidate.date === date);
+  if (!run) throw new Error(`The benchmark data has no run of ${date}`);
+  return run.readme;
+};
+
 /** A link to the results file a value came from, on the repository's main branch. */
 export const fileUrl = (data: BenchmarkData, file: string) => `${data.source}/blob/main/${file}`;
 

@@ -58,7 +58,7 @@ const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; capti
   'talk-to-us': [{ screen: Expert, caption: CAPTIONS.expert }]
 };
 
-/** The one benchmark result under the sections whose claims it measures, linking to `/benchmarks`. */
+/** The one benchmark result under the sections whose claims it measures, linking to the benchmark repository. */
 const BENCHMARK_HIGHLIGHTS: Partial<Record<SectionData['id'], ComponentProps<typeof BenchmarkHighlight>>> = {
   packages: {
     comparison: 'packaging',

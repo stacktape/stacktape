@@ -184,7 +184,7 @@ function Panel({ data, comparison, active }: { data: BenchmarkData; comparison: 
  * The benchmark page's one chart: a tab per comparison, one comparison visible at a time.
  *
  * Server-rendered, so the first tab reads before hydration and without JavaScript. The address
- * hash selects a tab (`/benchmarks#git-push`), which is how the homepage links straight to one.
+ * hash selects a tab (`#git-push`), which is how a page links straight to one.
  */
 export function BenchmarkTabs({ data }: { data: BenchmarkData }) {
   const first = data.comparisons[0]?.id ?? '';

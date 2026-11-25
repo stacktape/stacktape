@@ -24,14 +24,14 @@ const pack = sectionPack('deploys');
   name={pack.name}
   title={pack.title}
   line={pack.text}
-  source={{ label: `Preliminary run, ${RUN.label}`, href: '/benchmarks' }}
+  source={{ label: `Preliminary run, ${RUN.label}`, href: RUN.readme }}
 >
   <div class="body">
     <Chart id="deploy" kicker="Seconds until the change is live" views={DEPLOY_VIEWS}>
       Median times, lower is better. Lambda and container deploys ran from a dedicated EC2 machine. Stacktape loses one
       Lambda case: a shared-code change to 5 functions takes {seconds('lambda-deploy', 'shared', 'lambda-5', 'stacktape')},
       CDK hotswap {seconds('lambda-deploy', 'shared', 'lambda-5', 'cdk-hotswap')}.{' '}
-      <a class="brand-link" href="/benchmarks">All results</a>
+      <a class="brand-link" href={RUN.readme}>All results</a>
     </Chart>
     <figure class="shot">
       <Shot

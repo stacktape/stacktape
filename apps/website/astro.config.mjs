@@ -10,8 +10,9 @@ const posthogSourceMapsEnabled = Boolean(process.env.POSTHOG_API_KEY && process.
 
 export default defineConfig({
   site: 'https://stacktape.com',
-  // The README concept became the homepage; the address it was reviewed under keeps working.
-  redirects: { '/readme': '/' },
+  // The README concept became the homepage; the address it was reviewed under keeps working. The benchmark page was
+  // removed (owner, 25 Nov 2026): its figures link to the public benchmark repository instead.
+  redirects: { '/readme': '/', '/benchmarks': '/' },
   integrations: [react(), ...(deployStage ? [websitePublication(deployStage)] : [])],
   vite: {
     plugins: [

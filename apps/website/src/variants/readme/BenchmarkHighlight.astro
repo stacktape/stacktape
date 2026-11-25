@@ -1,8 +1,8 @@
 ---
 /**
  * One benchmark result under a homepage section: the headline number, the same bars the
- * benchmark page draws for one application (static here, no island), and a link to that tab of
- * `/benchmarks`. The numbers come from `src/data/deploy-benchmarks.json`.
+ * benchmark tabs draw for one application (static here, no island), and a link to the public benchmark
+ * repository. The numbers come from `src/data/deploy-benchmarks.json`.
  */
 import { BenchmarkGroup } from './BenchmarkTabs';
 import { BENCHMARKS, findGroup, formatValue } from './benchmarks';
@@ -18,7 +18,7 @@ const max = Math.max(...group.values.map((value) => value.median));
 <aside class="rm-bh" aria-label={`Benchmark: ${headline}`}>
   <div class="rm-bh__head">
     <span class="rm-bh__kicker">{BENCHMARKS.status}</span>
-    <a class="rm-bh__more" href={`/benchmarks#${comparison.id}`}
+    <a class="rm-bh__more" href={BENCHMARKS.source}
       >All benchmarks <span class="rm-arrow" aria-hidden="true">→</span></a
     >
   </div>

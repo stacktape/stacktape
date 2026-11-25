@@ -72,7 +72,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
               <span class="b-journey__line">
                 {step.line}
                 {step.bench ? (
-                  <a class="brand-link brand-link--muted b-journey__bench" href="/benchmarks">
+                  <a class="brand-link brand-link--muted b-journey__bench" href={FIRST_RUN.readme}>
                     Preliminary run, {runDate(FIRST_RUN.date)}
                   </a>
                 ) : null}
@@ -108,7 +108,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
                   />
                   <p class="b-journey__race-foot">
                     Preliminary run, {runDate(FIRST_RUN.date)}, on a dedicated EC2 c7i.2xlarge.{' '}
-                    <a class="brand-link" href="/benchmarks">
+                    <a class="brand-link" href={FIRST_RUN.readme}>
                       All benchmarks
                     </a>
                   </p>

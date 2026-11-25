@@ -4,6 +4,7 @@
  * 23 Oct). Charts go fastest to slowest and include the cases where Stacktape is slower.
  */
 import { sectionPack } from '../../sections';
+import { BENCHMARKS } from '../../../variants/readme/benchmarks';
 import BenchChart from './BenchChart.astro';
 import Block from './Block.astro';
 
@@ -20,7 +21,7 @@ const deploys = sectionPack('deploys');
     Preliminary results, medians in seconds, measured on 22 Oct 2026. Stacktape’s Git pushes ran on 23 Oct, with the
     code swapped in place. Heroku’s Git push time is its build from the pushed source.
   </p>
-  <p class="c-small"><a class="brand-link" href="/benchmarks">How we measured, and every result</a></p>
+  <p class="c-small"><a class="brand-link" href={BENCHMARKS.source}>How we measured, and every result</a></p>
 
   <div slot="picture" class="deploys__charts">
     <BenchChart

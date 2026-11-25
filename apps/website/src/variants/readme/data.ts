@@ -28,7 +28,7 @@ export const CLOSING = {
 export const TESTIMONIALS_TITLE = 'What teams say about Stacktape';
 
 export const LINKS = {
-  // Absolute, so the header works on the other pages that share it (`/benchmarks`).
+  // Absolute, so the header works on the other pages that share it.
   howItWorks: '/#designs',
   getStarted: '/#get-started',
   docs: 'https://docs.stacktape.com',

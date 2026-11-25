@@ -1,6 +1,7 @@
 import { Button } from '@stacktape/ui-react/button';
 import { detectInstallPlatform } from '@stacktape/ui-react/install-platform';
 import { Tabs } from '@stacktape/ui-react/tabs';
+import { MorphIcon } from 'morphicons/react';
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import './command-box.css';
 import './controls.css';
@@ -16,8 +17,9 @@ const INITIAL_ARCHES = Object.fromEntries(COMMANDS.map((command) => [command.id,
   Arch
 >;
 
-// The Console's copy button icons (CopyButton.tsx): stroked outlines on a 24 px grid. The check mark keeps the button's
-// own colour, so it reads as "copied", not as a status.
+// The Console's copy button icons (CopyButton.tsx): stroked outlines on a 24 px grid that morph into each other. The
+// check mark and the cross keep the button's own colour: a green check read as a status, and on the teal button a red
+// cross would be unreadable.
 const ICON_PATH: Record<CopyState, string> = {
   idle: 'M4 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1zM9 9V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-5',
   copied: 'M5.5 12.5l4.5 4.5 9-9',
@@ -196,23 +198,12 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
           aria-label={`Copy: ${command}`}
           className="brand-button brand-command__copy"
           icon={
-            <svg
-              aria-hidden="true"
-              className={`brand-command__icon brand-command__icon--${state}`}
-              fill="none"
-              height="16"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              width="16"
-            >
-              <path d={ICON_PATH[state]} />
-            </svg>
+            <span className="brand-command__icon" data-copy-state={state}>
+              <MorphIcon icon={ICON_PATH[state]} reducedMotion="user" size={16} />
+            </span>
           }
           onClick={copy}
-          variant="secondary"
+          variant="primary"
         >
           {/* Both labels share one cell, so the button keeps its width when "Copy" becomes "Copied". */}
           <span aria-hidden="true" className="brand-command__labels">

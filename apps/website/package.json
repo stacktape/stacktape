@@ -17,6 +17,7 @@
     "@stacktape/design-tokens": "workspace:*",
     "@stacktape/ui-react": "workspace:*",
     "astro": "catalog:",
+    "morphicons": "2.0.0",
     "posthog-js": "1.422.5",
     "react": "catalog:",
     "react-dom": "catalog:",

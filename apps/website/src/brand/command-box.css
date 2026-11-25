@@ -82,8 +82,8 @@
   font-weight: 450;
 }
 
-.brand-command__icon--failed {
-  color: var(--brand-danger);
+.brand-command__icon {
+  display: inline-flex;
 }
 
 .brand-command__labels {
