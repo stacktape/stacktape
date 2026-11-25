@@ -3,7 +3,7 @@ import Window from './console/Window.astro';
 
 /**
  * The hero's 11:04 deploy of acme-shop production (heroes/h5/console/data.ts: a41c9e2, "Fix order totals for empty
- * carts", 2 min 38 s, the same steps and facts) in the Console's deployment detail, Logs tab, Steps, here with the
+ * carts", 158 s, the same steps and facts) in the Console's deployment detail, Logs tab, Steps, here with the
  * Build & package step open. Each workload's outcome is in the CLI's own words (packages/packaging/src/
  * runtime-contracts.ts `packagingMessages`, and the PACKAGE_ARTIFACTS summary in apps/cli/src/domain/packaging-manager/
  * index.ts): the fix changed the API's code, so its image was built again; the worker's image was reused.
@@ -24,15 +24,15 @@ const STEPS = [
     ]
   },
   { name: 'Upload artifacts', start: 40, seconds: 6, took: '6 s' },
-  { name: 'Deploy', note: '1 of 6 resources', start: 46, seconds: 109, took: '1 min 49 s' },
+  { name: 'Deploy', note: '2 of 2 resources', start: 46, seconds: 109, took: '1 min 49 s' },
   { name: 'Finalize', start: 155, seconds: 3, took: '3 s' }
 ];
 const ABOUT = [
   { label: 'Commit', value: 'a41c9e2', commit: true },
   { label: 'Started by', value: 'Push to main · Maya Chen' },
   { label: 'Started', value: 'Nov 25, 2026, 11:04' },
-  { label: 'Took', value: '2 min 38 s' },
-  { label: 'Configuration', value: 'No changes' },
+  { label: 'Took', value: '2 min' },
+  { label: 'Configuration', value: 'api changed', link: true },
   { label: 'Region', value: 'us-east-1' }
 ];
 const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
@@ -103,7 +103,13 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
           <div>
             <dt class="cn-muted">{row.label}</dt>
             <dd>
-              {row.commit ? <span class="cn-commit">{row.value}</span> : row.value}
+              {row.commit ? (
+                <span class="cn-commit">{row.value}</span>
+              ) : row.link ? (
+                <span class="cn-link">{row.value}</span>
+              ) : (
+                row.value
+              )}
             </dd>
           </div>
         ))

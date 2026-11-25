@@ -4,8 +4,9 @@ import Window from './console/Window.astro';
 /**
  * acme-shop's production stage in the Console, Activity tab (apps/console/ui stage page), at the hero's time, 13:00 on
  * 25 Nov (heroes/h5/console/data.ts). The project deploys on push to main and gives pull requests their own preview
- * stages (pr-218 among the stage tabs). The 11:04 fix is live; the release before it, "Add CSV export for orders" (the
- * hero's deploy view compares the fix with it), and older releases can be rolled back to.
+ * stages (pr-218 among the stage tabs). The 11:04 fix is live; the 10:12 release before it, "Show order totals in the
+ * cart" (the hero's deploy view compares the fix with it; the Incidents picture names it v000041, commit 7d3f0b1c4), and
+ * older releases can be rolled back to.
  *
  * A phone shows production and the preview stage, the live release and the one before it.
  */
@@ -21,14 +22,14 @@ const DEPLOYS = [
     commit: 'a41c9e2',
     by: 'Maya Chen',
     live: true,
-    duration: '3 min',
+    duration: '2 min',
     started: '2h ago'
   },
   {
-    change: 'Add CSV export for orders',
+    change: 'Show order totals in the cart',
     commit: '7d3f0b1',
     by: 'Tomas Berg',
-    duration: '3 min',
+    duration: '2 min',
     started: '3h ago',
     rollback: true
   },
@@ -54,7 +55,7 @@ const DEPLOYS = [
 ---
 
 <Window
-  label="The production stage of acme-shop in the Stacktape Console, Activity tab. The project deploys on push to main and gives pull requests preview stages such as pr-218. Fix order totals for empty carts, deployed by Maya Chen 2 hours ago, is live; the release before it, Add CSV export for orders, and older ones have Roll back to this."
+  label="The production stage of acme-shop in the Stacktape Console, Activity tab. The project deploys on push to main and gives pull requests preview stages such as pr-218. Fix order totals for empty carts, deployed by Maya Chen 2 hours ago, is live; the release before it, Show order totals in the cart, and older ones have Roll back to this."
   page="acme-shop"
   pageMenu
   current="projects"
