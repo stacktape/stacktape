@@ -1,14 +1,24 @@
 ---
 import { TESTIMONIALS } from '../../../variants/readme/data';
 
-/* The old site's three quotes. The owner confirmed Trigger.dev's quote stays (25 Nov). */
+/*
+ * The old site's three quotes, word for word. The owner confirmed Trigger.dev's quote stays (25 Nov). Receipts leads:
+ * its quote is the most specific and Receipts is still a customer; Trigger.dev has since left, so the title says
+ * "have said" rather than implying all three use Stacktape today.
+ */
+const ORDER = ['Henry Garrett', 'Rhys Williams', 'Eric Allam'];
+const QUOTES = ORDER.map((name) => {
+  const found = TESTIMONIALS.find((item) => item.name === name);
+  if (!found) throw new Error(`No testimonial from ${name}`);
+  return found;
+});
 ---
 
 <section class="b-proof site-frame" aria-labelledby="b-proof-title">
-  <h2 id="b-proof-title" class="b-proof__title">What customers say</h2>
+  <h2 id="b-proof-title" class="b-proof__title">What teams have said about Stacktape</h2>
   <ul class="b-proof__quotes">
     {
-      TESTIMONIALS.map((item) => (
+      QUOTES.map((item) => (
         <li>
           <blockquote>
             <p>“{item.quote}”</p>

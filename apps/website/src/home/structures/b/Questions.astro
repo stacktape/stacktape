@@ -1,42 +1,83 @@
 ---
-const QUESTIONS = [
+import { BENCHMARKS, findGroup } from '../../../variants/readme/benchmarks';
+import { codeParts } from '../../code-text';
+
+/*
+ * The questions a CTO decides on, first the real choice (a PaaS, a DevOps hire or Stacktape), then cost, exit, scale,
+ * networking, data and escape hatches. Sources: Heroku/Render = bench git-push / warm / container-node (23 Oct run,
+ * code swap on every push); DevOps = the eight sections; cost = pages/pricing.astro (Free plan, Flexible bands, $250 at
+ * $1,000, the Free limit and "A pause never touches running infrastructure"); lock-in =
+ * docs/getting-started/open-source-cli.mdx:10-40; scale = docs/resources/compute/web-service.mdx:196, :253; private
+ * database = docs/resources/databases/relational-database.mdx:252-261, :622; data = business/05-product-principles.md
+ * §1, docs/observability/error-tracking.mdx:72, docs/stacktape-console/security-scanning.mdx (OSV.dev),
+ * docs/cli/init.mdx:15-21; escape hatches = docs/configuration/overrides-and-escape-hatches.mdx:10-16.
+ */
+const push = findGroup('git-push', 'warm', 'container-node').group.values;
+const pushSeconds = (tool: string) => {
+  const found = push.find((value) => value.tool === tool);
+  if (!found) throw new Error(`No Git push time for ${tool}`);
+  return found.median.toFixed(1);
+};
+const pushRun = BENCHMARKS.runs.find((run) => run.date === '2026-10-23');
+if (!pushRun) throw new Error('The benchmark data has no Git push run');
+
+type Question = { q: string; a: string; link?: { label: string; href: string } };
+
+const QUESTIONS: Question[] = [
   {
-    q: 'Are we locked in?',
-    a: 'No. Stacktape deploys standard CloudFormation stacks to your AWS account, and the config lives in your repository. Stop using Stacktape and your app keeps running.'
+    q: 'Why not Heroku or Render?',
+    a: `Your app runs in your own AWS account at AWS prices, and it can use any AWS service. You keep push-to-deploy and pull request previews. In our Git push benchmark, a Node.js service using code swap was live in ${pushSeconds('stacktape')} seconds, against ${pushSeconds('heroku')} seconds on Heroku and ${pushSeconds('render')} seconds on Render. Heroku was faster for Python.`,
+    link: { label: `Benchmark run, ${pushRun.label}`, href: '/benchmarks' }
   },
   {
-    q: 'What if Stacktape disappears?',
-    a: 'The CLI is open source (MIT) and deploys with your own AWS credentials. You would lose the Console: history, monitoring, incidents and costs.'
-  },
-  {
-    q: 'What does the Console see?',
-    a: 'Error events, metrics, check results and security findings. Application logs, build artifacts and secrets stay in your account, and init sends no source code.'
+    q: 'Why not hire a DevOps engineer?',
+    a: 'Stacktape sets up the networking, permissions, deploy pipelines, monitoring, incident alerts and cost tracking a DevOps engineer would build first. Flexible costs a share of your AWS spend instead of a salary. When you get stuck, the founders answer in Slack.'
   },
   {
     q: 'What does it cost?',
-    a: 'The CLI is free. The Console is free up to $200 a month of managed AWS spend, then 19–25% of it, never per seat. AWS bills you separately, at AWS prices.'
+    a: 'The CLI is free. The Console is free while the stacks it manages cost up to $200 a month in AWS. Above that, you need Flexible to keep deploying. It costs 19–25% of that AWS spend, $250 a month at $1,000, with no per-seat price. Running apps are never paused.',
+    link: { label: 'Pricing', href: '/pricing' }
   },
   {
-    q: 'What if we need something it doesn’t support?',
-    a: 'Overrides, raw CloudFormation and AWS CDK constructs deploy in the same stack.'
+    q: 'Are we locked in?',
+    a: 'Your app runs on AWS resources in your account, created by standard CloudFormation, and the config lives in your repository. The CLI is open source (MIT) and deploys with your own AWS credentials, without the Console. Uptime checks, error tracking, incidents and deploy history need the Console.'
   },
   {
-    q: 'What if a release breaks production?',
-    a: 'stacktape rollback redeploys an earlier release from its stored artifacts, without a rebuild. It doesn’t roll back on its own.'
+    q: 'Will it scale with us?',
+    a: 'Your app runs on AWS services such as Lambda, ECS Fargate and Aurora. You set the minimum and maximum number of containers for each service, and AWS scales within those limits. Stacktape is AWS only. There’s no Kubernetes, and on Fargate no servers to maintain.'
+  },
+  {
+    q: 'Can our database stay private?',
+    a: 'Yes, with one setting. By default, a database accepts connections from anywhere with its password. With `scoping-workloads-in-vpc`, only the services that list it in `connectTo` can reach it, and your team can connect through a bastion host.'
+  },
+  {
+    q: 'What leaves our AWS account?',
+    a: 'Application logs, build artifacts and application secrets stay in your account. The Console receives error messages with masked log excerpts, metrics, check results and security findings. Package names and versions go to OSV.dev for vulnerability checks. Init sends the generated config and region to Stacktape for pricing, never your source code. A coding agent you use sends the files it reads to its own provider.'
+  },
+  {
+    q: 'What if we need something Stacktape doesn’t support?',
+    a: 'You can override properties of the CloudFormation resources Stacktape generates, such as a Lambda function’s reserved concurrency. You can also add raw CloudFormation resources or AWS CDK constructs to the same stack.'
   }
 ];
 ---
 
 <section class="b-questions site-frame" aria-labelledby="b-questions-title">
   <div class="b-questions__head">
-    <h2 id="b-questions-title">What CTOs ask us</h2>
+    <h2 id="b-questions-title">Questions</h2>
   </div>
   <dl class="b-questions__list">
     {
       QUESTIONS.map((item) => (
         <div>
           <dt>{item.q}</dt>
-          <dd>{item.a}</dd>
+          <dd>
+            {codeParts(item.a).map(({ part, code }) => (code ? <code>{part}</code> : part))}
+            {item.link ? (
+              <a class="brand-link brand-link--muted b-questions__link" href={item.link.href}>
+                {item.link.label}
+              </a>
+            ) : null}
+          </dd>
         </div>
       ))
     }
@@ -78,6 +119,19 @@ const QUESTIONS = [
   dd {
     margin: 0;
     color: var(--brand-muted);
+  }
+
+  dd code {
+    color: var(--brand-text);
+    font: 0.9em var(--brand-font-mono);
+    overflow-wrap: anywhere;
+  }
+
+  .b-questions__link {
+    display: block;
+    width: fit-content;
+    margin-top: var(--brand-space-2);
+    font-size: var(--brand-type-sm);
   }
 
   @media (max-width: 64rem) {

@@ -6,16 +6,18 @@ import { CommandBox } from '../../../brand/CommandBox';
 <section class="b-closing site-frame" aria-labelledby="b-closing-title">
   <div class="b-closing__copy">
     <p class="b-closing__marker"><Tape variant="marker">09 Try it</Tape></p>
-    <h2 id="b-closing-title">Try it on your repository</h2>
+    <h2 id="b-closing-title">See what Stacktape proposes for your app</h2>
     <p class="b-closing__line">
-      <code>stacktape init</code> reads your code and opens the proposed setup in your browser. Nothing is created in AWS
-      until you click Deploy.
+      Run <code>stacktape init</code> in your project. It opens a wizard in your browser. You can save the config
+      without a Stacktape account and without deploying anything.
     </p>
   </div>
   <div class="b-closing__start">
-    <CommandBox client:visible label="Start in your repo" preselect={false} />
+    <CommandBox client:visible label="Run in your project" preselect={false} />
     <p class="b-closing__trust">
-      <span>Open-source CLI (MIT)</span><span>Your AWS account</span><span>Console free up to $200 a month of managed AWS spend</span>
+      <span>Open-source CLI (MIT)</span><span>Your app runs in your AWS account</span><span
+        >Console free up to $200 a month of managed AWS spend</span
+      >
     </p>
     <a class="brand-link brand-link--muted" href="https://console.stacktape.com">Already using Stacktape? Open the Console</a>
   </div>
