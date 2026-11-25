@@ -3,34 +3,48 @@
  * The Console's stage page, Costs tab (apps/console/ui/src/pages/ProjectsPage/StageDetails/Costs.tsx), and a budget's
  * page (BudgetsPage/BudgetDetailPage.tsx) for the example app acme-shop, re-created in HTML in the tape look.
  *
- * The figures add up: the rows sum to $315.20 for 1–24 November and $370.30 for October. The pace is the Console's,
- * the month so far over 24 days times 30: $394.00, 6% more than October. The budget watches acme-shop / production at
- * $350 with alerts at 80% and on a forecast; spend passed $280 on 22 November and AWS forecast $391.70 two days ago.
- * Shares are rounded, as the Console rounds them.
+ * The figures are the hero's (heroes/h5/console/data.ts COSTS): $286.40 for 1–25 November, $331.95 for October, and the
+ * Console's pace, the month so far over 25 days times 30: $343.68, 4% more. Shares are rounded, as the Console rounds
+ * them. The budget watches the whole acme-production account (docs/managing-costs/budgets.mdx:10, the docs' example
+ * name), which runs this stage plus a little account-wide spend: $320 limit, alerts at 80% and on a forecast; spend
+ * passed $256 on 22 November and AWS forecast $352.80 a day ago.
  */
-type Kind = 'database' | 'compute' | 'storage' | 'integration' | 'other';
+/**
+ * Each row's icon as the Console draws it (packages/ui-react/src/resource-icon/catalog.ts): the AWS service's square in
+ * its category colour with a white glyph. The glyphs are simplified; the AWS icon package does not load in the website's
+ * server render.
+ */
+const ICONS = {
+  rds: { category: 'database', glyph: '<ellipse cx="12" cy="6.5" rx="6" ry="2.4"/><path d="M6 6.5v11c0 1.3 2.7 2.4 6 2.4s6-1.1 6-2.4v-11M6 12c0 1.3 2.7 2.4 6 2.4s6-1.1 6-2.4"/>' },
+  fargate: { category: 'compute', glyph: '<path d="M12 3.5 4.5 7.7v8.6l7.5 4.2 7.5-4.2V7.7zM4.5 7.7 12 12l7.5-4.3M12 12v8.5"/>' },
+  elasticache: { category: 'database', glyph: '<path d="m12 4.5 7.5 3.7-7.5 3.7-7.5-3.7zM4.5 12.2l7.5 3.7 7.5-3.7M4.5 16l7.5 3.7 7.5-3.7"/>' },
+  cloudfront: { category: 'network', glyph: '<circle cx="12" cy="12" r="7.5"/><path d="M4.5 12h15M12 4.5c2.4 2.5 2.4 12.5 0 15M12 4.5c-2.4 2.5-2.4 12.5 0 15"/>' },
+  sqs: { category: 'integration', glyph: '<path d="M3.5 8h17v8h-17zM8 8v8M12 8v8M16 8v8"/>' }
+};
 
-const ROWS: { name: string; type: string; kind: Kind; share: number; october: string; november: string }[] = [
-  { name: 'database', type: 'SQL database', kind: 'database', share: 38, october: '$139.20', november: '$118.40' },
-  { name: 'api', type: 'Web service', kind: 'compute', share: 27, october: '$101.60', november: '$86.10' },
-  { name: 'cache', type: 'Redis', kind: 'database', share: 13, october: '$48.90', november: '$41.30' },
-  { name: 'worker', type: 'Worker service', kind: 'compute', share: 11, october: '$39.50', november: '$33.70' },
-  { name: 'Not tied to one resource', type: 'Other AWS costs', kind: 'other', share: 9, october: '$31.80', november: '$27.20' },
-  { name: 'web', type: 'Website', kind: 'storage', share: 2, october: '$7.40', november: '$6.90' },
-  { name: 'orders', type: 'SQS queue', kind: 'integration', share: 1, october: '$1.90', november: '$1.60' }
+/** `icon` is the AWS service the Console's icon for the resource type shows; null for costs outside resources. */
+const ROWS: { name: string; type: string; icon: keyof typeof ICONS | null; share: number; october: string; november: string }[] = [
+  { name: 'api', type: 'Web service', icon: 'fargate', share: 32, october: '$108.40', november: '$92.10' },
+  { name: 'database', type: 'SQL database', icon: 'rds', share: 25, october: '$85.20', november: '$71.40' },
+  { name: 'Not tied to one resource', type: 'Other AWS costs', icon: null, share: 17, october: '$50.55', november: '$47.30' },
+  { name: 'worker', type: 'Worker service', icon: 'fargate', share: 13, october: '$44.10', november: '$38.60' },
+  { name: 'cache', type: 'Redis', icon: 'elasticache', share: 9, october: '$29.75', november: '$24.80' },
+  { name: 'web', type: 'Website', icon: 'cloudfront', share: 4, october: '$12.90', november: '$11.30' },
+  { name: 'jobQueue', type: 'SQS queue', icon: 'sqs', share: 0, october: '$1.05', november: '$0.90' }
 ];
 
 const ALERTS = [
-  { when: '2d ago', event: 'Forecast over', spend: '$391.70 of $350.00' },
-  { when: '3d ago', event: 'Reached 80%', spend: '$280.40 of $350.00' }
+  { when: '1d ago', event: 'Forecast over', spend: '$352.80 of $320.00' },
+  { when: '3d ago', event: 'Reached 80%', spend: '$257.40 of $320.00' }
 ];
 ---
 
 <div
   class="cst"
   role="img"
-  aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $315.20 so far in November, $394.00 by the end of the month at this pace, split by resource with the database at 38%. In front of it, the stage’s budget: AWS forecasts $391.70 of the $350.00 limit, and the alerts it sent at 80% and on the forecast."
+  aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $286.40 so far in November, $343.68 by the end of the month at this pace, split by resource with the API service at 32%. In front of it, the budget of the production AWS account: AWS forecasts $352.80 of the $320.00 limit, and the alerts it sent at 80% and on the forecast."
 >
+  <div class="cst__in">
   <div class="cst__window">
     <div class="cst__chrome">
       <span class="cst__brand">stack<span>tape</span></span>
@@ -46,13 +60,13 @@ const ALERTS = [
           ><span class="is-on"><i></i>production</span><span><i></i>staging</span></span
         >
         <span class="cst__btn"><b>+</b> New stage</span>
-        <span class="cst__account">acme-production · eu-central-1</span>
+        <span class="cst__account">acme-production · us-east-1</span>
       </div>
       <div class="cst__nav">
         <span>Overview</span><span>Activity</span><span class="is-on">Costs</span><span>Configuration</span><span
           >Diagram</span
         ><span>Danger zone</span>
-        <span class="cst__running">Running 4c1e9a2 on main · <u>View deploy</u></span>
+        <span class="cst__running">Running a41c9e2 on main · <u>View deploy</u></span>
         <span class="cst__btn cst__btn--primary">Deploy stage</span>
       </div>
 
@@ -60,9 +74,9 @@ const ALERTS = [
         <div class="cst__total">
           <span>
             <span class="cst__dim">November 2026 so far</span>
-            <strong>$315.20</strong>
+            <strong>$286.40</strong>
             <span class="cst__dim"
-              >$394.00 by Nov 30 at this pace, 6% more than October ($370.30) · Report updated 1h ago</span
+              >$343.68 by Nov 30 at this pace, 4% more than October ($331.95) · Report updated 1h ago</span
             >
           </span>
           <span class="cst__month"><span class="cst__dim">Month</span> November 2026</span>
@@ -76,8 +90,18 @@ const ALERTS = [
           {
             ROWS.map((row) => (
               <>
-                <span class:list={['cst__name', row.kind === 'other' && 'cst__dim']}>
-                  <i class:list={['cst__icon', `is-${row.kind}`]} />
+                <span class:list={['cst__name', !row.icon && 'cst__dim']}>
+                  {row.icon ? (
+                    <svg
+                      class="cst__icon"
+                      viewBox="0 0 24 24"
+                      style={`--cst-icon: var(--stp-aws-category-${ICONS[row.icon].category})`}
+                      aria-hidden="true"
+                      set:html={ICONS[row.icon].glyph}
+                    />
+                  ) : (
+                    <span class="cst__icon" />
+                  )}
                   {row.name}
                 </span>
                 <span class="cst__type cst__dim">{row.type}</span>
@@ -85,7 +109,7 @@ const ALERTS = [
                   <span class="cst__meter">
                     <span style={`width: ${row.share}%`} />
                   </span>
-                  {row.share}%
+                  <span class="cst__pct">{row.share}%</span>
                 </span>
                 <span class="cst__num cst__oct cst__dim">{row.october}</span>
                 <span class="cst__num">
@@ -101,12 +125,12 @@ const ALERTS = [
 
   <div class="cst__budget">
     <p class="cst__dim">Budgets</p>
-    <p class="cst__budget-title"><b>Production</b> <span class="cst__dim">Budget · acme-shop / production</span></p>
+    <p class="cst__budget-title"><b>Production account</b> <span class="cst__dim">Budget · Whole AWS account</span></p>
     <div class="cst__alert">
       <i></i>
       <span>
-        <b class="cst__warn">Forecast over by $41.70</b>
-        <span class="cst__dim">AWS forecasts $391.70 of $350.00, AWS alert 2d ago</span>
+        <b class="cst__warn">Forecast over by $32.80</b>
+        <span class="cst__dim">AWS forecasts $352.80 of $320.00, AWS alert 1d ago</span>
         <span class="cst__full"></span>
       </span>
       <span class="cst__drives">See what drives it</span>
@@ -130,7 +154,11 @@ const ALERTS = [
         ))
       }
     </div>
-    <p class="cst__fact"><span class="cst__dim">Over the limit</span> It alerts; nothing stops</p>
+    <p class="cst__fact">
+      <span><span class="cst__dim">AWS account</span> acme-production</span>
+      <span><span class="cst__dim">Over the limit</span> It alerts; nothing stops</span>
+    </p>
+  </div>
   </div>
 </div>
 
@@ -140,10 +168,13 @@ const ALERTS = [
     --cst-hair: var(--stp-border-subtle);
     --cst-raised: linear-gradient(var(--stp-surface-element), color-mix(in srgb, var(--stp-surface-element) 88%, #000));
     container: cst / inline-size;
-    display: grid;
-    padding-bottom: 9rem;
     color: var(--stp-text-primary);
     font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
+  }
+
+  .cst__in {
+    display: grid;
+    padding-bottom: 9rem;
   }
 
   .cst :is(b, strong) {
@@ -385,35 +416,22 @@ const ALERTS = [
 
   .cst__icon {
     flex: none;
-    width: 1.05rem;
-    height: 1.05rem;
-    border: 1.5px solid currentcolor;
-  }
-
-  .cst__icon.is-database {
-    border-radius: 50% / 22%;
-    color: var(--stp-aws-category-database);
-  }
-
-  .cst__icon.is-compute {
-    color: var(--stp-aws-category-compute);
-  }
-
-  .cst__icon.is-storage {
-    color: var(--stp-aws-category-storage);
-  }
-
-  .cst__icon.is-integration {
-    color: var(--stp-aws-category-integration);
-    border-style: dashed;
-  }
-
-  .cst__icon.is-other {
-    visibility: hidden;
+    width: 1.3rem;
+    height: 1.3rem;
+    background: var(--cst-icon, transparent);
+    fill: none;
+    stroke: #fff;
+    stroke-width: 1.5;
+    stroke-linejoin: round;
   }
 
   .cst__share {
     gap: 1.1rem;
+  }
+
+  .cst__pct {
+    min-width: 2.4em;
+    text-align: right;
   }
 
   .cst__meter {
@@ -532,13 +550,19 @@ const ALERTS = [
     background: var(--stp-status-success);
   }
 
+  .cst__fact {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.75rem;
+  }
+
   .cst__fact .cst__dim {
     margin-right: 0.5rem;
   }
 
   @container cst (max-width: 62rem) {
     .cst__running,
-    .cst__oct,
+    .cst__grid > .cst__oct,
     .cst__nav > span:nth-child(n + 4):not(.cst__btn) {
       display: none;
     }
@@ -554,7 +578,7 @@ const ALERTS = [
 
   /* A phone: resource, share and this month's spend; the budget follows the table instead of covering it. */
   @container cst (max-width: 34rem) {
-    .cst {
+    .cst__in {
       padding-bottom: 0;
       font-size: 0.8rem;
     }
@@ -572,9 +596,10 @@ const ALERTS = [
     }
 
     .cst__repo,
+    .cst__drives,
     .cst__account,
     .cst__month,
-    .cst__type,
+    .cst__grid > .cst__type,
     .cst__meter,
     .cst__btn:not(.cst__btn--primary),
     .cst__nav > span:nth-child(-n + 2) {

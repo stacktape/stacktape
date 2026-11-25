@@ -5,9 +5,10 @@
  *
  * Finding titles, fixes and severities are the Console's own (packages/console-api/src/security.ts,
  * SecurityPage/fix-summary.ts; a public database outside production is Low). The two package findings are real
- * advisories: axios < 1.8.2 (GHSA-jr5f-v2jv-69x6) and micromatch < 4.0.8 (CVE-2024-4067). The score follows the
- * Console's formula (100 − 25 per critical, 10 per high, 3 per medium, 1 per low, averaged over scanned stacks):
- * production 61, staging 96, so 79. The guardrail blocks staging because its database is the public one.
+ * advisories: axios < 1.8.2 (GHSA-jr5f-v2jv-69x6) and cross-spawn < 7.0.5 (CVE-2024-21538), as in the hero's Security
+ * tab. A plain secret is critical in every stage; deletion protection is checked in production only. The score follows
+ * the Console's formula (100 − 25 per critical, 10 per high, 3 per medium, 1 per low, averaged over scanned stacks):
+ * production 76, staging 74, so 75. The guardrail blocks staging because its database is the public one.
  */
 type Severity = 'Critical' | 'High' | 'Medium' | 'Low';
 
@@ -16,9 +17,9 @@ const FINDINGS: { severity: Severity; title: string; fix: string; stage: string;
     severity: 'Critical',
     title: 'Secret stored as a plain environment variable',
     fix: 'Move it to a secret and replace the credential',
-    stage: 'production',
+    stage: 'staging',
     what: 'worker · Worker service',
-    seen: '2h ago'
+    seen: '1d ago'
   },
   {
     severity: 'High',
@@ -26,6 +27,14 @@ const FINDINGS: { severity: Severity; title: string; fix: string; stage: string;
     fix: 'Upgrade axios to 1.8.2',
     stage: 'production',
     what: 'axios · npm',
+    seen: '2h ago'
+  },
+  {
+    severity: 'High',
+    title: 'Regular expression denial of service',
+    fix: 'Upgrade cross-spawn to 7.0.5',
+    stage: 'production',
+    what: 'cross-spawn · npm',
     seen: '2h ago'
   },
   {
@@ -37,36 +46,28 @@ const FINDINGS: { severity: Severity; title: string; fix: string; stage: string;
     seen: '2h ago'
   },
   {
-    severity: 'Medium',
-    title: 'Regular expression denial of service in micromatch',
-    fix: 'Upgrade micromatch to 4.0.8',
-    stage: 'staging',
-    what: 'micromatch · npm',
-    seen: '5h ago'
-  },
-  {
     severity: 'Low',
     title: 'Database reachable from the internet',
     fix: 'Restrict database access to the services that need it',
     stage: 'staging',
     what: 'database · SQL database',
-    seen: '5h ago'
+    seen: '1d ago'
   },
   {
     severity: 'Low',
     title: 'Queue without a dead-letter queue',
     fix: 'Add a dead-letter queue',
     stage: 'production',
-    what: 'orders · SQS queue',
+    what: 'jobQueue · SQS queue',
     seen: '2h ago'
   }
 ];
 
 const TILES = [
-  { label: 'Fix now', value: '2', sub: '1 critical, 1 high', tone: 'bad' },
-  { label: 'Fix when you can', value: '4', sub: '2 medium, 2 low', tone: '' },
+  { label: 'Fix now', value: '3', sub: '1 critical, 2 high', tone: 'bad' },
+  { label: 'Fix when you can', value: '3', sub: '1 medium, 2 low', tone: '' },
   { label: 'Stacks scanned', value: '2 of 2', sub: 'Every deployed stack', tone: '' },
-  { label: 'Score of scanned stacks', value: '79/100', sub: '100 is best', tone: 'warn' }
+  { label: 'Score of scanned stacks', value: '75/100', sub: '100 is best', tone: 'warn' }
 ];
 
 const FILTERS = [
@@ -80,8 +81,9 @@ const FILTERS = [
 <div
   class="sec"
   role="img"
-  aria-label="The Stacktape Console’s Security page for acme-shop: 2 findings to fix now and 4 to fix when you can, each with its stage and the fix, such as “Upgrade axios to 1.8.2”. Below it, the Guardrails page: “Keep SQL and OpenSearch private” blocks the next deploy of acme-shop / staging."
+  aria-label="The Stacktape Console’s Security page for acme-shop: 3 findings to fix now and 3 to fix when you can, each with its stage and the fix, such as “Upgrade axios to 1.8.2”. Below it, the Guardrails page: “Keep SQL and OpenSearch private” blocks the next deploy of acme-shop / staging."
 >
+  <div class="sec__in">
   <div class="sec__window">
     <div class="sec__bar">
       <span class="sec__logo">stack<span>tape</span></span>
@@ -183,7 +185,7 @@ const FILTERS = [
         <b>Region restriction</b>
         <span class="sec__muted">Deploys only to the AWS regions you list.</span>
       </span>
-      <span class="sec__rule-value">eu-central-1</span>
+      <span class="sec__rule-value">us-east-1</span>
       <span class="sec__button">Edit</span>
     </div>
     <div class="sec__rule">
@@ -196,6 +198,7 @@ const FILTERS = [
       <span class="sec__switch" aria-hidden="true"></span>
     </div>
   </div>
+  </div>
 </div>
 
 <style>
@@ -205,10 +208,13 @@ const FILTERS = [
     --sec-panel: linear-gradient(var(--stp-surface-element), color-mix(in srgb, var(--stp-surface-element) 88%, #000));
     --sec-lift: 0 2px 6px rgb(0 0 0 / 35%), inset 0 1px 0 rgb(255 255 255 / 9%);
     container: sec / inline-size;
-    position: relative;
-    padding-bottom: 9.5rem;
     color: var(--stp-text-primary);
     font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
+  }
+
+  .sec__in {
+    position: relative;
+    padding-bottom: 9.5rem;
   }
 
   svg {
@@ -617,9 +623,14 @@ const FILTERS = [
 
   /* A phone: the Console's narrow layout, one finding per row with where it is under the fix. */
   @container sec (max-width: 34rem) {
-    .sec {
+    .sec__in {
       padding-bottom: 0;
       font-size: 0.8rem;
+    }
+
+    .sec__row:nth-child(n + 6),
+    .sec__foot {
+      display: none;
     }
 
     .sec__crumbs {
@@ -662,8 +673,9 @@ const FILTERS = [
 
     .sec__where {
       display: flex;
+      flex-wrap: wrap;
       grid-area: where;
-      gap: 0.4rem;
+      gap: 0 0.6rem;
       font-size: var(--stp-font-size-caption);
     }
 
@@ -671,8 +683,7 @@ const FILTERS = [
       grid-area: chevron;
     }
 
-    .sec__what > *,
-    .sec__where > * {
+    .sec__what > * {
       white-space: normal;
     }
 

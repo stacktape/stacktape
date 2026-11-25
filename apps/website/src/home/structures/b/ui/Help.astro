@@ -29,8 +29,9 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
 <div
   class="hlp"
   role="img"
-  aria-label="The Help menu in the Stacktape Console, with documentation, email support, a call with an engineer and a Slack channel. Next to it, the shared channel support-acme-shop: an acme-shop developer asks how to get a fixed outbound IP for the worker without NAT Gateways, and a Stacktape engineer answers with the two settings and what they cost."
+  aria-label="The Help menu in the Stacktape Console, with documentation, email support, a call with an engineer and a Slack channel. Next to it, the shared channel support-acme-shop: Maya Chen from acme-shop asks how to get a fixed outbound IP for the worker without NAT Gateways, and a Stacktape engineer answers with the two settings and what they cost."
 >
+  <div class="hlp__in">
   <div class="hlp__menu-side">
     <div class="hlp__strip">
       <span class="hlp__trigger"
@@ -39,7 +40,7 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
             d="M12 16.8v.2"></path></svg
         >Help</span
       >
-      <span class="hlp__avatar">JN</span>
+      <span class="hlp__avatar">MC</span>
     </div>
     <ul class="hlp__menu" style={`clip-path: ${tornBottom}`}>
       {
@@ -60,9 +61,9 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
     </div>
     <div class="hlp__messages">
       <div class="hlp__msg">
-        <span class="hlp__face">JN</span>
+        <span class="hlp__face">MC</span>
         <div>
-          <p class="hlp__who"><b>Jana Novak</b> <span>Acme · 10:12</span></p>
+          <p class="hlp__who"><b>Maya Chen</b> <span>Acme · 10:12</span></p>
           <p>
             Our payment provider wants a fixed IP to allowlist calls from the worker. Do we need a NAT Gateway for
             that? It’s $32 a month per zone.
@@ -82,26 +83,30 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
         </div>
       </div>
       <div class="hlp__msg">
-        <span class="hlp__face">JN</span>
+        <span class="hlp__face">MC</span>
         <div>
-          <p class="hlp__who"><b>Jana Novak</b> <span>Acme · 10:41</span></p>
-          <p>Deployed to staging, the provider sees our IP. Thanks!</p>
+          <p class="hlp__who"><b>Maya Chen</b> <span>Acme · 10:41</span></p>
+          <p>Deployed to staging. The provider sees our IP now. Thanks!</p>
         </div>
       </div>
     </div>
     <div class="hlp__compose">Message #support-acme-shop</div>
+  </div>
   </div>
 </div>
 
 <style>
   .hlp {
     container: hlp / inline-size;
+    color: var(--stp-text-primary);
+    font: 450 var(--stp-font-size-body) / 1.5 var(--brand-font-heading);
+  }
+
+  .hlp__in {
     display: grid;
     grid-template-columns: 21rem minmax(0, 1fr);
     gap: clamp(1.5rem, 1rem + 2vw, 3rem);
     align-items: start;
-    color: var(--stp-text-primary);
-    font: 450 var(--stp-font-size-body) / 1.5 var(--brand-font-heading);
   }
 
   b {
@@ -257,7 +262,7 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
   }
 
   @container hlp (max-width: 46rem) {
-    .hlp {
+    .hlp__in {
       grid-template-columns: minmax(0, 1fr);
     }
 
@@ -271,6 +276,10 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
 
     code {
       white-space: normal;
+    }
+
+    .hlp__channel-head span {
+      display: none;
     }
   }
 </style>

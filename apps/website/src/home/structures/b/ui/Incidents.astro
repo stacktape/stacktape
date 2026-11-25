@@ -4,31 +4,42 @@
  * apps/console/ui/src/pages/IncidentsPage/IncidentDetailPage.tsx (header, status rows, IncidentUnfolding, "Where it
  * fails" and the "About this incident" facts), in the tape look with square corners.
  *
- * The story is one release: v000042 ("Read tax rates from Redis") was deployed at 14:31. From 14:36 checkout throws a
- * TypeError because the Redis cache is empty after the deploy; the API error-rate alarm fires at 14:37, when the
- * incident opens, and the checkout synthetic test fails from 14:40. It is 14:55: open for 18 minutes, deployed 6
- * minutes before it opened. Fix with AI has opened draft pull request #212, which is not merged or deployed.
+ * It is the incident the hero's Incidents tab lists as resolved (heroes/h5/console/data.ts), seen while it was open.
+ * Release v000041 ("Show order totals in the cart") was deployed at 10:12. From 10:16 order totals throw a TypeError
+ * for empty carts; the API error-rate alarm fires at 10:17, when the incident opens, and the api-health uptime check is
+ * down from 10:18 to 10:23. It is 10:35: open for 18 minutes, deployed 5 minutes before it opened. Fix with AI has
+ * opened draft pull request #219, not merged or deployed; the fix ships at 11:04 as a41c9e2 "Fix order totals for
+ * empty carts".
  */
-const START = 14 * 60 + 25;
-const NOW = 14 * 60 + 55;
+const START = 10 * 60 + 5;
+const NOW = 10 * 60 + 35;
 const at = (minute: number) => `${(((minute - START) / (NOW - START)) * 100).toFixed(2)}%`;
 
+/** Each signal's failing span in minutes since midnight; `to` is null while it still fails. */
 const LANES = [
-  { label: 'TypeError: Cannot read properties of undefined (reading ‘currency’)', from: 14 * 60 + 36 },
-  { label: 'API error rate above 5%', from: 14 * 60 + 37 },
-  { label: 'Synthetic test “checkout-flow”', from: 14 * 60 + 40 }
+  { label: 'TypeError: Cannot read properties of undefined (reading ‘total’)', from: 10 * 60 + 16, to: null },
+  { label: 'API error rate above 5%', from: 10 * 60 + 17, to: null },
+  { label: 'Uptime check “api-health”', from: 10 * 60 + 18, to: 10 * 60 + 23 }
 ];
 const TICKS = [
-  { label: '14:25', minute: START },
-  { label: '14:35', minute: 14 * 60 + 35 },
-  { label: '14:45', minute: 14 * 60 + 45 },
+  { label: '10:05', minute: START },
+  { label: '10:15', minute: 10 * 60 + 15 },
+  { label: '10:25', minute: 10 * 60 + 25 },
   { label: 'now', minute: NOW }
 ];
 /** Where the deploy line sits on the tracks, as a share of their width. */
-const DEPLOY_SHARE = (14 * 60 + 31 - START) / (NOW - START);
+const DEPLOY_SHARE = (10 * 60 + 12 - START) / (NOW - START);
+
+/** The incident's card in Slack (apps/console/api/src/services/slack-app/render.ts renderIncidentCard). */
+const CARD_SIGNALS = [
+  { title: 'TypeError: Cannot read properties of undefined (reading ‘total’)', kind: 'error group', failing: true },
+  { title: 'API error rate above 5%', kind: 'alarm firing', failing: true },
+  { title: 'Uptime check “api-health” is down', kind: 'uptime down', failing: false }
+];
+const CARD_MENU = ['Mute 1 hour', 'Mute 24 hours', 'Resolve', 'Roll back to v000040', 'Open in Console'];
 
 const FRAMES = [
-  ['calculateTotals', '/app/src/pricing/totals.ts', '42:31'],
+  ['orderTotals', '/app/src/orders/totals.ts', '18:34'],
   ['buildOrderSummary', '/app/src/orders/summary.ts', '118:22'],
   ['createCheckoutSession', '/app/src/routes/checkout.ts', '67:18']
 ];
@@ -37,8 +48,10 @@ const FRAMES = [
 <div
   class="inc"
   role="img"
-  aria-label="An incident in the Stacktape Console: API error rate above 5% on acme-shop / production, critical, 3 of 3 signals failing. The likely cause is release v000042, deployed 6 minutes before the incident opened, which reads tax rates from an empty Redis cache. A draft fix is ready as pull request #212."
+  aria-label="An incident in the Stacktape Console: API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened, which reads an order total that empty carts do not have. A draft fix is ready as pull request #219. In front, the incident’s card in Slack, with its menu open on Roll back to v000040."
 >
+  <div class="inc__stage">
+  <div class="inc__window">
   <div class="inc__top">
     <span class="inc__logo">stack<span>tape</span></span>
     <span class="inc__path">Acme <span>/</span> <b>Incidents</b></span>
@@ -71,22 +84,23 @@ const FRAMES = [
         <div class="inc__card">
           <div class="inc__status">
             <i class="is-red"></i>
-            <p><b class="inc__red">Still failing</b> for 18m · 3 of 3 signals failing · last failure 1m ago</p>
+            <p><b class="inc__red">Still failing</b> for 18m · 2 of 3 signals failing · last failure 1m ago</p>
             <span class="inc__aside-text">Not acknowledged</span>
           </div>
           <div class="inc__status">
             <i class="is-amber"></i>
             <p>
-              <b>Likely cause</b> Checkout requests fail with a TypeError in <code>calculateTotals</code>. Release v000042
-              reads tax rates from Redis, and the cache was empty after the deploy.
+              <b>Likely cause</b> Order requests fail with a TypeError in <code>orderTotals</code>. Release v000041 reads{' '}
+              <code>cart.summary.total</code>, and an empty cart has no summary.
             </p>
             <span class="inc__link-button">View assessment</span>
           </div>
           <div class="inc__status">
             <i class="is-teal"></i>
             <p>
-              <b>Draft fix ready</b> Load the rates from Postgres when the cache is empty, and fill the cache again,
-              in{' '}<u>pull request #212</u>.
+              <b>Draft fix ready</b> Return a zero total for an empty cart, with a test for it, in{' '}<u
+                >pull request #219</u
+              >.
             </p>
             <span class="inc__link-button">View fix</span>
           </div>
@@ -94,13 +108,13 @@ const FRAMES = [
 
         <div class="inc__card inc__unfold">
           <div class="inc__lanes" style={`--inc-deploy-share: ${DEPLOY_SHARE}`}>
-            <span class="inc__mark">Deploy succeeded 14:31</span>
+            <span class="inc__mark">Deploy succeeded 10:12</span>
             {
               LANES.map((lane) => (
                 <div class="inc__lane">
                   <span class="inc__lane-label">{lane.label}</span>
                   <span class="inc__track">
-                    <span class="inc__bar" style={`left: ${at(lane.from)}`} />
+                    <span class="inc__bar" style={`left: ${at(lane.from)}; right: calc(100% - ${at(lane.to ?? NOW)})`} />
                   </span>
                 </div>
               ))
@@ -120,7 +134,7 @@ const FRAMES = [
             <span><u>Logs of the last failed request</u> <u>Open the error</u></span>
           </div>
           <p class="inc__error">
-            <b>TypeError: Cannot read properties of undefined (reading ‘currency’)</b>
+            <b>TypeError: Cannot read properties of undefined (reading ‘total’)</b>
             <span>Uncaught exception in api · 214 occurrences so far</span>
           </p>
           <div class="inc__stack">
@@ -139,22 +153,54 @@ const FRAMES = [
         <div class="inc__about-head">About this incident</div>
         <div>
           <dt>Stage</dt>
-          <dd><u>acme-shop</u> / <u>production</u><span>eu-central-1</span></dd>
+          <dd><u>acme-shop</u> / <u>production</u><span>us-east-1</span></dd>
         </div>
         <div>
           <dt>Running</dt>
-          <dd><u>v000042</u><span>Deployed 6 minutes before it opened</span></dd>
+          <dd><u>v000041</u><span>Deployed 5 minutes before it opened</span></dd>
         </div>
         <div>
           <dt>Commit</dt>
-          <dd><code>4c1e9a27b</code><span>Read tax rates from Redis</span></dd>
+          <dd><code>7d3f0b1c4</code><span>Show order totals in the cart</span></dd>
         </div>
         <div>
           <dt>Changes</dt>
-          <dd><u>Since v000041</u></dd>
+          <dd><u>Since v000040</u></dd>
         </div>
       </dl>
     </div>
+  </div>
+  </div>
+
+  <div class="inc__slack">
+    <p class="inc__slack-from"><b>Stacktape</b> <span>in #incidents · 10:17</span></p>
+    <p class="inc__slack-title"><i></i><b>Open</b> API error rate above 5%</p>
+    <p class="inc__slack-small">acme-shop / production · PRODUCTION · Critical · opened 10:17</p>
+    <ul>
+      {
+        CARD_SIGNALS.map((signal) => (
+          <li>
+            <span class:list={[!signal.failing && 'is-ok']} aria-hidden="true">
+              {signal.failing ? '✕' : '✓'}
+            </span>{' '}
+            {signal.title} <em>({signal.kind})</em>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="inc__slack-small">
+      <b>Release live when it opened:</b> version v000041, commit <code>7d3f0b1c</code>, deployed 5 min before it
+      opened · <u>what changed since v000040</u>
+    </p>
+    <div class="inc__slack-actions">
+      <span class="is-go">Acknowledge</span><span>Investigate with AI</span><span>Fix with AI</span><span class="is-more"
+        >···</span
+      >
+      <ul class="inc__slack-menu">
+        {CARD_MENU.map((item) => <li class:list={[item.startsWith('Roll back') && 'is-hover']}>{item}</li>)}
+      </ul>
+    </div>
+  </div>
   </div>
 </div>
 
@@ -163,12 +209,111 @@ const FRAMES = [
     --inc-amber: #ed8b00;
     --inc-line: var(--stp-border-subtle);
     container: inc / inline-size;
-    overflow: hidden;
+    color: var(--stp-text-primary);
+    font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
+  }
+
+  /* The Console window, then the Slack card in front of its lower edge, with room below for the card's open menu. */
+  .inc__stage {
+    padding-bottom: 7.5rem;
+  }
+
+  .inc__window {
     border: 1px solid var(--brand-border);
     background: var(--brand-inset);
     box-shadow: var(--brand-shadow);
-    color: var(--stp-text-primary);
-    font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
+  }
+
+  .inc__slack {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 0.45rem;
+    width: min(31rem, 100%);
+    margin: -2rem 1.25rem 0 auto;
+    padding: 0.9rem 1rem 1rem;
+    border: 1px solid var(--brand-border);
+    border-left: 4px solid var(--stp-status-error);
+    background: var(--stp-surface-modal);
+    box-shadow: 0 22px 52px rgb(0 0 0 / 50%);
+  }
+
+  .inc__slack-from span,
+  .inc__slack-small,
+  .inc__slack em {
+    color: var(--stp-text-muted);
+    font-size: var(--stp-font-size-caption);
+  }
+
+  .inc__slack-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.95rem;
+  }
+
+  .inc__slack-title i {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--stp-status-error);
+  }
+
+  .inc__slack ul {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .inc__slack li > span {
+    color: var(--stp-status-error);
+    font-weight: 700;
+  }
+
+  .inc__slack li > span.is-ok {
+    color: var(--stp-status-success);
+  }
+
+  .inc__slack-actions {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+  }
+
+  .inc__slack-actions > span {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--stp-border-subtle);
+    font-weight: 600;
+  }
+
+  .inc__slack-actions > .is-go {
+    border-color: transparent;
+    background: var(--stp-status-success);
+    color: #fff;
+  }
+
+  .inc__slack .inc__slack-menu {
+    position: absolute;
+    top: calc(100% + 0.3rem);
+    right: 0;
+    width: 13rem;
+    padding: 0.3rem;
+    border: 1px solid var(--stp-border-subtle);
+    background: var(--stp-surface-element);
+    box-shadow: 0 16px 36px rgb(0 0 0 / 50%);
+  }
+
+  .inc__slack-menu li {
+    padding: 0.35rem 0.6rem;
+  }
+
+  .inc__slack-menu .is-hover {
+    background: var(--brand-primary-bottom);
+    color: var(--brand-on-teal);
   }
 
   b,
@@ -425,7 +570,6 @@ const FRAMES = [
   .inc__bar {
     position: absolute;
     top: 0;
-    right: 0;
     bottom: 0;
     background: var(--stp-status-error);
   }
@@ -563,7 +707,8 @@ const FRAMES = [
 
   /* A phone: the Console's narrow incident page, the facts and the stack trace below the fold are left out. */
   @container inc (max-width: 34rem) {
-    .inc {
+    .inc__top,
+    .inc__page {
       font-size: 0.8rem;
     }
 
@@ -609,8 +754,18 @@ const FRAMES = [
       display: none;
     }
 
-    .inc__mark {
+    .inc__mark,
+    .inc__slack .inc__slack-menu {
       display: none;
+    }
+
+    .inc__stage {
+      padding-bottom: 0;
+    }
+
+    .inc__slack {
+      width: auto;
+      margin: 1rem 0 0;
     }
   }
 </style>
