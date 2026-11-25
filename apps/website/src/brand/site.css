@@ -1,0 +1,12 @@
+@import './controls.css';
+
+.site-frame {
+  width: min(var(--site-width, 76rem), calc(100% - 2 * var(--site-gutter, var(--brand-space-5))));
+  margin-inline: auto;
+}
+
+@media (max-width: 40rem) {
+  .site-frame {
+    --site-gutter: var(--brand-space-4);
+  }
+}
