@@ -1,6 +1,4 @@
 ---
-import { ButtonLink } from '@stacktape/ui-react/button';
-import { runReadme } from '../../../variants/readme/benchmarks';
 import { CommandBox } from '../../../brand/CommandBox';
 import './font.css';
 import Costs from './console/Costs.astro';
@@ -28,41 +26,39 @@ const CONSOLE = {
   costs: Costs
 };
 
-/** Every picture in `images/`, by file name. Plain files the build copies, so no image service is needed. */
-const pictures = import.meta.glob<string>('./images/*', { eager: true, query: '?url', import: 'default' });
-const url = (name: string) => {
-  const found = pictures[`./images/${name}`];
-  if (!found) throw new Error(`The H5 hero has no picture named ${name}.`);
-  return found;
-};
 
-const facts = [
-  { figure: 'MIT', note: 'Open-source CLI. Works without a Stacktape account.', href: 'https://github.com/stacktape/stacktape' },
-  {
-    figure: '10.7 s',
-    note: 'One updated Lambda function serving requests. CDK hotswap: 13.2 s. Median of 10 runs, 22 Oct 2026.',
-    href: runReadme('2026-10-22')
-  },
-  { figure: '$0', note: 'Console fee for up to $200 of monthly AWS spend managed by Stacktape.', href: '/pricing' }
-];
 ---
 
 <section class="h5" aria-labelledby="h5-title">
-  <div class="h5__intro">
-    <h1 id="h5-title" class="h5__serif h5__title">AWS DevOps, fully automated.</h1>
-    <p class="h5__lead">{subheadline}</p>
-    <div class="h5__actions">
-      <CommandBox client:load id="install" preselect={false} />
-      <ButtonLink variant="secondary" className="brand-button h5__docs" href="https://docs.stacktape.com"
-        >Read the docs</ButtonLink
-      >
+  <div class="h5__top">
+    <h1 id="h5-title" class="h5__title">
+      <span>AWS DevOps,</span>
+      <span class="h5__tape">fully automated.</span>
+    </h1>
+    <div class="h5__words">
+      <p class="h5__lead">{subheadline}</p>
     </div>
-    <p class="h5__owned">
-      Stacktape deploys CloudFormation stacks you own. Stop using it and your app keeps running.
-    </p>
+    <section class="h5__setup" aria-labelledby="h5-setup">
+      <h2 id="h5-setup" class="h5__setup-title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"
+          ><path d="M4 5h16v14H4zM8 10l2.5 2L8 14M12.5 14H16"></path></svg
+        >Run the setup wizard
+      </h2>
+      <p class="h5__setup-text">Run this in your app's folder. It opens the setup wizard in your browser.</p>
+      <CommandBox client:load id="install" preselect={false} />
+      <ol class="h5__steps">
+        <li>Reads your app on your own machine</li>
+        <li>Shows the setup and its monthly cost</li>
+        <li>Deploys to your AWS account when you say so</li>
+      </ol>
+    </section>
   </div>
 
   <div class="h5__product">
+    <p class="h5__open">
+      <span class="h5__label">Open source</span>
+      The CLI is MIT-licensed and works without an account. What it deploys is standard CloudFormation in your AWS account.
+    </p>
     <div class="h5__strip" role="tablist" aria-label="What Stacktape runs for you" data-h5-tabs>
       {
         SCREENS.map((screen, at) => (
@@ -102,24 +98,6 @@ const facts = [
     </div>
   </div>
 
-  <ul class="h5__trust" aria-label="Customers and facts" data-hero-trust>
-    <li class="h5__customer">
-      <img src={url('receipts.svg')} alt="Receipts" width="214" height="42" class="h5__receipts" />
-    </li>
-    <li class="h5__customer">
-      <img src={url('lastmyle.webp')} alt="Lastmyle" width="200" height="45" />
-    </li>
-    {
-      facts.map((fact) => (
-        <li>
-          <a href={fact.href}>
-            <strong class="h5__serif">{fact.figure}</strong>
-            <span>{fact.note}</span>
-          </a>
-        </li>
-      ))
-    }
-  </ul>
 </section>
 
 <script>
@@ -156,64 +134,188 @@ const facts = [
     );
   }
 
-  .h5__serif {
-    margin: 0;
-    font-family: var(--h5-serif);
-    font-weight: 500;
-    font-variation-settings: 'opsz' 72;
-    letter-spacing: -0.022em;
-    line-height: 1.02;
-    text-wrap: balance;
-  }
-
-  .h5__intro {
-    display: flex;
-    flex-direction: column;
+  /*
+   * The top block: the headline set like the logo, its second line printed on the logo's teal tape, with the
+   * subheadline under it; beside them the Console's own "Run the setup wizard" card, which gives the command the
+   * surface it is designed to sit on.
+   */
+  .h5__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(29rem, 36vw, 35rem);
+    grid-template-areas: 'title setup' 'words setup';
+    grid-template-rows: auto 1fr;
     align-items: center;
-    padding: clamp(3rem, 3.6vw, 4.25rem) var(--brand-space-5) 0;
-    text-align: center;
+    gap: clamp(1.75rem, 2.2vw, 2.5rem) clamp(2.5rem, 5vw, 6.5rem);
+    inline-size: var(--h5-frame);
+    margin: 0 auto;
+    padding-block-start: clamp(3rem, 4.4vw, 5.5rem);
   }
 
   .h5__title {
-    font-size: clamp(2.6rem, 1.3rem + 4vw, 6rem);
-  }
-
-  .h5__lead {
-    max-inline-size: min(68rem, 47rem + 16vw);
-    margin: clamp(1rem, 1.3vw, 1.5rem) 0 0;
-    color: var(--h5-soft);
-    font-size: clamp(1.05rem, 0.95rem + 0.4vw, 1.35rem);
-    line-height: 1.5;
-    text-wrap: balance;
+    grid-area: title;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.06em;
+    margin: 0;
+    color: var(--brand-text);
+    font: 800 clamp(2.75rem, 1.2rem + 3.9vw, 6rem) / 1.02 var(--brand-font-heading);
+    letter-spacing: -0.045em;
   }
 
   /*
-   * The command box sits on the page's centre line, like the headline and the window; the docs button hangs beside
-   * it. The box is wide enough for the longest one-line install.
+   * The logo's label at headline size: white on the primary teal. At this size the label's four big teeth per end
+   * would read as broken (TASTE 7), so the ends tear in eight small teeth, about the logo's pitch scaled to the text.
    */
-  .h5__actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 44rem) minmax(0, 1fr);
+  .h5__tape {
+    --h5-headline-tooth: 0.055em;
+    margin-inline-start: -0.12em;
+    padding: 0.02em 0.2em 0.08em 0.12em;
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+    color: var(--brand-on-teal);
+    white-space: nowrap;
+    clip-path: polygon(
+      calc(100% - var(--h5-headline-tooth)) 0%,
+      100% 6.25%,
+      calc(100% - var(--h5-headline-tooth)) 12.50%,
+      100% 18.75%,
+      calc(100% - var(--h5-headline-tooth)) 25%,
+      100% 31.25%,
+      calc(100% - var(--h5-headline-tooth)) 37.50%,
+      100% 43.75%,
+      calc(100% - var(--h5-headline-tooth)) 50%,
+      100% 56.25%,
+      calc(100% - var(--h5-headline-tooth)) 62.50%,
+      100% 68.75%,
+      calc(100% - var(--h5-headline-tooth)) 75%,
+      100% 81.25%,
+      calc(100% - var(--h5-headline-tooth)) 87.50%,
+      100% 93.75%,
+      calc(100% - var(--h5-headline-tooth)) 100%,
+      var(--h5-headline-tooth) 100%,
+      0% 93.75%,
+      var(--h5-headline-tooth) 87.50%,
+      0% 81.25%,
+      var(--h5-headline-tooth) 75%,
+      0% 68.75%,
+      var(--h5-headline-tooth) 62.50%,
+      0% 56.25%,
+      var(--h5-headline-tooth) 50%,
+      0% 43.75%,
+      var(--h5-headline-tooth) 37.50%,
+      0% 31.25%,
+      var(--h5-headline-tooth) 25%,
+      0% 18.75%,
+      var(--h5-headline-tooth) 12.50%,
+      0% 6.25%,
+      var(--h5-headline-tooth) 0%
+    );
+  }
+
+  .h5__words {
+    grid-area: words;
+    align-self: start;
+  }
+
+  .h5__lead {
+    max-inline-size: 36rem;
+    margin: 0;
+    color: var(--h5-soft);
+    font-size: clamp(1.05rem, 0.95rem + 0.35vw, 1.3rem);
+    line-height: 1.55;
+  }
+
+  /* The Console's card: its surface, a heading with the terminal icon, one sentence, the command, three steps. */
+  .h5__setup {
+    grid-area: setup;
+    align-self: center;
+    padding: clamp(1.5rem, 2vw, 2.25rem);
+    border: 1px solid rgb(255 255 255 / 7%);
+    background: var(--brand-surface);
+    box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
+  }
+
+  .h5__setup-title {
+    display: flex;
     align-items: center;
-    gap: var(--brand-space-4);
-    inline-size: 100%;
-    margin-block-start: clamp(1.75rem, 2.2vw, 2.5rem);
-    text-align: start;
+    gap: var(--brand-space-3);
+    margin: 0;
+    color: var(--brand-text);
+    font: 650 clamp(1.15rem, 1rem + 0.35vw, 1.4rem) / 1.2 var(--brand-font-heading);
+    letter-spacing: -0.01em;
   }
 
-  .h5__actions :global(.brand-command) {
-    grid-column: 2;
+  .h5__setup-title svg {
+    flex: none;
+    inline-size: 1.35em;
+    block-size: 1.35em;
+    fill: none;
+    stroke: var(--brand-muted);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.6;
   }
 
-  .h5__actions :global(.h5__docs) {
-    justify-self: start;
-  }
-
-
-  .h5__owned {
-    margin: var(--brand-space-4) 0 0;
+  .h5__setup-text {
+    margin: var(--brand-space-3) 0 var(--brand-space-5);
     color: var(--brand-muted);
     font-size: var(--brand-type-sm);
+    line-height: 1.55;
+  }
+
+  .h5__steps {
+    display: grid;
+    gap: var(--brand-space-3);
+    margin: var(--brand-space-5) 0 0;
+    padding: var(--brand-space-5) 0 0;
+    border-block-start: 1px solid rgb(255 255 255 / 7%);
+    color: var(--h5-soft);
+    font-size: var(--brand-type-sm);
+    list-style: none;
+    counter-reset: h5-step;
+  }
+
+  .h5__steps li {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-3);
+    counter-increment: h5-step;
+  }
+
+  .h5__steps li::before {
+    display: grid;
+    flex: none;
+    place-items: center;
+    inline-size: 1.6rem;
+    block-size: 1.6rem;
+    border: 1px solid rgb(255 255 255 / 16%);
+    border-radius: 50% !important;
+    color: var(--brand-text);
+    content: counter(h5-step);
+    font: 600 var(--brand-type-xs) / 1 var(--brand-font-heading);
+  }
+
+  /* "Open source" on grey label tape, as a line over the Console window. */
+  .h5__open {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--brand-space-2) var(--brand-space-3);
+    margin: 0 0 var(--brand-space-2);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    text-align: center;
+  }
+
+  .h5__label {
+    padding: 0.2em 0.7em 0.25em;
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    color: var(--brand-text);
+    font: 600 var(--brand-type-xs) / 1.3 var(--brand-font-heading);
+    clip-path: var(--brand-tape-clip);
   }
 
   /* The product: the Console's tab strip, and under it the real Console window. */
@@ -305,150 +407,58 @@ const facts = [
     display: none;
   }
 
-  /* Customers and three facts, as a ruled row along the bottom of the hero. */
-  .h5__trust {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 0.6fr)) repeat(3, minmax(0, 1.2fr));
-    margin: clamp(3.5rem, 4vw, 4.5rem) 0 0;
-    padding: 0 calc((100% - var(--h5-frame)) / 2);
-    border-block-start: 1px solid var(--h5-rule);
-    background: var(--brand-inset);
-    list-style: none;
-  }
-
-  .h5__trust li {
-    display: grid;
-    min-block-size: 5.25rem;
-    border-inline-start: 1px solid var(--h5-rule);
-  }
-
-  .h5__trust li:first-child {
-    border-inline-start: 0;
-  }
-
-  .h5__customer {
-    place-items: center;
-  }
-
-  .h5__customer img {
-    inline-size: auto;
-    block-size: 1.75rem;
-    max-inline-size: 70%;
-    object-fit: contain;
-    filter: brightness(0) invert(1);
-    opacity: 0.72;
-  }
-
-  .h5__customer .h5__receipts {
-    block-size: 1.4rem;
-  }
-
-  /* A fact: its figure, and beside it one short line that says what the figure is and where it comes from. */
-  .h5__trust a {
-    display: grid;
-    grid-template-columns: auto minmax(0, 15rem);
-    place-content: center;
-    align-items: center;
-    column-gap: var(--brand-space-4);
-    padding: var(--brand-space-4) var(--brand-space-5);
-    color: inherit;
-    text-decoration: none;
-  }
-
-  .h5__trust a:is(:hover, :focus-visible) strong {
-    color: var(--brand-teal);
-  }
-
-  .h5__trust strong {
-    font-size: clamp(1.6rem, 1.2rem + 0.9vw, 2.25rem);
-  }
-
-  .h5__trust span {
-    color: var(--brand-muted);
-    font-size: var(--brand-type-xs);
-    line-height: 1.45;
-  }
-
-  /* Below this width the docs button no longer fits beside the box; it moves under it. */
-  @media (max-width: 72rem) {
-    .h5__actions {
-      grid-template-columns: minmax(0, 1fr);
-      inline-size: min(44rem, 100%);
-    }
-
-    .h5__actions :global(.brand-command) {
-      grid-column: 1;
-    }
-
-    .h5__actions :global(.h5__docs) {
-      justify-self: center;
-    }
-  }
-
   @media (max-width: 64rem) {
-    .h5__trust {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .h5__top {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: 'title' 'words' 'setup';
+      grid-template-rows: none;
     }
 
-    .h5__trust li {
-      min-block-size: 6rem;
-      border-block-start: 1px solid var(--h5-rule);
-    }
-
-    .h5__trust li:nth-child(odd) {
-      border-inline-start: 0;
-    }
-
-    .h5__trust li:nth-child(-n + 2) {
-      border-block-start: 0;
-    }
-
-    .h5__trust li:last-child {
-      grid-column: 1 / -1;
-      border-inline-start: 0;
+    .h5__setup {
+      max-inline-size: 40rem;
     }
   }
 
   @media (max-width: 40rem) {
-    .h5__intro {
-      padding: var(--brand-space-5) var(--brand-space-4) 0;
-    }
-
-    .h5__lead {
-      font-size: 1rem;
-      text-wrap: pretty;
-    }
-
-    .h5__actions {
-      gap: var(--brand-space-3);
-      margin-block-start: var(--brand-space-5);
-    }
-
-    /* On a phone the docs are a quiet link under the command, so the product starts on the first screen. */
-    .h5__actions :global(.h5__docs) {
-      --stp-control-height: auto;
-      --stp-button-padding-x: 0;
-      --stp-button-secondary-surface: none;
-      --stp-button-secondary-shadow: none;
-      --stp-button-secondary-shadow-hover: none;
-      justify-self: end;
-      color: var(--brand-muted);
-      font-size: var(--brand-type-sm);
-      text-decoration: underline;
-      text-underline-offset: 0.2em;
-    }
-
-    .h5__owned {
-      margin-block-start: var(--brand-space-3);
-      font-size: var(--brand-type-xs);
-    }
-
     .h5 {
       --h5-frame: calc(100% - 2 * var(--brand-space-4));
     }
 
+    .h5__top {
+      gap: var(--brand-space-5);
+      padding-block-start: var(--brand-space-5);
+    }
+
+    .h5__title {
+      font-size: 2.45rem;
+    }
+
+    .h5__lead {
+      font-size: 1rem;
+    }
+
+    /* The card runs edge to edge, so the command gets the phone's whole width; its steps wait for a wider screen. */
+    .h5__setup {
+      margin-inline: calc(-1 * var(--brand-space-4));
+      padding: var(--brand-space-5) var(--brand-space-4);
+      border-inline: 0;
+    }
+
+    .h5__setup-text,
+    .h5__steps {
+      display: none;
+    }
+
+    .h5__setup-title {
+      margin-block-end: var(--brand-space-4);
+    }
+
+    .h5__open {
+      font-size: var(--brand-type-xs);
+    }
+
     .h5__product {
-      margin-block-start: var(--brand-space-5);
+      margin-block-start: var(--brand-space-6);
       gap: var(--brand-space-2);
     }
 
@@ -474,26 +484,16 @@ const facts = [
       clip-path: polygon(100% 0%, 100% 100%, var(--h5-torn-left));
     }
 
-    .h5__trust {
-      margin-block-start: var(--brand-space-7);
+  }
+
+  /* On the narrowest phones the command and its tabs are set a step smaller, so neither wraps nor scrolls. */
+  @media (max-width: 24rem) {
+    .h5__setup :global(.brand-command__words) {
+      font-size: var(--brand-type-sm);
     }
 
-    /* Customers share a short row; each fact gets its own row, its figure beside its line. */
-    .h5__trust li {
-      min-block-size: 4.5rem;
-    }
-
-    .h5__trust li:nth-child(n + 3) {
-      grid-column: 1 / -1;
-      min-block-size: 0;
-      border-inline-start: 0;
-    }
-
-    .h5__trust a {
-      grid-template-columns: 5.5rem minmax(0, 1fr);
-      place-content: stretch;
-      padding: var(--brand-space-4);
-      text-align: start;
+    .h5__setup :global(.brand-tabs) {
+      --stp-tab-font-size: var(--brand-type-xs);
     }
   }
 </style>
