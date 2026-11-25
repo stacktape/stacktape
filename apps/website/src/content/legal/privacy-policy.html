@@ -1,0 +1,292 @@
+<p><strong>Last updated:</strong> 25 November 2026</p>
+<p>
+  This policy explains what data Stacktape s.r.o., company ID 53071930, Ľudovíta Fullu 3104/15, 841 05 Bratislava,
+  Slovakia ("Stacktape", "we", "us" or "our") collects when you use the Stacktape CLI, the Stacktape Console, this
+  website and the documentation, and what we do with it. The <a href="/terms-of-use">terms of use</a> cover the rest of
+  our relationship.
+</p>
+<ul>
+  <li>
+    <code>stacktape init</code> sends the proposed configuration and AWS region for a price estimate. You can turn off
+    CLI telemetry separately.
+  </li>
+  <li>
+    The Console stores account and operational data. It also copies the connected account's AWS Cost and Usage Report,
+    which includes charges outside Stacktape-managed stacks.
+  </li>
+</ul>
+
+<h2 id="cli">1. What the CLI sends</h2>
+<h3>Without an account</h3>
+<p>
+  The CLI sends usage data to PostHog so we can see which commands fail. It shows a notice before sending its first
+  account-free telemetry event. The event includes the command, outcome and error code, CLI version, operating system,
+  CPU architecture, CI status, app name, build environment, analytics schema version and a random installation ID.
+</p>
+<p>
+  The account-free telemetry event excludes project, stack, stage and AWS account names and IDs, file paths,
+  configuration and error messages. Account-free telemetry is off in CI. Set <code>STP_DISABLE_TELEMETRY=1</code> or
+  <code>DO_NOT_TRACK=1</code> to turn off telemetry from the local CLI in either mode.
+</p>
+<p>
+  To estimate costs, <code>stacktape init</code> sends the proposed YAML configuration and AWS region to Stacktape's
+  public pricing API, including without an account and with telemetry off. The browser wizard can price alternate
+  configurations. The starter-project flow sends the starter YAML and region.
+</p>
+<p>
+  The CLI also checks for new versions and notices and downloads public CloudFormation resource types when a stack uses
+  them.
+</p>
+<p>
+  <code>stacktape init</code> can analyze your repository with a coding agent you have installed, such as Claude Code or
+  Codex. The agent runs on your machine and can send what it reads to its provider under your account with that
+  provider.
+</p>
+
+<h3>When you are signed in</h3>
+<p>With a Stacktape account, the CLI sends usage statistics and reports of its own crashes:</p>
+<ul>
+  <li>
+    <strong>Command telemetry:</strong> the command and option names, how long it took, whether it succeeded, the error
+    code if it failed, your operating system, locale, time zone and the CLI version.
+  </li>
+  <li>
+    <strong>From some features:</strong> summaries made of categories and counts, for example how far a
+    <code>stacktape init</code> session got and which frameworks and resource types it found.
+  </li>
+  <li>
+    <strong>When the CLI crashes:</strong> the error type, message and stack trace, the command, your operating system,
+    CPU architecture and whether it ran in CI. Errors in your configuration, code or AWS account are not reported this
+    way.
+  </li>
+  <li>
+    <strong>Identity:</strong> <code>stacktape login</code> can link earlier events from the same installation ID to
+    your Stacktape user in PostHog. PostHog receives your name and email. Signed-in events can also be linked to your
+    organization.
+  </li>
+</ul>
+<p>
+  The CLI filters known sensitive patterns in crash reports, including credentials, IP addresses, AWS account IDs and
+  usernames in home-directory paths. Email domains and other text, such as file and resource names, can remain.
+</p>
+<p>
+  The Console separately records connected operations, including selected option values and Git details. Its server
+  sends PostHog a completion event with the user, organization, command, region, trigger, duration and outcome. The
+  local CLI telemetry switches do not control these records or server events.
+</p>
+
+<h2 id="console">2. What the Console stores</h2>
+<p>
+  The shared Console stores its service data in Stacktape's AWS account in Ireland (eu-west-1). Enterprise can run in
+  your chosen AWS account and region. PostHog receives product analytics as described below.
+</p>
+<ul>
+  <li>
+    <strong>Your account:</strong> your name, email, sign-in settings, memberships and roles. Sign-in sessions can store
+    your IP address and browser or device information and show them in your active devices. Your organization's single
+    sign-on or SCIM directory can supply identity and group details.
+  </li>
+  <li>
+    <strong>Your organization:</strong> projects and stages, connected AWS accounts, deploy history (who deployed what,
+    when and with what result), the audit log, API keys, and the GitHub, GitLab, Bitbucket and Slack connections you set
+    up. Git webhooks can include authors, branches, commits and pull-request details.
+  </li>
+  <li>
+    <strong>AWS costs:</strong> the Console copies the connected account's AWS Cost and Usage Report into its S3
+    storage, including charges outside Stacktape-managed stacks. It stores a breakdown with credits, the total of
+    charges it could not assign to a stack and up to 100 such items, which can identify individual resources. The
+    Flexible fee uses only costs assigned to Stacktape-managed stacks.
+  </li>
+  <li>
+    <strong>Error events:</strong> for each detected error, its message and type, the stack frames, the matching log
+    line or the lines around it (4,000 characters at most), and where it happened. Events can include request IDs and
+    mapped source filenames.
+  </li>
+  <li>
+    <strong>Alarms and uptime checks:</strong> alarm state changes, check definitions (including URLs, assertions and
+    alert destinations), and results such as HTTP status, timings and failure reasons. Uptime response bodies stay with
+    the probe.
+  </li>
+  <li>
+    <strong>Security reports:</strong> configuration and vulnerability findings, network exposure, resource names,
+    package list locations and workload image digests. These reports exclude secret values.
+  </li>
+  <li><strong>Incidents:</strong> incident details, any AI briefings and any Investigate or Fix run results.</li>
+  <li>
+    <strong>Billing:</strong> your plan, the billing email, customer name and currency, and the monthly charges. Paddle
+    handles payment details, and we do not receive your card number.
+  </li>
+</ul>
+<p>
+  Before error text leaves your AWS account, known kinds of sensitive data are masked: secrets and tokens, values under
+  names such as <code>password</code> or <code>token</code>, credentials in URLs, parts of email addresses before the @,
+  IP addresses, card numbers and home-directory paths. The Console repeats the filtering on arrival. Names, addresses,
+  phone numbers and other free text can remain. See the fields sent by
+  <a href="https://docs.stacktape.com/observability/error-tracking#what-leaves-your-aws-account">error tracking</a>,
+  <a href="https://docs.stacktape.com/observability/uptime-checks#what-leaves-your-aws-account">uptime checks</a>,
+  <a href="https://docs.stacktape.com/observability/alarms">alarms</a>,
+  <a href="https://docs.stacktape.com/stacktape-console/security-scanning">security scanning</a> and
+  <a href="https://docs.stacktape.com/observability/incident-ai">incident AI</a>.
+</p>
+<p>
+  Credentials you give the Console, such as Git and Slack connections, single sign-on client secrets and AI API keys,
+  are stored encrypted.
+</p>
+
+<h2 id="aws">3. Data in your AWS account</h2>
+<p>
+  AWS-native resources and their data, application logs, build artifacts, deployment packages, stack secrets and
+  synthetic test files are stored in your AWS account by default. Resources such as MongoDB Atlas and Upstash Redis are
+  hosted by the provider you configure. If you enable
+  <a href="https://docs.stacktape.com/observability/log-forwarding">log forwarding</a>, AWS sends application logs to
+  Datadog, Highlight.io or the HTTPS destination you choose.
+</p>
+<p>
+  The package list file stays in your deployment bucket. For vulnerability checks, the Console reads the file into
+  memory and sends package names and versions to OSV.dev.
+</p>
+<p>
+  The standard AWS connection creates an IAM role with <code>AdministratorAccess</code>. The Console assumes the role
+  with temporary credentials. CloudTrail coverage depends on the event and your trail settings. Delete the connection's
+  CloudFormation stack in AWS to revoke access. See the <a href="/terms-of-use#suspension">terms of use</a> for Console
+  disconnection and the
+  <a href="https://docs.stacktape.com/stacktape-console/aws-permissions">AWS permissions guide</a> for the role.
+</p>
+
+<h2 id="other-services">4. Data sent to other services</h2>
+<ul>
+  <li>
+    <strong>Automatic AI briefings.</strong> When your organization connects an API key for briefings, its provider
+    (Anthropic, OpenAI or xAI) receives a filtered snapshot of the incident, including error messages, stack frames and
+    signal evidence. The snapshot excludes source code and raw logs.
+  </li>
+  <li>
+    <strong>Investigate and Fix.</strong> Requested runs execute on your runner in your AWS account. The agent can send
+    unmasked source code and command output, plus filtered AWS results such as log excerpts, to Anthropic, OpenAI, xAI
+    or the provider you use with OpenCode. The provider processes this data under the terms of the key or sign-in used
+    for the run. Stacktape keeps the report and a filtered activity history. Fix publishes through GitHub and opens a
+    draft pull request where supported. If publishing fails, Stacktape can store a patch of up to 256 KB.
+  </li>
+  <li>
+    <strong>AI credentials.</strong> Stacktape stores connected AI keys and member sign-ins encrypted. For a hosted run,
+    it briefly copies the credential into AWS Systems Manager Parameter Store in your AWS account. An administrator of
+    that account may be able to read it before the runner removes it.
+  </li>
+  <li>
+    <strong>Git integrations.</strong> The Console works with repositories you connect on GitHub, GitLab or Bitbucket,
+    for example to deploy on push.
+  </li>
+  <li>
+    <strong>Alert destinations.</strong> Slack, Microsoft Teams, Discord, email recipients and webhooks you choose
+    receive alerts. Depending on the event and channel, alerts can include incident evidence, metric graphs, commit
+    details, endpoints, security findings or budget amounts.
+  </li>
+</ul>
+<p>
+  Current alarm helpers deliver directly from your AWS account when you configure a direct channel. Older helpers can
+  send its credentials to the Console for delivery. The Console keeps a masked delivery record. When you create a
+  channel in the Console, it stores the settings, which can include a bot token, webhook URL, headers or secret. See
+  <a href="https://docs.stacktape.com/observability/alert-channels">alert channels</a>.
+</p>
+
+<h2 id="providers">5. Providers we use</h2>
+<ul>
+  <li>
+    <strong>Amazon Web Services</strong> hosts the shared Console and its database in Ireland, hosts this website and
+    sends our emails.
+  </li>
+  <li>
+    <strong>PostHog</strong>, in the EU, receives CLI telemetry and crash reports, documentation analytics and Console
+    analytics. Console analytics include pages visited, selected actions, errors and sign-up campaign tags. Signed-in
+    events can include your name, email, user ID and organization. Session recording is off.
+  </li>
+  <li><strong>Plausible Analytics</strong> counts visits to stacktape.com.</li>
+  <li><strong>Paddle</strong> processes payments and issues invoices for paid plans.</li>
+  <li>
+    <strong>Apollo.io</strong> receives your name and email when you sign up for the production Console on your own. We
+    use Apollo to look up professional information, such as your company, and try to enroll you in an email sequence
+    offering help with your first deploy.
+  </li>
+  <li><strong>Google</strong> and <strong>GitHub</strong> sign you in, if you choose to sign in with them.</li>
+  <li>
+    <strong>Slack</strong> carries internal notifications. These can include your name, email and campaign tags at
+    sign-up, the project, stage, region and deployer's email for a first deploy, and billing email and plan changes.
+    Slack also hosts our shared customer channels.
+  </li>
+  <li><strong>Cal.com</strong> handles booking a call with us.</li>
+</ul>
+<p>
+  Each provider handles data under its own terms and privacy policy, and Stacktape is not responsible for how they do
+  so. Stacktape may also give information to authorities and law enforcement when the law requires it.
+</p>
+
+<h2 id="website">6. This website, the documentation and cookies</h2>
+<p>
+  stacktape.com uses Plausible Analytics, which counts visits without cookies. The documentation at docs.stacktape.com
+  uses PostHog without cookies or any identifier stored in your browser, and records page views, time on page and script
+  errors. Website builds can also enable PostHog without cookies. Neither site uses session recording.
+</p>
+<p>
+  Algolia receives searches you make in the documentation. Algolia Search Insights is off. The documentation loads fonts
+  from Google on page views, and this website can open a connection to Google's font servers.
+</p>
+<p>
+  The Console uses cookies to keep you signed in. Its usage analytics store an ID in a cookie and in your browser's
+  local storage.
+</p>
+
+<h2 id="use">7. How we use your data</h2>
+<p>
+  We use the data described here to run the Console and its features, to bill paid plans, and to find and fix what fails
+  in Stacktape. We use your email address to:
+</p>
+<ul>
+  <li>answer your questions and requests;</li>
+  <li>send the alerts and notifications you set up, and messages about your account, organization and plan;</li>
+  <li>tell you about changes to Stacktape, this policy and the terms of use;</li>
+  <li>send our newsletter and other emails about Stacktape, which you can unsubscribe from at any time.</li>
+</ul>
+
+<h2 id="retention">8. How long we keep data</h2>
+<p>
+  Closing an organization removes its memberships, revokes its API keys and marks it as deleted. Its original name
+  remains part of the stored record, and billing and operational history remain. To request deletion of your personal
+  account data, follow the process under <a href="#your-rights">Your rights</a>.
+</p>
+<ul>
+  <li>Stacktape audit events are kept for 400 days from creation, including after organization closure.</li>
+  <li>AWS events in the audit view are read live from CloudTrail's 90-day event history.</li>
+  <li>Error tracking keeps the newest 100 occurrence samples of each issue.</li>
+  <li>Uptime minute data rolls up after 48 hours. Hourly data expires after 90 days.</li>
+  <li>Git webhook bodies are stored in encrypted S3 for processing. Leftover copies expire after 30 days.</li>
+  <li>Unverified sign-ups without organization memberships are pruned after seven days.</li>
+  <li>
+    After your account is closed, we may keep data for as long as we have a legitimate reason to. We may also give it to
+    law enforcement or other authorities entitled to it, even after the account is closed.
+  </li>
+</ul>
+
+<h2 id="security">9. Security</h2>
+<p>
+  Data sent to and from Stacktape is encrypted in transit with TLS, and the Console's database is encrypted at rest.
+</p>
+
+<h2 id="your-rights">10. Your rights</h2>
+<p>
+  You can ask to see the personal data we hold about you, and to have it corrected, updated or deleted. This includes
+  deleting your Console account, which is not self-service. Email
+  <a href="mailto:info@stacktape.com">info@stacktape.com</a> from the address you use with Stacktape. A request can take
+  up to 14 days. To protect you, we may ask you to prove your identity, and we can decline the request if you cannot.
+</p>
+<p>To stop CLI telemetry, set <code>STP_DISABLE_TELEMETRY=1</code> or <code>DO_NOT_TRACK=1</code>.</p>
+
+<h2 id="changes">11. Changes to this policy</h2>
+<p>
+  We may change this policy at any time. Changes do not apply retroactively. We tell registered users and newsletter
+  subscribers at least seven days before a new policy takes effect. Changes that address urgent matters or are required
+  by law can take effect immediately, and we tell you about them too. If you do not agree with a change, stop using
+  Stacktape's services.
+</p>
+
+<h2 id="contact">12. Contact</h2>
+<p>Email <a href="mailto:info@stacktape.com">info@stacktape.com</a>.</p>
