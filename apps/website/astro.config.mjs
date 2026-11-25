@@ -31,6 +31,15 @@ export default defineConfig({
           ]
         : [])
     ],
+    ssr: {
+      // `@stacktape/ui-react/resource-icon` draws the AWS icons from `aws-react-icons`, whose ESM index imports its
+      // files without extensions. Node cannot load that when the dev server leaves the package external, so the server
+      // render failed with "Cannot find module .../aws-react-icons/lib/icons/…". Vite bundles it instead.
+      noExternal: ['aws-react-icons'],
+      // Its ESM index re-exports CommonJS files, so it is pre-bundled into real ESM first. Named through
+      // `@stacktape/ui-react`, the package that depends on it, because pnpm does not link it into this app.
+      optimizeDeps: { include: ['@stacktape/ui-react > aws-react-icons'] }
+    },
     resolve: {
       // Force a single React copy. Without this, a mid-session dep re-optimization can momentarily
       // resolve a second React instance for some islands, which surfaces during SSR as

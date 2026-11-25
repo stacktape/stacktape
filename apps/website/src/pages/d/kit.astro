@@ -1,5 +1,6 @@
 ---
 import { ButtonLink } from '@stacktape/ui-react/button';
+import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import BrandHead from '../../brand/BrandHead.astro';
 import { CommandBox } from '../../brand/CommandBox';
 import Logo from '../../brand/Logo.astro';
@@ -40,6 +41,27 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       <section class="specimen" aria-labelledby="install">
         <h2 id="install">Install</h2>
         <CommandBox client:load />
+      </section>
+
+      <section class="specimen" aria-labelledby="resources">
+        <h2 id="resources">Resource icons</h2>
+        <ul class="resource-samples">
+          {
+            [
+              ['web-service', 'Web service'],
+              ['worker-service', 'Worker service'],
+              ['relational-database', 'Relational database'],
+              ['redis', 'Redis'],
+              ['sqs-queue', 'SQS queue'],
+              ['hosting-bucket', 'Hosting bucket']
+            ].map(([type, name]) => (
+              <li>
+                <ResourceIcon resourceType={type} size={20} />
+                {name}
+              </li>
+            ))
+          }
+        </ul>
       </section>
 
       <section class="specimen" aria-labelledby="controls">
@@ -114,6 +136,22 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     gap: var(--brand-space-4);
     border-top: 1px solid var(--brand-border);
     padding-block-start: var(--brand-space-3);
+  }
+
+  .resource-samples {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+    gap: var(--brand-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .resource-samples li {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-2);
+    font-size: var(--brand-type-sm);
   }
 
   .logo-samples,
