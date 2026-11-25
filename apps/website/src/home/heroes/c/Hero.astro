@@ -1,0 +1,179 @@
+---
+/**
+ * Hero C, "Tape forward": the app's AWS stack drawn as plates held together by one strip of Stacktape's tape, and a
+ * crop of a real `stacktape init` result under it.
+ */
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { CommandBox } from '../../../brand/CommandBox';
+import excerpt from './init-resources.webp';
+import TapedStack from './TapedStack.astro';
+
+type Props = { subheadline?: string };
+
+const { subheadline = 'A CLI and a Console that set up, deploy and run your app in your own AWS account.' } = Astro.props;
+---
+
+<section class="hero site-frame" aria-labelledby="hero-title">
+  <div class="hero__grid">
+  <div class="hero__copy">
+    <h1 id="hero-title">AWS DevOps, <span>fully automated.</span></h1>
+    <p class="hero__lead">{subheadline}</p>
+    <div class="hero__start">
+      <CommandBox client:load id="install" preselect={false} />
+      <p class="hero__ownership">
+        <span>Runs in your AWS account on standard CloudFormation.</span>
+        <span>Stop using Stacktape and your app keeps running.</span>
+      </p>
+      <div class="hero__actions">
+        <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com"
+          >Read the docs</ButtonLink
+        >
+        <a class="brand-link brand-link--muted" href="https://github.com/stacktape/stacktape">Open source (MIT)</a>
+      </div>
+    </div>
+  </div>
+  <figure class="hero__art">
+    <TapedStack />
+    <figcaption class="hero__excerpt">
+      <img
+        src={excerpt.src}
+        width={excerpt.width / 2}
+        height={excerpt.height / 2}
+        alt="Two resources from the init wizard's Review step: a Postgres database, db.t4g.small with 20 GB, at $32 a month, and a Next.js site at pay per use."
+      />
+      <span
+        >A real <code>stacktape init</code> result for a Next.js app with Postgres. Every resource gets an estimate from AWS
+        list prices before anything is created.</span
+      >
+    </figcaption>
+  </figure>
+  </div>
+</section>
+
+<style>
+  .hero {
+    container-type: inline-size;
+  }
+
+  .hero__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 38rem) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--brand-space-8);
+    min-block-size: min(100svh - 4.25rem, 54rem);
+    padding-block: var(--brand-space-8);
+  }
+
+  h1 {
+    margin: 0;
+    font: var(--brand-weight-heading) var(--brand-type-display) / var(--brand-leading-heading) var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  /* On a wide frame the headline is set larger: one confident line per row. */
+  @container (min-width: 88rem) {
+    .hero__grid {
+      grid-template-columns: minmax(0, 44rem) minmax(0, 1fr);
+    }
+
+    h1 {
+      font-size: calc(var(--brand-type-display) * 1.2);
+    }
+  }
+
+  h1 span {
+    display: block;
+    white-space: nowrap;
+  }
+
+  .hero__lead {
+    margin: var(--brand-space-5) 0 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+    text-wrap: pretty;
+  }
+
+  .hero__start {
+    display: grid;
+    gap: var(--brand-space-4);
+    margin-block-start: var(--brand-space-7);
+  }
+
+  .hero__ownership {
+    display: grid;
+    margin: 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--brand-space-5);
+    margin-block-start: var(--brand-space-2);
+    font-size: var(--brand-type-sm);
+  }
+
+  .hero__art {
+    display: grid;
+    gap: var(--brand-space-5);
+    margin: 0;
+  }
+
+  .hero__excerpt {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-5);
+    margin-inline-start: 12%;
+    font-size: var(--brand-type-sm);
+  }
+
+  .hero__excerpt img {
+    flex: none;
+    inline-size: min(24rem, 60%);
+    block-size: auto;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    box-shadow: var(--brand-shadow);
+  }
+
+  .hero__excerpt span {
+    color: var(--brand-muted);
+  }
+
+  .hero__excerpt span:last-child {
+    max-inline-size: 20rem;
+  }
+
+  @container (max-width: 40rem) {
+    .hero__excerpt {
+      flex-direction: column;
+      align-items: flex-start;
+      margin-inline-start: 0;
+    }
+
+    .hero__excerpt img {
+      inline-size: 100%;
+      max-inline-size: 24rem;
+    }
+  }
+
+  .hero__excerpt code {
+    font-family: var(--brand-font-mono);
+    color: var(--brand-text);
+  }
+
+  @container (max-width: 64rem) {
+    .hero__grid {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--brand-space-8);
+      min-block-size: 0;
+      padding-block: var(--brand-space-7) var(--brand-space-8);
+    }
+
+    .hero__copy {
+      max-inline-size: 40rem;
+    }
+  }
+</style>
