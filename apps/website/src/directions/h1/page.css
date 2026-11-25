@@ -180,6 +180,10 @@
   fill: #a3b7b3;
 }
 
+.h1-world__tags {
+  display: none;
+}
+
 /* Labels stay about 10 to 12 px on screen while the world scales with the window. */
 @media (max-width: 112rem) {
   .h1-world .w-label {
@@ -208,10 +212,14 @@
 
 .h1-trust {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--brand-space-6) clamp(2rem, 4vw, 5rem);
   padding-block: var(--brand-space-7) var(--brand-space-9);
   border-block-start: 1px solid var(--brand-border);
+}
+
+.h1-quote {
+  max-inline-size: 40rem;
 }
 
 .h1-quote blockquote {
@@ -256,11 +264,32 @@
   /* Trim the empty sky the art keeps above and below the stack on wide screens. */
   .h1-world__art {
     inline-size: min(104%, 44rem);
-    margin-block: -11% -15%;
+    margin-block: -11% -19%;
+  }
+
+  .h1-start {
+    margin-block-start: var(--brand-space-5);
   }
 
   .h1-world .w-labels {
     display: none;
+  }
+
+  .h1-world__art {
+    position: relative;
+  }
+
+  .h1-world__tags {
+    position: absolute;
+    inset: 0;
+    display: block;
+  }
+
+  .h1-world .h1-world__tags > .tape {
+    position: absolute;
+    translate: -50% -50%;
+    font-size: 0.8125rem;
+    white-space: nowrap;
   }
 
   .h1-trust {
@@ -269,5 +298,78 @@
 
   .h1-start__more {
     flex-wrap: wrap;
+  }
+}
+
+/*
+ * Phones: the kit's command box puts Copy on a row of its own and keeps room for three lines. Here the tabs stay on
+ * top and Copy sits beside the command, so the box is as tall as the two lines it shows.
+ */
+@media (max-width: 37.5rem) {
+  /* The ownership line reads straight after the command; the docs button follows it. */
+  .h1-start__more {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+  }
+
+  .h1 .brand-command {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .h1 .brand-command .install-code__head {
+    display: contents;
+  }
+
+  .h1 .brand-command .install-code__tabs {
+    grid-row: 1;
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    inline-size: auto;
+    max-inline-size: none;
+    padding: var(--brand-space-2);
+    border-block-end: 1px solid var(--brand-border);
+    border-start-start-radius: calc(var(--brand-radius) - 1px);
+    border-start-end-radius: calc(var(--brand-radius) - 1px);
+    background: var(--brand-surface);
+  }
+
+  .h1 .brand-command .install-code__arch {
+    grid-row: 2;
+    grid-column: 1;
+    justify-self: start;
+    padding: var(--brand-space-3) var(--brand-space-4) 0;
+  }
+
+  /* The command and its hint use the full width; Copy sits over the free end of the first line. */
+  .h1 .brand-command .install-code__pre {
+    grid-row: 3;
+    grid-column: 1 / -1;
+    min-block-size: 0;
+    row-gap: var(--brand-space-2);
+  }
+
+  .h1 .brand-command .install-code__line:first-child {
+    padding-inline-end: 5.75rem;
+  }
+
+  .h1 .brand-command .brand-button.install-code__copy {
+    --stp-control-height: 2rem;
+    position: relative;
+    z-index: 1;
+    grid-row: 3;
+    grid-column: 2;
+    align-self: start;
+    margin: calc(var(--brand-space-4) + 0.5lh - 1rem) var(--brand-space-3) 0 0;
+  }
+
+  /* Install tabs have long commands that scroll, so there Copy sits at the end of the architecture row. */
+  .h1 .brand-command:has(.install-code__arch) .brand-button.install-code__copy {
+    grid-row: 2;
+    margin-block-start: var(--brand-space-3);
+  }
+
+  .h1 .brand-command:has(.install-code__arch) .install-code__line:first-child {
+    padding-inline-end: 0;
   }
 }

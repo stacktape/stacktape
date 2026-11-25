@@ -1,8 +1,13 @@
 ---
 import { ButtonLink } from '@stacktape/ui-react/button';
 import { CommandBox } from '../../brand/CommandBox';
+import Tape from '../../brand/Tape.astro';
 import sky from './sky.svg?raw';
+import anchors from './world-labels.json';
 import world from './world.svg?raw';
+
+/** On phones the drawing's own labels are too small to read, so a few of them are set again as tape labels. */
+const phoneTags = anchors.filter((anchor) => ['site', 'api', 'db', 'stage'].includes(anchor.id));
 ---
 
 <section class="h1-hero" aria-labelledby="h1-title">
@@ -19,6 +24,15 @@ import world from './world.svg?raw';
         aria-label="An app's AWS resources, an API, functions, Postgres, a queue, a worker, uploads and a Next.js site, standing on three stacked stages: production, staging and a pull request preview. A strip of teal tape holds the stack together."
       >
         <Fragment set:html={world} />
+        <div class="h1-world__tags" aria-hidden="true">
+          {
+            phoneTags.map((tag) => (
+              <Tape tone="gray" style={`left: ${tag.x}%; top: ${tag.y}%`}>
+                {tag.label}
+              </Tape>
+            ))
+          }
+        </div>
       </div>
     </div>
     <div class="h1-start">
