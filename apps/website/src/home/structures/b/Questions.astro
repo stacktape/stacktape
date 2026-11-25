@@ -31,8 +31,7 @@ type Question = { q: string; a: string; link?: { label: string; href: string } }
 const QUESTIONS: Question[] = [
   {
     q: 'Why not Heroku or Render?',
-    a: `Your app runs in your own AWS account at AWS prices, and you can add any AWS resource through CloudFormation or CDK. You still get push-to-deploy and pull request previews. For a warm Git push of a Node.js code change, Stacktape took ${pushSeconds('stacktape')} seconds with code swap turned on, Heroku ${pushSeconds('heroku')} seconds and Render ${pushSeconds('render')} seconds. Heroku was faster for Python.`,
-    link: { label: 'Preliminary Git push results, 22–23 October 2026', href: '/benchmarks' }
+    a: `Your app runs in your own AWS account at AWS prices, and you can add any AWS resource through CloudFormation or CDK. You still get push-to-deploy and pull request previews. In our preliminary Git push benchmark of 22–23 October 2026, a warm Node.js code change took ${pushSeconds('stacktape')} seconds with Stacktape and code swap turned on, ${pushSeconds('heroku')} seconds on Heroku and ${pushSeconds('render')} seconds on Render. Heroku was faster for Python.`
   },
   {
     q: 'Why not hire a DevOps engineer?',
