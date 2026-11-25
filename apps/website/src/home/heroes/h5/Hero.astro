@@ -132,20 +132,19 @@ const CONSOLE = {
   }
 
   /*
-   * The top block: the headline set like the logo, its second line printed on the logo's teal tape, with the
-   * subheadline under it; beside them the Console's own "Run the setup wizard" card, which gives the command the
-   * surface it is designed to sit on.
+   * The top block: the headline across the frame, set like the logo, its second line printed on the logo's teal tape.
+   * Under it the subheadline, and beside that the Console's own "Run the setup wizard" card, which gives the command
+   * the surface it is designed to sit on. The card is wide enough for the longest one-line installer (Windows).
    */
   .h5__top {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(29rem, 36vw, 35rem);
-    grid-template-areas: 'title setup' 'words setup';
-    grid-template-rows: auto 1fr;
-    align-items: center;
-    gap: clamp(1.75rem, 2.2vw, 2.5rem) clamp(2.5rem, 5vw, 6.5rem);
+    grid-template-columns: minmax(0, 1fr) min(48rem, 56%);
+    grid-template-areas: 'title title' 'words setup';
+    align-items: start;
+    gap: clamp(2.5rem, 3.4vw, 4rem) clamp(2.5rem, 4vw, 5rem);
     inline-size: var(--h5-frame);
     margin: 0 auto;
-    padding-block-start: clamp(3rem, 4.4vw, 5.5rem);
+    padding-block-start: clamp(4rem, 6vw, 7.5rem);
   }
 
   .h5__title {
@@ -156,7 +155,7 @@ const CONSOLE = {
     gap: 0.06em;
     margin: 0;
     color: var(--brand-text);
-    font: 800 clamp(2.75rem, 1.2rem + 3.9vw, 6rem) / 1.02 var(--brand-font-heading);
+    font: 800 clamp(2.75rem, 1.2rem + 3.9vw, 7rem) / 1.02 var(--brand-font-heading);
     letter-spacing: -0.045em;
   }
 
@@ -212,7 +211,6 @@ const CONSOLE = {
 
   .h5__words {
     grid-area: words;
-    align-self: start;
   }
 
   .h5__lead {
@@ -221,12 +219,12 @@ const CONSOLE = {
     color: var(--h5-soft);
     font-size: clamp(1.05rem, 0.95rem + 0.35vw, 1.3rem);
     line-height: 1.55;
+    text-wrap: pretty;
   }
 
-  /* The Console's card: its surface, a heading with the terminal icon, one sentence, the command, three steps. */
+  /* The Console's card: its surface, a heading with the terminal icon, one sentence, the command. */
   .h5__setup {
     grid-area: setup;
-    align-self: center;
     padding: clamp(1.5rem, 2vw, 2.25rem);
     border: 1px solid rgb(255 255 255 / 7%);
     background: var(--brand-surface);
@@ -259,6 +257,7 @@ const CONSOLE = {
     color: var(--brand-muted);
     font-size: var(--brand-type-sm);
     line-height: 1.55;
+    text-wrap: pretty;
   }
 
   /* "Open source" on grey label tape, as a line over the Console window. */
@@ -268,7 +267,7 @@ const CONSOLE = {
     align-items: center;
     justify-content: center;
     gap: var(--brand-space-2) var(--brand-space-3);
-    margin: 0 0 var(--brand-space-2);
+    margin: 0 0 clamp(0.5rem, 0.8vw, 1rem);
     color: var(--brand-muted);
     font-size: var(--brand-type-sm);
     text-align: center;
@@ -284,13 +283,14 @@ const CONSOLE = {
   }
 
   /* The product: the Console's tab strip, and under it the real Console window. */
+  /* The product, with room around the Open source line and between the tabs and the window. */
   .h5__product {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--brand-space-4);
+    gap: clamp(1.25rem, 1.5vw, 1.75rem);
     inline-size: var(--h5-frame);
-    margin: clamp(2.25rem, 2.6vw, 3.25rem) auto 0;
+    margin: clamp(3.5rem, 5vw, 6.25rem) auto 0;
   }
 
   .h5__strip {
@@ -380,7 +380,7 @@ const CONSOLE = {
     }
 
     .h5__setup {
-      max-inline-size: 40rem;
+      max-inline-size: 48rem;
     }
   }
 
@@ -410,12 +410,12 @@ const CONSOLE = {
     }
 
     .h5__title {
-      margin-block-start: var(--brand-space-5);
+      margin-block-start: var(--brand-space-6);
       font-size: 2.45rem;
     }
 
     .h5__words {
-      margin-block-start: var(--brand-space-4);
+      margin-block-start: var(--brand-space-5);
     }
 
     .h5__lead {
@@ -443,8 +443,8 @@ const CONSOLE = {
     }
 
     .h5__product {
-      margin-block-start: var(--brand-space-5);
-      gap: var(--brand-space-2);
+      margin-block-start: var(--brand-space-6);
+      gap: var(--brand-space-3);
     }
 
     /* Six tabs do not fit one row on a phone: two rows of three, each row a strip cut straight at its outer ends. */
@@ -471,14 +471,4 @@ const CONSOLE = {
 
   }
 
-  /* On the narrowest phones the command and its tabs are set a step smaller, so neither wraps nor scrolls. */
-  @media (max-width: 24rem) {
-    .h5__setup :global(.brand-command__words) {
-      font-size: var(--brand-type-sm);
-    }
-
-    .h5__setup :global(.brand-tabs) {
-      --stp-tab-font-size: var(--brand-type-xs);
-    }
-  }
 </style>
