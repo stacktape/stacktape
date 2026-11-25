@@ -51,7 +51,7 @@
   display: grid;
   align-items: center;
   min-block-size: clamp(44rem, 100svh - 12rem, 70rem);
-  padding-block: calc(var(--h1-header) + var(--brand-space-6)) var(--brand-space-8);
+  padding-block: calc(var(--h1-header) + clamp(2rem, 6svh, 5rem)) var(--brand-space-8);
   overflow: clip;
   background:
     radial-gradient(50% 60% at 72% 40%, rgb(var(--h1-haze) / 0.11), transparent 100%),
