@@ -1,7 +1,11 @@
 ---
 import Tape from '../../../brand/Tape.astro';
 import { CommandBox } from '../../../brand/CommandBox';
+import { COMMANDS } from '../../../brand/install-commands';
 import { WIZARD_PRIVACY } from '../../sections';
+
+const pageUrl = new URL('/', Astro.site ?? Astro.url);
+const shareText = `Run this in your app’s folder to preview your AWS setup:\n\n${COMMANDS[0].command}\n\n${pageUrl}`;
 ---
 
 <section class="b-closing site-frame" aria-labelledby="b-closing-title">
@@ -17,9 +21,32 @@ import { WIZARD_PRIVACY } from '../../sections';
   </div>
   <div class="b-closing__start home-phone">
     <CommandBox client:media="(max-width: 40rem)" single />
-    <a class="brand-link b-closing__console" href="https://console.stacktape.com">Open the Console</a>
+    <div class="b-closing__actions">
+      <button class="b-closing__secondary" type="button" data-share-setup={shareText} hidden>Share setup command</button>
+      <a class="brand-link b-closing__secondary" href="https://console.stacktape.com">Open the Console</a>
+    </div>
+    <p class="b-closing__share-status" role="status" data-share-status></p>
   </div>
 </section>
+
+<script>
+  const button = document.querySelector<HTMLButtonElement>('[data-share-setup]');
+  const status = document.querySelector<HTMLElement>('[data-share-status]');
+  const text = button?.dataset.shareSetup;
+  if (button && status && text && typeof navigator.share === 'function' && (navigator.canShare?.({ text }) ?? true)) {
+    button.hidden = false;
+    button.addEventListener('click', async () => {
+      status.textContent = '';
+      try {
+        await navigator.share({ text });
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          status.textContent = 'Couldn’t share the command. You can copy it above.';
+        }
+      }
+    });
+  }
+</script>
 
 <style>
   .b-closing {
@@ -82,7 +109,13 @@ import { WIZARD_PRIVACY } from '../../sections';
       line-height: 1.5;
     }
 
-    .b-closing__console {
+    .b-closing__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--brand-space-2);
+    }
+
+    .b-closing__secondary:not([hidden]) {
       display: inline-flex;
       align-items: center;
       min-height: var(--brand-control-height);
@@ -91,10 +124,20 @@ import { WIZARD_PRIVACY } from '../../sections';
       color: var(--brand-text);
       font-size: var(--home-caption);
       text-decoration: none;
+      cursor: pointer;
     }
 
-    .b-closing__console:hover {
+    .b-closing__secondary:hover {
       background: var(--brand-surface);
+    }
+
+    .b-closing__share-status {
+      color: var(--brand-muted);
+      font-size: var(--home-caption);
+    }
+
+    .b-closing__share-status:empty {
+      position: absolute;
     }
   }
 </style>

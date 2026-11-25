@@ -44,7 +44,8 @@ const PHONE_COLORS = ['aws-category-compute', 'aws-category-database', 'text-sub
 const NOVEMBER_TOTAL = 286.4;
 const ACCOUNT_BUDGET = 320;
 const ACCOUNT_FORECAST = 352.8;
-const BUDGET_Y = 38 - (ACCOUNT_BUDGET / ACCOUNT_FORECAST) * 34;
+const BUDGET_SHARE = (ACCOUNT_BUDGET / ACCOUNT_FORECAST) * 100;
+const ACCOUNT_OVERRUN = ACCOUNT_FORECAST - ACCOUNT_BUDGET;
 
 const ALERTS = [
   { when: '1d ago', event: 'Forecast over', spend: '$352.80 of $320.00' },
@@ -219,11 +220,8 @@ const ALERTS = [
     </ul>
     <div class="cst-ph__budget">
       <p class="ph-eyebrow">AWS account budget</p>
-      <svg viewBox="0 0 300 40" preserveAspectRatio="none">
-        <path class="cst-ph__limit" d={`M0 ${BUDGET_Y}H300`} />
-        <path class="cst-ph__forecast" d="M0 38L297 4" />
-        <circle class="cst-ph__end" cx="297" cy="4" r="3" />
-      </svg>
+      <p>AWS forecasts <b>${ACCOUNT_OVERRUN.toFixed(2)}</b> over budget.</p>
+      <div class="cst-ph__amount" style={`--cst-limit: ${BUDGET_SHARE}%`}><i></i></div>
       <p class="cst-ph__values">
         <span class="ph-muted">Budget ${ACCOUNT_BUDGET}</span>
         <b>Forecast ${ACCOUNT_FORECAST.toFixed(2)}</b>
@@ -282,32 +280,23 @@ const ALERTS = [
     border-top: 1px solid var(--brand-border);
   }
 
-  .cst-ph__budget svg {
-    display: block;
-    width: 100%;
-    height: 2.125rem;
-    margin-block: var(--brand-space-1);
-    overflow: visible;
+  .cst-ph__amount {
+    position: relative;
+    height: var(--brand-space-3);
+    margin-block: var(--brand-space-2);
+    background: linear-gradient(
+      to right,
+      var(--brand-subtle) var(--cst-limit),
+      var(--stp-aws-category-compute) var(--cst-limit)
+    );
   }
 
-  .cst-ph__limit,
-  .cst-ph__forecast {
-    fill: none;
-    vector-effect: non-scaling-stroke;
-  }
-
-  .cst-ph__limit {
-    stroke: var(--brand-muted);
-    stroke-dasharray: 3 4;
-  }
-
-  .cst-ph__forecast {
-    stroke: var(--stp-aws-category-compute);
-    stroke-width: 2;
-  }
-
-  .cst-ph__end {
-    fill: var(--stp-aws-category-compute);
+  .cst-ph__amount i {
+    position: absolute;
+    inset-block: -3px;
+    inset-inline-start: var(--cst-limit);
+    width: 2px;
+    background: var(--brand-text);
   }
 
   .cst-ph__values {

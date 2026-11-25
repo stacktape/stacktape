@@ -131,7 +131,8 @@ const words = (text: string) => codeParts(text);
     }
 
     .b-step:first-child {
-      padding-block-start: var(--brand-space-5);
+      row-gap: var(--brand-space-3);
+      padding-block-start: var(--brand-space-4);
     }
 
     .b-step__head {
@@ -173,6 +174,25 @@ const words = (text: string) => codeParts(text);
 
     .b-step:is(#packages, #deploys) {
       background: var(--brand-surface);
+    }
+  }
+
+  @media (max-width: 23.4375rem) {
+    #designs {
+      position: relative;
+    }
+
+    #designs .b-step__head {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: 'title' 'copy';
+    }
+
+    #designs .b-step__marker {
+      position: absolute;
+      grid-area: auto;
+      inline-size: max-content;
+      inset-inline-end: var(--site-gutter);
+      inset-block-end: calc(var(--home-section-space) - 0.25rem);
     }
   }
 </style>

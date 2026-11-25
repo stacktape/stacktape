@@ -58,6 +58,11 @@ const current = (href: string) => (path === href ? 'page' : path.startsWith(`${h
         menu.open = false;
       }
     });
+    menu.addEventListener('focusout', (event) => {
+      if (phone.matches && menu.open && !(event.relatedTarget instanceof Node && menu.contains(event.relatedTarget))) {
+        menu.open = false;
+      }
+    });
     document.addEventListener('keydown', (event) => {
       if (phone.matches && menu.open && event.key === 'Escape') {
         menu.open = false;

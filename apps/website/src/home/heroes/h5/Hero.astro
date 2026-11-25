@@ -33,7 +33,7 @@ const subheadline =
       </div>
       <div class="home-phone" data-phone-install>
         <CommandBox client:media="(max-width: 40rem)" single />
-        <p class="h5__hint">Run it in your app's folder. Nothing deploys yet.</p>
+        <p class="h5__hint">Preview your AWS setup and monthly cost from your app’s folder. Nothing deploys.</p>
       </div>
     </section>
     <p class="h5__proof home-phone">Hear from <a href="#b-proof-title">Receipts, Lastmyle and Trigger.dev</a></p>
@@ -238,14 +238,14 @@ const subheadline =
   @media (max-width: 40rem) {
     .h5 {
       --h5-frame: calc(100% - 2 * var(--site-gutter));
-      padding-block-end: var(--brand-space-6);
+      padding-block-end: var(--brand-space-2);
       background: var(--brand-page);
     }
 
     .h5__top {
       grid-template-areas: 'title' 'words' 'setup' 'proof';
-      gap: 1.125rem;
-      padding-block-start: 1.75rem;
+      gap: var(--brand-space-4);
+      padding-block-start: calc(var(--brand-space-4) + var(--brand-space-1));
     }
 
     .h5__title {
@@ -258,7 +258,7 @@ const subheadline =
     }
 
     .h5__open {
-      margin-block-start: var(--brand-space-3);
+      margin-block-start: var(--brand-space-2);
     }
 
     .h5__open,

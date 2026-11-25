@@ -81,7 +81,7 @@ const scale = slowest(bars);
     grid-column: 1 / -1;
     width: var(--bar-width);
     height: var(--brand-space-3);
-    background: var(--brand-border);
+    background: color-mix(in srgb, var(--brand-subtle) 70%, var(--brand-inset));
   }
 
   li.is-us {
@@ -90,7 +90,7 @@ const scale = slowest(bars);
   }
 
   li.is-us i {
-    background: var(--brand-primary);
+    background: var(--brand-teal);
   }
 
   a {
