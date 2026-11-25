@@ -13,6 +13,8 @@
   --brand-border: #2f3434;
   --brand-text: #f1f6f6;
   --brand-muted: #acacac;
+  --brand-subtle: #989898;
+  --brand-danger: #eb6161;
   --brand-teal: #36bebe;
   --brand-on-teal: #fff;
   --brand-primary-top: #1c8a85;
@@ -44,8 +46,10 @@
   --brand-tracking-heading: -0.035em;
 
   --brand-control-height: 2.75rem;
-  --brand-radius: 8px;
-  --brand-radius-small: 4px;
+  /* Square corners everywhere (owner, 25 Nov 2026): panels, fields, buttons, menus, tabs and tape. Only true circles
+     (status dots, avatars) stay round; they say so with `50%`, not with these tokens. */
+  --brand-radius: 0;
+  --brand-radius-small: 0;
   --brand-space-1: 0.25rem;
   --brand-space-2: 0.5rem;
   --brand-space-3: 0.75rem;
@@ -78,6 +82,23 @@
     var(--brand-tooth) 25%,
     0 12.5%
   );
+}
+
+/* The shared components' own radius tokens, on the website's pages: square like the rest of the kit. */
+html.brand {
+  --stp-radius-small: 0;
+  --stp-radius-medium: 0;
+  --stp-radius-large: 0;
+  --stp-button-radius: 0;
+  --stp-field-radius: 0;
+  --stp-dialog-radius: 0;
+  --stp-tooltip-radius: 0;
+  --stp-menu-radius: 0;
+  --stp-menu-item-radius: 0;
+  --stp-selection-card-radius: 0;
+  --stp-tabs-radius: 0;
+  --stp-tab-radius: 0;
+  --stp-tab-indicator-radius: 0;
 }
 
 .brand body {

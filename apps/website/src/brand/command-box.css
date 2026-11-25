@@ -1,142 +1,140 @@
+/*
+ * The install command as the Console's new project page shows it ("Run the setup wizard",
+ * NewProjectChoices.tsx InitCommand): tape tabs, 12px, then a dark, sunken command field whose labelled Copy button
+ * sits inside its right end.
+ */
 .brand-command {
   container-type: inline-size;
+  display: grid;
+  align-content: start;
+  gap: var(--brand-space-3);
   min-inline-size: 0;
-  border: 1px solid var(--brand-border);
-  border-radius: var(--brand-radius);
-  background: var(--brand-inset);
-  box-shadow: var(--brand-shadow);
   color: var(--brand-text);
 }
 
-.brand-command .install-code__head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--brand-space-2);
-  padding: var(--brand-space-2);
-  border-bottom: 1px solid var(--brand-border);
-  border-start-start-radius: inherit;
-  border-start-end-radius: inherit;
-  background: var(--brand-surface);
-}
-
-.brand-command .stp-ui-tabs {
-  --stp-tabs-border: transparent;
-  --stp-tab-text: var(--brand-muted);
-  --stp-tab-text-hover: var(--brand-text);
-  --stp-tab-text-active: var(--brand-text);
-  font-family: var(--brand-font-body);
-}
-
-.brand-command .install-code__tabs {
+.brand-command__tabs {
+  justify-self: start;
   max-inline-size: 100%;
   overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.brand-command .stp-ui-tab {
-  isolation: isolate;
-  flex: none;
-  margin: 0;
-  border: 0;
-  transition: none;
-}
-
-.brand-command .stp-ui-tab:focus-visible {
-  outline-offset: -2px;
-}
-
-.brand-command .stp-ui-tab--active::before {
-  position: absolute;
-  z-index: -1;
-  inset: 2px 0;
-  content: '';
-  background: var(--brand-control);
-  box-shadow: var(--brand-edge);
-  clip-path: var(--brand-tape-clip);
-}
-
-.brand-command .install-code__arch .stp-ui-tabs__list {
-  border: 1px solid var(--brand-border);
-  border-radius: var(--brand-radius-small);
-  background: var(--brand-inset);
-}
-
-.brand-command .brand-button.install-code__copy {
-  --stp-control-height: 2.25rem;
-  --stp-button-padding-x: var(--brand-space-3);
-  grid-column: 3;
-  justify-self: end;
-  font-size: var(--brand-type-xs);
-}
-
-.brand-command .install-code__labels {
+.brand-command__field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-}
-
-.brand-command .install-code__label {
-  grid-area: 1 / 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--brand-space-2);
-  visibility: hidden;
-}
-
-.brand-command.install-code--idle .install-code__label--copy,
-.brand-command.install-code--copied .install-code__label--copied,
-.brand-command.install-code--failed .install-code__label--failed {
-  visibility: visible;
-}
-
-.brand-command .install-code__pre {
-  display: grid;
-  align-content: start;
-  row-gap: var(--brand-space-1);
-  min-block-size: calc(2lh + 2 * var(--brand-space-4) + var(--brand-space-1));
-  padding: var(--brand-space-4);
-  overflow-x: auto;
-  font: var(--brand-type-sm) / var(--brand-leading-body) var(--brand-font-mono);
-}
-
-.brand-command.install-code--hint .install-code__pre {
-  min-block-size: calc(3lh + 2 * var(--brand-space-4) + 2 * var(--brand-space-1));
-}
-
-.brand-command .install-code__line {
-  display: flex;
   gap: var(--brand-space-3);
+  padding: var(--brand-space-1) var(--brand-space-1) var(--brand-space-1) var(--brand-space-4);
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: var(--brand-radius);
+  background: rgb(0 0 0 / 32%);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 35%);
 }
 
-.brand-command .install-code__prompt {
-  color: var(--brand-teal);
+.brand-command__field:focus-visible {
+  outline: 2px solid var(--brand-focus);
+  outline-offset: 2px;
+}
+
+/* Large while it is a short command; an installer's long one is set smaller, so it wraps less. */
+.brand-command__words {
+  display: flex;
+  gap: 1ch;
+  min-inline-size: 0;
+  font: var(--brand-weight-body) 1rem / 1.5rem var(--brand-font-mono);
+}
+
+.brand-command__words--long {
+  font-size: var(--brand-type-sm);
+  line-height: 1.375rem;
+}
+
+.brand-command__prompt {
+  flex: none;
+  color: var(--brand-subtle);
   user-select: none;
 }
 
-.brand-command .install-code__line--comment,
-.brand-command .install-code__line--comment .install-code__prompt {
+.brand-command__text {
+  min-inline-size: 0;
+}
+
+/* A flag and its value never break apart; a URL longer than the field may break anywhere. */
+.brand-command__group {
+  display: inline-block;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+
+.brand-command__word {
   color: var(--brand-muted);
 }
 
-@container (max-width: 34rem) {
-  .brand-command .install-code__head {
-    grid-template-columns: minmax(0, 1fr) auto;
+.brand-command__word--bright {
+  color: var(--brand-text);
+  font-weight: var(--brand-weight-label);
+}
+
+.brand-command .brand-button.brand-command__copy {
+  --stp-control-height: 2.375rem;
+  --stp-button-padding-x: 0.9375rem;
+  font-family: var(--brand-font-heading);
+  font-weight: 450;
+}
+
+.brand-command__icon--failed {
+  color: var(--brand-danger);
+}
+
+.brand-command__labels {
+  display: inline-grid;
+}
+
+.brand-command__labels > * {
+  grid-area: 1 / 1;
+}
+
+.brand-command__label--hidden {
+  visibility: hidden;
+}
+
+.brand-command__hint {
+  margin: 0;
+  color: var(--brand-muted);
+  font-size: var(--brand-type-sm);
+}
+
+/* A button placed right after the box (a docs link) sits level with the command field, not with the whole box. */
+astro-island:has(> .brand-command) + .brand-button,
+.brand-command + .brand-button {
+  align-self: end;
+  margin-block-end: calc((3rem - var(--stp-control-height, var(--brand-control-height))) / 2);
+}
+
+/* Narrow: the Console's 13px tabs keep all six in one row, and a long installer line takes the field's whole width
+   with Copy under it, instead of wrapping into a narrow column beside the button. */
+@container (max-width: 30rem) {
+  .brand-command__tabs {
+    --stp-tab-font-size: 0.8125rem;
+    --stp-tab-padding-x: 5px;
   }
 
-  .brand-command .install-code__tabs {
-    grid-column: 1 / -1;
+  /* A phone's field is narrower than the installer's URL: wrap between plain words, so the URL starts a line. */
+  .brand-command__words--long {
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
   }
 
-  .brand-command .brand-button.install-code__copy {
-    --stp-control-height: var(--brand-control-height);
-    grid-column: 2;
-  }
-
-  .brand-command .stp-ui-tab__label--full:has(+ .stp-ui-tab__label--compact) {
-    display: none;
-  }
-
-  .brand-command .stp-ui-tab__label--compact {
+  .brand-command__words--long .brand-command__group {
     display: inline;
+  }
+
+  .brand-command__field:has(.brand-command__words--long) {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block-start: var(--brand-space-3);
+  }
+
+  .brand-command__field:has(.brand-command__words--long) .brand-command__copy {
+    justify-self: end;
   }
 }
