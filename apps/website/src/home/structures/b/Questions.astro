@@ -28,6 +28,9 @@ for (const date of ['2026-10-22', '2026-10-23']) {
 
 type Question = { q: string; a: string; link?: { label: string; href: string } };
 
+/** The real choice (a PaaS or a DevOps hire) stays open; the rest is an index a buyer opens. */
+const OPEN_BY_DEFAULT = 2;
+
 const QUESTIONS: Question[] = [
   {
     q: 'Why not Heroku or Render?',
@@ -72,30 +75,31 @@ const QUESTIONS: Question[] = [
 ---
 
 <section class="b-questions site-frame" aria-labelledby="b-questions-title">
-  <div class="b-questions__head">
-    <h2 id="b-questions-title">Questions</h2>
-  </div>
-  <dl class="b-questions__list">
+  <h2 id="b-questions-title">Questions</h2>
+  <div class="b-questions__list">
     {
-      QUESTIONS.map((item) => (
-        <div>
-          <dt>{item.q}</dt>
-          <dd>
-            {codeParts(item.a).map(({ part, code }) => (code ? <code>{part}</code> : part))}
+      QUESTIONS.map((item, index) => (
+        <details class="b-question" open={index < OPEN_BY_DEFAULT}>
+          <summary>{item.q}</summary>
+          <div class="b-question__answer">
+            <p>{codeParts(item.a).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
             {item.link ? (
-              <a class="brand-link brand-link--muted b-questions__link" href={item.link.href}>
+              <a class="brand-link brand-link--muted b-question__link" href={item.link.href}>
                 {item.link.label}
               </a>
             ) : null}
-          </dd>
-        </div>
+          </div>
+        </details>
       ))
     }
-  </dl>
+  </div>
 </section>
 
 <style>
-  /* The heading sits above the answers: a one-word title does not need a column of its own. */
+  /*
+   * One column of native <details> rows, no script: the questions read as a short index on every screen, and a buyer
+   * opens the one about price, lock-in or data. The heading sits above the list.
+   */
   .b-questions {
     display: grid;
     gap: var(--brand-space-6);
@@ -109,38 +113,71 @@ const QUESTIONS: Question[] = [
   }
 
   .b-questions__list {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--brand-space-6) clamp(2rem, 1rem + 3vw, 5rem);
-    margin: 0;
+    max-width: 56rem;
+    border-bottom: 1px solid var(--brand-border);
   }
 
-  dt {
-    margin-bottom: var(--brand-space-2);
+  .b-question {
+    border-top: 1px solid var(--brand-border);
+  }
+
+  summary {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--brand-space-4);
+    padding-block: var(--brand-space-4);
     font: var(--brand-weight-label) var(--brand-type-lead) / 1.3 var(--brand-font-heading);
+    list-style: none;
+    cursor: pointer;
   }
 
-  dd {
-    margin: 0;
+  summary::-webkit-details-marker {
+    display: none;
+  }
+
+  /* A plain plus that turns into a minus: square, flat, in the brand teal. */
+  summary::after {
+    flex: none;
+    width: 1ch;
+    color: var(--brand-teal);
+    font: var(--brand-weight-label) var(--brand-type-lead) / 1 var(--brand-font-mono);
+    content: '+';
+  }
+
+  .b-question[open] > summary::after {
+    content: '−';
+  }
+
+  summary:hover {
+    color: var(--brand-teal);
+  }
+
+  summary:focus-visible {
+    outline: 2px solid var(--brand-focus);
+    outline-offset: 2px;
+  }
+
+  .b-question__answer {
+    max-width: 48rem;
+    padding-bottom: var(--brand-space-5);
     color: var(--brand-muted);
   }
 
-  dd code {
+  .b-question__answer p {
+    margin: 0;
+  }
+
+  .b-question__answer code {
     color: var(--brand-text);
     font: 0.9em var(--brand-font-mono);
     overflow-wrap: anywhere;
   }
 
-  .b-questions__link {
+  .b-question__link {
     display: block;
     width: fit-content;
     margin-top: var(--brand-space-2);
     font-size: var(--brand-type-sm);
-  }
-
-  @media (max-width: 64rem) {
-    .b-questions__list {
-      grid-template-columns: minmax(0, 1fr);
-    }
   }
 </style>
