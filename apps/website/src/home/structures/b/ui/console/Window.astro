@@ -34,9 +34,20 @@ type Props = {
    * (heroes/h5/console/data.ts COUNTS). A picture from earlier in the day passes its own count.
    */
   openIncidents?: number;
+  /** Extra classes for the window, e.g. `ph-desktop` when a picture has its own phone version. */
+  class?: string;
 };
 
-const { label, page, pageMenu = false, current, openErrors, organization = true, openIncidents = 1 } = Astro.props;
+const {
+  label,
+  page,
+  pageMenu = false,
+  current,
+  openErrors,
+  organization = true,
+  openIncidents = 1,
+  class: className
+} = Astro.props;
 
 /** Outline icons at the Console's 16 px grid, drawn with the current colour. */
 const ICONS: Record<string, string> = {
@@ -90,7 +101,7 @@ const isOpen = (entry: { group: string; open?: boolean }) =>
   entry.group === 'Organization' ? organization : entry.open === true;
 ---
 
-<div class="cn" role="img" aria-label={label}>
+<div class:list={['cn', className]} role="img" aria-label={label}>
   <div class="cn-in" aria-hidden="true">
     <div class="cn-top">
       <span class="cn-logo"><img src="/brand/logo-wordmark.svg" alt="" width="133" height="32" /></span>

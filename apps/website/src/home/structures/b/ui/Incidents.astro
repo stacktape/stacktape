@@ -1,4 +1,5 @@
 ---
+import './phone/phone.css';
 import Tape from '../../../../brand/Tape.astro';
 import Window from './console/Window.astro';
 
@@ -52,7 +53,7 @@ const FRAMES = [
 ---
 
 <div
-  class="inc"
+  class="inc ph-desktop"
   role="img"
   aria-label="At 10:35, before the 11:04 fix: an incident in the Stacktape Console, API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened, which reads an order total that empty carts do not have. A draft fix is ready as pull request #219. Below, the incident’s card in Slack, with its menu open on Roll back to v000040."
 >
@@ -206,7 +207,44 @@ const FRAMES = [
   </div>
 </div>
 
+<div
+  class="ph ph-phone"
+  role="img"
+  aria-label="At 10:35, before the 11:04 fix: an incident in the Stacktape Console, API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened. A draft fix is ready as pull request #219."
+>
+  <div aria-hidden="true" class="inc-ph">
+    <div>
+      <span class="ph-tag ph-tag--red">Critical</span>
+      <p class="ph-title inc-ph__title">API error rate above 5%</p>
+      <p class="ph-muted">acme-shop / production · open for 18 min · 2 of 3 signals failing</p>
+    </div>
+    <div class="ph-box">
+      <p><b>Likely cause:</b> release v000041, deployed 5 min before it opened</p>
+      <p class="ph-mono">orderTotals · totals.ts:18</p>
+    </div>
+    <p class="inc-ph__fix"><span class="ph-tag ph-tag--teal">Draft fix</span> Pull request #219, not merged</p>
+  </div>
+</div>
+
 <style>
+  /* The phone card. */
+  .inc-ph {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .inc-ph__title {
+    margin-top: 0.45rem !important;
+  }
+
+  .inc-ph__fix {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+  }
+
   .inc {
     --inc-amber: #ed8b00;
     --inc-line: var(--stp-border-subtle);

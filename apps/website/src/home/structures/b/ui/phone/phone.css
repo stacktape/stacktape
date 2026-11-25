@@ -1,0 +1,159 @@
+/*
+ * Phone versions of the step pictures (owner, 25 Nov: the phone pictures were cluttered and hard to read as product
+ * examples). On a phone each picture shows one idea in a short card, with the step's label above it saying which
+ * screen it comes from; the desktop picture is hidden. Wider screens show the desktop picture only.
+ */
+
+@media (max-width: 40rem) {
+  .ph-desktop {
+    display: none !important;
+  }
+}
+
+@media (min-width: 40.0625rem) {
+  .ph-phone {
+    display: none !important;
+  }
+}
+
+.ph {
+  --ph-line: rgb(255 255 255 / 8%);
+
+  display: grid;
+  gap: 0.85rem;
+  padding: 1.1rem 1.1rem 1.2rem;
+  border: 1px solid var(--brand-border);
+  background: #1c2222;
+  color: var(--brand-text);
+  font: 500 0.9375rem / 1.45 var(--brand-font-heading);
+}
+
+.ph :is(p, ul, ol) {
+  margin: 0;
+  padding: 0;
+}
+
+.ph :is(ul, ol) {
+  list-style: none;
+}
+
+.ph-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.ph-muted {
+  color: var(--brand-muted);
+  font-size: 0.8125rem;
+}
+
+.ph-eyebrow {
+  color: var(--brand-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ph-mono {
+  color: var(--brand-muted);
+  font: 400 0.8125rem / 1.5 var(--brand-font-mono);
+}
+
+.ph-big {
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.ph-big small {
+  margin-left: 0.25rem;
+  color: var(--brand-muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* A box inside the card: a failure, a finding, a rule. */
+.ph-box {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--brand-border);
+  background: var(--brand-inset);
+}
+
+.ph-box--red {
+  border-color: transparent;
+  border-left: 2px solid #eb6161;
+  background: rgb(235 97 97 / 8%);
+}
+
+.ph-red {
+  color: #eb6161;
+}
+
+.ph-amber {
+  color: #ed8b00;
+}
+
+/* Rows: a mark, a name with its detail, a value. */
+.ph-rows {
+  display: grid;
+}
+
+.ph-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--ph-line);
+}
+
+.ph-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.ph-row b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ph-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #1c9e95;
+}
+
+.ph-dot--red {
+  background: #eb6161;
+}
+
+.ph-dot--amber {
+  background: #ed8b00;
+}
+
+/* A severity or state printed on label tape, as the Console prints it. */
+.ph-tag {
+  justify-self: start;
+  padding: 0.1rem 0.55rem;
+  background: rgb(255 255 255 / 8%);
+  clip-path: var(--brand-tape-clip);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.ph-tag--red {
+  background: rgb(178 67 67 / 85%);
+  color: #fff;
+}
+
+.ph-tag--teal {
+  background: var(--brand-primary);
+  color: var(--brand-on-teal);
+}

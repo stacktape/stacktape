@@ -1,4 +1,5 @@
 ---
+import './phone/phone.css';
 /*
  * The Console's Security page and Guardrails page for the example app acme-shop, re-created in HTML from
  * apps/console/ui/src/pages/SecurityPage/SecurityOverviewPage.tsx and GuardrailsPage, in the tape look. Both are close
@@ -72,6 +73,9 @@ const TILES = [
   { label: 'Score of scanned stacks', value: '75/100', sub: '100 is best', tone: 'warn' }
 ];
 
+/** On a phone, one finding and the rule that stops it from reaching the next deploy. */
+const PUBLIC_DATABASE = FINDINGS.find((finding) => finding.title === 'Database reachable from the internet');
+
 const FILTERS = [
   ['Project', 'acme-shop'],
   ['Stage', 'All'],
@@ -81,7 +85,7 @@ const FILTERS = [
 ---
 
 <div
-  class="sec"
+  class="sec ph-desktop"
   role="img"
   aria-label="The Stacktape Console’s Security page for acme-shop: 3 findings to fix now and 3 to fix when you can, each with its stage and the fix, such as “Upgrade axios to 1.8.2”. In front of its lower right, the Guardrails page: “Keep SQL and OpenSearch private” blocks the next deploy of acme-shop / staging."
 >
@@ -187,7 +191,75 @@ const FILTERS = [
   </div>
 </div>
 
+{
+  PUBLIC_DATABASE ? (
+    <div
+      class="ph ph-phone"
+      role="img"
+      aria-label="In the Stacktape Console, a security finding: the acme-shop staging database is reachable from the internet. The guardrail “Keep SQL and OpenSearch private” blocks deploys that leave this database public."
+    >
+      <div aria-hidden="true" class="sec-ph">
+        <p class="ph-eyebrow">Finding</p>
+        <div class="ph-box">
+          <span class="ph-tag">{PUBLIC_DATABASE.severity}</span>
+          <p>
+            <b>{PUBLIC_DATABASE.title}</b>
+          </p>
+          <p class="ph-muted">
+            acme-shop / {PUBLIC_DATABASE.stage} · {PUBLIC_DATABASE.what}
+          </p>
+        </div>
+        <p class="ph-eyebrow">Guardrail</p>
+        <div class="ph-box">
+          <p class="sec-ph__rule">
+            <b>Keep SQL and OpenSearch private</b>
+            <span class="sec-ph__on brand-round" />
+          </p>
+          <p class="ph-amber">Blocks deploys that leave this database public.</p>
+        </div>
+      </div>
+    </div>
+  ) : null
+}
+
 <style>
+  /* The phone card. */
+  .sec-ph {
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .sec-ph .ph-eyebrow:not(:first-child) {
+    margin-top: 0.4rem;
+  }
+
+  .sec-ph__rule {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  /* The rule's switch, on. */
+  .sec-ph__on {
+    position: relative;
+    flex: none;
+    width: 2.25rem;
+    height: 1.25rem;
+    background: var(--brand-primary);
+  }
+
+  .sec-ph__on::after {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 50%;
+    background: #fff;
+    content: '';
+  }
+
   .sec {
     /* The Console's warning orange (statusWarning in its tokens.ts) has no shared token yet. */
     --sec-warn: #ed8b00;

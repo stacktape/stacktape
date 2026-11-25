@@ -150,3 +150,27 @@ astro-island:has(> .brand-command) + .brand-button,
     font-size: 0.8125rem;
   }
 }
+
+/*
+ * Touch screens: every tab and Copy is a 44px tap target. The tab row spans the box and the six tabs share its width,
+ * so each one is wider too, and all six stay on one row down to 360px. A mouse keeps the Console's compact sizes.
+ */
+@media (pointer: coarse) {
+  .brand-command .brand-command__tabs.stp-ui-tabs {
+    --stp-tab-height: 2.75rem;
+    justify-self: stretch;
+    inline-size: 100%;
+  }
+
+  .brand-command .brand-command__tabs .stp-ui-tabs__list {
+    inline-size: 100%;
+  }
+
+  .brand-command .brand-command__tabs .stp-ui-tab {
+    flex: 1 0 auto;
+  }
+
+  .brand-command .brand-button.brand-command__copy {
+    --stp-control-height: 2.75rem;
+  }
+}

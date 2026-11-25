@@ -20,6 +20,17 @@ const DOCS: Record<string, { label: string; href: string }> = {
   costs: { label: 'Costs', href: 'https://docs.stacktape.com/managing-costs/overview' },
   'expert-help': { label: 'Book a technical demo', href: 'https://cal.com/stacktape/30min' }
 };
+/** On a phone, the label above each picture: which product screen it is. */
+const SHOWS: Record<string, string> = {
+  designs: 'Setup wizard · Review',
+  packages: 'Benchmark · packaging',
+  deploys: 'Benchmark · deploys',
+  monitors: 'Stacktape Console · Traces',
+  secures: 'Stacktape Console · Security',
+  incidents: 'Stacktape Console · Incident at 10:35',
+  costs: 'Stacktape Console · Costs',
+  'expert-help': 'Slack · shared channel, an example'
+};
 const ROWS = SECTION_PACKS.map((pack, index) => ({ pack, index, Picture: pictureFor(pack.name) }));
 const pad = (index: number) => String(index + 1).padStart(2, '0');
 ---
@@ -45,7 +56,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
   <div class="b-steps__body">
     {
       ROWS.map(({ pack, index, Picture }) => (
-        <Step pack={pack} index={index} docs={DOCS[pack.id]}>
+        <Step pack={pack} index={index} docs={DOCS[pack.id]} shows={SHOWS[pack.id]}>
           {Picture ? <Picture /> : null}
         </Step>
       ))
@@ -226,11 +237,18 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
       scrollbar-width: none;
     }
 
+    /* Each step link is a 44 px tap target; the tape on the current one stays the label's size. */
     .b-steps__link {
       grid-template-columns: auto auto;
+      align-items: center;
       gap: var(--brand-space-2);
+      min-height: 2.75rem;
       padding: 0.35rem 0.75rem;
       white-space: nowrap;
+    }
+
+    .b-steps__link::before {
+      inset: 0.5rem 0;
     }
 
     .b-steps__name {

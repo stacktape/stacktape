@@ -15,10 +15,12 @@ type Props = {
   scale: number;
   /** Seconds to mark on the axis, for a large chart. */
   ticks?: number[];
+  /** The ticks a phone keeps, where all of them would run into each other. */
+  phoneTicks?: number[];
   size?: 'large' | 'small';
 };
 
-const { title, detail, bars, scale, ticks = [], size = 'small' } = Astro.props;
+const { title, detail, bars, scale, ticks = [], phoneTicks = ticks, size = 'small' } = Astro.props;
 const at = (seconds: number) => `${(seconds / scale) * 100}%`;
 ---
 
@@ -30,7 +32,9 @@ const at = (seconds: number) => `${(seconds / scale) * 100}%`;
       ticks.length > 0 ? (
         <div class="bn-chart__grid" aria-hidden="true">
           {ticks.map((tick) => (
-            <span style={`--bn-at: ${at(tick)}`}>{tick} s</span>
+            <span class:list={{ 'bn-desktop-tick': !phoneTicks.includes(tick) }} style={`--bn-at: ${at(tick)}`}>
+              {tick} s
+            </span>
           ))}
         </div>
       ) : null

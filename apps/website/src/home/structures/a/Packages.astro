@@ -17,7 +17,7 @@ if (!picture) throw new Error('The packages pack has no picture');
   name={pack.name}
   title={pack.title}
   line={pack.text}
-  source={{ label: `Preliminary run, ${RUN.label}`, href: RUN.readme }}
+  source={{ label: `Measured ${RUN.label}`, href: RUN.readme }}
 >
   <div class="body">
     <Chart id="packaging" kicker="Seconds to package" views={PACKAGING_VIEWS}>

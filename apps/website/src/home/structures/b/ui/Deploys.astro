@@ -5,25 +5,19 @@ import { barsOf, runOf, slowest } from './bench/data';
 /**
  * Deploy speed from the deploy benchmarks (`src/data/deploy-benchmarks.json`): seconds until the changed code answers.
  * The headline is a code change to 25 Lambda functions from the command line; under it, a container code change and a
- * Git push of a Node.js service. Every tool's bar, fastest first; the run dates link to the runs' results on GitHub.
- * The owner had the cases where another tool is faster (a Python Git push, a 5-function shared-code change) and the
- * footnote removed (25 Nov).
+ * Git push of a Node.js service. Every tool's bar, fastest first; the run date links to the CLI run's results on
+ * GitHub (the Git push run's link shows on wide screens). The owner had the slower cases, the footnote and the
+ * caveat notes removed (25 Nov, TASTE 39 and 41).
  *
- * Stacktape's container and Git push times use code swap, which is opt-in and covers code changes only, so the bar says
- * so; its Git push median is of 5 runs (the 23 October series), so that bar says that too. Heroku's container time
- * and its Git push time are one measurement, a build from the pushed source (`heroku builds:create`), so both bars say
- * that.
+ * Stacktape's container and Git push times use code swap, an opt-in setting for code changes, so those bars say
+ * "code swap". Its Git push median is of 5 runs (23 October); Heroku's container and Git push times are one build from
+ * the pushed source (`heroku builds:create`). The data file and the GitHub results hold those details.
  */
+/** Heroku's time is a build submitted from the pushed source with its CLI (`heroku builds:create`), so the bar says so. */
+const HEROKU = { heroku: 'Heroku CLI build' };
 const large = barsOf('lambda-deploy', 'handler', 'lambda-25');
-const container = barsOf('container-deploy', 'code-change', 'container-node', {
-  stacktape: 'code swap enabled',
-  heroku: 'the same build from source as under Git push'
-});
-const pushNode = barsOf('git-push', 'warm', 'container-node', {
-  stacktape: 'code swap · 5 runs',
-  heroku: 'build from the pushed source',
-  render: 'build from the pushed source'
-});
+const container = barsOf('container-deploy', 'code-change', 'container-node', { stacktape: 'code swap' }, HEROKU);
+const pushNode = barsOf('git-push', 'warm', 'container-node', { stacktape: 'code swap' }, HEROKU);
 const us = large.find((bar) => bar.us);
 if (!us) throw new Error('The Lambda deploy benchmark has no Stacktape value');
 const small = slowest(container, pushNode);
@@ -35,17 +29,14 @@ const push = runOf(1);
   <div class="bn-main">
     <div class="bn-stat">
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
-      <p class="bn-stat__what">to deploy updated handlers to 25 Lambda functions and get a response from the new code</p>
-      <p class="bn-stat__how">Median of 10 runs; lower is better.</p>
-      <p class="bn-stat__run">
-        Preliminary runs, <a class="brand-link" href={cli.link}>{cli.label}</a> and, for Stacktape's Git push,{' '}
-        <a class="brand-link" href={push.link}>{push.label}</a>
-      </p>
+      <p class="bn-stat__what">to deploy a code change to 25 Lambda functions from the CLI</p>
+      <a class="brand-link bn-stat__run" href={cli.link}>Median of 10 CLI runs, {cli.label}</a>
+      <a class="brand-link bn-stat__run bn-stat__run--wide" href={push.link}>Git push, {push.label}</a>
     </div>
-    <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} />
+    <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} phoneTicks={[0, 40, 80]} />
   </div>
   <div class="bn-more">
     <Chart title="Containers" detail="A code change to a Node.js service" bars={container} scale={small} />
-    <Chart title="Git push" detail="Node.js service, build machine already running" bars={pushNode} scale={small} />
+    <Chart title="Git push" detail="Node.js service, warm build machine" bars={pushNode} scale={small} />
   </div>
 </figure>

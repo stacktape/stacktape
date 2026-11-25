@@ -55,11 +55,6 @@
   font-size: var(--brand-type-xs);
 }
 
-.bn-stat__how {
-  color: var(--brand-muted);
-  font-size: var(--brand-type-sm);
-}
-
 .bn-more {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -221,5 +216,32 @@
   .bn-chart--large {
     --bn-label: 7.75rem;
     --bn-bar: 0.9rem;
+  }
+}
+
+/* A phone: the headline result and its chart, compact; the smaller charts are for wider screens. */
+@media (max-width: 40rem) {
+  /* The Git push run belongs to a chart phones leave out; the axis keeps every other tick. */
+  .bn-more,
+  .bn-stat__run--wide,
+  .bn-desktop-tick {
+    display: none !important;
+  }
+
+  .bn-main {
+    gap: var(--brand-space-4);
+    padding: 1.1rem;
+  }
+
+  .bn-stat__value {
+    font-size: 2.75rem;
+  }
+
+  .bn-chart--large {
+    --bn-bar: 0.8rem;
+  }
+
+  .bn-chart--large ol {
+    gap: 0.55rem;
   }
 }
