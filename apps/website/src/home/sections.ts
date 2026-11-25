@@ -355,7 +355,7 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Help',
     title: 'Talk to us when you get stuck',
     text: 'On Flexible, your team gets a shared Slack channel with the Stacktape founders. Ask us about a deploy, an AWS bill or a feature you need.',
-    gets: ['You can book a 30-minute call with us before you decide.'],
+    gets: [],
     picture: null,
     sources: ['apps/website/src/pages/pricing.astro:47, :58, :60 (Book a call: cal.com/stacktape/30min)'],
     doNotClaim: [
