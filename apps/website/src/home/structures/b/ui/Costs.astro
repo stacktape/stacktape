@@ -1,5 +1,6 @@
 ---
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
+import Tape from '../../../../brand/Tape.astro';
 import Window from './console/Window.astro';
 
 /*
@@ -13,7 +14,8 @@ import Window from './console/Window.astro';
  *
  * The budget watches the whole acme-production account (docs/managing-costs/budgets.mdx:10, the docs' example name),
  * which runs this stage plus a little account-wide spend: $320 limit, alerts at 80% and on a forecast; spend passed
- * $256 on 22 November and AWS forecast $352.80 a day ago.
+ * $256 on 22 November and AWS forecast $352.80 a day ago. The two figures measure different things: the stage's pace
+ * from the 12:00 cost report, and AWS's own forecast for the whole account. A caption above each page names its scope.
  */
 
 /** Four of acme-shop's five stages as tabs, as the hero's stage header shows them; production has an open incident. */
@@ -42,6 +44,9 @@ const ALERTS = [
   role="img"
   aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $286.40 so far in November, $350.69 by the end of the month at this pace, split by resource with the API service at 32%. Below it, the budget page of the production AWS account: AWS forecasts $352.80 of the $320.00 limit, and the alerts it sent at 80% and on the forecast."
 >
+  <p class="cst__scope">
+    <Tape tone="gray" variant="count">Stage</Tape> acme-shop / production. The pace is this stage’s, from the 12:00 cost report.
+  </p>
   <Window label="The Costs tab of acme-shop’s production stage in the Stacktape Console" page="acme-shop" pageMenu current="projects" openErrors={4}>
     <div class="cst__page">
       <div class="cst__project">
@@ -125,6 +130,9 @@ const ALERTS = [
     </div>
   </Window>
 
+  <p class="cst__scope cst__scope--next">
+    <Tape tone="gray" variant="count">AWS account</Tape> acme-production. The budget counts the whole account, and AWS makes its own forecast.
+  </p>
   <div class="cst__budget">
     <p class="cst__dim">Budgets</p>
     <p class="cst__budget-title"><b>Production account</b> <span class="cst__dim">Budget · Whole AWS account</span></p>
@@ -355,18 +363,29 @@ const ALERTS = [
     background: var(--brand-teal);
   }
 
-  /* The budget's own page, a second screen in front of the Costs tab's lower edge. */
+  /* Each page's scope, above it. */
+  .cst__scope {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.6rem;
+    margin-bottom: 0.75rem;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .cst__scope--next {
+    margin-top: 1.75rem;
+  }
+
+  /* The budget's own page, below the Costs tab with a straight break between them. */
   .cst__budget {
-    position: relative;
-    z-index: 1;
     display: grid;
     gap: 0.5rem;
-    width: min(37rem, 100%);
-    margin: -2rem 1.25rem 0 auto;
     padding: 1rem 1.1rem 1.1rem;
     border: 1px solid var(--brand-border);
     background: var(--brand-page);
-    box-shadow: 0 22px 52px rgb(0 0 0 / 50%);
+    box-shadow: var(--brand-shadow);
   }
 
   .cst__budget-title b {
@@ -407,8 +426,10 @@ const ALERTS = [
     color: var(--cst-warn);
   }
 
+  /* The meter sits under the alert's text, as wide as the Console draws it (420 px at most). */
   .cst__full {
-    width: min(100%, 22rem);
+    flex: 0 0 100%;
+    max-width: 26rem;
     height: 4px;
     margin-top: 0.35rem;
     background: var(--cst-warn);
@@ -432,7 +453,7 @@ const ALERTS = [
 
   .cst__sent-row {
     display: grid;
-    grid-template-columns: 4rem 8.5rem minmax(0, 1fr) auto;
+    grid-template-columns: minmax(4rem, 0.8fr) minmax(8rem, 1.3fr) minmax(9rem, 1.5fr) minmax(4rem, 2fr);
     align-items: center;
     gap: 0.75rem;
     padding-block: 0.45rem;
@@ -505,17 +526,11 @@ const ALERTS = [
     }
   }
 
-  /* On a phone the budget follows the table instead of covering its edge. */
+  /* On a phone the budget's alerts keep the time, event and delivery. */
   @container cst (max-width: 34rem) {
     .cst__drives,
     .cst__sent-row > span:nth-child(3) {
       display: none;
-    }
-
-    .cst__budget {
-      width: auto;
-      margin: 1rem 0 0;
-      box-shadow: var(--brand-shadow);
     }
 
     .cst__sent-row {

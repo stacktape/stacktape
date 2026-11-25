@@ -153,7 +153,6 @@ const FILTERS = [
               </div>
             ))
           }
-          <div class="sec__foot">1 – 6 of 6</div>
         </div>
       </div>
     </div>
@@ -442,22 +441,13 @@ const FILTERS = [
     color: var(--stp-text-muted);
   }
 
-  .sec__foot {
-    padding: 0.9rem 1rem;
-    border-top: 1px solid var(--stp-border-subtle);
-    color: var(--stp-text-muted);
-  }
-
-  /* The Guardrails page, a second crop in front of the Security page's lower edge. */
+  /* The Guardrails page, a second crop below the Security page, with a straight break between them. */
   .sec__rails {
-    position: relative;
-    z-index: 1;
-    width: min(42rem, 100%);
-    margin: -2rem 1.25rem 0 auto;
+    margin-top: 1.5rem;
     padding: 1.2rem 1.25rem 1.25rem;
     border: 1px solid var(--brand-border);
     background: var(--brand-page);
-    box-shadow: 0 22px 52px rgb(0 0 0 / 50%);
+    box-shadow: var(--brand-shadow);
   }
 
   .sec__rails-title {
@@ -557,11 +547,6 @@ const FILTERS = [
       font-size: 0.8rem;
     }
 
-    .sec__row:nth-child(n + 6),
-    .sec__foot {
-      display: none;
-    }
-
     .sec__sheet {
       padding: 1.1rem 0.9rem 1.2rem;
     }
@@ -613,10 +598,8 @@ const FILTERS = [
     }
 
     .sec__rails {
-      width: auto;
-      margin: 1rem 0 0;
+      margin-top: 1rem;
       padding: 1rem 0.9rem;
-      box-shadow: var(--brand-shadow);
     }
 
     .sec__rule {
