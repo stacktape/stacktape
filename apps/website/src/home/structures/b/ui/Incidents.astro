@@ -41,7 +41,7 @@ const DEPLOY_SHARE = (10 * 60 + 12 - START) / (NOW - START);
 const CARD_SIGNALS = [
   { title: 'TypeError: Cannot read properties of undefined (reading ‘total’)', kind: 'error group', failing: true },
   { title: 'API error rate above 5%', kind: 'alarm firing', failing: true },
-  { title: 'Uptime check “apiHealth” is down', kind: 'uptime down', failing: false }
+  { title: 'Uptime check “apiHealth” recovered', kind: 'down 10:18–10:23', failing: false }
 ];
 const CARD_MENU = ['Mute 1 hour', 'Mute 24 hours', 'Resolve', 'Roll back to v000040', 'Open in Console'];
 

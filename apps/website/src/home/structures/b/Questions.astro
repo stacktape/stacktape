@@ -7,7 +7,8 @@ import { codeParts } from '../../code-text';
  * networking, data and escape hatches. Sources: Heroku/Render = bench git-push / warm / container-node (Stacktape 23 Oct
  * rerun with code swap on every push, Heroku and Render 22 Oct); DevOps = the eight sections; cost =
  * pages/pricing.astro (Free plan, Flexible bands, $250 at $1,000, "When a Free organization passes $200": one 7-day
- * grace, then new deploys pause, running infrastructure untouched); lock-in = docs/getting-started/open-source-cli.mdx
+ * grace, then new deploys pause, running infrastructure untouched) and docs/stacktape-console/billing-and-subscription.mdx
+ * :75-82 (every new deploy pauses, CLI, runner, Git push and Console alike, and `stacktape dev` does not start); lock-in = docs/getting-started/open-source-cli.mdx
  * (what works without an account, "Go back to working without an account": the stacktape-app.com domain), uptime
  * checks need the Console (docs/observability/uptime-checks.mdx); scale = docs/resources/compute/web-service.mdx:196,
  * :253-262; private database = docs/resources/databases/relational-database.mdx:210-213, :252-261, :298, :622; data =
@@ -43,7 +44,7 @@ const QUESTIONS: Question[] = [
   },
   {
     q: 'What does it cost?',
-    a: 'The CLI is free, and so is the Console up to $200 a month of managed AWS spend. Flexible costs 19–25% of that spend ($250 at $1,000), with no seat fees. Over the free limit, only new Console deploys pause, after a one-time 7-day grace period.',
+    a: 'The CLI is free, the Console is free up to $200 a month of managed AWS spend, and Flexible costs 19–25% of it ($250 at $1,000). Over the limit, your organization’s new deploys and dev sessions pause after a one-time 7-day grace period, CLI included. Your apps keep running.',
     link: { label: 'Pricing', href: '/pricing' }
   },
   {
