@@ -59,7 +59,7 @@ const box = `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
           </defs>
           {
             sheets.map((sheet) => (
-              <g class="h8-sheet" data-layer={sheet.id}>
+              <g class="h8-sheet" data-layer={sheet.id} style={`--h8-layer: ${sheet.index}`}>
                 <polygon class="h8-sheet__left" points={sheet.sideLeft} />
                 <polygon class="h8-sheet__right" points={sheet.sideRight} />
                 <polygon class="h8-sheet__top" points={sheet.top} />
@@ -234,6 +234,21 @@ const box = `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
 
   .h8-sheet__top {
     fill: var(--h8-sheet-top);
+  }
+
+  /* On load the layers settle onto each other, bottom first: your AWS account, then Stacktape, then the Console. */
+  @media (prefers-reduced-motion: no-preference) {
+    .h8-sheet {
+      animation: h8-settle 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      animation-delay: calc(0.15s + var(--h8-layer) * 0.14s);
+    }
+  }
+
+  @keyframes h8-settle {
+    from {
+      opacity: 0;
+      translate: 0 -28px;
+    }
   }
 
   .h8-sheet__left {

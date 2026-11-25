@@ -22,7 +22,7 @@ const TILE_H = 40;
 const SHEET_X = 9.5;
 const SHEET_Y = 7.1;
 const SLAB = 9;
-const GAP = 214;
+const GAP = 222;
 /** The icons stand upright on the sheet, this many screen units tall, their bottom edge a little above it. */
 const ICON = 46;
 const FLOAT = 5;
@@ -135,11 +135,11 @@ const LAYERS: Layer[] = [
     items: {
       you: { spot: 'outside', name: 'You', glyph: 'person', tone: 'plain' },
       alerts: { spot: 'left', name: 'Alerts', role: 'Slack, email', glyph: 'bell', tone: 'graphite' },
-      incidents: { spot: 'middle', name: 'Incidents', role: 'grouped signals', glyph: 'warning', tone: 'graphite' },
+      incidents: { spot: 'middle', name: 'Incidents', role: 'errors, outages', glyph: 'warning', tone: 'graphite' },
       monitoring: {
         spot: 'right',
         name: 'Monitoring',
-        role: 'metrics, logs, errors',
+        role: 'metrics, logs, traces',
         glyph: 'chart',
         tone: 'graphite'
       },
@@ -239,6 +239,7 @@ export const sheets = LAYERS.map((layer, index) => {
   const corner = (x: number, y: number, dz = 0) => project(x, y, z + dz);
   return {
     id: layer.id,
+    index,
     label: layer.label,
     caption: layer.caption,
     top: points(corner(0, 0), corner(SHEET_X, 0), corner(SHEET_X, SHEET_Y), corner(0, SHEET_Y)),
