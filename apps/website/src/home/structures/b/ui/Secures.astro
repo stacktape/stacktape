@@ -1,7 +1,9 @@
 ---
 /*
  * The Console's Security page and Guardrails page for the example app acme-shop, re-created in HTML from
- * apps/console/ui/src/pages/SecurityPage/SecurityOverviewPage.tsx and GuardrailsPage, in the tape look.
+ * apps/console/ui/src/pages/SecurityPage/SecurityOverviewPage.tsx and GuardrailsPage, in the tape look. Both are close
+ * crops of the page, without the top bar and sidebar: the shared shell (ui/console/Window.astro) has no Security
+ * section yet. acme-shop has five stages and two of them were scanned, as in the hero.
  *
  * Finding titles, fixes and severities are the Console's own (packages/console-api/src/security.ts,
  * SecurityPage/fix-summary.ts; a public database outside production is Low). The two package findings are real
@@ -66,7 +68,7 @@ const FINDINGS: { severity: Severity; title: string; fix: string; stage: string;
 const TILES = [
   { label: 'Fix now', value: '3', sub: '1 critical, 2 high', tone: 'bad' },
   { label: 'Fix when you can', value: '3', sub: '1 medium, 2 low', tone: '' },
-  { label: 'Stacks scanned', value: '2 of 2', sub: 'Every deployed stack', tone: '' },
+  { label: 'Stacks scanned', value: '2 of 5', sub: '3 not scanned yet', tone: 'warn' },
   { label: 'Score of scanned stacks', value: '75/100', sub: '100 is best', tone: 'warn' }
 ];
 
@@ -83,22 +85,6 @@ const FILTERS = [
   role="img"
   aria-label="The Stacktape Console’s Security page for acme-shop: 3 findings to fix now and 3 to fix when you can, each with its stage and the fix, such as “Upgrade axios to 1.8.2”. Below it, the Guardrails page: “Keep SQL and OpenSearch private” blocks the next deploy of acme-shop / staging."
 >
-  <div class="sec__in">
-  <div class="sec__window">
-    <div class="sec__bar">
-      <span class="sec__logo">stack<span>tape</span></span>
-      <span class="sec__crumbs">
-        <span>Acme</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-        <span class="sec__slash">/</span>
-        <b>Security</b>
-      </span>
-      <span class="sec__find">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m20 20-4.2-4.2"></path></svg>
-        Find<kbd>Ctrl K</kbd>
-      </span>
-    </div>
-
     <div class="sec__sheet">
       <h3 class="sec__title">
         Security
@@ -171,11 +157,10 @@ const FILTERS = [
         </div>
       </div>
     </div>
-  </div>
-
   <div class="sec__rails">
+    <h4 class="sec__rails-title">Guardrails</h4>
+    <div class="sec__rails-panel">
     <div class="sec__rails-head">
-      <b>Guardrails</b>
       <span class="sec__tabs sec__tabs--small"
         ><span class="is-on">On <i>2</i></span><span>All rules <i>18</i></span></span
       >
@@ -197,7 +182,7 @@ const FILTERS = [
       <span class="sec__rule-value"></span>
       <span class="sec__switch" aria-hidden="true"></span>
     </div>
-  </div>
+    </div>
   </div>
 </div>
 
@@ -212,10 +197,6 @@ const FILTERS = [
     font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
   }
 
-  .sec__in {
-    position: relative;
-    padding-bottom: 9.5rem;
-  }
 
   svg {
     flex: none;
@@ -232,79 +213,21 @@ const FILTERS = [
     font-weight: 600;
   }
 
-  .sec__window {
-    overflow: hidden;
-    border: 1px solid var(--brand-border);
-    background: var(--brand-inset);
-    box-shadow: var(--brand-shadow);
-  }
 
-  .sec__bar {
-    display: flex;
-    align-items: center;
-    gap: 1.25rem;
-    height: 3rem;
-    padding-inline: 1rem;
-  }
 
-  .sec__logo {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.13em;
-    font: 700 1.05rem / 1 var(--brand-font-heading);
-    letter-spacing: -0.03em;
-  }
 
-  .sec__logo span {
-    padding: 0.17em 0.36em 0.21em;
-    background: var(--brand-primary);
-    box-shadow: var(--brand-edge-primary);
-    color: var(--brand-on-teal);
-    clip-path: var(--brand-tape-clip);
-  }
 
-  .sec__crumbs {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-left: 1.5rem;
-    font-weight: 600;
-  }
 
-  .sec__crumbs svg {
-    color: var(--stp-text-muted);
-  }
 
-  .sec__slash {
-    margin-inline: 0.5rem;
-    color: var(--stp-text-subtle);
-    font-weight: 400;
-  }
 
-  .sec__find {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    width: 14rem;
-    height: 2.2rem;
-    margin-left: auto;
-    padding-inline: 0.75rem 0.4rem;
-    border: 1px solid var(--stp-border-subtle);
-    color: var(--stp-text-subtle);
-  }
 
-  .sec__find kbd {
-    margin-left: auto;
-    padding: 0 0.3rem;
-    border: 1px solid var(--stp-border-subtle);
-    font: inherit;
-    font-size: var(--stp-font-size-caption);
-  }
 
+  /* A crop of the Console's page: its graphite sheet, cut out of the window. */
   .sec__sheet {
     padding: 1.6rem 2rem 2rem;
+    border: 1px solid var(--brand-border);
     background: var(--brand-page);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 7.5%);
+    box-shadow: var(--brand-shadow);
   }
 
   .sec__title {
@@ -525,30 +448,37 @@ const FILTERS = [
     color: var(--stp-text-muted);
   }
 
-  /* The Guardrails page, laid over the bottom of the Security window like a second window. */
+  /* The Guardrails page, a second crop in front of the Security page's lower edge. */
   .sec__rails {
-    position: absolute;
-    right: 1.25rem;
-    bottom: 0;
-    width: min(40rem, 72%);
-    overflow: hidden;
+    position: relative;
+    z-index: 1;
+    width: min(42rem, 100%);
+    margin: -2rem 1.25rem 0 auto;
+    padding: 1.2rem 1.25rem 1.25rem;
     border: 1px solid var(--brand-border);
-    background: var(--sec-panel), var(--brand-page);
-    box-shadow:
-      0 22px 52px rgb(0 0 0 / 50%),
-      inset 0 1px 0 rgb(255 255 255 / 9%);
+    background: var(--brand-page);
+    box-shadow: 0 22px 52px rgb(0 0 0 / 50%);
+  }
+
+  .sec__rails-title {
+    margin-bottom: 0.8rem;
+    color: var(--stp-text-strong);
+    font: 600 1.25rem / 1.2 var(--brand-font-heading);
+    letter-spacing: -0.02em;
+  }
+
+  .sec__rails-panel {
+    background: var(--sec-panel);
+    box-shadow: var(--sec-lift);
   }
 
   .sec__rails-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.15rem 0.6rem 0.15rem 1rem;
+    padding: 0.15rem 0.6rem;
   }
 
-  .sec__rails-head b {
-    font-size: 0.95rem;
-  }
 
   .sec__tabs--small {
     margin: 0.45rem 0;
@@ -607,7 +537,6 @@ const FILTERS = [
   }
 
   @container sec (max-width: 60rem) {
-    .sec__find,
     .sec__seen {
       display: none;
     }
@@ -623,18 +552,14 @@ const FILTERS = [
 
   /* A phone: the Console's narrow layout, one finding per row with where it is under the fix. */
   @container sec (max-width: 34rem) {
-    .sec__in {
-      padding-bottom: 0;
+    .sec__sheet,
+    .sec__rails {
       font-size: 0.8rem;
     }
 
     .sec__row:nth-child(n + 6),
     .sec__foot {
       display: none;
-    }
-
-    .sec__crumbs {
-      margin-left: auto;
     }
 
     .sec__sheet {
@@ -688,9 +613,10 @@ const FILTERS = [
     }
 
     .sec__rails {
-      position: static;
       width: auto;
       margin: 1rem 0 0;
+      padding: 1rem 0.9rem;
+      box-shadow: var(--brand-shadow);
     }
 
     .sec__rule {

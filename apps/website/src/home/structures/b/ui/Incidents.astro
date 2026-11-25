@@ -1,11 +1,16 @@
 ---
+import Tape from '../../../../brand/Tape.astro';
+import Window from './console/Window.astro';
+
 /*
  * The Console's incident page, Overview tab, for the example app acme-shop, re-created in HTML from
  * apps/console/ui/src/pages/IncidentsPage/IncidentDetailPage.tsx (header, status rows, IncidentUnfolding, "Where it
- * fails" and the "About this incident" facts), in the tape look with square corners.
+ * fails" and the "About this incident" facts) inside the Console shell the other steps use (ui/console/Window.astro).
  *
- * It is the incident the hero's Incidents tab lists as resolved (heroes/h5/console/data.ts), seen while it was open.
- * Release v000041 ("Show order totals in the cart") was deployed at 10:12. From 10:16 order totals throw a TypeError
+ * It is the incident the hero's Incidents tab lists as resolved (heroes/h5/console/data.ts), seen while it was open,
+ * and the caption says so. Release v000041 ("Show order totals in the cart", 7d3f0b1 by Tomas Berg, as in the
+ * Deploys picture) was deployed at 10:12; v000040 is "Show stock on product pages" (8a41d07).
+ * From 10:16 order totals throw a TypeError
  * for empty carts; the API error-rate alarm fires at 10:17, when the incident opens, and the api-health uptime check is
  * down from 10:18 to 10:23. It is 10:35: open for 18 minutes, deployed 5 minutes before it opened. Fix with AI has
  * opened draft pull request #219, not merged or deployed; the fix ships at 11:04 as a41c9e2 "Fix order totals for
@@ -48,15 +53,11 @@ const FRAMES = [
 <div
   class="inc"
   role="img"
-  aria-label="An incident in the Stacktape Console: API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened, which reads an order total that empty carts do not have. A draft fix is ready as pull request #219. In front, the incident’s card in Slack, with its menu open on Roll back to v000040."
+  aria-label="At 10:35, before the 11:04 fix: an incident in the Stacktape Console, API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened, which reads an order total that empty carts do not have. A draft fix is ready as pull request #219. Below, the incident’s card in Slack, with its menu open on Roll back to v000040."
 >
+  <p class="inc__when"><Tape tone="gray" variant="count">10:35</Tape> Before the 11:04 fix</p>
   <div class="inc__stage">
-  <div class="inc__window">
-  <div class="inc__top">
-    <span class="inc__logo">stack<span>tape</span></span>
-    <span class="inc__path">Acme <span>/</span> <b>Incidents</b></span>
-  </div>
-
+  <Window label="The incident page in the Stacktape Console" page="Incidents" current="incidents">
   <div class="inc__page">
     <p class="inc__crumb">Incidents</p>
     <div class="inc__head">
@@ -161,7 +162,7 @@ const FRAMES = [
         </div>
         <div>
           <dt>Commit</dt>
-          <dd><code>7d3f0b1c4</code><span>Show order totals in the cart</span></dd>
+          <dd><code>7d3f0b1</code><span>Show order totals in the cart</span></dd>
         </div>
         <div>
           <dt>Changes</dt>
@@ -170,7 +171,7 @@ const FRAMES = [
       </dl>
     </div>
   </div>
-  </div>
+  </Window>
 
   <div class="inc__slack">
     <p class="inc__slack-from"><b>Stacktape</b> <span>in #incidents · 10:17</span></p>
@@ -189,7 +190,7 @@ const FRAMES = [
       }
     </ul>
     <p class="inc__slack-small">
-      <b>Release live when it opened:</b> version v000041, commit <code>7d3f0b1c</code>, deployed 5 min before it
+      <b>Release live when it opened:</b> version v000041, commit <code>7d3f0b1</code>, deployed 5 min before it
       opened · <u>what changed since v000040</u>
     </p>
     <div class="inc__slack-actions">
@@ -218,11 +219,6 @@ const FRAMES = [
     padding-bottom: 9.5rem;
   }
 
-  .inc__window {
-    border: 1px solid var(--brand-border);
-    background: var(--brand-inset);
-    box-shadow: var(--brand-shadow);
-  }
 
   .inc__slack {
     position: relative;
@@ -330,41 +326,23 @@ const FRAMES = [
     font-family: var(--brand-font-mono);
   }
 
-  .inc__top {
-    display: flex;
-    gap: 2.5rem;
-    align-items: center;
-    padding: 0.7rem 1rem;
-  }
 
-  .inc__logo {
-    display: inline-flex;
-    gap: 0.13em;
-    align-items: center;
-    letter-spacing: -0.03em;
-    font: 700 1.05rem / 1 var(--brand-font-heading);
-  }
 
-  .inc__logo > span {
-    padding: 0.17em 0.36em 0.21em;
-    color: var(--brand-on-teal);
-    background: var(--brand-primary);
-    clip-path: var(--brand-tape-clip);
-  }
 
-  .inc__path {
-    font-weight: 600;
-  }
 
-  .inc__path span {
-    margin-inline: 0.7rem;
-    color: var(--stp-text-subtle);
-  }
 
+  /* The page inside the Console shell; the grid below folds by its width, which the sidebar narrows. */
   .inc__page {
-    padding: 1.1rem 2rem 2rem;
-    background: var(--brand-page);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 7.5%);
+    container: incp / inline-size;
+  }
+
+  .inc__when {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
   }
 
   .inc__crumb {
@@ -686,7 +664,8 @@ const FRAMES = [
     color: var(--stp-text-subtle);
   }
 
-  @container inc (max-width: 62rem) {
+  /* The facts fold under the main column when the shell leaves the page less than about 50rem. */
+  @container incp (max-width: 50rem) {
     .inc__grid {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -705,21 +684,8 @@ const FRAMES = [
     }
   }
 
-  /* A phone: the Console's narrow incident page, the facts and the stack trace below the fold are left out. */
-  @container inc (max-width: 34rem) {
-    .inc__top,
-    .inc__page {
-      font-size: 0.8rem;
-    }
-
-    .inc__top {
-      justify-content: space-between;
-    }
-
-    .inc__page {
-      padding: 0.9rem 0.9rem 1.1rem;
-    }
-
+  /* A phone: what fails, the release, the cause and the fix. The deploy line becomes a line of text. */
+  @container incp (max-width: 30rem) {
     .inc__head h3 {
       font-size: 1.2rem;
     }
@@ -731,8 +697,11 @@ const FRAMES = [
 
     .inc__btn--more,
     .inc__tabs > span:nth-child(n + 3),
-    .inc__fails,
-    .inc__about {
+    .inc__fails-head span,
+    .inc__stack code:not(.is-top),
+    .inc__about > div:nth-child(2),
+    .inc__about > div:nth-child(5),
+    .inc__axis > span:first-child {
       display: none;
     }
 
@@ -744,18 +713,34 @@ const FRAMES = [
       grid-column: 2;
     }
 
+    .inc__lanes {
+      padding-top: 0;
+    }
+
     .inc__lane,
     .inc__axis {
       grid-template-columns: minmax(0, 1fr);
       gap: 0.25rem;
     }
 
-    .inc__axis > span:first-child {
-      display: none;
+    .inc__lane-label {
+      white-space: normal;
     }
 
-    .inc__mark,
-    .inc__slack .inc__slack-menu {
+    .inc__mark {
+      position: static;
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .inc__stack {
+      white-space: normal;
+    }
+  }
+
+  @container inc (max-width: 34rem) {
+    .inc__slack .inc__slack-menu,
+    .inc__slack > ul {
       display: none;
     }
 

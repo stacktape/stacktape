@@ -1,23 +1,33 @@
 ---
 /*
- * Where help comes from: the Console's Help menu, re-created from apps/console/ui/src/components/Header/HelpMenu.tsx
- * (the call and the Slack channel are listed on plans that include them; channels are named support-*, from
- * RequestDedicatedChannelModal.tsx), and the shared Slack channel itself, drawn plainly rather than as Slack's own UI.
+ * Where help comes from, in two parts. First a crop of the Console's top bar with the Help menu open under Help, as
+ * apps/console/ui/src/components/Header/HelpMenu.tsx builds it: Documentation, Keyboard shortcuts, Email support, and on
+ * plans that include them, Book a call with an engineer and Request a Slack channel (channels are named support-*, from
+ * RequestDedicatedChannelModal.tsx). The icons are outline drawings of the menu's react-icons glyphs.
  *
- * The thread is an example. The answer is what the docs say (docs/resources/compute/worker-service.mdx:455-459 and
- * docs/managing-costs/optimization-tips.mdx:256): a fixed outbound IP needs `usePrivateSubnetsWithNAT` and
- * `stackConfig.nat`; `ha-ec2` runs one NAT instance per zone at about $7 a month each with no per-GB fee, against about
- * $32 a month per zone for a NAT Gateway, and outbound calls fail for about a minute when an instance dies.
+ * Then an example of the shared channel, labelled as one and drawn plainly rather than as Slack's own UI. The answer is
+ * what the docs say (docs/configuration/connecting-resources.mdx:651-672): a container worker with
+ * `usePrivateSubnetsWithNAT: true` needs `stackConfig.nat`; its outbound traffic leaves through one static Elastic IP per
+ * availability zone; `ha-ec2` runs one NAT instance per zone (two by default), and when one fails, calls from that zone
+ * fail for about a minute. No prices or reply times: those vary.
  */
-const MENU = [
-  { label: 'Documentation', end: '↗' },
-  { label: 'Keyboard shortcuts', end: '?' },
-  { label: 'Email support', end: 'support@stacktape.com' },
-  { label: 'Book a call with an engineer', end: '' },
-  { label: 'Request a Slack channel', end: '' }
+const ICON = {
+  book: 'M5 4.5h10.5v15H6.5A1.5 1.5 0 0 1 5 18zM5 18a1.5 1.5 0 0 1 1.5-1.5h9M8.5 8.5h4',
+  keyboard: 'M3.5 7h17v10h-17zM7 10.5h.01M10.5 10.5h.01M14 10.5h.01M17 10.5h.01M8 14h8',
+  mail: 'M3.5 6.5h17v11h-17zM3.5 7l8.5 6 8.5-6',
+  calendar: 'M4 6h16v14H4zM4 10h16M8.5 3.5v4M15.5 3.5v4M12 17.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  chat: 'M4.5 5h15v10.5H10l-4 3.5v-3.5H4.5zM9.5 10.5v-1a2.5 2.5 0 0 1 5 0v1M9 10.5h6v3H9z'
+};
+
+const MENU: { label: string; icon: keyof typeof ICON; end?: string; key?: boolean }[] = [
+  { label: 'Documentation', icon: 'book', end: '↗' },
+  { label: 'Keyboard shortcuts', icon: 'keyboard', end: '?', key: true },
+  { label: 'Email support', icon: 'mail', end: 'support@stacktape.com' },
+  { label: 'Book a call with an engineer', icon: 'calendar' },
+  { label: 'Request a Slack channel', icon: 'chat' }
 ];
 
-/** The menu hangs from its button and is torn along the bottom, with the logo label's teeth: 7.25 px apart, 3.4 px deep. */
+/** The menu hangs from Help and is torn along the bottom, with the logo label's teeth: 7.25 px apart, 3.4 px deep. */
 const MENU_WIDTH = 320;
 const teeth = Array.from({ length: Math.floor(MENU_WIDTH / 3.625) + 1 }, (_, k) => {
   const x = Math.min(k * 3.625, MENU_WIDTH);
@@ -29,69 +39,75 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
 <div
   class="hlp"
   role="img"
-  aria-label="The Help menu in the Stacktape Console, with documentation, email support, a call with an engineer and a Slack channel. Next to it, the shared channel support-acme-shop: Maya Chen from acme-shop asks how to get a fixed outbound IP for the worker without NAT Gateways, and a Stacktape engineer answers with the two settings and what they cost."
+  aria-label="The Help menu open in the Stacktape Console's top bar: Documentation, Keyboard shortcuts, Email support, Book a call with an engineer and Request a Slack channel. Next to it, an example support conversation in a shared channel: Maya Chen from Acme asks which IPs their payment provider should allowlist for the worker, and Stacktape answers with the two settings and the trade-off."
 >
   <div class="hlp__in">
-  <div class="hlp__menu-side">
-    <div class="hlp__strip">
-      <span class="hlp__trigger"
-        ><svg viewBox="0 0 24 24" aria-hidden="true"
-          ><circle cx="12" cy="12" r="9"></circle><path d="M9.6 9.4a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.3"></path><path
-            d="M12 16.8v.2"></path></svg
-        >Help</span
-      >
-      <span class="hlp__avatar">MC</span>
+    <div class="hlp__console">
+      <div class="hlp__bar">
+        <span class="hlp__find">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"></circle><path d="m19.5 19.5-4-4"></path></svg>
+          Find <kbd>Ctrl K</kbd>
+        </span>
+        <span class="hlp__trigger">
+          <svg viewBox="0 0 24 24" aria-hidden="true"
+            ><circle cx="12" cy="12" r="8.5"></circle><path d="M9.7 9.5a2.4 2.4 0 1 1 3.3 2.2c-.6.3-1 .8-1 1.4v.3M12 16.6v.1"
+            ></path></svg
+          >
+          Help
+          <svg class="hlp__caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
+        </span>
+        <span class="hlp__avatar">MC</span>
+      </div>
+      <ul class="hlp__menu" style={`clip-path: ${tornBottom}`}>
+        {
+          MENU.map((item) => (
+            <li>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d={ICON[item.icon]} />
+              </svg>
+              <span>{item.label}</span>
+              {item.key ? <kbd>{item.end}</kbd> : item.end ? <span class="hlp__end">{item.end}</span> : null}
+            </li>
+          ))
+        }
+      </ul>
     </div>
-    <ul class="hlp__menu" style={`clip-path: ${tornBottom}`}>
-      {
-        MENU.map((item) => (
-          <li>
-            <span>{item.label}</span>
-            {item.end === '?' ? <kbd>?</kbd> : <span class="hlp__end">{item.end}</span>}
-          </li>
-        ))
-      }
-    </ul>
-  </div>
 
-  <div class="hlp__channel">
-    <div class="hlp__channel-head">
-      <b># support-acme-shop</b>
-      <span>Acme and Stacktape</span>
+    <div class="hlp__thread">
+      <p class="hlp__label">Example support conversation</p>
+      <div class="hlp__channel">
+        <div class="hlp__channel-head">
+          <b># support-acme-shop</b>
+          <span>Acme and Stacktape</span>
+        </div>
+        <div class="hlp__messages">
+          <div class="hlp__msg">
+            <span class="hlp__face">MC</span>
+            <div>
+              <p class="hlp__who"><b>Maya Chen</b> <span>Acme</span></p>
+              <p>Our payment provider wants to allowlist the IPs our worker calls them from. Which IPs do we give them?</p>
+            </div>
+          </div>
+          <div class="hlp__msg">
+            <span class="hlp__face hlp__face--team">S</span>
+            <div>
+              <p class="hlp__who"><b>Stacktape</b> <span>founder</span></p>
+              <p>
+                Set <code>usePrivateSubnetsWithNAT: true</code> on the worker and <code>nat: ha-ec2</code> under <code
+                  >stackConfig</code
+                >. The worker’s outbound traffic then leaves through one Elastic IP per availability zone. Give the
+                provider both.
+              </p>
+              <p>
+                If a NAT instance fails, calls from its zone fail for about a minute. If payments can’t take that, use
+                <code>gateway</code>. It costs more.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="hlp__compose">Message #support-acme-shop</div>
+      </div>
     </div>
-    <div class="hlp__messages">
-      <div class="hlp__msg">
-        <span class="hlp__face">MC</span>
-        <div>
-          <p class="hlp__who"><b>Maya Chen</b> <span>Acme · 10:12</span></p>
-          <p>
-            Our payment provider wants a fixed IP to allowlist calls from the worker. Do we need a NAT Gateway for
-            that? It’s $32 a month per zone.
-          </p>
-        </div>
-      </div>
-      <div class="hlp__msg">
-        <span class="hlp__face hlp__face--team">S</span>
-        <div>
-          <p class="hlp__who"><b>Matúš</b> <span>Stacktape · 10:19</span></p>
-          <p>
-            No gateway needed. Set <code>usePrivateSubnetsWithNAT: true</code> on the worker and <code
-              >stackConfig.nat: ha-ec2</code
-            >. You get one small NAT instance per zone, about $7 a month each, with no per-GB fee.
-          </p>
-          <p>If an instance dies, outbound calls fail for about a minute. If payments can’t take that, use <code>gateway</code>.</p>
-        </div>
-      </div>
-      <div class="hlp__msg">
-        <span class="hlp__face">MC</span>
-        <div>
-          <p class="hlp__who"><b>Maya Chen</b> <span>Acme · 10:41</span></p>
-          <p>Deployed to staging. The provider sees our IP now. Thanks!</p>
-        </div>
-      </div>
-    </div>
-    <div class="hlp__compose">Message #support-acme-shop</div>
-  </div>
   </div>
 </div>
 
@@ -104,13 +120,24 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
 
   .hlp__in {
     display: grid;
-    grid-template-columns: 21rem minmax(0, 1fr);
+    grid-template-columns: 24rem minmax(0, 1fr);
     gap: clamp(1.5rem, 1rem + 2vw, 3rem);
     align-items: start;
   }
 
   b {
     font-weight: 600;
+  }
+
+  svg {
+    flex: none;
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   code {
@@ -121,10 +148,17 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
     white-space: nowrap;
   }
 
-  /* The Console's top bar, cut down to the Help button and the avatar, with the menu open under it. */
-  .hlp__strip {
+  kbd {
+    padding: 0 0.35rem;
+    border: 1px solid var(--stp-border-subtle);
+    color: var(--stp-text-muted);
+    font: inherit;
+    font-size: var(--stp-font-size-caption);
+  }
+
+  /* The right end of the Console's top bar, cut out of the window, with the menu open under Help. */
+  .hlp__bar {
     display: flex;
-    justify-content: flex-end;
     align-items: center;
     gap: 1rem;
     padding: 0.6rem 0.9rem;
@@ -132,24 +166,47 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
     background: var(--brand-inset);
   }
 
+  .hlp__find {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.35rem 0.4rem 0.35rem 0.6rem;
+    border: 1px solid var(--stp-border-subtle);
+    color: var(--stp-text-subtle);
+  }
+
+  .hlp__find svg {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  .hlp__find kbd {
+    margin-left: auto;
+  }
+
   .hlp__trigger {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.35rem;
   }
 
   .hlp__trigger svg {
     width: 1rem;
     height: 1rem;
-    fill: none;
-    stroke: var(--stp-text-muted);
-    stroke-width: 1.8;
-    stroke-linecap: round;
+    color: var(--stp-text-muted);
+  }
+
+  .hlp__trigger .hlp__caret {
+    width: 0.85rem;
+    height: 0.85rem;
   }
 
   .hlp__avatar,
   .hlp__face {
     display: grid;
+    flex: none;
     place-items: center;
     width: 1.75rem;
     height: 1.75rem;
@@ -161,7 +218,9 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
 
   .hlp__menu {
     width: 20rem;
-    margin: 0.25rem 0 0 auto;
+    max-width: 100%;
+    /* Its right edge under Help's caret, past the avatar and the bar's padding, as the Console's menu hangs. */
+    margin: 0.25rem 3.6rem 0 auto;
     padding: 0.35rem 0.35rem 1rem;
     list-style: none;
     border: 1px solid var(--stp-border-subtle);
@@ -173,27 +232,28 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
   .hlp__menu li {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.55rem 0.7rem;
+    gap: 0.7rem;
+    padding: 0.55rem 0.6rem;
   }
 
-  .hlp__menu li:nth-child(5) {
+  .hlp__menu li:last-child {
     background: rgb(255 255 255 / 5.5%);
   }
 
+  .hlp__menu li > kbd,
   .hlp__end {
     margin-left: auto;
+  }
+
+  .hlp__end {
     color: var(--stp-text-subtle);
     font-size: var(--stp-font-size-caption);
   }
 
-  .hlp__menu kbd {
-    margin-left: auto;
-    padding: 0 0.4rem;
-    border: 1px solid var(--stp-border-subtle);
-    color: var(--stp-text-muted);
-    font: inherit;
-    font-size: var(--stp-font-size-caption);
+  .hlp__label {
+    margin-bottom: 0.6rem;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
   }
 
   .hlp__channel {
@@ -261,25 +321,26 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
     color: var(--stp-text-subtle);
   }
 
+  /* Narrow: the menu above the conversation, each the full width it needs. */
   @container hlp (max-width: 46rem) {
     .hlp__in {
       grid-template-columns: minmax(0, 1fr);
     }
 
-    .hlp__menu-side {
-      max-width: 21rem;
+    .hlp__console {
+      max-width: 24rem;
     }
 
     .hlp__messages {
       padding-inline: 0.9rem;
     }
 
-    code {
-      white-space: normal;
-    }
-
     .hlp__channel-head span {
       display: none;
+    }
+
+    code {
+      white-space: normal;
     }
   }
 </style>

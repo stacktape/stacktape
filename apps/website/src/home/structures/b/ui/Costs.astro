@@ -1,18 +1,22 @@
 ---
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
+import Window from './console/Window.astro';
 
 /*
- * The Console's stage page, Costs tab (apps/console/ui/src/pages/ProjectsPage/StageDetails/Costs.tsx), and a budget's
- * page (BudgetsPage/BudgetDetailPage.tsx) for the example app acme-shop, re-created in HTML in the tape look.
+ * The Console's stage page, Costs tab (apps/console/ui/src/pages/ProjectsPage/StageDetails/Costs.tsx), in the Console
+ * shell the other steps use (ui/console/Window.astro), then the budget's own page (BudgetsPage/BudgetDetailPage.tsx)
+ * as a second screen, for the example app acme-shop. Stages, repository and account are the hero's.
  *
  * The figures are the hero's (heroes/h5/console/data.ts COSTS): $286.40 for 1–25 November, $331.95 for October, and the
- * Console's pace, the month so far over 25 days times 30: $343.68, 4% more. Shares are rounded, as the Console rounds
+ * Console's pace as the hero shows it (about 24.5 days of data, times 30): $350.69, 6% more. Shares are rounded, as the Console rounds
  * them. Row icons are the Console's ResourceIcon, rendered on the server.
  *
  * The budget watches the whole acme-production account (docs/managing-costs/budgets.mdx:10, the docs' example name),
  * which runs this stage plus a little account-wide spend: $320 limit, alerts at 80% and on a forecast; spend passed
  * $256 on 22 November and AWS forecast $352.80 a day ago.
  */
+
+const STAGE_TABS = ['production', 'staging', 'pr-218', 'dev-maya'];
 
 /** `resource` is the Stacktape resource type the Console's ResourceIcon draws; null for costs outside resources. */
 const ROWS: { name: string; type: string; resource: string | null; share: number; october: string; november: string }[] = [
@@ -34,41 +38,51 @@ const ALERTS = [
 <div
   class="cst"
   role="img"
-  aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $286.40 so far in November, $343.68 by the end of the month at this pace, split by resource with the API service at 32%. In front of it, the budget of the production AWS account: AWS forecasts $352.80 of the $320.00 limit, and the alerts it sent at 80% and on the forecast."
+  aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $286.40 so far in November, $350.69 by the end of the month at this pace, split by resource with the API service at 32%. Below it, the budget page of the production AWS account: AWS forecasts $352.80 of the $320.00 limit, and the alerts it sent at 80% and on the forecast."
 >
-  <div class="cst__in">
-  <div class="cst__window">
-    <div class="cst__chrome">
-      <span class="cst__brand">stack<span>tape</span></span>
-      <span class="cst__where"><span>Acme</span><span>/</span><span>Projects</span><span>/</span><b>acme-shop</b></span>
-    </div>
-    <div class="cst__body">
+  <Window label="The Costs tab of acme-shop’s production stage in the Stacktape Console" page="acme-shop" pageMenu current="projects" openErrors={5}>
+    <div class="cst__page">
       <div class="cst__project">
-        <h3>acme-shop</h3>
-        <span class="cst__repo"><u>acme/acme-shop</u><u>Deploys on push: on</u></span>
+        <h3 class="cn-h1">acme-shop</h3>
+        <span class="cst__repo cn-wide">
+          <span class="cn-link">acme/acme-shop</span>
+          <span class="cn-link cn-muted">Deploys on push to main · previews for pull requests</span>
+        </span>
       </div>
       <div class="cst__stages">
-        <span class="cst__seg"
-          ><span class="is-on"><i></i>production</span><span><i></i>staging</span></span
-        >
-        <span class="cst__btn"><b>+</b> New stage</span>
-        <span class="cst__account">acme-production · us-east-1</span>
+        <span class="cn-segments">
+          {
+            STAGE_TABS.map((stage, at) => (
+              <span class:list={{ 'cn-wide': stage === 'dev-maya' }} aria-selected={at === 0 ? 'true' : 'false'}>
+                <i class="cn-dot" />
+                {stage}
+              </span>
+            ))
+          }
+        </span>
+        <span class="cn-button cn-wide">+ New stage</span>
+        <span class="cst__account cn-faint cn-wide">acme-production · us-east-1</span>
       </div>
-      <div class="cst__nav">
-        <span>Overview</span><span>Activity</span><span class="is-on">Costs</span><span>Configuration</span><span
-          >Diagram</span
-        ><span>Danger zone</span>
-        <span class="cst__running">Running a41c9e2 on main · <u>View deploy</u></span>
-        <span class="cst__btn cst__btn--primary">Deploy stage</span>
+      <div class="cn-tabs cst__tabs">
+        <span>Overview</span>
+        <span>Activity</span>
+        <span aria-selected="true">Costs</span>
+        <span class="cn-wide">Configuration</span>
+        <span class="cn-wide">Diagram</span>
+        <span class="cn-wide">Danger zone</span>
+        <span class="cn-tabs__end cn-wide">
+          <span class="cn-muted cst__running">Running a41c9e2 on main · <span class="cn-link">View deploy</span></span>
+          <span class="cn-button cn-button--primary">Deploy stage</span>
+        </span>
       </div>
 
-      <div class="cst__panel">
+      <div class="cn-panel cst__panel">
         <div class="cst__total">
           <span>
             <span class="cst__dim">November 2026 so far</span>
             <strong>$286.40</strong>
             <span class="cst__dim"
-              >$343.68 by Nov 30 at this pace, 4% more than October ($331.95) · Report updated 1h ago</span
+              >$350.69 by Nov 30 at this pace, 6% more than October ($331.95) · Report updated 1h ago</span
             >
           </span>
           <span class="cst__month"><span class="cst__dim">Month</span> November 2026</span>
@@ -103,7 +117,7 @@ const ALERTS = [
         </div>
       </div>
     </div>
-  </div>
+  </Window>
 
   <div class="cst__budget">
     <p class="cst__dim">Budgets</p>
@@ -141,7 +155,6 @@ const ALERTS = [
       <span><span class="cst__dim">Over the limit</span> It alerts; nothing stops</span>
     </p>
   </div>
-  </div>
 </div>
 
 <style>
@@ -154,10 +167,6 @@ const ALERTS = [
     font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
   }
 
-  .cst__in {
-    display: grid;
-    padding-bottom: 9rem;
-  }
 
   .cst :is(b, strong) {
     font-weight: 600;
@@ -172,49 +181,16 @@ const ALERTS = [
     color: var(--stp-text-muted);
   }
 
-  .cst__window {
-    grid-area: 1 / 1;
-    border: 1px solid var(--brand-border);
-    background: var(--brand-inset);
-    box-shadow: var(--brand-shadow);
-  }
 
-  .cst__chrome {
-    display: flex;
-    align-items: center;
-    gap: 2.5rem;
-    padding: 0.7rem 1rem;
-  }
 
-  .cst__brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.13em;
-    font: 700 1.05rem / 1 var(--brand-font-heading);
-    letter-spacing: -0.03em;
-  }
 
-  .cst__brand span {
-    clip-path: var(--brand-tape-clip);
-    padding: 0.17em 0.36em 0.21em;
-    background: var(--brand-primary);
-    color: var(--brand-on-teal);
-  }
 
-  .cst__where {
-    display: flex;
-    gap: 0.7rem;
-    font-weight: 600;
-  }
 
-  .cst__where span:nth-child(even) {
-    color: var(--stp-text-subtle);
-  }
 
-  .cst__body {
-    padding: 1.4rem 2rem 12rem;
-    background: var(--brand-page);
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 7.5%);
+
+  /* The page inside the Console shell; the table drops columns by its width, which the sidebar narrows. */
+  .cst__page {
+    container: cstp / inline-size;
   }
 
   .cst__project {
@@ -225,16 +201,19 @@ const ALERTS = [
     gap: 0.5rem 1.5rem;
   }
 
-  .cst__project h3 {
-    color: var(--stp-text-strong);
-    font: 600 1.5rem / 1.2 var(--brand-font-heading);
-    letter-spacing: -0.02em;
-  }
+
 
   .cst__repo {
     display: flex;
-    gap: 1.25rem;
-    color: var(--stp-text-muted);
+    gap: 1.25em;
+  }
+
+  .cst__account {
+    margin-left: auto;
+  }
+
+  .cst__tabs {
+    margin: 1em 0 1.4em;
   }
 
   .cst__stages {
@@ -245,100 +224,19 @@ const ALERTS = [
     margin-top: 1rem;
   }
 
-  .cst__seg {
-    display: flex;
-    padding: 3px;
-    background: var(--stp-surface-input);
-  }
 
-  .cst__seg > span {
-    position: relative;
-    isolation: isolate;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 1rem;
-  }
 
-  .cst__seg i {
-    width: 0.45rem;
-    height: 0.45rem;
-    border-radius: 50%;
-    background: var(--stp-status-success);
-  }
 
   /* The chosen stage is the filled piece of the tape strip, torn on the side where the next piece starts. */
-  .cst__seg > .is-on::before {
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    content: '';
-    background: var(--brand-control);
-    box-shadow: var(--brand-edge);
-    /* Teeth 3.4 px deep on the right end, eight per side, as on the Console's segmented tabs. */
-    clip-path: polygon(0 0, 100% 0, calc(100% - 3.4px) 12.5%, 100% 25%, calc(100% - 3.4px) 37.5%, 100% 50%, calc(100% - 3.4px) 62.5%, 100% 75%, calc(100% - 3.4px) 87.5%, 100% 100%, 0 100%);
-  }
 
-  .cst__btn {
-    padding: 0.5rem 0.95rem;
-    background: var(--brand-control);
-    box-shadow: var(--brand-edge);
-    font-weight: 500;
-    white-space: nowrap;
-  }
 
-  .cst__btn--primary {
-    background: var(--brand-primary);
-    box-shadow: var(--brand-edge-primary);
-    color: var(--brand-on-teal);
-  }
 
-  .cst__account {
-    margin-left: auto;
-    color: var(--stp-text-muted);
-  }
 
-  .cst__nav {
-    display: flex;
-    align-items: center;
-    gap: 1.5rem;
-    margin: 0.9rem 0 1.2rem;
-    border-bottom: 1px solid var(--cst-hair);
-    font-weight: 500;
-  }
 
-  .cst__nav > span:not(.cst__btn) {
-    position: relative;
-    padding-block: 0.65rem;
-  }
 
-  .cst__nav > .is-on::after {
-    position: absolute;
-    bottom: -2px;
-    left: 2px;
-    width: calc(100% - 4px);
-    height: 5px;
-    content: '';
-    background: var(--brand-primary);
-    clip-path: polygon(0 50%, 2px 0, calc(100% - 2px) 0, 100% 50%, calc(100% - 2px) 100%, 2px 100%);
-  }
 
-  .cst__nav .cst__running {
-    margin-left: auto;
-    color: var(--stp-text-muted);
-    font-weight: 450;
-  }
 
-  .cst__nav .cst__btn {
-    margin-bottom: 0.4rem;
-  }
 
-  .cst__panel {
-    background: var(--cst-raised);
-    box-shadow:
-      0 2px 6px rgb(0 0 0 / 35%),
-      inset 0 1px 0 rgb(255 255 255 / 9%);
-  }
 
   .cst__total {
     display: flex;
@@ -427,16 +325,14 @@ const ALERTS = [
     background: var(--brand-teal);
   }
 
-  /* The budget's page, laid over the bottom of the Costs tab like a second window. */
+  /* The budget's own page, a second screen in front of the Costs tab's lower edge. */
   .cst__budget {
+    position: relative;
     z-index: 1;
-    grid-area: 1 / 1;
-    align-self: end;
-    justify-self: end;
     display: grid;
     gap: 0.5rem;
-    width: min(37rem, 70%);
-    margin: 0 1.25rem -9rem 0;
+    width: min(37rem, 100%);
+    margin: -2rem 1.25rem 0 auto;
     padding: 1rem 1.1rem 1.1rem;
     border: 1px solid var(--brand-border);
     background: var(--brand-page);
@@ -539,49 +435,28 @@ const ALERTS = [
     margin-right: 0.5rem;
   }
 
-  @container cst (max-width: 62rem) {
-    .cst__running,
-    .cst__grid > .cst__oct,
-    .cst__nav > span:nth-child(n + 4):not(.cst__btn) {
+  /* The live release fits beside the tabs only on a wide page; Deploy stage stays. */
+  @container cstp (max-width: 56rem) {
+    .cst__running {
+      display: none;
+    }
+  }
+
+  @container cstp (max-width: 44rem) {
+    .cst__grid > .cst__oct {
       display: none;
     }
 
     .cst__grid {
       grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 9.5rem 8.5rem;
     }
-
-    .cst__nav .cst__btn {
-      margin-left: auto;
-    }
   }
 
-  /* A phone: resource, share and this month's spend; the budget follows the table instead of covering it. */
-  @container cst (max-width: 34rem) {
-    .cst__in {
-      padding-bottom: 0;
-      font-size: 0.8rem;
-    }
-
-    .cst__chrome {
-      justify-content: space-between;
-    }
-
-    .cst__where span:not(:last-child) {
-      display: none;
-    }
-
-    .cst__body {
-      padding: 1rem 0.9rem 1.2rem;
-    }
-
-    .cst__repo,
-    .cst__drives,
-    .cst__account,
+  /* A phone: resource, share and this month's spend. */
+  @container cstp (max-width: 30rem) {
     .cst__month,
     .cst__grid > .cst__type,
-    .cst__meter,
-    .cst__btn:not(.cst__btn--primary),
-    .cst__nav > span:nth-child(-n + 2) {
+    .cst__meter {
       display: none;
     }
 
@@ -592,9 +467,16 @@ const ALERTS = [
     .cst__grid > * {
       padding-inline: 0.7rem;
     }
+  }
+
+  /* On a phone the budget follows the table instead of covering its edge. */
+  @container cst (max-width: 34rem) {
+    .cst__drives,
+    .cst__sent-row > span:nth-child(3) {
+      display: none;
+    }
 
     .cst__budget {
-      grid-area: auto;
       width: auto;
       margin: 1rem 0 0;
       box-shadow: var(--brand-shadow);
@@ -602,10 +484,6 @@ const ALERTS = [
 
     .cst__sent-row {
       grid-template-columns: 3.2rem minmax(0, 1fr) auto;
-    }
-
-    .cst__sent-row > span:nth-child(3) {
-      display: none;
     }
   }
 </style>
