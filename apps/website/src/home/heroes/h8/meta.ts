@@ -1,4 +1,4 @@
 export const id = 'h8';
-export const title = 'H8 · Three stages';
+export const title = 'H8 · Three layers';
 export const line =
-  'One app in your AWS account, deployed as three stacked stage sheets (dev, a pull request preview, production), each resource an AWS icon with its plain name and arrows where data flows.';
+  "H1's stacked sheets as the three layers Stacktape handles: your AWS account running the app, Stacktape packaging and deploying it, the Console watching it. Every thing labelled, arrows where data flows.";
