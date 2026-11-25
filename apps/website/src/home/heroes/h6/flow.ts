@@ -1,9 +1,11 @@
 /**
  * The example app in the diagram: what `stacktape init` finds in the repository, the resource it writes to
  * `stacktape.yml` for it, and the AWS service that resource becomes. The resource types are the real v4 types
- * (`packages/config/src/resource-types.ts`).
+ * (`packages/config/src/resource-types.ts`). Each AWS service gets a glyph on a tile in its AWS category colour,
+ * the same categories the Console's diagram uses (`packages/ui-react/src/resource-icon/catalog.ts`).
  */
 export type Glyph = 'cdn' | 'bucket' | 'container' | 'database' | 'queue' | 'lambda' | 'cache';
+type Category = 'compute' | 'database' | 'integration' | 'network' | 'storage';
 
 type Row = {
   id: string;
@@ -12,7 +14,7 @@ type Row = {
   resources: readonly (readonly [name: string, type: string])[];
   service: string;
   role: string;
-  glyphs: readonly Glyph[];
+  icons: readonly (readonly [glyph: Glyph, category: Category])[];
 };
 
 export const rows: readonly Row[] = [
@@ -23,7 +25,10 @@ export const rows: readonly Row[] = [
     resources: [['web', 'hosting-bucket']],
     service: 'CloudFront + S3',
     role: 'serves the frontend',
-    glyphs: ['cdn', 'bucket']
+    icons: [
+      ['cdn', 'network'],
+      ['bucket', 'storage']
+    ]
   },
   {
     id: 'api',
@@ -32,7 +37,7 @@ export const rows: readonly Row[] = [
     resources: [['api', 'web-service']],
     service: 'ECS Fargate',
     role: 'runs the API container',
-    glyphs: ['container']
+    icons: [['container', 'compute']]
   },
   {
     id: 'database',
@@ -41,7 +46,7 @@ export const rows: readonly Row[] = [
     resources: [['database', 'relational-database']],
     service: 'RDS Postgres',
     role: 'the database',
-    glyphs: ['database']
+    icons: [['database', 'database']]
   },
   {
     id: 'jobs',
@@ -53,7 +58,10 @@ export const rows: readonly Row[] = [
     ],
     service: 'SQS + Lambda',
     role: 'runs background jobs',
-    glyphs: ['queue', 'lambda']
+    icons: [
+      ['queue', 'integration'],
+      ['lambda', 'compute']
+    ]
   },
   {
     id: 'cache',
@@ -62,6 +70,6 @@ export const rows: readonly Row[] = [
     resources: [['cache', 'redis']],
     service: 'ElastiCache Redis',
     role: 'the cache',
-    glyphs: ['cache']
+    icons: [['cache', 'database']]
   }
 ];
