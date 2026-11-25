@@ -19,16 +19,19 @@ const STATS = [
   {
     label: 'Requests',
     value: TRAFFIC.requests,
+    note: '',
     line: spark([6, 4, 3, 3, 4, 7, 12, 17, 21, 23, 24, 25, 24, 25, 26, 24, 23, 22, 20, 18, 16, 15, 14, 13])
   },
   {
     label: 'Failed',
     value: TRAFFIC.failed,
+    note: `of ${TRAFFIC.scope} requests`,
     line: spark([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 3, 1, 1])
   },
   {
     label: 'Latency',
     value: TRAFFIC.latency,
+    note: TRAFFIC.scope,
     line: spark([14, 14, 13, 14, 14, 15, 16, 16, 17, 16, 16, 17, 16, 17, 16, 16, 16, 15, 15, 15, 21, 16, 15, 14])
   }
 ];
@@ -69,7 +72,10 @@ const STATS = [
       STATS.map((stat) => (
         <span class="cx-stat">
           <span class="cx-quiet">{stat.label}</span>
-          <b>{stat.value}</b>
+          <span>
+            <b>{stat.value}</b>
+            {stat.note && <span class="cx-quiet cx-stat__note">{stat.note}</span>}
+          </span>
           <svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
             <polyline points={stat.line} />
           </svg>

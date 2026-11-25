@@ -695,6 +695,12 @@
   font-size: calc(17 * var(--u));
 }
 
+/* A figure and its note are one line of text, so they share a baseline. */
+.cx-stat__note {
+  margin-inline-start: calc(6 * var(--u));
+  font-size: calc(12 * var(--u));
+}
+
 .cx-stat svg {
   inline-size: calc(56 * var(--u));
   block-size: calc(18 * var(--u));

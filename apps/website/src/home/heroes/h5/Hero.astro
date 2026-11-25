@@ -38,7 +38,7 @@ const CONSOLE = {
     <div class="h5__words">
       <p class="h5__lead">{subheadline}</p>
     </div>
-    <section class="h5__setup" aria-labelledby="h5-setup">
+    <section class="h5__setup" id="install" aria-labelledby="h5-setup">
       <h2 id="h5-setup" class="h5__setup-title">
         <svg viewBox="0 0 24 24" aria-hidden="true"
           ><path d="M4 5h16v14H4zM8 10l2.5 2L8 14M12.5 14H16"></path></svg
@@ -47,7 +47,7 @@ const CONSOLE = {
       <p class="h5__setup-text">
         Run this in your app's folder to review the proposed AWS resources and estimated cost before you deploy.
       </p>
-      <CommandBox client:load id="install" preselect={false} />
+      <CommandBox client:load preselect={false} />
     </section>
   </div>
 
@@ -222,9 +222,14 @@ const CONSOLE = {
     text-wrap: pretty;
   }
 
-  /* The Console's card: its surface, a heading with the terminal icon, one sentence, the command. */
+  /*
+   * The Console's card: its surface, a heading with the terminal icon, one sentence, the command. It is the header's
+   * Get started target (#install), so the jump lands on its heading and sentence. The page's scroll padding (5rem on
+   * structure B, 6rem on C) already clears the 69 px sticky header; the margin adds a little air above the card.
+   */
   .h5__setup {
     grid-area: setup;
+    scroll-margin-block-start: var(--brand-space-4);
     padding: clamp(1.5rem, 2vw, 2.25rem);
     border: 1px solid rgb(255 255 255 / 7%);
     background: var(--brand-surface);

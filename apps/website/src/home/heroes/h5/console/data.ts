@@ -33,7 +33,13 @@ export type ResourceName = keyof typeof RESOURCES;
  * API, whose 56 failed requests of 186K are the 0.03 % failed. Resources that need attention come first, the rest by
  * name, as the Console sorts a short list.
  */
-export const TRAFFIC = { requests: '598K', failed: '0.03%', latency: '92 ms' };
+export const TRAFFIC = {
+  requests: '598K',
+  failed: '0.03%',
+  /** Only the API reports failures and latency, so both are the API's, and the overview says so. */
+  scope: 'API',
+  latency: '92 ms'
+};
 export const OVERVIEW = [
   {
     name: 'web',

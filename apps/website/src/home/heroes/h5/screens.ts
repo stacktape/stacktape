@@ -32,7 +32,7 @@ export const SCREENS = [
   {
     file: 'infrastructure',
     tab: 'Infrastructure',
-    description: `The Stacktape Console showing the production stage of ${PROJECT}. An open incident: ${OPEN_INCIDENT.title}. The deployed version, Fix order totals for empty carts, and its ${OVERVIEW.length} resources: ${list(OVERVIEW.map((row) => `${row.name} (${RESOURCES[row.name].label})`))}. Last 24 hours: ${TRAFFIC.requests} requests, ${TRAFFIC.failed} failed, ${TRAFFIC.latency} latency.`
+    description: `The Stacktape Console showing the production stage of ${PROJECT}. An open incident: ${OPEN_INCIDENT.title}. The deployed version, Fix order totals for empty carts, and its ${OVERVIEW.length} resources: ${list(OVERVIEW.map((row) => `${row.name} (${RESOURCES[row.name].label})`))}. Last 24 hours: ${TRAFFIC.requests} requests; ${TRAFFIC.failed} of ${TRAFFIC.scope} requests failed, ${TRAFFIC.scope} latency ${TRAFFIC.latency}.`
   },
   {
     file: 'deploys',
