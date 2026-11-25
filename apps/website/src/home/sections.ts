@@ -261,10 +261,11 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'monitors',
     name: 'Monitors',
     title: 'Monitors it',
-    text: 'The Console shows each connected stack’s CloudWatch logs and metrics. It groups runtime errors from supported Lambda packages and Node.js services built with Stacktape’s bundler, without an SDK.',
+    text: 'With tracing on, the Console shows every step of a request, such as Redis reads and SQL queries, with timings and the error that failed it. The traces stay in your AWS account.',
     gets: [
-      'Uptime checks probe your public URLs from several AWS regions, and browser tests can run your checkout on a schedule. Both run in your AWS account.',
-      'Turn on tracing for a supported Lambda function to see where a request spent its time.'
+      'Supported Lambda functions are traced without code changes. For a container, Stacktape adds an OpenTelemetry collector to the task, and your app sends spans to it with the OpenTelemetry SDK.',
+      'The Console also shows each stack’s CloudWatch logs and metrics. Error tracking groups runtime errors from supported Lambda functions and Node.js services built with Stacktape’s bundler, without an SDK.',
+      'Uptime checks probe your public URLs from several AWS regions, and browser tests can run your checkout on a schedule. Both run in your AWS account.'
     ],
     picture: {
       desktop: crop(monitorsSmall, monitorsLarge, monitorsSmallPng, monitorsLargePng),
@@ -276,7 +277,8 @@ export const SECTION_PACKS: SectionPack[] = [
       'docs/observability/overview.mdx:10-26 (logs and metrics in the Console and CLI; error tracking on by default)',
       'docs/observability/error-tracking.mdx:20 (no SDK, on by default with the Console), :49-53 (js-bundle and buildpack Lambda packages and js-bundle containers report; custom artifacts, container images, edge and Rust functions do not)',
       'docs/observability/uptime-checks.mdx:10 (several regions, probes in your account); synthetic-tests.mdx:10-12 (scripted flows in your account)',
-      'docs/observability/tracing.mdx:10 (one property, traces in your account), :76-78 (Node.js, Python, Java, .NET)'
+      'docs/observability/tracing.mdx:10 (one property, traces in your account via X-Ray Transaction Search), :76-78 (Lambda: Node.js bundled runtime, Python, Java, .NET layer), :80-84 (containers: Stacktape adds an OpenTelemetry collector; the app needs the OpenTelemetry SDK), :103 (Traces page: waterfall, per-span timing and attributes)',
+      'packages/config/src/shared.ts:3018 (stackConfig.tracing), :4693 (per-service tracing on container workloads)'
     ],
     doNotClaim: [
       'That all data stays in AWS: error events and metrics go to the Console.',
@@ -284,7 +286,9 @@ export const SECTION_PACKS: SectionPack[] = [
       'That uptime checks and browser tests are on by default: you add them to the config.',
       'Error tracking without the Console: it is off without it.',
       'Error tracking for every workload: containers built from a buildpack, a Dockerfile or a prebuilt image, Rust and custom-artifact functions do not report.',
-      'One-property tracing for containers: they need the OpenTelemetry SDK.',
+      'Zero-code tracing for containers: the app needs the OpenTelemetry SDK; automatic container instrumentation is only planned.',
+      'Tracing on EC2-based container workloads or Next.js server functions: both are skipped.',
+      'That every request is traced regardless of settings: sampling decides (samplingRate, default 1).',
       'No AWS charges for checks: uptime probes and browser tests are billed by AWS.'
     ]
   },
