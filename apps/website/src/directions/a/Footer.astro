@@ -1,0 +1,125 @@
+---
+import Logo from '../../brand/Logo.astro';
+
+const docs = 'https://docs.stacktape.com';
+const columns = [
+  {
+    title: 'Product',
+    links: [
+      ['How it works', '#designs'],
+      ['Pricing', '/pricing'],
+      ['Benchmarks', '/benchmarks'],
+      ['Starter projects', `${docs}/getting-started/starter-projects`],
+      ['Changelog', 'https://github.com/stacktape/stacktape/releases'],
+      ['Console', 'https://console.stacktape.com'],
+      ['Status', 'https://status.stacktape.com']
+    ]
+  },
+  {
+    title: 'Docs',
+    links: [
+      ['Getting started', `${docs}/cli/init`],
+      ['Resources', `${docs}/configuration/resources`],
+      ['Packaging', `${docs}/packaging/overview`],
+      ['CI/CD', `${docs}/ci-cd-and-gitops/overview`],
+      ['Monitoring', `${docs}/observability/overview`],
+      ['Guardrails', `${docs}/guardrails/overview`],
+      ['Costs', `${docs}/managing-costs/overview`],
+      ['Using with AI', `${docs}/using-with-ai/overview`]
+    ]
+  },
+  {
+    title: 'Company',
+    links: [
+      ['Blog', '/blog'],
+      ['Contact', 'mailto:info@stacktape.com'],
+      ['GitHub', 'https://github.com/stacktape/stacktape'],
+      ['LinkedIn', 'https://www.linkedin.com/company/stacktape'],
+      ['X', 'https://x.com/stacktape']
+    ]
+  },
+  {
+    title: 'Legal',
+    links: [
+      ['Privacy policy', '/privacy-policy'],
+      ['Terms of use', '/terms-of-use']
+    ]
+  }
+];
+---
+
+<footer class="a-footer">
+  <div class="a-container">
+    <div class="a-footer__grid">
+      <Logo width={120} />
+      {
+        columns.map((column) => (
+          <nav aria-label={column.title}>
+            <p class="a-footer__title">{column.title}</p>
+            <ul>
+              {column.links.map(([label, href]) => (
+                <li>
+                  <a class="brand-link brand-link--muted" href={href}>
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))
+      }
+    </div>
+    <p class="a-footer__bottom">
+      <span>© 2026 Stacktape</span>
+      <span>Open-source CLI (MIT)</span>
+      <span>Made in the EU</span>
+      <a class="brand-link brand-link--muted" href="https://status.stacktape.com">System status</a>
+    </p>
+  </div>
+</footer>
+
+<style>
+  .a-footer {
+    padding-block: var(--brand-space-8) var(--brand-space-6);
+    border-block-start: 1px solid var(--brand-border);
+    font-size: var(--brand-type-sm);
+  }
+
+  .a-footer__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr));
+    gap: var(--brand-space-6);
+  }
+
+  .a-footer__title {
+    margin-block-end: var(--brand-space-3);
+    font-weight: var(--brand-weight-label);
+  }
+
+  ul {
+    display: grid;
+    gap: var(--brand-space-2);
+    padding: 0;
+    list-style: none;
+  }
+
+  .a-footer__bottom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--brand-space-2) var(--brand-space-5);
+    margin-block-start: var(--brand-space-8);
+    padding-block-start: var(--brand-space-5);
+    border-block-start: 1px solid var(--brand-border);
+    color: var(--brand-muted);
+  }
+
+  @media (max-width: 64rem) {
+    .a-footer__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .a-footer__grid > :first-child {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

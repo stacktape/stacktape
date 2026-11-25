@@ -3,6 +3,7 @@
 .direction-a {
   --a-gutter: clamp(1.25rem, 3vw, 2.5rem);
   --a-width: 90rem;
+  --a-section-gap: clamp(6rem, 9vw, 10rem);
 }
 
 .direction-a body {
@@ -12,4 +13,76 @@
 .a-container {
   inline-size: min(var(--a-width), 100% - 2 * var(--a-gutter));
   margin-inline: auto;
+}
+
+/* A tape tab: plain text until selected, then a strip of teal tape behind the label. */
+.a-tab {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--brand-space-2);
+  padding: 0.45em 0.95em;
+  border: 0;
+  background: none;
+  color: var(--brand-muted);
+  font: var(--brand-weight-label) var(--brand-type-sm) / 1.2 var(--brand-font-body);
+  cursor: pointer;
+}
+
+.a-tab::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: '';
+  clip-path: var(--brand-tape-clip);
+}
+
+.a-tab:hover {
+  color: var(--brand-text);
+}
+
+.a-tab[aria-selected='true'] {
+  color: var(--brand-on-teal);
+}
+
+.a-tab[aria-selected='true']::before {
+  background: var(--brand-primary);
+  box-shadow: var(--brand-edge-primary);
+}
+
+.a-tabs {
+  display: flex;
+  gap: var(--brand-space-2);
+}
+
+/* A framed product picture. */
+.a-frame {
+  overflow: hidden;
+  border: 1px solid var(--brand-border);
+  border-radius: var(--brand-radius);
+  background: var(--brand-inset);
+  box-shadow: var(--brand-shadow);
+}
+
+.a-frame img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+}
+
+/* Where a picture will go: the outline's stand-in, at the size of the final picture. */
+.a-placeholder {
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--brand-border);
+  border-radius: var(--brand-radius);
+  background: var(--brand-surface);
+  color: var(--brand-muted);
+  font-size: var(--brand-type-sm);
+}
+
+.a-placeholder:empty::after {
+  content: 'Picture';
 }

@@ -1,0 +1,82 @@
+---
+import Tape from '../../brand/Tape.astro';
+
+type Props = {
+  /** The section's anchor, also used by links such as "How it works". */
+  id: string;
+  /** Its place among the eight capabilities, from 1. */
+  index: number;
+  name: string;
+  title: string;
+};
+
+const { id, index, name, title } = Astro.props;
+---
+
+<section class="a-cap" id={id} aria-labelledby={`${id}-title`}>
+  <div class="a-container">
+    <header class="a-cap__head">
+      <div class="a-cap__name">
+        <Tape variant="marker">{`${String(index).padStart(2, '0')}  ${name}`}</Tape>
+        <h2 id={`${id}-title`}>{title}</h2>
+      </div>
+      <div class="a-cap__lead">
+        <slot name="lead" />
+      </div>
+    </header>
+    <slot />
+  </div>
+</section>
+
+<style>
+  .a-cap {
+    padding-block-start: var(--a-section-gap);
+  }
+
+  .a-cap__head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 38rem);
+    align-items: end;
+    gap: var(--brand-space-5) var(--brand-space-8);
+    margin-block-end: var(--brand-space-7);
+  }
+
+  .a-cap__name {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-4);
+  }
+
+  h2 {
+    max-inline-size: 20ch;
+    font: var(--brand-weight-heading) clamp(1.875rem, 1.4rem + 1.6vw, 3rem) / 1.1 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+    text-wrap: balance;
+  }
+
+  .a-cap__lead {
+    display: grid;
+    gap: var(--brand-space-3);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .a-cap__lead :global(strong) {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  @media (max-width: 64rem) {
+    .a-cap__head {
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+      margin-block-end: var(--brand-space-6);
+    }
+
+    .a-cap__lead {
+      max-inline-size: 40rem;
+    }
+  }
+</style>

@@ -63,20 +63,20 @@ const selected = 'designs';
     </div>
   </div>
 
-  <div class="a-container a-hero__product" data-a-steps>
+  <div class="a-container a-hero__product" data-a-tabs>
     <div class="a-hero__bar">
-      <div class="a-hero__tabs" role="tablist" aria-label="What Stacktape does">
+      <div class="a-tabs" role="tablist" aria-label="What Stacktape does">
         {
           steps.map((step, index) => (
             <button
-              class="a-hero__tab"
+              class="a-tab"
               type="button"
               role="tab"
-              id={`a-step-${step.id}`}
+              id={`see-${step.id}`}
               aria-controls={`a-shot-${step.id}`}
               aria-selected={step.id === selected ? 'true' : 'false'}
               tabindex={step.id === selected ? 0 : -1}
-              data-step={step.id}
+              data-tab={step.id}
             >
               <span class="a-hero__tab-num" aria-hidden="true">
                 {index + 1}
@@ -91,23 +91,23 @@ const selected = 'designs';
       </div>
       {
         steps.map((step) => (
-          <p class="a-hero__caption" data-caption={step.id} hidden={step.id !== selected}>
+          <p class="a-hero__caption" data-panel={step.id} data-active={String(step.id === selected)}>
             {step.caption}
           </p>
         ))
       }
     </div>
 
-    <div class="a-hero__frame">
+    <div class="a-frame a-hero__frame">
       {
         steps.map((step) => (
           <img
             class="a-hero__shot"
             id={`a-shot-${step.id}`}
             role="tabpanel"
-            aria-labelledby={`a-step-${step.id}`}
-            data-shot={step.id}
-            data-active={step.id === selected ? 'true' : 'false'}
+            aria-labelledby={`see-${step.id}`}
+            data-panel={step.id}
+            data-active={String(step.id === selected)}
             src={step.small.src}
             srcset={`${step.small.src} 1440w, ${step.large.src} 2880w`}
             sizes="(min-width: 95rem) 90rem, 94vw"
@@ -124,38 +124,7 @@ const selected = 'designs';
 </section>
 
 <script>
-  for (const root of document.querySelectorAll<HTMLElement>('[data-a-steps]')) {
-    const tabs = Array.from(root.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
-    const show = (tab: HTMLButtonElement) => {
-      const id = tab.dataset.step;
-      for (const other of tabs) {
-        const active = other === tab;
-        other.setAttribute('aria-selected', String(active));
-        other.tabIndex = active ? 0 : -1;
-      }
-      for (const shot of root.querySelectorAll<HTMLElement>('[data-shot]')) {
-        shot.dataset.active = String(shot.dataset.shot === id);
-      }
-      for (const caption of root.querySelectorAll<HTMLElement>('[data-caption]')) {
-        caption.hidden = caption.dataset.caption !== id;
-      }
-    };
-    const linked = tabs.find((tab) => `#see-${tab.dataset.step}` === window.location.hash);
-    if (linked) show(linked);
-    for (const [index, tab] of tabs.entries()) {
-      tab.addEventListener('click', () => {
-        show(tab);
-        history.replaceState(null, '', `#see-${tab.dataset.step}`);
-      });
-      tab.addEventListener('keydown', (event) => {
-        const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
-        if (!step) return;
-        const next = tabs[(index + step + tabs.length) % tabs.length];
-        next.focus();
-        next.click();
-      });
-    }
-  }
+  import './tabs';
 </script>
 
 <style>
@@ -219,46 +188,6 @@ const selected = 'designs';
     margin-block-end: var(--brand-space-4);
   }
 
-  .a-hero__tabs {
-    display: flex;
-    gap: var(--brand-space-2);
-  }
-
-  .a-hero__tab {
-    position: relative;
-    isolation: isolate;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--brand-space-2);
-    padding: 0.45em 0.95em;
-    border: 0;
-    background: none;
-    color: var(--brand-muted);
-    font: var(--brand-weight-label) var(--brand-type-sm) / 1.2 var(--brand-font-body);
-    cursor: pointer;
-  }
-
-  .a-hero__tab::before {
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    content: '';
-    clip-path: var(--brand-tape-clip);
-  }
-
-  .a-hero__tab:hover {
-    color: var(--brand-text);
-  }
-
-  .a-hero__tab[aria-selected='true'] {
-    color: var(--brand-on-teal);
-  }
-
-  .a-hero__tab[aria-selected='true']::before {
-    background: var(--brand-primary);
-    box-shadow: var(--brand-edge-primary);
-  }
-
   .a-hero__tab-num {
     font-family: var(--brand-font-mono);
     font-size: var(--brand-type-xs);
@@ -272,18 +201,15 @@ const selected = 'designs';
 
   .a-hero__frame {
     display: grid;
-    overflow: hidden;
-    border: 1px solid var(--brand-border);
-    border-radius: var(--brand-radius);
-    background: var(--brand-inset);
     box-shadow: var(--brand-shadow-menu);
+  }
+
+  .a-hero__caption[data-active='false'] {
+    display: none;
   }
 
   .a-hero__shot {
     grid-area: 1 / 1;
-    display: block;
-    inline-size: 100%;
-    block-size: auto;
     opacity: 0;
     visibility: hidden;
     transition:
@@ -329,15 +255,5 @@ const selected = 'designs';
       display: none;
     }
 
-    .a-hero__tabs {
-      margin-inline: calc(-1 * var(--a-gutter));
-      padding-inline: var(--a-gutter);
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-
-    .a-hero__tab {
-      flex: none;
-    }
   }
 </style>

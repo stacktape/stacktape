@@ -1,0 +1,88 @@
+---
+import { TESTIMONIALS } from '../../variants/readme/data';
+---
+
+<section class="a-customers" aria-labelledby="a-customers-title">
+  <div class="a-container">
+    <h2 id="a-customers-title">What teams say about Stacktape</h2>
+    <div class="a-customers__grid">
+      {
+        TESTIMONIALS.map((item) => (
+          <figure class="a-customers__quote">
+            <blockquote>{item.quote}</blockquote>
+            <figcaption>
+              <span class="a-placeholder a-customers__photo" aria-hidden="true" />
+              <span>
+                <strong>{item.name}</strong>
+                <span>{item.role}</span>
+              </span>
+            </figcaption>
+          </figure>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .a-customers {
+    padding-block-start: var(--a-section-gap);
+  }
+
+  h2 {
+    margin-block-end: var(--brand-space-7);
+    font: var(--brand-weight-heading) clamp(1.875rem, 1.4rem + 1.6vw, 3rem) / 1.1 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  .a-customers__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--brand-space-5);
+  }
+
+  .a-customers__quote {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    gap: var(--brand-space-5);
+    padding: var(--brand-space-5);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-surface);
+  }
+
+  blockquote {
+    line-height: 1.6;
+  }
+
+  figcaption {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-3);
+    font-size: var(--brand-type-sm);
+  }
+
+  figcaption > span:last-child {
+    display: grid;
+    color: var(--brand-muted);
+  }
+
+  figcaption strong {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .a-customers__photo {
+    flex: none;
+    inline-size: 2.5rem;
+    block-size: 2.5rem;
+    border-radius: 50%;
+    font-size: 0;
+  }
+
+  @media (max-width: 64rem) {
+    .a-customers__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

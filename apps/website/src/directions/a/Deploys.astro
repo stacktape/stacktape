@@ -1,0 +1,82 @@
+---
+import BenchChart from './BenchChart.astro';
+import Capability from './Capability.astro';
+import previewLarge from './shots/preview-2448.webp';
+import previewSmall from './shots/preview-1224.webp';
+---
+
+<Capability id="deploys" index={3} name="Deploys" title="A code change is live in seconds.">
+  <Fragment slot="lead">
+    <p>
+      Every slow deploy is time your team spends waiting. A change to 25 Lambda functions is live in{' '}
+      <strong>14.5 seconds</strong> with Stacktape. AWS CDK takes 71.8 seconds.
+    </p>
+    <p>Push to deploy, and give each pull request its own preview stage.</p>
+  </Fragment>
+
+  <div class="a-deploys">
+    <BenchChart />
+    <figure class="a-deploys__shot">
+      <div class="a-frame a-deploys__frame">
+        <img
+          src={previewSmall.src}
+          srcset={`${previewSmall.src} 1224w, ${previewLarge.src} 2448w`}
+          sizes="(min-width: 95rem) 52rem, (min-width: 64rem) 56vw, 94vw"
+          width={previewSmall.width}
+          height={previewSmall.height}
+          alt="The Stacktape Console showing pr-421, a pull request's preview stage: healthy, deployed an hour ago, with its requests, failures and latency."
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+      <figcaption>
+        <strong>pr-421</strong>, the preview stage of a pull request. It can be deleted when the pull request closes.
+      </figcaption>
+    </figure>
+  </div>
+</Capability>
+
+<style>
+  /* Two columns that share their rows: the chart beside the picture, and their notes beside each other. */
+  .a-deploys {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-rows: auto auto;
+    gap: var(--brand-space-3) var(--brand-space-5);
+  }
+
+  .a-deploys > :global(:not(script)) {
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    gap: inherit;
+  }
+
+  .a-deploys__frame img {
+    block-size: 100%;
+    object-fit: cover;
+    object-position: left top;
+  }
+
+  figcaption {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  figcaption strong {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  @media (max-width: 64rem) {
+    .a-deploys {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--brand-space-6);
+    }
+
+    .a-deploys > :global(:not(script)) {
+      grid-template-rows: auto auto;
+      row-gap: var(--brand-space-3);
+    }
+  }
+</style>

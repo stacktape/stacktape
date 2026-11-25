@@ -1,0 +1,55 @@
+---
+import { CommandBox } from '../../brand/CommandBox';
+---
+
+<section class="a-closing" aria-labelledby="a-closing-title">
+  <div class="a-container a-closing__inner">
+    <h2 id="a-closing-title">See what Stacktape makes of your app.</h2>
+    <p class="a-closing__line">
+      Run one command. Review the setup and what it costs before anything is created.
+    </p>
+    <div class="a-closing__box">
+      <CommandBox client:visible id="install-closing" label="Try it" preselect={false} />
+    </div>
+    <p class="a-closing__console">
+      Already using Stacktape? <a class="brand-link" href="https://console.stacktape.com">Open the Console</a>
+    </p>
+  </div>
+</section>
+
+<style>
+  .a-closing {
+    margin-block-start: var(--a-section-gap);
+    padding-block: var(--a-section-gap);
+    border-block-start: 1px solid var(--brand-border);
+  }
+
+  .a-closing__inner {
+    display: grid;
+    justify-items: center;
+    gap: var(--brand-space-4);
+    text-align: center;
+  }
+
+  h2 {
+    font: var(--brand-weight-heading) clamp(1.875rem, 1.4rem + 1.6vw, 3rem) / 1.1 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+    text-wrap: balance;
+  }
+
+  .a-closing__line {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+  }
+
+  .a-closing__box {
+    inline-size: min(38rem, 100%);
+    margin-block-start: var(--brand-space-4);
+    text-align: start;
+  }
+
+  .a-closing__console {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+</style>

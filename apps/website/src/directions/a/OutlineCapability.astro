@@ -1,0 +1,66 @@
+---
+import Capability from './Capability.astro';
+
+type Props = {
+  id: string;
+  index: number;
+  name: string;
+  title: string;
+  line: string;
+  /** What the final picture will show. */
+  picture: string;
+  /** Puts the picture on the right, so sections alternate. */
+  flip?: boolean;
+};
+
+const { id, index, name, title, line, picture, flip = false } = Astro.props;
+---
+
+<Capability {id} {index} {name} {title}>
+  <p slot="lead">{line}</p>
+  <div class:list={['a-outline', flip && 'a-outline--flip']}>
+    <div class="a-placeholder a-outline__picture">{picture}</div>
+    <div class="a-placeholder a-outline__proof">Proof</div>
+  </div>
+</Capability>
+
+<style>
+  .a-outline {
+    display: grid;
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    gap: var(--brand-space-7);
+  }
+
+  .a-outline--flip {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+  }
+
+  .a-outline--flip .a-outline__picture {
+    order: 2;
+  }
+
+  .a-outline__picture {
+    aspect-ratio: 1224 / 730;
+  }
+
+  .a-outline__proof {
+    align-self: start;
+    min-block-size: 14rem;
+  }
+
+  @media (max-width: 64rem) {
+    .a-outline,
+    .a-outline--flip {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--brand-space-5);
+    }
+
+    .a-outline--flip .a-outline__picture {
+      order: 0;
+    }
+
+    .a-outline__proof {
+      min-block-size: 8rem;
+    }
+  }
+</style>

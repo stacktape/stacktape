@@ -1,0 +1,91 @@
+---
+import Capability from './Capability.astro';
+import incidentLarge from './shots/incident-2448.webp';
+import incidentSmall from './shots/incident-1224.webp';
+
+const facts = [
+  {
+    title: 'Grouped',
+    text: 'Errors, alarms, failing uptime checks and tests, unhealthy stacks and expiring certificates open incidents.'
+  },
+  {
+    title: 'In Slack',
+    text: 'Acknowledge, mute, resolve, or roll back to the release before it, from the card.'
+  },
+  {
+    title: 'With AI',
+    text: 'With your own AI key, each incident gets an assessment. Fix with AI opens a draft pull request and deploys nothing.'
+  }
+];
+---
+
+<Capability id="incidents" index={6} name="Incidents" title="One incident per problem, handled from Slack.">
+  <Fragment slot="lead">
+    <p>
+      A bad release can set off errors, alarms and a failing uptime check at the same time. Stacktape groups them into{' '}
+      <strong>one incident</strong>, names the release that was live, and posts it to Slack.
+    </p>
+  </Fragment>
+
+  <div class="a-incidents">
+    <div class="a-frame">
+      <img
+        src={incidentSmall.src}
+        srcset={`${incidentSmall.src} 1224w, ${incidentLarge.src} 2448w`}
+        sizes="(min-width: 95rem) 60rem, (min-width: 64rem) 64vw, 94vw"
+        width={incidentSmall.width}
+        height={incidentSmall.height}
+        alt="An incident in the Stacktape Console: API error rate above 5% on checkout-api production, with an AI assessment and a draft fix opened as a pull request."
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+    <dl class="a-incidents__facts">
+      {
+        facts.map((fact) => (
+          <div>
+            <dt>{fact.title}</dt>
+            <dd>{fact.text}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+</Capability>
+
+<style>
+  .a-incidents {
+    display: grid;
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    align-items: start;
+    gap: var(--brand-space-7);
+  }
+
+  .a-incidents__facts {
+    display: grid;
+    gap: var(--brand-space-5);
+  }
+
+  .a-incidents__facts div {
+    display: grid;
+    gap: var(--brand-space-1);
+    padding-block-start: var(--brand-space-4);
+    border-block-start: 1px solid var(--brand-border);
+  }
+
+  dt {
+    font-weight: var(--brand-weight-label);
+  }
+
+  dd {
+    color: var(--brand-muted);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 64rem) {
+    .a-incidents {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--brand-space-6);
+    }
+  }
+</style>

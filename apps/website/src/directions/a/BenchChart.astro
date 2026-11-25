@@ -1,0 +1,240 @@
+---
+import { BENCHMARKS, findGroup, formatValue, toolName } from '../../variants/readme/benchmarks';
+
+/**
+ * Deploy speed from the preliminary benchmark run, fastest first. The Git push view keeps the Python case
+ * Stacktape loses; the footnote names the one Lambda case it loses.
+ */
+const views = [
+  {
+    id: 'lambda',
+    label: 'Lambda',
+    title: 'Code change to Lambda functions',
+    groups: [findGroup('lambda-deploy', 'handler', 'lambda-1'), findGroup('lambda-deploy', 'handler', 'lambda-25')]
+  },
+  {
+    id: 'containers',
+    label: 'Containers',
+    title: 'Code change to a container service',
+    note: 'Stacktape with code swap, an opt-in setting for code changes. Its normal image deploy is slower and loses to Heroku.',
+    groups: [
+      findGroup('container-deploy', 'code-change', 'container-node'),
+      findGroup('container-deploy', 'code-change', 'container-python')
+    ]
+  },
+  {
+    id: 'push',
+    label: 'Git push',
+    title: 'From git push until the new code serves',
+    note: 'Build machine already running. Stacktape measured on 23 Oct.',
+    groups: [
+      findGroup('git-push', 'warm', 'container-node'),
+      findGroup('git-push', 'warm', 'container-python'),
+      findGroup('git-push', 'warm', 'five-services')
+    ]
+  }
+].map((view) => {
+  const groups = view.groups.map(({ comparison, group }) => ({
+    label: group.label,
+    unit: comparison.unit,
+    values: group.values.toSorted((a, b) => a.median - b.median)
+  }));
+  const max = Math.max(...groups.flatMap((group) => group.values.map((value) => value.median)));
+  return { id: view.id, label: view.label, title: view.title, note: view.note, groups, max };
+});
+const selected = 'lambda';
+const run = BENCHMARKS.runs[0];
+---
+
+<div class="a-bench" data-a-tabs>
+  <div class="a-bench__card">
+  <div class="a-bench__head">
+    <p class="a-bench__kicker">Seconds until the change is live</p>
+    <div class="a-tabs" role="tablist" aria-label="Benchmark">
+      {
+        views.map((view) => (
+          <button
+            class="a-tab"
+            type="button"
+            role="tab"
+            id={`bench-${view.id}`}
+            aria-controls={`bench-${view.id}-panel`}
+            aria-selected={view.id === selected ? 'true' : 'false'}
+            tabindex={view.id === selected ? 0 : -1}
+            data-tab={view.id}
+          >
+            {view.label}
+          </button>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="a-bench__panels">
+    {
+      views.map((view) => (
+        <figure
+          class="a-bench__panel"
+          id={`bench-${view.id}-panel`}
+          role="tabpanel"
+          aria-labelledby={`bench-${view.id}`}
+          data-panel={view.id}
+          data-active={String(view.id === selected)}
+        >
+          <figcaption class="a-bench__title">{view.title}</figcaption>
+          {view.groups.map((group) => (
+            <div class="a-bench__group">
+              <p class="a-bench__group-label">{group.label}</p>
+              <ol class="a-bench__rows">
+                {group.values.map((value) => (
+                  <li class:list={['a-bench__row', value.tool === 'stacktape' && 'a-bench__row--us']}>
+                    <span class="a-bench__tool">{toolName(BENCHMARKS, value.tool)}</span>
+                    <span class="a-bench__track" aria-hidden="true">
+                      <span class="a-bench__bar" style={`--a-bar: ${(value.median / view.max) * 100}%`} />
+                    </span>
+                    <span class="a-bench__value">{formatValue(value.median, group.unit)}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+          {view.note && <p class="a-bench__note">{view.note}</p>}
+        </figure>
+      ))
+    }
+  </div>
+  </div>
+
+  <p class="a-bench__foot">
+    Median times, lower is better. Preliminary run of {run.label} on a dedicated EC2 machine. Stacktape also loses one
+    Lambda case: a shared-code change to 5 functions takes 17.3 s, CDK hotswap 16.4 s.{' '}
+    <a class="brand-link" href="/benchmarks">All results</a>
+  </p>
+</div>
+
+<script>
+  import './tabs';
+</script>
+
+<style>
+  .a-bench__card {
+    display: grid;
+    align-content: start;
+    gap: var(--brand-space-4);
+    padding: var(--brand-space-5);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-surface);
+  }
+
+  .a-bench__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--brand-space-3);
+  }
+
+  .a-bench__kicker {
+    font-weight: var(--brand-weight-label);
+  }
+
+  .a-bench__head .a-tabs {
+    margin-inline-end: calc(-1 * var(--brand-space-2));
+  }
+
+  .a-bench__panels {
+    display: grid;
+  }
+
+  .a-bench__panel {
+    grid-area: 1 / 1;
+    display: grid;
+    align-content: start;
+    gap: var(--brand-space-4);
+  }
+
+  .a-bench__panel[data-active='false'] {
+    visibility: hidden;
+  }
+
+  .a-bench__title {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .a-bench__group {
+    display: grid;
+    gap: var(--brand-space-1);
+  }
+
+  .a-bench__group-label {
+    font-size: var(--brand-type-sm);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .a-bench__rows {
+    display: grid;
+    gap: 0.125rem;
+    padding: 0;
+    list-style: none;
+  }
+
+  .a-bench__row {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr) 3.5rem;
+    align-items: center;
+    gap: var(--brand-space-3);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.4;
+  }
+
+  .a-bench__row--us {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .a-bench__track {
+    display: block;
+    block-size: 0.625rem;
+  }
+
+  .a-bench__bar {
+    display: block;
+    inline-size: var(--a-bar);
+    block-size: 100%;
+    border-radius: var(--brand-radius-small);
+    background: color-mix(in srgb, var(--brand-muted) 32%, transparent);
+  }
+
+  .a-bench__row--us .a-bench__bar {
+    background: var(--brand-teal);
+  }
+
+  .a-bench__value {
+    font-family: var(--brand-font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+  }
+
+  .a-bench__note,
+  .a-bench__foot {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
+    line-height: 1.5;
+  }
+
+
+
+  @media (max-width: 40rem) {
+    .a-bench__card {
+      padding: var(--brand-space-4);
+    }
+
+    .a-bench__row {
+      grid-template-columns: 6rem minmax(0, 1fr) 3.25rem;
+      gap: var(--brand-space-2);
+    }
+  }
+</style>
