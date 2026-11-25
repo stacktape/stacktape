@@ -277,5 +277,9 @@ export const FINDINGS = [
   }
 ] as const;
 
-/** The navigation's counts: open incidents, open errors (step 04's five), security findings to fix now. */
-export const COUNTS = { incidents: 1, errors: 5, security: 3 };
+/**
+ * The navigation's counts: open incidents; open errors (step 04's four error groups, all on production: the
+ * TypeError, PaymentProviderError and two worker errors); security findings to fix now (step 05's 1 critical, 2 high).
+ * Production's own open security items are the two config findings and the two package vulnerabilities in FINDINGS.
+ */
+export const COUNTS = { incidents: 1, errors: 4, security: 3 };

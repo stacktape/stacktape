@@ -3,7 +3,7 @@
  * The production stage's overview: the open incident above the deployed version, the last 24 hours and every
  * resource, as the Console's StageOverview draws a stage that needs attention.
  */
-import { MONTH, OVERVIEW, PROJECT, TRAFFIC } from './data';
+import { COUNTS, MONTH, OVERVIEW, PROJECT, TRAFFIC } from './data';
 import Icon from './Icon.astro';
 import ResIcon from './ResIcon.astro';
 import Shell from './Shell.astro';
@@ -43,7 +43,7 @@ const STATS = [
         <span>TLS certificate for "homepage" expires 2026-12-09 · opened 6h ago</span>
       </p>
       <p class="cx-indent cx-quiet cx-also">
-        Also open: <u>3 errors</u>, <u>2 security findings</u> and <u>2 vulnerabilities</u>
+        Also open: <u>{COUNTS.errors} errors</u>, <u>2 security findings</u> and <u>2 vulnerabilities</u>
       </p>
       <span class="cx-link">View incident</span>
     </div>
