@@ -8,7 +8,7 @@ import Window from './console/Window.astro';
  *
  * It is the push after the hero's 11:04 fix (heroes/h5/console/data.ts): the change touched only the API, so its
  * container image is built again on cached dependency layers and the worker's image is reused. The deploy itself is
- * still rolling out; the Deploys picture lists it at the top of the stage's activity.
+ * still rolling out (Update stack, 1 of 6 resources); the Deploys picture lists it at the top of the stage's activity.
  */
 const TOTAL = 75;
 const STEPS = [
@@ -21,12 +21,24 @@ const STEPS = [
     open: true,
     children: [
       { name: 'Package artifacts', detail: 'Packaged 2 workloads · 1 built · 1 unchanged' },
-      { name: 'api', detail: 'Container image · 182 MB', code: true },
-      { name: 'worker', detail: 'Unchanged (reused from previous deploy)', code: true }
+      { name: 'api', detail: 'Container image · 182 MB', workload: true },
+      { name: 'worker', detail: 'Unchanged (reused from previous deploy)', workload: true }
     ]
   },
   { name: 'Upload artifacts', start: 23, seconds: 6, took: '6 s' },
-  { name: 'Deploy', note: '1 of 6 resources', start: 29, seconds: 46, took: '46 s', running: true }
+  {
+    name: 'Deploy',
+    note: '1 of 6 resources',
+    start: 29,
+    seconds: 46,
+    took: '46 s',
+    running: true,
+    open: true,
+    children: [
+      { name: 'Validate template', detail: 'CloudFormation template validated' },
+      { name: 'Update stack', detail: 'Updating resources: 1 of 6 done', running: true }
+    ]
+  }
 ];
 const ABOUT = [
   { label: 'Commit', value: '7d3b8f1', commit: true },
@@ -85,9 +97,9 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
               {step.children ? (
                 <ul class="pk-children">
                   {step.children.map((child) => (
-                    <li>
-                      <span class="pk-tick" />
-                      {child.code ? <code>{child.name}</code> : <b>{child.name}</b>}
+                    <li class:list={{ 'is-workload': 'workload' in child }}>
+                      <span class:list={['pk-tick', { 'is-running brand-round': 'running' in child }]} />
+                      {'workload' in child ? <code>{child.name}</code> : <b>{child.name}</b>}
                       <span class="cn-muted">{child.detail}</span>
                     </li>
                   ))}
@@ -270,7 +282,7 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
     gap: 0.2em 0.7em;
   }
 
-  .pk-children li:not(:first-child) {
+  .pk-children li.is-workload {
     padding-left: 1.6em;
   }
 
@@ -291,6 +303,22 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
   .pk-tick::after {
     top: -0.1em;
     left: 0.3em;
+  }
+
+  .pk-tick.is-running {
+    flex: none;
+    align-self: center;
+    width: 0.85em;
+    height: 0.85em;
+    margin-inline: 0.05em 0.1em;
+    border: 1.5px solid var(--cn-teal-text);
+    border-top-color: transparent;
+    border-radius: 50%;
+    transform: rotate(-30deg);
+  }
+
+  .pk-tick.is-running::after {
+    display: none;
   }
 
   .pk-about {
