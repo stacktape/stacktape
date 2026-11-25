@@ -1,6 +1,7 @@
 ---
 import { ButtonLink } from '@stacktape/ui-react/button';
 import { CommandBox } from '../../brand/CommandBox';
+import postgresRow from './shots/review-postgres.webp';
 import TapeArt from './TapeArt.astro';
 ---
 
@@ -12,7 +13,18 @@ import TapeArt from './TapeArt.astro';
       Stacktape’s CLI and Console set up, deploy, monitor and secure your app in your own AWS account.
     </p>
     <div class="h2-hero__actions">
-      <CommandBox client:load id="install" preselect={false} />
+      <div class="h2-hero__command">
+        <CommandBox client:load id="install" preselect={false} />
+        <figure class="h2-hero__proposal">
+          <img
+            src={postgresRow.src}
+            width={postgresRow.width / 2}
+            height={postgresRow.height / 2}
+            alt="Postgres database, db.t4g.small with 20 GB, estimated at $32 a month."
+          />
+          <figcaption>From the wizard’s Review step for a Next.js app. Nothing is created until you confirm.</figcaption>
+        </figure>
+      </div>
       <ButtonLink variant="secondary" className="brand-button h2-hero__docs" href="https://docs.stacktape.com">
         Read the docs
       </ButtonLink>
@@ -70,10 +82,69 @@ import TapeArt from './TapeArt.astro';
     margin-block-start: var(--brand-space-7);
   }
 
-  .h2-hero__actions :global(.brand-command) {
+  .h2-hero__command {
+    display: grid;
     flex: 0 1 36rem;
+    gap: var(--brand-space-3);
+    min-inline-size: 0;
     text-align: start;
+  }
+
+  .h2-hero__actions :global(.brand-command) {
     box-shadow: 0 24px 60px rgb(5 7 7 / 60%);
+  }
+
+  /* The panel is as tall as its lines; the kit reserves room for the longest tab. */
+  .h2-hero__actions :global(.brand-command .install-code__pre) {
+    min-block-size: 0;
+  }
+
+  /* On narrow boxes Copy stays on the tab row instead of taking a row of its own. */
+  @container (max-width: 34rem) {
+    .h2-hero__actions :global(.brand-command .install-code__tabs) {
+      grid-column: 1;
+    }
+
+    .h2-hero__actions :global(.brand-command .install-code__arch) {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
+
+    .h2-hero__actions :global(.brand-command .brand-button.install-code__copy) {
+      --stp-control-height: 2.25rem;
+      --stp-button-padding-x: var(--brand-space-2);
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    /* The hidden failure label would make Copy as wide as "Select and copy". */
+    .h2-hero__actions :global(.brand-command:not(.install-code--failed) .install-code__label--failed) {
+      display: none;
+    }
+  }
+
+  /* A real resource row from the wizard, at the size the wizard shows it. */
+  .h2-hero__proposal {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--brand-space-4);
+  }
+
+  .h2-hero__proposal img {
+    display: block;
+    max-inline-size: 100%;
+    block-size: auto;
+    border-radius: var(--brand-radius);
+    box-shadow: 0 16px 40px rgb(5 7 7 / 55%);
+  }
+
+  .h2-hero__proposal figcaption {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
+    line-height: 1.45;
+    text-shadow: 0 1px 12px rgb(5 7 7 / 90%);
+    text-wrap: balance;
   }
 
   /* Level with the command box's Copy button: Copy is the first action, the docs the second. */
@@ -105,8 +176,24 @@ import TapeArt from './TapeArt.astro';
       margin-block-start: var(--brand-space-6);
     }
 
-    .h2-hero__actions :global(.brand-command) {
-      flex: none;
+    /* The docs button follows the command box; the wizard's row comes after both. */
+    .h2-hero__command {
+      display: contents;
+    }
+
+    .h2-hero__actions :global(.h2-hero__docs) {
+      order: 1;
+    }
+
+    .h2-hero__proposal {
+      order: 2;
+      margin-block-start: var(--brand-space-3);
+    }
+
+    .h2-hero__proposal {
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+      text-align: center;
     }
 
     .h2-hero__actions :global(.h2-hero__docs) {
