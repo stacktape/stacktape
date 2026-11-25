@@ -1,5 +1,6 @@
 ---
 import Tape from '../../brand/Tape.astro';
+import { FIRST_RUN, runDate } from './bench';
 import type { Step } from './steps';
 
 type Props = { step: Step; index: number; docs?: { label: string; href: string } };
@@ -20,6 +21,13 @@ const number = String(index + 1).padStart(2, '0');
     </div>
     <div class="b-step__aside">
       <p class="b-step__line">{step.line}</p>
+      {
+        step.bench ? (
+          <a class="brand-link brand-link--muted b-step__run" href="/benchmarks">
+            Preliminary benchmark run, {runDate(FIRST_RUN.date)}
+          </a>
+        ) : null
+      }
       <slot name="aside" />
       {
         docs ? (
@@ -83,8 +91,14 @@ const number = String(index + 1).padStart(2, '0');
     text-wrap: pretty;
   }
 
-  .b-step__docs {
+  .b-step__docs,
+  .b-step__run {
     font-size: var(--brand-type-sm);
+  }
+
+  .b-step__run {
+    text-decoration-line: underline;
+    text-decoration-color: var(--brand-border);
   }
 
   @media (max-width: 52rem) {

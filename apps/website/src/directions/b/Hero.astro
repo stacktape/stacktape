@@ -15,12 +15,12 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
     <div class="b-hero__copy">
       <h1 id="b-hero-title">AWS DevOps,<br /> fully automated.</h1>
       <p class="b-hero__lead">
-        Your developers ship app code. Stacktape’s CLI and Console build the AWS setup in your own account, deploy every
-        push and tell you when something breaks.
+        Your developers ship app code. Stacktape’s CLI and Console build the AWS setup in your own account, deploy each
+        push to the branches you choose and tell you when something breaks.
       </p>
     </div>
     <div class="b-hero__start">
-      <CommandBox client:load id="install" label="Start in your repo" />
+      <CommandBox client:load id="install" label="Start in your repo" preselect={false} />
       <div class="b-hero__more">
         <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com">Read the docs</ButtonLink>
         <a class="brand-link brand-link--muted" href="https://cal.com/stacktape/30min">Talk to a founder</a>
@@ -92,6 +92,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
                   class="b-journey__shot"
                   small={step.shot.small}
                   large={step.shot.large}
+                  phone={step.shot.phone}
                   alt={step.shot.alt}
                   sizes="(min-width: 90rem) 68rem, (min-width: 64rem) 72vw, 94vw"
                   eager={index === 0}
@@ -329,6 +330,17 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
 
     .b-journey__intro {
       margin-bottom: var(--brand-space-3);
+    }
+  }
+
+  /* On phones the picture comes first and the steps follow it, so the product shows before the selector. */
+  @media (max-width: 40rem) {
+    .b-journey__window {
+      order: -1;
+    }
+
+    .b-journey__shot {
+      aspect-ratio: auto;
     }
   }
 </style>

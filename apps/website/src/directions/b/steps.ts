@@ -8,6 +8,8 @@ import incidentLarge from './shots/incident-2880.webp';
 import incidentSmall from './shots/incident-1440.webp';
 import errorsLarge from './shots/errors-2880.webp';
 import errorsSmall from './shots/errors-1440.webp';
+import reviewPhoneLarge from './shots/review-phone-810.webp';
+import reviewPhoneSmall from './shots/review-phone-405.webp';
 import reviewLarge from './shots/review-2880.webp';
 import reviewSmall from './shots/review-1440.webp';
 
@@ -27,7 +29,13 @@ export type Step = {
   line: string;
   /** The line quotes a benchmark figure, so the caption links to the run. */
   bench?: boolean;
-  shot?: { small: ImageMetadata; large: ImageMetadata; alt: string };
+  shot?: {
+    small: ImageMetadata;
+    large: ImageMetadata;
+    alt: string;
+    /** A crop that stays readable on a phone. */
+    phone?: { small: ImageMetadata; large: ImageMetadata };
+  };
   /** A benchmark shown instead of a screenshot: the demo data's own build and deploy times are not realistic. */
   race?: { title: string; detail: string; bars: Bar[] };
 };
@@ -44,6 +52,7 @@ export const STEPS: Step[] = [
     shot: {
       small: reviewSmall,
       large: reviewLarge,
+      phone: { small: reviewPhoneSmall, large: reviewPhoneLarge },
       alt: 'The init wizard’s Review: a diagram of a Next.js site and its Postgres database, a $32 a month estimate and the generated stacktape.yml.'
     }
   },
@@ -52,7 +61,8 @@ export const STEPS: Step[] = [
     name: 'Package',
     when: 'First push',
     where: 'deploy benchmarks  ·  packaging',
-    problem: 'AWS CDK, SST and Serverless take 17.6 to 28.4 seconds to package 25 Lambda functions.',
+    problem:
+      'From an empty build cache, AWS CDK, SST and Serverless take 17.6 to 28.4 seconds to package 25 Lambda functions.',
     title: '25 functions packaged in 3.8 seconds',
     line: 'Parallel builds made for Lambda. Python, Go, Java, Ruby, .NET and Rust need no Dockerfile.',
     bench: true,
@@ -69,7 +79,7 @@ export const STEPS: Step[] = [
     where: 'deploy benchmarks  ·  Lambda deploy',
     problem: 'With AWS CDK, a code change to 25 Lambda functions takes over a minute to go live.',
     title: 'Push, and it’s live',
-    line: 'A change to one Lambda function is live in 10.7 seconds. Every pull request can get its own preview.',
+    line: 'A change to one Lambda function is live in 10.7 seconds. Pull requests can get their own preview stage.',
     bench: true,
     race: {
       title: 'Deploy a code change to one Lambda function',
@@ -97,8 +107,8 @@ export const STEPS: Step[] = [
     when: 'From then on',
     where: 'console.stacktape.com  ·  errors',
     problem: 'Logs, errors and uptime checks usually mean another vendor to buy and wire up.',
-    title: 'Monitoring is already set up',
-    line: 'Logs, metrics, traces, errors, uptime checks and browser tests come with the stack. No extra vendor.',
+    title: 'Monitoring comes with the stack',
+    line: 'Logs, metrics and error tracking work from the first deploy. Tracing is one config property, uptime checks need a URL and browser tests your script. No extra vendor.',
     shot: {
       small: errorsSmall,
       large: errorsLarge,

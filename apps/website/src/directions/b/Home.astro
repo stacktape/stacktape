@@ -13,7 +13,7 @@ import Steps from './Steps.astro';
 
 <BaseLayout
   title="Stacktape: AWS DevOps, fully automated"
-  description="Your developers ship app code. Stacktape's CLI and Console build the AWS setup in your own account, deploy every push and tell you when something breaks."
+  description="Your developers ship app code. Stacktape's CLI and Console build the AWS setup in your own account, deploy each push to the branches you choose and tell you when something breaks."
   htmlClass="brand b-page"
 >
   <BrandHead slot="head" />
@@ -30,31 +30,6 @@ import Steps from './Steps.astro';
   </main>
   <Footer />
 </BaseLayout>
-
-<script>
-  /*
-   * The kit's command box preselects the visitor's installer. Until the installers are confirmed to ship v4
-   * (launch item L5), this page keeps npx: the automatic switch is undone before it paints. A visitor's own
-   * choice is left alone.
-   */
-  for (const box of document.querySelectorAll<HTMLElement>('.b-page astro-island:has(.brand-command)')) {
-    let touched = false;
-    const stop = () => {
-      touched = true;
-      observer.disconnect();
-    };
-    const observer = new MutationObserver(() => {
-      const tabs = Array.from(box.querySelectorAll<HTMLElement>('.install-code__tabs [role="tab"]'));
-      const npx = tabs.find((tab) => tab.textContent?.trim() === 'npx');
-      if (touched || !npx || npx.getAttribute('aria-selected') === 'true') return;
-      observer.disconnect();
-      npx.click();
-    });
-    box.addEventListener('pointerdown', stop, { once: true });
-    box.addEventListener('keydown', stop, { once: true });
-    observer.observe(box, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-selected'] });
-  }
-</script>
 
 <style is:global>
   .b-page {

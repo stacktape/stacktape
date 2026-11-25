@@ -156,32 +156,19 @@ const figure = (seconds: number) => `${seconds.toFixed(1)} s`;
     transform: translateY(-50%);
   }
 
-  /* With motion allowed, every bar grows at the same speed and stops at its time: one second is ten in the run. */
+  /* With motion allowed, every bar grows at the same speed and stops at its time: one second is ten in the run.
+     The figures stay visible throughout, at the end of where each bar will stop. */
   :global(.b-motion) .b-race:not(.is-running) .b-race__fill {
     transform: scaleX(0);
-  }
-
-  :global(.b-motion) .b-race:not(.is-running) .b-race__value {
-    opacity: 0;
   }
 
   :global(.b-motion) .b-race.is-running .b-race__fill {
     animation: b-race-grow var(--d) linear both;
   }
 
-  :global(.b-motion) .b-race.is-running .b-race__value {
-    animation: b-race-show 0.25s ease-out var(--d) both;
-  }
-
   @keyframes b-race-grow {
     from {
       transform: scaleX(0);
-    }
-  }
-
-  @keyframes b-race-show {
-    from {
-      opacity: 0;
     }
   }
 

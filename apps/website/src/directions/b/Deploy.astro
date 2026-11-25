@@ -12,7 +12,16 @@ const push = bars('git-push', 'warm', 'container-node');
 const pushPython = bars('git-push', 'warm', 'container-python');
 const shared = bars('lambda-deploy', 'shared', 'lambda-5');
 const pushDate = push.find((bar) => bar.tool === 'stacktape')?.date ?? FIRST_RUN.date;
-const scale = Math.max(...[lambda, container, push, pushPython, shared].flat().map((bar) => bar.seconds));
+/*
+ * A dependency or configuration change can't use code swap. The data file gives Stacktape's normal image deploy
+ * only in a note on container-deploy ("last measured on 17 October at 40.1, 47.6 and 57.6 s"), so the Node.js
+ * figure is set here and the competitors come from the same case.
+ */
+const IMAGE_DEPLOY_NODE = { tool: 'stacktape', label: 'Stacktape', seconds: 40.1, date: '2026-10-17' };
+const imageDeploy = [IMAGE_DEPLOY_NODE, ...container.filter((bar) => bar.tool !== 'stacktape')].toSorted(
+  (a, b) => a.seconds - b.seconds
+);
+const scale = Math.max(...[lambda, container, push, pushPython, shared, imageDeploy].flat().map((bar) => bar.seconds));
 /** How much faster the winner of a case we lose is, in seconds. */
 const lead = (case_: typeof shared) => {
   const us = case_.find((bar) => bar.tool === 'stacktape')?.seconds ?? 0;
@@ -43,8 +52,9 @@ const lead = (case_: typeof shared) => {
       <Race
         title="Git push"
         detail="From git push until a Node.js service serves the change"
-        note="Build machines already running."
+        note="* Stacktape swapped the code in place on its warm build runner. Heroku and Render built from the pushed source on their own machines."
         bars={push}
+        rename={{ stacktape: 'Stacktape*' }}
         scale={scale}
       />
     </div>
@@ -54,6 +64,13 @@ const lead = (case_: typeof shared) => {
         title="Git push, Python"
         detail={`Heroku is ${lead(pushPython)} s faster`}
         bars={pushPython}
+        scale={scale}
+      />
+      <Race
+        title="Dependency or config change"
+        detail={`A Node.js service without code swap. Heroku is ${lead(imageDeploy)} s faster`}
+        note={`Stacktape’s image deploy measured on ${runDate(IMAGE_DEPLOY_NODE.date)}.`}
+        bars={imageDeploy}
         scale={scale}
       />
       <Race
@@ -74,7 +91,8 @@ const lead = (case_: typeof shared) => {
     <div class="b-preview__copy">
       <h3>A preview for every pull request</h3>
       <p>
-        Open a pull request and it gets its own stage, <code>pr-421</code> here. Close it and the preview is deleted.
+        Add a pull request rule for a branch, and each pull request into it gets its own stage,{' '}
+        <code>pr-421</code> here. Turn on delete on close and the stage goes away when the pull request closes.
       </p>
       <a class="brand-link" href="https://docs.stacktape.com/ci-cd-and-gitops/gitops-with-console">Git deployments</a>
     </div>
