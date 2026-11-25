@@ -1,0 +1,116 @@
+---
+import Logo from '../../brand/Logo.astro';
+
+const DOCS = 'https://docs.stacktape.com';
+const columns = [
+  {
+    title: 'Product',
+    links: [
+      ['How it starts', '#how-it-starts'],
+      ['Pricing', '/pricing'],
+      ['Benchmarks', '/benchmarks'],
+      ['Starter projects', `${DOCS}/getting-started/starter-projects`],
+      ['Changelog', 'https://github.com/stacktape/stacktape/releases'],
+      ['Console', 'https://console.stacktape.com'],
+      ['Status', 'https://status.stacktape.com']
+    ]
+  },
+  {
+    title: 'Docs',
+    links: [
+      ['Getting started', `${DOCS}/cli/init`],
+      ['Resources', `${DOCS}/configuration/resources`],
+      ['Packaging', `${DOCS}/packaging/overview`],
+      ['CI/CD', `${DOCS}/ci-cd-and-gitops/overview`],
+      ['Monitoring', `${DOCS}/observability/overview`],
+      ['Guardrails', `${DOCS}/guardrails/overview`],
+      ['Costs', `${DOCS}/managing-costs/overview`],
+      ['Using with AI', `${DOCS}/using-with-ai/overview`]
+    ]
+  },
+  {
+    title: 'Company',
+    links: [
+      ['Blog', '/blog'],
+      ['Contact', 'mailto:info@stacktape.com'],
+      ['GitHub', 'https://github.com/stacktape/stacktape'],
+      ['LinkedIn', 'https://www.linkedin.com/company/stacktape'],
+      ['X', 'https://x.com/stacktape']
+    ]
+  },
+  {
+    title: 'Legal',
+    links: [
+      ['Privacy policy', '/privacy-policy'],
+      ['Terms of use', '/terms-of-use']
+    ]
+  }
+] as const;
+---
+
+<footer class="c-section footer">
+  <div class="footer__top">
+    <Logo width={120} />
+    {
+      columns.map((column) => (
+        <nav class="footer__column" aria-label={column.title}>
+          <h2>{column.title}</h2>
+          {column.links.map(([label, href]) => (
+            <a class="brand-link brand-link--muted" href={href}>
+              {label}
+            </a>
+          ))}
+        </nav>
+      ))
+    }
+  </div>
+  <p class="c-muted footer__bottom">
+    <span>© 2026 Stacktape</span>
+    <span>Open-source CLI (MIT)</span>
+    <span>Made in the EU</span>
+  </p>
+</footer>
+
+<style>
+  .footer {
+    display: grid;
+    gap: var(--brand-space-8);
+    padding-block-end: var(--brand-space-7);
+    font-size: var(--brand-type-sm);
+  }
+
+  .footer__top {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--brand-space-6);
+  }
+
+  .footer__column {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-2);
+  }
+
+  h2 {
+    margin: 0 0 var(--brand-space-2);
+    font-size: var(--brand-type-sm);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .footer__bottom {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--brand-space-2) var(--brand-space-5);
+  }
+
+  @media (max-width: 48rem) {
+    .footer__top {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .footer__top > :first-child {
+      grid-column: 1 / -1;
+    }
+  }
+</style>

@@ -1,0 +1,91 @@
+---
+/** How it starts: three steps of `stacktape init`, next to the wizard's real Review screen. */
+import Tape from '../../brand/Tape.astro';
+
+const steps = [
+  {
+    title: 'Run one command in your repo',
+    text: 'Claude Code or Codex reads the code on your machine, or the built-in scanner reads only manifests. No source code goes to Stacktape.'
+  },
+  {
+    title: 'Review the setup in your browser',
+    text: 'Every resource shows why it exists, the line of code behind it and a monthly estimate. Change anything with one click.'
+  },
+  {
+    title: 'Deploy to your AWS account',
+    text: 'With your local AWS credentials and no Stacktape account. Connect the repository in the Console and every push deploys.'
+  }
+] as const;
+---
+
+<section class="c-section steps" id="how-it-starts" aria-labelledby="how-it-starts-title">
+  <div class="c-intro">
+    <Tape variant="marker">How it starts</Tape>
+    <h2 class="c-h2" id="how-it-starts-title">From your repo to AWS, with a look at every resource first.</h2>
+    <ol class="steps__list">
+      {
+        steps.map((step, index) => (
+          <li class="steps__item">
+            <Tape variant="count" tone="teal">
+              {index + 1}
+            </Tape>
+            <div>
+              <h3>{step.title}</h3>
+              <p class="c-muted">{step.text}</p>
+            </div>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+  <figure class="steps__picture">
+    <img
+      class="c-frame"
+      src="/d/c/init-review.webp"
+      width="2000"
+      height="1250"
+      loading="lazy"
+      alt="The init wizard's Review step for a Next.js app with a Postgres database: an architecture diagram, an estimated $32 a month, and the generated stacktape.yml."
+    />
+  </figure>
+</section>
+
+<style>
+  .steps {
+    display: grid;
+    grid-template-columns: minmax(0, 30rem) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--brand-space-7) var(--brand-space-9);
+  }
+
+  .steps__list {
+    display: grid;
+    gap: var(--brand-space-5);
+    margin: var(--brand-space-4) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .steps__item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--brand-space-4);
+  }
+
+  h3 {
+    margin: 0 0 var(--brand-space-1);
+    font-size: var(--brand-type-base);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .steps__picture {
+    margin: 0;
+  }
+
+  @media (max-width: 64rem) {
+    .steps {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

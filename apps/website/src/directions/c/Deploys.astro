@@ -1,0 +1,80 @@
+---
+/**
+ * Deploys and packaging. Figures: `src/data/deploy-benchmarks.json`, preliminary run of 22 Oct 2026 (Git push on
+ * 23 Oct). Charts go fastest to slowest and include the cases where Stacktape is slower.
+ */
+import BenchChart from './BenchChart.astro';
+import Block from './Block.astro';
+---
+
+<Block
+  id="deploys"
+  marker="Deploys"
+  problem="AWS CDK takes 71.8 seconds to get a code change to 25 Lambda functions live."
+  title="Stacktape does it in 14.5 seconds."
+>
+  <p>
+    It packages those 25 functions in 3.8 seconds from an empty cache; CDK takes 17.6. A container code change goes live
+    in 4.1 to 7.6 seconds with code swap.
+  </p>
+  <p>Pull requests can get their own preview stage, deleted when the pull request closes.</p>
+  <p class="deploys__meta">Preliminary results from 22 Oct 2026 (Git push: 23 Oct). Medians in seconds.</p>
+  <p class="deploys__meta"><a class="brand-link" href="/benchmarks">How we measured, and every result</a></p>
+
+  <div slot="picture" class="deploys__charts">
+    <BenchChart
+      comparison="lambda-deploy"
+      view="handler"
+      app="lambda-25"
+      title="Code change to 25 Lambda functions"
+      detail="CLI deploy"
+    />
+    <BenchChart
+      comparison="container-deploy"
+      view="code-change"
+      app="container-node"
+      title="Code change to a Node.js container"
+      detail="Stacktape with code swap, opt-in"
+    />
+    <BenchChart comparison="git-push" view="warm" app="container-node" title="Git push, Node.js service" detail="warm runner" />
+    <BenchChart
+      comparison="git-push"
+      view="warm"
+      app="container-python"
+      title="Git push, Python service"
+      detail="warm runner"
+    />
+    <BenchChart
+      comparison="lambda-deploy"
+      view="shared"
+      app="lambda-5"
+      title="Shared-code change to 5 Lambda functions"
+      detail="CLI deploy"
+    />
+    <BenchChart
+      comparison="packaging"
+      view="empty-cache"
+      app="lambda-25"
+      title="Package 25 Lambda functions"
+      detail="empty build cache"
+    />
+  </div>
+</Block>
+
+<style>
+  .deploys__meta {
+    font-size: var(--brand-type-sm);
+  }
+
+  .deploys__charts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--brand-space-4);
+  }
+
+  @media (max-width: 40rem) {
+    .deploys__charts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

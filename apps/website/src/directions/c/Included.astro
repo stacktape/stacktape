@@ -1,0 +1,92 @@
+---
+/** Outline: the small "also included" grid. Unequal tiles; grey blocks stand where real UI goes. */
+import Tape from '../../brand/Tape.astro';
+
+const tiles = [
+  { title: 'Pull request previews', text: 'A stage per pull request, deleted when it closes.', size: 'wide' },
+  { title: 'Escape hatches', text: 'Raw CloudFormation and CDK constructs deploy in the same stack.', size: 'tall' },
+  { title: 'Dev mode', text: 'Run your workloads locally, connected to the stack’s cloud resources.', size: 'normal' },
+  { title: 'Engineers, not a ticket queue', text: 'On Flexible, a shared Slack channel with the founders.', size: 'wide' },
+  { title: 'Open-source CLI', text: 'MIT licensed. Deploys with your own AWS credentials, no account.', size: 'normal' }
+] as const;
+---
+
+<section class="c-section included" id="included" aria-labelledby="included-title">
+  <div class="c-intro">
+    <Tape variant="marker">Also included</Tape>
+    <h2 class="c-h2" id="included-title">The rest of the job.</h2>
+  </div>
+  <ul class="included__grid">
+    {
+      tiles.map((tile) => (
+        <li class:list={['included__tile', `included__tile--${tile.size}`]}>
+          <h3>{tile.title}</h3>
+          <p class="c-muted">{tile.text}</p>
+          <div class="c-placeholder included__picture" role="presentation" />
+        </li>
+      ))
+    }
+  </ul>
+</section>
+
+<style>
+  .included {
+    display: grid;
+    gap: var(--brand-space-7);
+  }
+
+  .included__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: minmax(13rem, auto);
+    gap: var(--brand-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .included__tile {
+    display: grid;
+    grid-template-rows: auto auto minmax(4rem, 1fr);
+    gap: var(--brand-space-2);
+    padding: var(--brand-space-5);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+  }
+
+  .included__tile--wide {
+    grid-column: span 2;
+  }
+
+  .included__tile--tall {
+    grid-row: span 2;
+  }
+
+  h3 {
+    margin: 0;
+    font-size: var(--brand-type-base);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .included__tile p {
+    font-size: var(--brand-type-sm);
+  }
+
+  .included__picture {
+    margin-block-start: var(--brand-space-3);
+  }
+
+  @media (max-width: 64rem) {
+    .included__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .included__tile--wide {
+      grid-column: auto;
+    }
+
+    .included__tile--tall {
+      grid-row: auto;
+    }
+  }
+</style>

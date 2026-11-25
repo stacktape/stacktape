@@ -1,0 +1,77 @@
+---
+/**
+ * One capability block: the problem it removes, what Stacktape does, then the picture.
+ * `outline` marks a block that is still a true-to-size placeholder.
+ */
+import Tape from '../../brand/Tape.astro';
+
+type Props = {
+  id: string;
+  marker: string;
+  problem: string;
+  title: string;
+  outline?: boolean;
+};
+
+const { id, marker, problem, title, outline = false } = Astro.props;
+---
+
+<section class="c-section block" id={id} aria-labelledby={`${id}-title`}>
+  <div class="c-intro">
+    <Tape variant="marker">{marker}</Tape>
+    <p class="block__problem">{problem}</p>
+    <h2 class="c-h2" id={`${id}-title`}>{title}</h2>
+    <div class="block__body"><slot /></div>
+  </div>
+  <div class="block__picture">
+    {outline ? <div class="c-placeholder block__placeholder" role="presentation" /> : <slot name="picture" />}
+  </div>
+</section>
+
+<style>
+  .block {
+    display: grid;
+    grid-template-columns: minmax(0, 30rem) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--brand-space-7) var(--brand-space-9);
+  }
+
+  @media (min-width: 64rem) {
+    .block > .c-intro {
+      position: sticky;
+      inset-block-start: 6.5rem;
+    }
+  }
+
+  .block__problem {
+    margin: var(--brand-space-2) 0 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+    text-wrap: pretty;
+  }
+
+  .block__body {
+    display: grid;
+    gap: var(--brand-space-3);
+    color: var(--brand-muted);
+  }
+
+  .block__body :global(p) {
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  .block__picture {
+    min-inline-size: 0;
+  }
+
+  .block__placeholder {
+    aspect-ratio: 16 / 9;
+  }
+
+  @media (max-width: 64rem) {
+    .block {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

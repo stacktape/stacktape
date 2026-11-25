@@ -1,0 +1,43 @@
+---
+import { CommandBox } from '../../brand/CommandBox';
+import Tape from '../../brand/Tape.astro';
+---
+
+<section class="c-section closing" aria-labelledby="closing-title">
+  <div class="c-intro closing__intro">
+    <Tape>Try it</Tape>
+    <h2 class="c-h2" id="closing-title">See what Stacktape makes of your app.</h2>
+    <p class="c-muted">Run one command. Review the setup and what it costs before anything is created.</p>
+  </div>
+  <div class="closing__start">
+    <CommandBox client:visible id="install-closing" label="Install again" />
+    <p class="c-muted closing__note">
+      Already using Stacktape? <a class="brand-link" href="https://console.stacktape.com">Open the Console</a>
+    </p>
+  </div>
+</section>
+
+<style>
+  .closing {
+    display: grid;
+    justify-items: center;
+    gap: var(--brand-space-6);
+    text-align: center;
+  }
+
+  .closing__intro {
+    justify-items: center;
+  }
+
+  .closing__start {
+    display: grid;
+    gap: var(--brand-space-4);
+    inline-size: min(36rem, 100%);
+    text-align: start;
+  }
+
+  .closing__note {
+    font-size: var(--brand-type-sm);
+    text-align: center;
+  }
+</style>

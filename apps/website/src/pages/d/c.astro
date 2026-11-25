@@ -1,9 +1,17 @@
 ---
 import BrandHead from '../../brand/BrandHead.astro';
 import '../../brand/controls.css';
+import Block from '../../directions/c/Block.astro';
+import Closing from '../../directions/c/Closing.astro';
+import Deploys from '../../directions/c/Deploys.astro';
+import Footer from '../../directions/c/Footer.astro';
 import Header from '../../directions/c/Header.astro';
 import Hero from '../../directions/c/Hero.astro';
+import Incidents from '../../directions/c/Incidents.astro';
+import Included from '../../directions/c/Included.astro';
 import '../../directions/c/page.css';
+import Proof from '../../directions/c/Proof.astro';
+import Steps from '../../directions/c/Steps.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 ---
 
@@ -16,5 +24,33 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
   <Header />
   <main>
     <Hero />
+    <Proof />
+    <Steps />
+    <Deploys />
+    <Incidents />
+    <Block
+      id="security"
+      marker="Security"
+      problem="One wrong line of config can open a database to the internet."
+      title="Least access by default. Rules checked before every deploy."
+      outline
+    >
+      <p>
+        Each workload gets only the permissions and network access it needs. Guardrails stop a public database or a
+        wrong region before anything changes.
+      </p>
+    </Block>
+    <Block
+      id="costs"
+      marker="Costs"
+      problem="The AWS bill arrives once a month, as one number."
+      title="See what every project, stage and resource costs."
+      outline
+    >
+      <p>A daily breakdown from your own AWS costs. Budgets alert on actual and forecast spend.</p>
+    </Block>
+    <Included />
+    <Closing />
   </main>
+  <Footer />
 </BaseLayout>
