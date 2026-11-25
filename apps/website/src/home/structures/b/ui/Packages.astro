@@ -5,7 +5,7 @@ import { barsOf, runOf, slowest } from './bench/data';
 /**
  * Packaging speed from the deploy benchmarks (`src/data/deploy-benchmarks.json`, comparison `packaging`, view
  * `empty-cache`): seconds to package 1, 5 and 25 Lambda functions with an empty build cache, median of 10 runs, on the
- * 22 October 2026 run. Every tool's bar, fastest first. The notes are the data file's own.
+ * 22 October 2026 run. Every tool's bar, fastest first. The run date links to the run's results on GitHub.
  */
 const large = barsOf('packaging', 'empty-cache', 'lambda-25');
 const one = barsOf('packaging', 'empty-cache', 'lambda-1');
@@ -22,6 +22,7 @@ const run = runOf(0);
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
       <p class="bn-stat__what">to package 25 Lambda functions from an empty build cache</p>
       <p class="bn-stat__how">Median of 10 runs; lower is better.</p>
+      <a class="brand-link bn-stat__run" href={run.link}>Preliminary run, {run.label}</a>
     </div>
     <Chart size="large" bars={large} scale={30} ticks={[0, 10, 20, 30]} />
   </div>
@@ -29,14 +30,4 @@ const run = runOf(0);
     <Chart title="1 function" detail="Empty build cache" bars={one} scale={small} />
     <Chart title="5 functions" detail="Empty build cache" bars={five} scale={small} />
   </div>
-  <figcaption class="bn-foot">
-    <span>
-      <a class="brand-link" href={run.link}>Preliminary run, {run.label}</a>, on a dedicated EC2 c7i.2xlarge (8 vCPUs, 16
-      GB) in eu-west-1.
-    </span>
-    <span>
-      After a source change, packaging takes about the same time with every tool. SST's time includes <code>sst diff</code>,
-      because SST has no packaging-only command; CDK's excludes zipping, which CDK does during the deploy.
-    </span>
-  </figcaption>
 </figure>
