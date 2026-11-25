@@ -1,6 +1,6 @@
 ---
 /** The top of a stage page: the project, its stages as tape tabs, and the stage's section tabs. */
-import { ACCOUNT, PROJECT, REPO, STAGES } from './data';
+import { ACCOUNT, MORE_STAGES, PROJECT, REPO, STAGES } from './data';
 import Icon from './Icon.astro';
 
 type Props = { section: 'Overview' | 'Costs' };
@@ -22,13 +22,16 @@ const SECTIONS = ['Overview', 'Activity', 'Costs', 'Configuration', 'Diagram', '
     {
       STAGES.map((stage, at) => (
         <span class:list={['cx-seg__tab', at === 0 && 'is-on']}>
-          <i class="cx-dot" />
+          <i class:list={['cx-dot', at === 0 ? 'cx-dot--warn' : 'brand-round']} />
           {stage}
         </span>
       ))
     }
   </span>
-  <span class="cx-more">1 more<Icon name="down" /></span>
+  <span class="cx-more"
+    ><span class="cx-wide">{MORE_STAGES} more</span><span class="cx-narrow">{STAGES.length - 2 + MORE_STAGES} more</span
+    ><Icon name="down" /></span
+  >
   <span class="cx-btn"><Icon name="plus" />New stage</span>
   <span class="cx-account">{ACCOUNT}</span>
 </div>

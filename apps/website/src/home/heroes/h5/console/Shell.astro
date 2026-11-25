@@ -3,21 +3,30 @@
  * The Console's frame with its tape look: the top bar, the sidebar (the selected row is a piece of grey tape torn at
  * its right end, counts are torn labels) and the raised page the screen's content sits on.
  */
-import { ORG, USER } from './data';
+import { COUNTS, ORG, USER } from './data';
 import Icon from './Icon.astro';
 
 type Section = 'observability' | 'security';
 type Page = 'projects' | 'incidents' | 'uptime' | 'security';
-type Props = { crumb: string; crumbMenu?: boolean; page: Page; open?: Section };
+type Props = { crumb: string; crumbMenu?: boolean; page: Page; open?: Section; phoneCrumb?: string };
 
-const { crumb, crumbMenu = false, page, open } = Astro.props;
+const { crumb, crumbMenu = false, page, open, phoneCrumb = crumb } = Astro.props;
+
+/** The phone's bottom bar, as the Console draws it below 40rem. */
+const BOTTOM = [
+  { icon: 'projects', label: 'Projects', on: page === 'projects', count: 0 },
+  { icon: 'incidents', label: 'Incidents', on: page === 'incidents', count: COUNTS.incidents },
+  { icon: 'errors', label: 'Errors', on: false, count: COUNTS.errors },
+  { icon: 'metrics', label: 'Activity', on: false, count: 0 },
+  { icon: 'more', label: 'More', on: page === 'uptime' || page === 'security', count: 0 }
+] as const;
 
 const SECTIONS = [
   { id: 'organization', label: 'Organization', count: 0, tone: '' },
   {
     id: 'observability',
     label: 'Observability',
-    count: 4,
+    count: COUNTS.errors,
     tone: 'red',
     rows: [
       { icon: 'logs', label: 'Logs' },
@@ -25,16 +34,16 @@ const SECTIONS = [
       { icon: 'traces', label: 'Traces' },
       { icon: 'uptime', label: 'Uptime', page: 'uptime' },
       { icon: 'synthetics', label: 'Synthetics' },
-      { icon: 'errors', label: 'Error tracking', count: 4, tone: 'red' }
+      { icon: 'errors', label: 'Error tracking', count: COUNTS.errors, tone: 'red' }
     ]
   },
   {
     id: 'security',
     label: 'Security',
-    count: 2,
+    count: COUNTS.security,
     tone: 'amber',
     rows: [
-      { icon: 'shield', label: 'Overview', page: 'security', count: 2, tone: 'amber' },
+      { icon: 'shield', label: 'Overview', page: 'security', count: COUNTS.security, tone: 'amber' },
       { icon: 'globe', label: 'Exposure' },
       { icon: 'guardrails', label: 'Guardrails' },
       { icon: 'settings', label: 'Settings' }
@@ -56,12 +65,14 @@ const SECTIONS = [
     <span class="cx-find"><Icon name="search" />Find<kbd>Ctrl K</kbd></span>
     <span class="cx-btn"><Icon name="plus" />New project</span>
     <span class="cx-help"><Icon name="help" />Help<Icon name="down" /></span>
-    <span class="cx-avatar">{USER}<Icon name="down" /></span>
+    <span class="cx-avatar"><i class="brand-round">{USER}</i><Icon name="down" /></span>
+    <span class="cx-phone-crumb">{phoneCrumb}</span>
+    <Icon name="search" class="cx-phone-search" />
   </div>
   <div class="cx-side">
     <span class:list={['cx-nav', page === 'projects' && 'is-on']}><Icon name="projects" />Projects</span>
     <span class:list={['cx-nav', page === 'incidents' && 'is-on']}
-      ><Icon name="incidents" />Incidents<span class="cx-count cx-count--red">1</span></span
+      ><Icon name="incidents" />Incidents<span class="cx-count cx-count--red">{COUNTS.incidents}</span></span
     >
     {
       SECTIONS.map((section) => {
@@ -91,5 +102,16 @@ const SECTIONS = [
   </div>
   <div class="cx-page">
     <slot />
+  </div>
+  <div class="cx-bottom">
+    {
+      BOTTOM.map((item) => (
+        <span class:list={['cx-bottom__item', item.on && 'is-on']}>
+          <Icon name={item.icon} />
+          {item.count > 0 && <span class="cx-count cx-count--red">{item.count}</span>}
+          {item.label}
+        </span>
+      ))
+    }
   </div>
 </div>

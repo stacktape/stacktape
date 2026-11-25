@@ -1,10 +1,11 @@
 /*
- * The Console, rebuilt in HTML for the hero window. It is laid out on the Console's own 1280 x 684 px page and
+ * The Console, rebuilt in HTML for the hero window, in its "Tape · Square everywhere" look: square corners, only
+ * true circles stay round. It is laid out on the Console's own 1320 x 692 px page and
  * scaled to the window: `--u` is one Console pixel, so every size below is the Console's size in its own pixels.
  * Colours are the Console's own (sampled from its tape-look preview); the tape shapes are the brand's.
  */
 .cx-app {
-  --u: calc(100cqw / 1280);
+  --u: calc(100cqw / 1320);
   --cx-page: rgb(16 21 21);
   --cx-panel: rgb(20 25 25);
   --cx-card: rgb(31 37 37);
@@ -23,7 +24,7 @@
   display: grid;
   grid-template-columns: calc(216 * var(--u)) minmax(0, 1fr);
   grid-template-rows: calc(54 * var(--u)) minmax(0, 1fr);
-  block-size: calc(684 * var(--u));
+  block-size: calc(692 * var(--u));
   overflow: hidden;
   border-radius: inherit;
   background: var(--cx-page);
@@ -53,7 +54,6 @@
 
 .cx-app code {
   padding: calc(1 * var(--u)) calc(6 * var(--u));
-  border-radius: calc(4 * var(--u));
   background: rgb(255 255 255 / 7%);
   color: var(--cx-strong);
   font: 500 calc(12 * var(--u)) / 1.4 var(--brand-font-mono);
@@ -70,43 +70,61 @@
   stroke-width: 1.4;
 }
 
-/* Resource icons, as the Console's `stp-ui-resource-icon` draws them: no square, lines in the category colour. */
+/*
+ * Resource icons: the Console's ResourceIcon, with the Console's `stp-ui-resource-icon` rules repeated in Console
+ * pixels (its own sizes are fixed px): no square, the lines in the AWS category's colour.
+ */
 .cx-app {
-  --cx-aws-compute: rgb(237 113 0);
-  --cx-aws-database: #4d73f4;
-  --cx-aws-integration: #f64683;
-  --cx-aws-network: #8e58eb;
+  --stp-aws-category-compute: rgb(237 113 0);
+  --stp-aws-category-database: #4d73f4;
+  --stp-aws-category-integration: #f64683;
+  --stp-aws-category-network: #8e58eb;
+  --stp-aws-category-security: #f34446;
+  --stp-aws-category-storage: #5ca034;
 }
 
 .cx-res {
   display: inline-flex;
   flex: none;
-  align-items: center;
-  justify-content: center;
   inline-size: calc(20 * var(--u));
   block-size: calc(20 * var(--u));
-  overflow: visible;
+}
+
+.cx-res .stp-ui-resource-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 100% !important;
+  block-size: 100% !important;
+  color: var(--stp-resource-icon-color);
+  line-height: 0;
 }
 
 .cx-res svg {
   flex: none;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.cx-res .stp-ui-resource-icon--architecture svg {
   inline-size: calc(32 * var(--u));
   block-size: calc(32 * var(--u));
   margin: calc(-6 * var(--u));
 }
 
-.cx-res--plain svg {
-  inline-size: calc(20 * var(--u));
-  block-size: calc(20 * var(--u));
-  margin: 0;
+.cx-res .stp-ui-resource-icon--resource svg {
+  inline-size: calc(22 * var(--u));
+  block-size: calc(22 * var(--u));
+  margin: calc(-3 * var(--u));
 }
 
-.cx-res--architecture svg path:first-of-type {
+.cx-res .stp-ui-resource-icon--architecture svg path:first-of-type {
   fill: transparent;
 }
 
-.cx-res--architecture svg path:nth-of-type(2) {
-  fill: var(--cx-res);
+.cx-res .stp-ui-resource-icon--architecture svg path:nth-of-type(2),
+.cx-res .stp-ui-resource-icon--resource svg path {
+  fill: var(--stp-resource-icon-color);
 }
 
 .cx-quiet {
@@ -135,6 +153,10 @@
 
 .cx-red .cx-dot {
   background: var(--cx-red);
+}
+
+.cx-red b {
+  color: inherit;
 }
 
 .cx-amber {
@@ -197,7 +219,6 @@
   margin-inline-start: auto;
   padding: 0 calc(6 * var(--u)) 0 calc(12 * var(--u));
   border: calc(1 * var(--u)) solid var(--cx-border);
-  border-radius: calc(8 * var(--u));
   background: var(--cx-field);
   box-shadow: inset 0 calc(1 * var(--u)) calc(3 * var(--u)) rgb(0 0 0 / 30%);
   color: var(--cx-muted);
@@ -207,7 +228,6 @@
   margin-inline-start: auto;
   padding: calc(1 * var(--u)) calc(5 * var(--u));
   border: calc(1 * var(--u)) solid var(--cx-border);
-  border-radius: calc(4 * var(--u));
   font: 450 calc(11 * var(--u)) / 1.3 var(--brand-font-heading);
 }
 
@@ -218,7 +238,6 @@
   gap: calc(8 * var(--u));
   block-size: calc(37 * var(--u));
   padding: 0 calc(16 * var(--u));
-  border-radius: calc(7 * var(--u));
   background: var(--cx-grey-tape);
   box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 9%);
   color: var(--cx-strong);
@@ -379,9 +398,8 @@
   flex-direction: column;
   gap: calc(16 * var(--u));
   min-inline-size: 0;
-  padding: calc(28 * var(--u)) calc(24 * var(--u)) 0;
+  padding: calc(24 * var(--u)) calc(24 * var(--u)) 0;
   overflow: hidden;
-  border-start-start-radius: calc(12 * var(--u));
   background: var(--cx-panel);
   box-shadow: inset calc(1 * var(--u)) calc(1 * var(--u)) 0 rgb(255 255 255 / 7.5%);
 }
@@ -412,7 +430,6 @@
 
 .cx-card {
   flex: none;
-  border-radius: calc(10 * var(--u));
   background: var(--cx-card);
   box-shadow: 0 calc(2 * var(--u)) calc(6 * var(--u)) rgb(0 0 0 / 35%);
 }
@@ -449,7 +466,6 @@
   block-size: calc(38 * var(--u));
   padding: 0 calc(14 * var(--u));
   border: calc(1 * var(--u)) solid var(--cx-border);
-  border-radius: calc(8 * var(--u));
   background: var(--cx-field);
   box-shadow: inset 0 calc(1 * var(--u)) calc(3 * var(--u)) rgb(0 0 0 / 30%);
   color: var(--cx-muted);
@@ -479,7 +495,6 @@
   flex: none;
   padding: calc(3 * var(--u));
   border: calc(1 * var(--u)) solid var(--cx-line);
-  border-radius: calc(8 * var(--u));
   background: var(--cx-page);
 }
 
@@ -505,12 +520,10 @@
 }
 
 .cx-seg__tab:first-child.is-on::before {
-  border-radius: calc(6 * var(--u)) 0 0 calc(6 * var(--u));
   clip-path: polygon(0 0, var(--cx-torn-right), 0 100%);
 }
 
 .cx-seg__tab:last-child.is-on::before {
-  border-radius: 0 calc(6 * var(--u)) calc(6 * var(--u)) 0;
   clip-path: polygon(100% 0, 100% 100%, var(--cx-torn-left));
 }
 
@@ -523,7 +536,7 @@
     0% 12.5%, var(--cx-tooth) 0%;
 }
 
-/* Section tabs: the selected one is underlined with a short strip of teal tape. */
+/* Section tabs: the selected one has a thin pale underline. */
 .cx-sections {
   display: flex;
   align-items: center;
@@ -540,18 +553,10 @@
 
 .cx-section.is-on::after {
   position: absolute;
-  inset: auto calc(2 * var(--u)) calc(-3 * var(--u));
-  block-size: calc(5 * var(--u));
+  inset: auto 0 calc(-1 * var(--u));
+  block-size: calc(2 * var(--u));
   content: '';
-  background: var(--brand-primary);
-  clip-path: polygon(
-    calc(2 * var(--u)) 0,
-    calc(100% - calc(2 * var(--u))) 0,
-    100% 50%,
-    calc(100% - calc(2 * var(--u))) 100%,
-    calc(2 * var(--u)) 100%,
-    0 50%
-  );
+  background: rgb(255 255 255 / 80%);
 }
 
 .cx-sections > .cx-btn--primary {
@@ -786,13 +791,18 @@
 }
 
 .cx-table--uptime {
-  grid-template-columns: 1.5fr 1.9fr 1.35fr 0.75fr 0.6fr 0.8fr calc(40 * var(--u));
+  grid-template-columns: calc(160 * var(--u)) minmax(0, 1fr) calc(206 * var(--u)) calc(90 * var(--u)) calc(
+      70 * var(--u)
+    ) calc(116 * var(--u)) calc(30 * var(--u));
 }
 
 .cx-table--incidents {
-  grid-template-columns: calc(112 * var(--u)) minmax(0, 1fr) calc(160 * var(--u)) calc(110 * var(--u)) calc(
-      44 * var(--u)
-    );
+  grid-template-columns: calc(96 * var(--u)) minmax(0, 1fr) calc(196 * var(--u)) calc(72 * var(--u)) calc(30 * var(--u));
+}
+
+/* Incident rows keep the error text whole: the cells sit closer than in other tables. */
+.cx-table--incidents .cx-td {
+  padding-inline: calc(12 * var(--u)) calc(8 * var(--u));
 }
 
 .cx-table--security {
@@ -827,14 +837,13 @@
 }
 
 .cx-hours {
-  gap: calc(3 * var(--u));
+  gap: calc(2 * var(--u));
 }
 
 .cx-hours i {
   flex: 1;
   max-inline-size: calc(6 * var(--u));
   block-size: calc(22 * var(--u));
-  border-radius: calc(1.5 * var(--u));
   background: rgb(30 140 130);
 }
 
@@ -870,7 +879,13 @@
 .cx-summary .cx-card {
   display: grid;
   gap: calc(2 * var(--u));
-  padding: calc(14 * var(--u)) calc(16 * var(--u));
+  padding: calc(12 * var(--u)) calc(16 * var(--u));
+}
+
+/* The security page's two toolbars sit closer than a single one. */
+.cx-toolbar--split + .cx-toolbar,
+.cx-toolbar--split {
+  padding-block: calc(6 * var(--u));
 }
 
 .cx-summary strong {
@@ -915,7 +930,6 @@
   position: relative;
   inline-size: calc(70 * var(--u));
   block-size: calc(4 * var(--u));
-  border-radius: calc(2 * var(--u));
   background: rgb(255 255 255 / 8%);
 }
 
@@ -1028,7 +1042,6 @@
 .cx-bar {
   position: relative;
   block-size: calc(6 * var(--u));
-  border-radius: calc(3 * var(--u));
   background: rgb(255 255 255 / 7%);
 }
 
@@ -1083,76 +1096,323 @@
   border-block-end: 0;
 }
 
+/* Rows: on a wide page each row's cells join the table's grid; on a phone a row becomes its own small grid. */
+.cx-tr {
+  display: contents;
+}
+
+/* The initials sit in a circle. */
+.cx-avatar i {
+  display: grid;
+  place-items: center;
+  inline-size: calc(30 * var(--u));
+  block-size: calc(30 * var(--u));
+  border-radius: 50%;
+  background: rgb(255 255 255 / 9%);
+  font-size: calc(12 * var(--u));
+  font-style: normal;
+}
+
+/* A stage that needs attention, and a resource with an open warning, get an amber square. */
+.cx-dot--warn {
+  border-radius: 0;
+  background: var(--cx-amber);
+}
+
+.cx-note {
+  display: inline-flex;
+  align-items: center;
+  color: var(--cx-muted);
+  font-weight: 450;
+}
+
+.cx-note .cx-dot {
+  inline-size: calc(7 * var(--u));
+  block-size: calc(7 * var(--u));
+  margin-inline-end: calc(5 * var(--u));
+}
+
+/* Stage overview: the open incident and the deployed version, each a row of one card. */
+.cx-status__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: calc(18 * var(--u));
+  row-gap: calc(6 * var(--u));
+  padding: calc(14 * var(--u)) calc(24 * var(--u)) calc(14 * var(--u)) calc(16 * var(--u));
+}
+
+.cx-status__row + .cx-status__row {
+  border-block-start: calc(1 * var(--u)) solid var(--cx-line);
+}
+
+.cx-status__row > .cx-link,
+.cx-status__row > .cx-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+.cx-status__text {
+  display: flex;
+  gap: calc(10 * var(--u));
+  white-space: nowrap;
+}
+
+.cx-actions {
+  display: flex;
+  align-items: center;
+  gap: calc(18 * var(--u));
+}
+
+.cx-urls > span {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  margin-inline-start: calc(18 * var(--u));
+  color: var(--cx-text);
+}
+
+.cx-traffic {
+  margin-inline-start: auto;
+}
+
+.cx-toolbar .cx-total {
+  margin-inline-start: calc(10 * var(--u));
+}
+
+/* A commit is printed on grey label tape. */
+.cx-commit {
+  display: inline-flex;
+  align-items: center;
+  block-size: calc(24 * var(--u));
+  margin-block-start: calc(2 * var(--u));
+  padding: 0 calc(10 * var(--u));
+  background: var(--cx-grey-tape);
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 9%);
+  color: var(--cx-strong);
+  font: 500 calc(12.5 * var(--u)) / 1 var(--brand-font-mono);
+  clip-path: var(--brand-tape-clip);
+}
+
+.cx-wrap {
+  white-space: normal;
+}
+
+.cx-toolbar--split {
+  border-block-end: calc(1 * var(--u)) solid var(--cx-line);
+}
+
+.cx-month .cx-select {
+  border-color: transparent;
+  background: var(--cx-grey-tape);
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 9%);
+  color: var(--cx-text);
+}
+
+.cx-summary .cx-quiet {
+  display: inline-flex;
+  align-items: center;
+}
+
+.cx-summary .cx-icon {
+  inline-size: calc(14 * var(--u));
+  block-size: calc(14 * var(--u));
+  margin-inline-start: calc(6 * var(--u));
+  vertical-align: calc(-2 * var(--u));
+}
+
+/* Only a phone shows these. */
+.cx-phone-crumb,
+.cx-phone-search,
+.cx-bottom,
+.cx-narrow,
+.cx-filters {
+  display: none;
+}
+
 /*
- * On a phone the window is laid out on a 520 px Console page, as the Console itself is on a narrow screen: no
- * sidebar, the top bar keeps the logo and the place, and tables keep the columns that say the most.
+ * On a phone the window shows the Console's phone layout at its own size (a 390 px page): the top bar with the place
+ * and Search, the bottom bar, and rows stacked as the Console stacks them. Each tab is the part of its page a phone
+ * shows after a short scroll, so the stage pages start at their section tabs.
  */
 @container h5-console (max-width: 40rem) {
   .cx-app {
-    --u: calc(100cqw / 520);
+    --u: calc(100cqw / 390);
     grid-template-columns: minmax(0, 1fr);
-    block-size: calc(600 * var(--u));
+    grid-template-rows: calc(54 * var(--u)) minmax(0, 1fr);
+    block-size: calc(560 * var(--u));
   }
 
   .cx-side,
+  .cx-crumbs,
   .cx-find,
   .cx-top > .cx-btn,
   .cx-help,
-  .cx-crumb:first-child,
-  .cx-slash,
-  .cx-repo,
-  .cx-account,
-  .cx-stages > .cx-btn,
-  .cx-stages .cx-seg__tab:nth-child(n + 3),
-  .cx-toolbar > b ~ .cx-seg,
-  .cx-title > .cx-quiet,
-  .cx-month > .cx-select,
-  .cx-deployed > .cx-btn,
+  .cx-avatar,
+  .cx-wide,
+  .cx-project,
+  .cx-stages,
+  .cx-path,
   .cx-section:nth-child(n + 4),
   .cx-running,
   .cx-sections > .cx-btn--primary,
-  .cx-toolbar > :not(.cx-seg, b, .cx-input),
-  .cx-deployed > .cx-link,
+  .cx-sections--card .cx-copy,
+  .cx-toolbar > .cx-select,
+  .cx-toolbar > .cx-traffic,
+  .cx-toolbar > b ~ .cx-seg,
+  .cx-title > .cx-quiet,
+  .cx-also,
+  .cx-stats__lead,
   .cx-stat:nth-child(n + 4),
-  .cx-deploy-head > .cx-btn,
-  .cx-deploy-head > .cx-link,
-  .cx-facts,
-  .cx-pages .cx-icon {
+  .cx-stat svg,
+  .cx-tr--head,
+  .cx-deploy-head > .cx-btn:nth-of-type(2),
+  .cx-changed {
     display: none;
   }
 
+  .cx-narrow,
+  .cx-phone-crumb,
+  .cx-filters {
+    display: inline-flex;
+  }
+
   .cx-top {
-    padding-inline: calc(14 * var(--u));
+    gap: calc(14 * var(--u));
+    padding-inline: calc(12 * var(--u)) calc(16 * var(--u));
+    border-block-end: calc(1 * var(--u)) solid var(--cx-line);
   }
 
-  .cx-crumbs {
-    margin-inline-start: calc(24 * var(--u));
+  .cx-logo {
+    inline-size: calc(104 * var(--u));
   }
 
-  .cx-avatar {
+  .cx-phone-crumb {
+    overflow: hidden;
+    color: var(--cx-strong);
+    font-size: calc(14 * var(--u));
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cx-phone-search {
+    display: block;
+    inline-size: calc(20 * var(--u));
+    block-size: calc(20 * var(--u));
     margin-inline-start: auto;
   }
 
   .cx-page {
-    padding: calc(20 * var(--u)) calc(14 * var(--u)) 0;
-    border-start-start-radius: 0;
-    box-shadow: inset 0 calc(1 * var(--u)) 0 rgb(255 255 255 / 7.5%);
+    gap: calc(14 * var(--u));
+    padding: calc(16 * var(--u)) calc(16 * var(--u)) calc(76 * var(--u));
+    box-shadow: none;
   }
 
-  .cx-deployed {
-    padding: calc(14 * var(--u));
+  .cx-bottom {
+    position: absolute;
+    z-index: 2;
+    inset: auto 0 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    block-size: calc(60 * var(--u));
+    border-block-start: calc(1 * var(--u)) solid var(--cx-line);
+    background: var(--cx-page);
+  }
+
+  .cx-bottom__item {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: calc(3 * var(--u));
+    color: var(--cx-muted);
+    font-size: calc(12.5 * var(--u));
+  }
+
+  .cx-bottom__item .cx-icon {
+    inline-size: calc(19 * var(--u));
+    block-size: calc(19 * var(--u));
+  }
+
+  .cx-bottom__item.is-on {
+    color: var(--cx-strong);
+    font-weight: 600;
+  }
+
+  .cx-bottom__item.is-on .cx-icon {
+    box-sizing: content-box;
+    padding: calc(3 * var(--u)) calc(16 * var(--u));
+    background: var(--cx-grey-tape);
+  }
+
+  .cx-bottom__item .cx-count {
+    position: absolute;
+    inset: calc(4 * var(--u)) auto auto calc(50% + calc(4 * var(--u)));
+    block-size: calc(17 * var(--u));
+    font-size: calc(10.5 * var(--u));
+  }
+
+  .cx-h1 {
+    font-size: calc(26 * var(--u));
+  }
+
+  /* Stage overview */
+  .cx-status__row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: calc(14 * var(--u)) calc(16 * var(--u));
+  }
+
+  .cx-status__row > .cx-link,
+  .cx-status__row > .cx-actions {
+    grid-column: 1;
+    grid-row: auto;
+    padding-inline-start: calc(18 * var(--u));
+  }
+
+  .cx-status__text {
+    flex-direction: column;
+    gap: calc(4 * var(--u));
+    white-space: normal;
+  }
+
+  .cx-status__text > span:last-child {
+    padding-inline-start: calc(18 * var(--u));
+  }
+
+  .cx-urls {
+    display: block;
+  }
+
+  .cx-urls > span {
+    display: flex;
+    margin: calc(6 * var(--u)) 0 0;
   }
 
   .cx-stats {
     grid-template-columns: 1fr 1fr 1fr;
+    block-size: calc(50 * var(--u));
   }
 
-  .cx-stats__lead {
-    padding-inline: calc(14 * var(--u)) calc(8 * var(--u));
+  .cx-stat {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    padding-inline: calc(14 * var(--u));
   }
 
-  .cx-stat svg {
-    display: none;
+  .cx-stat:nth-child(2) {
+    border-inline-start: 0;
+  }
+
+  .cx-toolbar {
+    flex-wrap: wrap;
+    padding: calc(10 * var(--u));
+  }
+
+  .cx-toolbar > b {
+    padding-block: calc(6 * var(--u));
   }
 
   .cx-toolbar .cx-input {
@@ -1160,68 +1420,264 @@
     inline-size: auto;
   }
 
+  .cx-toolbar .cx-total {
+    margin-inline-start: auto;
+  }
+
+  .cx-toolbar > .cx-seg {
+    flex: 1 1 100%;
+  }
+
+  .cx-toolbar > .cx-seg .cx-seg__tab {
+    flex: 1;
+    justify-content: center;
+    padding-inline: calc(8 * var(--u));
+  }
+
+  .cx-filters {
+    block-size: calc(38 * var(--u));
+    padding-inline: calc(14 * var(--u));
+  }
+
+  /* Stacked rows: the table is one column of rows, each row its own small grid. */
+  .cx-table {
+    display: block;
+  }
+
+  .cx-tr {
+    display: grid;
+    align-items: center;
+    column-gap: calc(10 * var(--u));
+    row-gap: calc(4 * var(--u));
+    padding: calc(12 * var(--u)) calc(14 * var(--u));
+    border-block-start: calc(1 * var(--u)) solid var(--cx-line);
+  }
+
+  .cx-tr.cx-tr--head {
+    display: none;
+  }
+
+  .cx-tr > .cx-td {
+    min-block-size: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .cx-tr > .cx-stack {
+    min-block-size: 0;
+  }
+
+  .cx-tr > .cx-chev {
+    grid-area: chev;
+  }
+
+  .cx-table--overview .cx-tr {
+    grid-template-columns: minmax(0, 1fr) auto calc(14 * var(--u));
+    grid-template-areas: 'a f chev' 'b b chev';
+  }
+
+  .cx-table--overview .cx-td:nth-child(1) {
+    grid-area: a;
+  }
+
+  .cx-table--overview .cx-td:nth-child(2) {
+    grid-area: b;
+    padding-inline-start: calc(30 * var(--u));
+  }
+
+  .cx-table--overview .cx-td:nth-child(6) {
+    grid-area: f;
+  }
+
+  .cx-table--overview .cx-td:nth-child(n + 3):nth-child(-n + 5) {
+    display: none;
+  }
+
+  .cx-table--uptime .cx-tr {
+    grid-template-columns: minmax(0, 1fr) auto calc(14 * var(--u));
+    grid-template-areas: 'b d chev' 'a e chev' 'c c chev';
+  }
+
+  .cx-table--uptime .cx-td:nth-child(1) {
+    grid-area: a;
+  }
+
+  .cx-table--uptime .cx-td:nth-child(2) {
+    grid-area: b;
+  }
+
+  .cx-table--uptime .cx-td:nth-child(3) {
+    grid-area: c;
+    margin-block-start: calc(4 * var(--u));
+  }
+
+  .cx-table--uptime .cx-td:nth-child(4) {
+    grid-area: d;
+  }
+
+  .cx-table--uptime .cx-td:nth-child(5) {
+    grid-area: e;
+    color: var(--cx-muted);
+  }
+
+  .cx-table--uptime .cx-td:nth-child(6) {
+    display: none;
+  }
+
+  .cx-table--uptime .cx-stack:nth-child(1) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    gap: calc(10 * var(--u));
+  }
+
+  .cx-hours i {
+    max-inline-size: none;
+    block-size: calc(18 * var(--u));
+  }
+
+  .cx-table--incidents .cx-tr,
+  .cx-table--security .cx-tr {
+    grid-template-columns: auto minmax(0, 1fr) auto calc(14 * var(--u));
+    grid-template-areas: 'b b b chev' 'a c d chev';
+  }
+
+  .cx-table--incidents .cx-td:nth-child(1),
+  .cx-table--security .cx-td:nth-child(1) {
+    grid-area: a;
+  }
+
+  .cx-table--incidents .cx-td:nth-child(2),
+  .cx-table--security .cx-td:nth-child(2) {
+    grid-area: b;
+  }
+
+  .cx-table--incidents .cx-td:nth-child(3) {
+    grid-area: c;
+    flex-direction: row;
+    gap: calc(8 * var(--u));
+  }
+
+  .cx-table--incidents .cx-td:nth-child(3) .cx-quiet {
+    display: none;
+  }
+
+  .cx-table--incidents .cx-td:nth-child(4) {
+    grid-area: d;
+    color: var(--cx-text);
+  }
+
+  .cx-table--incidents .cx-stack:nth-child(2) b,
+  .cx-table--security .cx-stack:nth-child(2) b {
+    white-space: normal;
+  }
+
+  .cx-table--security .cx-tr {
+    grid-template-areas: 'b b b chev' 'a c c chev';
+  }
+
+  .cx-table--security .cx-td:nth-child(3) {
+    grid-area: c;
+    flex-direction: row;
+    gap: calc(6 * var(--u));
+  }
+
+  .cx-table--security .cx-td:nth-child(3) > span:first-child::after {
+    content: ' ·';
+  }
+
+  .cx-table--security .cx-td:nth-child(4) {
+    display: none;
+  }
+
+  .cx-table--costs .cx-tr {
+    grid-template-columns: minmax(0, 1fr) auto auto calc(14 * var(--u));
+    grid-template-areas: 'a a e chev' 'b c d chev';
+  }
+
+  .cx-table--costs .cx-td:nth-child(1) {
+    grid-area: a;
+  }
+
+  .cx-table--costs .cx-td:nth-child(2) {
+    grid-area: b;
+    padding-inline-start: calc(30 * var(--u));
+  }
+
+  .cx-table--costs .cx-td:nth-child(3) {
+    grid-area: c;
+    grid-template-columns: calc(44 * var(--u)) calc(30 * var(--u));
+  }
+
+  .cx-table--costs .cx-td:nth-child(4) {
+    grid-area: d;
+    padding-inline-start: calc(10 * var(--u));
+  }
+
+  .cx-table--costs .cx-td:nth-child(5) {
+    grid-area: e;
+  }
+
+  .cx-table--costs .cx-indent {
+    padding-inline-start: 0;
+  }
+
+  .cx-month {
+    flex-direction: column;
+    gap: calc(14 * var(--u));
+    padding: calc(16 * var(--u)) calc(14 * var(--u));
+  }
+
+  .cx-month .cx-select {
+    inline-size: 100%;
+  }
+
   .cx-summary {
     grid-template-columns: 1fr 1fr;
+    gap: calc(10 * var(--u));
+  }
+
+  .cx-summary .cx-card {
+    padding: calc(12 * var(--u)) calc(14 * var(--u));
+  }
+
+  /* A deploy: the facts come first, in two columns, then the steps. */
+  .cx-deploy-head {
+    flex-wrap: wrap;
+    margin-block-start: 0;
+  }
+
+  .cx-deploy-head > div {
+    flex: 1 1 100%;
   }
 
   .cx-deploy {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .cx-facts {
+    order: -1;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cx-facts > b {
+    grid-column: 1 / -1;
+  }
+
+  .cx-facts p:nth-last-child(-n + 2) {
+    border-block-end: 0;
+  }
+
   .cx-step {
-    grid-template-columns: calc(26 * var(--u)) calc(12 * var(--u)) minmax(0, 1fr) calc(64 * var(--u)) calc(
-        92 * var(--u)
+    grid-template-columns: calc(26 * var(--u)) calc(12 * var(--u)) minmax(0, 1fr) calc(52 * var(--u)) calc(
+        86 * var(--u)
       );
+    padding-inline: calc(14 * var(--u));
   }
 
   .cx-step > .cx-num,
   .cx-title > .cx-ok {
     white-space: nowrap;
-  }
-
-  /* Tables keep their most telling columns: the cells are one flat grid, so a column is every nth cell. */
-  .cx-table--overview {
-    grid-template-columns: 1fr 1.3fr 0.8fr calc(30 * var(--u));
-  }
-
-  .cx-table--overview > :is(:nth-child(7n + 3), :nth-child(7n + 4), :nth-child(7n + 5)) {
-    display: none;
-  }
-
-  .cx-table--uptime {
-    grid-template-columns: 0.7fr 1.6fr 0.8fr calc(30 * var(--u));
-  }
-
-  .cx-table--uptime > :is(:nth-child(7n + 3), :nth-child(7n + 5), :nth-child(7n + 6)) {
-    display: none;
-  }
-
-  .cx-table--incidents {
-    grid-template-columns: calc(96 * var(--u)) minmax(0, 1fr) calc(30 * var(--u));
-  }
-
-  .cx-table--incidents > :is(:nth-child(5n + 3), :nth-child(5n + 4)) {
-    display: none;
-  }
-
-  .cx-table--security {
-    grid-template-columns: calc(90 * var(--u)) minmax(0, 1fr) calc(30 * var(--u));
-  }
-
-  .cx-table--security > :is(:nth-child(5n + 3), :nth-child(5n + 4)) {
-    display: none;
-  }
-
-  .cx-table--costs {
-    grid-template-columns: 1fr 0.9fr 0.8fr calc(30 * var(--u));
-  }
-
-  .cx-table--costs > :is(:nth-child(6n + 2), :nth-child(6n + 4)) {
-    display: none;
-  }
-
-  .cx-th,
-  .cx-td {
-    padding-inline: calc(12 * var(--u)) calc(8 * var(--u));
   }
 }

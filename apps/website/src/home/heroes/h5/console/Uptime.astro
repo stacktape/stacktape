@@ -1,6 +1,6 @@
 ---
 /** Uptime checks for every stage, each with the last 24 hours as hourly bars. */
-import { CHECKS, PROJECT } from './data';
+import { CHECKS, PROJECT, UPTIME } from './data';
 import Icon from './Icon.astro';
 import Shell from './Shell.astro';
 
@@ -11,8 +11,8 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
   <div class="cx-title">
     <span class="cx-h1">Uptime</span>
     <Icon name="help" />
-    <span class="cx-ok"><i class="cx-dot" />All 4 checks up</span>
-    <span class="cx-quiet">99.91% available in the last 24 hours</span>
+    <span class="cx-ok"><i class="cx-dot brand-round" />All {UPTIME.checks} checks up</span>
+    <span class="cx-quiet">{UPTIME.available} available in the last 24 hours</span>
   </div>
   <div class="cx-card">
     <div class="cx-toolbar">
@@ -22,22 +22,24 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
       <span class="cx-select">Status <b>All</b><Icon name="down" /></span>
     </div>
     <div class="cx-table cx-table--uptime">
-      <span class="cx-th">Status</span>
-      <span class="cx-th">Check</span>
-      <span class="cx-th">Last 24 hours</span>
-      <span class="cx-th cx-num">Availability</span>
-      <span class="cx-th cx-num">Latency</span>
-      <span class="cx-th">Last checked</span>
-      <span class="cx-th"></span>
+      <div class="cx-tr cx-tr--head">
+        <span class="cx-th">Status</span>
+        <span class="cx-th">Check</span>
+        <span class="cx-th">Last 24 hours</span>
+        <span class="cx-th cx-num">Availability</span>
+        <span class="cx-th cx-num">Latency</span>
+        <span class="cx-th">Last checked</span>
+        <span class="cx-th"></span>
+      </div>
       {
         CHECKS.map((check) => (
-          <>
+          <div class="cx-tr">
             <span class="cx-td cx-stack">
               <span>
-                <i class="cx-dot" />
+                <i class="cx-dot brand-round" />
                 Up
               </span>
-              {check.warning && <span class="cx-amber">{check.warning}</span>}
+              {check.warning && <span class="cx-amber cx-wrap">{check.warning}</span>}
             </span>
             <span class="cx-td cx-stack">
               <b>{check.name}</b>
@@ -47,7 +49,7 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
             </span>
             <span class="cx-td cx-hours">
               {HOURS.map((hour) => (
-                <i class:list={[(check.down as readonly number[]).includes(hour) && 'is-down']} />
+                <i class:list={[check.down.includes(hour) && 'is-down']} />
               ))}
             </span>
             <span class="cx-td cx-num">{check.availability}</span>
@@ -59,7 +61,7 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
             <span class="cx-td cx-chev">
               <Icon name="right" />
             </span>
-          </>
+          </div>
         ))
       }
     </div>

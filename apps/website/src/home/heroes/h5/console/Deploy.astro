@@ -8,12 +8,12 @@ import Shell from './Shell.astro';
 const at = (seconds: number) => `${(seconds / DEPLOY_TOTAL) * 100}%`;
 ---
 
-<Shell crumb={PROJECT} crumbMenu page="projects">
+<Shell crumb={PROJECT} crumbMenu page="projects" phoneCrumb={`${PROJECT} / production`}>
   <p class="cx-path">{PROJECT} <span>/</span> production <span>/</span> Activity</p>
   <div class="cx-deploy-head">
     <div>
       <span class="cx-h1">Fix order totals for empty carts</span>
-      <p class="cx-quiet">Deploy <i class="cx-dot" /><b>Succeeded</b> Live on production</p>
+      <p class="cx-quiet">Deploy <i class="cx-dot brand-round" /><b>Succeeded</b> Live on production</p>
     </div>
     <span class="cx-btn"><Icon name="back" />Roll back to previous</span>
     <span class="cx-btn">Deploy stage</span>
@@ -34,7 +34,7 @@ const at = (seconds: number) => `${(seconds / DEPLOY_TOTAL) * 100}%`;
       {
         DEPLOY_STEPS.map((step) => (
           <div class="cx-step">
-            <span class="cx-done">
+            <span class="cx-done brand-round">
               <Icon name="check" />
             </span>
             <Icon name="right" class="cx-step__open" />
@@ -53,7 +53,7 @@ const at = (seconds: number) => `${(seconds / DEPLOY_TOTAL) * 100}%`;
           <b>What this deploy changed</b>
           <u>View the diff</u>
         </p>
-        <p class="cx-quiet">Compared with <u>Add CSV export for orders</u>, deployed 3h ago</p>
+        <p class="cx-quiet">Compared with <u>Show order totals in the cart</u>, deployed 3h ago</p>
         <p class="cx-diff">
           <ResIcon name="api" />
           <b>api</b>
@@ -68,7 +68,13 @@ const at = (seconds: number) => `${(seconds / DEPLOY_TOTAL) * 100}%`;
         DEPLOY_FACTS.map((fact) => (
           <p>
             <span class="cx-quiet">{fact.label}</span>
-            {'code' in fact ? <code>{fact.value}</code> : <span>{fact.value}</span>}
+            {fact.kind === 'commit' ? (
+              <span class="cx-commit">{fact.value}</span>
+            ) : fact.kind === 'link' ? (
+              <u>{fact.value}</u>
+            ) : (
+              <span>{fact.value}</span>
+            )}
           </p>
         ))
       }

@@ -37,8 +37,12 @@ const url = (name: string) => {
 
 const facts = [
   { figure: 'MIT', note: 'Open-source CLI. Works without a Stacktape account.', href: 'https://github.com/stacktape/stacktape' },
-  { figure: '10.7 s', note: 'A Lambda code change, deployed. CDK hotswap: 13.2 s. Preliminary run, 22 Oct 2026.', href: '/benchmarks' },
-  { figure: '$0', note: 'Stacktape fee until the AWS resources it manages cost $200 a month.', href: '/pricing' }
+  {
+    figure: '10.7 s',
+    note: 'One updated Lambda function serving requests. CDK hotswap: 13.2 s. Median of 10 runs, 22 Oct 2026.',
+    href: '/benchmarks'
+  },
+  { figure: '$0', note: 'Console fee for up to $200 of monthly AWS spend managed by Stacktape.', href: '/pricing' }
 ];
 ---
 
@@ -53,7 +57,7 @@ const facts = [
       >
     </div>
     <p class="h5__owned">
-      Runs in your AWS account on standard CloudFormation. Stop using Stacktape and your app keeps running.
+      Stacktape deploys CloudFormation stacks you own. Stop using it and your app keeps running.
     </p>
   </div>
 
@@ -174,7 +178,7 @@ const facts = [
   }
 
   .h5__lead {
-    max-inline-size: min(64rem, 40rem + 16vw);
+    max-inline-size: min(68rem, 47rem + 16vw);
     margin: clamp(1rem, 1.3vw, 1.5rem) 0 0;
     color: var(--h5-soft);
     font-size: clamp(1.05rem, 0.95rem + 0.4vw, 1.35rem);
@@ -204,10 +208,6 @@ const facts = [
     justify-self: start;
   }
 
-  /* Every install is one command now, so the box is as tall as its two lines instead of keeping room for a third. */
-  .h5__actions :global(.brand-command .install-code__pre) {
-    min-block-size: 0;
-  }
 
   .h5__owned {
     margin: var(--brand-space-4) 0 0;
@@ -222,7 +222,7 @@ const facts = [
     align-items: center;
     gap: var(--brand-space-4);
     inline-size: var(--h5-frame);
-    margin: clamp(3rem, 3.4vw, 4rem) auto 0;
+    margin: clamp(2.25rem, 2.6vw, 3.25rem) auto 0;
   }
 
   .h5__strip {
@@ -258,14 +258,10 @@ const facts = [
   }
 
   .h5__tab:first-child::before {
-    border-start-start-radius: var(--brand-radius-small);
-    border-end-start-radius: var(--brand-radius-small);
     clip-path: polygon(0% 0%, var(--h5-torn-right), 0% 100%);
   }
 
   .h5__tab:last-child::before {
-    border-start-end-radius: var(--brand-radius-small);
-    border-end-end-radius: var(--brand-radius-small);
     clip-path: polygon(100% 0%, 100% 100%, var(--h5-torn-left));
   }
 
@@ -288,7 +284,6 @@ const facts = [
     z-index: 1;
     outline: 2px solid var(--brand-focus);
     outline-offset: 1px;
-    border-radius: var(--brand-radius-small);
   }
 
   /* The window is the container the rebuilt Console scales to: it is laid out in Console pixels of `100cqw / 1280`. */
@@ -415,15 +410,36 @@ const facts = [
 
   @media (max-width: 40rem) {
     .h5__intro {
-      padding: var(--brand-space-6) var(--brand-space-4) 0;
+      padding: var(--brand-space-5) var(--brand-space-4) 0;
     }
 
     .h5__lead {
+      font-size: 1rem;
       text-wrap: pretty;
     }
 
     .h5__actions {
+      gap: var(--brand-space-3);
       margin-block-start: var(--brand-space-5);
+    }
+
+    /* On a phone the docs are a quiet link under the command, so the product starts on the first screen. */
+    .h5__actions :global(.h5__docs) {
+      --stp-control-height: auto;
+      --stp-button-padding-x: 0;
+      --stp-button-secondary-surface: none;
+      --stp-button-secondary-shadow: none;
+      --stp-button-secondary-shadow-hover: none;
+      justify-self: end;
+      color: var(--brand-muted);
+      font-size: var(--brand-type-sm);
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+    }
+
+    .h5__owned {
+      margin-block-start: var(--brand-space-3);
+      font-size: var(--brand-type-xs);
     }
 
     .h5 {
@@ -431,8 +447,8 @@ const facts = [
     }
 
     .h5__product {
-      margin-block-start: var(--brand-space-7);
-      gap: var(--brand-space-3);
+      margin-block-start: var(--brand-space-5);
+      gap: var(--brand-space-2);
     }
 
     /* Six tabs do not fit one row on a phone: two rows of three, each row a strip cut straight at its outer ends. */
@@ -450,14 +466,10 @@ const facts = [
     }
 
     .h5__tab:nth-child(3n + 1)::before {
-      border-start-start-radius: var(--brand-radius-small);
-      border-end-start-radius: var(--brand-radius-small);
       clip-path: polygon(0% 0%, var(--h5-torn-right), 0% 100%);
     }
 
     .h5__tab:nth-child(3n)::before {
-      border-start-end-radius: var(--brand-radius-small);
-      border-end-end-radius: var(--brand-radius-small);
       clip-path: polygon(100% 0%, 100% 100%, var(--h5-torn-left));
     }
 
@@ -465,11 +477,22 @@ const facts = [
       margin-block-start: var(--brand-space-7);
     }
 
+    /* Customers share a short row; each fact gets its own row, its figure beside its line. */
+    .h5__trust li {
+      min-block-size: 4.5rem;
+    }
+
+    .h5__trust li:nth-child(n + 3) {
+      grid-column: 1 / -1;
+      min-block-size: 0;
+      border-inline-start: 0;
+    }
+
     .h5__trust a {
-      grid-template-columns: minmax(0, 1fr);
-      row-gap: var(--brand-space-1);
-      padding-inline: var(--brand-space-4);
-      text-align: center;
+      grid-template-columns: 5.5rem minmax(0, 1fr);
+      place-content: stretch;
+      padding: var(--brand-space-4);
+      text-align: start;
     }
   }
 </style>

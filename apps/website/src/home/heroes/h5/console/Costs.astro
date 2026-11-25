@@ -1,35 +1,37 @@
 ---
 /** What the production stage cost this month, split by resource. */
-import { COSTS, PROJECT, RESOURCES } from './data';
+import { COSTS, MONTH, PROJECT, RESOURCES } from './data';
 import Icon from './Icon.astro';
 import ResIcon from './ResIcon.astro';
 import Shell from './Shell.astro';
 import StageHead from './StageHead.astro';
 ---
 
-<Shell crumb={PROJECT} crumbMenu page="projects">
+<Shell crumb={PROJECT} crumbMenu page="projects" phoneCrumb={`${PROJECT} / production`}>
   <StageHead section="Costs" />
   <div class="cx-card">
     <div class="cx-month">
       <div>
         <span class="cx-quiet">November 2026 so far</span>
-        <strong>$286.40</strong>
+        <strong>{MONTH.total}</strong>
         <span class="cx-quiet"
-          >$343.68 by Nov 30 at this pace, 4% more than October ($331.95) · Report updated 1h ago</span
+          >{MONTH.pace} by Nov 30 at this pace, {MONTH.change} than October ({MONTH.october}) · Report updated 1h ago</span
         >
       </div>
       <span class="cx-select">Month <b>November 2026</b><Icon name="down" /></span>
     </div>
     <div class="cx-table cx-table--costs">
-      <span class="cx-th">Resource</span>
-      <span class="cx-th">Type</span>
-      <span class="cx-th cx-num">Share</span>
-      <span class="cx-th cx-num">All of October</span>
-      <span class="cx-th cx-num">↓ November so far</span>
-      <span class="cx-th"></span>
+      <div class="cx-tr cx-tr--head">
+        <span class="cx-th">Resource</span>
+        <span class="cx-th">Type</span>
+        <span class="cx-th cx-num">Share</span>
+        <span class="cx-th cx-num">All of October</span>
+        <span class="cx-th cx-num">↓ November so far</span>
+        <span class="cx-th"></span>
+      </div>
       {
         COSTS.map((row) => (
-          <>
+          <div class="cx-tr">
             <span class="cx-td cx-name">
               {row.name ? (
                 <>
@@ -45,14 +47,14 @@ import StageHead from './StageHead.astro';
               <span class="cx-meter">
                 <i style={`width: ${Math.max(row.share, 1)}%`} />
               </span>
-              {row.share ? `${row.share}%` : '<1%'}
+              {row.share}%
             </span>
             <span class="cx-td cx-num cx-quiet">{row.october}</span>
             <span class="cx-td cx-num">
               <b>{row.november}</b>
             </span>
             <span class="cx-td cx-chev">{row.name && <Icon name="right" />}</span>
-          </>
+          </div>
         ))
       }
     </div>
