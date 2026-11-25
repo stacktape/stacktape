@@ -1,5 +1,6 @@
 ---
 import Window from './console/Window.astro';
+import PhoneBar from './phone/PhoneBar.astro';
 import './phone/phone.css';
 
 /**
@@ -120,15 +121,13 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
   role="img"
   aria-label="A trace in the Stacktape Console: GET /cart on acme-shop's production API at 10:16 failed with error 500 after 46 ms, with TypeError: Cannot read properties of undefined (reading 'total') in orderTotals, totals.ts line 18. Its steps: a Redis read and two Postgres queries."
 >
-  <div aria-hidden="true" class="tr-ph">
+  <PhoneBar title="acme-shop / production · Traces" />
+  <div aria-hidden="true" class="ph-body tr-ph">
     <div>
       <p class="ph-title">GET /cart <span class="ph-red tr-ph__status">Error 500</span></p>
-      <p class="ph-muted">api · acme-shop / production · 10:16</p>
+      <p class="ph-muted">api · 10:16</p>
     </div>
-    <div class="ph-box ph-box--red">
-      <p>TypeError: Cannot read properties of undefined (reading 'total')</p>
-      <p class="ph-mono">orderTotals · totals.ts:18</p>
-    </div>
+    <p class="ph-muted"><span class="ph-red">TypeError</span> in <code class="ph-mono">orderTotals · totals.ts:18</code></p>
     <ol class="tr-ph__steps">
       {
         STEPS.map((step) => (
@@ -151,7 +150,7 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
   /* The phone card. */
   .tr-ph {
     display: grid;
-    gap: 0.85rem;
+    gap: var(--brand-space-2);
   }
 
   .tr-ph__status {
@@ -162,14 +161,14 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
 
   .tr-ph__steps {
     display: grid;
-    gap: 0.65rem;
+    gap: var(--brand-space-2);
   }
 
   .tr-ph__steps li {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.3rem 0.75rem;
-    font-size: 0.875rem;
+    font-size: var(--home-caption);
   }
 
   .tr-ph__name {
@@ -186,7 +185,7 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
   .tr-ph__track {
     position: relative;
     grid-column: 1 / -1;
-    height: 0.55rem;
+    height: 0.625rem;
     background: rgb(255 255 255 / 5%);
   }
 
@@ -194,11 +193,11 @@ const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.roun
     position: absolute;
     top: 0;
     bottom: 0;
-    background: #1c9e95;
+    background: var(--brand-teal);
   }
 
   .is-error .tr-ph__track i {
-    background: #eb6161;
+    background: var(--stp-status-error);
   }
 
   .is-error .tr-ph__name {

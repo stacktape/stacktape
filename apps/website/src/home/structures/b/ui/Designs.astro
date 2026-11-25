@@ -4,6 +4,7 @@ import { getResourceVisual } from '@stacktape/ui-react/resource-icon/catalog';
 import './designs/diagram.css';
 import diagram from './designs/diagram.svg?raw';
 import phoneDiagram from './designs/diagram-phone.svg?raw';
+import PhoneBar from './phone/PhoneBar.astro';
 import './phone/phone.css';
 
 /**
@@ -73,6 +74,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
     </div>
 
     <div class="wz-phone ph-phone">
+      <PhoneBar title="Setup wizard · Review" />
       <div class="wz-diagram wz-diagram--phone">
         <div class="stp-diagram" set:html={phoneDiagram} />
       </div>
@@ -289,26 +291,38 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
   /* A phone: the diagram with large names, and the total under it. */
   .wz-phone {
     display: grid;
-    gap: 0.9rem;
-    padding: 0.9rem 0.9rem 1.1rem;
+    gap: var(--brand-space-2);
+    background: var(--brand-surface);
   }
 
   /* Drawn at about its own size: wider phones centre it rather than grow it. */
   .wz-diagram--phone {
     justify-self: center;
-    width: min(100%, 22.5rem);
+    width: min(calc(100% - 2 * var(--site-gutter)), 15rem);
     aspect-ratio: 360 / 440;
     margin: 0;
   }
 
   .wz-phone__total {
-    display: grid;
-    gap: 0.2rem;
-    padding-top: 0.9rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--brand-space-1) var(--brand-space-3);
+    padding: var(--brand-space-2) var(--site-gutter) var(--brand-space-3);
     border-top: 1px solid var(--brand-border);
   }
 
   .wz-phone .wz-figure b {
-    font-size: 2rem;
+    font-size: 1.25rem;
+  }
+
+  .wz-phone .wz-faint {
+    color: var(--brand-muted);
+  }
+
+  @media (max-width: 40rem) {
+    .wz {
+      border-inline: 0;
+    }
   }
 </style>

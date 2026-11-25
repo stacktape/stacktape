@@ -1,6 +1,7 @@
 ---
 import { BENCHMARKS, findGroup, runReadme } from '../../benchmarks';
 import { codeParts } from '../../code-text';
+import { WIZARD_PRIVACY } from '../../sections';
 
 /*
  * The questions a CTO decides on, first the real choice (a PaaS, a DevOps hire or Stacktape), then cost, exit, scale,
@@ -27,7 +28,7 @@ for (const date of ['2026-10-22', '2026-10-23']) {
   if (!BENCHMARKS.runs.some((run) => run.date === date)) throw new Error(`The benchmark data has no run of ${date}`);
 }
 
-type Question = { q: string; a: string; link?: { label: string; href: string } };
+type Question = { q: string; a: string; phoneExtra?: string; link?: { label: string; href: string } };
 
 /** The real choice (a PaaS or a DevOps hire) stays open; the rest is an index a buyer opens. */
 const OPEN_BY_DEFAULT = 2;
@@ -62,7 +63,8 @@ const QUESTIONS: Question[] = [
   },
   {
     q: 'What leaves our AWS account?',
-    a: 'Application logs, build artifacts and app secrets stay in your AWS account. The Console stores errors with filtered log excerpts, metrics, check results and security findings. OSV.dev gets package names for vulnerability checks, and AI tools send what they read to your chosen provider.'
+    a: 'Application logs, build artifacts and app secrets stay in your AWS account. The Console stores errors with filtered log excerpts, metrics, check results and security findings. OSV.dev gets package names for vulnerability checks, and AI tools send what they read to your chosen provider.',
+    phoneExtra: WIZARD_PRIVACY
   },
   {
     q: 'What if we need something Stacktape doesn’t support?',
@@ -75,19 +77,24 @@ const QUESTIONS: Question[] = [
   <h2 id="b-questions-title">Questions</h2>
   <div class="b-questions__list">
     {
-      QUESTIONS.map((item, index) => (
-        <details class="b-question" open={index < OPEN_BY_DEFAULT}>
-          <summary>{item.q}</summary>
-          <div class="b-question__answer">
-            <p>{codeParts(item.a).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
-            {item.link ? (
-              <a class="brand-link brand-link--muted b-question__link" href={item.link.href}>
-                {item.link.label}
-              </a>
-            ) : null}
-          </div>
-        </details>
-      ))
+      QUESTIONS.flatMap((item, index) => {
+        // Native details can start open or closed. Render both defaults for the two viewport-dependent questions.
+        const variants = index < OPEN_BY_DEFAULT ? ['home-wide', 'home-phone'] : [''];
+        return variants.map((variant) => (
+          <details class:list={['b-question', variant]} open={variant === 'home-wide'}>
+            <summary>{item.q}</summary>
+            <div class="b-question__answer">
+              <p>{codeParts(item.a).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
+              {item.phoneExtra && <p class="b-question__extra home-phone">{item.phoneExtra}</p>}
+              {item.link ? (
+                <a class="brand-link brand-link--muted b-question__link" href={item.link.href}>
+                  {item.link.label}
+                </a>
+              ) : null}
+            </div>
+          </details>
+        ));
+      })
     }
   </div>
 </section>
@@ -179,5 +186,36 @@ const QUESTIONS: Question[] = [
     width: fit-content;
     margin-top: var(--brand-space-2);
     font-size: var(--brand-type-sm);
+  }
+
+  @media (max-width: 40rem) {
+    .b-questions {
+      gap: var(--brand-space-5);
+      padding-block: var(--home-section-space);
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      line-height: 1.1;
+    }
+
+    summary {
+      align-items: center;
+      min-height: 3.5rem;
+      padding-block: var(--brand-space-3);
+      font-size: var(--brand-type-base);
+    }
+
+    .b-question__answer p + p {
+      margin-top: var(--brand-space-3);
+    }
+
+    .b-question__link {
+      display: flex;
+      align-items: center;
+      min-height: var(--brand-control-height);
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+    }
   }
 </style>

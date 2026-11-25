@@ -1,4 +1,5 @@
 ---
+import PhoneBar from './phone/PhoneBar.astro';
 import './phone/phone.css';
 /*
  * The Console's Security page and Guardrails page for the example app acme-shop, re-created in HTML from
@@ -198,24 +199,25 @@ const FILTERS = [
       role="img"
       aria-label="In the Stacktape Console, a security finding: the acme-shop staging database is reachable from the internet. The guardrail “Keep SQL and OpenSearch private” blocks deploys that leave this database public."
     >
-      <div aria-hidden="true" class="sec-ph">
-        <p class="ph-eyebrow">Finding</p>
-        <div class="ph-box">
+      <PhoneBar title={`acme-shop / ${PUBLIC_DATABASE.stage} · Security`} />
+      <div aria-hidden="true" class="ph-body sec-ph">
+        <div class="sec-ph__row">
+          <p class="ph-eyebrow">Finding</p>
           <span class="ph-tag">{PUBLIC_DATABASE.severity}</span>
           <p>
             <b>{PUBLIC_DATABASE.title}</b>
           </p>
           <p class="ph-muted">
-            acme-shop / {PUBLIC_DATABASE.stage} · {PUBLIC_DATABASE.what}
+            {PUBLIC_DATABASE.what}
           </p>
         </div>
-        <p class="ph-eyebrow">Guardrail</p>
-        <div class="ph-box">
+        <div class="sec-ph__row">
+          <p class="ph-eyebrow">Guardrail</p>
           <p class="sec-ph__rule">
             <b>Keep SQL and OpenSearch private</b>
             <span class="sec-ph__on brand-round" />
           </p>
-          <p class="ph-amber">Blocks deploys that leave this database public.</p>
+          <p class="ph-muted">Blocks deploys that leave this database public.</p>
         </div>
       </div>
     </div>
@@ -224,13 +226,15 @@ const FILTERS = [
 
 <style>
   /* The phone card. */
-  .sec-ph {
+  .sec-ph__row {
     display: grid;
-    gap: 0.6rem;
+    align-content: start;
+    gap: var(--brand-space-1);
+    padding-block: var(--brand-space-2);
   }
 
-  .sec-ph .ph-eyebrow:not(:first-child) {
-    margin-top: 0.4rem;
+  .sec-ph__row + .sec-ph__row {
+    border-top: 1px solid var(--brand-border);
   }
 
   .sec-ph__rule {
@@ -256,7 +260,7 @@ const FILTERS = [
     width: 0.85rem;
     height: 0.85rem;
     border-radius: 50%;
-    background: #fff;
+    background: var(--brand-on-teal);
     content: '';
   }
 

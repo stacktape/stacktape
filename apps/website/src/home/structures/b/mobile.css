@@ -1,0 +1,43 @@
+@media (width > 40rem) {
+  .s-b .home-phone {
+    display: none !important;
+  }
+}
+
+@media (max-width: 40rem) {
+  .s-b {
+    --site-gutter: 1.25rem;
+    --home-soft: color-mix(in srgb, var(--brand-text), transparent 22%);
+    --home-caption: 0.8125rem;
+    --home-section-space: 2.5rem;
+  }
+
+  html.s-b {
+    scroll-padding-top: 3.5rem;
+  }
+
+  .s-b .site-frame {
+    --site-gutter: 1.25rem;
+  }
+
+  .s-b .home-wide {
+    display: none !important;
+  }
+
+  .s-b .brand-command .brand-button.brand-command__copy {
+    --stp-control-height: var(--brand-control-height);
+    --stp-button-padding-x: var(--brand-space-3);
+  }
+
+  .s-b .brand-command__field {
+    padding-inline-start: var(--brand-space-3);
+    gap: var(--brand-space-2);
+  }
+}
+
+@media (max-width: 22rem) {
+  .s-b .brand-command__words {
+    gap: 0.5ch;
+    font-size: var(--home-caption);
+  }
+}

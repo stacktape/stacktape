@@ -9,40 +9,51 @@ const QUOTES = [
     quote:
       'Stacktape (the product) and Stacktape (the team) have helped us move extremely fast. They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration. The team is second to none, hopping in to be true partners with us on our development journey. We would not be where we are today without Stacktape.',
     name: 'Henry Garrett',
-    role: 'Founding Engineer, Receipts'
+    role: 'Founding Engineer, Receipts',
+    company: 'Receipts'
   },
   {
     quote:
       "Stacktape has been a game-changer for Lastmyle, providing a secure and intuitive way to manage our AWS deployments. It's allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.",
     name: 'Rhys Williams',
-    role: 'CTO & Founder, Lastmyle'
+    role: 'CTO & Founder, Lastmyle',
+    company: 'Lastmyle'
   },
   {
     quote:
       "As a startup founder & CTO, every hour is crucial. With Stacktape, we fast-tracked our AWS deployment process. Our development and production environments were operational in just two days. Stacktape's speed and efficiency have been game-changing for us",
     name: 'Eric Allam',
-    role: 'CTO & Founder, Trigger.dev'
+    role: 'CTO & Founder, Trigger.dev',
+    company: 'Trigger.dev'
   }
 ];
 ---
 
 <section class="b-proof site-frame" aria-labelledby="b-proof-title">
   <h2 id="b-proof-title" class="b-proof__title">What teams have said</h2>
-  <ul class="b-proof__quotes">
-    {
-      QUOTES.map((item) => (
-        <li>
-          <blockquote>
-            <p>“{item.quote}”</p>
-          </blockquote>
-          <p class="b-proof__who">
-            <strong>{item.name}</strong>
-            <span>{item.role}</span>
-          </p>
-        </li>
-      ))
-    }
-  </ul>
+  {
+    [QUOTES, [QUOTES[2], QUOTES[0], QUOTES[1]]].map((quotes, index) => (
+      <ul
+        class:list={['b-proof__quotes', index ? 'home-phone' : 'home-wide']}
+        role={index ? 'list' : undefined}
+        tabindex={index ? 0 : undefined}
+        aria-label={index ? 'Customer quotes' : undefined}
+      >
+        {quotes.map((item) => (
+          <li>
+            <p class="b-proof__company home-phone">{item.company}</p>
+            <blockquote>
+              <p>“{item.quote}”</p>
+            </blockquote>
+            <p class="b-proof__who">
+              <strong>{item.name}</strong>
+              <span>{item.role}</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+    ))
+  }
 </section>
 
 <style>
@@ -93,6 +104,58 @@ const QUOTES = [
   @media (max-width: 64rem) {
     .b-proof__quotes {
       grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 40rem) {
+    .b-proof {
+      width: 100%;
+      padding-block: var(--home-section-space);
+      border-top: 0;
+    }
+
+    .b-proof__title {
+      margin-inline: var(--site-gutter);
+      margin-bottom: var(--brand-space-5);
+      color: var(--brand-text);
+      font: var(--brand-weight-heading) 1.75rem / 1.1 var(--brand-font-heading);
+      letter-spacing: var(--brand-tracking-heading);
+    }
+
+    .b-proof__quotes {
+      grid-template-columns: none;
+      grid-auto-flow: column;
+      grid-auto-columns: calc(100% - 0.75rem);
+      gap: var(--brand-space-2);
+      padding-inline: var(--site-gutter);
+      overflow-x: auto;
+      overscroll-behavior-inline: contain;
+      scroll-padding-inline: var(--site-gutter);
+      scroll-snap-type: x mandatory;
+    }
+
+    .b-proof__quotes:focus-visible {
+      outline-offset: -2px;
+    }
+
+    .b-proof__quotes li {
+      gap: var(--brand-space-3);
+      padding: var(--brand-space-4);
+      background: var(--brand-surface);
+      scroll-snap-align: start;
+    }
+
+    .b-proof__company {
+      font: var(--brand-weight-label) var(--brand-type-lead) / 1.3 var(--brand-font-heading);
+    }
+
+    blockquote {
+      color: var(--home-soft);
+      font-size: var(--brand-type-base);
+      line-height: 1.5;
+    }
+
+    .b-proof__who {
+      font-size: var(--home-caption);
     }
   }
 </style>

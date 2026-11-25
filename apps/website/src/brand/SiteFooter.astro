@@ -5,6 +5,7 @@ import './site.css';
 const docs = 'https://docs.stacktape.com';
 const github = 'https://github.com/stacktape/stacktape';
 const status = 'https://status.stacktape.com';
+const compactDocs = new Set(['Getting started', 'Resources', 'CI/CD', 'Using with AI']);
 const columns = [
   {
     label: 'Product',
@@ -56,10 +57,14 @@ const columns = [
       <nav aria-label="Footer">
         {
           columns.map(({ label, links }) => (
-            <div>
+            <div data-column={label}>
               <p>{label}</p>
               <ul>
-                {links.map(([name, href]) => <li><a class="brand-link brand-link--muted" {href}>{name}</a></li>)}
+                {links.map(([name, href]) => (
+                  <li class:list={{ 'footer-wide': label === 'Docs' && !compactDocs.has(name) }}>
+                    <a class="brand-link brand-link--muted" {href}>{name}</a>
+                  </li>
+                ))}
               </ul>
             </div>
           ))
@@ -143,6 +148,62 @@ const columns = [
     }
 
     .footer-end a:last-child {
+      margin-inline-start: 0;
+    }
+  }
+  @media (max-width: 40rem) {
+    :global(.s-b) .brand-footer {
+      padding-block: var(--brand-space-6) var(--brand-space-5);
+      font-size: var(--home-caption);
+    }
+
+    :global(.s-b) .footer-main {
+      gap: var(--brand-space-5);
+      padding-block-end: var(--brand-space-5);
+    }
+
+    :global(.s-b) nav {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas: 'product company' 'docs legal';
+      gap: var(--brand-space-4) var(--brand-space-5);
+    }
+
+    :global(.s-b) nav p {
+      margin-block-end: var(--brand-space-2);
+    }
+
+    :global(.s-b) nav ul {
+      gap: var(--brand-space-1);
+    }
+
+    :global(.s-b) [data-column='Product'] {
+      grid-area: product;
+    }
+
+    :global(.s-b) [data-column='Docs'] {
+      grid-area: docs;
+    }
+
+    :global(.s-b) [data-column='Company'] {
+      grid-area: company;
+    }
+
+    :global(.s-b) [data-column='Legal'] {
+      grid-area: legal;
+    }
+
+    :global(.s-b) .footer-wide {
+      display: none;
+    }
+
+    :global(.s-b) .footer-end {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--brand-space-2) var(--brand-space-5);
+      padding-top: var(--brand-space-4);
+    }
+
+    :global(.s-b) .footer-end a:last-child {
       margin-inline-start: 0;
     }
   }

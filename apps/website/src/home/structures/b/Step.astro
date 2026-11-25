@@ -3,48 +3,38 @@ import Tape from '../../../brand/Tape.astro';
 import { codeParts } from '../../code-text';
 import type { SECTION_PACKS } from '../../sections';
 
-/**
- * One section, read top to bottom: the number and the headline, the short text under it with the docs link, the
- * picture (the slot), and the pack's one to three points under the picture.
- */
 type Props = {
   pack: (typeof SECTION_PACKS)[number];
   index: number;
-  docs?: { label: string; href: string };
-  /** On a phone, the label above the picture: which product screen it comes from. */
-  shows?: string;
+  docs: { label: string; href: string };
+  total: number;
 };
 
-const { pack, index, docs, shows } = Astro.props;
+const { pack, index, docs, total } = Astro.props;
 const number = String(index + 1).padStart(2, '0');
+const count = String(total).padStart(2, '0');
+const phoneDocs = pack.id === 'designs' || pack.id === 'expert-help' ? docs.label : `${docs.label} docs`;
 /** Text with backtick-marked code set in mono. */
 const words = (text: string) => codeParts(text);
 ---
 
 <section class="b-step" id={pack.id} aria-labelledby={`${pack.id}-title`}>
   <header class="b-step__head">
-    <p class="b-step__marker"><Tape variant="marker">{number}</Tape></p>
+    <p class="b-step__marker"><Tape variant="marker"><span class="home-wide">{number}</span><span class="home-phone">{number} / {count}</span></Tape></p>
     <h2 id={`${pack.id}-title`}>{pack.title}</h2>
-    <p class="b-step__line">{words(pack.text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
-    {
-      docs ? (
-        <a class="brand-link b-step__docs" href={docs.href}>
-          {docs.label}
-        </a>
-      ) : null
-    }
+    <p class:list={['b-step__line', { 'home-wide': pack.phoneText }]}>
+      {words(pack.text).map(({ part, code }) => (code ? <code>{part}</code> : part))}
+    </p>
+    {pack.phoneText && <p class="b-step__line home-phone">{pack.phoneText}</p>}
+    <a class="brand-link b-step__docs home-wide" href={docs.href}>{docs.label}</a>
   </header>
-  {
-    shows ? (
-      <p class="b-step__shows">
-        <Tape tone="gray">{shows}</Tape>
-      </p>
-    ) : null
-  }
   <slot />
+  <a class="brand-link b-step__docs b-step__docs--phone home-phone" href={docs.href}>
+    {phoneDocs} <span aria-hidden="true">→</span>
+  </a>
   {
     pack.gets.length > 0 ? (
-      <ul class="b-step__points" style={`--b-points: ${pack.gets.length}`}>
+      <ul class="b-step__points home-wide" style={`--b-points: ${pack.gets.length}`}>
         {pack.gets.map((point) => (
           <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>
         ))}
@@ -94,22 +84,6 @@ const words = (text: string) => codeParts(text);
     font-size: var(--brand-type-sm);
   }
 
-  /* On a phone the picture says which screen it is; on wider screens the window around it does. */
-  .b-step__shows {
-    display: none;
-    margin: 0 0 -1rem;
-  }
-
-  .b-step__shows :global(.tape) {
-    font-size: var(--brand-type-xs);
-  }
-
-  @media (max-width: 40rem) {
-    .b-step__shows {
-      display: block;
-    }
-  }
-
   /*
    * The points share a row of three equal columns from the left: two points take two of them and one point one, so a
    * point is never wider than a third and no column stays empty.
@@ -139,6 +113,66 @@ const words = (text: string) => codeParts(text);
     .b-step__points {
       grid-template-columns: minmax(0, 1fr);
       width: auto;
+    }
+  }
+
+  /* The tablet strip and the site header both stick above the anchor destination. */
+  @media (40rem < width <= 64rem) {
+    .b-step {
+      scroll-margin-top: 3.75rem;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .b-step {
+      gap: var(--brand-space-4);
+      padding-block: var(--home-section-space) calc(var(--home-section-space) - var(--brand-space-4));
+      border-block-end: 1px solid var(--brand-border);
+    }
+
+    .b-step:first-child {
+      padding-block-start: var(--brand-space-5);
+    }
+
+    .b-step__head {
+      min-width: 0;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: 'title number' 'copy copy';
+      gap: var(--brand-space-2);
+      padding-inline: var(--site-gutter);
+    }
+
+    .b-step__marker {
+      grid-area: number;
+    }
+
+    h2 {
+      grid-area: title;
+      font-size: 1.75rem;
+      line-height: 1.1;
+      text-wrap: initial;
+    }
+
+    .b-step__line {
+      grid-area: copy;
+      color: var(--home-soft);
+      font-size: var(--brand-type-base);
+      text-wrap: initial;
+    }
+
+    .b-step__docs--phone {
+      display: flex;
+      align-items: center;
+      gap: var(--brand-space-2);
+      justify-self: start;
+      min-height: var(--brand-control-height);
+      margin-inline: var(--site-gutter);
+      font-size: var(--home-caption);
+      text-decoration: none;
+    }
+
+    .b-step:is(#packages, #deploys) {
+      background: var(--brand-surface);
     }
   }
 </style>

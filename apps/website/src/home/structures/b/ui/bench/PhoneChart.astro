@@ -1,0 +1,106 @@
+---
+import { type Bar, runOf, slowest } from './data';
+
+type Props = {
+  bars: Bar[];
+  competitor: { tool: string; name: string };
+  task: string;
+};
+
+const { bars, competitor, task } = Astro.props;
+const stacktape = bars.find((bar) => bar.us);
+const other = bars.find((bar) => bar.tool === competitor.tool);
+if (!stacktape || !other) throw new Error('Missing times for the headline benchmark comparison');
+const speedup = (other.seconds / stacktape.seconds).toFixed(1);
+const run = runOf(0);
+const scale = slowest(bars);
+---
+
+<figure class="bn-phone home-phone">
+  <figcaption>
+    <strong>{speedup}× faster than {competitor.name}</strong>
+    <p>{stacktape.seconds.toFixed(1)} s vs {other.seconds.toFixed(1)} s {task}</p>
+  </figcaption>
+  <ol>
+    {
+      bars.map((bar) => (
+        <li class:list={{ 'is-us': bar.us }}>
+          <span>{bar.label}</span>
+          <b>{bar.seconds.toFixed(1)} s</b>
+          <i aria-hidden="true" style={`--bar-width: ${(bar.seconds / scale) * 100}%`} />
+        </li>
+      ))
+    }
+  </ol>
+  <a class="brand-link brand-link--muted" href={run.link}>Median of 10 runs, {run.label}</a>
+</figure>
+
+<style>
+  .bn-phone {
+    display: grid;
+    gap: var(--brand-space-4);
+    margin: 0;
+    padding: var(--brand-space-4) var(--site-gutter) 0;
+    border-block: 1px solid var(--brand-border);
+    background: var(--brand-inset);
+    color: var(--brand-muted);
+    font-size: var(--home-caption);
+  }
+
+  figcaption strong {
+    color: var(--brand-text);
+    font: var(--brand-weight-heading) 1.375rem / 1.2 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  figcaption p {
+    margin-block-start: var(--brand-space-1);
+  }
+
+  ol {
+    display: grid;
+    gap: var(--brand-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    gap: var(--brand-space-1) var(--brand-space-3);
+    line-height: 1.2;
+  }
+
+  li b {
+    font-variant-numeric: tabular-nums;
+  }
+
+  li i {
+    grid-column: 1 / -1;
+    width: var(--bar-width);
+    height: var(--brand-space-3);
+    background: var(--brand-border);
+  }
+
+  li.is-us {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  li.is-us i {
+    background: var(--brand-primary);
+  }
+
+  a {
+    display: flex;
+    align-items: center;
+    justify-self: start;
+    min-height: var(--brand-control-height);
+    margin-top: calc(-1 * var(--brand-space-2));
+    font-size: var(--brand-type-xs);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+</style>

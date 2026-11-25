@@ -6,6 +6,7 @@ type SectionPack = {
   title: string;
   /** Backticks mark inline code in the section copy. */
   text: string;
+  phoneText?: string;
   gets: readonly string[];
 };
 
@@ -32,6 +33,7 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Designs',
     title: 'Designs the stack your app needs',
     text: 'Stacktape reads your code and picks the AWS resources it needs, from Fargate services to RDS and SQS. Change any default and save it as one YAML or TypeScript file.',
+    phoneText: 'Stacktape reads your code and picks the AWS resources it needs.',
     gets: ['Init can start from your Render Blueprint or Docker Compose file.']
   },
   {
@@ -39,6 +41,7 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Packages',
     title: 'Packages it',
     text: 'Stacktape builds functions and container images in parallel and reuses what hasn’t changed. No Dockerfile needed for Node.js, Python, Go, Java, Ruby, PHP, .NET or Rust.',
+    phoneText: 'Stacktape builds functions and container images in parallel and reuses what hasn’t changed.',
     gets: [
       'Python dependencies build in AWS’s build image for your Lambda runtime.',
       `In our benchmark, the default Node.js image was ${nodeImage.stacktape} MB compressed, versus ${nodeImage.others} MB with SST or AWS CDK.`
@@ -49,6 +52,7 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Deploys',
     title: 'Deploys it',
     text: `Deploy from your terminal or CI, or push to a connected branch. In our CLI test, 25 updated Lambda handlers were serving requests in ${stacktapeDeploy.median.toFixed(1)} seconds.`,
+    phoneText: 'Deploy from your terminal or CI, or push to a connected branch.',
     gets: [
       'Turn on preview stages for pull requests from branches in your repo.',
       '`stacktape dev` runs containers locally against your AWS dev stack.'
@@ -69,6 +73,7 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Secures',
     title: 'Secures it',
     text: 'The Console flags plain-text secrets, public databases and vulnerable packages, and rechecks packages every night. A guardrail can block a deploy that would make a database public.',
+    phoneText: 'The Console flags plain-text secrets, public databases and vulnerable packages.',
     gets: [
       '`connectTo: [jobQueue]` gives the worker its IAM permissions and the queue URL.',
       'Secrets live in AWS Secrets Manager, referenced with `$Secret()`.'
@@ -79,6 +84,7 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Incidents',
     title: 'Handles incidents',
     text: 'Related errors, alarms and failed checks become one incident, tied to the live release. Acknowledge it or roll back from Slack.',
+    phoneText: 'Related errors, alarms and failed checks become one incident, tied to the live release.',
     gets: [
       'Ask an agent to investigate, or to open a fix PR on GitHub that your team reviews.',
       'Connect an Anthropic, OpenAI or xAI key for automatic incident summaries.'
@@ -89,6 +95,7 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Costs',
     title: 'Tracks costs',
     text: 'See what each project, stage and resource costs, updated daily. Budgets alert on actual or forecast AWS account spend.',
+    phoneText: 'See what each resource costs. Budgets alert on actual or forecast AWS account spend.',
     gets: ['Choose Show drivers on a Slack budget alert to see the five costliest stacks.']
   },
   {
@@ -96,6 +103,10 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Help',
     title: 'Talk to us when you get stuck',
     text: 'On Flexible, your team gets a shared Slack channel with the founders. Ask us about networking, IAM or your AWS bill.',
+    phoneText: 'On Flexible, your team gets a shared Slack channel with the founders.',
     gets: []
   }
 ];
+
+export const WIZARD_PRIVACY =
+  'Claude Code or Codex reads your source, or Files only scans manifests on your machine. For pricing, the wizard sends Stacktape the generated config and AWS region.';

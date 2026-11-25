@@ -1,0 +1,28 @@
+---
+import Logo from '../../../../../brand/Logo.astro';
+
+type Props = {
+  title: string;
+};
+
+const { title } = Astro.props;
+---
+
+<div class="ph-bar" aria-hidden="true">
+  <Logo variant="icon" width={20} alt="" />
+  <span>{title}</span>
+</div>
+
+<style>
+  .ph-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-2);
+    min-height: 2rem;
+    padding-inline: var(--site-gutter);
+    border-bottom: 1px solid var(--brand-border);
+    background: var(--brand-inset);
+    color: var(--brand-muted);
+    font: var(--brand-type-xs) / 1.3 var(--brand-font-heading);
+  }
+</style>

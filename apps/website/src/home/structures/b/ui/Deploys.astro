@@ -1,5 +1,6 @@
 ---
 import Chart from './bench/Chart.astro';
+import PhoneChart from './bench/PhoneChart.astro';
 import { barsOf, runOf, slowest } from './bench/data';
 
 /**
@@ -32,18 +33,20 @@ const cli = runOf(0);
 const push = runOf(1);
 ---
 
-<figure class="bn">
+<figure class="bn home-wide">
   <div class="bn-main">
     <div class="bn-stat">
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
       <p class="bn-stat__what">to deploy a code change to 25 Lambda functions from the CLI</p>
       <a class="brand-link bn-stat__run" href={cli.link}>Median of 10 CLI runs, {cli.label}</a>
-      <a class="brand-link bn-stat__run bn-stat__run--wide" href={push.link}>Git push, {push.label}</a>
+      <a class="brand-link bn-stat__run" href={push.link}>Git push, {push.label}</a>
     </div>
-    <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} phoneTicks={[0, 40, 80]} />
+    <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} />
   </div>
   <div class="bn-more">
     <Chart title="Containers" detail="A code change to a Node.js service" bars={container} scale={small} />
     <Chart title="Git push" detail="Node.js service, warm build machine" bars={pushNode} scale={small} />
   </div>
 </figure>
+
+<PhoneChart bars={large} competitor={{ tool: 'sst', name: 'SST' }} task="to deploy a code change to 25 Lambda functions" />

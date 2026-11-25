@@ -1,4 +1,5 @@
 ---
+import PhoneBar from './phone/PhoneBar.astro';
 import './phone/phone.css';
 import Tape from '../../../../brand/Tape.astro';
 import Window from './console/Window.astro';
@@ -19,6 +20,7 @@ import Window from './console/Window.astro';
  * incidents were open, this one and the certificate warning the hero lists (opened about 07:00), so the shell shows 2.
  */
 const START = 10 * 60 + 5;
+const DEPLOYED = 10 * 60 + 12;
 const NOW = 10 * 60 + 35;
 const at = (minute: number) => `${(((minute - START) / (NOW - START)) * 100).toFixed(2)}%`;
 
@@ -35,7 +37,7 @@ const TICKS = [
   { label: 'now', minute: NOW }
 ];
 /** Where the deploy line sits on the tracks, as a share of their width. */
-const DEPLOY_SHARE = (10 * 60 + 12 - START) / (NOW - START);
+const DEPLOY_SHARE = (DEPLOYED - START) / (NOW - START);
 
 /** The incident's card in Slack (apps/console/api/src/services/slack-app/render.ts renderIncidentCard). */
 const CARD_SIGNALS = [
@@ -44,6 +46,10 @@ const CARD_SIGNALS = [
   { title: 'Uptime check “apiHealth” recovered', kind: 'down 10:18–10:23', failing: false }
 ];
 const CARD_MENU = ['Mute 1 hour', 'Mute 24 hours', 'Resolve', 'Roll back to v000040', 'Open in Console'];
+
+// The alarm's state relative to its threshold. The example has no sampled error-rate values.
+const ALARM_X = ((LANES[1].from - START) / (NOW - START)) * 300;
+const DEPLOY_X = DEPLOY_SHARE * 300;
 
 const FRAMES = [
   ['orderTotals', '/app/src/orders/totals.ts', '18:34'],
@@ -212,17 +218,28 @@ const FRAMES = [
   role="img"
   aria-label="At 10:35, before the 11:04 fix: an incident in the Stacktape Console, API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened. A draft fix is ready as pull request #219."
 >
-  <div aria-hidden="true" class="inc-ph">
+  <PhoneBar title="acme-shop / production · Incidents" />
+  <div aria-hidden="true" class="ph-body inc-ph">
     <div>
-      <span class="ph-tag ph-tag--red">Critical</span>
-      <p class="ph-title inc-ph__title">API error rate above 5%</p>
-      <p class="ph-muted">acme-shop / production · open for 18 min · 2 of 3 signals failing</p>
+      <p class="ph-title">API error rate above 5% <span class="ph-red">Critical</span></p>
+      <p class="ph-muted">2 of 3 signals failing · open for 18 min</p>
     </div>
-    <div class="ph-box">
-      <p><b>Likely cause:</b> release v000041, deployed 5 min before it opened</p>
+    <div class="inc-ph__plot">
+      <svg viewBox="0 0 304 60" preserveAspectRatio="none">
+        <path class="inc-ph__threshold" d="M0 31H300" />
+        <path class="inc-ph__deploy-line" d={`M${DEPLOY_X} 2V58`} />
+        <path class="inc-ph__signal" d={`M0 49H${ALARM_X}V15H300`} />
+        <circle class="inc-ph__now" cx="300" cy="15" r="3" />
+      </svg>
+      <div class="inc-ph__timeline ph-muted">
+        <span>10:12 · v000041 deployed</span>
+        <span>10:35 · Firing</span>
+      </div>
+    </div>
+    <div class="inc-ph__fix">
+      <p><b>Draft fix · PR #219</b> <span class="ph-muted">Open</span></p>
       <p class="ph-mono">orderTotals · totals.ts:18</p>
     </div>
-    <p class="inc-ph__fix"><span class="ph-tag ph-tag--teal">Draft fix</span> Pull request #219, not merged</p>
   </div>
 </div>
 
@@ -233,16 +250,47 @@ const FRAMES = [
     gap: 0.85rem;
   }
 
-  .inc-ph__title {
-    margin-top: 0.45rem !important;
+  .inc-ph__plot svg {
+    display: block;
+    width: 100%;
+    height: 4.5rem;
+    overflow: visible;
+  }
+
+  .inc-ph__threshold,
+  .inc-ph__deploy-line,
+  .inc-ph__signal {
+    fill: none;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .inc-ph__threshold {
+    stroke: var(--brand-muted);
+    stroke-dasharray: 3 4;
+  }
+
+  .inc-ph__deploy-line {
+    stroke: var(--brand-teal);
+  }
+
+  .inc-ph__signal {
+    stroke: var(--stp-status-error);
+    stroke-width: 2;
+  }
+
+  .inc-ph__now {
+    fill: var(--stp-status-error);
+  }
+
+  .inc-ph__timeline {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--brand-space-2);
   }
 
   .inc-ph__fix {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.875rem;
+    padding-top: var(--brand-space-2);
+    border-top: 1px solid var(--brand-border);
   }
 
   .inc {

@@ -7,8 +7,11 @@
 const card = document.getElementById('install');
 const hero = card?.closest('section.h5');
 
-const focusInstaller = () =>
-  card?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true });
+const phone = window.matchMedia('(max-width: 40rem)');
+const focusInstaller = () => {
+  const target = phone.matches ? '[data-phone-install] button' : '[role="tab"][aria-selected="true"]';
+  card?.querySelector<HTMLElement>(target)?.focus({ preventScroll: true });
+};
 
 const inView = (element: Element) => {
   const box = element.getBoundingClientRect();
@@ -17,6 +20,17 @@ const inView = (element: Element) => {
 };
 
 if (card && hero) {
+  const command = card.querySelector('[data-phone-install] .brand-command__field');
+  const header = document.querySelector<HTMLElement>('.brand-header');
+  if (command && header) {
+    const headerHeight = 56;
+    const observer = new IntersectionObserver(
+      ([entry]) => header.toggleAttribute('data-past-install', entry.boundingClientRect.bottom <= headerHeight),
+      { rootMargin: `-${headerHeight}px 0px 0px` }
+    );
+    observer.observe(command);
+  }
+
   const besideHeadline = window.matchMedia('(min-width: 64.0625rem)');
   document.addEventListener('click', (event) => {
     const link = (event.target as Element).closest<HTMLAnchorElement>('a[href$="#install"]');

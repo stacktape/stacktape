@@ -15,20 +15,28 @@ const subheadline =
       <p class="h5__lead">{subheadline}</p>
       <p class="h5__open">
         <span class="h5__label">Open source</span>
-        <span>The CLI is MIT-licensed and deploys straight to your AWS account. No sign-up needed.</span>
+        <span class="home-wide">The CLI is MIT-licensed and deploys straight to your AWS account. No sign-up needed.</span>
+        <span class="home-phone">MIT-licensed CLI · no sign-up</span>
       </p>
     </div>
-    <section class="h5__setup" id="install" aria-labelledby="h5-setup">
-      <h2 id="h5-setup" class="h5__setup-title">
+    <section class="h5__setup" id="install" aria-label="Run the setup wizard">
+      <h2 class="h5__setup-title home-wide">
         <svg viewBox="0 0 24 24" aria-hidden="true"
           ><path d="M4 5h16v14H4zM8 10l2.5 2L8 14M12.5 14H16"></path></svg
         >Run the setup wizard
       </h2>
-      <p class="h5__setup-text">
+      <p class="h5__setup-text home-wide">
         Run it in your app's folder to see the proposed AWS stack and its estimated monthly cost. Nothing deploys yet.
       </p>
-      <CommandBox client:load preselect={false} />
+      <div class="home-wide">
+        <CommandBox client:media="(width > 40rem)" preselect={false} />
+      </div>
+      <div class="home-phone" data-phone-install>
+        <CommandBox client:media="(max-width: 40rem)" single />
+        <p class="h5__hint">Run it in your app's folder. Nothing deploys yet.</p>
+      </div>
     </section>
+    <p class="h5__proof home-phone">Hear from <a href="#b-proof-title">Receipts, Lastmyle and Trigger.dev</a></p>
   </div>
 </section>
 
@@ -229,13 +237,15 @@ const subheadline =
 
   @media (max-width: 40rem) {
     .h5 {
-      --h5-frame: calc(100% - 2 * var(--brand-space-4));
-      padding-block-end: 0;
+      --h5-frame: calc(100% - 2 * var(--site-gutter));
+      padding-block-end: var(--brand-space-6);
+      background: var(--brand-page);
     }
 
     .h5__top {
-      gap: var(--brand-space-5);
-      padding-block-start: var(--brand-space-7);
+      grid-template-areas: 'title' 'words' 'setup' 'proof';
+      gap: 1.125rem;
+      padding-block-start: 1.75rem;
     }
 
     .h5__title {
@@ -243,25 +253,41 @@ const subheadline =
     }
 
     .h5__lead {
-      font-size: 1rem;
+      font-size: var(--brand-type-base);
+      line-height: 1.5;
     }
 
     .h5__open {
-      margin-block-start: var(--brand-space-5);
-      font-size: var(--brand-type-xs);
-    }
-
-    /* The card runs edge to edge as the hero's last band, so the command gets the phone's whole width. */
-    .h5__setup {
       margin-block-start: var(--brand-space-3);
-      margin-inline: calc(-1 * var(--brand-space-4));
-      padding: var(--brand-space-6) var(--brand-space-4);
-      border-inline: 0;
-      border-block-end: 0;
     }
 
-    .h5__setup-text {
-      margin-block-end: var(--brand-space-5);
+    .h5__open,
+    .h5__hint,
+    .h5__proof {
+      color: var(--brand-muted);
+      font-size: var(--home-caption);
+    }
+
+    .h5__setup {
+      margin-inline: calc(-1 * var(--site-gutter));
+      padding: var(--brand-space-3) var(--site-gutter);
+      border-inline: 0;
+      box-shadow: none;
+    }
+
+    .h5__hint {
+      margin-top: var(--brand-space-2);
+    }
+
+    .h5__proof {
+      grid-area: proof;
+      margin-top: calc(-1 * var(--brand-space-3));
+    }
+
+    .h5__proof a {
+      color: var(--home-soft);
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
     }
   }
 </style>

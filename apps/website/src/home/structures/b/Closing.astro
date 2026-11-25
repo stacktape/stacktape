@@ -1,20 +1,23 @@
 ---
 import Tape from '../../../brand/Tape.astro';
 import { CommandBox } from '../../../brand/CommandBox';
+import { WIZARD_PRIVACY } from '../../sections';
 ---
 
 <section class="b-closing site-frame" aria-labelledby="b-closing-title">
   <div class="b-closing__copy">
-    <p class="b-closing__marker"><Tape variant="marker">Try it</Tape></p>
+    <p class="b-closing__marker home-wide"><Tape variant="marker">Try it</Tape></p>
     <h2 id="b-closing-title">See what Stacktape builds for your app</h2>
-    <p class="b-closing__line">
-      Claude Code or Codex reads your source, or Files only scans manifests on your machine. For pricing, the wizard sends
-      Stacktape the generated config and AWS region.
-    </p>
+    <p class="b-closing__line home-wide">{WIZARD_PRIVACY}</p>
+    <p class="b-closing__line home-phone">Run it in your app's folder. Nothing deploys until you say so.</p>
   </div>
-  <div class="b-closing__start">
+  <div class="b-closing__start home-wide">
     <CommandBox client:visible label="Run in your project" preselect={false} />
     <a class="brand-link brand-link--muted" href="https://console.stacktape.com">Already using Stacktape? Open the Console</a>
+  </div>
+  <div class="b-closing__start home-phone">
+    <CommandBox client:media="(max-width: 40rem)" single />
+    <a class="brand-link b-closing__console" href="https://console.stacktape.com">Open the Console</a>
   </div>
 </section>
 
@@ -58,6 +61,40 @@ import { CommandBox } from '../../../brand/CommandBox';
   @media (max-width: 64rem) {
     .b-closing {
       grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .b-closing {
+      gap: var(--brand-space-4);
+      padding-block: var(--home-section-space);
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      line-height: 1.1;
+    }
+
+    .b-closing__line {
+      margin-top: var(--brand-space-3);
+      color: var(--home-soft);
+      font-size: var(--brand-type-base);
+      line-height: 1.5;
+    }
+
+    .b-closing__console {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--brand-control-height);
+      padding-inline: var(--brand-space-4);
+      border: 1px solid var(--brand-border);
+      color: var(--brand-text);
+      font-size: var(--home-caption);
+      text-decoration: none;
+    }
+
+    .b-closing__console:hover {
+      background: var(--brand-surface);
     }
   }
 </style>
