@@ -38,9 +38,11 @@ const initial = { structure: initialStructure.id, hero: initialHero.id };
               </div>
             </fieldset>
           ))}
-          <a id="open-combination" class="brand-link" href={`/d/${initial.structure}/${initial.hero}`}>
-            Open combination
-          </a>
+          <div class="actions">
+            <a id="open-combination" class="brand-link" href={`/d/${initial.structure}/${initial.hero}`}>
+              Open combination
+            </a>
+          </div>
         </form>
       ) : (
         <p>Previews appear here as builders register page structures and heroes.</p>
@@ -111,5 +113,16 @@ const initial = { structure: initialStructure.id, hero: initialHero.id };
     display: block;
     color: var(--brand-muted);
     font-size: var(--brand-type-sm);
+  }
+
+  @media (max-width: 40rem) {
+    .actions {
+      position: sticky;
+      z-index: 1;
+      inset-block-end: 0;
+      padding-block: var(--brand-space-3);
+      border-block-start: 1px solid var(--brand-border);
+      background: var(--brand-page);
+    }
   }
 </style>

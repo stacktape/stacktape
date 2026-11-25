@@ -199,11 +199,11 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'monitors',
     name: 'Monitors',
     title: 'Monitoring comes with the stack',
-    line: 'Logs, metrics, traces, error tracking and uptime checks from several AWS regions. No extra vendor.',
+    line: 'See logs and metrics, then add tracing and uptime checks in your config.',
     figure: {
-      value: 'On for every stage',
-      label: 'Error tracking is on by default and wired into each stack when it deploys.',
-      source: 'docs/observability/overview.mdx:10'
+      value: 'Error tracking',
+      label: 'On by default with the Console for supported workloads.',
+      source: 'docs/observability/error-tracking.mdx:34, :47-53'
     },
     facts: [
       {

@@ -8,6 +8,7 @@ type Props = {
 };
 
 const { homeHref = '/' } = Astro.props;
+const designsHref = Astro.params.structure ? '#designs' : `${homeHref}#designs`;
 const docs = 'https://docs.stacktape.com';
 const github = 'https://github.com/stacktape/stacktape';
 const status = 'https://status.stacktape.com';
@@ -15,7 +16,7 @@ const columns = [
   {
     label: 'Product',
     links: [
-      ['How it works', `${homeHref}#designs`],
+      ['How it works', designsHref],
       ['Pricing', '/pricing'],
       ['Benchmarks', '/benchmarks'],
       ['Starter projects', `${docs}/getting-started/starter-projects`],

@@ -638,7 +638,7 @@ a:hover .rm-arrow {
 
 /* ── The fenced code block: the call to action ───────────────────────────────────────────────── */
 
-.install-code {
+:where(.rm-html) .install-code {
   margin: 0 0 12px;
   overflow: hidden;
   border: 1px solid var(--rm-rule-strong);
@@ -647,7 +647,7 @@ a:hover .rm-arrow {
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
 }
 
-.install-code__head {
+:where(.rm-html) .install-code__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -657,7 +657,7 @@ a:hover .rm-arrow {
   box-shadow: inset 0 -1px 0 var(--rm-rule);
 }
 
-.install-code__tabs {
+:where(.rm-html) .install-code__tabs {
   --stp-tab-font-size: 12.5px;
   --stp-tabs-border: transparent;
   flex: none;
@@ -665,7 +665,7 @@ a:hover .rm-arrow {
   max-width: 100%;
 }
 
-.install-code__tabs .stp-ui-tab {
+:where(.rm-html) .install-code__tabs .stp-ui-tab {
   flex: none;
   height: 40px;
   padding: 0 12px;
@@ -674,12 +674,12 @@ a:hover .rm-arrow {
 
 /* These read as file names in a code block's header, not as buttons, so they do not shrink under
  * the press the shared component gives a tab. */
-.install-code__tabs .stp-ui-tab:active:not(:disabled) {
+:where(.rm-html) .install-code__tabs .stp-ui-tab:active:not(:disabled) {
   transform: none;
 }
 
 /* The CPU architecture of the selected operating system, beside Copy and as tall as it. */
-.install-code__arch {
+:where(.rm-html) .install-code__arch {
   --stp-tabs-padding: 2px;
   --stp-tabs-radius: 7px;
   --stp-tab-radius: 5px;
@@ -693,11 +693,11 @@ a:hover .rm-arrow {
   font-family: var(--rm-mono);
 }
 
-.install-code__arch .stp-ui-tab:active:not(:disabled) {
+:where(.rm-html) .install-code__arch .stp-ui-tab:active:not(:disabled) {
   transform: none;
 }
 
-.install-code__copy {
+:where(.rm-html) .install-code__copy {
   --stp-control-height: 28px;
   --stp-button-padding-x: 10px;
   --stp-button-radius: 6px;
@@ -706,11 +706,11 @@ a:hover .rm-arrow {
   font-size: 12.5px;
 }
 
-.install-code__labels {
+:where(.rm-html) .install-code__labels {
   display: grid;
 }
 
-.install-code__label {
+:where(.rm-html) .install-code__label {
   grid-area: 1 / 1;
   display: inline-flex;
   align-items: center;
@@ -724,23 +724,23 @@ a:hover .rm-arrow {
     transform 160ms ease;
 }
 
-.install-code__label svg {
+:where(.rm-html) .install-code__label svg {
   flex: none;
 }
 
-.install-code--idle .install-code__label--copy,
-.install-code--copied .install-code__label--copied,
-.install-code--failed .install-code__label--failed {
+:where(.rm-html) .install-code--idle .install-code__label--copy,
+:where(.rm-html) .install-code--copied .install-code__label--copied,
+:where(.rm-html) .install-code--failed .install-code__label--failed {
   opacity: 1;
   transform: none;
 }
 
-.install-code--copied .install-code__copy {
+:where(.rm-html) .install-code--copied .install-code__copy {
   --stp-button-primary-surface: linear-gradient(180deg, rgb(30, 150, 122), rgb(22, 120, 100));
 }
 
 /* Room for the tallest tab (installer + init, plus the comment), so switching tabs never moves the page. */
-.install-code__pre {
+:where(.rm-html) .install-code__pre {
   display: grid;
   align-content: start;
   gap: 2px;
@@ -756,22 +756,22 @@ a:hover .rm-arrow {
   scrollbar-width: none;
 }
 
-.install-code--hint .install-code__pre {
+:where(.rm-html) .install-code--hint .install-code__pre {
   min-height: calc(3 * 1.6em + 4px + 29px);
 }
 
-.install-code__pre::-webkit-scrollbar {
+:where(.rm-html) .install-code__pre::-webkit-scrollbar {
   display: none;
 }
 
-.install-code__pre--overflow {
+:where(.rm-html) .install-code__pre--overflow {
   mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
   -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent);
 }
 
 /* Exactly one line high: baseline alignment otherwise adds a pixel or two per line, and the pre's reserved height
  * would no longer match the tallest tab. */
-.install-code__line {
+:where(.rm-html) .install-code__line {
   display: flex;
   height: 1.6em;
   align-items: baseline;
@@ -779,21 +779,21 @@ a:hover .rm-arrow {
   white-space: nowrap;
 }
 
-.install-code__prompt {
+:where(.rm-html) .install-code__prompt {
   flex: none;
   font-weight: 500;
   color: var(--rm-brand);
   user-select: none;
 }
 
-.install-code__cmd {
+:where(.rm-html) .install-code__cmd {
   font-weight: 500;
   color: #fff;
   user-select: text;
 }
 
-.install-code__line--comment .install-code__prompt,
-.install-code__comment {
+:where(.rm-html) .install-code__line--comment .install-code__prompt,
+:where(.rm-html) .install-code__comment {
   font-weight: 400;
   color: var(--rm-faint);
 }
@@ -3000,42 +3000,42 @@ a:hover .rm-arrow {
 
   /* Two rows: the operating systems, then the architecture and Copy. Every tab has the second row,
    * so switching tabs never changes the block's height. */
-  .install-code__head {
+  :where(.rm-html) .install-code__head {
     flex-wrap: wrap;
     row-gap: 0;
     padding-left: 0;
   }
 
   /* The tab strip scrolls sideways if it must. */
-  .install-code__tabs {
+  :where(.rm-html) .install-code__tabs {
     flex: 1 0 100%;
     overflow-x: auto;
     scrollbar-width: none;
   }
 
-  .install-code__arch {
+  :where(.rm-html) .install-code__arch {
     margin-left: 8px;
   }
 
-  .install-code__copy {
+  :where(.rm-html) .install-code__copy {
     margin-left: auto;
   }
 
-  .install-code__tabs::-webkit-scrollbar {
+  :where(.rm-html) .install-code__tabs::-webkit-scrollbar {
     display: none;
   }
 
-  .install-code__tabs .stp-ui-tab {
+  :where(.rm-html) .install-code__tabs .stp-ui-tab {
     padding: 0 10px;
   }
 
-  .install-code__pre {
+  :where(.rm-html) .install-code__pre {
     min-height: calc(2 * 1.6em + 2px + 25px);
     padding: 12px 14px 13px;
     font-size: 13.5px;
   }
 
-  .install-code--hint .install-code__pre {
+  :where(.rm-html) .install-code--hint .install-code__pre {
     min-height: calc(3 * 1.6em + 4px + 25px);
   }
 
@@ -3092,11 +3092,11 @@ a:hover .rm-arrow {
 
 /* "Apple silicon" and Copy no longer share a row; the short label keeps the block at two rows. */
 @media (max-width: 359px) {
-  .install-code__arch .stp-ui-tab__label--full {
+  :where(.rm-html) .install-code__arch .stp-ui-tab__label--full {
     display: none;
   }
 
-  .install-code__arch .stp-ui-tab__label--compact {
+  :where(.rm-html) .install-code__arch .stp-ui-tab__label--compact {
     display: inline;
   }
 }
