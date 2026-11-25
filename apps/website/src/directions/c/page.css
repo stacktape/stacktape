@@ -1,5 +1,7 @@
 .direction-c {
   --c-container: min(100rem, 100% - 2 * var(--brand-space-6));
+  /* Anchor jumps land below the sticky header. */
+  scroll-padding-block-start: 6rem;
 }
 
 @media (max-width: 40rem) {

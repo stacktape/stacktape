@@ -12,7 +12,7 @@ import TapedStack from './TapedStack.astro';
       infrastructure, deploys, monitoring, incidents, security and costs.
     </p>
     <div class="hero__start">
-      <CommandBox client:load id="install" />
+      <CommandBox client:load id="install" preselect={false} />
       <p class="hero__ownership">
         <span>Runs in your AWS account on standard CloudFormation.</span>
         <span>Stop using Stacktape and your app keeps running.</span>
@@ -27,6 +27,19 @@ import TapedStack from './TapedStack.astro';
   </div>
   <figure class="hero__art">
     <TapedStack />
+    <figcaption class="hero__excerpt">
+      <img
+        class="c-frame"
+        src="/d/c/init-resources.webp"
+        width="387"
+        height="161"
+        alt="Two resources from the init wizard's Review step: a Postgres database, db.t4g.small with 20 GB, at $32 a month, and a Next.js site at pay per use."
+      />
+      <span class="c-muted"
+        >A real <code>stacktape init</code> result for a Next.js app with Postgres. Every resource gets an estimate from AWS
+        list prices before anything is created.</span
+      >
+    </figcaption>
   </figure>
 </section>
 
@@ -82,7 +95,44 @@ import TapedStack from './TapedStack.astro';
   }
 
   .hero__art {
+    display: grid;
+    gap: var(--brand-space-5);
     margin: 0;
+  }
+
+  .hero__excerpt {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-5);
+    margin-inline-start: 12%;
+    font-size: var(--brand-type-sm);
+  }
+
+  .hero__excerpt img {
+    flex: none;
+    inline-size: min(24rem, 60%);
+  }
+
+  .hero__excerpt span {
+    max-inline-size: 20rem;
+  }
+
+  @media (max-width: 40rem) {
+    .hero__excerpt {
+      flex-direction: column;
+      align-items: flex-start;
+      margin-inline-start: 0;
+    }
+
+    .hero__excerpt img {
+      inline-size: 100%;
+      max-inline-size: 24rem;
+    }
+  }
+
+  .hero__excerpt code {
+    font-family: var(--brand-font-mono);
+    color: var(--brand-text);
   }
 
   @media (max-width: 75rem) {

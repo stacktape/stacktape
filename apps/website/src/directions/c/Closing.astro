@@ -10,7 +10,7 @@ import Tape from '../../brand/Tape.astro';
     <p class="c-muted">Run one command. Review the setup and what it costs before anything is created.</p>
   </div>
   <div class="closing__start">
-    <CommandBox client:visible id="install-closing" label="Install again" />
+    <CommandBox client:visible id="install-closing" label="Install again" preselect={false} />
     <p class="c-muted closing__note">
       Already using Stacktape? <a class="brand-link" href="https://console.stacktape.com">Open the Console</a>
     </p>

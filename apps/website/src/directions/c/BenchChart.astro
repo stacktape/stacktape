@@ -108,8 +108,7 @@ const lost = winner && winner.tool !== 'stacktape';
   .chart__bar {
     block-size: 0.875rem;
     border-radius: var(--brand-radius-small);
-    background: var(--brand-control);
-    box-shadow: var(--brand-edge);
+    background: color-mix(in srgb, var(--brand-surface), var(--brand-text) 30%);
   }
 
   .chart__row--us .chart__bar {

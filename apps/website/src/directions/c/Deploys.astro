@@ -15,10 +15,14 @@ import Block from './Block.astro';
 >
   <p>
     It packages those 25 functions in 3.8 seconds from an empty cache; CDK takes 17.6. A container code change goes live
-    in 4.1 to 7.6 seconds with code swap.
+    in 4.1 to 7.6 seconds with code swap. Code swap covers code changes only: a dependency change uses a normal image
+    deploy, which is slower than Heroku.
   </p>
-  <p>Pull requests can get their own preview stage, deleted when the pull request closes.</p>
-  <p class="deploys__meta">Preliminary results from 22 Oct 2026 (Git push: 23 Oct). Medians in seconds.</p>
+  <p>A pull request rule gives each pull request its own preview stage and can delete it when the pull request closes.</p>
+  <p class="deploys__meta">
+    Preliminary results, medians in seconds. Measured on 22 Oct 2026, except Stacktape's Git pushes (23 Oct, code swapped
+    in place). Heroku's Git push time is its build from the pushed source.
+  </p>
   <p class="deploys__meta"><a class="brand-link" href="/benchmarks">How we measured, and every result</a></p>
 
   <div slot="picture" class="deploys__charts">
@@ -36,13 +40,13 @@ import Block from './Block.astro';
       title="Code change to a Node.js container"
       detail="Stacktape with code swap, opt-in"
     />
-    <BenchChart comparison="git-push" view="warm" app="container-node" title="Git push, Node.js service" detail="warm runner" />
+    <BenchChart comparison="git-push" view="warm" app="container-node" title="Git push, Node.js service" detail="warm runner · Stacktape 23 Oct, others 22 Oct" />
     <BenchChart
       comparison="git-push"
       view="warm"
       app="container-python"
       title="Git push, Python service"
-      detail="warm runner"
+      detail="warm runner · Stacktape 23 Oct, others 22 Oct"
     />
     <BenchChart
       comparison="lambda-deploy"
