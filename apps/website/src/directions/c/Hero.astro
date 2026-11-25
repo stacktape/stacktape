@@ -37,10 +37,9 @@ import TapedStack from './TapedStack.astro';
     align-items: center;
     column-gap: var(--brand-space-9);
     inline-size: var(--c-container);
-    min-block-size: calc(100svh - 4.25rem);
-    max-block-size: 64rem;
+    min-block-size: min(100svh - 4.25rem, 54rem);
     margin-inline: auto;
-    padding-block: var(--brand-space-8) var(--brand-space-9);
+    padding-block: var(--brand-space-8);
   }
 
   h1 {
