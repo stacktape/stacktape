@@ -1,0 +1,104 @@
+---
+import Tape from '../../brand/Tape.astro';
+import Shot from './Shot.astro';
+import assessmentLarge from './shots/incident-main-2448.webp';
+import assessmentSmall from './shots/incident-main-1224.webp';
+
+const SLACK_ACTIONS = ['Acknowledge', 'Mute', 'Resolve', 'Roll back'];
+---
+
+<div class="b-incident">
+  <div class="b-frame">
+    <div class="b-frame__bar" aria-hidden="true">
+      <span class="b-frame__dots"><i></i><i></i><i></i></span>
+      <span class="b-frame__where">console.stacktape.com · incidents · API error rate above 5%</span>
+    </div>
+    <Shot
+      class="b-incident__shot"
+      small={assessmentSmall}
+      large={assessmentLarge}
+      alt="An incident in the Console: API error rate above 5% on checkout-api production. The AI assessment names a TypeError and database timeouts; a draft fix by Claude Code is ready as pull request #318, not merged or deployed."
+      sizes="(min-width: 90rem) 52rem, (min-width: 64rem) 60vw, 94vw"
+    />
+  </div>
+
+  <dl class="b-incident__facts">
+    <div>
+      <dt>One incident</dt>
+      <dd>
+        Errors, alarms, failed uptime checks and tests, unhealthy stacks and expiring certificates are grouped by problem
+        and tied to the release that was live.
+      </dd>
+    </div>
+    <div>
+      <dt>Handled from Slack</dt>
+      <dd>
+        The card in your channel has four actions:
+        <span class="b-incident__actions">
+          {SLACK_ACTIONS.map((action) => <Tape tone="gray">{action}</Tape>)}
+        </span>
+      </dd>
+    </div>
+    <div>
+      <dt>Fix with AI</dt>
+      <dd>
+        An agent changes the code, runs the tests and opens a draft pull request. Nothing is deployed. For each run you
+        pick the agent and who pays: your organization’s API key or your own subscription.
+      </dd>
+    </div>
+  </dl>
+</div>
+
+<style>
+  .b-incident {
+    display: grid;
+    grid-template-columns: minmax(0, 2.6fr) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--brand-space-6) clamp(2rem, 1rem + 3vw, 5rem);
+  }
+
+  .b-incident__shot {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .b-incident__facts {
+    display: grid;
+    gap: var(--brand-space-6);
+    margin: 0;
+    padding-top: var(--brand-space-5);
+  }
+
+  dt {
+    margin-bottom: var(--brand-space-2);
+    font: var(--brand-weight-label) var(--brand-type-base) / 1.3 var(--brand-font-heading);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-incident__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--brand-space-2);
+    margin-top: var(--brand-space-3);
+  }
+
+  .b-incident__actions :global(.tape) {
+    font-size: var(--brand-type-xs);
+  }
+
+  @media (max-width: 64rem) {
+    .b-incident {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .b-incident__facts {
+      padding-top: 0;
+    }
+  }
+</style>

@@ -1,0 +1,124 @@
+---
+/**
+ * One benchmark group as horizontal bars, fastest first. Stacktape's bar is teal; when another tool is faster,
+ * the chart says so in its heading.
+ */
+import Tape from '../../brand/Tape.astro';
+import { findGroup, formatValue, toolName, BENCHMARKS } from '../../variants/readme/benchmarks';
+
+type Props = {
+  comparison: string;
+  view: string;
+  app: string;
+  title: string;
+  /** A short qualifier under the title, such as "code swap, opt-in". */
+  detail?: string;
+};
+
+const { comparison: comparisonId, view, app, title, detail } = Astro.props;
+const { comparison, group } = findGroup(comparisonId, view, app);
+const rows = group.values.toSorted((a, b) => a.median - b.median);
+const max = rows.at(-1)?.median ?? 1;
+const winner = rows[0];
+const lost = winner && winner.tool !== 'stacktape';
+---
+
+<figure class="chart">
+  <figcaption class="chart__head">
+    <span class="chart__title">{title}</span>
+    {detail ? <span class="chart__detail">{detail}</span> : null}
+    {lost ? <Tape tone="gray" class="chart__lost">{toolName(BENCHMARKS, winner.tool)} is faster</Tape> : null}
+  </figcaption>
+  <ol class="chart__rows">
+    {
+      rows.map((row) => (
+        <li class:list={['chart__row', { 'chart__row--us': row.tool === 'stacktape' }]}>
+          <span class="chart__tool">{toolName(BENCHMARKS, row.tool)}</span>
+          <span class="chart__track">
+            <span class="chart__bar" style={`inline-size: ${((row.median / max) * 100).toFixed(2)}%`} />
+          </span>
+          <span class="chart__value">{formatValue(row.median, comparison.unit)}</span>
+        </li>
+      ))
+    }
+  </ol>
+</figure>
+
+<style>
+  .chart {
+    display: grid;
+    align-content: start;
+    gap: var(--brand-space-4);
+    margin: 0;
+    padding: var(--brand-space-5);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-surface);
+  }
+
+  .chart__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--brand-space-1) var(--brand-space-3);
+    min-block-size: 2.75em;
+    align-content: start;
+  }
+
+  .chart__title {
+    flex-basis: 100%;
+    font-weight: var(--brand-weight-label);
+  }
+
+  .chart__detail {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .chart :global(.chart__lost) {
+    font-size: var(--brand-type-xs);
+  }
+
+  .chart__rows {
+    display: grid;
+    gap: var(--brand-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .chart__row {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr) 3.5rem;
+    align-items: center;
+    gap: var(--brand-space-3);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .chart__row--us {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .chart__track {
+    display: flex;
+  }
+
+  .chart__bar {
+    block-size: 0.875rem;
+    border-radius: var(--brand-radius-small);
+    background: color-mix(in srgb, var(--brand-surface), var(--brand-text) 30%);
+  }
+
+  .chart__row--us .chart__bar {
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+  }
+
+  .chart__value {
+    font-family: var(--brand-font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+  }
+</style>

@@ -1,0 +1,114 @@
+---
+import Tape from '../../brand/Tape.astro';
+
+/** Verbatim sentences from the quotes on the old site (`src/variants/readme/data.ts`). */
+const quotes = [
+  {
+    text: 'They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration.',
+    name: 'Henry Garrett',
+    role: 'Founding Engineer, Receipts'
+  },
+  {
+    text: 'It’s allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.',
+    name: 'Rhys Williams',
+    role: 'CTO & Founder, Lastmyle'
+  }
+];
+---
+
+<section class="h4-proof" aria-label="What customers say">
+  <div class="h4-wrap h4-proof__row">
+    {
+      quotes.map((quote) => (
+        <figure class="h4-proof__quote">
+          <blockquote>“{quote.text}”</blockquote>
+          <figcaption>
+            <strong>{quote.name}</strong>
+            <span>{quote.role}</span>
+          </figcaption>
+        </figure>
+      ))
+    }
+  </div>
+</section>
+
+<section class="h4-first" aria-labelledby="h4-designs">
+  <div class="h4-wrap h4-first__head">
+    <Tape variant="marker">1 · Designs</Tape>
+    <p class="h4-first__problem">Nobody on your team has time to learn CDK or Terraform.</p>
+    <h2 id="h4-designs">You don’t write the infrastructure. You review it.</h2>
+    <p class="h4-first__line">
+      Init reads your repo and proposes each resource, with the line of code behind it and what it costs a month.
+    </p>
+  </div>
+</section>
+
+<style>
+  .h4-proof {
+    border-block: 1px solid var(--brand-border);
+  }
+
+  .h4-proof__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(2rem, 4vw, 6rem);
+    padding-block: clamp(2.5rem, 5vh, 4rem);
+  }
+
+  .h4-proof__quote {
+    display: grid;
+    align-content: space-between;
+    gap: var(--brand-space-5);
+    margin: 0;
+  }
+
+  .h4-proof__quote blockquote {
+    margin: 0;
+    font: italic 400 clamp(1.1rem, 0.85rem + 0.45vw, 1.45rem) / 1.4 var(--h4-font-display);
+    text-wrap: pretty;
+  }
+
+  .h4-proof__quote figcaption {
+    display: grid;
+    gap: 0.1rem;
+    font-size: var(--brand-type-sm);
+  }
+
+  .h4-proof__quote span {
+    color: var(--brand-muted);
+  }
+
+  .h4-first__head {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-4);
+    padding-block: clamp(5rem, 12vh, 9rem) clamp(4rem, 10vh, 8rem);
+  }
+
+  .h4-first__problem {
+    margin: var(--brand-space-3) 0 0;
+    color: var(--h4-sand);
+    font: italic 500 clamp(1.1rem, 0.9rem + 0.5vw, 1.5rem) / 1.3 var(--h4-font-display);
+  }
+
+  .h4-first h2 {
+    max-inline-size: 18ch;
+    margin: 0;
+    font: 600 clamp(2rem, 1rem + 2.2vw, 4rem) / 1.05 var(--h4-font-display);
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  .h4-first__line {
+    max-inline-size: 36rem;
+    margin: 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+  }
+
+  @media (max-width: 60rem) {
+    .h4-proof__row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

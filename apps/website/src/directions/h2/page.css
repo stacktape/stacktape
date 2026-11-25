@@ -1,0 +1,32 @@
+/* Instrument Serif. Copyright 2022 The Instrument Serif Project Authors. SIL Open Font License 1.1:
+   https://openfontlicense.org. Source: https://github.com/Instrument/instrument-serif */
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('./fonts/instrument-serif-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+.direction-h2 {
+  --h2-font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --h2-text-soft: #cfd8d8;
+  --h2-gutter: clamp(1rem, 0.5rem + 2.5vw, 3rem);
+  --h2-width: 84rem;
+}
+
+.direction-h2 body {
+  overflow-x: clip;
+}
+
+.h2-container {
+  inline-size: min(var(--h2-width), 100% - 2 * var(--h2-gutter));
+  margin-inline: auto;
+}
+
+.h2-display {
+  font-family: var(--h2-font-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}

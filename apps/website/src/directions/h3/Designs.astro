@@ -1,0 +1,94 @@
+---
+import Tape from '../../brand/Tape.astro';
+---
+
+<section class="first" aria-labelledby="h3-designs">
+  <div class="first__text">
+    <Tape variant="marker">1 · Designs</Tape>
+    <p class="first__problem">Nobody on the team has time to learn CDK or Terraform.</p>
+    <h2 id="h3-designs" class="h3-display">It starts from your code.</h2>
+    <p class="first__lead">
+      Stacktape reads your repo and proposes every resource, with the line of code behind it and what it costs a
+      month.
+    </p>
+    <ul class="first__facts">
+      <li>Your coding agent reads the code on your machine. No source code goes to Stacktape.</li>
+      <li>Nothing is created until you confirm the AWS account, region and stack.</li>
+    </ul>
+  </div>
+  <figure class="first__shot">
+    <img
+      src="/d/h3/review-1200.webp"
+      srcset="/d/h3/review-1200.webp 1200w, /d/h3/review-2400.webp 2400w"
+      sizes="(min-width: 72rem) 70rem, 92vw"
+      width="2400"
+      height="1500"
+      loading="lazy"
+      decoding="async"
+      alt="The init wizard's Review step for a Next.js app with Postgres: a diagram, an estimate of $32 a month, each resource with its cost, and the generated stacktape.yml."
+    />
+  </figure>
+</section>
+
+<style>
+  .first {
+    display: grid;
+    grid-template-columns: minmax(0, 28rem) minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(2.5rem, 6vw, 7rem);
+    inline-size: var(--h3-frame);
+    margin: clamp(6rem, 9vw, 10rem) auto clamp(6rem, 8vw, 9rem);
+    padding-inline: var(--brand-space-2);
+  }
+
+  .first__text {
+    display: grid;
+    justify-items: start;
+  }
+
+  .first__problem {
+    margin: var(--brand-space-5) 0 var(--brand-space-2);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+  }
+
+  h2 {
+    font-size: clamp(2.2rem, 1.4rem + 2.4vw, 3.75rem);
+  }
+
+  .first__lead {
+    margin: var(--brand-space-4) 0 0;
+    color: var(--h3-ink);
+    font-size: var(--brand-type-lead);
+  }
+
+  .first__facts {
+    display: grid;
+    gap: var(--brand-space-2);
+    margin: var(--brand-space-5) 0 0;
+    padding: var(--brand-space-4) 0 0;
+    border-block-start: 1px solid var(--brand-border);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    list-style: none;
+  }
+
+  .first__shot {
+    margin: 0;
+  }
+
+  .first__shot img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    box-shadow: var(--brand-shadow);
+  }
+
+  @media (max-width: 64rem) {
+    .first {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

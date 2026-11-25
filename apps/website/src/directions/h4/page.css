@@ -1,0 +1,35 @@
+/* Fraunces (SIL Open Font License), the one extra font: the headline and the page's handwritten-feeling notes. */
+@font-face {
+  font-family: Fraunces;
+  src: url('./fonts/fraunces-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: Fraunces;
+  src: url('./fonts/fraunces-latin-italic.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+.direction-h4 {
+  --h4-font-display: Fraunces, Georgia, serif;
+  /* The one warm accent: the dispenser's body and the pencil of the notes. */
+  --h4-sand: #e4d6bd;
+  --h4-sand-muted: #b9ab93;
+  --h4-width: min(118rem, 100% - 2 * var(--h4-gutter));
+  --h4-gutter: clamp(1rem, 4vw, 4rem);
+  scroll-padding-top: 5rem;
+}
+
+.direction-h4 body {
+  overflow-x: clip;
+}
+
+.direction-h4 .h4-wrap {
+  width: var(--h4-width);
+  margin-inline: auto;
+}

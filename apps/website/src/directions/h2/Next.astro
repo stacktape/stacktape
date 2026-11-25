@@ -1,0 +1,166 @@
+---
+import Tape from '../../brand/Tape.astro';
+import reviewLarge from './shots/review-2880.webp';
+import reviewSmall from './shots/review-1440.webp';
+import reviewPhone from './shots/review-phone.webp';
+
+/** Three facts a CTO can check, right under the hero. */
+const FACTS = [
+  {
+    title: 'Open-source CLI (MIT)',
+    text: 'Deploys with your own AWS credentials. No account needed.',
+    href: 'https://github.com/stacktape/stacktape'
+  },
+  {
+    title: 'AWS bills you directly',
+    text: 'At AWS prices. The Console is free up to $200 a month of AWS spend managed by Stacktape.',
+    href: '/pricing'
+  },
+  {
+    title: 'Benchmarks, losses included',
+    text: 'Deploy times against CDK, SST, Serverless, Heroku and Render.',
+    href: '/benchmarks'
+  }
+];
+---
+
+<section class="h2-facts" aria-label="What you can check">
+  <ul class="h2-container h2-facts__list">
+    {
+      FACTS.map((fact) => (
+        <li>
+          <a class="brand-link" href={fact.href}>
+            {fact.title}
+          </a>
+          <span>{fact.text}</span>
+        </li>
+      ))
+    }
+  </ul>
+</section>
+
+<section class="h2-designs" aria-labelledby="h2-designs-title">
+  <div class="h2-container">
+    <div class="h2-designs__intro">
+      <Tape variant="marker">01 · Designs</Tape>
+      <h2 class="h2-display" id="h2-designs-title">It reads your repo and proposes the AWS setup.</h2>
+      <p>
+        Every resource shows why it’s there, the line of code behind it and what it costs a month. Nothing is created
+        until you confirm.
+      </p>
+    </div>
+    <figure class="h2-designs__window">
+      <picture>
+        <source media="(max-width: 40rem)" srcset={reviewPhone.src} width={reviewPhone.width} height={reviewPhone.height} />
+        <img
+        src={reviewSmall.src}
+        srcset={`${reviewSmall.src} 1440w, ${reviewLarge.src} 2880w`}
+        sizes="(min-width: 84rem) 84rem, 100vw"
+        width={reviewSmall.width}
+        height={reviewSmall.height}
+        alt="The init wizard's Review step for a Next.js app: a diagram of the site and its Postgres database, an estimated $32 a month, and the generated stacktape.yml."
+        loading="lazy"
+        decoding="async"
+      />
+      </picture>
+    </figure>
+  </div>
+</section>
+
+<style>
+  .h2-facts__list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: var(--brand-space-5) 0;
+    border-block: 1px solid var(--brand-border);
+    list-style: none;
+  }
+
+  .h2-facts li {
+    display: grid;
+    justify-items: center;
+    align-content: start;
+    gap: var(--brand-space-1);
+    padding-inline: var(--brand-space-6);
+    font-size: var(--brand-type-sm);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  .h2-facts li + li {
+    border-inline-start: 1px solid var(--brand-border);
+  }
+
+  .h2-facts a {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+    text-decoration-color: var(--brand-border);
+  }
+
+  .h2-facts span {
+    color: var(--brand-muted);
+  }
+
+  .h2-designs {
+    padding-block: var(--brand-space-9);
+  }
+
+  .h2-designs__intro {
+    display: grid;
+    justify-items: center;
+    gap: var(--brand-space-4);
+    max-inline-size: 44rem;
+    margin: 0 auto var(--brand-space-7);
+    text-align: center;
+  }
+
+  h2 {
+    font-size: clamp(2.25rem, 1.2rem + 2.6vw, 4rem);
+    line-height: 1;
+  }
+
+  .h2-designs__intro p {
+    max-inline-size: 36rem;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+    text-wrap: balance;
+  }
+
+  .h2-designs__window {
+    overflow: hidden;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    box-shadow: 0 40px 90px rgb(0 0 0 / 45%);
+  }
+
+  .h2-designs__window picture,
+  .h2-designs__window img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+  }
+
+  @media (max-width: 40rem) {
+    .h2-designs__window {
+      max-inline-size: 24rem;
+      margin-inline: auto;
+    }
+  }
+
+  @media (max-width: 56rem) {
+    .h2-facts__list {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--brand-space-4);
+    }
+
+    .h2-facts li {
+      padding-inline: 0;
+    }
+
+    .h2-facts li + li {
+      padding-block-start: var(--brand-space-4);
+      border-block-start: 1px solid var(--brand-border);
+      border-inline-start: 0;
+    }
+  }
+</style>

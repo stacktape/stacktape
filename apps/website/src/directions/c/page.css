@@ -1,0 +1,59 @@
+.direction-c {
+  --c-container: min(100rem, 100% - 2 * var(--brand-space-6));
+  /* Anchor jumps land below the sticky header. */
+  scroll-padding-block-start: 6rem;
+}
+
+@media (max-width: 40rem) {
+  .direction-c {
+    --c-container: calc(100% - 2 * var(--brand-space-4));
+  }
+}
+
+/* Shared by every section of direction C. */
+.c-section {
+  inline-size: var(--c-container);
+  margin-inline: auto;
+  padding-block: var(--brand-space-9);
+  border-block-start: 1px solid var(--brand-border);
+}
+
+.c-h2 {
+  margin: 0;
+  font: var(--brand-weight-heading) var(--brand-type-title) / var(--brand-leading-heading) var(--brand-font-heading);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.c-intro {
+  display: grid;
+  justify-items: start;
+  gap: var(--brand-space-4);
+}
+
+.c-muted {
+  margin: 0;
+  color: var(--brand-muted);
+  text-wrap: pretty;
+}
+
+/* A product screenshot: the real Console or init wizard, framed like a window. */
+.c-frame {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border: 1px solid var(--brand-border);
+  border-radius: var(--brand-radius);
+  box-shadow: var(--brand-shadow);
+}
+
+.c-placeholder {
+  border-radius: var(--brand-radius);
+  background: var(--brand-surface);
+}
+
+@media (max-width: 64rem) {
+  .c-section {
+    padding-block: var(--brand-space-8);
+  }
+}

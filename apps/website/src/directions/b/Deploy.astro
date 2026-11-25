@@ -1,0 +1,230 @@
+---
+import Tape from '../../brand/Tape.astro';
+import { bars, FIRST_RUN, runDate } from './bench';
+import Race from './Race.astro';
+import Shot from './Shot.astro';
+import previewLarge from './shots/preview-main-2448.webp';
+import previewSmall from './shots/preview-main-1224.webp';
+
+const lambda = bars('lambda-deploy', 'handler', 'lambda-25');
+const container = bars('container-deploy', 'code-change', 'container-node');
+const push = bars('git-push', 'warm', 'container-node');
+const pushPython = bars('git-push', 'warm', 'container-python');
+const shared = bars('lambda-deploy', 'shared', 'lambda-5');
+const pushDate = push.find((bar) => bar.tool === 'stacktape')?.date ?? FIRST_RUN.date;
+/*
+ * A dependency or configuration change can't use code swap. The data file gives Stacktape's normal image deploy
+ * only in a note on container-deploy ("last measured on 17 October at 40.1, 47.6 and 57.6 s"), so the Node.js
+ * figure is set here and the competitors come from the same case.
+ */
+const IMAGE_DEPLOY_NODE = { tool: 'stacktape', label: 'Stacktape', seconds: 40.1, date: '2026-10-17' };
+const imageDeploy = [IMAGE_DEPLOY_NODE, ...container.filter((bar) => bar.tool !== 'stacktape')].toSorted(
+  (a, b) => a.seconds - b.seconds
+);
+const scale = Math.max(...[lambda, container, push, pushPython, shared, imageDeploy].flat().map((bar) => bar.seconds));
+/** How much faster the winner of a case we lose is, in seconds. */
+const lead = (case_: typeof shared) => {
+  const us = case_.find((bar) => bar.tool === 'stacktape')?.seconds ?? 0;
+  return (us - case_[0].seconds).toFixed(1);
+};
+---
+
+<div class="b-deploy">
+  <div class="b-bench" data-races>
+    <div class="b-bench__head">
+      <p class="b-bench__run">
+        Preliminary run, {runDate(FIRST_RUN.date)}. Seconds until the new code answers, lower is better.
+      </p>
+      <p class="b-bench__replay" data-replay hidden>
+        Played at 10× speed. <button type="button">Run again</button>
+      </p>
+    </div>
+    <div class="b-bench__races">
+      <Race title="Lambda functions" detail="A code change to 25 functions" bars={lambda} scale={scale} />
+      <Race
+        title="Containers"
+        detail="A code change to a Node.js service"
+        note="* With code swap: opt-in, for changes to code only."
+        bars={container}
+        rename={{ stacktape: 'Stacktape*' }}
+        scale={scale}
+      />
+      <Race
+        title="Git push"
+        detail="From git push until a Node.js service serves the change"
+        note="* Stacktape swapped the code in place on its warm build runner. Heroku and Render built from the pushed source on their own machines."
+        bars={push}
+        rename={{ stacktape: 'Stacktape*' }}
+        scale={scale}
+      />
+    </div>
+    <div class="b-bench__races b-bench__lose">
+      <p class="b-bench__lose-label"><Tape tone="gray">Where we’re slower</Tape></p>
+      <Race
+        title="Git push, Python"
+        detail={`Heroku is ${lead(pushPython)} s faster`}
+        bars={pushPython}
+        scale={scale}
+      />
+      <Race
+        title="Dependency or config change"
+        detail={`A Node.js service without code swap. Heroku is ${lead(imageDeploy)} s faster`}
+        note={`Stacktape’s image deploy measured on ${runDate(IMAGE_DEPLOY_NODE.date)}.`}
+        bars={imageDeploy}
+        scale={scale}
+      />
+      <Race
+        title="Shared code, 5 functions"
+        detail={`CDK hotswap is ${lead(shared)} s faster`}
+        bars={shared}
+        scale={scale}
+      />
+    </div>
+    <p class="b-bench__foot">
+      Median of 5 to 10 runs. Command-line deploys ran on a dedicated EC2 c7i.2xlarge in eu-west-1; Stacktape’s Git push
+      ran on its build runner on {runDate(pushDate)}.
+      <a class="brand-link" href="/benchmarks">All results and how we measured</a>
+    </p>
+  </div>
+
+  <div class="b-preview">
+    <div class="b-preview__copy">
+      <h3>A preview for every pull request</h3>
+      <p>
+        Add a pull request rule for a branch, and each pull request into it gets its own stage,{' '}
+        <code>pr-421</code> here. Turn on delete on close and the stage goes away when the pull request closes.
+      </p>
+      <a class="brand-link" href="https://docs.stacktape.com/ci-cd-and-gitops/gitops-with-console">Git deployments</a>
+    </div>
+    <div class="b-frame">
+      <div class="b-frame__bar" aria-hidden="true">
+        <span class="b-frame__dots"><i></i><i></i><i></i></span>
+        <span class="b-frame__where">console.stacktape.com · storefront · pr-421</span>
+      </div>
+      <Shot
+        class="b-preview__shot"
+        small={previewSmall}
+        large={previewLarge}
+        alt="The storefront project in the Console with the pr-421 preview stage selected: healthy, deployed from feature/pr-421, with its requests and latency."
+        sizes="(min-width: 90rem) 52rem, (min-width: 64rem) 60vw, 94vw"
+      />
+    </div>
+  </div>
+</div>
+
+<style>
+  .b-deploy {
+    display: grid;
+    gap: clamp(3rem, 2rem + 3vw, 5rem);
+  }
+
+  .b-bench {
+    display: grid;
+    gap: var(--brand-space-6);
+    padding: clamp(1.25rem, 0.75rem + 2vw, 2.5rem);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-inset);
+  }
+
+  .b-bench__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--brand-space-3);
+  }
+
+  .b-bench__run {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-bench__replay {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-bench__replay[hidden] {
+    display: none;
+  }
+
+  .b-bench__replay button {
+    margin-left: var(--brand-space-2);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--brand-teal);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .b-bench__replay button:hover {
+    color: var(--brand-text);
+  }
+
+  .b-bench__races {
+    display: grid;
+    gap: var(--brand-space-6);
+  }
+
+  .b-bench__lose {
+    padding-top: var(--brand-space-6);
+    border-top: 1px solid var(--brand-border);
+  }
+
+  .b-bench__foot {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
+  }
+
+  .b-bench__foot a {
+    margin-left: var(--brand-space-2);
+  }
+
+  .b-preview {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2.6fr);
+    align-items: start;
+    gap: var(--brand-space-6) clamp(2rem, 1rem + 3vw, 5rem);
+  }
+
+  .b-preview__copy {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-3);
+    padding-top: var(--brand-space-6);
+    font-size: var(--brand-type-sm);
+  }
+
+  h3 {
+    font: var(--brand-weight-heading) var(--brand-type-title) / 1.15 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  .b-preview__copy p {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-base);
+  }
+
+  code {
+    font-family: var(--brand-font-mono);
+    font-size: 0.9em;
+  }
+
+  .b-preview__shot {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  @media (max-width: 64rem) {
+    .b-preview {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .b-preview__copy {
+      padding-top: 0;
+    }
+  }
+</style>

@@ -1,0 +1,151 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { CommandBox } from '../../brand/CommandBox';
+import TapedStack from './TapedStack.astro';
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero__copy">
+    <h1 id="hero-title">AWS DevOps, <span>fully automated.</span></h1>
+    <p class="hero__lead">
+      Stacktape is a CLI and a Console that set up, deploy and run your app in your own AWS account. It covers
+      infrastructure, deploys, monitoring, incidents, security and costs.
+    </p>
+    <div class="hero__start">
+      <CommandBox client:load id="install" preselect={false} />
+      <p class="hero__ownership">
+        <span>Runs in your AWS account on standard CloudFormation.</span>
+        <span>Stop using Stacktape and your app keeps running.</span>
+      </p>
+      <div class="hero__actions">
+        <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com"
+          >Read the docs</ButtonLink
+        >
+        <a class="brand-link brand-link--muted" href="https://github.com/stacktape/stacktape">Open source (MIT)</a>
+      </div>
+    </div>
+  </div>
+  <figure class="hero__art">
+    <TapedStack />
+    <figcaption class="hero__excerpt">
+      <img
+        class="c-frame"
+        src="/d/c/init-resources.webp"
+        width="387"
+        height="161"
+        alt="Two resources from the init wizard's Review step: a Postgres database, db.t4g.small with 20 GB, at $32 a month, and a Next.js site at pay per use."
+      />
+      <span class="c-muted"
+        >A real <code>stacktape init</code> result for a Next.js app with Postgres. Every resource gets an estimate from AWS
+        list prices before anything is created.</span
+      >
+    </figcaption>
+  </figure>
+</section>
+
+<style>
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 38rem) minmax(0, 1fr);
+    align-items: center;
+    column-gap: var(--brand-space-9);
+    inline-size: var(--c-container);
+    min-block-size: min(100svh - 4.25rem, 54rem);
+    margin-inline: auto;
+    padding-block: var(--brand-space-8);
+  }
+
+  h1 {
+    margin: 0;
+    font: var(--brand-weight-heading) var(--brand-type-display) / var(--brand-leading-heading) var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  h1 span {
+    display: block;
+  }
+
+  .hero__lead {
+    margin: var(--brand-space-5) 0 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+    text-wrap: pretty;
+  }
+
+  .hero__start {
+    display: grid;
+    gap: var(--brand-space-4);
+    margin-block-start: var(--brand-space-7);
+  }
+
+  .hero__ownership {
+    display: grid;
+    margin: 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--brand-space-5);
+    margin-block-start: var(--brand-space-2);
+    font-size: var(--brand-type-sm);
+  }
+
+  .hero__art {
+    display: grid;
+    gap: var(--brand-space-5);
+    margin: 0;
+  }
+
+  .hero__excerpt {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-5);
+    margin-inline-start: 12%;
+    font-size: var(--brand-type-sm);
+  }
+
+  .hero__excerpt img {
+    flex: none;
+    inline-size: min(24rem, 60%);
+  }
+
+  .hero__excerpt span {
+    max-inline-size: 20rem;
+  }
+
+  @media (max-width: 40rem) {
+    .hero__excerpt {
+      flex-direction: column;
+      align-items: flex-start;
+      margin-inline-start: 0;
+    }
+
+    .hero__excerpt img {
+      inline-size: 100%;
+      max-inline-size: 24rem;
+    }
+  }
+
+  .hero__excerpt code {
+    font-family: var(--brand-font-mono);
+    color: var(--brand-text);
+  }
+
+  @media (max-width: 75rem) {
+    .hero {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--brand-space-8);
+      min-block-size: 0;
+      max-block-size: none;
+      padding-block: var(--brand-space-7) var(--brand-space-8);
+    }
+
+    .hero__copy {
+      max-inline-size: 40rem;
+    }
+  }
+</style>

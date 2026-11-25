@@ -1,0 +1,81 @@
+---
+/** Right after the hero: what customers said, as short verbatim excerpts with name, role and company. */
+const quotes = [
+  {
+    text: 'They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration.',
+    name: 'Henry Garrett',
+    role: 'Founding Engineer, Receipts'
+  },
+  {
+    text: 'Our development and production environments were operational in just two days.',
+    name: 'Eric Allam',
+    role: 'CTO & Founder, Trigger.dev'
+  },
+  {
+    text: "It's allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.",
+    name: 'Rhys Williams',
+    role: 'CTO & Founder, Lastmyle'
+  }
+] as const;
+---
+
+<section class="c-section proof" aria-label="What customers say">
+  {
+    quotes.map((quote) => (
+      <figure class="proof__quote">
+        <blockquote>
+          <p>“{quote.text}”</p>
+        </blockquote>
+        <figcaption>
+          <span class="proof__name">{quote.name}</span>
+          <span class="proof__role">{quote.role}</span>
+        </figcaption>
+      </figure>
+    ))
+  }
+</section>
+
+<style>
+  .proof {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--brand-space-7);
+    padding-block: var(--brand-space-8);
+  }
+
+  .proof__quote {
+    display: grid;
+    align-content: space-between;
+    gap: var(--brand-space-4);
+    margin: 0;
+  }
+
+  blockquote {
+    margin: 0;
+  }
+
+  blockquote p {
+    margin: 0;
+    font-size: var(--brand-type-lead);
+    text-wrap: pretty;
+  }
+
+  figcaption {
+    display: grid;
+    font-size: var(--brand-type-sm);
+  }
+
+  .proof__name {
+    font-weight: var(--brand-weight-label);
+  }
+
+  .proof__role {
+    color: var(--brand-muted);
+  }
+
+  @media (max-width: 64rem) {
+    .proof {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

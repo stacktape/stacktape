@@ -1,0 +1,283 @@
+---
+/**
+ * The hero picture: an app's AWS stack drawn as plates, held together by one strip of Stacktape tape.
+ * Geometry is 2:1 isometric. Plate faces and tape are flat fills; the tape's torn ends use the logo label's
+ * four small teeth. Labels are HTML on top of the SVG so they use the kit's tape and stay sharp.
+ */
+import Tape from '../../brand/Tape.astro';
+
+type Point = readonly [number, number];
+
+const VIEW_W = 980;
+const VIEW_H = 620;
+const CX = 420;
+const W = 215;
+const H = W / 2;
+const THICK = 22;
+const STEP = 60;
+const TOP_Y = 140;
+
+const layers = [
+  { name: 'Web app', service: 'Lambda, S3, CloudFront' },
+  { name: 'API', service: 'ECS Fargate' },
+  { name: 'Jobs', service: 'SQS and Lambda' },
+  { name: 'Database', service: 'RDS PostgreSQL' }
+] as const;
+
+/** What the tape does: the jobs the subheadline names. */
+const jobs = ['Infrastructure', 'Deploys', 'Monitoring', 'Incidents', 'Security', 'Costs'] as const;
+
+const BASE_W = 310;
+const BASE_Y = TOP_Y + STEP * (layers.length - 1) + THICK + 44;
+
+const pts = (points: readonly Point[]) => points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+
+const plate = (y: number, w = W, thick = THICK) => {
+  const h = w / 2;
+  const left: Point = [CX - w, y];
+  const front: Point = [CX, y + h];
+  const right: Point = [CX + w, y];
+  const back: Point = [CX, y - h];
+  return {
+    top: pts([left, back, right, front]),
+    leftFace: pts([left, front, [CX, y + h + thick], [CX - w, y + thick]]),
+    rightFace: pts([front, right, [CX + w, y + thick], [CX, y + h + thick]])
+  };
+};
+
+/** Bottom plate first so each plate above covers the one under it. */
+const plates = layers.map((_, index) => TOP_Y + STEP * index).toReversed();
+const base = plate(BASE_Y, BASE_W, 10);
+
+/** The tape runs down the plates' left faces and folds over the top plate. */
+const TAPE_X = CX - W * 0.68;
+const TAPE_WIDTH = 58;
+const TOOTH = 5;
+const FOLD = 132;
+const leftFaceY = (x: number, y: number) => y + (x - (CX - W)) / 2;
+const lowestY = TOP_Y + STEP * (layers.length - 1);
+const foldA: Point = [TAPE_X, leftFaceY(TAPE_X, TOP_Y)];
+const foldB: Point = [TAPE_X + TAPE_WIDTH, leftFaceY(TAPE_X + TAPE_WIDTH, TOP_Y)];
+
+/** Four teeth between two corners: valleys at the corners, tips pushed out along `out`. */
+const teeth = (from: Point, to: Point, out: Point) =>
+  Array.from({ length: 9 }, (_, index): Point => {
+    const t = index / 8;
+    const push = index % 2 === 1 ? TOOTH : 0;
+    return [from[0] + (to[0] - from[0]) * t + out[0] * push, from[1] + (to[1] - from[1]) * t + out[1] * push];
+  });
+
+const backDir: Point = [2 / Math.sqrt(5), -1 / Math.sqrt(5)];
+const topEndA: Point = [foldA[0] + FOLD, foldA[1] - FOLD / 2];
+const topEndB: Point = [foldB[0] + FOLD, foldB[1] - FOLD / 2];
+const tapeTop = pts([foldA, ...teeth(topEndA, topEndB, backDir), foldB]);
+
+const bottomY = (x: number) => leftFaceY(x, lowestY) + THICK - 2 - TOOTH;
+const tapeFront = pts([
+  foldA,
+  foldB,
+  ...teeth([foldB[0], bottomY(foldB[0])], [foldA[0], bottomY(foldA[0])], [0, 1])
+]);
+
+/** Labels sit to the right of each plate's right corner. */
+const LEADER = 26;
+const labels = layers.map((layer, index) => ({
+  name: layer.name,
+  service: layer.service,
+  x1: CX + W + 8,
+  x2: CX + W + 8 + LEADER,
+  y: TOP_Y + STEP * index + THICK / 2
+}));
+const pct = (value: number, of: number) => `${((value / of) * 100).toFixed(3)}%`;
+
+const baseLabelY = BASE_Y + BASE_W / 4 + 5;
+const baseLabelX = CX + BASE_W / 2;
+
+/** The jobs hang off the tape's left edge, centred on the strip. */
+const jobsY = TOP_Y + STEP * 1.5 + THICK / 2;
+const jobsRight = CX - W - 56;
+---
+
+<div class="stack" style={`aspect-ratio: ${VIEW_W} / ${VIEW_H}`}>
+  <svg class="stack__art" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} aria-hidden="true">
+    <g class="stack__base">
+      <polygon class="stack__base-top" points={base.top} />
+      <polygon class="stack__base-side" points={base.leftFace} />
+      <polygon class="stack__base-side stack__base-side--right" points={base.rightFace} />
+    </g>
+    {
+      plates.map((y) => {
+        const shape = plate(y);
+        return (
+          <g class="stack__plate">
+            <polygon class="stack__left" points={shape.leftFace} />
+            <polygon class="stack__right" points={shape.rightFace} />
+            <polygon class="stack__top" points={shape.top} />
+          </g>
+        );
+      })
+    }
+    <polygon class="stack__tape stack__tape--front" points={tapeFront} />
+    <polygon class="stack__tape stack__tape--top" points={tapeTop} />
+    {labels.map((label) => <line class="stack__leader" x1={label.x1} x2={label.x2} y1={label.y} y2={label.y} />)}
+    <line class="stack__leader" x1={baseLabelX + 6} x2={baseLabelX + 6 + LEADER} y1={baseLabelY} y2={baseLabelY} />
+  </svg>
+
+  <ul
+    class="stack__jobs"
+    aria-label="What Stacktape does"
+    style={`right: ${pct(VIEW_W - jobsRight, VIEW_W)}; top: ${pct(jobsY, VIEW_H)}`}
+  >
+    {
+      jobs.map((job) => (
+        <li>
+          <Tape class="stack__job">{job}</Tape>
+        </li>
+      ))
+    }
+  </ul>
+
+  <ul class="stack__labels" aria-label="Your stack">
+    {
+      labels.map((label) => (
+        <li class="stack__label" style={`left: ${pct(label.x2 + 10, VIEW_W)}; top: ${pct(label.y, VIEW_H)}`}>
+          <Tape tone="gray">{label.name}</Tape>
+          <span class="stack__service">{label.service}</span>
+        </li>
+      ))
+    }
+    <li
+      class="stack__label stack__label--base"
+      style={`left: ${pct(baseLabelX + LEADER + 16, VIEW_W)}; top: ${pct(baseLabelY, VIEW_H)}`}
+    >
+      <span>Your AWS account</span>
+    </li>
+  </ul>
+</div>
+
+<style>
+  .stack {
+    container-type: inline-size;
+    position: relative;
+    inline-size: 100%;
+  }
+
+  .stack__jobs,
+  .stack__label {
+    font-size: clamp(0.6875rem, 1.55cqi, var(--brand-type-sm));
+  }
+
+  .stack :global(.tape) {
+    font-size: inherit;
+  }
+
+
+  .stack__art {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    overflow: visible;
+  }
+
+  .stack__top {
+    fill: color-mix(in srgb, var(--brand-surface), var(--brand-text) 7%);
+    stroke: color-mix(in srgb, var(--brand-surface), var(--brand-text) 14%);
+    stroke-width: 1;
+    stroke-linejoin: round;
+  }
+
+  .stack__left {
+    fill: var(--brand-inset);
+    stroke: var(--brand-border);
+    stroke-width: 1;
+    stroke-linejoin: round;
+  }
+
+  .stack__right {
+    fill: var(--brand-surface);
+    stroke: var(--brand-border);
+    stroke-width: 1;
+    stroke-linejoin: round;
+  }
+
+  .stack__base-top {
+    fill: color-mix(in srgb, var(--brand-page), var(--brand-text) 2.5%);
+    stroke: color-mix(in srgb, var(--brand-page), var(--brand-text) 24%);
+    stroke-width: 1;
+    stroke-dasharray: 5 5;
+  }
+
+  .stack__base-side {
+    fill: color-mix(in srgb, var(--brand-page), black 25%);
+    stroke: color-mix(in srgb, var(--brand-page), var(--brand-text) 12%);
+    stroke-width: 1;
+  }
+
+  .stack__tape--top {
+    fill: var(--brand-primary-top);
+  }
+
+  .stack__tape--front {
+    fill: var(--brand-primary-bottom);
+  }
+
+  .stack__leader {
+    stroke: color-mix(in srgb, var(--brand-page), var(--brand-text) 30%);
+    stroke-width: 1;
+  }
+
+  .stack__labels {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    pointer-events: none;
+  }
+
+  .stack__jobs {
+    position: absolute;
+    display: grid;
+    justify-items: stretch;
+    gap: var(--brand-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    translate: 0 -50%;
+  }
+
+  .stack__jobs :global(.stack__job) {
+    justify-content: flex-start;
+    inline-size: 100%;
+  }
+
+  .stack__label {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-3);
+    translate: 0 -50%;
+    white-space: nowrap;
+  }
+
+  .stack__jobs li {
+    display: flex;
+    white-space: nowrap;
+  }
+
+  .stack__service {
+    color: var(--brand-muted);
+  }
+
+  .stack__label--base {
+    color: var(--brand-muted);
+    font-weight: var(--brand-weight-label);
+  }
+
+  @container (max-width: 30rem) {
+    .stack__jobs,
+    .stack__service {
+      display: none;
+    }
+  }
+</style>

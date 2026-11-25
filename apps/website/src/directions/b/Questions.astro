@@ -1,0 +1,92 @@
+---
+const QUESTIONS = [
+  {
+    q: 'Are we locked in?',
+    a: 'It deploys plain CloudFormation stacks into your account, and the config lives in your repo. stacktape synth writes the template.'
+  },
+  {
+    q: 'What if Stacktape disappears?',
+    a: 'The CLI is open source (MIT) and deploys with your own AWS credentials. You would lose the Console: history, monitoring, incidents and costs.'
+  },
+  {
+    q: 'What does the Console see?',
+    a: 'Error events, metrics, check results and security findings. Application logs, build artifacts and secrets stay in your account.'
+  },
+  {
+    q: 'What does it cost?',
+    a: 'The CLI is free at any spend. The Console is free while the AWS spend it manages stays under $200 a month; above that, Flexible costs 19–25% of that managed spend. AWS bills you separately, at AWS prices. Never per seat.'
+  },
+  {
+    q: 'What if we need something it doesn’t support?',
+    a: 'Overrides, raw CloudFormation and AWS CDK constructs deploy in the same stack.'
+  },
+  {
+    q: 'What if a release breaks production?',
+    a: 'One command redeploys a stored earlier release without a rebuild. It doesn’t roll back by itself.'
+  }
+];
+---
+
+<section class="b-questions" aria-labelledby="b-questions-title">
+  <div class="b-questions__head">
+    <h2 id="b-questions-title">Before you bet on it</h2>
+    <p>What CTOs ask us first.</p>
+  </div>
+  <dl class="b-questions__list">
+    {
+      QUESTIONS.map((item) => (
+        <div>
+          <dt>{item.q}</dt>
+          <dd>{item.a}</dd>
+        </div>
+      ))
+    }
+  </dl>
+</section>
+
+<style>
+  .b-questions {
+    display: grid;
+    grid-template-columns: minmax(14rem, 17rem) minmax(0, 1fr);
+    gap: var(--brand-space-6) clamp(2rem, 1rem + 2.5vw, 4rem);
+    width: var(--b-width);
+    margin-inline: auto;
+    padding-block: clamp(4rem, 2.5rem + 4vw, 8rem);
+    border-top: 1px solid var(--brand-border);
+  }
+
+  h2 {
+    font: var(--brand-weight-heading) var(--brand-type-title) / 1.15 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  .b-questions__head p {
+    margin-top: var(--brand-space-2);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-questions__list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--brand-space-6) clamp(2rem, 1rem + 3vw, 5rem);
+    margin: 0;
+  }
+
+  dt {
+    margin-bottom: var(--brand-space-2);
+    font: var(--brand-weight-label) var(--brand-type-lead) / 1.3 var(--brand-font-heading);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--brand-muted);
+  }
+
+  @media (max-width: 64rem) {
+    .b-questions,
+    .b-questions__list {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

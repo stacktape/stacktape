@@ -1,0 +1,29 @@
+---
+// Verbatim sentences from the customer quotes on the earlier home page (apps/website/src/variants/readme/data.ts).
+const quotes = [
+  {
+    text: 'They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration.',
+    name: 'Henry Garrett',
+    role: 'Founding Engineer, Receipts'
+  },
+  {
+    text: "It's allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.",
+    name: 'Rhys Williams',
+    role: 'CTO & Founder, Lastmyle'
+  }
+];
+---
+
+<section class="h1-trust h1-wrap" aria-label="What customers say">
+  {
+    quotes.map((quote) => (
+      <figure class="h1-quote">
+        <blockquote>“{quote.text}”</blockquote>
+        <figcaption>
+          <strong>{quote.name}</strong>
+          <span>{quote.role}</span>
+        </figcaption>
+      </figure>
+    ))
+  }
+</section>
