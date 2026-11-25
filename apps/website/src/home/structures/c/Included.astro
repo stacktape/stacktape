@@ -1,0 +1,163 @@
+---
+/**
+ * The small "also included" grid: six tiles of unequal size, each a fact with real UI or real config next to it.
+ * Sources: gitops-with-console.mdx:117,134; overrides-and-escape-hatches.mdx:4,108-119; cli/dev.mdx:15;
+ * local-development/dev-mode-overview.mdx:8; getting-started/open-source-cli.mdx:17; LICENSE:1; pricing.astro:50,61;
+ * packaging/overview.mdx:37.
+ */
+import Tape from '../../../brand/Tape.astro';
+import preview from './preview-stage.webp';
+
+const overrideExample = `resources:
+  api:
+    type: function
+    overrides:
+      ApiFunction:
+        ReservedConcurrentExecutions: 100`;
+---
+
+<section class="site-frame c-section included" id="included" aria-labelledby="included-title">
+  <div class="c-intro">
+    <Tape variant="marker">Also included</Tape>
+    <h2 class="c-h2" id="included-title">The rest of the job.</h2>
+  </div>
+  <ul class="included__grid">
+    <li class="tile tile--previews">
+      <h3>Pull request previews</h3>
+      <p class="c-muted">
+        A pull request rule deploys each pull request to its own stage, and can delete it when the pull request closes.
+      </p>
+      <img
+        class="c-frame"
+        src={preview.src}
+        width={preview.width / 2}
+        height={preview.height / 2}
+        loading="lazy"
+        alt="The pr-421 preview stage of a storefront project in the Stacktape Console: healthy, deployed from feature/pr-421."
+      />
+    </li>
+    <li class="tile tile--escape">
+      <h3>Escape hatches</h3>
+      <p class="c-muted">
+        Set any CloudFormation property Stacktape does not expose. Raw CloudFormation and CDK constructs deploy in the
+        same stack.
+      </p>
+      <pre><code>{overrideExample}</code></pre>
+    </li>
+    <li class="tile tile--dev">
+      <h3>Dev mode</h3>
+      <p class="c-muted">Run your workloads locally, connected to the stack’s cloud resources.</p>
+      <pre><code>stacktape dev --stage dev-john --region eu-west-1</code></pre>
+    </li>
+    <li class="tile tile--cli">
+      <h3>Open-source CLI</h3>
+      <p class="c-muted">
+        MIT licensed. It deploys with your own AWS credentials, with no Stacktape account. <a
+          class="brand-link"
+          href="https://github.com/stacktape/stacktape">GitHub</a
+        >
+      </p>
+    </li>
+    <li class="tile tile--help">
+      <h3>Engineers, not a ticket queue</h3>
+      <p class="c-muted">
+        On Flexible, a shared Slack channel with the founders who build Stacktape. Enterprise adds up to 24×7 premium
+        support. <a class="brand-link" href="/pricing">Pricing</a>
+      </p>
+    </li>
+    <li class="tile tile--build">
+      <h3>No Dockerfile to write</h3>
+      <p class="c-muted">Python, Java, Go, Ruby, .NET and Rust functions build without a Dockerfile.</p>
+    </li>
+  </ul>
+</section>
+
+<style>
+  .included {
+    display: grid;
+    gap: var(--brand-space-7);
+  }
+
+  .included__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      'previews previews escape dev'
+      'previews previews escape cli'
+      'help help build build';
+    gap: var(--brand-space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tile {
+    display: grid;
+    align-content: start;
+    gap: var(--brand-space-3);
+    padding: var(--brand-space-5);
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-surface);
+  }
+
+  .tile--previews {
+    grid-area: previews;
+  }
+
+  .tile--escape {
+    grid-area: escape;
+  }
+
+  .tile--dev {
+    grid-area: dev;
+  }
+
+  .tile--cli {
+    grid-area: cli;
+  }
+
+  .tile--help {
+    grid-area: help;
+  }
+
+  .tile--build {
+    grid-area: build;
+  }
+
+  .tile--previews img {
+    margin-block-start: var(--brand-space-2);
+  }
+
+  h3 {
+    margin: 0;
+    font-size: var(--brand-type-base);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .tile p {
+    font-size: var(--brand-type-sm);
+  }
+
+  pre {
+    white-space: pre-wrap;
+    margin: var(--brand-space-2) 0 0;
+    padding: var(--brand-space-4);
+    overflow-x: auto;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-inset);
+    font: var(--brand-type-xs) / var(--brand-leading-body) var(--brand-font-mono);
+  }
+
+  @media (max-width: 64rem) {
+    .included__grid {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: none;
+    }
+
+    .tile {
+      grid-area: auto;
+    }
+  }
+</style>

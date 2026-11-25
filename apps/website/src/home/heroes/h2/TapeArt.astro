@@ -1,0 +1,319 @@
+---
+/**
+ * The hero picture: large strips of the logo's tape, torn with the logo's four teeth, laid diagonally at three
+ * depths. Each strip is printed, like packaging tape, with the stack mark and one job Stacktape takes over.
+ * Drawn in SVG; it reads complete without JavaScript or motion.
+ */
+type Tone = 'teal' | 'deep' | 'gray';
+type Depth = 'far' | 'mid' | 'near';
+/** A strip in the band: `offset` across the band, `shift` along it, both from the band's axis centre. */
+type Strip = {
+  offset: number;
+  shift: number;
+  length: number;
+  width: number;
+  tone: Tone;
+  word: string;
+  /** Degrees added to the band's angle. */
+  tilt?: number;
+};
+type Scene = {
+  id: string;
+  width: number;
+  height: number;
+  /** The band's axis: its centre and its angle in degrees (negative rises to the right). */
+  axis: { x: number; y: number; angle: number };
+  layers: Record<Depth, Strip[]>;
+};
+
+const SCENES: Scene[] = [
+  {
+    id: 'wide',
+    width: 1600,
+    height: 760,
+    axis: { x: 800, y: 360, angle: -28 },
+    layers: {
+      far: [
+        { offset: -30, shift: 0, length: 1900, width: 170, tone: 'gray', word: 'Infrastructure' },
+        { offset: 250, shift: 200, length: 1500, width: 110, tone: 'deep', word: 'Incidents' }
+      ],
+      mid: [
+        { offset: -200, shift: -300, length: 980, width: 118, tone: 'deep', word: 'Monitoring' },
+        { offset: 110, shift: 480, length: 820, width: 96, tone: 'gray', word: 'Costs' }
+      ],
+      near: [
+        { offset: -20, shift: -800, length: 760, width: 170, tone: 'teal', word: 'Deploys' },
+        { offset: 123, shift: 794, length: 700, width: 130, tone: 'teal', word: 'Security', tilt: 2 }
+      ]
+    }
+  },
+  {
+    id: 'phone',
+    width: 400,
+    height: 820,
+    axis: { x: 200, y: 400, angle: -30 },
+    layers: {
+      far: [
+        { offset: -90, shift: 0, length: 1000, width: 110, tone: 'gray', word: 'Infrastructure' },
+        { offset: 150, shift: 60, length: 900, width: 90, tone: 'deep', word: 'Monitoring' }
+      ],
+      mid: [{ offset: -250, shift: 260, length: 500, width: 64, tone: 'deep', word: 'Costs' }],
+      near: [{ offset: 275, shift: -292, length: 330, width: 74, tone: 'teal', word: 'Deploys', tilt: 16 }]
+    }
+  }
+];
+
+const DEPTHS: Depth[] = ['far', 'mid', 'near'];
+
+const place = ({ axis }: Scene, strip: Strip) => {
+  const radians = (axis.angle * Math.PI) / 180;
+  const [ux, uy] = [Math.cos(radians), Math.sin(radians)];
+  const x = axis.x + ux * strip.shift - uy * strip.offset;
+  const y = axis.y + uy * strip.shift + ux * strip.offset;
+  return `translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${axis.angle + (strip.tilt ?? 0)})`;
+};
+
+/** The logo label's tear: four teeth per end, 11.6% of the strip's width deep. */
+const outline = ({ length, width }: Strip) => {
+  const half = length / 2;
+  const depth = width * 0.116;
+  const step = width / 8;
+  const right = Array.from({ length: 9 }, (_, i) => [half + (i % 2) * depth, -width / 2 + i * step]);
+  const left = Array.from({ length: 9 }, (_, i) => [-half - (i % 2) * depth, width / 2 - i * step]);
+  return [...right, ...left].map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+};
+
+/** Print positions along the strip: a stack mark, then the word, repeated from end to end. */
+const prints = ({ length, width, word }: Strip) => {
+  const size = width * 0.17;
+  const wordWidth = word.length * size * 0.62 + (word.length - 1) * size * 0.24;
+  const mark = width * 0.5;
+  const gap = size * 1.4;
+  const unit = mark + gap + wordWidth + gap;
+  const count = Math.ceil((length + unit) / unit) + 1;
+  const start = -length / 2 - unit / 2;
+  return {
+    size,
+    mark,
+    items: Array.from({ length: count }, (_, i) => {
+      const at = start + i * unit;
+      return { mark: at, word: at + mark / 2 + gap + wordWidth / 2 };
+    })
+  };
+};
+
+const TONES: Record<Tone, { top: string; bottom: string; ink: string }> = {
+  teal: { top: '#1f948e', bottom: '#12696a', ink: 'rgb(255 255 255 / 24%)' },
+  deep: { top: '#166560', bottom: '#0d4746', ink: 'rgb(255 255 255 / 16%)' },
+  gray: { top: '#3b4343', bottom: '#272d2d', ink: 'rgb(241 246 246 / 14%)' }
+};
+---
+
+<div class="h2-art" data-h2-art aria-hidden="true">
+  {
+    SCENES.map((scene) => (
+      <div class={`h2-art__scene h2-art__scene--${scene.id}`}>
+        {DEPTHS.map((depth) => (
+          <svg
+            class={`h2-art__layer h2-art__layer--${depth}`}
+            viewBox={`0 0 ${scene.width} ${scene.height}`}
+            preserveAspectRatio="xMidYMid slice"
+          >
+            <defs>
+              <symbol id={`h2-mark-${scene.id}-${depth}`} viewBox="0 0 64 64">
+                <polygon points="16,38.5 20.2,36.2 32,42.5 43.8,36.2 48,38.5 32,47" />
+                <polygon points="16,32 20.2,29.7 32,36 43.8,29.7 48,32 32,40.5" />
+                <polygon points="32,17 48,25.5 32,34 16,25.5" />
+              </symbol>
+              <filter
+                id={`h2-matte-${scene.id}-${depth}`}
+                x="-20%"
+                y="-20%"
+                width="140%"
+                height="150%"
+                color-interpolation-filters="sRGB"
+              >
+                <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" seed="7" result="noise" />
+                <feColorMatrix
+                  in="noise"
+                  type="matrix"
+                  values="0 0 0 0.32 0.76  0 0 0 0.32 0.76  0 0 0 0.32 0.76  0 0 0 0 1"
+                  result="grain"
+                />
+                <feBlend in="SourceGraphic" in2="grain" mode="multiply" result="matte" />
+                <feComposite in="matte" in2="SourceAlpha" operator="in" result="strip" />
+                <feDropShadow
+                  in="SourceAlpha"
+                  dx="0"
+                  dy={depth === 'near' ? 16 : 9}
+                  stdDeviation={depth === 'near' ? 18 : 10}
+                  flood-color="#050707"
+                  flood-opacity={depth === 'near' ? 0.7 : 0.5}
+                  result="shadow"
+                />
+                <feMerge>
+                  <feMergeNode in="shadow" />
+                  <feMergeNode in="strip" />
+                </feMerge>
+              </filter>
+            </defs>
+            <g filter={`url(#h2-matte-${scene.id}-${depth})`}>
+              {scene.layers[depth].map((strip, index) => {
+                const key = `h2-${scene.id}-${depth}-${index}`;
+                const tone = TONES[strip.tone];
+                const print = prints(strip);
+                return (
+                  <g transform={place(scene, strip)}>
+                    <defs>
+                      <linearGradient
+                        id={`${key}-fill`}
+                        gradientUnits="userSpaceOnUse"
+                        x1="0"
+                        y1={-strip.width / 2}
+                        x2="0"
+                        y2={strip.width / 2}
+                      >
+                        <stop offset="0" stop-color={tone.top} />
+                        <stop offset="1" stop-color={tone.bottom} />
+                      </linearGradient>
+                      <clipPath id={`${key}-clip`}>
+                        <polygon points={outline(strip)} />
+                      </clipPath>
+                    </defs>
+                    <polygon points={outline(strip)} fill={`url(#${key}-fill)`} />
+                    <g clip-path={`url(#${key}-clip)`} fill={tone.ink}>
+                      {print.items.map((item) => (
+                        <>
+                          {depth === 'near' && (<use
+                            href={`#h2-mark-${scene.id}-${depth}`}
+                            x={item.mark - print.mark / 2}
+                            y={-print.mark / 2}
+                            width={print.mark}
+                            height={print.mark}
+                          />)}
+                          <text
+                            class="h2-art__print"
+                            x={item.word}
+                            y="0"
+                            font-size={print.size}
+                            text-anchor="middle"
+                            dominant-baseline="central"
+                          >
+                            {strip.word}
+                          </text>
+                        </>
+                      ))}
+                    </g>
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
+        ))}
+      </div>
+    ))
+  }
+</div>
+
+<script>
+  const art = document.querySelector<HTMLElement>('[data-h2-art]');
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pointer = window.matchMedia('(pointer: fine)').matches;
+  if (art && !still && pointer) {
+    let frame = 0;
+    window.addEventListener(
+      'pointermove',
+      (event) => {
+        cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => {
+          art.style.setProperty('--h2-px', (event.clientX / window.innerWidth - 0.5).toFixed(3));
+          art.style.setProperty('--h2-py', (event.clientY / window.innerHeight - 0.5).toFixed(3));
+        });
+      },
+      { passive: true }
+    );
+  }
+</script>
+
+<style>
+  .h2-art {
+    --h2-px: 0;
+    --h2-py: 0;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    mask-image:
+      linear-gradient(to bottom, #000 72%, transparent 98%),
+      radial-gradient(130% 100% at 50% 40%, #000 55%, transparent 90%);
+    mask-composite: intersect;
+  }
+
+  .h2-art__scene {
+    position: absolute;
+    inset: 0;
+  }
+
+  .h2-art__scene--phone {
+    display: none;
+  }
+
+  .h2-art__layer {
+    position: absolute;
+    inset: -2%;
+    inline-size: 104%;
+    block-size: 104%;
+    transition: transform 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    will-change: transform;
+  }
+
+  .h2-art__layer--far {
+    filter: blur(14px);
+    opacity: 0.75;
+    transform: translate(calc(var(--h2-px) * -8px), calc(var(--h2-py) * -6px));
+  }
+
+  .h2-art__layer--mid {
+    filter: blur(3.5px);
+    opacity: 0.9;
+    transform: translate(calc(var(--h2-px) * -16px), calc(var(--h2-py) * -10px));
+  }
+
+  .h2-art__layer--near {
+    transform: translate(calc(var(--h2-px) * -30px), calc(var(--h2-py) * -18px));
+  }
+
+  .h2-art__print {
+    font-family: var(--brand-font-mono);
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .h2-art {
+      animation: h2-settle 1.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+
+    @keyframes h2-settle {
+      from {
+        opacity: 0;
+        transform: scale(1.035);
+      }
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .h2-art {
+      mask-image: linear-gradient(to bottom, #000 88%, transparent);
+    }
+
+    .h2-art__scene--wide {
+      display: none;
+    }
+
+    .h2-art__scene--phone {
+      display: block;
+    }
+  }
+</style>

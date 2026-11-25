@@ -1,0 +1,8 @@
+/* Newsreader (SIL Open Font License, see fonts/LICENSE), under a name only this hero uses. */
+@font-face {
+  font-family: 'H3 Newsreader';
+  src: url('./fonts/newsreader-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}

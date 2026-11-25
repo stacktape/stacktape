@@ -1,0 +1,50 @@
+[
+  {
+    "id": "api",
+    "label": "API",
+    "x": 42.66,
+    "y": 61.58
+  },
+  {
+    "id": "site",
+    "label": "Next.js site",
+    "x": 28.53,
+    "y": 32.59
+  },
+  {
+    "id": "functions",
+    "label": "Functions",
+    "x": 56.25,
+    "y": 53.54
+  },
+  {
+    "id": "queue",
+    "label": "Queue",
+    "x": 44.29,
+    "y": 39.39
+  },
+  {
+    "id": "db",
+    "label": "Postgres",
+    "x": 71.2,
+    "y": 27.91
+  },
+  {
+    "id": "worker",
+    "label": "Worker",
+    "x": 57.34,
+    "y": 31.67
+  },
+  {
+    "id": "uploads",
+    "label": "Uploads",
+    "x": 82.61,
+    "y": 37.62
+  },
+  {
+    "id": "stage",
+    "label": "production",
+    "x": 83.04,
+    "y": 46.69
+  }
+]

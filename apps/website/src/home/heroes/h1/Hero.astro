@@ -1,0 +1,406 @@
+---
+/**
+ * Hero H1, "A world": the app's AWS resources as a small isometric place at dusk. The art is generated: world.svg
+ * renders the Console diagram's own shapes (packages/ui-react isometric NodeShape) on three stacked stage sheets with
+ * a tape strap, sky.svg is the sun and cloud banks. Generators and parameters: <loop>/tools/h1-world/. Edit those,
+ * not the SVGs.
+ */
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { CommandBox } from '../../../brand/CommandBox';
+import Tape from '../../../brand/Tape.astro';
+import newsreader from './fonts/newsreader-latin.woff2?url';
+import newsreaderItalic from './fonts/newsreader-latin-italic.woff2?url';
+import sky from './sky.svg?raw';
+import anchors from './world-labels.json';
+import world from './world.svg?raw';
+
+type Props = { subheadline?: string };
+
+const {
+  subheadline = "Stacktape's CLI and Console design, deploy, monitor and secure your app's infrastructure in your own AWS account."
+} = Astro.props;
+
+/** On phones the drawing's own labels are too small to read, so a few of them are set again as tape labels. */
+const phoneTags = anchors.filter((anchor) => ['site', 'api', 'db', 'stage'].includes(anchor.id));
+---
+
+<link rel="preload" href={newsreader} as="font" type="font/woff2" crossorigin />
+<link rel="preload" href={newsreaderItalic} as="font" type="font/woff2" crossorigin />
+<section class="h1-hero" aria-labelledby="h1-title">
+  <div class="h1-sky"><Fragment set:html={sky} /></div>
+  <div class="h1-copy site-frame">
+    <h1 class="h1-title" id="h1-title"><span>AWS DevOps,</span> <em>fully automated.</em></h1>
+    <p class="h1-sub">{subheadline}</p>
+    <div class="h1-world" data-h1-world>
+      <div
+        class="h1-world__art"
+        role="img"
+        aria-label="An app's AWS resources, an API, functions, Postgres, a queue, a worker, uploads and a Next.js site, standing on three stacked stages: production, staging and a pull request preview. A strip of teal tape holds the stack together."
+      >
+        <Fragment set:html={world} />
+        <div class="h1-world__tags" aria-hidden="true">
+          {
+            phoneTags.map((tag) => (
+              <Tape tone="gray" style={`left: ${tag.x}%; top: ${tag.y}%`}>
+                {tag.label}
+              </Tape>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+    <div class="h1-start">
+      <CommandBox client:load id="install" preselect={false} />
+      <div class="h1-start__more">
+        <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com">Read the docs</ButtonLink>
+        <p class="h1-own">
+          Runs in your AWS account on standard CloudFormation. Stop using Stacktape and your app keeps running.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // The world leans a few pixels towards the pointer. Nothing moves on its own, and nothing moves with reduced motion.
+  const world = document.querySelector<HTMLElement>('[data-h1-world]');
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fine = window.matchMedia('(pointer: fine)').matches;
+  if (world && !still && fine) {
+    let frame = 0;
+    window.addEventListener('pointermove', (event) => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const x = event.clientX / window.innerWidth - 0.5;
+        const y = event.clientY / window.innerHeight - 0.5;
+        world.style.setProperty('--h1-lean-x', `${(x * -10).toFixed(1)}px`);
+        world.style.setProperty('--h1-lean-y', `${(y * -6).toFixed(1)}px`);
+      });
+    });
+  }
+</script>
+
+<style>
+  /* Newsreader (SIL OFL, licence in fonts/), used only inside this hero. Optical sizing follows the font size. */
+  @font-face {
+    font-family: 'Stacktape H1 Newsreader';
+    src: url('./fonts/newsreader-latin.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 200 800;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'Stacktape H1 Newsreader';
+    src: url('./fonts/newsreader-latin-italic.woff2') format('woff2');
+    font-style: italic;
+    font-weight: 200 800;
+    font-display: swap;
+  }
+
+  .h1-hero {
+    /* The dusk: the page graphite, a teal sky and one warm light, low behind the world. */
+    --h1-sky-high: #121817;
+    --h1-sky-mid: #142422;
+    --h1-sky-low: #1a2f2d;
+    --h1-sun: 227 165 116;
+    --h1-haze: 54 190 190;
+    --h1-display: 'Stacktape H1 Newsreader', Georgia, serif;
+    /* The shared site frame, so the copy lines up with the header's logo. */
+    --h1-frame-inset: max(var(--site-gutter, var(--brand-space-5)), (100% - var(--site-width, 76rem)) / 2);
+
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    align-items: center;
+    min-block-size: clamp(40rem, 100svh - 8rem, 68rem);
+    padding-block: clamp(2rem, 6svh, 5rem) var(--brand-space-8);
+    overflow: clip;
+    background:
+      radial-gradient(50% 60% at 72% 40%, rgb(var(--h1-haze) / 0.11), transparent 100%),
+      linear-gradient(
+        180deg,
+        var(--h1-sky-high) 0%,
+        var(--h1-sky-mid) 45%,
+        var(--h1-sky-low) 78%,
+        var(--brand-page) 100%
+      );
+  }
+
+  /* The sun sits low behind the world; cloud banks catch its light on their upper edges. */
+  .h1-sky {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    /* The clouds thin out behind the copy, so the command box always sits on clear sky. */
+    mask-image: linear-gradient(90deg, transparent 22%, #000 52%);
+  }
+
+  .h1-sky :global(svg) {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  /* The copy is not positioned, so the world inside it is placed against the whole hero on wide screens. */
+  .h1-copy > :not(.h1-world) {
+    position: relative;
+    z-index: 2;
+    max-inline-size: 36rem;
+  }
+
+  .h1-title {
+    max-inline-size: none;
+    font-family: var(--h1-display);
+    font-size: clamp(2.875rem, 1.5rem + 3.6vw, 6.25rem);
+    font-weight: 560;
+    line-height: 0.98;
+    letter-spacing: -0.022em;
+  }
+
+  .h1-title span,
+  .h1-title em {
+    display: block;
+    white-space: nowrap;
+  }
+
+  .h1-title em {
+    color: var(--brand-teal);
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  .h1-sub {
+    margin-block-start: clamp(1.25rem, 1rem + 0.8vw, 2rem);
+    max-inline-size: 33rem;
+    color: #c4cdcb;
+    font-size: clamp(1.125rem, 1rem + 0.4vw, 1.4375rem);
+    line-height: 1.45;
+    text-wrap: pretty;
+  }
+
+  .h1-start {
+    display: grid;
+    gap: var(--brand-space-4);
+    margin-block-start: clamp(2rem, 1.5rem + 1.4vw, 3rem);
+  }
+
+  .h1-start :global(#install) {
+    scroll-margin-block-start: 6rem;
+  }
+
+  .h1-start__more {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-4);
+  }
+
+  .h1-start__more :global(.brand-button) {
+    flex: none;
+  }
+
+  .h1-own {
+    max-inline-size: 26rem;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.45;
+  }
+
+  /* The world floats right of the copy and reaches past the site frame towards the window's edge. */
+  .h1-world {
+    position: absolute;
+    z-index: 1;
+    inset-block: var(--brand-space-2) var(--brand-space-5);
+    inset-inline: calc(var(--h1-frame-inset) + clamp(36rem, 30vw, 42rem))
+      max(var(--brand-space-5), var(--h1-frame-inset) - 30rem);
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    translate: var(--h1-lean-x, 0) var(--h1-lean-y, 0);
+    transition: translate 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .h1-world__art {
+    inline-size: min(100%, (100svh - 12rem) * 1.18, 78rem);
+  }
+
+  .h1-world__art :global(svg) {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    overflow: visible;
+  }
+
+  .h1-world :global(.w-label) {
+    fill: #c3cecb;
+    font: 600 7.5px var(--brand-font-body);
+  }
+
+  .h1-world :global(.w-stage) {
+    fill: #6c827f;
+    font: 600 6.5px var(--brand-font-mono);
+    letter-spacing: 0.02em;
+  }
+
+  .h1-world :global(.w-stage--live) {
+    fill: #a3b7b3;
+  }
+
+  .h1-world :global(.w-print) {
+    fill: #fff;
+    fill-opacity: 0.32;
+    font: 700 9px var(--brand-font-heading);
+    letter-spacing: 0.04em;
+  }
+
+  .h1-world__tags {
+    display: none;
+  }
+
+  /* Labels stay about 10 to 12 px on screen while the world scales with the window. */
+  @media (max-width: 112rem) {
+    .h1-world :global(.w-label) {
+      font-size: 10px;
+    }
+
+    .h1-world :global(.w-stage) {
+      font-size: 8.5px;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .h1-world__art {
+      animation: h1-arrive 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    }
+  }
+
+  @keyframes h1-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(1.5rem);
+    }
+  }
+
+  /* Narrow screens: the world sits between the subheadline and the command box, in its own pool of light. */
+  @media (max-width: 64rem) {
+    .h1-hero {
+      align-items: start;
+      min-block-size: 0;
+      padding-block: var(--brand-space-6) var(--brand-space-7);
+    }
+
+    .h1-sky {
+      display: none;
+    }
+
+    .h1-world {
+      position: relative;
+      inset: auto;
+      place-items: center;
+      margin-block: var(--brand-space-3) calc(-1 * var(--brand-space-4));
+      margin-inline: calc(-1 * var(--site-gutter, var(--brand-space-5)));
+      background: radial-gradient(48% 42% at 52% 62%, rgb(var(--h1-sun) / 0.22), transparent 100%);
+    }
+
+    /* Trim the empty sky the art keeps above and below the stack on wide screens. */
+    .h1-world__art {
+      position: relative;
+      inline-size: min(104%, 44rem);
+      margin-block: -11% -19%;
+    }
+
+    .h1-world :global(.w-labels) {
+      display: none;
+    }
+
+    .h1-world__tags {
+      position: absolute;
+      inset: 0;
+      display: block;
+    }
+
+    .h1-world__tags :global(.tape) {
+      position: absolute;
+      translate: -50% -50%;
+      font-size: 0.8125rem;
+      white-space: nowrap;
+    }
+
+    .h1-start {
+      margin-block-start: var(--brand-space-5);
+    }
+  }
+
+  /*
+   * Phones: the kit's command box puts Copy on a row of its own and keeps room for three lines. Here the tabs stay on
+   * top and Copy sits beside the command, so the box is as tall as the lines it shows.
+   */
+  @media (max-width: 37.5rem) {
+    /* The ownership line reads straight after the command; the docs button follows it. */
+    .h1-start__more {
+      flex-direction: column-reverse;
+      align-items: flex-start;
+    }
+
+    .h1-start :global(.brand-command) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .h1-start :global(.brand-command .install-code__head) {
+      display: contents;
+    }
+
+    .h1-start :global(.brand-command .install-code__tabs) {
+      grid-row: 1;
+      grid-column: 1 / -1;
+      justify-self: stretch;
+      inline-size: auto;
+      max-inline-size: none;
+      padding: var(--brand-space-2);
+      border-block-end: 1px solid var(--brand-border);
+      border-start-start-radius: calc(var(--brand-radius) - 1px);
+      border-start-end-radius: calc(var(--brand-radius) - 1px);
+      background: var(--brand-surface);
+    }
+
+    .h1-start :global(.brand-command .install-code__arch) {
+      grid-row: 2;
+      grid-column: 1;
+      justify-self: start;
+      padding: var(--brand-space-3) var(--brand-space-4) 0;
+    }
+
+    /* The command and its hint use the full width; Copy sits over the free end of the first line. */
+    .h1-start :global(.brand-command .install-code__pre) {
+      grid-row: 3;
+      grid-column: 1 / -1;
+      min-block-size: 0;
+      row-gap: var(--brand-space-2);
+    }
+
+    .h1-start :global(.brand-command .install-code__line:first-child) {
+      padding-inline-end: 5.75rem;
+    }
+
+    .h1-start :global(.brand-command .brand-button.install-code__copy) {
+      --stp-control-height: 2rem;
+      position: relative;
+      z-index: 1;
+      grid-row: 3;
+      grid-column: 2;
+      align-self: start;
+      margin: calc(var(--brand-space-4) + 0.5lh - 1rem) var(--brand-space-3) 0 0;
+    }
+
+    /* Install tabs have long commands that scroll, so there Copy sits at the end of the architecture row. */
+    .h1-start :global(.brand-command:has(.install-code__arch) .brand-button.install-code__copy) {
+      grid-row: 2;
+      margin-block-start: var(--brand-space-3);
+    }
+
+    .h1-start :global(.brand-command:has(.install-code__arch) .install-code__line:first-child) {
+      padding-inline-end: 0;
+    }
+  }
+</style>
