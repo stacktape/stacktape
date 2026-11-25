@@ -66,6 +66,13 @@ test('the CDN keeps repeat, bare and encoded query parameters', () => {
   assert.equal(response.headers.location.value, '/?tag=first&tag=two%20words&flag');
 });
 
+test('the former README and benchmarks addresses redirect to the homepage', () => {
+  for (const pathname of ['readme', 'benchmarks']) {
+    const html = readFileSync(join(directory, pathname, 'index.html'), 'utf8');
+    assert.match(html, /<meta http-equiv="refresh" content="0;url=\/">/, pathname);
+  }
+});
+
 test('the release excludes studies and publishes crawlable site files', () => {
   for (const excluded of ['d', 'hire', 'lens', 'session', 'sheet', 'stack', 'status', 'studies']) {
     assert.ok(!existsSync(join(directory, excluded)), excluded);
