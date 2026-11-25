@@ -47,6 +47,7 @@
 }
 
 .b-stepper__tape {
+  --brand-tape-fill-content: none;
   position: relative;
   isolation: isolate;
   display: inline-block;
@@ -68,17 +69,8 @@
 }
 
 .b-stepper__item:is([aria-selected='true'], [aria-current='step']) .b-stepper__tape {
+  --brand-tape-fill-content: '';
   color: var(--brand-on-teal);
-}
-
-.b-stepper__item:is([aria-selected='true'], [aria-current='step']) .b-stepper__tape::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  content: '';
-  background: var(--brand-primary);
-  box-shadow: var(--brand-edge-primary);
-  clip-path: var(--brand-tape-clip);
 }
 
 .b-stepper__item:focus-visible {

@@ -86,7 +86,7 @@ const head = (note: (typeof notes)[number]) => {
     {
       notes.map((note) => (
         <p
-          class={`h4-note h4-note--${note.id}`}
+          class={`h4-note h4-note--${note.id} brand-tape-fill`}
           style={`--x: ${note.x}%; --y: ${note.y}%; --turn: ${note.turn}deg`}
         >
           {note.text}
@@ -168,16 +168,6 @@ const head = (note: (typeof notes)[number]) => {
     white-space: nowrap;
     transform: rotate(var(--turn));
     filter: drop-shadow(0 6px 10px rgb(0 0 0 / 45%));
-  }
-
-  .h4-note::before {
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    content: '';
-    background: var(--brand-primary);
-    box-shadow: var(--brand-edge-primary);
-    clip-path: var(--brand-tape-clip);
   }
 
   @media (max-width: 60rem) {

@@ -38,3 +38,13 @@
 .brand-link--muted:hover {
   text-decoration-line: underline;
 }
+
+.brand-tape-fill::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: var(--brand-tape-fill-content, '');
+  background: var(--brand-primary);
+  box-shadow: var(--brand-edge-primary);
+  clip-path: var(--brand-tape-clip);
+}
