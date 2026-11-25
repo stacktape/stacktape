@@ -3,13 +3,14 @@ import './bench.css';
 import type { Bar } from './data';
 
 /**
- * One benchmark as horizontal bars: each tool's time, fastest first, Stacktape in teal. A large chart has a seconds
- * axis with grid lines; a small one only the values. `scale` is the value at the right end of the track, shared by
- * charts shown together.
+ * One benchmark as horizontal bars: each tool's time, fastest first, Stacktape in teal, and under a bar what that tool
+ * did when it needs saying (code swap, a build from the pushed source). A large chart has a seconds axis with grid
+ * lines and no title, because the result beside it says what was measured; a small one has a title and only the values.
+ * `scale` is the value at the right end of the track, shared by charts shown together.
  */
 type Props = {
-  title: string;
-  detail: string;
+  title?: string;
+  detail?: string;
   bars: Bar[];
   scale: number;
   /** Seconds to mark on the axis, for a large chart. */
@@ -22,8 +23,8 @@ const at = (seconds: number) => `${(seconds / scale) * 100}%`;
 ---
 
 <div class:list={['bn-chart', `bn-chart--${size}`]}>
-  <p class="bn-chart__title">{title}</p>
-  <p class="bn-chart__detail">{detail}</p>
+  {title ? <p class="bn-chart__title">{title}</p> : null}
+  {detail ? <p class="bn-chart__detail">{detail}</p> : null}
   <div class="bn-chart__plot">
     {
       ticks.length > 0 ? (
@@ -43,6 +44,7 @@ const at = (seconds: number) => `${(seconds / scale) * 100}%`;
               <i />
               <b>{bar.seconds.toFixed(1)} s</b>
             </span>
+            {bar.note ? <span class="bn-chart__note">{bar.note}</span> : null}
           </li>
         ))
       }

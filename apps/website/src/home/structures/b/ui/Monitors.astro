@@ -2,26 +2,17 @@
 import Window from './console/Window.astro';
 
 /**
- * Error tracking in the Console (apps/console/ui IssuesPage), filtered to acme-shop production, at the hero's time
- * (heroes/h5/console/data.ts). The top issue is the hero's incident: the 10:12 release broke order totals for empty
- * carts, 56 failed requests, and the 11:04 fix stopped it, so it was last seen two hours ago and stays open until someone
- * resolves it. The API and the worker are packaged with `js-bundle`, the packaging whose errors Stacktape reads from the
- * logs without an SDK (docs/observability/error-tracking.mdx, "What reports errors"). The sidebar's Logs, Metrics,
- * Traces, Uptime and Synthetics are the other monitoring pages.
+ * Error tracking in the Console (apps/console/ui IssuesPage), filtered to acme-shop production, at the hero's time,
+ * 13:06 (heroes/h5/console/data.ts). Production has three open errors, as the hero's stage overview says ("Also open:
+ * 3 errors"); the sidebar counts the organization's five (the hero's COUNTS.errors). Rows are in the page's default
+ * order, last seen first. The hero's incident is the third: the 10:12 release broke order totals for empty carts, 56
+ * events from 10:16 until the 11:04 fix, so it was last seen two hours ago and stays open until someone resolves it.
+ * The API and the worker are packaged with `js-bundle`, the packaging whose errors Stacktape reads from the logs
+ * without an SDK (docs/observability/error-tracking.mdx, "What reports errors").
  *
- * A phone shows the first two issues in full: message, source line, events and last seen.
+ * A phone shows two issues in full, the hero's TypeError among them: message, source line, events and last seen.
  */
 const ISSUES = [
-  {
-    type: 'TypeError',
-    message: "Cannot read properties of undefined (reading 'total')",
-    resource: 'api',
-    frame: 'orderTotals',
-    file: 'totals.ts:18',
-    events: 56,
-    since: '3h ago',
-    last: '2h ago'
-  },
   {
     type: 'PaymentProviderError',
     message: 'POST https://api.payments.example/v1/charges answered 502 Bad Gateway',
@@ -42,30 +33,29 @@ const ISSUES = [
     wide: true
   },
   {
-    type: 'Error',
-    message: 'Image resize for product 18342 timed out after 30000 ms',
-    resource: 'worker',
-    frame: 'resizeProductImage',
-    file: 'images.ts:19',
-    events: 3,
-    since: '1d ago',
-    last: '2h ago',
-    wide: true
+    type: 'TypeError',
+    message: "Cannot read properties of undefined (reading 'total')",
+    resource: 'api',
+    frame: 'orderTotals',
+    file: 'totals.ts:18',
+    events: 56,
+    since: '3h ago',
+    last: '2h ago'
   }
 ];
 const TABS = [
-  { name: 'Open', count: 4, selected: true },
+  { name: 'Open', count: 3, selected: true },
   { name: 'Resolved', count: 11 },
   { name: 'Ignored', count: 1, wide: true },
-  { name: 'All', count: 16, wide: true }
+  { name: 'All', count: 15, wide: true }
 ];
 ---
 
 <Window
-  label="Error tracking in the Stacktape Console, filtered to acme-shop production: four open issues grouped from runtime errors in the API and worker services. The first is TypeError: Cannot read properties of undefined (reading 'total') in orderTotals, totals.ts line 18, 56 events since 3 hours ago, last seen 2 hours ago."
+  label="Error tracking in the Stacktape Console, filtered to acme-shop production: three open issues grouped from runtime errors in the API and worker services, last seen first. One is TypeError: Cannot read properties of undefined (reading 'total') in orderTotals, totals.ts line 18, 56 events since 3 hours ago, last seen 2 hours ago."
   page="Error tracking"
   current="errors"
-  openErrors={4}
+  openErrors={5}
   organization={false}
 >
   <div class="mn-head">
@@ -84,7 +74,7 @@ const TABS = [
           ))
         }
       </span>
-      <span class="mn-field mn-search cn-wide">Search error messages</span>
+      <span class="mn-field mn-search cn-wide">Search errors</span>
       <span class="mn-field cn-wide"><span class="cn-muted">Project</span> acme-shop</span>
       <span class="mn-field mn-stage"><span class="cn-muted">Stage</span> production</span>
     </div>
@@ -162,7 +152,8 @@ const TABS = [
 
   .mn-search {
     flex: 1;
-    min-width: 12em;
+    min-width: 7em;
+    overflow: hidden;
     color: var(--cn-faint);
   }
 

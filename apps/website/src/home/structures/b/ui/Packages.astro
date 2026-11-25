@@ -11,8 +11,7 @@ const large = barsOf('packaging', 'empty-cache', 'lambda-25');
 const one = barsOf('packaging', 'empty-cache', 'lambda-1');
 const five = barsOf('packaging', 'empty-cache', 'lambda-5');
 const us = large.find((bar) => bar.us);
-const next = large.find((bar) => !bar.us);
-if (!us || !next) throw new Error('The packaging benchmark has no Stacktape or rival value');
+if (!us) throw new Error('The packaging benchmark has no Stacktape value');
 const small = slowest(one, five);
 ---
 
@@ -21,16 +20,9 @@ const small = slowest(one, five);
     <div class="bn-stat">
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
       <p class="bn-stat__what">to package 25 Lambda functions from an empty build cache</p>
-      <p class="bn-stat__against">{next.label}, the next fastest: {next.seconds.toFixed(1)} s</p>
+      <p class="bn-stat__how">Median of 10 runs; lower is better.</p>
     </div>
-    <Chart
-      size="large"
-      title="Package 25 Lambda functions"
-      detail="Empty build cache. Median of 10 runs; lower is better."
-      bars={large}
-      scale={30}
-      ticks={[0, 10, 20, 30]}
-    />
+    <Chart size="large" bars={large} scale={30} ticks={[0, 10, 20, 30]} />
   </div>
   <div class="bn-more">
     <Chart title="1 function" detail="Empty build cache" bars={one} scale={small} />

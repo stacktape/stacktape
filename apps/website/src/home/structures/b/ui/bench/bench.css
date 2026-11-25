@@ -45,7 +45,11 @@
   line-height: 1.4;
 }
 
-.bn-stat__against {
+.bn-stat__what code {
+  font: 0.9em var(--brand-font-mono);
+}
+
+.bn-stat__how {
   color: var(--brand-muted);
   font-size: var(--brand-type-sm);
 }
@@ -108,10 +112,6 @@
   font: var(--brand-weight-label) var(--brand-type-base) / 1.3 var(--brand-font-heading);
 }
 
-.bn-chart--large .bn-chart__title {
-  font-size: var(--brand-type-lead);
-}
-
 .bn-chart__detail {
   margin-top: var(--brand-space-1);
   color: var(--brand-muted);
@@ -124,7 +124,7 @@
 }
 
 .bn-chart--large .bn-chart__plot {
-  margin-top: var(--brand-space-5);
+  margin-top: 0;
   padding-bottom: 1.75rem;
 }
 
@@ -145,7 +145,7 @@
   display: grid;
   grid-template-columns: var(--bn-label) minmax(0, 1fr);
   align-items: center;
-  gap: var(--bn-gap);
+  gap: 0.2rem var(--bn-gap);
   color: var(--brand-muted);
   font-size: var(--brand-type-sm);
 }
@@ -153,6 +153,14 @@
 .bn-chart li.is-us {
   color: var(--brand-text);
   font-weight: var(--brand-weight-label);
+}
+
+/* What the tool did, under its bar: "code swap enabled", "build from the pushed source". */
+.bn-chart__note {
+  grid-column: 2;
+  color: var(--brand-muted);
+  font-size: var(--brand-type-xs);
+  font-weight: var(--brand-weight-body);
 }
 
 .bn-chart__tool {
@@ -225,6 +233,15 @@
   .bn-main,
   .bn-more {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* A phone keeps the headline result and the cases Stacktape loses; the other wins would only lengthen the step. */
+  .bn-more--wins {
+    display: none;
+  }
+
+  .bn-main {
+    gap: var(--brand-space-5);
   }
 
   .bn-chart--large {

@@ -9,18 +9,25 @@ import { barsOf, runLabel, slowest } from './bench/data';
  * push of a Node.js service, and the two cases where another tool is faster: a Git push of a Python service (Heroku)
  * and a shared-code change to 5 functions (CDK hotswap). Every tool's bar, fastest first; the notes are the data file's.
  *
- * Stacktape's container and Git push times use code swap, which is opt-in and covers code changes only. Without it the
- * data file's note gives its normal image deploy of the Node.js service as 40.1 s on 17 October, slower than Heroku's
- * 26.6 s; the footnote says so.
+ * Stacktape's container and Git push times use code swap, which is opt-in and covers code changes only, so the bar
+ * says so. Heroku's container time and its Git push time are one measurement, a build from the pushed source
+ * (`heroku builds:create`), so both bars say that. Without code swap the data file's note gives Stacktape's image
+ * deploy of the Node.js service as 40.1 s on 17 October, slower than Heroku's 26.6 s; the footnote says so.
+ *
+ * A phone keeps the headline result and the two cases Stacktape loses.
  */
+const SWAP = { stacktape: 'code swap enabled' };
+const FROM_SOURCE = { heroku: 'build from the pushed source', render: 'build from the pushed source' };
 const large = barsOf('lambda-deploy', 'handler', 'lambda-25');
-const container = barsOf('container-deploy', 'code-change', 'container-node', { stacktape: 'Stacktape*' });
-const pushNode = barsOf('git-push', 'warm', 'container-node', { stacktape: 'Stacktape*' });
-const pushPython = barsOf('git-push', 'warm', 'container-python', { stacktape: 'Stacktape*' });
+const container = barsOf('container-deploy', 'code-change', 'container-node', {
+  ...SWAP,
+  heroku: 'the same build from source as under Git push'
+});
+const pushNode = barsOf('git-push', 'warm', 'container-node', { ...SWAP, ...FROM_SOURCE });
+const pushPython = barsOf('git-push', 'warm', 'container-python', { ...SWAP, ...FROM_SOURCE });
 const shared = barsOf('lambda-deploy', 'shared', 'lambda-5');
 const us = large.find((bar) => bar.us);
-const next = large.find((bar) => !bar.us);
-if (!us || !next) throw new Error('The Lambda deploy benchmark has no Stacktape or rival value');
+if (!us) throw new Error('The Lambda deploy benchmark has no Stacktape value');
 const small = slowest(container, pushNode, pushPython, shared);
 ---
 
@@ -28,19 +35,12 @@ const small = slowest(container, pushNode, pushPython, shared);
   <div class="bn-main">
     <div class="bn-stat">
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
-      <p class="bn-stat__what">until a code change to 25 Lambda functions answers requests</p>
-      <p class="bn-stat__against">{next.label}, the next fastest: {next.seconds.toFixed(1)} s</p>
+      <p class="bn-stat__what">from <code>stacktape deploy</code> until a code change to 25 Lambda functions answers</p>
+      <p class="bn-stat__how">Median of 10 runs; lower is better.</p>
     </div>
-    <Chart
-      size="large"
-      title="Deploy a code change to 25 Lambda functions"
-      detail="From the command line until the new code answers. Median of 10 runs; lower is better."
-      bars={large}
-      scale={80}
-      ticks={[0, 20, 40, 60, 80]}
-    />
+    <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} />
   </div>
-  <div class="bn-more">
+  <div class="bn-more bn-more--wins">
     <Chart title="Containers" detail="A code change to a Node.js service" bars={container} scale={small} />
     <Chart title="Git push" detail="Node.js service, build machine already running" bars={pushNode} scale={small} />
   </div>
@@ -55,9 +55,9 @@ const small = slowest(container, pushNode, pushPython, shared);
       its build runner on {runLabel(1)}, median of 5 to 6 runs; Heroku and Render built from the pushed source.
     </span>
     <span>
-      * With code swap, an opt-in setting for code changes only. Without it, the Node.js service's image deploy took
-      40.1 s (17 October), slower than Heroku. CDK hotswap leaves the CloudFormation stack out of date; AWS documents it
-      for development stacks.
+      Code swap is an opt-in setting for code changes only. Without it, the Node.js service's image deploy took 40.1 s
+      (17 October), slower than Heroku. CDK hotswap leaves the CloudFormation stack out of date; AWS documents it for
+      development stacks.
     </span>
   </figcaption>
 </figure>
