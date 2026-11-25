@@ -261,7 +261,7 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'monitors',
     name: 'Monitors',
     title: 'Monitors it',
-    text: 'With tracing on, the Console shows every step of a request, such as Redis reads and SQL queries, with timings and the error that failed it. The traces stay in your AWS account.',
+    text: 'Open a trace to see which calls took time and where the request failed. Traces stay in your AWS account.',
     gets: [
       'Supported Lambda functions are traced without code changes. For a container, Stacktape adds an OpenTelemetry collector to the task, and your app sends spans to it with the OpenTelemetry SDK.',
       'The Console also shows each stack’s CloudWatch logs and metrics. Error tracking groups runtime errors from supported Lambda functions and Node.js services built with Stacktape’s bundler, without an SDK.',
@@ -296,11 +296,11 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'secures',
     name: 'Secures',
     title: 'Secures it',
-    text: 'Add a queue to a worker’s `connectTo` list. Stacktape grants the worker access and supplies the queue URL.',
+    text: 'Stacktape flags exposed databases and vulnerable packages. You can block a deploy that would make a database public.',
     gets: [
-      'Your organization can block deploys that would expose a database or use an unapproved region. A blocked deploy stops before anything in AWS changes.',
-      'Store passwords and API keys in AWS Secrets Manager and reference them from your config.',
-      'Scanning is on by default. The Console shows risky settings and vulnerable packages in deployed stacks and rechecks the packages every night.'
+      'Scanning is on by default and rechecks your packages every night. Guardrails can also limit deploys to approved regions.',
+      'Add a queue to a worker’s `connectTo` list. Stacktape grants the worker access and supplies the queue URL.',
+      'Store passwords and API keys in AWS Secrets Manager and reference them from your config.'
     ],
     picture: {
       desktop: crop(securesSmall, securesLarge, securesSmallPng, securesLargePng),
@@ -313,7 +313,7 @@ export const SECTION_PACKS: SectionPack[] = [
       'docs/configuration/connecting-resources.mdx:10 (IAM, STP_* environment variables with connection details such as the queue URL, security groups for databases and Redis), :432',
       'docs/configuration/secrets.mdx:10-13',
       'docs/guardrails/overview.mdx:10 (organization rules in the Console, checked before changes)',
-      'docs/stacktape-console/security-scanning.mdx:10-16 (on by default, reports only), :51-52 (nightly recheck)'
+      'docs/stacktape-console/security-scanning.mdx:10-16 (on by default, reports only), :31 (Database reachable from the internet; guardrail Keep SQL and OpenSearch private), :51-52 (nightly recheck), :67 (vulnerabilities)'
     ],
     doNotClaim: [
       'That scanning blocks deploys: it only reports (docs/stacktape-console/security-scanning.mdx:13).',
@@ -382,12 +382,13 @@ export const SECTION_PACKS: SectionPack[] = [
     text: 'On Flexible, your team gets a shared Slack channel with the Stacktape founders. Ask us about a deploy, an AWS bill or a feature you need.',
     gets: [],
     picture: null,
-    sources: ['apps/website/src/pages/pricing.astro:47, :58, :60 (Book a call: cal.com/stacktape/30min)'],
+    sources: ['apps/website/src/pages/pricing.astro:47 (a shared Slack channel with the founders on Flexible)'],
     doNotClaim: [
       'Calls on every plan.',
       'Response times on Flexible.',
       'Hands-on support on Free.',
-      'A promise to build every requested feature.'
+      'A promise to build every requested feature.',
+      'That the public cal.com/stacktape/30min call is support: it is a technical sales demo. Paid plans book support calls from the Console’s Help menu.'
     ]
   }
 ];
