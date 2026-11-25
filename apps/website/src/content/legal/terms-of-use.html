@@ -1,0 +1,180 @@
+<p><strong>Last updated:</strong> 25 November 2026</p>
+<p>
+  These terms are an agreement between you and Stacktape s.r.o., company ID 53071930, Ľudovíta Fullu 3104/15, 841 05
+  Bratislava, Slovakia ("Stacktape", "we", "us" or "our"). "You" means the person or organization using Stacktape.
+</p>
+<p>Stacktape has two parts, and they are covered differently:</p>
+<ul>
+  <li>
+    <strong>The Stacktape CLI</strong> is open source under the MIT license and works without a Stacktape account. The
+    license, not these terms, says what you can do with it.
+  </li>
+  <li>
+    <strong>The Stacktape Console</strong> at console.stacktape.com is a hosted service. These terms cover your Console
+    account, your plan and fees, and how you use the service. They also cover this website and the documentation.
+  </li>
+</ul>
+<p>By using the Console, this website or the documentation, you agree to these terms.</p>
+
+<h2 id="cli">1. The open-source CLI</h2>
+<p>
+  The Stacktape CLI and the other code in the <a href="https://github.com/stacktape/stacktape">public repository</a> are
+  released under the <a href="https://github.com/stacktape/stacktape/blob/main/LICENSE">MIT license</a>. You may use,
+  copy, modify, merge, publish, distribute, sublicense and sell copies of it, as long as you keep the copyright and
+  license notice. The software is provided "as is", without warranty of any kind, as the license states. Nothing in
+  these terms limits what the license allows.
+</p>
+<p>
+  Without an account, the CLI deploys to AWS with your own AWS credentials and does not call the Stacktape API. It sends
+  anonymous usage data, which you can turn off. The <a href="/privacy-policy#cli">privacy policy</a> lists what it
+  sends.
+</p>
+<p>When you sign the CLI in to the Console, the Console features it uses are covered by the rest of these terms.</p>
+
+<h2 id="account">2. Your Console account</h2>
+<p>
+  To create an account, you must be old enough to form a binding contract. You agree to give true, accurate and complete
+  information about yourself when we ask for it, and to keep it up to date.
+</p>
+<p>
+  You choose which AWS accounts to connect to the Console. Each connection creates an IAM role in your AWS account.
+  Stacktape uses that role, with temporary credentials, to deploy, monitor and manage the resources of your stacks. You
+  can remove a connection at any time.
+</p>
+
+<h2 id="plans-and-fees">3. Plans and fees</h2>
+<p>The Console has three plans. The <a href="/pricing">pricing page</a> shows the current prices.</p>
+<ul>
+  <li>
+    <strong>Free</strong> costs nothing and needs no credit card. It covers up to $200 a month of managed AWS spend: the
+    AWS costs of the resources in Stacktape-managed stacks, across all AWS accounts connected to your organization. The
+    first time your organization goes over the limit, deploys keep working for 7 days. After that, new deploys and
+    <code>stacktape dev</code> sessions pause until you upgrade or the next calendar month starts. In later months, they
+    pause as soon as you pass the limit. Your running infrastructure is never touched.
+  </li>
+  <li>
+    <strong>Flexible</strong> has no spend limit. Its fee is a percentage of the month's managed AWS spend: 25%, falling
+    to 19% as the spend grows.
+  </li>
+  <li>
+    <strong>Enterprise</strong> is a single-tenant Console in your own AWS account. Its price and terms are set in a
+    separate agreement. Where that agreement differs from these terms, the agreement applies.
+  </li>
+</ul>
+<p>
+  When you upgrade to Flexible, you agree to be charged automatically every month until you downgrade. After each
+  calendar month ends, we charge the Flexible fee for that month's managed AWS spend. Payments are processed by
+  <a href="https://www.paddle.com/">Paddle</a>.
+</p>
+<p>
+  AWS bills you separately for the infrastructure in your AWS account. Stacktape is not responsible for AWS charges or
+  any other third-party fees that arise while you use Stacktape. Stacktape also does not provide the hardware, internet
+  connection or cloud services you need to use it.
+</p>
+
+<h2 id="downgrading">4. Downgrading and cancelling</h2>
+<p>
+  A member who can manage billing can downgrade to Free at any time. Open
+  <a href="https://console.stacktape.com/subscription-plans">Subscription Plans</a> in the Console and click
+  <strong>Downgrade to Free</strong>. You can also cancel by emailing
+  <a href="mailto:info@stacktape.com">info@stacktape.com</a>.
+</p>
+<p>
+  The Free plan's limit applies right after the downgrade, also when this month's managed AWS spend is already above
+  $200.
+</p>
+<p>We have no obligation to refund fees already charged.</p>
+<p>
+  Your stacks stay in your AWS account after a downgrade or after you stop using the Console. See
+  <a href="https://docs.stacktape.com/getting-started/open-source-cli">Use the CLI without an account</a> for managing
+  them without the Console.
+</p>
+
+<h2 id="acceptable-use">5. Acceptable use</h2>
+<p>When you use the Console, this website or the documentation, you must not:</p>
+<ul>
+  <li>use them with malicious intent or in any unlawful way;</li>
+  <li>try to bypass their features, limits or security measures, including the Free plan limit;</li>
+  <li>take advantage of bugs, errors or security weaknesses in them;</li>
+  <li>
+    resell, rent, lease, time-share or sublicense access to the Console, or copy, modify, reverse-engineer or
+    disassemble the Console;
+  </li>
+  <li>use them in any other way a reasonable person would consider not permitted.</li>
+</ul>
+<p>These rules do not limit what the MIT license lets you do with the CLI's code.</p>
+
+<h2 id="availability">6. Availability and changes to the service</h2>
+<p>
+  We keep improving the Console, so we may add, change, suspend or remove its features, limits and plans at any time. We
+  are not liable for the effects of such changes on you or anyone else.
+</p>
+<p>
+  The <a href="https://status.stacktape.com">status page</a> shows current incidents. Your resources run in your AWS
+  account, not on Stacktape's servers.
+</p>
+
+<h2 id="suspension">7. Suspension and termination</h2>
+<p>We may suspend or close your account or organization, and refuse future use, without a refund, if:</p>
+<ul>
+  <li>you break these terms;</li>
+  <li>you try to harm Stacktape or its reputation;</li>
+  <li>we receive an order or request about you from a law enforcement authority;</li>
+  <li>we suspect any of the above.</li>
+</ul>
+<p>
+  You can stop using the Console at any time. To remove Stacktape's access to an AWS account, delete the connection in
+  the Console, or delete the connection's CloudFormation stack in your AWS account. The
+  <a href="/privacy-policy#your-rights">privacy policy</a> explains how to delete your account.
+</p>
+
+<h2 id="liability">8. Liability</h2>
+<p>
+  Stacktape is not responsible for lost data, profits or revenues, whether yours or a third party's. Stacktape is also
+  not responsible for any direct, indirect, special, consequential, exemplary or other damages caused to you or any
+  third party.
+</p>
+
+<h2 id="ownership">9. Ownership and feedback</h2>
+<p>
+  Your code, your configuration, and the infrastructure and data you deploy stay yours. Stacktape claims no rights to
+  the results of using Stacktape.
+</p>
+<p>
+  The Console, including its source code, and the Stacktape name and logo belong to Stacktape. Using the Console does
+  not give you ownership of any of them.
+</p>
+<p>
+  When you contact us, you give Stacktape a worldwide, non-exclusive, perpetual right to the ideas, information,
+  designs, materials and solutions in what you send or that arise from it. Do not send us commercially sensitive
+  information when you contact us. If you do, Stacktape is not liable for it.
+</p>
+
+<h2 id="privacy-and-email">10. Privacy and email</h2>
+<p>The <a href="/privacy-policy">privacy policy</a> explains what data we collect and what we do with it.</p>
+<p>
+  When you create an account, you agree that we may send you our newsletter and notifications by email to the address
+  you gave us. You can unsubscribe from the newsletter at any time with the link in each email.
+</p>
+
+<h2 id="changes">11. Changes to these terms</h2>
+<p>
+  We may change these terms at any time. Changes do not apply retroactively. We tell registered users and newsletter
+  subscribers at least seven days before new terms take effect. Changes that address urgent matters or are required by
+  law can take effect immediately, and we tell you about them too. If you do not agree with a change, stop using the
+  Console.
+</p>
+
+<h2 id="general">12. General</h2>
+<ul>
+  <li>These terms govern the relationship between you and Stacktape. They do not create rights for anyone else.</li>
+  <li>
+    If you do not follow these terms, we may act at any time. If we do not act right away, we do not give up the right
+    to act later.
+  </li>
+  <li>If any part of these terms is found invalid, the rest stays in effect.</li>
+  <li>Section titles are for convenience only and have no legal effect.</li>
+</ul>
+
+<h2 id="contact">13. Contact</h2>
+<p>Email <a href="mailto:info@stacktape.com">info@stacktape.com</a>.</p>

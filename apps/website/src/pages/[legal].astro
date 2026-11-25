@@ -1,23 +1,32 @@
 ---
 import PlainPage from '../components/PlainPage.astro';
-import contactDetails from '../content/legacy/contact-details.html?raw';
-import privacy from '../content/legacy/privacy-policy.html?raw';
-import terms from '../content/legacy/terms-of-use.html?raw';
+import privacy from '../content/legal/privacy-policy.html?raw';
+import terms from '../content/legal/terms-of-use.html?raw';
 
 export const getStaticPaths = () => [
   {
     params: { legal: 'privacy-policy' },
-    props: { title: 'Privacy policy', body: privacy }
+    props: {
+      title: 'Privacy policy',
+      description:
+        'What the Stacktape CLI sends, what a connected Console stores, what stays in your AWS account, which providers we use and how to request deletion.',
+      body: privacy
+    }
   },
   {
     params: { legal: 'terms-of-use' },
-    props: { title: 'Terms of use', body: terms }
+    props: {
+      title: 'Terms of use',
+      description:
+        'The Stacktape CLI is covered by its MIT license. These terms cover the hosted Stacktape Console: accounts, plans, fees, acceptable use and cancelling.',
+      body: terms
+    }
   }
 ];
 
-const { title, body } = Astro.props;
+const { title, description, body } = Astro.props;
 ---
 
-<PlainPage title={title} description={`Stacktape ${title.toLowerCase()}.`}>
-  <Fragment set:html={body.replace('<!-- contact-details -->', contactDetails.trim())} />
+<PlainPage {title} {description}>
+  <Fragment set:html={body} />
 </PlainPage>
