@@ -2,6 +2,8 @@
 import { ButtonLink } from '@stacktape/ui-react/button';
 import { Image } from 'astro:assets';
 import { CommandBox } from '../../brand/CommandBox';
+import './b.css';
+import { FIRST_RUN, runDate } from './bench';
 import { STEPS } from './steps';
 
 const pad = (index: number) => String(index + 1).padStart(2, '0');
@@ -31,11 +33,11 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
   <div class="b-journey" data-journey>
     <div class="b-journey__rail">
       <p class="b-journey__intro">From the first command to the first incident.</p>
-      <div class="b-journey__steps" role="tablist" aria-label="What Stacktape does, step by step" aria-orientation="vertical">
+      <div class="b-stepper" role="tablist" aria-label="What Stacktape does, step by step" aria-orientation="vertical">
         {
           STEPS.map((step, index) => (
             <button
-              class="b-journey__step"
+              class="b-stepper__item"
               type="button"
               role="tab"
               id={`b-tab-${step.id}`}
@@ -43,11 +45,11 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
               aria-selected={index === 0 ? 'true' : 'false'}
               tabindex={index === 0 ? 0 : -1}
             >
-              <span class="b-journey__num">{pad(index)}</span>
-              <span class="b-journey__name">
-                <span class="b-journey__tape">{step.name}</span>
+              <span class="b-stepper__num">{pad(index)}</span>
+              <span class="b-stepper__name">
+                <span class="b-stepper__tape">{step.name}</span>
               </span>
-              <span class="b-journey__when">{step.when}</span>
+              <span class="b-stepper__when">{step.when}</span>
             </button>
           ))
         }
@@ -66,16 +68,23 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
           >
             <figcaption class="b-journey__caption">
               <span class="b-journey__title">{step.title}</span>
-              <span class="b-journey__line">{step.line}</span>
+              <span class="b-journey__line">
+                {step.line}
+                {step.bench ? (
+                  <a class="brand-link brand-link--muted b-journey__bench" href="/benchmarks">
+                    Preliminary run, {runDate(FIRST_RUN.date)}
+                  </a>
+                ) : null}
+              </span>
             </figcaption>
-            <div class="b-journey__frame">
-              <div class="b-journey__bar" aria-hidden="true">
-                <span class="b-journey__dots">
+            <div class="b-frame">
+              <div class="b-frame__bar" aria-hidden="true">
+                <span class="b-frame__dots">
                   <i />
                   <i />
                   <i />
                 </span>
-                <span class="b-journey__where">{step.where}</span>
+                <span class="b-frame__where">{step.where}</span>
               </div>
               {step.shot ? (
                 <Image
@@ -107,30 +116,6 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
 </section>
 
 <script>
-  /*
-   * The kit's command box preselects the visitor's installer. Until the installers are confirmed to ship v4
-   * (launch item L5), this page keeps npx: the first automatic switch is undone before it paints. A visitor's
-   * own choice is left alone.
-   */
-  const install = document.getElementById('install');
-  if (install) {
-    let touched = false;
-    const stop = () => {
-      touched = true;
-    };
-    install.addEventListener('pointerdown', stop, { once: true });
-    install.addEventListener('keydown', stop, { once: true });
-    const observer = new MutationObserver(() => {
-      const tabs = Array.from(install.querySelectorAll<HTMLElement>('.install-code__tabs [role="tab"]'));
-      const npx = tabs.find((tab) => tab.textContent?.trim() === 'npx');
-      if (touched || !npx || npx.getAttribute('aria-selected') === 'true') return;
-      observer.disconnect();
-      npx.click();
-    });
-    observer.observe(install, { subtree: true, attributes: true, attributeFilter: ['aria-selected'] });
-    window.setTimeout(() => observer.disconnect(), 4000);
-  }
-
   for (const journey of document.querySelectorAll<HTMLElement>('[data-journey]')) {
     const tabs = Array.from(journey.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
     const select = (next: HTMLButtonElement, focus = false, remember = false) => {
@@ -223,92 +208,6 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
     text-wrap: balance;
   }
 
-  .b-journey__steps {
-    display: grid;
-    border-left: 1px solid var(--brand-border);
-  }
-
-  .b-journey__step {
-    position: relative;
-    display: grid;
-    grid-template-columns: 2.25rem minmax(0, 1fr);
-    grid-template-areas: 'num name' '. when';
-    align-items: center;
-    row-gap: 0.125rem;
-    padding: 0.625rem 0 0.625rem var(--brand-space-4);
-    border: 0;
-    background: none;
-    color: var(--brand-muted);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .b-journey__step::before {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: -1px;
-    width: 2px;
-    content: '';
-  }
-
-  .b-journey__step[aria-selected='true']::before {
-    background: var(--brand-teal);
-  }
-
-  .b-journey__num {
-    grid-area: num;
-    font: var(--brand-type-xs) / 1 var(--brand-font-mono);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .b-journey__name {
-    grid-area: name;
-    justify-self: start;
-    font: var(--brand-weight-label) var(--brand-type-base) / 1.2 var(--brand-font-heading);
-  }
-
-  .b-journey__tape {
-    position: relative;
-    isolation: isolate;
-    display: inline-block;
-    margin-left: -0.6em;
-    padding: 0.22em 0.6em;
-  }
-
-  .b-journey__when {
-    grid-area: when;
-    font-size: var(--brand-type-xs);
-  }
-
-  .b-journey__step:hover {
-    color: var(--brand-text);
-  }
-
-  .b-journey__step[aria-selected='true'] {
-    color: var(--brand-text);
-  }
-
-  .b-journey__step[aria-selected='true'] .b-journey__tape {
-    color: var(--brand-on-teal);
-  }
-
-  .b-journey__step[aria-selected='true'] .b-journey__tape::before {
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    content: '';
-    background: var(--brand-primary);
-    box-shadow: var(--brand-edge-primary);
-    clip-path: var(--brand-tape-clip);
-  }
-
-  .b-journey__step:focus-visible {
-    outline: 2px solid var(--brand-focus);
-    outline-offset: 2px;
-  }
-
   .b-journey__panel {
     display: grid;
     gap: var(--brand-space-4);
@@ -333,42 +232,10 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
     font-size: var(--brand-type-sm);
   }
 
-  .b-journey__frame {
-    overflow: hidden;
-    border: 1px solid var(--brand-border);
-    border-radius: var(--brand-radius);
-    background: var(--brand-inset);
-    box-shadow: var(--brand-shadow);
-  }
-
-  .b-journey__bar {
-    display: flex;
-    align-items: center;
-    gap: var(--brand-space-4);
-    height: 2.25rem;
-    padding-inline: var(--brand-space-4);
-    border-bottom: 1px solid var(--brand-border);
-    background: var(--brand-surface);
-    color: var(--brand-muted);
-    font: var(--brand-type-xs) / 1 var(--brand-font-mono);
-    white-space: pre;
-  }
-
-  .b-journey__dots {
-    display: flex;
-    gap: 0.375rem;
-  }
-
-  .b-journey__dots i {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    background: var(--brand-border);
-  }
-
-  .b-journey__where {
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .b-journey__bench {
+    margin-left: var(--brand-space-2);
+    text-decoration-line: underline;
+    text-decoration-color: var(--brand-border);
   }
 
   .b-journey__shot {
@@ -408,7 +275,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
       gap: var(--brand-space-5);
     }
 
-    .b-journey__steps {
+    .b-stepper {
       display: flex;
       gap: var(--brand-space-2);
       overflow-x: auto;
@@ -416,18 +283,18 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
       scrollbar-width: none;
     }
 
-    .b-journey__step {
+    .b-stepper__item {
       flex: none;
       grid-template-areas: 'num name';
       padding: var(--brand-space-2) var(--brand-space-2) var(--brand-space-2) 0;
     }
 
-    .b-journey__step::before,
-    .b-journey__when {
+    .b-stepper__item::before,
+    .b-stepper__when {
       display: none;
     }
 
-    .b-journey__num {
+    .b-stepper__num {
       width: 1.75rem;
     }
 

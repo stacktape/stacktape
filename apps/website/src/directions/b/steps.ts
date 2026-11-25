@@ -17,8 +17,12 @@ export type Step = {
   when: string;
   /** Where the step happens, shown in the picture's title bar. */
   where: string;
+  /** The problem the step removes; each section opens with it. */
+  problem: string;
   title: string;
   line: string;
+  /** The line quotes a benchmark figure, so the caption links to the run. */
+  bench?: boolean;
   shot?: { src: ImageMetadata; alt: string };
 };
 
@@ -28,6 +32,7 @@ export const STEPS: Step[] = [
     name: 'Design',
     when: 'First command',
     where: 'stacktape init  ·  wizard in your browser',
+    problem: 'Nobody on the team knows which AWS services the app needs, or what they will cost.',
     title: 'It starts from your code',
     line: 'Stacktape reads your repo and proposes each AWS resource, with the code line behind it and its monthly cost.',
     shot: {
@@ -40,8 +45,10 @@ export const STEPS: Step[] = [
     name: 'Package',
     when: 'First push',
     where: 'console.stacktape.com  ·  staging deploy',
+    problem: 'AWS CDK, SST and Serverless take 17.6 to 28.4 seconds to package 25 Lambda functions.',
     title: '25 functions packaged in 3.8 seconds',
     line: 'Parallel builds made for Lambda. Python, Go, Java, Ruby, .NET and Rust need no Dockerfile.',
+    bench: true,
     shot: {
       src: packages,
       alt: 'A staging deploy in the Console with its Build and package step open, listing each packaged Lambda function.'
@@ -52,8 +59,10 @@ export const STEPS: Step[] = [
     name: 'Deploy',
     when: 'Seconds later',
     where: 'console.stacktape.com  ·  production deploy',
+    problem: 'With AWS CDK, a code change to 25 Lambda functions takes over a minute to go live.',
     title: 'Push, and it’s live',
     line: 'A change to one Lambda function is live in 10.7 seconds. Every pull request can get its own preview.',
+    bench: true,
     shot: {
       src: deploys,
       alt: 'A finished production deploy in the Console, with its steps, durations, commit and release.'
@@ -64,6 +73,7 @@ export const STEPS: Step[] = [
     name: 'Secure',
     when: 'Before anything changes',
     where: 'console.stacktape.com  ·  guardrails',
+    problem: 'One wrong setting can leave a database open to the internet.',
     title: 'Safe defaults, and rules you set',
     line: 'Each workload gets only the access it needs. Guardrails stop a public database or a wrong region before deploy.',
     shot: {
@@ -76,6 +86,7 @@ export const STEPS: Step[] = [
     name: 'Monitor',
     when: 'From then on',
     where: 'console.stacktape.com  ·  errors',
+    problem: 'Logs, errors and uptime checks usually mean another vendor to buy and wire up.',
     title: 'Monitoring is already set up',
     line: 'Logs, metrics, traces, errors, uptime checks and browser tests come with the stack. No extra vendor.',
     shot: {
@@ -88,6 +99,7 @@ export const STEPS: Step[] = [
     name: 'Incident',
     when: 'When it breaks',
     where: 'console.stacktape.com  ·  incident',
+    problem: 'When something breaks, one problem arrives as a dozen separate alerts.',
     title: 'One incident per problem, handled from Slack',
     line: 'Related errors, alarms and failed checks become one incident. Acknowledge, mute or roll back from Slack.',
     shot: {
@@ -100,6 +112,7 @@ export const STEPS: Step[] = [
     name: 'Costs',
     when: 'End of the month',
     where: 'console.stacktape.com  ·  costs',
+    problem: 'The AWS bill arrives once a month, as one number for everything.',
     title: 'See what every stage costs',
     line: 'Your AWS spend per project, stage and resource, updated daily. Budgets alert before the bill does.',
     shot: {
@@ -112,6 +125,7 @@ export const STEPS: Step[] = [
     name: 'Help',
     when: 'When you’re stuck',
     where: 'Slack  #stacktape-shared',
+    problem: 'A ticket queue doesn’t know how your stack is built.',
     title: 'Engineers, not a ticket queue',
     line: 'On Flexible, you get a shared Slack channel with the founders who build Stacktape.'
   }

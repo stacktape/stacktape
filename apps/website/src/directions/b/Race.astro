@@ -1,0 +1,168 @@
+---
+import type { Bar } from './bench';
+
+type Props = {
+  title: string;
+  detail: string;
+  bars: Bar[];
+  /** The longest time on the shared axis, so bars in every race are comparable. */
+  scale: number;
+  /** A footnote under the bars, for the condition a figure depends on. */
+  note?: string;
+  /** Labels to show instead of the tool name, for example "Stacktape*". */
+  rename?: Record<string, string>;
+};
+
+const { title, detail, bars, scale, note, rename = {} } = Astro.props;
+const figure = (seconds: number) => `${seconds.toFixed(1)} s`;
+---
+
+<figure class="b-race" data-race>
+  <figcaption>
+    <span class="b-race__title">{title}</span>
+    <span class="b-race__detail">{detail}</span>
+    {note ? <span class="b-race__note">{note}</span> : null}
+  </figcaption>
+  <ol class="b-race__bars">
+    {
+      bars.map((bar) => (
+        <li
+          class:list={['b-race__bar', { 'b-race__bar--us': bar.tool === 'stacktape' }]}
+          style={`--w: ${((bar.seconds / scale) * 100).toFixed(2)}%; --d: ${(bar.seconds / 10).toFixed(2)}s`}
+        >
+          <span class="b-race__name">{rename[bar.tool] ?? bar.label}</span>
+          <span class="b-race__track">
+            <span class="b-race__run">
+              <span class="b-race__fill" />
+              <span class="b-race__value">{figure(bar.seconds)}</span>
+            </span>
+          </span>
+        </li>
+      ))
+    }
+  </ol>
+</figure>
+
+<style>
+  .b-race {
+    display: grid;
+    grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+    align-items: start;
+    gap: var(--brand-space-3) var(--brand-space-6);
+    margin: 0;
+  }
+
+  figcaption {
+    display: grid;
+    gap: var(--brand-space-1);
+  }
+
+  .b-race__title {
+    font: var(--brand-weight-label) var(--brand-type-base) / 1.3 var(--brand-font-heading);
+  }
+
+  .b-race__detail,
+  .b-race__note {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
+  }
+
+  .b-race__note {
+    margin-top: var(--brand-space-1);
+  }
+
+  .b-race__bars {
+    display: grid;
+    gap: var(--brand-space-2);
+    margin: 0;
+    padding: 0.125rem 0 0;
+    list-style: none;
+  }
+
+  .b-race__bar {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    align-items: center;
+    gap: var(--brand-space-3);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.25;
+  }
+
+  .b-race__bar--us {
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  .b-race__track {
+    padding-right: 3.75rem;
+  }
+
+  .b-race__run {
+    position: relative;
+    display: block;
+    width: var(--w);
+    height: 0.625rem;
+  }
+
+  .b-race__fill {
+    position: absolute;
+    inset: 0;
+    border-radius: 0 4px 4px 0;
+    background: color-mix(in srgb, var(--brand-muted) 42%, transparent);
+    transform-origin: left;
+  }
+
+  .b-race__bar--us .b-race__fill {
+    background: var(--brand-teal);
+  }
+
+  .b-race__value {
+    position: absolute;
+    top: 50%;
+    left: calc(100% + var(--brand-space-2));
+    font: var(--brand-type-xs) / 1 var(--brand-font-mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    transform: translateY(-50%);
+  }
+
+  /* With motion allowed, every bar grows at the same speed and stops at its time: one second is ten in the run. */
+  :global(.b-motion) .b-race:not(.is-running) .b-race__fill {
+    transform: scaleX(0);
+  }
+
+  :global(.b-motion) .b-race:not(.is-running) .b-race__value {
+    opacity: 0;
+  }
+
+  :global(.b-motion) .b-race.is-running .b-race__fill {
+    animation: b-race-grow var(--d) linear both;
+  }
+
+  :global(.b-motion) .b-race.is-running .b-race__value {
+    animation: b-race-show 0.25s ease-out var(--d) both;
+  }
+
+  @keyframes b-race-grow {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  @keyframes b-race-show {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @media (max-width: 48rem) {
+    .b-race {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .b-race__bar {
+      grid-template-columns: 6.25rem minmax(0, 1fr);
+    }
+  }
+</style>

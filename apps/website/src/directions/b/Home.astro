@@ -2,8 +2,13 @@
 import BrandHead from '../../brand/BrandHead.astro';
 import '../../brand/controls.css';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import Closing from './Closing.astro';
+import Footer from './Footer.astro';
 import Header from './Header.astro';
 import Hero from './Hero.astro';
+import Proof from './Proof.astro';
+import Questions from './Questions.astro';
+import Steps from './Steps.astro';
 ---
 
 <BaseLayout
@@ -15,8 +20,38 @@ import Hero from './Hero.astro';
   <Header />
   <main>
     <Hero />
+    <Proof />
+    <Steps />
+    <Questions />
+    <Closing />
   </main>
+  <Footer />
 </BaseLayout>
+
+<script>
+  /*
+   * The kit's command box preselects the visitor's installer. Until the installers are confirmed to ship v4
+   * (launch item L5), this page keeps npx: the automatic switch is undone before it paints. A visitor's own
+   * choice is left alone.
+   */
+  for (const box of document.querySelectorAll<HTMLElement>('.b-page astro-island:has(.brand-command)')) {
+    let touched = false;
+    const stop = () => {
+      touched = true;
+      observer.disconnect();
+    };
+    const observer = new MutationObserver(() => {
+      const tabs = Array.from(box.querySelectorAll<HTMLElement>('.install-code__tabs [role="tab"]'));
+      const npx = tabs.find((tab) => tab.textContent?.trim() === 'npx');
+      if (touched || !npx || npx.getAttribute('aria-selected') === 'true') return;
+      observer.disconnect();
+      npx.click();
+    });
+    box.addEventListener('pointerdown', stop, { once: true });
+    box.addEventListener('keydown', stop, { once: true });
+    observer.observe(box, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-selected'] });
+  }
+</script>
 
 <style is:global>
   .b-page {
@@ -27,5 +62,9 @@ import Hero from './Hero.astro';
 
   .b-page body {
     overflow-x: clip;
+  }
+
+  .b-page astro-island {
+    display: contents;
   }
 </style>

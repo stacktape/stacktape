@@ -1,0 +1,93 @@
+---
+import Tape from '../../brand/Tape.astro';
+import { CommandBox } from '../../brand/CommandBox';
+---
+
+<section class="b-closing" aria-labelledby="b-closing-title">
+  <div class="b-closing__copy">
+    <p class="b-closing__marker"><Tape variant="marker">09 Your app</Tape><span>Your turn</span></p>
+    <h2 id="b-closing-title">Try it on your repo.</h2>
+    <p class="b-closing__line">Run one command. Review the setup and what it costs before anything is created.</p>
+  </div>
+  <div class="b-closing__start">
+    <CommandBox client:visible label="Start in your repo" />
+    <p class="b-closing__trust">
+      <span>Open-source CLI (MIT)</span><span>Your AWS account</span><span>Free up to $200 a month of AWS spend</span>
+    </p>
+    <a class="brand-link brand-link--muted" href="https://console.stacktape.com">Already using Stacktape? Open the Console</a>
+  </div>
+</section>
+
+<style>
+  .b-closing {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+    gap: var(--brand-space-6) clamp(2rem, 1rem + 4vw, 7rem);
+    width: var(--b-width);
+    margin-inline: auto;
+    padding-block: clamp(4rem, 2.5rem + 4vw, 8rem);
+    border-top: 1px solid var(--brand-border);
+  }
+
+  .b-closing__marker {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-3);
+    margin-bottom: var(--brand-space-5);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  h2 {
+    font: var(--brand-weight-heading) clamp(2.25rem, 1.5rem + 2.4vw, 4rem) / 1.04 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  .b-closing__line {
+    max-width: 30rem;
+    margin-top: var(--brand-space-4);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+  }
+
+  .b-closing__start {
+    display: grid;
+    gap: var(--brand-space-3);
+    min-width: 0;
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-closing__start > a {
+    justify-self: start;
+  }
+
+  .b-closing__trust {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--brand-space-1) var(--brand-space-3);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
+  }
+
+  .b-closing__trust span + span::before {
+    margin-right: var(--brand-space-3);
+    content: '·';
+  }
+
+  @media (max-width: 64rem) {
+    .b-closing {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 30rem) {
+    .b-closing__trust {
+      flex-direction: column;
+    }
+
+    .b-closing__trust span + span::before {
+      content: none;
+    }
+  }
+</style>
