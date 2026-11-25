@@ -14,8 +14,11 @@ const POSTS = [{ href: '/blog/stacktape-v4', title: 'Stacktape v4: what changed'
     {
       POSTS.map((post) => (
         <li>
-          <a href={post.href}>{post.title}</a>
-          <span>{post.date}</span>
+          <a href={post.href}>
+            <span class="post-title">{post.title}</span>
+            <span class="post-date">{post.date}</span>
+            <span class="post-arrow" aria-hidden="true">→</span>
+          </a>
         </li>
       ))
     }
@@ -28,27 +31,52 @@ const POSTS = [{ href: '/blog/stacktape-v4', title: 'Stacktape v4: what changed'
 
 <style>
   .posts {
-    list-style: none;
-    margin: 0 0 32px;
+    margin: 0 0 var(--brand-space-5);
     padding: 0;
+    border-block-start: 1px solid var(--brand-border);
+    list-style: none;
   }
 
   .posts li {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 16px 0;
-    border-bottom: 1px solid var(--stp-border-subtle);
+    border-block-end: 1px solid var(--brand-border);
   }
 
   .posts a {
-    font-weight: 600;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: var(--brand-space-4);
+    padding: var(--brand-space-5) var(--brand-space-3);
+    color: var(--brand-text);
     text-decoration: none;
   }
 
-  .posts span {
-    color: var(--stp-text-muted);
-    font-size: 14px;
-    white-space: nowrap;
+  .posts a:hover {
+    background: var(--brand-surface);
+  }
+
+  .post-title {
+    font: var(--brand-weight-label) var(--brand-type-lead) / 1.35 var(--brand-font-heading);
+  }
+
+  .post-date {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .post-arrow {
+    color: var(--brand-teal);
+  }
+
+  @media (max-width: 36rem) {
+    .posts a {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--brand-space-2) var(--brand-space-4);
+    }
+
+    .post-arrow {
+      grid-column: 2;
+      grid-row: 1;
+    }
   }
 </style>

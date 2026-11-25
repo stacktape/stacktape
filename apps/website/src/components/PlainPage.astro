@@ -1,149 +1,136 @@
 ---
-/**
- * The shell for the site's plain pages (pricing, blog): the wordmark, one column of text on the
- * page's surface, and a way back. Used by the pages the homepage links to before those pages have
- * their real design; it deliberately carries no variant's styling so it fits under any of them.
- */
+import BrandHead from '../brand/BrandHead.astro';
+import SiteFooter from '../brand/SiteFooter.astro';
+import SiteHeader from '../brand/SiteHeader.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import Logo from './Logo.astro';
 
 type Props = {
   title: string;
   description: string;
-  /** The line under the title. */
   lead?: string;
+  noindex?: boolean;
+  wide?: boolean;
 };
 
-const { title, description, lead } = Astro.props;
+const { title, description, lead, noindex = false, wide = false } = Astro.props;
 ---
 
-<BaseLayout title={`${title} — Stacktape`} description={description}>
-  <Fragment slot="head">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
-  </Fragment>
-  <div class="pp-root">
-    <header class="pp-header">
-      <a href="/" aria-label="Stacktape home"><Logo height={24} /></a>
-      <nav aria-label="Primary">
-        <a href="https://docs.stacktape.com">Docs</a>
-        <a href="/pricing">Pricing</a>
-        <a href="/blog">Blog</a>
-        <a href="https://console.stacktape.com">Sign in</a>
-      </nav>
-    </header>
-    <main class="pp-main">
-      <h1>{title}</h1>
-      {lead ? <p class="pp-lead">{lead}</p> : null}
+<BaseLayout title={`${title} — Stacktape`} {description} {noindex} htmlClass="brand">
+  <BrandHead slot="head" />
+  <div class="page">
+    <SiteHeader />
+    <main class:list={['site-frame', 'content', 'page-prose', { 'content--wide': wide }]}>
+      <header class="intro">
+        <slot name="eyebrow" />
+        <h1>{title}</h1>
+        {lead && <p class="lead">{lead}</p>}
+      </header>
       <slot />
     </main>
-    <footer class="pp-footer">
-      <span>© 2026 Stacktape</span>
-      <a href="/">Back to the homepage</a>
-    </footer>
+    <SiteFooter />
   </div>
 </BaseLayout>
 
 <style>
-  .pp-root {
-    min-height: 100vh;
+  .page {
     display: flex;
     flex-direction: column;
-    font-family: 'Inter', system-ui, sans-serif;
-    font-size: 17px;
-    line-height: 1.55;
-    color: var(--stp-text-primary);
+    min-height: 100vh;
   }
 
-  .pp-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-    width: 100%;
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 20px 24px;
-  }
-
-  .pp-header nav {
-    display: flex;
-    gap: 20px;
-    font-size: 15px;
-    font-weight: 500;
-  }
-
-  .pp-header a,
-  .pp-footer a {
-    white-space: nowrap;
-    color: var(--stp-text-muted);
-    text-decoration: none;
-  }
-
-  .pp-header a:hover,
-  .pp-footer a:hover {
-    color: var(--stp-text-primary);
-  }
-
-  .pp-main {
-    width: 100%;
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 64px 24px 96px;
+  .content {
+    --site-width: 49rem;
     flex: 1;
+    min-width: 0;
+    padding-block: clamp(var(--brand-space-6), 5vw, var(--brand-space-8)) var(--brand-space-9);
+    overflow-wrap: anywhere;
   }
 
-  .pp-main :global(h1) {
-    margin: 0 0 16px;
-    font-size: clamp(34px, 4.5vw, 48px);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
+  .content--wide {
+    --site-width: 76rem;
   }
 
-  .pp-lead {
-    margin: 0 0 40px;
-    font-size: 19px;
-    color: #b7c0c2;
+  .intro {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-4);
+    margin-block-end: var(--brand-space-6);
   }
 
-  .pp-main :global(h2) {
-    margin: 40px 0 8px;
-    font-size: 22px;
-    font-weight: 600;
+  :global(:where(.page-prose) :where(h1, h2, h3, h4)) {
+    font-family: var(--brand-font-heading);
+    font-weight: var(--brand-weight-heading);
+    line-height: var(--brand-leading-heading);
+    letter-spacing: var(--brand-tracking-heading);
+    color: var(--brand-text);
   }
 
-  .pp-main :global(p) {
-    margin: 0 0 16px;
-    color: #b7c0c2;
+  h1 {
+    margin: 0;
+    font-size: var(--brand-type-display);
+    text-wrap: balance;
   }
 
-  .pp-main :global(a) {
-    color: var(--stp-color-brand);
+  :global(:where(.page-prose) :where(h2, h3, h4, [id])) {
+    scroll-margin-block-start: var(--brand-space-9);
   }
 
-  .pp-main :global(ul) {
-    margin: 0 0 16px;
-    padding-left: 20px;
-    color: #b7c0c2;
+  :global(:where(.page-prose) :where(h2)) {
+    margin-block: var(--brand-space-7) var(--brand-space-3);
+    font-size: var(--brand-type-title);
   }
 
-  .pp-footer {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    width: 100%;
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 24px;
-    border-top: 1px solid var(--stp-border-subtle);
-    font-size: 14px;
-    color: var(--stp-text-muted);
+  :global(:where(.page-prose) :where(h3, h4)) {
+    margin-block: var(--brand-space-5) var(--brand-space-2);
+    font-size: var(--brand-type-lead);
   }
 
-  @media (max-width: 600px) {
-    .pp-header nav {
-      gap: 14px;
-      font-size: 14px;
-    }
+  :global(:where(.page-prose) :where(p, ul, ol, address, blockquote)) {
+    margin-block: 0 var(--brand-space-4);
+    color: var(--brand-muted);
+  }
+
+  .intro .lead {
+    max-width: 67ch;
+    margin: 0;
+    font-size: var(--brand-type-lead);
+  }
+
+  :global(:where(.page-prose) :where(ul:not([class]), ol:not([class]))) {
+    padding-inline-start: var(--brand-space-5);
+    list-style: revert;
+  }
+
+  :global(:where(.page-prose) :where(ul:not([class]), ol:not([class])) > li + li) {
+    margin-block-start: var(--brand-space-2);
+  }
+
+  :global(:where(.page-prose) :where(a:not(.stp-ui-button))) {
+    color: var(--brand-teal);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  :global(:where(.page-prose) :where(a:not(.stp-ui-button):hover)) {
+    color: var(--brand-text);
+  }
+
+  :global(:where(.page-prose) :where(code, pre)) {
+    font-family: var(--brand-font-mono);
+    font-size: 0.9em;
+    color: var(--brand-text);
+  }
+
+  :global(:where(.page-prose) :where(pre)) {
+    margin-block: var(--brand-space-4);
+    padding: var(--brand-space-4);
+    overflow-x: auto;
+    border-radius: var(--brand-radius);
+    background: var(--brand-inset);
+  }
+
+  :global(:where(.page-prose) :where(img)) {
+    max-width: 100%;
+    height: auto;
   }
 </style>
