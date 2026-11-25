@@ -1,12 +1,9 @@
 import react from '@astrojs/react';
-import posthog from '@posthog/rollup-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import { websitePublication } from './src/build/publish.mjs';
 
 const deployStage = process.env.STACKTAPE_WEBSITE_STAGE;
-
-const posthogSourceMapsEnabled = Boolean(process.env.POSTHOG_API_KEY && process.env.POSTHOG_PROJECT_ID);
 
 export default defineConfig({
   site: 'https://stacktape.com',
@@ -15,23 +12,7 @@ export default defineConfig({
   redirects: { '/readme': '/', '/benchmarks': '/' },
   integrations: [react(), ...(deployStage ? [websitePublication(deployStage)] : [])],
   vite: {
-    plugins: [
-      tailwindcss(),
-      ...(posthogSourceMapsEnabled
-        ? [
-            posthog({
-              personalApiKey: process.env.POSTHOG_API_KEY,
-              projectId: process.env.POSTHOG_PROJECT_ID,
-              host: process.env.POSTHOG_HOST || 'https://eu.posthog.com',
-              sourcemaps: {
-                releaseName: 'stacktape-website',
-                releaseVersion: process.env.POSTHOG_RELEASE_VERSION || 'local',
-                deleteAfterUpload: true
-              }
-            })
-          ]
-        : [])
-    ],
+    plugins: [tailwindcss()],
     ssr: {
       // `@stacktape/ui-react/resource-icon` draws the AWS icons from `aws-react-icons`, whose ESM index imports its
       // files without extensions. Node cannot load that when the dev server leaves the package external, so the server
