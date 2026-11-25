@@ -1,0 +1,225 @@
+/*
+ * The benchmark pictures of the Packages and Deploys steps: a panel with the headline result and its chart, smaller
+ * charts for the other cases, and what was measured, where and when. Square corners, the page's graphite, Stacktape's
+ * bars in the primary teal and everyone else's in grey.
+ */
+
+.bn {
+  display: grid;
+  margin: 0;
+  border: 1px solid var(--brand-border);
+  background: var(--brand-inset);
+}
+
+.bn-main {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--brand-space-6) clamp(2rem, 1rem + 3vw, 4rem);
+  padding: clamp(1.5rem, 1rem + 2vw, 2.75rem);
+}
+
+/* The headline result: Stacktape's time, large, and what it is against. */
+.bn-stat {
+  display: grid;
+  gap: var(--brand-space-2);
+}
+
+.bn-stat__value {
+  color: var(--brand-text);
+  font: var(--brand-weight-heading) clamp(3rem, 2rem + 3vw, 4.75rem) / 1 var(--brand-font-heading);
+  letter-spacing: var(--brand-tracking-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.bn-stat__value small {
+  margin-left: 0.15em;
+  color: var(--brand-muted);
+  font-size: 0.42em;
+  letter-spacing: 0;
+}
+
+.bn-stat__what {
+  color: var(--brand-text);
+  font-size: var(--brand-type-base);
+  line-height: 1.4;
+}
+
+.bn-stat__what code {
+  font: 0.9em var(--brand-font-mono);
+}
+
+.bn-stat__run {
+  justify-self: start;
+  color: var(--brand-muted);
+  font-size: var(--brand-type-xs);
+}
+
+.bn-stat__how {
+  color: var(--brand-muted);
+  font-size: var(--brand-type-sm);
+}
+
+.bn-more {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--brand-space-6) clamp(1.5rem, 1rem + 2vw, 3rem);
+  padding: clamp(1.25rem, 0.75rem + 1.5vw, 2rem) clamp(1.5rem, 1rem + 2vw, 2.75rem);
+  border-top: 1px solid var(--brand-border);
+}
+
+/* ── One chart ─────────────────────────────────────────────────────────────────────────────── */
+
+.bn-chart {
+  /* Wide enough for the longest label, "AWS CDK (synth)". */
+  --bn-label: 7.75rem;
+  --bn-gap: 0.75rem;
+  --bn-value: 3.75rem;
+  --bn-bar: 0.65rem;
+
+  display: grid;
+  align-content: start;
+  min-width: 0;
+}
+
+.bn-chart--large {
+  --bn-label: 8.25rem;
+  --bn-bar: 1.25rem;
+}
+
+.bn-chart__title {
+  font: var(--brand-weight-label) var(--brand-type-base) / 1.3 var(--brand-font-heading);
+}
+
+.bn-chart__detail {
+  margin-top: var(--brand-space-1);
+  color: var(--brand-muted);
+  font-size: var(--brand-type-xs);
+}
+
+.bn-chart__plot {
+  position: relative;
+  margin-top: var(--brand-space-4);
+}
+
+.bn-chart--large .bn-chart__plot {
+  margin-top: 0;
+  padding-bottom: 1.75rem;
+}
+
+.bn-chart ol {
+  position: relative;
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bn-chart--large ol {
+  gap: 0.7rem;
+}
+
+.bn-chart li {
+  display: grid;
+  grid-template-columns: var(--bn-label) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.2rem var(--bn-gap);
+  color: var(--brand-muted);
+  font-size: var(--brand-type-sm);
+}
+
+.bn-chart li.is-us {
+  color: var(--brand-text);
+  font-weight: var(--brand-weight-label);
+}
+
+/* What the tool did, under its bar: "code swap enabled", "build from the pushed source". */
+.bn-chart__note {
+  grid-column: 2;
+  color: var(--brand-muted);
+  font-size: var(--brand-type-xs);
+  font-weight: var(--brand-weight-body);
+}
+
+.bn-chart__tool {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The track leaves room on the right for the value written after the bar. */
+.bn-chart__track {
+  position: relative;
+  height: var(--bn-bar);
+  margin-right: var(--bn-value);
+}
+
+.bn-chart__track i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: max(2px, var(--bn-w));
+  background: #3a4343;
+}
+
+.bn-chart li.is-us .bn-chart__track i {
+  background: linear-gradient(180deg, var(--brand-primary-top), var(--brand-primary-bottom));
+  box-shadow: var(--brand-edge-primary);
+}
+
+.bn-chart__track b {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--bn-w) + 0.5rem);
+  font-weight: inherit;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+.bn-chart--large li.is-us .bn-chart__track b {
+  color: var(--brand-teal);
+}
+
+/* Grid lines over the tracks, with the seconds under them. */
+.bn-chart__grid {
+  position: absolute;
+  inset: 0 var(--bn-value) 0 calc(var(--bn-label) + var(--bn-gap));
+}
+
+.bn-chart__grid span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--bn-at);
+  display: flex;
+  align-items: end;
+  border-left: 1px dashed rgb(255 255 255 / 7%);
+  color: var(--brand-muted);
+  font-size: var(--brand-type-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-left: 0.3rem;
+}
+
+.bn-chart__grid span:first-child {
+  border-left-style: solid;
+  border-left-color: var(--brand-border);
+}
+
+@media (max-width: 52rem) {
+  .bn-main,
+  .bn-more {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bn-main {
+    gap: var(--brand-space-5);
+  }
+
+  .bn-chart--large {
+    --bn-label: 7.75rem;
+    --bn-bar: 0.9rem;
+  }
+}

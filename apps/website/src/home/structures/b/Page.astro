@@ -1,0 +1,36 @@
+---
+import BrandHead from '../../../brand/BrandHead.astro';
+import SiteFooter from '../../../brand/SiteFooter.astro';
+import SiteHeader from '../../../brand/SiteHeader.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Closing from './Closing.astro';
+import Proof from './Proof.astro';
+import Questions from './Questions.astro';
+import Steps from './Steps.astro';
+---
+
+<BaseLayout
+  title="Stacktape: AWS DevOps, fully automated"
+  description="Stacktape reads your repository, designs the AWS infrastructure, deploys it to your own AWS account and keeps it running."
+  htmlClass="brand s-b"
+  noindex={Astro.url.pathname !== '/'}
+>
+  <BrandHead slot="head" />
+  <SiteHeader startHref="#install" />
+  <main>
+    <slot name="hero" />
+    <Steps />
+    <Proof />
+    <Questions />
+    <Closing />
+  </main>
+  <SiteFooter homeHref={Astro.url.pathname} />
+</BaseLayout>
+
+<style is:global>
+  /* A wider frame than the default 76rem: the step rail takes a column of its own. */
+  .s-b {
+    --site-width: 88rem;
+    scroll-padding-top: 5rem;
+  }
+</style>

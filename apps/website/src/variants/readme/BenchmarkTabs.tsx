@@ -15,7 +15,12 @@ const TABS_ID = 'rm-bench';
 const panelId = (comparison: Comparison) => `${TABS_ID}-panel-${comparison.id}`;
 
 const shortDate = (date: string) =>
-  new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
 
 /** Notes carry `code` in backticks, as the benchmark repository writes them. */
 export function Inline({ text }: { text: string }) {
@@ -159,7 +164,7 @@ function Panel({ data, comparison, active }: { data: BenchmarkData; comparison: 
       <p className="rm-bench__source">
         <span className="rm-bench__status">{data.status}</span>
         <span aria-hidden="true">·</span>
-        <span>Measured {dates.map(shortDate).join(' and ')} 2026</span>
+        <span>Measured {dates.map(shortDate).join(' and ')}</span>
         <span aria-hidden="true">·</span>
         <span>
           Data:{' '}
@@ -179,7 +184,7 @@ function Panel({ data, comparison, active }: { data: BenchmarkData; comparison: 
  * The benchmark page's one chart: a tab per comparison, one comparison visible at a time.
  *
  * Server-rendered, so the first tab reads before hydration and without JavaScript. The address
- * hash selects a tab (`/benchmarks#git-push`), which is how the homepage links straight to one.
+ * hash selects a tab (`#git-push`), which is how a page links straight to one.
  */
 export function BenchmarkTabs({ data }: { data: BenchmarkData }) {
   const first = data.comparisons[0]?.id ?? '';

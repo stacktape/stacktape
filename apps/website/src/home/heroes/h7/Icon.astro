@@ -1,0 +1,29 @@
+---
+/** One inline SVG icon from the cover: Tabler-style stroked outlines or filled glyphs. */
+type Props = {
+  markup: string;
+  viewBox?: string;
+  stroke?: boolean;
+  class?: string;
+};
+
+const { markup, viewBox = '0 0 24 24', stroke = false, class: className } = Astro.props;
+---
+
+{
+  stroke ? (
+    <svg
+      class={className}
+      viewBox={viewBox}
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      set:html={markup}
+    />
+  ) : (
+    <svg class={className} viewBox={viewBox} fill="currentColor" aria-hidden="true" set:html={markup} />
+  )
+}

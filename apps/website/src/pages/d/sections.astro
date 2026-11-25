@@ -1,0 +1,130 @@
+---
+import BrandHead from '../../brand/BrandHead.astro';
+import { SECTION_PACKS } from '../../home/sections';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Stacktape section packs"
+  description="Words, proof and product pictures for the eight home page capabilities."
+  htmlClass="brand"
+>
+  <BrandHead slot="head" />
+  <main class="packs">
+    <h1>Section packs</h1>
+    {
+      SECTION_PACKS.map((pack) => (
+        <section class="pack" id={pack.id} aria-labelledby={`${pack.id}-name`}>
+          <p class="pack-name" id={`${pack.id}-name`}>
+            {pack.name}
+          </p>
+          <h2>{pack.title}</h2>
+          <p>{pack.text}</p>
+          <ul>
+            {pack.gets.map((point) => (
+              <li>{point}</li>
+            ))}
+          </ul>
+
+          {pack.figure && (
+            <>
+              <h3>Figure</h3>
+              <p>
+                <strong>{pack.figure.value}</strong> · {pack.figure.label} · run of {pack.figure.runDate} ·{' '}
+                <a href={pack.figure.link}>benchmarks</a>
+              </p>
+              <ol class="bars">
+                {pack.figure.bars.map((bar) => (
+                  <li class={bar.stacktape ? 'is-stacktape' : undefined}>
+                    {bar.tool}: {bar.seconds.toFixed(1)} s
+                  </li>
+                ))}
+              </ol>
+              <p class="source">{pack.figure.source}</p>
+            </>
+          )}
+
+          <h3>Sources</h3>
+          <ul>
+            {pack.sources.map((source) => (
+              <li class="source">{source}</li>
+            ))}
+          </ul>
+
+          <h3>Picture</h3>
+          {pack.picture ? (
+            <figure>
+              <picture>
+                <source
+                  media="(max-width: 40rem)"
+                  type="image/webp"
+                  srcset={`${pack.picture.phone.small.src} 1x, ${pack.picture.phone.large.src} 2x`}
+                />
+                <source
+                  media="(max-width: 40rem)"
+                  srcset={`${pack.picture.phone.smallPng.src} 1x, ${pack.picture.phone.largePng.src} 2x`}
+                />
+                <source
+                  type="image/webp"
+                  srcset={`${pack.picture.desktop.small.src} 1x, ${pack.picture.desktop.large.src} 2x`}
+                />
+                <img
+                  src={pack.picture.desktop.smallPng.src}
+                  srcset={`${pack.picture.desktop.smallPng.src} 1x, ${pack.picture.desktop.largePng.src} 2x`}
+                  width={pack.picture.desktop.small.width}
+                  height={pack.picture.desktop.small.height}
+                  alt={pack.picture.alt}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </picture>
+              <figcaption>
+                <span class="source">{pack.picture.from}</span>
+                {pack.picture.note && <> · {pack.picture.note}</>}
+              </figcaption>
+            </figure>
+          ) : (
+            <p>Each structure shows its own screen for this section.</p>
+          )}
+
+          <h3>Do not claim</h3>
+          <ul>
+            {pack.doNotClaim.map((item) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </section>
+      ))
+    }
+  </main>
+</BaseLayout>
+
+<style>
+  .packs {
+    width: min(75rem, 100% - 2 * var(--brand-space-5));
+    margin-inline: auto;
+    padding-block: var(--brand-space-7);
+  }
+
+  .pack {
+    border-top: 1px solid var(--brand-border);
+    padding-block: var(--brand-space-6);
+  }
+
+  .pack-name,
+  .source {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .bars .is-stacktape {
+    font-weight: var(--brand-weight-label);
+  }
+
+  .pack img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--brand-border);
+  }
+</style>

@@ -1,0 +1,144 @@
+---
+import './console.css';
+
+/**
+ * The Console's frame around a page: the top bar (logo, organization and page, Find, New project, Help, the person) and
+ * the sidebar with every section the Console has, as it draws them for the Acme organization. A step picture puts its
+ * page in the slot. The window is as tall as the page, like a browser window: the sidebar is cut off below it.
+ *
+ * The whole window is one image to assistive technology: `label` says what it shows, and nothing in it is a control.
+ */
+type Nav =
+  | 'projects'
+  | 'incidents'
+  | 'logs'
+  | 'metrics'
+  | 'traces'
+  | 'uptime'
+  | 'synthetics'
+  | 'errors';
+
+type Props = {
+  label: string;
+  /** The page after the organization in the top bar: a project or a page name. */
+  page: string;
+  /** Whether the page part has a menu (a project does). */
+  pageMenu?: boolean;
+  current: Nav;
+  /** Open errors, shown on Error tracking in the sidebar. */
+  openErrors?: number;
+  /** Whether the Organization section is open; a page lower in the sidebar closes it so its own row shows. */
+  organization?: boolean;
+  /**
+   * Open incidents at the picture's time. By default the hero's 13:06: one, the expiring TLS certificate
+   * (heroes/h5/console/data.ts COUNTS). A picture from earlier in the day passes its own count.
+   */
+  openIncidents?: number;
+};
+
+const { label, page, pageMenu = false, current, openErrors, organization = true, openIncidents = 1 } = Astro.props;
+
+/** Outline icons at the Console's 16 px grid, drawn with the current colour. */
+const ICONS: Record<string, string> = {
+  projects: 'M3 4.5h14v11H3zM3 8h14',
+  incidents: 'M10 3v2M4.5 5.5l1.4 1.4M15.5 5.5l-1.4 1.4M5 15a5 5 0 0 1 10 0zM3 15h14',
+  activity: 'M2.5 10h3l2-5 3.5 10 2-5h4.5',
+  costs: 'M10 2.5v15M13.5 6c-.5-1.3-1.8-2-3.5-2-2 0-3.4 1-3.4 2.6 0 3.5 7 1.9 7 5.4 0 1.7-1.5 2.8-3.6 2.8-1.9 0-3.3-.8-3.8-2.3',
+  members:
+    'M7 9.5a2.8 2.8 0 1 0 0-5.6 2.8 2.8 0 0 0 0 5.6zM2.5 16c.4-2.8 2.2-4.3 4.5-4.3s4.1 1.5 4.5 4.3M13 9.3a2.5 2.5 0 1 0 0-5M14.5 11.8c1.6.4 2.7 1.8 3 4.2',
+  keys: 'M7 12.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM10 9.5h7.5M15 9.5v2.5M17.5 9.5v2',
+  audit: 'M5 2.5h7l3 3v12H5zM8 8h4M8 11h4M8 14h2.5',
+  sso: 'M8.5 11.5a3.5 3.5 0 0 0 5 0l2.5-2.5a3.5 3.5 0 0 0-5-5l-1 1M11.5 8.5a3.5 3.5 0 0 0-5 0L4 11a3.5 3.5 0 0 0 5 5l1-1',
+  billing: 'M2.5 5h15v10h-15zM2.5 8.5h15M5 12.5h3',
+  logs: 'M3 5h1.5M3 10h1.5M3 15h1.5M7.5 5H17M7.5 10H17M7.5 15H17',
+  metrics: 'M3 16.5h14M3.5 13l4-4.5 3 3 6-6.5',
+  traces: 'M5 4.5a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4zM15 12.1a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4zM6.7 6.2H13a2.5 2.5 0 0 1 0 5H7a2.5 2.5 0 0 0 0 5h6.3',
+  uptime: 'M3 4h14v9H3zM7 16.5h6M10 13v3.5M5.5 9.5l2.5-2 2 2.5 4-4',
+  synthetics: 'M8.5 3.5v5L4 15.5c-.4.7.1 1.5.9 1.5h10.2c.8 0 1.3-.8.9-1.5L11.5 8.5v-5M7.5 3.5h5M6 12.5h8',
+  errors: 'M7 6.5a3 3 0 0 1 6 0M6 8.5h8v4a4 4 0 0 1-8 0zM10 8.5v8M3 9.5h3M14 9.5h3M3.5 14H6M14 14h2.5M4.5 5l2 2M15.5 5l-2 2'
+};
+const icon = (name: string) => ICONS[name] ?? '';
+
+/** The sidebar from top to bottom: rows, and the headings of the sections they sit in (closed ones have no rows). */
+type Row = { id: string; name: string; organization?: boolean } | { group: string; open?: boolean };
+const SIDEBAR: Row[] = [
+  { id: 'projects', name: 'Projects' },
+  { id: 'incidents', name: 'Incidents' },
+  { group: 'Organization', open: true },
+  { id: 'activity', name: 'Activity', organization: true },
+  { id: 'costs', name: 'Costs', organization: true },
+  { id: 'members', name: 'Members', organization: true },
+  { id: 'keys', name: 'API keys', organization: true },
+  { id: 'audit', name: 'Audit log', organization: true },
+  { id: 'sso', name: 'Single sign-on', organization: true },
+  { id: 'billing', name: 'Billing', organization: true },
+  { group: 'Observability', open: true },
+  { id: 'logs', name: 'Logs' },
+  { id: 'metrics', name: 'Metrics' },
+  { id: 'traces', name: 'Traces' },
+  { id: 'uptime', name: 'Uptime' },
+  { id: 'synthetics', name: 'Synthetics' },
+  { id: 'errors', name: 'Error tracking' },
+  { group: 'Security' },
+  { group: 'Alerting' },
+  { group: 'Configuration' }
+];
+/** The rows shown: the Organization section's rows only while it is open. */
+const ROWS = SIDEBAR.filter((entry) => organization || !('organization' in entry));
+/** Whether a section heading is open: Organization follows the prop. */
+const isOpen = (entry: { group: string; open?: boolean }) =>
+  entry.group === 'Organization' ? organization : entry.open === true;
+---
+
+<div class="cn" role="img" aria-label={label}>
+  <div class="cn-in" aria-hidden="true">
+    <div class="cn-top">
+      <span class="cn-logo"><img src="/brand/logo-wordmark.svg" alt="" width="133" height="32" /></span>
+      <span class="cn-crumbs">
+        <span class="cn-chev">Acme</span>
+        <span class:list={[{ 'cn-chev': pageMenu }]}>{page}</span>
+      </span>
+      <span class="cn-top__tools">
+        <span class="cn-find">
+          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="9" cy="9" r="5.5"></circle><path d="m13 13 4 4"></path>
+          </svg>
+          Find <kbd>Ctrl K</kbd>
+        </span>
+        <span class="cn-button">+ New project</span>
+        <span class="cn-top__help cn-chev">Help</span>
+        <span class="cn-avatar">MC</span>
+      </span>
+    </div>
+    <div class="cn-body">
+      <nav class="cn-side">
+        {
+          ROWS.map((entry) =>
+            'group' in entry ? (
+              <span class:list={['cn-side__group', { 'cn-chev': isOpen(entry) }]}>{entry.group}</span>
+            ) : (
+              <span class="cn-side__item" aria-current={entry.id === current ? 'page' : undefined}>
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d={icon(entry.id)} />
+                </svg>
+                {entry.name}
+                {entry.id === 'errors' && openErrors ? <span class="cn-count">{openErrors}</span> : null}
+                {entry.id === 'incidents' && openIncidents ? <span class="cn-count">{openIncidents}</span> : null}
+              </span>
+            )
+          )
+        }
+      </nav>
+      <div class="cn-page">
+        <slot />
+      </div>
+    </div>
+  </div>
+</div>

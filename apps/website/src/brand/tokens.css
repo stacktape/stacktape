@@ -1,0 +1,148 @@
+@font-face {
+  font-family: Montserrat;
+  src: url('./fonts/montserrat-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --brand-page: #141919;
+  --brand-surface: #222828;
+  --brand-inset: #111616;
+  --brand-border: #2f3434;
+  --brand-text: #f1f6f6;
+  --brand-muted: #acacac;
+  --brand-subtle: #989898;
+  --brand-teal: #36bebe;
+  --brand-on-teal: #fff;
+  --brand-primary-top: #1c8a85;
+  --brand-primary-bottom: #14706d;
+  --brand-primary: linear-gradient(180deg, var(--brand-primary-top), var(--brand-primary-bottom));
+  --brand-control: linear-gradient(180deg, #343c3c, #2c3333);
+  --brand-control-hover: inset 0 0 0 100px rgb(255 255 255 / 4%);
+  --brand-control-active: inset 0 0 0 100px rgb(0 0 0 / 12%);
+  --brand-focus: var(--brand-teal);
+  --brand-edge: inset 0 1px 0 rgb(255 255 255 / 9%);
+  --brand-edge-primary: inset 0 1px 0 rgb(255 255 255 / 16%);
+  --brand-shadow: 0 10px 28px rgb(0 0 0 / 30%);
+  --brand-shadow-menu: 0 22px 52px rgb(0 0 0 / 50%);
+
+  --brand-font-body: system-ui, sans-serif;
+  --brand-font-heading: Montserrat, var(--brand-font-body);
+  --brand-font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --brand-type-xs: 0.75rem;
+  --brand-type-sm: 0.875rem;
+  --brand-type-base: 1rem;
+  --brand-type-lead: 1.125rem;
+  --brand-type-title: clamp(1.5rem, 1.25rem + 1vw, 2rem);
+  --brand-type-display: clamp(2.25rem, 1.55rem + 3.5vw, 4.5rem);
+  --brand-weight-body: 400;
+  --brand-weight-label: 600;
+  --brand-weight-heading: 700;
+  --brand-leading-body: 1.55;
+  --brand-leading-heading: 1.08;
+  --brand-tracking-heading: -0.035em;
+
+  --brand-control-height: 2.75rem;
+  /* Square corners everywhere (owner, 25 Nov 2026): panels, fields, buttons, menus, tabs and tape. Only true circles
+     (status dots, avatars) stay round; they say so with `50%`, not with these tokens. */
+  --brand-radius: 0;
+  --brand-radius-small: 0;
+  --brand-space-1: 0.25rem;
+  --brand-space-2: 0.5rem;
+  --brand-space-3: 0.75rem;
+  --brand-space-4: 1rem;
+  --brand-space-5: 1.5rem;
+  --brand-space-6: 2rem;
+  --brand-space-7: 3rem;
+  --brand-space-8: 4rem;
+  --brand-space-9: 6rem;
+
+  /* The four teeth on each short end of the Console's logo label. */
+  --brand-tooth: 0.16em;
+  --brand-tape-clip: polygon(
+    var(--brand-tooth) 0,
+    calc(100% - var(--brand-tooth)) 0,
+    100% 12.5%,
+    calc(100% - var(--brand-tooth)) 25%,
+    100% 37.5%,
+    calc(100% - var(--brand-tooth)) 50%,
+    100% 62.5%,
+    calc(100% - var(--brand-tooth)) 75%,
+    100% 87.5%,
+    calc(100% - var(--brand-tooth)) 100%,
+    var(--brand-tooth) 100%,
+    0 87.5%,
+    var(--brand-tooth) 75%,
+    0 62.5%,
+    var(--brand-tooth) 50%,
+    0 37.5%,
+    var(--brand-tooth) 25%,
+    0 12.5%
+  );
+}
+
+/* The shared components' own radius tokens, on the website's pages: square like the rest of the kit. */
+html.brand {
+  --stp-radius-small: 0;
+  --stp-radius-medium: 0;
+  --stp-radius-large: 0;
+  --stp-button-radius: 0;
+  --stp-field-radius: 0;
+  --stp-dialog-radius: 0;
+  --stp-tooltip-radius: 0;
+  --stp-menu-radius: 0;
+  --stp-menu-item-radius: 0;
+  --stp-selection-card-radius: 0;
+  --stp-tabs-radius: 0;
+  --stp-tab-radius: 0;
+  --stp-tab-indicator-radius: 0;
+}
+
+/*
+ * Square corners everywhere, like the Console's square look (brand session, tape_look.py square_css): this overrides
+ * any radius a page or component sets. Only true circles stay round (status dots, avatars, step and check marks, a
+ * switch knob). The circles on the pages today are listed by name; a new circle adds the `brand-round` class.
+ */
+html.brand
+  :not(
+    .brand-round,
+    .b-frame__dots i,
+    .cx-dot,
+    .cx-done,
+    .cn-dot,
+    .cn-avatar,
+    .hlp__avatar,
+    .hlp__face,
+    .wz-steps i,
+    .wz-running i,
+    .inc__status i,
+    .inc__slack-title i,
+    .pk-check,
+    .cst__seg i,
+    .cst__alert > i,
+    .cst__sent i,
+    .structure-a figcaption img,
+    .h7 .lights span,
+    .h7 .dot
+  ),
+html.brand :not(.brand-round, .sec__switch)::before,
+html.brand :not(.brand-round, .sec__switch)::after {
+  border-radius: 0 !important;
+}
+
+.brand body {
+  background: var(--brand-page);
+  color: var(--brand-text);
+  font: var(--brand-weight-body) var(--brand-type-base) / var(--brand-leading-body) var(--brand-font-body);
+}
+
+.brand :focus-visible {
+  outline-color: var(--brand-focus);
+}
+
+.brand ::selection {
+  background: var(--brand-primary-bottom);
+  color: var(--brand-on-teal);
+}

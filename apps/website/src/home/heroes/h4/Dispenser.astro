@@ -1,0 +1,236 @@
+---
+/**
+ * A desk tape dispenser loaded with Stacktape's tape: the page's recurring character.
+ *
+ * Drawn in an oblique projection: the near side wall is shown at its true shape and the depth runs
+ * up and to the right. The body is a stack of offset copies of the side wall, which reads as a solid
+ * extrusion. The roll, the strip over the cutter and the logo print on the tape follow the same depth.
+ */
+type Props = { class?: string };
+const { class: className } = Astro.props;
+
+type Point = { x: number; y: number };
+const add = (a: Point, b: Point): Point => ({ x: a.x + b.x, y: a.y + b.y });
+const scale = (a: Point, k: number): Point => ({ x: a.x * k, y: a.y * k });
+const fmt = (n: number) => Math.round(n * 100) / 100;
+const pt = (p: Point) => `${fmt(p.x)} ${fmt(p.y)}`;
+
+/** Full depth of the dispenser, from the near wall to the far wall. */
+const depth: Point = { x: 40, y: -26 };
+const at = (t: number) => scale(depth, t);
+
+/** The near side wall: a heavy, low body with a cradle for the roll and a raised nose. */
+const wall = [
+  'M 58 300',
+  'L 350 300',
+  'Q 364 300 367 287',
+  'L 381 222',
+  'Q 384 206 398 200',
+  'L 402 198',
+  'Q 404 190 396 188',
+  'L 378 188',
+  'C 340 188 318 226 268 232',
+  'C 226 238 176 238 126 228',
+  'C 94 221 66 196 58 166',
+  'C 50 186 34 214 34 252',
+  'C 34 284 44 300 58 300',
+  'Z'
+].join(' ');
+
+/** The roll sits between the walls; its near face starts slightly inside the near wall. */
+const rollCentre: Point = { x: 160, y: 168 };
+const radius = { tape: 82, core: 52, coreInner: 44, hub: 15 };
+const rollNear = 0.1;
+const rollFar = 0.9;
+
+/** The nose's cutter edge, where the strip leaves the dispenser. */
+const nose: Point = { x: 401, y: 192 };
+
+/** Upper tangent point from the cutter to the near face of the roll. */
+const nearCentre = add(rollCentre, at(rollNear));
+const noseNear = add(nose, at(rollNear));
+const toNose = { x: noseNear.x - nearCentre.x, y: noseNear.y - nearCentre.y };
+const distance = Math.hypot(toNose.x, toNose.y);
+const tangentAngle = Math.atan2(toNose.y, toNose.x) - Math.acos(radius.tape / distance);
+const tangent = add(nearCentre, { x: radius.tape * Math.cos(tangentAngle), y: radius.tape * Math.sin(tangentAngle) });
+const across = at(rollFar - rollNear);
+
+const quad = (a: Point, b: Point, c: Point, d: Point) => `M ${pt(a)} L ${pt(b)} L ${pt(c)} L ${pt(d)} Z`;
+const strip = quad(tangent, noseNear, add(noseNear, across), add(tangent, across));
+
+/** The strip's own axes, for printing the logo mark flat on the tape. */
+const along = { x: (noseNear.x - tangent.x) / Math.hypot(noseNear.x - tangent.x, noseNear.y - tangent.y), y: 0 };
+along.y = (noseNear.y - tangent.y) / Math.hypot(noseNear.x - tangent.x, noseNear.y - tangent.y);
+const stripLength = Math.hypot(noseNear.x - tangent.x, noseNear.y - tangent.y);
+/** One unit of real tape width, foreshortened by the projection. */
+const widthUnit = scale(across, 1 / 64);
+const prints = [0.3, 0.74].map((share) => {
+  const origin = add(add(tangent, scale(along, stripLength * share)), scale(across, 0.5));
+  return `matrix(${fmt(along.x)} ${fmt(along.y)} ${fmt(widthUnit.x)} ${fmt(widthUnit.y)} ${fmt(origin.x)} ${fmt(origin.y)})`;
+});
+
+/** The tail of tape hanging over the cutter, with the logo's small teeth on its torn end. */
+const drop: Point = { x: 7, y: 30 };
+const tailTop = noseNear;
+const tailBottom = add(tailTop, drop);
+const teeth = 5;
+const tooth: Point = { x: 2.2, y: 3.4 };
+const tornEdge = Array.from({ length: teeth * 2 + 1 }, (_, index) => {
+  const share = index / (teeth * 2);
+  const base = add(tailBottom, scale(across, share));
+  return pt(index % 2 === 1 ? add(base, { x: -tooth.x, y: tooth.y }) : base);
+});
+const tail = `M ${pt(tailTop)} L ${tornEdge.join(' L ')} L ${pt(add(tailTop, across))} Z`;
+
+/** The serrated cutter across the nose. */
+const cutterFront = add(nose, { x: -3, y: -3 });
+const cutterTeeth = Array.from({ length: 13 }, (_, index) => {
+  const base = add(cutterFront, scale(depth, index / 12));
+  return pt(index % 2 === 1 ? add(base, { x: 3.5, y: -2.5 }) : base);
+});
+const cutter = `M ${pt(add(cutterFront, { x: -5, y: 6 }))} L ${cutterTeeth.join(' L ')} L ${pt(add(add(cutterFront, depth), { x: -5, y: 6 }))} Z`;
+
+/** Offset copies of the wall, far to near, that make up the body's depth. */
+const bodySteps = Array.from({ length: 28 }, (_, index) => 1 - index / 28);
+/** Offset copies of the roll's outline, far to near, that make up the roll's outer surface. */
+const rollSteps = Array.from({ length: 24 }, (_, index) => rollFar - ((rollFar - rollNear) * index) / 24);
+/** Fine winding lines on the roll's near face. */
+const windings = Array.from({ length: 7 }, (_, index) => radius.core + 4 + ((radius.tape - radius.core - 7) * index) / 6);
+const footShadowFar = add({ x: 200, y: 300 }, at(0.5));
+---
+
+<svg
+  class:list={['dispenser', className]}
+  viewBox="22 48 432 280"
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-label="A tape dispenser loaded with Stacktape tape"
+>
+  <defs>
+    <linearGradient id="h4-wall" x1="0" y1="150" x2="0" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="var(--h4-sand-light)"></stop>
+      <stop offset="1" stop-color="var(--h4-sand)"></stop>
+    </linearGradient>
+    <linearGradient id="h4-roll-face" x1="0" y1="80" x2="0" y2="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="var(--h4-tape-light)"></stop>
+      <stop offset="1" stop-color="var(--h4-tape)"></stop>
+    </linearGradient>
+    <radialGradient id="h4-ground" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#000" stop-opacity="0.55"></stop>
+      <stop offset="1" stop-color="#000" stop-opacity="0"></stop>
+    </radialGradient>
+    <clipPath id="h4-wall-clip">
+      <path d={wall}></path>
+    </clipPath>
+    <g id="h4-mark">
+      <polygon points="0,13 16,21.5 0,30 -16,21.5" fill="currentColor"></polygon>
+      <polygon
+        points="0,6.5 16,15 0,23.5 -16,15"
+        fill="currentColor"
+        stroke="var(--h4-tape-top)"
+        stroke-width="4"
+        stroke-linejoin="round"
+        paint-order="stroke"></polygon>
+      <polygon
+        points="0,0 16,8.5 0,17 -16,8.5"
+        fill="currentColor"
+        stroke="var(--h4-tape-top)"
+        stroke-width="4"
+        stroke-linejoin="round"
+        paint-order="stroke"></polygon>
+    </g>
+  </defs>
+
+  <ellipse cx={fmt(footShadowFar.x)} cy={fmt(footShadowFar.y + 2)} rx="215" ry="26" fill="url(#h4-ground)"></ellipse>
+
+  <g class="dispenser__body">
+    {
+      bodySteps.map((step, index) => (
+        <path
+          d={wall}
+          transform={`translate(${pt(at(step))})`}
+          fill={index === 0 ? 'var(--h4-sand-deep)' : 'var(--h4-sand-top)'}
+        />
+      ))
+    }
+  </g>
+
+  <g class="dispenser__roll">
+    {
+      rollSteps.map((step) => (
+        <circle
+          cx={fmt(rollCentre.x + at(step).x)}
+          cy={fmt(rollCentre.y + at(step).y)}
+          r={radius.tape}
+          fill="var(--h4-tape-top)"
+        />
+      ))
+    }
+    <circle cx={fmt(nearCentre.x)} cy={fmt(nearCentre.y)} r={radius.tape} fill="url(#h4-roll-face)"></circle>
+    {
+      windings.map((r) => (
+        <circle
+          cx={fmt(nearCentre.x)}
+          cy={fmt(nearCentre.y)}
+          r={fmt(r)}
+          fill="none"
+          stroke="var(--h4-tape-line)"
+          stroke-width="1"
+        />
+      ))
+    }
+    <circle cx={fmt(nearCentre.x)} cy={fmt(nearCentre.y)} r={radius.core} fill="var(--h4-core)"></circle>
+    <circle cx={fmt(nearCentre.x)} cy={fmt(nearCentre.y)} r={radius.coreInner} fill="var(--h4-core-inside)"></circle>
+    <circle cx={fmt(nearCentre.x)} cy={fmt(nearCentre.y)} r={radius.hub + 6} fill="var(--h4-sand-deep)"></circle>
+    <circle cx={fmt(nearCentre.x)} cy={fmt(nearCentre.y)} r={radius.hub} fill="var(--h4-sand-light)"></circle>
+  </g>
+
+  <path d={strip} fill="var(--h4-tape-top)"></path>
+  <g class="dispenser__print" color="var(--h4-print)">
+    {prints.map((matrix) => <use href="#h4-mark" transform={`${matrix} translate(0 -15)`} />)}
+  </g>
+
+  <path d={wall} fill="url(#h4-wall)"></path>
+  <g clip-path="url(#h4-wall-clip)">
+    <path d={wall} transform="translate(1.5 3)" fill="none" stroke="var(--h4-sand-top)" stroke-width="3"></path>
+  </g>
+  <path d={wall} fill="none" stroke="var(--h4-sand-edge)" stroke-width="1.5" stroke-linejoin="round"></path>
+  <path d="M 58 300 L 350 300 Q 364 300 367 287 L 368.5 280 L 40 280 Q 44 300 58 300 Z" fill="var(--h4-foot)"></path>
+
+  <g class="dispenser__plate">
+    <rect x="126" y="247" width="168" height="24" rx="4" fill="var(--h4-plate)"></rect>
+    <text x="210" y="263.5" text-anchor="middle">npx stacktape init</text>
+  </g>
+
+  <path d={cutter} fill="var(--h4-steel)"></path>
+  <path d={tail} fill="var(--h4-tape-under)"></path>
+</svg>
+
+<style>
+  .dispenser {
+    --h4-sand-light: #e2d8c6;
+    --h4-sand: #cdbfa8;
+    --h4-sand-top: #eee6d8;
+    --h4-sand-deep: #a89a82;
+    --h4-sand-edge: #b9ab93;
+    --h4-foot: #2b3131;
+    --h4-steel: #3a4242;
+    --h4-tape-top: #1c8a85;
+    --h4-tape-light: #1a807b;
+    --h4-tape: #14706d;
+    --h4-tape-line: rgb(255 255 255 / 8%);
+    --h4-tape-under: #116461;
+    --h4-print: #f4fbfa;
+    --h4-core: #d8c8ab;
+    --h4-core-inside: #8f8168;
+    --h4-plate: rgb(120 104 80 / 16%);
+    display: block;
+    overflow: visible;
+  }
+
+  .dispenser__plate text {
+    fill: #8a7a60;
+    font: 600 12.5px var(--brand-font-mono);
+    letter-spacing: 0.02em;
+  }
+</style>

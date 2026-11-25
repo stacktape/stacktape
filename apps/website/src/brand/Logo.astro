@@ -1,0 +1,14 @@
+---
+import type { HTMLAttributes } from 'astro/types';
+
+type Props = Omit<HTMLAttributes<'img'>, 'src' | 'width' | 'height'> & {
+  variant?: 'wordmark' | 'icon';
+  /** Width in CSS pixels, including the icon's built-in clear space. */
+  width?: number;
+};
+
+const { variant = 'wordmark', width = variant === 'icon' ? 40 : 132, alt = 'Stacktape', ...attrs } = Astro.props;
+const height = variant === 'icon' ? width : Math.round((width * 1380) / 5746);
+---
+
+<img {...attrs} src={`/brand/logo-${variant}.svg`} {alt} {width} {height} />

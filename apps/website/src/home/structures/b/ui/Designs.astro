@@ -1,0 +1,313 @@
+---
+import '@stacktape/ui-react/isometric-diagram.css';
+import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
+import { getResourceVisual } from '@stacktape/ui-react/resource-icon/catalog';
+import diagram from './designs/diagram.svg?raw';
+
+/**
+ * What `stacktape init` proposes for acme-shop, simplified from the wizard's Review (apps/init-ui/src/steps/
+ * ReviewStep.tsx on ui/init-wizard-redesign): the diagram of what gets created across the full width, then the monthly
+ * estimate and each resource with the line of code it is there for and its price. The owner asked for a simpler
+ * picture than the real screen (25 Nov), so the wizard's header, stepper, editor, traffic examples and bottom bar are
+ * left out.
+ *
+ * The row icons are the real ResourceIcon, rendered on the server. `designs/diagram.svg` is the real IsometricDiagram
+ * from @stacktape/ui-react, rendered once with `renderToStaticMarkup` under Bun for this config and cropped to its
+ * content, so the page ships no script for it:
+ *
+ *   web: hosting-bucket (single-page app) · api: web-service, js-bundle, 1 vCPU, 2 GB, 2–4 instances, connectTo
+ *   database, cache, jobQueue · worker: worker-service, js-bundle, 0.5 vCPU, 1 GB, 2 instances, connectTo jobQueue,
+ *   database, cache · jobQueue: sqs-queue · database: relational-database, postgres 16, db.t4g.medium, 40 GB,
+ *   accessibilityMode vpc · cache: redis, valkey, cache.t4g.small
+ *
+ * It is the config acme-shop runs in the hero's Console (heroes/h5/console/data.ts). The prices are what the wizard's
+ * estimator (packages/pricing/src/internal/pricing.ts) computes for it from AWS list prices in us-east-1: hourly rates
+ * × 720 hours, a $0.005 public IPv4 address per Fargate task and per database instance, Valkey at 0.8 × the Redis node.
+ *   API: 2 × 1 vCPU × $0.04048 + 2 × 2 GB × $0.004445 + 2 × $0.005, × 720 = $78.29, + HTTP API requests by use
+ *   Postgres: db.t4g.medium $0.065 + $0.005 IPv4, × 720 = $50.40, + 40 GB × $0.115 = $55.00
+ *   worker: 2 × 0.5 vCPU × $0.04048 + 2 × 1 GB × $0.004445 + 2 × $0.005, × 720 = $42.75
+ *   cache: cache.t4g.small $0.032 × 0.8 × 720 = $18.43
+ *   Website and SQS queue: by use only. Total: $194.47 a month + usage; the rounded rows add up to the same $194.
+ * Every resource's October bill in the hero (heroes/h5/console/data.ts COSTS) is its estimate here or more; the
+ * hero's $331.95 also holds $50.55 not tied to a resource.
+ *
+ * A phone shows the estimate, three resources and a row for the other three, so the rows add up to the total.
+ */
+const ROWS = [
+  {
+    type: 'web-service',
+    title: 'API service',
+    price: '$78',
+    usage: true,
+    why: 'Fastify server',
+    where: 'api/src/server.ts:9',
+    phone: true
+  },
+  {
+    type: 'relational-database',
+    title: 'Postgres database',
+    price: '$55',
+    why: 'Postgres driver',
+    where: 'api/package.json:21',
+    phone: true
+  },
+  { type: 'worker-service', title: 'Worker service', price: '$43', why: 'Queue consumer', where: 'worker/src/index.ts:6' },
+  { type: 'redis', title: 'Redis cache', price: '$18', why: 'Redis client', where: 'api/package.json:24' },
+  { type: 'hosting-bucket', title: 'Website', why: 'Vite app', where: 'web/package.json:7', phone: true },
+  { type: 'sqs-queue', title: 'SQS queue', why: 'SQS client', where: 'api/package.json:12' }
+];
+/** On a phone, the rows not shown, summed: the worker ($42.75) and the cache ($18.43), and the queue, by use. */
+const MORE_ON_PHONE = { count: 3, price: '$61' };
+/** A resource's colour: its AWS category's, the same the diagram paints it in. */
+const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)?.category ?? 'compute'})`;
+---
+
+<div
+  class="wz"
+  role="img"
+  aria-label="What stacktape init proposes for acme-shop: a diagram of the website, the API service, the worker service, the SQS queue, Postgres and Redis; an estimate of $194 a month plus usage; and each resource with the line of code it is there for and its price."
+>
+  <div class="wz-in" aria-hidden="true">
+    <div class="wz-diagram">
+      <div class="stp-diagram" set:html={diagram} />
+    </div>
+
+    <div class="wz-costs">
+      <div class="wz-total">
+        <p class="wz-eyebrow">Estimated monthly cost</p>
+        <p class="wz-figure"><b>$194</b> /month <span class="wz-usage">+ usage</span></p>
+        <p class="wz-faint">AWS list prices in us-east-1</p>
+      </div>
+      <ul class="wz-rows">
+        {
+          ROWS.map((row) => (
+            <li class:list={['wz-row', { 'wz-row--more': !row.phone }]}>
+              <span class="wz-tile" style={`--wz-tone: ${tone(row.type)}`}>
+                <ResourceIcon resourceType={row.type} size={18} />
+              </span>
+              <span class="wz-row__name">
+                <strong>{row.title}</strong>
+                <small>
+                  {row.why} <span>in {row.where}</span>
+                </small>
+              </span>
+              {row.price ? (
+                <span class="wz-price">
+                  <span>
+                    <b>{row.price}</b>/mo
+                  </span>
+                  {row.usage ? <small>+ usage</small> : null}
+                </span>
+              ) : (
+                <span class="wz-price wz-price--muted">Pay per use</span>
+              )}
+            </li>
+          ))
+        }
+        <li class="wz-row wz-row--rest">
+          <span class="wz-tile wz-tile--rest">+{MORE_ON_PHONE.count}</span>
+          <span class="wz-row__name"><strong>{MORE_ON_PHONE.count} more resources</strong></span>
+          <span class="wz-price">
+            <span>
+              <b>{MORE_ON_PHONE.price}</b>/mo
+            </span>
+            <small>+ usage</small>
+          </span>
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<style>
+  .wz {
+    --wz-line: rgb(255 255 255 / 8%);
+    --wz-strong: rgb(255 255 255 / 95%);
+    --wz-muted: rgb(180 186 186);
+    --wz-faint: rgb(124 132 132);
+
+    container-type: inline-size;
+    border: 1px solid var(--brand-border);
+    background: var(--brand-inset);
+    color: var(--brand-text);
+    font: 500 0.875rem / 1.45 var(--brand-font-heading);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wz :is(p, ul) {
+    margin: 0;
+    padding: 0;
+  }
+
+  /* The diagram across the full width, so its names read at their own size; the costs under it. */
+  .wz-diagram {
+    position: relative;
+    aspect-ratio: 946 / 485;
+    margin: clamp(0.75rem, 0.25rem + 1.5vw, 1.75rem) clamp(0.75rem, 0.25rem + 1.5vw, 2rem) 0;
+  }
+
+  /* The picture sits on the panel itself, without the Console's own canvas colour behind it. */
+  .wz-diagram > :global(:first-child) {
+    position: absolute;
+    inset: 0;
+    background: none;
+  }
+
+  .wz-costs {
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    align-items: start;
+    gap: 1.25rem clamp(1.5rem, 1rem + 2vw, 3rem);
+    padding: clamp(1.25rem, 0.75rem + 1.5vw, 2rem);
+    border-top: 1px solid var(--brand-border);
+  }
+
+  .wz-eyebrow {
+    color: var(--wz-faint);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .wz-figure {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+    margin-top: 0.35rem !important;
+    color: var(--wz-muted);
+  }
+
+  .wz-figure b {
+    color: var(--wz-strong);
+    font-size: 2.5rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  .wz-usage {
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.5rem;
+    background: rgb(255 255 255 / 7%);
+    font-size: 0.75rem;
+  }
+
+  .wz-faint {
+    color: var(--wz-faint);
+    font-size: 0.75rem;
+  }
+
+  /* The six resources in two columns, three rows each. */
+  .wz-rows {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: clamp(1.5rem, 1rem + 2vw, 2.5rem);
+    list-style: none;
+  }
+
+  /* A row: the resource's icon, its name and the code line it is there for, and its price. */
+  .wz-row {
+    display: grid;
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--wz-line);
+  }
+
+  .wz-row:nth-child(-n + 2) {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .wz-row--rest {
+    display: none;
+  }
+
+  .wz-tile {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid color-mix(in srgb, var(--wz-tone), transparent 60%);
+    background: color-mix(in srgb, var(--wz-tone), transparent 86%);
+    color: var(--wz-tone);
+  }
+
+  .wz-tile--rest {
+    --wz-tone: var(--wz-muted);
+
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+
+  .wz-row__name {
+    display: grid;
+    min-width: 0;
+  }
+
+  .wz-row__name strong {
+    color: var(--wz-strong);
+    font-weight: 600;
+  }
+
+  .wz-row__name small {
+    color: var(--wz-muted);
+    font-size: 0.8rem;
+  }
+
+  .wz-row__name small span {
+    color: var(--wz-faint);
+  }
+
+  .wz-price {
+    display: grid;
+    justify-items: end;
+    color: var(--wz-muted);
+    white-space: nowrap;
+  }
+
+  .wz-price b {
+    color: var(--wz-strong);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .wz-price small {
+    font-size: 0.75rem;
+  }
+
+  .wz-price--muted {
+    font-size: 0.8rem;
+  }
+
+  @container (max-width: 760px) {
+    .wz-costs,
+    .wz-rows {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .wz-row:nth-child(2) {
+      padding-top: 0.7rem;
+      border-top: 1px solid var(--wz-line);
+    }
+  }
+
+  /* A phone: the estimate, three resources and the other three summed, so the rows add up to the total. */
+  @container (max-width: 520px) {
+    .wz-diagram,
+    .wz-row--more {
+      display: none;
+    }
+
+    .wz-row--rest {
+      display: grid;
+    }
+
+    .wz-costs {
+      border-top: 0;
+    }
+  }
+</style>

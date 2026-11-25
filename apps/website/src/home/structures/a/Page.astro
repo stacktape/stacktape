@@ -1,0 +1,55 @@
+---
+import BrandHead from '../../../brand/BrandHead.astro';
+import SiteFooter from '../../../brand/SiteFooter.astro';
+import SiteHeader from '../../../brand/SiteHeader.astro';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import Closing from './Closing.astro';
+import Customers from './Customers.astro';
+import Deploys from './Deploys.astro';
+import Help from './Help.astro';
+import Incidents from './Incidents.astro';
+import PackSection from './PackSection.astro';
+import Packages from './Packages.astro';
+import Proof from './Proof.astro';
+import './page.css';
+import deployConfirmPhoneLarge from './shots/deploy-confirm-phone-large.webp';
+import deployConfirmPhoneSmall from './shots/deploy-confirm-phone-small.webp';
+import deployConfirmLarge from './shots/deploy-confirm-large.webp';
+import deployConfirmSmall from './shots/deploy-confirm-small.webp';
+
+const isHome = Astro.url.pathname === '/';
+/* Previews keep their own links on the page; the home page links to itself. */
+const homeHref = isHome ? '/' : Astro.url.pathname;
+
+/* The wizard's Deploy step, so the section shows a different screen from the heroes' Review step. */
+const deployConfirm = {
+  desktop: { small: deployConfirmSmall, large: deployConfirmLarge },
+  phone: { small: deployConfirmPhoneSmall, large: deployConfirmPhoneLarge },
+  alt: 'The init wizard’s Deploy step: the AWS account, region and stage it deploys to, secrets saved in AWS Secrets Manager, and what the deploy creates with an estimated $32 a month.'
+};
+---
+
+<BaseLayout
+  title="Stacktape: AWS DevOps, fully automated"
+  description="Stacktape reads your repository, designs the AWS infrastructure, deploys it to your own AWS account and keeps it running."
+  noindex={!isHome}
+  htmlClass="brand structure-a"
+>
+  <BrandHead slot="head" />
+  <SiteHeader {homeHref} startHref="#install" />
+  <main>
+    <div class="hero-slot"><slot name="hero" /></div>
+    <Proof />
+    <PackSection pack="designs" index={1} picture={deployConfirm} />
+    <Packages />
+    <Deploys />
+    <PackSection pack="monitors" index={4} flip />
+    <PackSection pack="secures" index={5} layout="wide" />
+    <Incidents />
+    <PackSection pack="costs" index={7} layout="wide" />
+    <Help />
+    <Customers />
+    <Closing />
+  </main>
+  <SiteFooter {homeHref} />
+</BaseLayout>

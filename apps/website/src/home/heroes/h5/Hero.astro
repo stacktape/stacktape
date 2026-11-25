@@ -1,0 +1,270 @@
+---
+import { CommandBox } from '../../../brand/CommandBox';
+
+type Props = { subheadline?: string };
+
+const {
+  subheadline = 'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.'
+} = Astro.props;
+---
+
+<section class="h5" aria-labelledby="h5-title">
+  <div class="h5__top">
+    <h1 id="h5-title" class="h5__title">
+      <span>AWS DevOps,</span>
+      <span class="h5__tape">fully automated.</span>
+    </h1>
+    <div class="h5__words">
+      <p class="h5__lead">{subheadline}</p>
+      <p class="h5__open">
+        <span class="h5__label">Open source</span>
+        <span>The MIT-licensed CLI deploys CloudFormation stacks in your AWS account. No Stacktape account required.</span>
+      </p>
+    </div>
+    <section class="h5__setup" id="install" aria-labelledby="h5-setup">
+      <h2 id="h5-setup" class="h5__setup-title">
+        <svg viewBox="0 0 24 24" aria-hidden="true"
+          ><path d="M4 5h16v14H4zM8 10l2.5 2L8 14M12.5 14H16"></path></svg
+        >Run the setup wizard
+      </h2>
+      <p class="h5__setup-text">
+        Run this in your app's folder to review the proposed AWS resources and estimated cost before you deploy.
+      </p>
+      <CommandBox client:load preselect={false} />
+    </section>
+  </div>
+</section>
+
+<script>
+  import './get-started';
+</script>
+
+<style>
+  .h5 {
+    --h5-soft: color-mix(in srgb, var(--brand-text), transparent 22%);
+    /* The site header's content width, so the hero lines up with the logo and the header's links. */
+    --h5-frame: min(var(--site-width, 76rem), 100% - 2 * var(--brand-space-5));
+    padding-block-end: clamp(3.5rem, 5vw, 6rem);
+    border-block-end: 1px solid rgb(255 255 255 / 8%);
+    /* Near flat: the page's graphite, turning a shade towards the logo's teal at the hero's lower edge. */
+    background: linear-gradient(
+      180deg,
+      var(--brand-page) 35%,
+      color-mix(in oklab, var(--brand-page), var(--brand-primary-bottom) 10%)
+    );
+  }
+
+  /*
+   * The headline set like the logo, its second line printed on the logo's teal tape, with the subheadline and the
+   * open-source note under it; beside them the Console's own "Run the setup wizard" card, which gives the command the
+   * surface it is designed to sit on. Long one-line installers scroll inside the card's field, faded by the kit.
+   */
+  .h5__top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(30rem, 38vw, 38rem);
+    grid-template-areas: 'title setup' 'words setup';
+    grid-template-rows: auto 1fr;
+    align-items: center;
+    gap: clamp(2rem, 2.8vw, 3.25rem) clamp(3rem, 5.5vw, 7.5rem);
+    inline-size: var(--h5-frame);
+    margin: 0 auto;
+    padding-block-start: clamp(4.5rem, 6.5vw, 8.5rem);
+  }
+
+  /*
+   * The headline is sized against its own column: "fully automated." on its tape is about 8.4 times the font size,
+   * so 11.5cqi keeps it inside the column with a gutter before the card, and inside a 320 px phone. Below that cap
+   * the size follows the viewport as before.
+   */
+  .h5__title {
+    grid-area: title;
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.06em;
+    margin: 0;
+    color: var(--brand-text);
+    font: 800 clamp(2.75rem, 1.2rem + 3.9vw, 6rem) / 1.02 var(--brand-font-heading);
+  }
+
+  .h5__title > span {
+    font-size: min(1em, 11.5cqi);
+    letter-spacing: -0.045em;
+  }
+
+  .h5__tape {
+    --h5-headline-tooth: 0.055em;
+    margin-inline-start: -0.12em;
+    padding: 0.02em 0.2em 0.08em 0.12em;
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+    color: var(--brand-on-teal);
+    white-space: nowrap;
+    clip-path: polygon(
+      calc(100% - var(--h5-headline-tooth)) 0%,
+      100% 6.25%,
+      calc(100% - var(--h5-headline-tooth)) 12.50%,
+      100% 18.75%,
+      calc(100% - var(--h5-headline-tooth)) 25%,
+      100% 31.25%,
+      calc(100% - var(--h5-headline-tooth)) 37.50%,
+      100% 43.75%,
+      calc(100% - var(--h5-headline-tooth)) 50%,
+      100% 56.25%,
+      calc(100% - var(--h5-headline-tooth)) 62.50%,
+      100% 68.75%,
+      calc(100% - var(--h5-headline-tooth)) 75%,
+      100% 81.25%,
+      calc(100% - var(--h5-headline-tooth)) 87.50%,
+      100% 93.75%,
+      calc(100% - var(--h5-headline-tooth)) 100%,
+      var(--h5-headline-tooth) 100%,
+      0% 93.75%,
+      var(--h5-headline-tooth) 87.50%,
+      0% 81.25%,
+      var(--h5-headline-tooth) 75%,
+      0% 68.75%,
+      var(--h5-headline-tooth) 62.50%,
+      0% 56.25%,
+      var(--h5-headline-tooth) 50%,
+      0% 43.75%,
+      var(--h5-headline-tooth) 37.50%,
+      0% 31.25%,
+      var(--h5-headline-tooth) 25%,
+      0% 18.75%,
+      var(--h5-headline-tooth) 12.50%,
+      0% 6.25%,
+      var(--h5-headline-tooth) 0%
+    );
+  }
+
+  .h5__words {
+    grid-area: words;
+    align-self: start;
+  }
+
+  .h5__lead {
+    max-inline-size: 46rem;
+    margin: 0;
+    color: var(--h5-soft);
+    font-size: clamp(1.05rem, 0.95rem + 0.35vw, 1.3rem);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  /* "Open source" on grey label tape, then one line: a fact under the subheadline, in the same column. */
+  .h5__open {
+    max-inline-size: 46rem;
+    margin: clamp(1.75rem, 2.4vw, 2.75rem) 0 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+
+  /* The label runs in the line, so the sentence continues after it. */
+  .h5__label {
+    display: inline-block;
+    margin-inline-end: var(--brand-space-2);
+    padding: 0.2em 0.7em 0.25em;
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    color: var(--brand-text);
+    font: 600 var(--brand-type-xs) / 1.3 var(--brand-font-heading);
+    clip-path: var(--brand-tape-clip);
+  }
+
+  /*
+   * The Console's card: its surface, a heading with the terminal icon, one sentence, the command. It is the header's
+   * Get started target (#install), so the jump lands on its heading and sentence. The page's scroll padding (5rem on
+   * structure B, 6rem on C) already clears the 69 px sticky header; the margin adds a little air above the card.
+   */
+  .h5__setup {
+    grid-area: setup;
+    scroll-margin-block-start: var(--brand-space-4);
+    padding: clamp(2rem, 2.8vw, 3.25rem);
+    border: 1px solid rgb(255 255 255 / 7%);
+    background: var(--brand-surface);
+    box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
+  }
+
+  .h5__setup-title {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-3);
+    margin: 0;
+    color: var(--brand-text);
+    font: 650 clamp(1.15rem, 1rem + 0.35vw, 1.4rem) / 1.2 var(--brand-font-heading);
+    letter-spacing: -0.01em;
+  }
+
+  .h5__setup-title svg {
+    flex: none;
+    inline-size: 1.35em;
+    block-size: 1.35em;
+    fill: none;
+    stroke: var(--brand-muted);
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.6;
+  }
+
+  .h5__setup-text {
+    margin: var(--brand-space-3) 0 var(--brand-space-6);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 64rem) {
+    .h5__top {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: 'title' 'words' 'setup';
+      grid-template-rows: none;
+    }
+
+    .h5__setup {
+      max-inline-size: 40rem;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .h5 {
+      --h5-frame: calc(100% - 2 * var(--brand-space-4));
+      padding-block-end: 0;
+    }
+
+    .h5__top {
+      gap: var(--brand-space-5);
+      padding-block-start: var(--brand-space-7);
+    }
+
+    .h5__title {
+      font-size: 2.45rem;
+    }
+
+    .h5__lead {
+      font-size: 1rem;
+    }
+
+    .h5__open {
+      margin-block-start: var(--brand-space-5);
+      font-size: var(--brand-type-xs);
+    }
+
+    /* The card runs edge to edge as the hero's last band, so the command gets the phone's whole width. */
+    .h5__setup {
+      margin-block-start: var(--brand-space-3);
+      margin-inline: calc(-1 * var(--brand-space-4));
+      padding: var(--brand-space-6) var(--brand-space-4);
+      border-inline: 0;
+      border-block-end: 0;
+    }
+
+    .h5__setup-text {
+      margin-block-end: var(--brand-space-5);
+    }
+  }
+</style>

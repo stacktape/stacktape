@@ -20,6 +20,8 @@
  * (`text-fc-primary`, `bg-element`) so anyone moving between the two guesses right.
  */
 @theme {
+  /* Square corners everywhere (owner, 25 Nov 2026): no rounded-sm…4xl. `rounded-full` still draws true circles. */
+  --radius-*: initial;
   --color-brand: var(--stp-color-brand);
   --color-primary: var(--stp-interactive-primary);
   --color-primary-lighter: var(--stp-interactive-primary-light);

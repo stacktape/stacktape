@@ -1,0 +1,234 @@
+---
+/**
+ * Hero H2: the first screen below the site header. The headline is set in Instrument Serif over a stack of the
+ * logo's tape (TapeArt); a real row from the init wizard's Review step sits under the command box.
+ */
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { CommandBox } from '../../../brand/CommandBox';
+import '../../../brand/controls.css';
+import postgresRow from './review-postgres.webp?url';
+import TapeArt from './TapeArt.astro';
+
+type Props = { subheadline?: string };
+
+const {
+  subheadline = 'Stacktape’s CLI and Console set up, deploy, monitor and secure your app in your own AWS account.'
+} = Astro.props;
+---
+
+<section class="hero" aria-labelledby="h2-title">
+  <TapeArt />
+  <div class="content">
+    <h1 id="h2-title">AWS DevOps, <span>fully automated.</span></h1>
+    <p class="lead">{subheadline}</p>
+    <div class="actions">
+      <div class="command">
+        <CommandBox client:load id="install" preselect={false} />
+        <figure class="proposal">
+          <img
+            src={postgresRow}
+            width="354"
+            height="61"
+            alt="Postgres database, db.t4g.small with 20 GB, estimated at $32 a month."
+          />
+          <figcaption>From the wizard’s Review step for a Next.js app. Nothing is created until you confirm.</figcaption>
+        </figure>
+      </div>
+      <ButtonLink variant="secondary" className="brand-button docs" href="https://docs.stacktape.com">
+        Read the docs
+      </ButtonLink>
+      <p class="own">
+        Runs in your AWS account as plain CloudFormation. Stop using Stacktape and your app keeps running.
+      </p>
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Instrument Serif: SIL Open Font License 1.1, see fonts/LICENSE. Used only by this hero. */
+  @font-face {
+    font-family: 'Stacktape H2 Display';
+    src: url('./fonts/instrument-serif-latin.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+  }
+
+  .hero {
+    --h2-gutter: clamp(1rem, 0.5rem + 2.5vw, 3rem);
+    --h2-header: 4.25rem;
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    align-items: center;
+    min-block-size: max(40rem, min(100svh - var(--h2-header) - 3rem, 62rem));
+    padding-block: 4.5rem 5rem;
+    overflow-x: clip;
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    justify-items: center;
+    inline-size: min(84rem, 100% - 2 * var(--h2-gutter));
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  h1 {
+    font-family: 'Stacktape H2 Display', Georgia, 'Times New Roman', serif;
+    font-size: clamp(3.25rem, 1rem + 6.2vw, 9rem);
+    font-weight: 400;
+    line-height: 0.94;
+    letter-spacing: -0.015em;
+    text-shadow: 0 2px 30px rgb(5 7 7 / 45%);
+    text-wrap: balance;
+  }
+
+  h1 span {
+    display: block;
+  }
+
+  .lead {
+    max-inline-size: 34rem;
+    margin-block-start: var(--brand-space-5);
+    color: #cfd8d8;
+    font-size: clamp(var(--brand-type-base), 0.9rem + 0.35vw, 1.25rem);
+    line-height: 1.5;
+    text-shadow: 0 1px 16px rgb(5 7 7 / 80%);
+    text-wrap: balance;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: var(--brand-space-4);
+    inline-size: 100%;
+    margin-block-start: var(--brand-space-7);
+  }
+
+  .command {
+    display: grid;
+    flex: 0 1 36rem;
+    gap: var(--brand-space-3);
+    min-inline-size: 0;
+    text-align: start;
+  }
+
+  .actions :global(.brand-command) {
+    box-shadow: 0 24px 60px rgb(5 7 7 / 60%);
+  }
+
+  /* The panel is as tall as its lines; the kit reserves room for the longest tab. */
+  .actions :global(.brand-command .install-code__pre) {
+    min-block-size: 0;
+  }
+
+  /* On narrow boxes Copy stays on the tab row instead of taking a row of its own. */
+  @container (max-width: 34rem) {
+    .actions :global(.brand-command .install-code__tabs) {
+      grid-column: 1;
+    }
+
+    .actions :global(.brand-command .install-code__arch) {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
+
+    .actions :global(.brand-command .brand-button.install-code__copy) {
+      --stp-control-height: 2.25rem;
+      --stp-button-padding-x: var(--brand-space-2);
+      grid-row: 1;
+      grid-column: 2;
+    }
+
+    /* The hidden failure label would make Copy as wide as "Select and copy". */
+    .actions :global(.brand-command:not(.install-code--failed) .install-code__label--failed) {
+      display: none;
+    }
+  }
+
+  /* Level with the command box's Copy button: Copy is the first action, the docs the second. */
+  .actions :global(.docs) {
+    flex: none;
+    margin-block-start: calc(var(--brand-space-2) + 1px - (var(--brand-control-height) - 2.25rem) / 2);
+  }
+
+  /* A real resource row from the wizard, at the size the wizard shows it. */
+  .proposal {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--brand-space-4);
+  }
+
+  .proposal img {
+    display: block;
+    max-inline-size: 100%;
+    block-size: auto;
+    border-radius: var(--brand-radius);
+    box-shadow: 0 16px 40px rgb(5 7 7 / 55%);
+  }
+
+  .proposal figcaption {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
+    line-height: 1.45;
+    text-shadow: 0 1px 12px rgb(5 7 7 / 90%);
+    text-wrap: balance;
+  }
+
+  /* Its own row under the command and the docs; on phones it comes before the wizard's row. */
+  .own {
+    flex: 1 1 100%;
+    max-inline-size: 40rem;
+    margin-block-start: calc(var(--brand-space-5) - var(--brand-space-4));
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    text-shadow: 0 1px 12px rgb(5 7 7 / 90%);
+    text-wrap: balance;
+  }
+
+  @media (max-width: 40rem) {
+    /* The extra space at the bottom is where the phone's sharp strip crosses. */
+    .hero {
+      min-block-size: auto;
+      padding-block: 2.5rem 8rem;
+    }
+
+    .actions {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--brand-space-3);
+      margin-block-start: var(--brand-space-6);
+    }
+
+    /* The command box, the docs and the ownership line stay together; the wizard's row follows them. */
+    .command {
+      display: contents;
+    }
+
+    .actions :global(.docs) {
+      order: 1;
+      align-self: center;
+      margin-block-start: 0;
+    }
+
+    .own {
+      flex: none;
+      order: 2;
+      margin-block-start: var(--brand-space-3);
+    }
+
+    .proposal {
+      order: 3;
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+      margin-block-start: var(--brand-space-6);
+      text-align: center;
+    }
+  }
+</style>

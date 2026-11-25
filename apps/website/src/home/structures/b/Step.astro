@@ -1,0 +1,119 @@
+---
+import Tape from '../../../brand/Tape.astro';
+import { codeParts } from '../../code-text';
+import type { SECTION_PACKS } from '../../sections';
+
+/**
+ * One section, read top to bottom: the number and the headline, the short text under it with the docs link, the
+ * picture (the slot), and the pack's one to three points under the picture.
+ */
+type Props = {
+  pack: (typeof SECTION_PACKS)[number];
+  index: number;
+  docs?: { label: string; href: string };
+};
+
+const { pack, index, docs } = Astro.props;
+const number = String(index + 1).padStart(2, '0');
+/** Text with backtick-marked code set in mono. */
+const words = (text: string) => codeParts(text);
+---
+
+<section class="b-step" id={pack.id} aria-labelledby={`${pack.id}-title`}>
+  <header class="b-step__head">
+    <p class="b-step__marker"><Tape variant="marker">{number}</Tape></p>
+    <h2 id={`${pack.id}-title`}>{pack.title}</h2>
+    <p class="b-step__line">{words(pack.text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
+    {
+      docs ? (
+        <a class="brand-link b-step__docs" href={docs.href}>
+          {docs.label}
+        </a>
+      ) : null
+    }
+  </header>
+  <slot />
+  {
+    pack.gets.length > 0 ? (
+      <ul class="b-step__points" style={`--b-points: ${pack.gets.length}`}>
+        {pack.gets.map((point) => (
+          <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>
+        ))}
+      </ul>
+    ) : null
+  }
+</section>
+
+<style>
+  /*
+   * A step never makes the page scroll sideways: a picture wider than the step at some width is cut at the step's edge
+   * instead. `clip` keeps the vertical axis visible and creates no scroll container.
+   */
+  .b-step {
+    display: grid;
+    gap: clamp(1.75rem, 1.25rem + 1.25vw, 2.75rem);
+    padding-block: clamp(3rem, 2rem + 2.5vw, 5rem);
+    overflow-x: clip;
+    /* Within the page's side gutter, so the pictures keep their shadows. */
+    overflow-clip-margin: var(--brand-space-4);
+  }
+
+  .b-step__head {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-4);
+    max-width: 46rem;
+  }
+
+  h2 {
+    font: var(--brand-weight-heading) clamp(2rem, 1.4rem + 1.8vw, 3.25rem) / 1.06 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+    text-wrap: balance;
+  }
+
+  .b-step__line {
+    font-size: var(--brand-type-lead);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  code {
+    font: 0.9em var(--brand-font-mono);
+  }
+
+  .b-step__docs {
+    font-size: var(--brand-type-sm);
+  }
+
+  /*
+   * The points share a row of three equal columns from the left: two points take two of them and one point one, so a
+   * point is never wider than a third and no column stays empty.
+   */
+  .b-step__points {
+    --b-gap: clamp(1.5rem, 1rem + 2vw, 3rem);
+
+    display: grid;
+    grid-template-columns: repeat(var(--b-points), minmax(0, 1fr));
+    width: calc((100% - 2 * var(--b-gap)) * var(--b-points) / 3 + (var(--b-points) - 1) * var(--b-gap));
+    gap: var(--brand-space-5) var(--b-gap);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .b-step__points li {
+    padding-top: var(--brand-space-4);
+    border-top: 1px solid var(--brand-border);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 52rem) {
+    .b-step__points {
+      grid-template-columns: minmax(0, 1fr);
+      width: auto;
+    }
+  }
+</style>

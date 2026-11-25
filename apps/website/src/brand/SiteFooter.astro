@@ -1,0 +1,156 @@
+---
+import Logo from './Logo.astro';
+import './site.css';
+
+type Props = {
+  /** The homepage address. Direction previews can pass their own route. */
+  homeHref?: string;
+};
+
+const { homeHref = '/' } = Astro.props;
+const designsHref = Astro.params.structure ? '#designs' : `${homeHref}#designs`;
+const docs = 'https://docs.stacktape.com';
+const github = 'https://github.com/stacktape/stacktape';
+const status = 'https://status.stacktape.com';
+const columns = [
+  {
+    label: 'Product',
+    links: [
+      ['How it works', designsHref],
+      ['Pricing', '/pricing'],
+      ['Starter projects', `${docs}/getting-started/starter-projects`],
+      ['Changelog', `${github}/releases`],
+      ['Console', 'https://console.stacktape.com']
+    ]
+  },
+  {
+    label: 'Docs',
+    links: [
+      ['Getting started', `${docs}/cli/init`],
+      ['Resources', `${docs}/configuration/resources`],
+      ['Packaging', `${docs}/packaging/overview`],
+      ['CI/CD', `${docs}/ci-cd-and-gitops/overview`],
+      ['Monitoring', `${docs}/observability/overview`],
+      ['Guardrails', `${docs}/guardrails/overview`],
+      ['Costs', `${docs}/managing-costs/overview`],
+      ['Using with AI', `${docs}/using-with-ai/overview`]
+    ]
+  },
+  {
+    label: 'Company',
+    links: [
+      ['Blog', '/blog'],
+      ['Contact', 'mailto:info@stacktape.com'],
+      ['GitHub', github],
+      ['LinkedIn', 'https://www.linkedin.com/company/stacktape'],
+      ['X', 'https://x.com/stacktape']
+    ]
+  },
+  {
+    label: 'Legal',
+    links: [
+      ['Privacy policy', '/privacy-policy'],
+      ['Terms of use', '/terms-of-use']
+    ]
+  }
+];
+---
+
+<footer class="brand-footer">
+  <div class="site-frame">
+    <div class="footer-main">
+      <a class="home" href={homeHref} aria-label="Stacktape home"><Logo alt="" /></a>
+      <nav aria-label="Footer">
+        {
+          columns.map(({ label, links }) => (
+            <div>
+              <p>{label}</p>
+              <ul>
+                {links.map(([name, href]) => <li><a class="brand-link brand-link--muted" {href}>{name}</a></li>)}
+              </ul>
+            </div>
+          ))
+        }
+      </nav>
+    </div>
+    <div class="footer-end">
+      <span>© 2026 Stacktape</span>
+      <a class="brand-link brand-link--muted" href={github}>Open-source CLI (MIT)</a>
+      <span>Made in the EU</span>
+      <a class="brand-link brand-link--muted" href={status}>System status</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .brand-footer {
+    padding-block: var(--brand-space-7) var(--brand-space-5);
+    border-block-start: 1px solid var(--brand-border);
+    background: var(--brand-page);
+    color: var(--brand-muted);
+    font: var(--brand-type-sm) / var(--brand-leading-body) var(--brand-font-body);
+  }
+
+  .footer-main {
+    display: grid;
+    grid-template-columns: minmax(9rem, 1fr) 4fr;
+    gap: var(--brand-space-7);
+    padding-block-end: var(--brand-space-7);
+  }
+
+  .home {
+    display: block;
+    width: fit-content;
+    align-self: start;
+  }
+
+  nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--brand-space-5);
+  }
+
+  nav p {
+    margin: 0 0 var(--brand-space-3);
+    color: var(--brand-text);
+    font-weight: var(--brand-weight-label);
+  }
+
+  nav ul {
+    display: grid;
+    gap: var(--brand-space-2);
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+
+  .footer-end {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--brand-space-2) var(--brand-space-5);
+    padding-block-start: var(--brand-space-5);
+    border-block-start: 1px solid var(--brand-border);
+  }
+
+  .footer-end a:last-child {
+    margin-inline-start: auto;
+  }
+
+  @media (max-width: 54rem) {
+    .footer-main {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--brand-space-6);
+    }
+  }
+
+  @media (max-width: 36rem) {
+    nav {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      row-gap: var(--brand-space-6);
+    }
+
+    .footer-end a:last-child {
+      margin-inline-start: 0;
+    }
+  }
+</style>

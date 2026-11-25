@@ -1,0 +1,226 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import '../../../brand/site.css';
+import { CommandBox } from '../../../brand/CommandBox';
+import Annotated from './Annotated.astro';
+
+type Props = { subheadline?: string };
+
+const {
+  subheadline = 'Stacktape reads your repo, designs the infrastructure, then deploys, monitors and secures it in your own AWS account.'
+} = Astro.props;
+---
+
+<section class="h4-hero" aria-labelledby="h4-title">
+  <div class="site-frame h4-hero__frame">
+    <div class="h4-hero__grid">
+      <div class="h4-hero__copy">
+        <h1 id="h4-title">AWS DevOps, <em>fully automated.</em></h1>
+        <p class="h4-hero__lede">{subheadline}</p>
+        <CommandBox client:load id="install" label="Start" preselect={false} />
+        <div class="h4-hero__next">
+          <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com">
+            Read the docs
+          </ButtonLink>
+          <p>Runs in your AWS account on standard CloudFormation. Stop using Stacktape and your app keeps running.</p>
+        </div>
+      </div>
+      <Annotated />
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Fraunces (SIL OFL, fonts/LICENSE) under a hero-local name, so only this hero's markup uses it. */
+  @font-face {
+    font-family: 'H4 Fraunces';
+    src: url('./fonts/fraunces-latin.woff2') format('woff2');
+    font-style: normal;
+    font-weight: 300 900;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: 'H4 Fraunces';
+    src: url('./fonts/fraunces-latin-italic.woff2') format('woff2');
+    font-style: italic;
+    font-weight: 300 900;
+    font-display: swap;
+  }
+
+  .h4-hero {
+    /* The one warm accent: the dispenser's body and the pencil of the notes. */
+    --h4-sand: #e4d6bd;
+    --h4-font-display: 'H4 Fraunces', Georgia, serif;
+    padding-block: clamp(2.5rem, 9vh, 8rem) clamp(4rem, 12vh, 10rem);
+    overflow-x: clip;
+  }
+
+  /* Sizes follow the structure's frame, so the hero lines up with its header at any page width. */
+  .h4-hero__frame {
+    container: h4-hero / inline-size;
+  }
+
+  .h4-hero__grid {
+    display: grid;
+    grid-template-columns: minmax(0, clamp(26rem, 36cqi, 44rem)) minmax(0, 1fr);
+    align-items: center;
+    column-gap: clamp(2.5rem, 4.5cqi, 7rem);
+  }
+
+  .h4-hero__copy {
+    container-type: inline-size;
+    display: grid;
+    gap: var(--brand-space-5);
+  }
+
+  h1 {
+    margin: 0 0 var(--brand-space-2);
+    /* cqi here is the text column: two lines that fill it. */
+    font: 600 clamp(2.4rem, 14.6cqi, 6.4rem) / 1 var(--h4-font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.03em;
+  }
+
+  h1 em {
+    display: block;
+    color: var(--brand-teal);
+    font-style: italic;
+    font-weight: 500;
+  }
+
+  .h4-hero__lede {
+    max-inline-size: 30rem;
+    margin: 0 0 var(--brand-space-2);
+    color: var(--brand-text);
+    font-size: clamp(1.05rem, 3.9cqi, 1.3rem);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .h4-hero__next {
+    display: flex;
+    align-items: center;
+    gap: var(--brand-space-5);
+  }
+
+  .h4-hero__next p {
+    margin: 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.45;
+  }
+
+  .h4-hero__next :global(.brand-button) {
+    flex: none;
+  }
+
+  @container h4-hero (max-width: 56rem) {
+    .h4-hero__grid {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--brand-space-6);
+    }
+  }
+
+  @media (max-width: 60rem) {
+    .h4-hero {
+      padding-block: var(--brand-space-4) var(--brand-space-8);
+    }
+
+    .h4-hero__copy {
+      gap: var(--brand-space-4);
+    }
+
+    .h4-hero__next {
+      flex-wrap: wrap;
+      row-gap: var(--brand-space-3);
+    }
+
+    .h4-hero__next p {
+      font-size: 0.8125rem;
+    }
+  }
+
+  /* In a narrow column the kit's box puts Copy on a row of its own. Here it sits beside the command, and the panel fits its lines. */
+  @container (max-width: 34rem) {
+    .h4-hero__copy :global(.brand-command) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__head) {
+      display: contents;
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__tabs) {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      justify-self: stretch;
+      inline-size: auto;
+      padding: var(--brand-space-2);
+      border-bottom: 1px solid var(--brand-border);
+      border-start-start-radius: inherit;
+      border-start-end-radius: inherit;
+      background: var(--brand-surface);
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__arch) {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      justify-self: start;
+      margin: var(--brand-space-3) var(--brand-space-4) 0;
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__pre) {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      grid-template-columns: minmax(0, 1fr);
+      min-block-size: 0;
+    }
+
+    /* Only the command line makes room for Copy; the hint below it uses the full width. */
+    .h4-hero__copy :global(.brand-command .install-code__line:first-child) {
+      padding-inline-end: 8.25rem;
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__line:first-child .install-code__cmd) {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .h4-hero__copy :global(.brand-command .brand-button.install-code__copy) {
+      --stp-control-height: 2rem;
+      position: relative;
+      z-index: 1;
+      grid-column: 2;
+      grid-row: 3;
+      align-self: start;
+      margin: 0.45rem 0.6rem 0 0;
+    }
+
+    /* Installer tabs: Copy joins the architecture row, and the full command scrolls instead of being cut. */
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .install-code__arch) {
+      grid-column: 1;
+      align-self: center;
+    }
+
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .brand-button.install-code__copy) {
+      grid-row: 2;
+      align-self: center;
+      margin: var(--brand-space-3) var(--brand-space-3) 0 0;
+    }
+
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .install-code__pre) {
+      grid-template-columns: max-content;
+    }
+
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .install-code__line:first-child) {
+      padding-inline-end: 0;
+    }
+
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .install-code__line:first-child .install-code__cmd) {
+      overflow: visible;
+    }
+  }
+</style>

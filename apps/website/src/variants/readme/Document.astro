@@ -6,7 +6,7 @@
  */
 import type { ComponentProps } from 'astro/types';
 import Cover from '../../components/Cover.astro';
-import { CodeBlock } from './CodeBlock';
+import { CommandBox } from '../../brand/CommandBox';
 import {
   ANNOUNCEMENT,
   BADGES,
@@ -58,7 +58,7 @@ const FIGURES: Record<SectionData['id'], readonly { screen: typeof Editor; capti
   'talk-to-us': [{ screen: Expert, caption: CAPTIONS.expert }]
 };
 
-/** The one benchmark result under the sections whose claims it measures, linking to `/benchmarks`. */
+/** The one benchmark result under the sections whose claims it measures, linking to the benchmark repository. */
 const BENCHMARK_HIGHLIGHTS: Partial<Record<SectionData['id'], ComponentProps<typeof BenchmarkHighlight>>> = {
   packages: {
     comparison: 'packaging',
@@ -107,7 +107,7 @@ const BENCHMARK_HIGHLIGHTS: Partial<Record<SectionData['id'], ComponentProps<typ
   </Figure>
 
   <h2 class="rm-h2" id="install">Install</h2>
-  <CodeBlock client:load id="get-started" label="Install" />
+  <CommandBox client:load id="get-started" label="Install" />
   <ul class="rm-chips" aria-label={trustLabel}>
     {TRUST_CHIPS.map((chip) => <li class="rm-chip">{chip}</li>)}
   </ul>
@@ -171,7 +171,7 @@ const BENCHMARK_HIGHLIGHTS: Partial<Record<SectionData['id'], ComponentProps<typ
 
   <h2 class="rm-h2" id="start">{CLOSING.title}</h2>
   <p class="rm-p">{CLOSING.text}</p>
-  <CodeBlock client:load label="Start" hint={false} />
+  <CommandBox client:load label="Start" hint={false} />
   <ul class="rm-chips" aria-label={trustLabel}>
     {TRUST_CHIPS.map((chip) => <li class="rm-chip">{chip}</li>)}
   </ul>

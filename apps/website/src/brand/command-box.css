@@ -1,0 +1,152 @@
+/*
+ * The install command as the Console's new project page shows it ("Run the setup wizard",
+ * NewProjectChoices.tsx InitCommand): tape tabs, 12px, then a dark, sunken command field whose labelled Copy button
+ * sits inside its right end.
+ */
+.brand-command {
+  container-type: inline-size;
+  display: grid;
+  align-content: start;
+  gap: var(--brand-space-3);
+  min-inline-size: 0;
+  color: var(--brand-text);
+}
+
+.brand-command__tabs {
+  justify-self: start;
+  max-inline-size: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.brand-command__field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--brand-space-3);
+  padding: var(--brand-space-1) var(--brand-space-1) var(--brand-space-1) var(--brand-space-4);
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: var(--brand-radius);
+  background: rgb(0 0 0 / 32%);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 35%);
+}
+
+.brand-command__field:focus-visible {
+  outline: 2px solid var(--brand-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * One line, never wrapped. Large while the command is short; an installer's long line is set at 13px, so it fits a
+ * computer's field. Where it is still longer than the field (a phone), the words scroll sideways behind the fixed
+ * prompt, and Copy keeps its own column.
+ */
+.brand-command__words {
+  display: flex;
+  gap: 1ch;
+  min-inline-size: 0;
+  font: var(--brand-weight-body) 1rem / 1.5rem var(--brand-font-mono);
+  white-space: nowrap;
+}
+
+.brand-command__words--long {
+  font-size: 0.8125rem;
+}
+
+.brand-command__prompt {
+  flex: none;
+  color: var(--brand-subtle);
+  user-select: none;
+}
+
+.brand-command__text {
+  min-inline-size: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.brand-command__text::-webkit-scrollbar {
+  display: none;
+}
+
+/* The end with more of the command past it fades out, so the line reads as cut, not as complete. */
+.brand-command__text[data-more='end'] {
+  mask-image: linear-gradient(90deg, #000 calc(100% - 1.5rem), transparent);
+}
+
+.brand-command__text[data-more='start'] {
+  mask-image: linear-gradient(90deg, transparent, #000 1.5rem);
+}
+
+.brand-command__text[data-more='both'] {
+  mask-image: linear-gradient(90deg, transparent, #000 1.5rem, #000 calc(100% - 1.5rem), transparent);
+}
+
+.brand-command__word {
+  color: var(--brand-muted);
+}
+
+.brand-command__word--bright {
+  color: var(--brand-text);
+  font-weight: var(--brand-weight-label);
+}
+
+.brand-command .brand-button.brand-command__copy {
+  --stp-control-height: 2.375rem;
+  --stp-button-padding-x: 0.9375rem;
+  font-family: var(--brand-font-heading);
+  font-weight: 450;
+}
+
+.brand-command__icon {
+  display: inline-flex;
+}
+
+.brand-command__labels {
+  display: inline-grid;
+}
+
+.brand-command__labels > * {
+  grid-area: 1 / 1;
+}
+
+.brand-command__label--hidden {
+  visibility: hidden;
+}
+
+.brand-command__hint {
+  margin: 0;
+  color: var(--brand-muted);
+  font-size: var(--brand-type-sm);
+}
+
+/* A button placed right after the box (a docs link) sits level with the command field, not with the whole box. */
+astro-island:has(> .brand-command) + .brand-button,
+.brand-command + .brand-button {
+  align-self: end;
+  margin-block-end: calc((3rem - var(--stp-control-height, var(--brand-control-height))) / 2);
+}
+
+/* Narrow: the Console's 13px tabs keep all six in one row. */
+@container (max-width: 30rem) {
+  .brand-command .brand-command__tabs.stp-ui-tabs {
+    --stp-tab-font-size: 0.8125rem;
+    --stp-tab-padding-x: 5px;
+  }
+}
+
+/* The narrowest phones (360px): one step smaller again, so the tabs and a short command fit without scrolling. */
+@container (max-width: 22rem) {
+  .brand-command .brand-command__tabs.stp-ui-tabs {
+    --stp-tab-font-size: var(--brand-type-xs);
+    --stp-tab-padding-x: 4px;
+  }
+
+  .brand-command__words {
+    font-size: var(--brand-type-sm);
+  }
+
+  .brand-command__words--long {
+    font-size: 0.8125rem;
+  }
+}

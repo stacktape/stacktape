@@ -1,0 +1,63 @@
+---
+import Tape from '../../../brand/Tape.astro';
+import { CommandBox } from '../../../brand/CommandBox';
+---
+
+<section class="b-closing site-frame" aria-labelledby="b-closing-title">
+  <div class="b-closing__copy">
+    <p class="b-closing__marker"><Tape variant="marker">Try it</Tape></p>
+    <h2 id="b-closing-title">See what Stacktape proposes for your app</h2>
+    <p class="b-closing__line">
+      Run the command in your project directory. A wizard opens in your browser with the proposed AWS setup. You can
+      save the config without a Stacktape account and deploy when you’re ready.
+    </p>
+  </div>
+  <div class="b-closing__start">
+    <CommandBox client:visible label="Run in your project" preselect={false} />
+    <a class="brand-link brand-link--muted" href="https://console.stacktape.com">Already using Stacktape? Open the Console</a>
+  </div>
+</section>
+
+<style>
+  .b-closing {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+    gap: var(--brand-space-6) clamp(2rem, 1rem + 4vw, 7rem);
+    padding-block: clamp(4rem, 2.5rem + 4vw, 8rem);
+    border-top: 1px solid var(--brand-border);
+  }
+
+  .b-closing__marker {
+    margin-bottom: var(--brand-space-5);
+  }
+
+  h2 {
+    font: var(--brand-weight-heading) clamp(2.25rem, 1.5rem + 2.4vw, 4rem) / 1.04 var(--brand-font-heading);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  .b-closing__line {
+    max-width: 30rem;
+    margin-top: var(--brand-space-4);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-lead);
+  }
+
+  .b-closing__start {
+    display: grid;
+    gap: var(--brand-space-3);
+    min-width: 0;
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-closing__start > a {
+    justify-self: start;
+  }
+
+  @media (max-width: 64rem) {
+    .b-closing {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

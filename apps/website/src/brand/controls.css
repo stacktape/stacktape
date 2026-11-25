@@ -1,0 +1,119 @@
+@import './tokens.css';
+
+.brand-button.stp-ui-button {
+  --stp-button-radius: var(--brand-radius);
+  --stp-button-padding-x: var(--brand-space-4);
+  --stp-control-height: var(--brand-control-height);
+  --stp-button-primary-text: var(--brand-on-teal);
+  --stp-button-primary-surface: var(--brand-primary);
+  --stp-button-primary-shadow: var(--brand-edge-primary);
+  --stp-button-primary-shadow-hover: var(--brand-edge-primary), var(--brand-control-hover);
+  --stp-button-primary-shadow-active: var(--brand-edge-primary), var(--brand-control-active);
+  --stp-button-secondary-text: var(--brand-text);
+  --stp-button-secondary-surface: var(--brand-control);
+  --stp-button-secondary-shadow: var(--brand-edge);
+  --stp-button-secondary-shadow-hover: var(--brand-edge), var(--brand-control-hover);
+  --stp-button-secondary-shadow-active: var(--brand-edge), var(--brand-control-active);
+  font-family: var(--brand-font-body);
+  font-size: var(--brand-type-sm);
+  font-weight: var(--brand-weight-label);
+}
+
+.brand-link {
+  color: var(--brand-teal);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.brand-link:hover {
+  color: var(--brand-text);
+}
+
+.brand-link--muted {
+  color: var(--brand-muted);
+  text-decoration-line: none;
+}
+
+.brand-link--muted:hover {
+  text-decoration-line: underline;
+}
+
+.brand-tape-fill::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: var(--brand-tape-fill-content, '');
+  background: var(--brand-primary);
+  box-shadow: var(--brand-edge-primary);
+  clip-path: var(--brand-tape-clip);
+}
+
+/*
+ * The Console's tape tabs (brand session, tape_look.py tabs_css): segmented tabs keep their dark well, and the items
+ * are pieces of one strip of tape. Neighbours are torn where they meet, so their teeth fit together, and the strip's two
+ * outer ends are cut straight. Only the selected piece is filled, with the grey tape of a secondary control. Four teeth
+ * per end at the logo's depth. The piece is drawn on ::before, so the focus ring around the button stays whole.
+ */
+.brand-tabs.stp-ui-tabs--segmented {
+  --brand-tooth-depth: 3.4px;
+  --brand-torn-right:
+    100% 0%, calc(100% - var(--brand-tooth-depth)) 12.5%, 100% 25%, calc(100% - var(--brand-tooth-depth)) 37.5%,
+    100% 50%, calc(100% - var(--brand-tooth-depth)) 62.5%, 100% 75%, calc(100% - var(--brand-tooth-depth)) 87.5%,
+    100% 100%;
+  --brand-torn-left:
+    var(--brand-tooth-depth) 100%, 0% 87.5%, var(--brand-tooth-depth) 75%, 0% 62.5%, var(--brand-tooth-depth) 50%,
+    0% 37.5%, var(--brand-tooth-depth) 25%, 0% 12.5%, var(--brand-tooth-depth) 0%;
+  --stp-tab-text: var(--brand-text);
+  --stp-tab-text-hover: var(--brand-text);
+  --stp-tab-font-size: var(--brand-type-sm);
+  --stp-tab-font-weight: 450;
+  --stp-tab-background-hover: transparent;
+  font-family: var(--brand-font-heading);
+}
+
+.brand-tabs .stp-ui-tabs__indicator {
+  display: none;
+}
+
+.brand-tabs .stp-ui-tabs__divider {
+  flex: none;
+}
+
+.brand-tabs .stp-ui-tab {
+  flex: none;
+  isolation: isolate;
+  transition: none;
+}
+
+.brand-tabs .stp-ui-tab::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: '';
+  clip-path: polygon(var(--brand-torn-right), var(--brand-torn-left));
+  pointer-events: none;
+}
+
+.brand-tabs .stp-ui-tab:not(.stp-ui-tab ~ .stp-ui-tab)::before {
+  clip-path: polygon(0% 0%, var(--brand-torn-right), 0% 100%);
+}
+
+.brand-tabs .stp-ui-tab:not(:has(~ .stp-ui-tab))::before {
+  clip-path: polygon(100% 0%, 100% 100%, var(--brand-torn-left));
+}
+
+.brand-tabs .stp-ui-tab:hover:not(:disabled, .stp-ui-tab--active)::before {
+  background: rgb(255 255 255 / 4.5%);
+}
+
+.brand-tabs .stp-ui-tab--active::before {
+  background: var(--brand-control);
+  box-shadow: var(--brand-edge);
+}
+
+.brand-tabs .stp-ui-tab:focus-visible {
+  z-index: 2;
+  outline: 2px solid var(--brand-focus);
+  outline-offset: -2px;
+}

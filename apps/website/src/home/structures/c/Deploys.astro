@@ -1,0 +1,78 @@
+---
+/**
+ * Deploys and packaging. Figures: `src/data/deploy-benchmarks.json`, preliminary run of 22 Oct 2026 (Git push on
+ * 23 Oct). Charts go fastest to slowest and include the cases where Stacktape is slower.
+ */
+import { sectionPack } from '../../sections';
+import { BENCHMARKS } from '../../../variants/readme/benchmarks';
+import BenchChart from './BenchChart.astro';
+import Block from './Block.astro';
+
+const deploys = sectionPack('deploys');
+
+---
+
+<Block id="deploys" marker={deploys.name} title={deploys.title} text={deploys.text} points={deploys.gets}>
+  <p class="c-small">
+    Container code changes use code swap, an opt-in setting. A dependency change needs a normal image deploy, which is
+    slower than Heroku.
+  </p>
+  <p class="c-small">
+    Preliminary results, medians in seconds, measured on 22 Oct 2026. Stacktape’s Git pushes ran on 23 Oct, with the
+    code swapped in place. Heroku’s Git push time is its build from the pushed source.
+  </p>
+  <p class="c-small"><a class="brand-link" href={BENCHMARKS.source}>How we measured, and every result</a></p>
+
+  <div slot="picture" class="deploys__charts">
+    <BenchChart
+      comparison="lambda-deploy"
+      view="handler"
+      app="lambda-25"
+      title="Code change to 25 Lambda functions"
+      detail="CLI deploy"
+    />
+    <BenchChart
+      comparison="container-deploy"
+      view="code-change"
+      app="container-node"
+      title="Code change to a Node.js container"
+      detail="Stacktape with code swap, opt-in"
+    />
+    <BenchChart comparison="git-push" view="warm" app="container-node" title="Git push, Node.js service" detail="warm runner · Stacktape 23 Oct, others 22 Oct" />
+    <BenchChart
+      comparison="git-push"
+      view="warm"
+      app="container-python"
+      title="Git push, Python service"
+      detail="warm runner · Stacktape 23 Oct, others 22 Oct"
+    />
+    <BenchChart
+      comparison="lambda-deploy"
+      view="shared"
+      app="lambda-5"
+      title="Shared-code change to 5 Lambda functions"
+      detail="CLI deploy"
+    />
+    <BenchChart
+      comparison="packaging"
+      view="empty-cache"
+      app="lambda-25"
+      title="Package 25 Lambda functions"
+      detail="empty build cache"
+    />
+  </div>
+</Block>
+
+<style>
+  .deploys__charts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--brand-space-4);
+  }
+
+  @media (max-width: 40rem) {
+    .deploys__charts {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

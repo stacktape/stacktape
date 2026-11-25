@@ -1,0 +1,9 @@
+<script>
+  if (['stacktape.com', 'www.stacktape.com'].includes(window.location.hostname)) {
+    const analytics = document.createElement('script');
+    analytics.defer = true;
+    analytics.dataset.domain = 'stacktape.com';
+    analytics.src = 'https://plausible.io/js/script.js';
+    document.head.append(analytics);
+  }
+</script>

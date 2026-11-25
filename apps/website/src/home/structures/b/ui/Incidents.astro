@@ -1,0 +1,759 @@
+---
+import Tape from '../../../../brand/Tape.astro';
+import Window from './console/Window.astro';
+
+/*
+ * The Console's incident page, Overview tab, for the example app acme-shop, re-created in HTML from
+ * apps/console/ui/src/pages/IncidentsPage/IncidentDetailPage.tsx (header, status rows, IncidentUnfolding, "Where it
+ * fails" and the "About this incident" facts) inside the Console shell the other steps use (ui/console/Window.astro).
+ *
+ * It is the incident the hero's Incidents tab lists as resolved (heroes/h5/console/data.ts), seen while it was open,
+ * and the caption says so. Release v000041 ("Show order totals in the cart", 7d3f0b1 by Tomas Berg, as in the
+ * Deploys picture) was deployed at 10:12; v000040 is "Show stock on product pages" (8a41d07).
+ * From 10:16 order totals throw a TypeError
+ * for empty carts; the API error-rate alarm fires at 10:17, when the incident opens, and the apiHealth uptime check is
+ * down from 10:18 to 10:23. It is 10:35: open for 18 minutes, deployed 5 minutes before it opened. Fix with AI has
+ * opened draft pull request #219, not merged or deployed; the fix ships at 11:04 as a41c9e2 "Fix order totals for
+ * empty carts". The error has 31 occurrences at 10:35, below the 56 that step 04 counts by 13:06. At 10:35 two
+ * incidents were open, this one and the certificate warning the hero lists (opened about 07:00), so the shell shows 2.
+ */
+const START = 10 * 60 + 5;
+const NOW = 10 * 60 + 35;
+const at = (minute: number) => `${(((minute - START) / (NOW - START)) * 100).toFixed(2)}%`;
+
+/** Each signal's failing span in minutes since midnight; `to` is null while it still fails. */
+const LANES = [
+  { label: 'TypeError: Cannot read properties of undefined (reading ‘total’)', from: 10 * 60 + 16, to: null },
+  { label: 'API error rate above 5%', from: 10 * 60 + 17, to: null },
+  { label: 'Uptime check “apiHealth”', from: 10 * 60 + 18, to: 10 * 60 + 23 }
+];
+const TICKS = [
+  { label: '10:05', minute: START },
+  { label: '10:15', minute: 10 * 60 + 15 },
+  { label: '10:25', minute: 10 * 60 + 25 },
+  { label: 'now', minute: NOW }
+];
+/** Where the deploy line sits on the tracks, as a share of their width. */
+const DEPLOY_SHARE = (10 * 60 + 12 - START) / (NOW - START);
+
+/** The incident's card in Slack (apps/console/api/src/services/slack-app/render.ts renderIncidentCard). */
+const CARD_SIGNALS = [
+  { title: 'TypeError: Cannot read properties of undefined (reading ‘total’)', kind: 'error group', failing: true },
+  { title: 'API error rate above 5%', kind: 'alarm firing', failing: true },
+  { title: 'Uptime check “apiHealth” is down', kind: 'uptime down', failing: false }
+];
+const CARD_MENU = ['Mute 1 hour', 'Mute 24 hours', 'Resolve', 'Roll back to v000040', 'Open in Console'];
+
+const FRAMES = [
+  ['orderTotals', '/app/src/orders/totals.ts', '18:34'],
+  ['buildOrderSummary', '/app/src/orders/summary.ts', '118:22'],
+  ['createCheckoutSession', '/app/src/routes/checkout.ts', '67:18']
+];
+---
+
+<div
+  class="inc"
+  role="img"
+  aria-label="At 10:35, before the 11:04 fix: an incident in the Stacktape Console, API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened, which reads an order total that empty carts do not have. A draft fix is ready as pull request #219. Below, the incident’s card in Slack, with its menu open on Roll back to v000040."
+>
+  <p class="inc__when"><Tape tone="gray" variant="count">10:35</Tape> Before the 11:04 fix</p>
+  <div class="inc__stage">
+  <Window label="The incident page in the Stacktape Console" page="Incidents" current="incidents" openIncidents={2}>
+  <div class="inc__page">
+    <p class="inc__crumb">Incidents</p>
+    <div class="inc__head">
+      <h3>API error rate above 5%</h3>
+      <p class="inc__meta"><b>Critical</b> · acme-shop / production</p>
+      <span class="inc__actions">
+        <span class="inc__btn inc__btn--primary">Acknowledge</span>
+        <span class="inc__btn">Resolve</span>
+        <span class="inc__btn inc__btn--more"
+          ><svg viewBox="0 0 24 24" aria-hidden="true"
+            ><circle cx="6" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="18" cy="12" r="1.6"
+            ></circle></svg
+          ></span
+        >
+      </span>
+    </div>
+
+    <div class="inc__tabs">
+      <span class="is-on">Overview</span><span>Signals</span><span>AI assessment</span><span>Timeline</span>
+      <span class="inc__related"><span>Related</span> Logs <span>·</span> Metrics <span>·</span> Errors</span>
+    </div>
+
+    <div class="inc__grid">
+      <div class="inc__main">
+        <div class="inc__card">
+          <div class="inc__status">
+            <i class="is-red"></i>
+            <p><b class="inc__red">Still failing</b> for 18m · 2 of 3 signals failing · last failure 1m ago</p>
+            <span class="inc__aside-text">Not acknowledged</span>
+          </div>
+          <div class="inc__status">
+            <i class="is-amber"></i>
+            <p>
+              <b>Likely cause</b> Order requests fail with a TypeError in <code>orderTotals</code>. Release v000041 reads{' '}
+              <code>cart.summary.total</code>, and an empty cart has no summary.
+            </p>
+            <span class="inc__link-button">View assessment</span>
+          </div>
+          <div class="inc__status">
+            <i class="is-teal"></i>
+            <p>
+              <b>Draft fix ready</b> Return a zero total for an empty cart, with a test for it, in{' '}<u
+                >pull request #219</u
+              >.
+            </p>
+            <span class="inc__link-button">View fix</span>
+          </div>
+        </div>
+
+        <div class="inc__card inc__unfold">
+          <div class="inc__lanes" style={`--inc-deploy-share: ${DEPLOY_SHARE}`}>
+            <span class="inc__mark">Deploy succeeded 10:12</span>
+            {
+              LANES.map((lane) => (
+                <div class="inc__lane">
+                  <span class="inc__lane-label">{lane.label}</span>
+                  <span class="inc__track">
+                    <span class="inc__bar" style={`left: ${at(lane.from)}; right: calc(100% - ${at(lane.to ?? NOW)})`} />
+                  </span>
+                </div>
+              ))
+            }
+            <div class="inc__axis">
+              <span></span>
+              <span class="inc__ticks">
+                {TICKS.map((tick) => <span style={`left: ${at(tick.minute)}`}>{tick.label}</span>)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="inc__card inc__fails">
+          <div class="inc__fails-head">
+            <b>Where it fails</b>
+            <span><u>Logs of the last failed request</u> <u>Open the error</u></span>
+          </div>
+          <p class="inc__error">
+            <b>TypeError: Cannot read properties of undefined (reading ‘total’)</b>
+            <span>Uncaught exception in api · 31 occurrences so far</span>
+          </p>
+          <div class="inc__stack">
+            {
+              FRAMES.map(([fn, file, line], index) => (
+                <code class:list={[index === 0 && 'is-top']}>
+                  at <em>{fn}</em> ({file}:<strong>{line}</strong>)
+                </code>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+
+      <dl class="inc__card inc__about">
+        <div class="inc__about-head">About this incident</div>
+        <div>
+          <dt>Stage</dt>
+          <dd><u>acme-shop</u> / <u>production</u><span>us-east-1</span></dd>
+        </div>
+        <div>
+          <dt>Running</dt>
+          <dd><u>v000041</u><span>Deployed 5 minutes before it opened</span></dd>
+        </div>
+        <div>
+          <dt>Commit</dt>
+          <dd><code>7d3f0b1</code><span>Show order totals in the cart</span></dd>
+        </div>
+        <div>
+          <dt>Changes</dt>
+          <dd><u>Since v000040</u></dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+  </Window>
+
+  <div class="inc__slack">
+    <p class="inc__slack-from"><b>Stacktape</b> <span>in #incidents · 10:17</span></p>
+    <p class="inc__slack-title"><i></i><b>Open</b> API error rate above 5%</p>
+    <p class="inc__slack-small">acme-shop / production · PRODUCTION · Critical · opened 10:17</p>
+    <ul>
+      {
+        CARD_SIGNALS.map((signal) => (
+          <li>
+            <span class:list={[!signal.failing && 'is-ok']} aria-hidden="true">
+              {signal.failing ? '✕' : '✓'}
+            </span>{' '}
+            {signal.title} <em>({signal.kind})</em>
+          </li>
+        ))
+      }
+    </ul>
+    <p class="inc__slack-small">
+      <b>Release live when it opened:</b> version v000041, commit <code>7d3f0b1</code>, deployed 5 min before it
+      opened · <u>what changed since v000040</u>
+    </p>
+    <div class="inc__slack-actions">
+      <span class="is-go">Acknowledge</span><span>Investigate with AI</span><span>Fix with AI</span><span class="is-more"
+        >···</span
+      >
+      <ul class="inc__slack-menu">
+        {CARD_MENU.map((item) => <li class:list={[item.startsWith('Roll back') && 'is-hover']}>{item}</li>)}
+      </ul>
+    </div>
+  </div>
+  </div>
+</div>
+
+<style>
+  .inc {
+    --inc-amber: #ed8b00;
+    --inc-line: var(--stp-border-subtle);
+    container: inc / inline-size;
+    color: var(--stp-text-primary);
+    font: 450 var(--stp-font-size-body) / 1.45 var(--brand-font-heading);
+  }
+
+  /* The Console window, then the Slack card in front of its lower edge, with room below for the card's open menu. */
+  .inc__stage {
+    padding-bottom: 9.5rem;
+  }
+
+
+  .inc__slack {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 0.45rem;
+    width: min(31rem, 100%);
+    margin: -2rem 1.25rem 0 auto;
+    padding: 0.9rem 1rem 1rem;
+    border: 1px solid var(--brand-border);
+    border-left: 4px solid var(--stp-status-error);
+    background: var(--stp-surface-modal);
+    box-shadow: 0 22px 52px rgb(0 0 0 / 50%);
+  }
+
+  .inc__slack-from span,
+  .inc__slack-small,
+  .inc__slack em {
+    color: var(--stp-text-muted);
+    font-size: var(--stp-font-size-caption);
+  }
+
+  .inc__slack-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.95rem;
+  }
+
+  .inc__slack-title i {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--stp-status-error);
+  }
+
+  .inc__slack ul {
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .inc__slack li > span {
+    color: var(--stp-status-error);
+    font-weight: 700;
+  }
+
+  .inc__slack li > span.is-ok {
+    color: var(--stp-status-success);
+  }
+
+  .inc__slack-actions {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.35rem;
+  }
+
+  .inc__slack-actions > span {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid var(--stp-border-subtle);
+    font-weight: 600;
+  }
+
+  .inc__slack-actions > .is-go {
+    border-color: transparent;
+    background: var(--stp-status-success);
+    color: #fff;
+  }
+
+  .inc__slack .inc__slack-menu {
+    position: absolute;
+    top: calc(100% + 0.3rem);
+    right: 0;
+    width: 13rem;
+    padding: 0.3rem;
+    border: 1px solid var(--stp-border-subtle);
+    background: var(--stp-surface-element);
+    box-shadow: 0 16px 36px rgb(0 0 0 / 50%);
+  }
+
+  .inc__slack-menu li {
+    padding: 0.35rem 0.6rem;
+  }
+
+  .inc__slack-menu .is-hover {
+    background: var(--brand-primary-bottom);
+    color: var(--brand-on-teal);
+  }
+
+  b,
+  strong {
+    font-weight: 600;
+  }
+
+  u {
+    text-decoration: underline dotted rgb(255 255 255 / 50%);
+    text-underline-offset: 0.22em;
+  }
+
+  code {
+    font-family: var(--brand-font-mono);
+  }
+
+
+
+
+
+
+  /* The page inside the Console shell; the grid below folds by its width, which the sidebar narrows. */
+  .inc__page {
+    container: incp / inline-size;
+  }
+
+  .inc__when {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  .inc__crumb {
+    color: var(--stp-text-muted);
+  }
+
+  .inc__head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+    align-items: baseline;
+    margin-top: 0.35rem;
+  }
+
+  .inc__head h3 {
+    color: var(--stp-text-strong);
+    letter-spacing: -0.02em;
+    font: 600 1.5rem / 1.25 var(--brand-font-heading);
+  }
+
+  .inc__meta {
+    color: var(--stp-text-muted);
+  }
+
+  .inc__meta b,
+  .inc__red {
+    color: var(--stp-status-error);
+  }
+
+  .inc__actions {
+    display: flex;
+    gap: 0.5rem;
+    align-self: center;
+    margin-left: auto;
+  }
+
+  .inc__btn {
+    padding: 0.55rem 1rem;
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    font-weight: 500;
+  }
+
+  .inc__btn--primary {
+    color: var(--brand-on-teal);
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+  }
+
+  .inc__btn--more {
+    display: flex;
+    align-items: center;
+    padding-inline: 0.7rem;
+  }
+
+  .inc__btn--more svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: currentcolor;
+  }
+
+  .inc__tabs {
+    display: flex;
+    gap: 1.6rem;
+    align-items: center;
+    margin: 1rem 0 1.1rem;
+    border-bottom: 1px solid var(--inc-line);
+    font-weight: 500;
+  }
+
+  .inc__tabs > span {
+    position: relative;
+    padding-block: 0.4rem 0.75rem;
+  }
+
+  /* The selected section tab is underlined with a short strip of teal tape, torn at both ends. */
+  .inc__tabs > .is-on::after {
+    position: absolute;
+    right: 2px;
+    bottom: -2px;
+    left: 2px;
+    height: 5px;
+    content: '';
+    background: var(--brand-primary);
+    clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 50%, calc(100% - 2px) 100%, 2px 100%, 0 50%);
+  }
+
+  .inc__related {
+    display: flex;
+    gap: 0.6rem;
+    margin-left: auto;
+  }
+
+  .inc__related span {
+    color: var(--stp-text-muted);
+    font-weight: 450;
+  }
+
+  .inc__grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 17rem;
+    gap: 1.25rem;
+    align-items: start;
+  }
+
+  .inc__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.1rem;
+    min-width: 0;
+  }
+
+  .inc__card {
+    margin: 0;
+    background: linear-gradient(var(--stp-surface-element), color-mix(in srgb, var(--stp-surface-element) 88%, #000));
+    box-shadow:
+      0 2px 6px rgb(0 0 0 / 35%),
+      inset 0 1px 0 rgb(255 255 255 / 9%);
+  }
+
+  .inc__status {
+    display: grid;
+    grid-template-columns: 0.5rem minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.75rem 1rem;
+  }
+
+  .inc__status + .inc__status {
+    border-top: 1px solid var(--inc-line);
+  }
+
+  .inc__status i {
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-top: 0.4rem;
+    border-radius: 50%;
+  }
+
+  .inc__status i.is-red {
+    background: var(--stp-status-error);
+  }
+
+  .inc__status i.is-amber {
+    background: var(--inc-amber);
+  }
+
+  .inc__status i.is-teal {
+    background: var(--stp-status-success);
+  }
+
+  .inc__status p {
+    color: var(--stp-text-muted);
+  }
+
+  .inc__status p b {
+    margin-right: 0.35rem;
+  }
+
+  .inc__status p b:not(.inc__red) {
+    color: var(--stp-text-primary);
+  }
+
+  .inc__aside-text {
+    color: var(--stp-text-muted);
+  }
+
+  .inc__link-button {
+    align-self: center;
+    font-weight: 500;
+  }
+
+  .inc__unfold {
+    padding: 0.75rem 1rem;
+  }
+
+  .inc__lanes {
+    position: relative;
+    display: grid;
+    gap: 0.55rem;
+    padding-top: 1.6rem;
+  }
+
+  .inc__lane,
+  .inc__axis {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .inc__lane-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .inc__track {
+    position: relative;
+    height: 6px;
+    background: rgb(255 255 255 / 8%);
+  }
+
+  .inc__bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--stp-status-error);
+  }
+
+  /* The deploy line sits at its time on the tracks' scale, which starts after the labels' column. */
+  .inc__mark {
+    position: absolute;
+    top: 0;
+    bottom: 1.3rem;
+    left: calc((100% - 1rem) * 0.8 / 1.8 + 1rem + (100% - 1rem) / 1.8 * var(--inc-deploy-share));
+    padding-left: 0.45rem;
+    border-left: 1px solid var(--stp-text-subtle);
+    color: var(--stp-text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .inc__ticks {
+    position: relative;
+    height: 1.2rem;
+    color: var(--stp-text-subtle);
+    font-size: var(--stp-font-size-caption);
+  }
+
+  .inc__ticks span {
+    position: absolute;
+    translate: -50% 0;
+  }
+
+  .inc__ticks span:first-child {
+    translate: 0 0;
+  }
+
+  .inc__ticks span:last-child {
+    translate: -100% 0;
+  }
+
+  .inc__fails {
+    padding: 0.75rem 1rem 1rem;
+  }
+
+  .inc__fails-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    justify-content: space-between;
+  }
+
+  .inc__fails-head span {
+    display: flex;
+    gap: 1rem;
+    color: var(--stp-text-muted);
+    font-weight: 600;
+  }
+
+  .inc__error {
+    display: grid;
+    margin: 0.9rem 0 0.75rem;
+  }
+
+  .inc__error span {
+    color: var(--stp-text-muted);
+  }
+
+  .inc__stack {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.9rem 1.1rem;
+    overflow-x: auto;
+    border: 1px solid var(--inc-line);
+    background: var(--brand-inset);
+    color: var(--stp-text-muted);
+    font-size: 0.8rem;
+    white-space: pre;
+  }
+
+  .inc__stack em {
+    font-style: normal;
+  }
+
+  .inc__stack .is-top {
+    color: var(--stp-text-primary);
+  }
+
+  .inc__stack .is-top em {
+    color: var(--brand-teal);
+  }
+
+  .inc__stack .is-top strong {
+    color: var(--inc-amber);
+  }
+
+  .inc__about-head {
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+  }
+
+  .inc__about > div:not(.inc__about-head) {
+    padding: 0.5rem 1rem;
+    border-top: 1px solid var(--inc-line);
+  }
+
+  .inc__about dt {
+    color: var(--stp-text-subtle);
+    font-size: var(--stp-font-size-caption);
+  }
+
+  .inc__about dd {
+    margin: 0;
+  }
+
+  .inc__about dd span {
+    display: block;
+    color: var(--stp-text-subtle);
+  }
+
+  /* The facts fold under the main column when the shell leaves the page less than about 50rem. */
+  @container incp (max-width: 50rem) {
+    .inc__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .inc__about {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .inc__about-head {
+      grid-column: 1 / -1;
+    }
+
+    .inc__related {
+      display: none;
+    }
+  }
+
+  /* A phone: what fails, the release, the cause and the fix. The deploy line becomes a line of text. */
+  @container incp (max-width: 30rem) {
+    .inc__head h3 {
+      font-size: 1.2rem;
+    }
+
+    .inc__actions {
+      order: 3;
+      margin: 0.5rem 0 0;
+    }
+
+    .inc__btn--more,
+    .inc__tabs > span:nth-child(n + 3),
+    .inc__fails-head span,
+    .inc__stack code:not(.is-top),
+    .inc__about > div:nth-child(2),
+    .inc__about > div:nth-child(5),
+    .inc__axis > span:first-child {
+      display: none;
+    }
+
+    .inc__status {
+      grid-template-columns: 0.5rem minmax(0, 1fr);
+    }
+
+    .inc__status > span {
+      grid-column: 2;
+    }
+
+    .inc__lanes {
+      padding-top: 0;
+    }
+
+    .inc__lane,
+    .inc__axis {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.25rem;
+    }
+
+    .inc__lane-label {
+      white-space: normal;
+    }
+
+    .inc__mark {
+      position: static;
+      padding-left: 0;
+      border-left: 0;
+    }
+
+    .inc__stack {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  @container inc (max-width: 34rem) {
+    .inc__slack .inc__slack-menu,
+    .inc__slack > ul {
+      display: none;
+    }
+
+    .inc__stage {
+      padding-bottom: 0;
+    }
+
+    .inc__slack {
+      width: auto;
+      margin: 1rem 0 0;
+    }
+  }
+</style>
