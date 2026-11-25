@@ -18,8 +18,12 @@ if (strip) {
     }
   };
 
-  const fromHash = tabs.find((tab) => `#${tab.id}` === location.hash);
-  if (fromHash) choose(fromHash);
+  const openFromHash = () => {
+    const linked = tabs.find((tab) => `#${tab.id}` === location.hash);
+    if (linked) choose(linked);
+  };
+  openFromHash();
+  window.addEventListener('hashchange', openFromHash);
 
   for (const tab of tabs) {
     tab.addEventListener('click', () => {

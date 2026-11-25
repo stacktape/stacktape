@@ -20,8 +20,8 @@ const url = (name: string) => {
 
 const facts = [
   { figure: 'MIT', note: 'Open-source CLI. Works without a Stacktape account.', href: 'https://github.com/stacktape/stacktape' },
-  { figure: '10.7 s', note: 'A Lambda change, live. CDK hotswap: 13.2 s. Preliminary run, 22 Oct 2026.', href: '/benchmarks' },
-  { figure: '$0', note: 'Stacktape fee while the stacks it manages spend up to $200 a month on AWS.', href: '/pricing' }
+  { figure: '10.7 s', note: 'A Lambda code change, deployed. CDK hotswap: 13.2 s. Preliminary run, 22 Oct 2026.', href: '/benchmarks' },
+  { figure: '$0', note: 'Stacktape fee until the AWS resources it manages cost $200 a month.', href: '/pricing' }
 ];
 ---
 
@@ -71,7 +71,7 @@ const facts = [
             <img
               src={url(`${screen.file}-1280.webp`)}
               srcset={`${url(`${screen.file}-1280.webp`)} 1280w, ${url(`${screen.file}-2560.webp`)} 2560w`}
-              sizes="(min-width: 90rem) 74rem, 92vw"
+              sizes="(min-width: 92rem) 88rem, 96vw"
               width="2560"
               height="1369"
               alt={screen.description}
@@ -114,6 +114,8 @@ const facts = [
     --h5-serif: 'H5 Newsreader', Georgia, 'Times New Roman', serif;
     --h5-soft: color-mix(in srgb, var(--brand-text), transparent 22%);
     --h5-rule: rgb(255 255 255 / 8%);
+    /* The site header's content width, so the window and the trust row line up with the logo and the header's links. */
+    --h5-frame: min(var(--site-width, 76rem), 100% - 2 * var(--brand-space-5));
     /*
      * The Console's tape tabs (brand-identity session, tape_look.py tabs_css and final_looks.py fitting_clip): one
      * strip torn into pieces. A piece's torn right end has the same teeth as the next piece's torn left end, so
@@ -129,7 +131,12 @@ const facts = [
       var(--h5-tooth) 100%, 0% 90%, var(--h5-tooth) 80%, 0% 70%, var(--h5-tooth) 60%, 0% 50%, var(--h5-tooth) 40%,
       0% 30%, var(--h5-tooth) 20%, 0% 10%, var(--h5-tooth) 0%;
     border-block-end: 1px solid var(--h5-rule);
-    background: var(--brand-page);
+    /* Near flat: the page's graphite, turning a shade towards the logo's teal behind the window. */
+    background: linear-gradient(
+      180deg,
+      var(--brand-page) 30%,
+      color-mix(in oklab, var(--brand-page), var(--brand-primary-bottom) 12%)
+    );
   }
 
   .h5__serif {
@@ -194,7 +201,7 @@ const facts = [
     flex-direction: column;
     align-items: center;
     gap: var(--brand-space-4);
-    inline-size: min(74rem, 100% - 2 * clamp(1.25rem, 6vw, 8rem));
+    inline-size: var(--h5-frame);
     margin: clamp(3rem, 3.4vw, 4rem) auto 0;
   }
 
@@ -211,12 +218,12 @@ const facts = [
     position: relative;
     isolation: isolate;
     flex: none;
-    block-size: 2.25rem;
-    padding: 0 1.4rem;
+    block-size: 2.4em;
+    padding: 0 1.5em;
     border: 0;
     background: none;
     color: var(--brand-muted);
-    font: 500 0.9375rem / 1 var(--brand-font-heading);
+    font: 500 clamp(0.875rem, 0.8rem + 0.18vw, 1.0625rem) / 1 var(--brand-font-heading);
     cursor: pointer;
   }
 
@@ -255,10 +262,11 @@ const facts = [
     box-shadow: var(--brand-edge-primary);
   }
 
+  /* Outside the piece, so the ring never hides the torn ends. */
   .h5__tab:focus-visible {
     z-index: 1;
     outline: 2px solid var(--brand-focus);
-    outline-offset: -2px;
+    outline-offset: 1px;
     border-radius: var(--brand-radius-small);
   }
 
@@ -285,9 +293,9 @@ const facts = [
   /* Customers and three facts, as a ruled row along the bottom of the hero. */
   .h5__trust {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 0.6fr)) repeat(3, minmax(0, 1.2fr));
     margin: clamp(3.5rem, 4vw, 4.5rem) 0 0;
-    padding: 0 max(0rem, (100% - 110rem) / 2);
+    padding: 0 calc((100% - var(--h5-frame)) / 2);
     border-block-start: 1px solid var(--h5-rule);
     background: var(--brand-inset);
     list-style: none;
@@ -323,7 +331,7 @@ const facts = [
   /* A fact: its figure, and beside it one short line that says what the figure is and where it comes from. */
   .h5__trust a {
     display: grid;
-    grid-template-columns: auto minmax(0, 14rem);
+    grid-template-columns: auto minmax(0, 15rem);
     place-content: center;
     align-items: center;
     column-gap: var(--brand-space-4);
@@ -396,23 +404,39 @@ const facts = [
       margin-block-start: var(--brand-space-5);
     }
 
+    .h5 {
+      --h5-frame: calc(100% - 2 * var(--brand-space-4));
+    }
+
     .h5__product {
-      inline-size: calc(100% - 2 * var(--brand-space-4));
       margin-block-start: var(--brand-space-7);
       gap: var(--brand-space-3);
     }
 
-    /* Six pieces of one strip in two rows of three would no longer be one strip, so the strip scrolls instead. */
+    /* Six tabs do not fit one row on a phone: two rows of three, each row a strip cut straight at its outer ends. */
     .h5__strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      row-gap: 3px;
       align-self: stretch;
-      overflow-x: auto;
-      scrollbar-width: none;
     }
 
     .h5__tab {
-      block-size: 2rem;
-      padding-inline: 0.9rem;
-      font-size: var(--brand-type-sm);
+      block-size: 2.25rem;
+      padding-inline: 0.25rem;
+      font-size: 0.8125rem;
+    }
+
+    .h5__tab:nth-child(3n + 1)::before {
+      border-start-start-radius: var(--brand-radius-small);
+      border-end-start-radius: var(--brand-radius-small);
+      clip-path: polygon(0% 0%, var(--h5-torn-right), 0% 100%);
+    }
+
+    .h5__tab:nth-child(3n)::before {
+      border-start-end-radius: var(--brand-radius-small);
+      border-end-end-radius: var(--brand-radius-small);
+      clip-path: polygon(100% 0%, 100% 100%, var(--h5-torn-left));
     }
 
     .h5__trust {
