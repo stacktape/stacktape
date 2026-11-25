@@ -503,6 +503,11 @@ const {
     z-index: 1;
   }
 
+  /* Every step label is the size of the command labels, so the loop's labels do not outrank init and deploy. */
+  .step :global(.tape) {
+    font-size: var(--brand-type-xs);
+  }
+
   .link.is-on {
     --line: var(--brand-teal);
   }
