@@ -4,9 +4,8 @@ import { codeParts } from '../../code-text';
 import type { SECTION_PACKS } from '../../sections';
 
 /**
- * One section. The header reads from the top: on the left the number, title, text and docs link; on the right, level
- * with the title, the pack's one to three points, the facts a reader decides on. A measured figure gets its own row
- * under the header, and the picture (the slot) comes last.
+ * One section, read top to bottom: the number and the headline, the short text under it with the docs link, the
+ * picture (the slot), and the pack's one to three points under the picture.
  */
 type Props = {
   pack: (typeof SECTION_PACKS)[number];
@@ -16,65 +15,37 @@ type Props = {
 
 const { pack, index, docs } = Astro.props;
 const number = String(index + 1).padStart(2, '0');
-const figure = pack.figure;
-const slowest = figure ? Math.max(...figure.bars.map((bar) => bar.seconds)) : 1;
 /** Text with backtick-marked code set in mono. */
 const words = (text: string) => codeParts(text);
 ---
 
 <section class="b-step" id={pack.id} aria-labelledby={`${pack.id}-title`}>
   <header class="b-step__head">
-    <div class="b-step__intro">
-      <p class="b-step__marker"><Tape variant="marker">{number}</Tape></p>
-      <h2 id={`${pack.id}-title`}>{pack.title}</h2>
-      <p class="b-step__line">{words(pack.text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
-      {
-        docs ? (
-          <a class="brand-link b-step__docs" href={docs.href}>
-            {docs.label}
-          </a>
-        ) : null
-      }
-    </div>
+    <p class="b-step__marker"><Tape variant="marker">{number}</Tape></p>
+    <h2 id={`${pack.id}-title`}>{pack.title}</h2>
+    <p class="b-step__line">{words(pack.text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
     {
-      pack.gets.length > 0 ? (
-        <ul class="b-step__points">
-          {pack.gets.map((point) => (
-            <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>
-          ))}
-        </ul>
+      docs ? (
+        <a class="brand-link b-step__docs" href={docs.href}>
+          {docs.label}
+        </a>
       ) : null
     }
   </header>
+  <slot />
   {
-    figure ? (
-      <figure class="b-step__figure">
-        <figcaption>
-          <span>{figure.label}</span>
-          <a class="brand-link brand-link--muted" href={figure.link}>
-            Preliminary benchmark run, {figure.runDate}
-          </a>
-        </figcaption>
-        <ol>
-          {figure.bars.map((bar) => (
-            <li class:list={{ 'is-us': bar.stacktape }}>
-              <span>{bar.tool}</span>
-              <i style={`--b-bar: ${(bar.seconds / slowest) * 100}%`} />
-              <b>{bar.seconds.toFixed(1)} s</b>
-            </li>
-          ))}
-        </ol>
-      </figure>
+    pack.gets.length > 0 ? (
+      <ul class="b-step__points" style={`--b-points: ${pack.gets.length}`}>
+        {pack.gets.map((point) => (
+          <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>
+        ))}
+      </ul>
     ) : null
   }
-  <slot />
 </section>
 
 <style>
   .b-step {
-    --b-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-    --b-column-gap: clamp(2rem, 1rem + 3vw, 5rem);
-
     display: grid;
     gap: clamp(1.75rem, 1.25rem + 1.25vw, 2.75rem);
     padding-block: clamp(3rem, 2rem + 2.5vw, 5rem);
@@ -82,26 +53,18 @@ const words = (text: string) => codeParts(text);
 
   .b-step__head {
     display: grid;
-    grid-template-columns: var(--b-columns);
-    align-items: start;
-    gap: var(--brand-space-6) var(--b-column-gap);
-  }
-
-  .b-step__intro {
-    display: grid;
     justify-items: start;
     gap: var(--brand-space-4);
+    max-width: 46rem;
   }
 
   h2 {
-    max-width: 16ch;
     font: var(--brand-weight-heading) clamp(2rem, 1.4rem + 1.8vw, 3.25rem) / 1.06 var(--brand-font-heading);
     letter-spacing: var(--brand-tracking-heading);
     text-wrap: balance;
   }
 
   .b-step__line {
-    max-width: 36rem;
     font-size: var(--brand-type-lead);
     line-height: 1.5;
     text-wrap: pretty;
@@ -115,12 +78,19 @@ const words = (text: string) => codeParts(text);
     font-size: var(--brand-type-sm);
   }
 
-  /* The points start level with the title: below the number tape, which is about 1.5rem tall with its gap. */
+  /*
+   * The points share a row of three equal columns from the left: two points take two of them and one point one, so a
+   * point is never wider than a third and no column stays empty.
+   */
   .b-step__points {
+    --b-gap: clamp(1.5rem, 1rem + 2vw, 3rem);
+
     display: grid;
-    gap: var(--brand-space-4);
+    grid-template-columns: repeat(var(--b-points), minmax(0, 1fr));
+    width: calc((100% - 2 * var(--b-gap)) * var(--b-points) / 3 + (var(--b-points) - 1) * var(--b-gap));
+    gap: var(--brand-space-5) var(--b-gap);
     margin: 0;
-    padding: 2.5rem 0 0;
+    padding: 0;
     list-style: none;
   }
 
@@ -128,94 +98,15 @@ const words = (text: string) => codeParts(text);
     padding-top: var(--brand-space-4);
     border-top: 1px solid var(--brand-border);
     color: var(--brand-muted);
-    font-size: var(--brand-type-base);
+    font-size: var(--brand-type-sm);
     line-height: 1.55;
     text-wrap: pretty;
   }
 
-  .b-step__points li:first-child {
-    padding-top: 0;
-    border-top: 0;
-  }
-
-  /* The benchmark: what was measured and when on the left, every tool's time, fastest first, on the right. */
-  .b-step__figure {
-    display: grid;
-    grid-template-columns: var(--b-columns);
-    align-items: center;
-    gap: var(--brand-space-4) var(--b-column-gap);
-    margin: 0;
-    padding-block: var(--brand-space-5);
-    border-block: 1px solid var(--brand-border);
-    font-size: var(--brand-type-sm);
-  }
-
-  .b-step__figure figcaption {
-    display: grid;
-    justify-items: start;
-    gap: var(--brand-space-2);
-    max-width: 34rem;
-    color: var(--brand-muted);
-  }
-
-  .b-step__figure figcaption a {
-    font-size: var(--brand-type-xs);
-  }
-
-  .b-step__figure ol {
-    display: grid;
-    gap: 0.35rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .b-step__figure li {
-    display: grid;
-    grid-template-columns: 7.5rem minmax(0, 1fr) 3.5rem;
-    align-items: center;
-    gap: var(--brand-space-3);
-    color: var(--brand-muted);
-  }
-
-  .b-step__figure li i {
-    width: var(--b-bar);
-    height: 0.5rem;
-    background: var(--brand-border);
-  }
-
-  .b-step__figure li b {
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-
-  .b-step__figure li.is-us {
-    color: var(--brand-text);
-    font-weight: var(--brand-weight-label);
-  }
-
-  .b-step__figure li.is-us i {
-    background: var(--brand-teal);
-  }
-
   @media (max-width: 52rem) {
-    .b-step__head,
-    .b-step__figure {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
     .b-step__points {
-      padding-top: 0;
-    }
-
-    .b-step__points li:first-child {
-      padding-top: var(--brand-space-4);
-      border-top: 1px solid var(--brand-border);
-    }
-
-    .b-step__figure li {
-      grid-template-columns: 6.5rem minmax(0, 1fr) 3.25rem;
+      grid-template-columns: minmax(0, 1fr);
+      width: auto;
     }
   }
 </style>

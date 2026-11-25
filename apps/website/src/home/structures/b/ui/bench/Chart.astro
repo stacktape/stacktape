@@ -1,0 +1,51 @@
+---
+import './bench.css';
+import type { Bar } from './data';
+
+/**
+ * One benchmark as horizontal bars: each tool's time, fastest first, Stacktape in teal. A large chart has a seconds
+ * axis with grid lines; a small one only the values. `scale` is the value at the right end of the track, shared by
+ * charts shown together.
+ */
+type Props = {
+  title: string;
+  detail: string;
+  bars: Bar[];
+  scale: number;
+  /** Seconds to mark on the axis, for a large chart. */
+  ticks?: number[];
+  size?: 'large' | 'small';
+};
+
+const { title, detail, bars, scale, ticks = [], size = 'small' } = Astro.props;
+const at = (seconds: number) => `${(seconds / scale) * 100}%`;
+---
+
+<div class:list={['bn-chart', `bn-chart--${size}`]}>
+  <p class="bn-chart__title">{title}</p>
+  <p class="bn-chart__detail">{detail}</p>
+  <div class="bn-chart__plot">
+    {
+      ticks.length > 0 ? (
+        <div class="bn-chart__grid" aria-hidden="true">
+          {ticks.map((tick) => (
+            <span style={`--bn-at: ${at(tick)}`}>{tick} s</span>
+          ))}
+        </div>
+      ) : null
+    }
+    <ol>
+      {
+        bars.map((bar) => (
+          <li class:list={{ 'is-us': bar.us }}>
+            <span class="bn-chart__tool">{bar.label}</span>
+            <span class="bn-chart__track" style={`--bn-w: ${at(bar.seconds)}`}>
+              <i />
+              <b>{bar.seconds.toFixed(1)} s</b>
+            </span>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</div>

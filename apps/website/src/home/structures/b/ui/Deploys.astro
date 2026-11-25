@@ -1,234 +1,63 @@
 ---
-import Window from './console/Window.astro';
+import Tape from '../../../../brand/Tape.astro';
+import Chart from './bench/Chart.astro';
+import { barsOf, runLabel, slowest } from './bench/data';
 
 /**
- * acme-shop's production stage in the Console, Activity tab (apps/console/ui stage page), at the hero's time, 13:00 on
- * 25 Nov (heroes/h5/console/data.ts). The project deploys on push to main and gives pull requests their own preview
- * stages (pr-218 among the stage tabs). The 11:04 fix is live; the 10:12 release before it, "Show order totals in the
- * cart" (the hero's deploy view compares the fix with it; the Incidents picture names it v000041, commit 7d3f0b1c4), and
- * older releases can be rolled back to.
+ * Deploy speed from the deploy benchmarks (`src/data/deploy-benchmarks.json`): seconds until the changed code answers.
+ * The headline is a code change to 25 Lambda functions from the command line. Then a container code change and a Git
+ * push of a Node.js service, and the two cases where another tool is faster: a Git push of a Python service (Heroku)
+ * and a shared-code change to 5 functions (CDK hotswap). Every tool's bar, fastest first; the notes are the data file's.
  *
- * A phone shows production and the preview stage, the live release and the one before it.
+ * Stacktape's container and Git push times use code swap, which is opt-in and covers code changes only. Without it the
+ * data file's note gives its normal image deploy of the Node.js service as 40.1 s on 17 October, slower than Heroku's
+ * 26.6 s; the footnote says so.
  */
-const STAGES = [
-  { name: 'production', selected: true },
-  { name: 'staging', wide: true },
-  { name: 'pr-218' },
-  { name: 'dev-maya', wide: true }
-];
-const DEPLOYS = [
-  {
-    change: 'Fix order totals for empty carts',
-    commit: 'a41c9e2',
-    by: 'Maya Chen',
-    live: true,
-    duration: '2 min',
-    started: '2h ago'
-  },
-  {
-    change: 'Show order totals in the cart',
-    commit: '7d3f0b1',
-    by: 'Tomas Berg',
-    duration: '2 min',
-    started: '3h ago',
-    rollback: true
-  },
-  {
-    change: 'Show stock on product pages',
-    commit: '8a41d07',
-    by: 'Tomas Berg',
-    duration: '3 min',
-    started: '1d ago',
-    rollback: true,
-    wide: true
-  },
-  {
-    change: 'Cache category pages in Redis',
-    commit: '5d0a9f3',
-    by: 'Maya Chen',
-    duration: '3 min',
-    started: '2d ago',
-    rollback: true,
-    wide: true
-  }
-];
+const large = barsOf('lambda-deploy', 'handler', 'lambda-25');
+const container = barsOf('container-deploy', 'code-change', 'container-node', { stacktape: 'Stacktape*' });
+const pushNode = barsOf('git-push', 'warm', 'container-node', { stacktape: 'Stacktape*' });
+const pushPython = barsOf('git-push', 'warm', 'container-python', { stacktape: 'Stacktape*' });
+const shared = barsOf('lambda-deploy', 'shared', 'lambda-5');
+const us = large.find((bar) => bar.us);
+const next = large.find((bar) => !bar.us);
+if (!us || !next) throw new Error('The Lambda deploy benchmark has no Stacktape or rival value');
+const small = slowest(container, pushNode, pushPython, shared);
 ---
 
-<Window
-  label="The production stage of acme-shop in the Stacktape Console, Activity tab. The project deploys on push to main and gives pull requests preview stages such as pr-218. Fix order totals for empty carts, deployed by Maya Chen 2 hours ago, is live; the release before it, Show order totals in the cart, and older ones have Roll back to this."
-  page="acme-shop"
-  pageMenu
-  current="projects"
-  openErrors={4}
->
-  <div class="dp-head">
-    <h3 class="cn-h1">acme-shop</h3>
-    <span class="dp-repo cn-wide">
-      <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
-        <path
-          d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.88.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"
-        ></path>
-      </svg>
-      <span class="cn-link">acme/acme-shop</span>
-      <span class="cn-link cn-muted">Deploys on push to main · previews for pull requests</span>
-    </span>
-  </div>
-
-  <div class="dp-stages">
-    <span class="cn-segments">
-      {
-        STAGES.map((stage) => (
-          <span aria-selected={stage.selected ? 'true' : 'false'} class:list={{ 'cn-wide': stage.wide }}>
-            <i class="cn-dot" />
-            {stage.name}
-          </span>
-        ))
-      }
-    </span>
-    <span class="cn-button cn-wide">+ New stage</span>
-    <span class="dp-account cn-faint cn-wide">acme-production · us-east-1</span>
-  </div>
-
-  <div class="cn-tabs dp-tabs">
-    <span>Overview</span>
-    <span aria-selected="true">Activity</span>
-    <span>Costs</span>
-    <span class="cn-wide">Configuration</span>
-    <span class="cn-wide">Diagram</span>
-    <span class="cn-wide">Danger zone</span>
-    <span class="cn-tabs__end cn-wide">
-      <span class="cn-muted dp-now">Running <span class="cn-mono">a41c9e2</span> on main · <span class="cn-link">View deploy</span></span>
-      <span class="cn-button cn-button--primary">Deploy stage</span>
-    </span>
-  </div>
-
-  <div class="cn-panel dp-list">
-    <div class="cn-table" style="--cn-columns: minmax(0, 1.6fr) minmax(0, 1fr) 4.5em 5em 8.5em 0.6em">
-      <div class="cn-table__head">
-        <span>Change</span>
-        <span>Status</span>
-        <span class="cn-right">Duration</span>
-        <span>Started ↓</span>
-        <span></span>
-        <span></span>
-      </div>
-      {
-        DEPLOYS.map((deploy) => (
-          <div class:list={['dp-row', { 'cn-wide': deploy.wide }]}>
-            <span class="dp-change">
-              {deploy.change}
-              <span class="cn-sub">
-                <span class="cn-mono">{deploy.commit}</span> · Push to main · {deploy.by}
-              </span>
-            </span>
-            <span class="cn-status dp-status">
-              <i class="cn-dot" />
-              Succeeded
-              {deploy.live ? <span class="cn-label">Live</span> : null}
-            </span>
-            <span class="cn-right dp-duration">{deploy.duration}</span>
-            <span class="dp-started">{deploy.started}</span>
-            <span class="dp-rollback">{deploy.rollback ? 'Roll back to this' : ''}</span>
-            <span class="cn-chevron" />
-          </div>
-        ))
-      }
+<figure class="bn">
+  <div class="bn-main">
+    <div class="bn-stat">
+      <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
+      <p class="bn-stat__what">until a code change to 25 Lambda functions answers requests</p>
+      <p class="bn-stat__against">{next.label}, the next fastest: {next.seconds.toFixed(1)} s</p>
     </div>
+    <Chart
+      size="large"
+      title="Deploy a code change to 25 Lambda functions"
+      detail="From the command line until the new code answers. Median of 10 runs; lower is better."
+      bars={large}
+      scale={80}
+      ticks={[0, 20, 40, 60, 80]}
+    />
   </div>
-</Window>
-
-<style>
-  .dp-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5em 1.5em;
-  }
-
-  .dp-repo {
-    display: flex;
-    align-items: center;
-    gap: 0.6em;
-  }
-
-  .dp-repo .cn-muted {
-    margin-left: 0.6em;
-  }
-
-  .dp-stages {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.75em 1em;
-    margin-top: 1.4em;
-  }
-
-  .dp-account {
-    margin-left: auto;
-    font-size: 0.95em;
-  }
-
-  .dp-tabs {
-    margin-top: 1.2em;
-  }
-
-  .dp-list {
-    margin-top: 1.4em;
-  }
-
-  .dp-rollback {
-    font-weight: 600;
-    text-align: right;
-    white-space: nowrap;
-  }
-
-  @container (max-width: 1180px) {
-    .dp-now {
-      display: none;
-    }
-  }
-
-  /*
-   * A phone has no room for six columns: each release is a small block, its name and commit, then its status, how long
-   * it took and when, and the rollback for the one before the live release.
-   */
-  @container (max-width: 520px) {
-    .dp-list .cn-table__head {
-      display: none;
-    }
-
-    .dp-list .dp-row {
-      grid-template-columns: minmax(0, 1fr) auto auto;
-      grid-template-areas: 'change change change' 'status duration when' 'rollback rollback rollback';
-      gap: 0.6em 1em;
-    }
-
-    .dp-change {
-      grid-area: change;
-    }
-
-    .dp-status {
-      grid-area: status;
-    }
-
-    .dp-duration {
-      grid-area: duration;
-    }
-
-    .dp-started {
-      grid-area: when;
-      color: var(--cn-muted);
-    }
-
-    .dp-rollback {
-      grid-area: rollback;
-      text-align: left;
-    }
-
-    .dp-rollback:empty,
-    .dp-row .cn-chevron {
-      display: none;
-    }
-  }
-</style>
+  <div class="bn-more">
+    <Chart title="Containers" detail="A code change to a Node.js service" bars={container} scale={small} />
+    <Chart title="Git push" detail="Node.js service, build machine already running" bars={pushNode} scale={small} />
+  </div>
+  <div class="bn-more">
+    <p class="bn-more__label"><Tape tone="gray">Where Stacktape is slower</Tape></p>
+    <Chart title="Git push" detail="Python service, build machine already running" bars={pushPython} scale={small} />
+    <Chart title="Shared code" detail="A change to code that 5 functions import" bars={shared} scale={small} />
+  </div>
+  <figcaption class="bn-foot">
+    <span>
+      <b>Preliminary runs, {runLabel(0)},</b> on a dedicated EC2 c7i.2xlarge in eu-west-1. Stacktape's Git pushes ran on
+      its build runner on {runLabel(1)}, median of 5 to 6 runs; Heroku and Render built from the pushed source.
+    </span>
+    <span>
+      * With code swap, an opt-in setting for code changes only. Without it, the Node.js service's image deploy took
+      40.1 s (17 October), slower than Heroku. CDK hotswap leaves the CloudFormation stack out of date; AWS documents it
+      for development stacks.
+    </span>
+  </figcaption>
+</figure>
