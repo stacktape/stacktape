@@ -8,14 +8,9 @@ import './controls.css';
 import { COMMAND_HINT, COMMANDS } from './install-commands';
 
 type CommandId = (typeof COMMANDS)[number]['id'];
-type Arch = (typeof COMMANDS)[number]['variants'][number]['arch'];
 type CopyState = 'idle' | 'copied' | 'failed';
-
-/** Each tab's selected processor: the first variant until the visitor's machine is detected. */
-const INITIAL_ARCHES = Object.fromEntries(COMMANDS.map((command) => [command.id, command.variants[0].arch])) as Record<
-  CommandId,
-  Arch
->;
+/** Which ends of a command too long for its field have more text past them. */
+type More = 'none' | 'start' | 'end' | 'both';
 
 // The Console's copy button icons (CopyButton.tsx): stroked outlines on a 24 px grid that morph into each other. The
 // check mark and the cross keep the button's own colour: a green check read as a status, and on the teal button a red
@@ -26,52 +21,55 @@ const ICON_PATH: Record<CopyState, string> = {
   failed: 'M7 7l10 10M17 7 7 17'
 };
 
-/** A word of the command and its place in it, which is also its key. */
-type Word = { text: string; at: number };
-
-/**
- * One unbreakable group per flag and its value, so a long command wraps between options, never inside one. `--file=a`
- * already holds its value, so the word after it starts a group of its own.
- */
-const wrapGroups = (words: Word[]) => {
-  const groups: Word[][] = [];
-  for (const word of words) {
-    const previous = words[word.at - 1]?.text;
-    const last = groups.at(-1);
-    if (last && word.at > 1 && previous?.startsWith('-') && !previous.includes('=') && !word.text.startsWith('-'))
-      last.push(word);
-    else groups.push([word]);
-  }
-  return groups;
-};
-
 /**
  * The command as the eye reads it, like the Console's new project page: the prompt and the runner quiet, `stacktape`
- * and what it does bright, flags muted. An installer line has no `stacktape` word, so it is bright from `init` on.
+ * and what it does bright, flags muted. An installer line has no `stacktape` word, so it is bright from `init` on. The
+ * command stays on one line: when it is longer than the field, the words scroll sideways behind the fixed prompt, and the
+ * end with more text past it fades out.
  */
 function CommandWords({ command, powershell }: { command: string; powershell: boolean }) {
+  const [more, setMore] = useState<More>('none');
+  const textRef = useRef<HTMLSpanElement>(null);
   const words = command.split(' ').map((text, at) => ({ text, at }));
   const program = words.find(({ text }) => text.startsWith('stacktape'));
   const main = (program ?? words.find(({ text }) => text.replace(/"$/, '') === 'init'))?.at ?? -1;
-  const bright = ({ text, at }: Word) => at === main || (main >= 0 && at > main && !text.startsWith('-'));
+
+  useEffect(() => {
+    const node = textRef.current;
+    if (!node) return;
+    node.scrollLeft = 0;
+    const measure = () => {
+      const start = node.scrollLeft > 1;
+      const end = node.scrollLeft + node.clientWidth < node.scrollWidth - 1;
+      setMore(start && end ? 'both' : start ? 'start' : end ? 'end' : 'none');
+    };
+    measure();
+    node.addEventListener('scroll', measure, { passive: true });
+    const resize = new ResizeObserver(measure);
+    resize.observe(node);
+    return () => {
+      node.removeEventListener('scroll', measure);
+      resize.disconnect();
+    };
+  }, [command]);
+
   return (
     <code className={`brand-command__words${command.length > 40 ? ' brand-command__words--long' : ''}`}>
       <span aria-hidden="true" className="brand-command__prompt">
         {powershell ? 'PS>' : '$'}
       </span>
-      <span className="brand-command__text" data-cmd>
-        {wrapGroups(words).map((group) => (
-          <Fragment key={group[0]?.at}>
-            {group[0]?.at ? ' ' : null}
-            <span className="brand-command__group">
-              {group.map((word, place) => (
-                <Fragment key={word.at}>
-                  {place > 0 && ' '}
-                  <span className={bright(word) ? 'brand-command__word--bright' : 'brand-command__word'}>
-                    {word.text}
-                  </span>
-                </Fragment>
-              ))}
+      <span className="brand-command__text" data-cmd data-more={more} ref={textRef}>
+        {words.map((word) => (
+          <Fragment key={word.at}>
+            {word.at > 0 && ' '}
+            <span
+              className={
+                word.at === main || (main >= 0 && word.at > main && !word.text.startsWith('-'))
+                  ? 'brand-command__word--bright'
+                  : 'brand-command__word'
+              }
+            >
+              {word.text}
             </span>
           </Fragment>
         ))}
@@ -99,7 +97,6 @@ type Props = {
  */
 export function CommandBox({ label = 'Install', hint = false, id, preselect = true }: Props) {
   const [current, setCurrent] = useState<CommandId>('npx');
-  const [arches, setArches] = useState(INITIAL_ARCHES);
   const [state, setState] = useState<CopyState>('idle');
   const [status, setStatus] = useState('');
   const timer = useRef<number | undefined>(undefined);
@@ -107,8 +104,7 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
   const chosen = useRef(false);
   const uid = useId();
   const entry = COMMANDS.find((candidate) => candidate.id === current) ?? COMMANDS[0];
-  const variant = entry.variants.find((candidate) => candidate.arch === arches[entry.id]) ?? entry.variants[0];
-  const command = variant.command;
+  const command = entry.command;
 
   useEffect(() => {
     if (!preselect) return;
@@ -117,7 +113,6 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
       const platform = await detectInstallPlatform();
       if (cancelled || chosen.current || !platform) return;
       setCurrent(platform.os);
-      setArches((previous) => ({ ...previous, [platform.os]: platform.arch }));
     };
     void select();
     return () => {

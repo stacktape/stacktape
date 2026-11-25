@@ -8,38 +8,13 @@ const powershellInstall = (script: string) => `iex "& { $(irm https://installs.s
 /**
  * Each tab's command, in the Console's order: the package runners, which need Node.js, then the operating systems,
  * whose installer needs nothing. Every installer installs the build for the machine's processor whichever script name
- * is downloaded, so there is no processor choice to show; a detected processor only picks the matching script name.
- * The first variant is the one shown until the page detects the visitor's machine.
+ * is downloaded (apps/cli/scripts/install-scripts), so each system has one command, with the Console's script names.
  */
 export const COMMANDS = [
-  { id: 'npx', label: 'npm', variants: [{ arch: 'any', command: 'npx stacktape init' }] },
-  { id: 'pnpm', label: 'pnpm', variants: [{ arch: 'any', command: 'pnpm dlx stacktape init' }] },
-  { id: 'bun', label: 'bun', variants: [{ arch: 'any', command: 'bunx stacktape init' }] },
-  {
-    id: 'macos',
-    label: 'macOS',
-    installer: true,
-    variants: [
-      { arch: 'arm64', command: shellInstall('macos-arm.sh') },
-      { arch: 'x64', command: shellInstall('macos.sh') }
-    ]
-  },
-  {
-    id: 'linux',
-    label: 'Linux',
-    installer: true,
-    variants: [
-      { arch: 'x64', command: shellInstall('linux.sh') },
-      { arch: 'arm64', command: shellInstall('linux-arm.sh') }
-    ]
-  },
-  {
-    id: 'windows',
-    label: 'Windows',
-    installer: true,
-    variants: [
-      { arch: 'x64', command: powershellInstall('windows.ps1') },
-      { arch: 'arm64', command: powershellInstall('windows-arm.ps1') }
-    ]
-  }
+  { id: 'npx', label: 'npm', command: 'npx stacktape init' },
+  { id: 'pnpm', label: 'pnpm', command: 'pnpm dlx stacktape init' },
+  { id: 'bun', label: 'bun', command: 'bunx stacktape init' },
+  { id: 'macos', label: 'macOS', installer: true, command: shellInstall('macos.sh') },
+  { id: 'linux', label: 'Linux', installer: true, command: shellInstall('linux.sh') },
+  { id: 'windows', label: 'Windows', installer: true, command: powershellInstall('windows.ps1') }
 ] as const;
