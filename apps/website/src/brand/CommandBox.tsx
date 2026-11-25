@@ -47,13 +47,15 @@ type Props = {
   hint?: boolean;
   id?: string;
   appearance?: 'brand' | 'readme';
+  /** Preselect the visitor's installer when their platform is detected. Off keeps `npx` selected. */
+  preselect?: boolean;
 };
 
 /**
  * The first line is the command Copy puts on the clipboard. For standalone installs,
  * the second line shows what to run once the installer has finished.
  */
-export function CommandBox({ label = 'Install', hint = true, id, appearance = 'brand' }: Props) {
+export function CommandBox({ label = 'Install', hint = true, id, appearance = 'brand', preselect = true }: Props) {
   const branded = appearance === 'brand';
   const [current, setCurrent] = useState<CommandId>('npx');
   const [arches, setArches] = useState(INITIAL_ARCHES);
@@ -71,18 +73,19 @@ export function CommandBox({ label = 'Install', hint = true, id, appearance = 'b
   const command = variant.lines[0];
 
   useEffect(() => {
+    if (!preselect) return;
     let cancelled = false;
-    const preselect = async () => {
+    const select = async () => {
       const platform = await detectInstallPlatform();
       if (cancelled || chosen.current || !platform) return;
       setCurrent(platform.os);
       setArches((previous) => ({ ...previous, [platform.os]: platform.arch }));
     };
-    void preselect();
+    void select();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [preselect]);
 
   useEffect(() => {
     const node = preRef.current;
