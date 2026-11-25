@@ -2,38 +2,31 @@
 import Window from './console/Window.astro';
 
 /**
- * acme-shop's production stage in the Console, Activity tab (apps/console/ui stage page). The project deploys on push to
- * main and gives pull requests their own preview stages (pr-218 among the stage tabs). The push the Packages picture
- * opens is rolling out; the hero's 11:04 fix is live; the 10:12 release that broke order totals (v000041 in the
- * Incidents picture) and older ones can be rolled back to. Names, stages and the account follow the hero's Console
- * (heroes/h5/console/data.ts).
+ * acme-shop's production stage in the Console, Activity tab (apps/console/ui stage page), at the hero's time, 13:00 on
+ * 25 Nov (heroes/h5/console/data.ts). The project deploys on push to main and gives pull requests their own preview
+ * stages (pr-218 among the stage tabs). The 11:04 fix is live; the release before it, "Add CSV export for orders" (the
+ * hero's deploy view compares the fix with it), and older releases can be rolled back to.
+ *
+ * A phone shows production and the preview stage, the live release and the one before it.
  */
-const STAGES = [{ name: 'production', selected: true }, { name: 'staging' }, { name: 'pr-218' }, { name: 'dev-maya', wide: true }];
+const STAGES = [
+  { name: 'production', selected: true },
+  { name: 'staging', wide: true },
+  { name: 'pr-218' },
+  { name: 'dev-maya', wide: true }
+];
 const DEPLOYS = [
-  {
-    change: 'Add saved carts',
-    commit: '7d3b8f1',
-    trigger: 'Push to main',
-    by: 'Maya Chen',
-    status: 'running',
-    progress: 'Deploy: 1 of 6 resources',
-    done: 40,
-    duration: '—',
-    started: '1m ago'
-  },
   {
     change: 'Fix order totals for empty carts',
     commit: 'a41c9e2',
-    trigger: 'Push to main',
     by: 'Maya Chen',
-    status: 'live',
+    live: true,
     duration: '3 min',
     started: '2h ago'
   },
   {
-    change: 'Show order totals in the cart',
-    commit: '3e90b5c',
-    trigger: 'Push to main',
+    change: 'Add CSV export for orders',
+    commit: '7d3f0b1',
     by: 'Tomas Berg',
     duration: '3 min',
     started: '3h ago',
@@ -42,21 +35,30 @@ const DEPLOYS = [
   {
     change: 'Show stock on product pages',
     commit: '8a41d07',
-    trigger: 'Pull request #214',
     by: 'Tomas Berg',
     duration: '3 min',
     started: '1d ago',
-    rollback: true
+    rollback: true,
+    wide: true
+  },
+  {
+    change: 'Cache category pages in Redis',
+    commit: '5d0a9f3',
+    by: 'Maya Chen',
+    duration: '3 min',
+    started: '2d ago',
+    rollback: true,
+    wide: true
   }
 ];
 ---
 
 <Window
-  label="The production stage of acme-shop in the Stacktape Console. The project deploys on push to main and gives pull requests preview stages such as pr-218. A push, Add saved carts, is deploying (1 of 6 resources); Fix order totals for empty carts is live; older releases have Roll back to this."
+  label="The production stage of acme-shop in the Stacktape Console, Activity tab. The project deploys on push to main and gives pull requests preview stages such as pr-218. Fix order totals for empty carts, deployed by Maya Chen 2 hours ago, is live; the release before it, Add CSV export for orders, and older ones have Roll back to this."
   page="acme-shop"
   pageMenu
   current="projects"
-  openErrors={5}
+  openErrors={4}
 >
   <div class="dp-head">
     <h3 class="cn-h1">acme-shop</h3>
@@ -94,51 +96,38 @@ const DEPLOYS = [
     <span class="cn-wide">Diagram</span>
     <span class="cn-wide">Danger zone</span>
     <span class="cn-tabs__end cn-wide">
-      <span class="cn-muted dp-now">Running a41c9e2 on main · <span class="cn-link">View deploy</span></span>
+      <span class="cn-muted dp-now">Running <span class="cn-mono">a41c9e2</span> on main · <span class="cn-link">View deploy</span></span>
       <span class="cn-button cn-button--primary">Deploy stage</span>
     </span>
   </div>
 
   <div class="cn-panel dp-list">
-    <div class="cn-table" style="--cn-columns: minmax(0, 1.5fr) minmax(0, 1fr) 5.5em 5.5em 8.5em 0.6em">
+    <div class="cn-table" style="--cn-columns: minmax(0, 1.6fr) minmax(0, 1fr) 4.5em 5em 8.5em 0.6em">
       <div class="cn-table__head">
         <span>Change</span>
         <span>Status</span>
         <span class="cn-right">Duration</span>
         <span>Started ↓</span>
-        <span class="cn-wide"></span>
+        <span></span>
         <span></span>
       </div>
       {
         DEPLOYS.map((deploy) => (
-          <div>
-            <span>
+          <div class:list={['dp-row', { 'cn-wide': deploy.wide }]}>
+            <span class="dp-change">
               {deploy.change}
               <span class="cn-sub">
-                <span class="cn-mono">{deploy.commit}</span> · {deploy.trigger} · {deploy.by}
+                <span class="cn-mono">{deploy.commit}</span> · Push to main · {deploy.by}
               </span>
             </span>
-            {deploy.status === 'running' ? (
-              <span class="dp-running">
-                <span class="cn-status cn-status--purple">
-                  <i class="cn-dot cn-dot--purple" />
-                  In progress
-                </span>
-                <span class="cn-progress" style={`--cn-done: ${deploy.done}%`}>
-                  <i />
-                </span>
-                <span class="cn-sub">{deploy.progress}</span>
-              </span>
-            ) : (
-              <span class="cn-status">
-                <i class="cn-dot" />
-                Succeeded
-                {deploy.status === 'live' ? <span class="cn-label">Live</span> : null}
-              </span>
-            )}
-            <span class="cn-right">{deploy.duration}</span>
-            <span>{deploy.started}</span>
-            <span class="cn-wide dp-rollback">{deploy.rollback ? 'Roll back to this' : ''}</span>
+            <span class="cn-status dp-status">
+              <i class="cn-dot" />
+              Succeeded
+              {deploy.live ? <span class="cn-label">Live</span> : null}
+            </span>
+            <span class="cn-right dp-duration">{deploy.duration}</span>
+            <span class="dp-started">{deploy.started}</span>
+            <span class="dp-rollback">{deploy.rollback ? 'Roll back to this' : ''}</span>
             <span class="cn-chevron" />
           </div>
         ))
@@ -187,16 +176,6 @@ const DEPLOYS = [
     margin-top: 1.4em;
   }
 
-  .dp-running {
-    display: grid;
-    gap: 0.35em;
-    max-width: 13em;
-  }
-
-  .dp-running .cn-sub {
-    margin: 0;
-  }
-
   .dp-rollback {
     font-weight: 600;
     text-align: right;
@@ -209,13 +188,45 @@ const DEPLOYS = [
     }
   }
 
+  /*
+   * A phone has no room for six columns: each release is a small block, its name and commit, then its status, how long
+   * it took and when, and the rollback for the one before the live release.
+   */
   @container (max-width: 520px) {
-    .dp-list .cn-table {
-      --cn-columns: minmax(0, 1.3fr) minmax(0, 1fr) 0.6em !important;
+    .dp-list .cn-table__head {
+      display: none;
     }
 
-    .dp-list .cn-table > * > :nth-child(3),
-    .dp-list .cn-table > * > :nth-child(4) {
+    .dp-list .dp-row {
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      grid-template-areas: 'change change change' 'status duration when' 'rollback rollback rollback';
+      gap: 0.6em 1em;
+    }
+
+    .dp-change {
+      grid-area: change;
+    }
+
+    .dp-status {
+      grid-area: status;
+    }
+
+    .dp-duration {
+      grid-area: duration;
+    }
+
+    .dp-started {
+      grid-area: when;
+      color: var(--cn-muted);
+    }
+
+    .dp-rollback {
+      grid-area: rollback;
+      text-align: left;
+    }
+
+    .dp-rollback:empty,
+    .dp-row .cn-chevron {
       display: none;
     }
   }

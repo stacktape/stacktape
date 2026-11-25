@@ -4,8 +4,9 @@ import { codeParts } from '../../code-text';
 import type { SECTION_PACKS } from '../../sections';
 
 /**
- * One section: its number, title and text from the section pack, the measured figure when the text quotes one, the
- * docs link, the picture (the slot), and the pack's one to three points under it.
+ * One section. The header reads from the top: on the left the number, title, text and docs link; on the right, level
+ * with the title, the pack's one to three points, the facts a reader decides on. A measured figure gets its own row
+ * under the header, and the picture (the slot) comes last.
  */
 type Props = {
   pack: (typeof SECTION_PACKS)[number];
@@ -26,28 +27,7 @@ const words = (text: string) => codeParts(text);
     <div class="b-step__intro">
       <p class="b-step__marker"><Tape variant="marker">{number}</Tape></p>
       <h2 id={`${pack.id}-title`}>{pack.title}</h2>
-    </div>
-    <div class="b-step__aside">
       <p class="b-step__line">{words(pack.text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
-      {
-        figure ? (
-          <figure class="b-step__figure">
-            <figcaption>{figure.label}</figcaption>
-            <ol>
-              {figure.bars.map((bar) => (
-                <li class:list={{ 'is-us': bar.stacktape }}>
-                  <span>{bar.tool}</span>
-                  <i style={`--b-bar: ${(bar.seconds / slowest) * 100}%`} />
-                  <b>{bar.seconds.toFixed(1)} s</b>
-                </li>
-              ))}
-            </ol>
-            <a class="brand-link brand-link--muted" href={figure.link}>
-              Preliminary benchmark run, {figure.runDate}
-            </a>
-          </figure>
-        ) : null
-      }
       {
         docs ? (
           <a class="brand-link b-step__docs" href={docs.href}>
@@ -56,35 +36,61 @@ const words = (text: string) => codeParts(text);
         ) : null
       }
     </div>
+    {
+      pack.gets.length > 0 ? (
+        <ul class="b-step__points">
+          {pack.gets.map((point) => (
+            <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>
+          ))}
+        </ul>
+      ) : null
+    }
   </header>
-  <slot />
   {
-    pack.gets.length > 0 ? (
-      <ul class="b-step__points" style={`--b-points: ${pack.gets.length}`}>
-        {pack.gets.map((point) => (
-          <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>
-        ))}
-      </ul>
+    figure ? (
+      <figure class="b-step__figure">
+        <figcaption>
+          <span>{figure.label}</span>
+          <a class="brand-link brand-link--muted" href={figure.link}>
+            Preliminary benchmark run, {figure.runDate}
+          </a>
+        </figcaption>
+        <ol>
+          {figure.bars.map((bar) => (
+            <li class:list={{ 'is-us': bar.stacktape }}>
+              <span>{bar.tool}</span>
+              <i style={`--b-bar: ${(bar.seconds / slowest) * 100}%`} />
+              <b>{bar.seconds.toFixed(1)} s</b>
+            </li>
+          ))}
+        </ol>
+      </figure>
     ) : null
   }
+  <slot />
 </section>
 
 <style>
   .b-step {
+    --b-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    --b-column-gap: clamp(2rem, 1rem + 3vw, 5rem);
+
     display: grid;
-    gap: clamp(2rem, 1.5rem + 1.5vw, 3rem);
-    padding-block: clamp(4rem, 2.5rem + 4vw, 8rem);
+    gap: clamp(1.75rem, 1.25rem + 1.25vw, 2.75rem);
+    padding-block: clamp(3rem, 2rem + 2.5vw, 5rem);
   }
 
   .b-step__head {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    align-items: end;
-    gap: var(--brand-space-5) clamp(2rem, 1rem + 3vw, 5rem);
+    grid-template-columns: var(--b-columns);
+    align-items: start;
+    gap: var(--brand-space-6) var(--b-column-gap);
   }
 
-  .b-step__marker {
-    margin-bottom: var(--brand-space-4);
+  .b-step__intro {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-4);
   }
 
   h2 {
@@ -94,14 +100,8 @@ const words = (text: string) => codeParts(text);
     text-wrap: balance;
   }
 
-  .b-step__aside {
-    display: grid;
-    justify-items: start;
-    gap: var(--brand-space-4);
-  }
-
   .b-step__line {
-    max-width: 34rem;
+    max-width: 36rem;
     font-size: var(--brand-type-lead);
     line-height: 1.5;
     text-wrap: pretty;
@@ -115,21 +115,56 @@ const words = (text: string) => codeParts(text);
     font-size: var(--brand-type-sm);
   }
 
+  /* The points start level with the title: below the number tape, which is about 1.5rem tall with its gap. */
+  .b-step__points {
+    display: grid;
+    gap: var(--brand-space-4);
+    margin: 0;
+    padding: 2.5rem 0 0;
+    list-style: none;
+  }
+
+  .b-step__points li {
+    padding-top: var(--brand-space-4);
+    border-top: 1px solid var(--brand-border);
+    color: var(--brand-muted);
+    font-size: var(--brand-type-base);
+    line-height: 1.55;
+    text-wrap: pretty;
+  }
+
+  .b-step__points li:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  /* The benchmark: what was measured and when on the left, every tool's time, fastest first, on the right. */
   .b-step__figure {
     display: grid;
-    gap: var(--brand-space-2);
-    width: min(100%, 30rem);
+    grid-template-columns: var(--b-columns);
+    align-items: center;
+    gap: var(--brand-space-4) var(--b-column-gap);
     margin: 0;
-    font-size: var(--brand-type-xs);
+    padding-block: var(--brand-space-5);
+    border-block: 1px solid var(--brand-border);
+    font-size: var(--brand-type-sm);
   }
 
   .b-step__figure figcaption {
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-2);
+    max-width: 34rem;
     color: var(--brand-muted);
+  }
+
+  .b-step__figure figcaption a {
+    font-size: var(--brand-type-xs);
   }
 
   .b-step__figure ol {
     display: grid;
-    gap: 0.3rem;
+    gap: 0.35rem;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -164,39 +199,23 @@ const words = (text: string) => codeParts(text);
     background: var(--brand-teal);
   }
 
-  /*
-   * The points share a row of three equal columns: two points take two of them and one point one, from the left, so a
-   * point is never wider than a third and no empty column keeps a rule.
-   */
-  .b-step__points {
-    --b-gap: clamp(1.5rem, 1rem + 2vw, 3rem);
-
-    display: grid;
-    grid-template-columns: repeat(var(--b-points), minmax(0, 1fr));
-    width: calc((100% - 2 * var(--b-gap)) * var(--b-points) / 3 + (var(--b-points) - 1) * var(--b-gap));
-    gap: var(--brand-space-5) var(--b-gap);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .b-step__points li {
-    padding-top: var(--brand-space-4);
-    border-top: 1px solid var(--brand-border);
-    color: var(--brand-muted);
-    font-size: var(--brand-type-sm);
-    line-height: 1.55;
-    text-wrap: pretty;
-  }
-
   @media (max-width: 52rem) {
     .b-step__head,
-    .b-step__points {
+    .b-step__figure {
       grid-template-columns: minmax(0, 1fr);
     }
 
     .b-step__points {
-      width: auto;
+      padding-top: 0;
+    }
+
+    .b-step__points li:first-child {
+      padding-top: var(--brand-space-4);
+      border-top: 1px solid var(--brand-border);
+    }
+
+    .b-step__figure li {
+      grid-template-columns: 6.5rem minmax(0, 1fr) 3.25rem;
     }
   }
 </style>

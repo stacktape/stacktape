@@ -2,22 +2,20 @@
 import Window from './console/Window.astro';
 
 /**
- * A deploy of acme-shop production in the Console (deployment detail, Logs tab, Steps), with the Build & package step
- * open. Each workload's outcome is in the CLI's own words (packages/packaging/src/runtime-contracts.ts
- * `packagingMessages`, and the PACKAGE_ARTIFACTS summary in apps/cli/src/domain/packaging-manager/index.ts).
- *
- * It is the push after the hero's 11:04 fix (heroes/h5/console/data.ts): the change touched only the API, so its
- * container image is built again on cached dependency layers and the worker's image is reused. The deploy itself is
- * still rolling out (Update stack, 1 of 6 resources); the Deploys picture lists it at the top of the stage's activity.
+ * The hero's 11:04 deploy of acme-shop production (heroes/h5/console/data.ts: a41c9e2, "Fix order totals for empty
+ * carts", 2 min 38 s, the same steps and facts) in the Console's deployment detail, Logs tab, Steps, here with the
+ * Build & package step open. Each workload's outcome is in the CLI's own words (packages/packaging/src/
+ * runtime-contracts.ts `packagingMessages`, and the PACKAGE_ARTIFACTS summary in apps/cli/src/domain/packaging-manager/
+ * index.ts): the fix changed the API's code, so its image was built again; the worker's image was reused.
  */
-const TOTAL = 75;
+const TOTAL = 158;
 const STEPS = [
   { name: 'Initialize', start: 0, seconds: 2, took: '2 s' },
   {
     name: 'Build & package',
     start: 2,
-    seconds: 21,
-    took: '21 s',
+    seconds: 38,
+    took: '38 s',
     open: true,
     children: [
       { name: 'Package artifacts', detail: 'Packaged 2 workloads · 1 built · 1 unchanged' },
@@ -25,44 +23,34 @@ const STEPS = [
       { name: 'worker', detail: 'Unchanged (reused from previous deploy)', workload: true }
     ]
   },
-  { name: 'Upload artifacts', start: 23, seconds: 6, took: '6 s' },
-  {
-    name: 'Deploy',
-    note: '1 of 6 resources',
-    start: 29,
-    seconds: 46,
-    took: '46 s',
-    running: true,
-    open: true,
-    children: [
-      { name: 'Validate template', detail: 'CloudFormation template validated' },
-      { name: 'Update stack', detail: 'Updating resources: 1 of 6 done', running: true }
-    ]
-  }
+  { name: 'Upload artifacts', start: 40, seconds: 6, took: '6 s' },
+  { name: 'Deploy', note: '1 of 6 resources', start: 46, seconds: 109, took: '1 min 49 s' },
+  { name: 'Finalize', start: 155, seconds: 3, took: '3 s' }
 ];
 const ABOUT = [
-  { label: 'Commit', value: '7d3b8f1', commit: true },
+  { label: 'Commit', value: 'a41c9e2', commit: true },
   { label: 'Started by', value: 'Push to main · Maya Chen' },
-  { label: 'Started', value: 'Nov 25, 2026, 12:58' },
-  { label: 'Running for', value: '1 min' },
-  { label: 'Last successful deploy', value: 'Fix order totals for empty carts', link: true },
+  { label: 'Started', value: 'Nov 25, 2026, 11:04' },
+  { label: 'Took', value: '2 min 38 s' },
+  { label: 'Configuration', value: 'No changes' },
   { label: 'Region', value: 'us-east-1' }
 ];
 const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
 ---
 
 <Window
-  label="A deploy of acme-shop production in the Stacktape Console. Build and package took 21 seconds: the API's container image was built (182 MB) and the worker's image was reused because it had not changed. The deploy is updating 1 of 6 resources."
+  label="The 11:04 deploy of acme-shop production in the Stacktape Console, Fix order totals for empty carts, 2 minutes 38 seconds. Build and package took 38 seconds: the API's container image was built (182 MB) and the worker's image was reused because it had not changed."
   page="acme-shop"
   pageMenu
   current="projects"
-  openErrors={5}
+  openErrors={4}
 >
   <p class="pk-crumbs cn-muted">acme-shop <span>/</span> production <span>/</span> Activity</p>
   <div class="pk-title">
-    <h3 class="cn-h1">Add saved carts</h3>
+    <h3 class="cn-h1">Fix order totals for empty carts</h3>
     <span class="cn-muted">Deploy</span>
-    <span class="cn-status cn-status--purple"><i class="cn-dot cn-dot--purple"></i>In progress</span>
+    <span class="cn-status"><i class="cn-dot"></i>Succeeded</span>
+    <span class="cn-label">Live</span>
     <span class="cn-button pk-deploy cn-wide">Deploy stage</span>
   </div>
   <div class="cn-tabs pk-tabs">
@@ -81,24 +69,21 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
         {
           STEPS.map((step) => (
             <li class="pk-step">
-              <span class:list={['pk-check', { 'is-running': step.running }]} />
+              <span class="pk-check" />
               <span class:list={['pk-caret', { 'is-open': step.open }]} />
               <span class="pk-name">
                 <b>{step.name}</b>
                 {step.note ? <span class="cn-muted"> {step.note}</span> : null}
               </span>
               <span class="pk-bar cn-wide">
-                <i
-                  class:list={{ 'is-running': step.running }}
-                  style={`left: ${at(step.start)}; width: max(0.5em, ${at(step.seconds)})`}
-                />
+                <i style={`left: ${at(step.start)}; width: max(0.5em, ${at(step.seconds)})`} />
               </span>
               <span class="pk-time">{step.took}</span>
               {step.children ? (
                 <ul class="pk-children">
                   {step.children.map((child) => (
                     <li class:list={{ 'is-workload': 'workload' in child }}>
-                      <span class:list={['pk-tick', { 'is-running brand-round': 'running' in child }]} />
+                      <span class="pk-tick" />
                       {'workload' in child ? <code>{child.name}</code> : <b>{child.name}</b>}
                       <span class="cn-muted">{child.detail}</span>
                     </li>
@@ -118,13 +103,7 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
           <div>
             <dt class="cn-muted">{row.label}</dt>
             <dd>
-              {row.commit ? (
-                <span class="cn-commit">{row.value}</span>
-              ) : row.link ? (
-                <span class="cn-link">{row.value}</span>
-              ) : (
-                row.value
-              )}
+              {row.commit ? <span class="cn-commit">{row.value}</span> : row.value}
             </dd>
           </div>
         ))
@@ -175,7 +154,7 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
   .pk-step {
     position: relative;
     display: grid;
-    grid-template-columns: 1.5em 0.9em minmax(0, 1fr) minmax(0, 13em) 3.5em;
+    grid-template-columns: 1.5em 0.9em minmax(0, 1fr) minmax(0, 13em) 5.5em;
     align-items: center;
     gap: 0.4em 0.75em;
     padding: 0.85em 1.4em;
@@ -218,20 +197,6 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
     content: '';
   }
 
-  /* The running step: the Console's spinner, an open teal ring, standing still; its bar is purple. */
-  .pk-check.is-running {
-    border-color: var(--cn-teal-text);
-    border-top-color: transparent;
-    transform: rotate(-30deg);
-  }
-
-  .pk-check.is-running::after {
-    display: none;
-  }
-
-  .pk-bar i.is-running {
-    background: var(--cn-purple);
-  }
 
   .pk-caret {
     width: 0.42em;
@@ -266,6 +231,7 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
   .pk-time {
     color: var(--cn-soft);
     text-align: right;
+    white-space: nowrap;
   }
 
   .pk-children {
@@ -305,21 +271,6 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
     left: 0.3em;
   }
 
-  .pk-tick.is-running {
-    flex: none;
-    align-self: center;
-    width: 0.85em;
-    height: 0.85em;
-    margin-inline: 0.05em 0.1em;
-    border: 1.5px solid var(--cn-teal-text);
-    border-top-color: transparent;
-    border-radius: 50%;
-    transform: rotate(-30deg);
-  }
-
-  .pk-tick.is-running::after {
-    display: none;
-  }
 
   .pk-about {
     display: grid;
@@ -350,7 +301,7 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
 
   @container (max-width: 520px) {
     .pk-step {
-      grid-template-columns: 1.5em 0.9em minmax(0, 1fr) 3em;
+      grid-template-columns: 1.5em 0.9em minmax(0, 1fr) 5em;
       padding-inline: 0.9em;
     }
 

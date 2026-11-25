@@ -2,28 +2,29 @@
 import Window from './console/Window.astro';
 
 /**
- * Error tracking in the Console (apps/console/ui IssuesPage) for the Acme organization: runtime errors from acme-shop's
- * API and worker services, grouped into issues with where each happens, how often and when it was last seen. There is
- * no SDK in the code. The TypeError behind the hero's 11:04 incident is resolved, so it is not in this Open list; a new
- * one comes from the pr-218 preview stage. The sidebar's Logs, Metrics, Traces, Uptime and Synthetics are the other
- * monitoring pages.
+ * Error tracking in the Console (apps/console/ui IssuesPage), filtered to acme-shop production, at the hero's time
+ * (heroes/h5/console/data.ts). The top issue is the hero's incident: the 10:12 release broke order totals for empty
+ * carts, 56 failed requests, and the 11:04 fix stopped it, so it was last seen two hours ago and stays open until someone
+ * resolves it. The API and the worker are packaged with `js-bundle`, the packaging whose errors Stacktape reads from the
+ * logs without an SDK (docs/observability/error-tracking.mdx, "What reports errors"). The sidebar's Logs, Metrics,
+ * Traces, Uptime and Synthetics are the other monitoring pages.
+ *
+ * A phone shows the first two issues in full: message, source line, events and last seen.
  */
 const ISSUES = [
   {
     type: 'TypeError',
-    message: "Cannot read properties of null (reading 'sku')",
-    stage: 'pr-218',
+    message: "Cannot read properties of undefined (reading 'total')",
     resource: 'api',
-    frame: 'addToSavedCart',
-    file: 'savedCarts.ts:58',
-    events: 23,
-    since: '25m ago',
-    last: '4m ago'
+    frame: 'orderTotals',
+    file: 'totals.ts:18',
+    events: 56,
+    since: '3h ago',
+    last: '2h ago'
   },
   {
     type: 'PaymentProviderError',
     message: 'POST https://api.payments.example/v1/charges answered 502 Bad Gateway',
-    stage: 'production',
     resource: 'worker',
     frame: 'chargeOrder',
     file: 'charge.ts:41',
@@ -32,50 +33,40 @@ const ISSUES = [
     last: '12m ago'
   },
   {
-    type: 'ZodError',
-    message: 'Invalid input: expected string, received undefined at "email"',
-    stage: 'staging',
-    resource: 'api',
-    frame: 'createAccount',
-    file: 'account.ts:27',
-    events: 14,
-    since: '40m ago',
-    last: '18m ago'
-  },
-  {
     type: 'Error',
     message: 'connect ETIMEDOUT [redacted:ip]:6379',
-    stage: 'production',
-    resource: 'api',
+    resource: 'worker',
     events: 6,
     since: '5h ago',
-    last: '41m ago'
+    last: '41m ago',
+    wide: true
   },
   {
     type: 'Error',
     message: 'Image resize for product 18342 timed out after 30000 ms',
-    stage: 'production',
     resource: 'worker',
     frame: 'resizeProductImage',
     file: 'images.ts:19',
     events: 3,
     since: '1d ago',
-    last: '2h ago'
+    last: '2h ago',
+    wide: true
   }
 ];
 const TABS = [
-  { name: 'Open', count: 5, selected: true },
-  { name: 'Resolved', count: 12 },
+  { name: 'Open', count: 4, selected: true },
+  { name: 'Resolved', count: 11 },
   { name: 'Ignored', count: 1, wide: true },
-  { name: 'All', count: 18, wide: true }
+  { name: 'All', count: 16, wide: true }
 ];
 ---
 
 <Window
-  label="Error tracking in the Stacktape Console: five open issues in acme-shop, grouped from runtime errors in the API and worker services, each with its stage, function and file line, the number of events and when it was last seen."
+  label="Error tracking in the Stacktape Console, filtered to acme-shop production: four open issues grouped from runtime errors in the API and worker services. The first is TypeError: Cannot read properties of undefined (reading 'total') in orderTotals, totals.ts line 18, 56 events since 3 hours ago, last seen 2 hours ago."
   page="Error tracking"
   current="errors"
-  openErrors={5}
+  openErrors={4}
+  organization={false}
 >
   <div class="mn-head">
     <h3 class="cn-h1">Error tracking</h3>
@@ -95,6 +86,7 @@ const TABS = [
       </span>
       <span class="mn-field mn-search cn-wide">Search error messages</span>
       <span class="mn-field cn-wide"><span class="cn-muted">Project</span> acme-shop</span>
+      <span class="mn-field mn-stage"><span class="cn-muted">Stage</span> production</span>
     </div>
     <div class="cn-table" style="--cn-columns: minmax(0, 1fr) 9.5em 6.5em 1.2em 0.6em">
       <div class="cn-table__head">
@@ -106,14 +98,14 @@ const TABS = [
       </div>
       {
         ISSUES.map((issue) => (
-          <div>
+          <div class:list={['mn-row', { 'cn-wide': issue.wide }]}>
             <span class="mn-issue">
               <span class="mn-message">
                 {issue.type ? <b>{issue.type}: </b> : null}
                 {issue.message}
               </span>
               <span class="cn-sub">
-                acme-shop / {issue.stage} · <span class="cn-link">{issue.resource}</span>
+                acme-shop / production · <span class="cn-link">{issue.resource}</span>
                 {issue.frame ? (
                   <>
                     {' · '}
@@ -122,10 +114,10 @@ const TABS = [
                 ) : null}
               </span>
             </span>
-            <span class="cn-right">
+            <span class="cn-right mn-count">
               <b class="mn-events">{issue.events}</b> <span class="cn-muted mn-since">since {issue.since}</span>
             </span>
-            <span class="cn-status">
+            <span class="cn-status mn-last">
               <i class="cn-dot cn-dot--red" />
               {issue.last}
             </span>
@@ -202,14 +194,48 @@ const TABS = [
     letter-spacing: 0.05em;
   }
 
+  /* A phone: the message on up to two lines, its source line, then the events and when it was last seen. */
   @container (max-width: 520px) {
-    .mn-list .cn-table {
-      --cn-columns: minmax(0, 1fr) 3em 0.6em !important;
+    .mn-list .cn-table__head {
+      display: none;
     }
 
-    .mn-list .cn-table > * > :nth-child(3),
-    .mn-since {
+    .mn-list .mn-row {
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-areas: 'issue issue' 'count last';
+      gap: 0.5em 1.25em;
+    }
+
+    .mn-issue {
+      grid-area: issue;
+    }
+
+    .mn-message {
+      display: -webkit-box;
+      white-space: normal;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .mn-issue .cn-sub {
+      white-space: normal;
+    }
+
+    .mn-count {
+      grid-area: count;
+      text-align: left;
+    }
+
+    .mn-last {
+      grid-area: last;
+    }
+
+    .mn-row .cn-chevron {
       display: none;
+    }
+
+    .mn-stage {
+      flex: 1;
     }
   }
 </style>

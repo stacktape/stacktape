@@ -13,82 +13,94 @@ import diagram from './designs/diagram.svg?raw';
  * from @stacktape/ui-react, rendered once with `renderToStaticMarkup` under Bun for this config, cropped to its content
  * with its labels 1.55× larger (as the wizard's minLabelSize does in a small frame), so the page ships no script for it:
  *
- *   web: hosting-bucket (single-page app) · api: web-service, buildpack, 0.5 vCPU, 1 GB, connectTo database, cache,
- *   jobQueue · worker: worker-service, buildpack, 0.25 vCPU, 0.5 GB, connectTo jobQueue, database, cache ·
- *   jobQueue: sqs-queue · database: relational-database, postgres 16, db.t4g.small, accessibilityMode vpc ·
- *   cache: redis, valkey, cache.t4g.micro
+ *   web: hosting-bucket (single-page app) · api: web-service, js-bundle, 1 vCPU, 2 GB, 2–4 instances, connectTo
+ *   database, cache, jobQueue · worker: worker-service, js-bundle, 0.5 vCPU, 1 GB, 2 instances, connectTo jobQueue,
+ *   database, cache · jobQueue: sqs-queue · database: relational-database, postgres 16, db.t4g.medium, 50 GB,
+ *   accessibilityMode vpc · cache: redis, valkey, cache.t4g.small
  *
- * The names, region and resource types are those of the hero's Console (heroes/h5/console/data.ts): the page follows one
- * app from this first Review to production. Prices are AWS list prices in us-east-1, as the wizard's estimator uses:
- * Postgres db.t4g.small with 20 GB gp3 ($23.36 + $2.30), Fargate tasks of 0.5 vCPU / 1 GB ($18.02) and 0.25 vCPU /
- * 0.5 GB ($9.01), a cache.t4g.micro Valkey node ($9.34). Traffic adds HTTP API requests at $1.00 per million.
+ * It is the config acme-shop runs in the hero's Console (heroes/h5/console/data.ts): the same names, region, resource
+ * types and the worker's two running tasks. The estimate is its fixed monthly price at AWS list prices in us-east-1, as
+ * the wizard's estimator computes it: Postgres db.t4g.medium with 50 GB gp3 ($47.45 + $5.75), two Fargate tasks of
+ * 1 vCPU / 2 GB ($72.08) and two of 0.5 vCPU / 1 GB ($36.04), a cache.t4g.small Valkey node ($18.69): $180 a month.
+ * Traffic adds HTTP API requests at $1.00 per million. Every resource's October bill in the hero (heroes/h5/console/
+ * data.ts COSTS) is its estimate here plus what it used; the hero's $331.95 also holds $50.55 not tied to a resource.
  */
 /** The rows, most expensive first. `why` is what the line says and `where` the file and line, as EvidenceLine prints them. */
 const ROWS = [
   {
-    type: 'relational-database',
-    title: 'Postgres database',
-    size: 'db.t4g.small · 20 GB',
-    price: '$26',
-    why: 'Postgres driver',
-    where: 'api/package.json:21'
-  },
-  {
     type: 'web-service',
     title: 'API service',
-    size: '0.5 vCPU · 1 GB',
-    price: '$18',
+    size: '2 × 1 vCPU · 2 GB',
+    price: '$72',
     usage: true,
     why: 'Fastify server',
-    where: 'api/src/server.ts:9'
+    where: 'api/src/server.ts:9',
+    phone: true
   },
   {
-    type: 'redis',
-    title: 'Redis cache',
-    size: 'Valkey · cache.t4g.micro',
-    price: '$9',
-    why: 'Redis client',
-    where: 'api/package.json:24'
+    type: 'relational-database',
+    title: 'Postgres database',
+    size: 'db.t4g.medium · 50 GB',
+    price: '$53',
+    why: 'Postgres driver',
+    where: 'api/package.json:21',
+    phone: true
   },
   {
     type: 'worker-service',
     title: 'Worker service',
-    size: '0.25 vCPU · 0.5 GB',
-    price: '$9',
+    size: '2 × 0.5 vCPU · 1 GB',
+    price: '$36',
     why: 'Queue consumer',
     where: 'worker/src/index.ts:6'
   },
-  { type: 'hosting-bucket', title: 'Website', size: 'React, Vite build', why: 'Vite app', where: 'web/package.json:7' },
+  {
+    type: 'redis',
+    title: 'Redis cache',
+    size: 'Valkey · cache.t4g.small',
+    price: '$19',
+    why: 'Redis client',
+    where: 'api/package.json:24'
+  },
+  {
+    type: 'hosting-bucket',
+    title: 'Website',
+    size: 'React, Vite build',
+    why: 'Vite app',
+    where: 'web/package.json:7',
+    phone: true
+  },
   { type: 'sqs-queue', title: 'SQS queue', size: 'Standard queue', why: 'SQS client', where: 'api/package.json:12' }
 ];
 const TRAFFIC = [
-  { requests: '100K', total: '$62' },
-  { requests: '1M', total: '$63' },
-  { requests: '10M', total: '$72' }
+  { requests: '100K', total: '$180' },
+  { requests: '1M', total: '$181' },
+  { requests: '10M', total: '$190' }
 ];
 const STEPS = ['Analyze', 'Review', 'Deploy', 'Live'];
-/** The top of the generated stacktape.yml, with the editor's code lens beside each resource. */
+/** The top of the generated stacktape.yml, as the wizard writes it, with the editor's code lens beside each resource. */
 const YAML: Array<{ indent: number; key: string; value?: string; lens?: string }> = [
   { indent: 0, key: 'projectName', value: 'acme-shop' },
   { indent: 0, key: 'region', value: 'us-east-1' },
   { indent: 0, key: 'resources' },
-  { indent: 1, key: 'database', lens: 'Postgres database · $26/mo' },
+  { indent: 1, key: 'database', lens: 'Postgres database · $53/mo' },
   { indent: 2, key: 'type', value: 'relational-database' },
   { indent: 2, key: 'properties' },
+  { indent: 3, key: 'credentials' },
+  { indent: 4, key: 'masterUserName', value: 'stacktape' },
+  { indent: 4, key: 'masterUserPassword', value: "$Secret('acme-shop-database.password')" },
   { indent: 3, key: 'engine' },
   { indent: 4, key: 'type', value: 'postgres' },
+  { indent: 4, key: 'properties' },
+  { indent: 5, key: 'version', value: '"16"' },
+  { indent: 5, key: 'storage' },
+  { indent: 6, key: 'initialSize', value: '50' },
+  { indent: 5, key: 'primaryInstance' },
+  { indent: 6, key: 'instanceSize', value: 'db.t4g.medium' },
   { indent: 3, key: 'accessibility' },
   { indent: 4, key: 'accessibilityMode', value: 'vpc' },
-  { indent: 1, key: 'api', lens: 'API service · $18/mo + usage' },
-  { indent: 2, key: 'type', value: 'web-service' },
-  { indent: 2, key: 'properties' },
-  { indent: 3, key: 'packaging' },
-  { indent: 4, key: 'type', value: 'buildpack' },
-  { indent: 4, key: 'properties' },
-  { indent: 5, key: 'entryfilePath', value: 'api/src/server.ts' },
-  { indent: 3, key: 'resources' },
-  { indent: 4, key: 'cpu', value: '0.5' },
-  { indent: 4, key: 'memory', value: '1024' }
+  { indent: 1, key: 'api', lens: 'API service · $72/mo + usage' },
+  { indent: 2, key: 'type', value: 'web-service' }
 ];
 /** A resource's colour: its AWS category's, the same the diagram paints it in. */
 const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)?.category ?? 'compute'})`;
@@ -97,7 +109,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
 <div
   class="wz"
   role="img"
-  aria-label="The Stacktape init wizard's Review for acme-shop: a diagram of the website, the API service, the worker service, the SQS queue, Postgres and Redis, an estimate of $62 a month plus usage, and each resource with the line of code it is there for."
+  aria-label="The Stacktape init wizard's Review for acme-shop: a diagram of the website, the API service, the worker service, the SQS queue, Postgres and Redis, an estimate of $180 a month plus usage for its production sizes, and each resource with the line of code it is there for."
 >
   <div class="wz-in" aria-hidden="true">
     <div class="wz-top">
@@ -128,7 +140,6 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
         <div class="wz-left">
           <div class="wz-panel wz-diagram">
             <div class="stp-diagram" set:html={diagram} />
-            <p class="wz-hint">Click a resource to change it</p>
           </div>
           <div class="wz-panel wz-editor">
             <div class="wz-editor__tabs">
@@ -153,7 +164,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
         <div class="wz-panel wz-overview">
           <div class="wz-costs">
             <p class="wz-eyebrow">Estimated monthly cost</p>
-            <p class="wz-total"><b>$62</b> /month <span class="wz-usage">+ usage</span></p>
+            <p class="wz-total"><b>$180</b> /month <span class="wz-usage">+ usage</span></p>
             <p class="wz-faint">AWS list prices in us-east-1</p>
             <dl class="wz-traffic">
               <dt>With traffic</dt>
@@ -172,7 +183,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
             <ul class="wz-rows">
               {
                 ROWS.map((row) => (
-                  <li class="wz-row">
+                  <li class:list={['wz-row', { 'wz-row--more': !row.phone }]}>
                     <span class="wz-tile" style={`--wz-tone: ${tone(row.type)}`}>
                       <ResourceIcon resourceType={row.type} size={20} />
                     </span>
@@ -204,7 +215,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
     </div>
 
     <div class="wz-bar">
-      <p><b>$62</b> /month <span class="wz-bar__words">estimated AWS cost + usage</span></p>
+      <p><b>$180</b> /month <span class="wz-bar__words">estimated AWS cost + usage</span></p>
       <span class="wz-faint">Saves stacktape.yml</span>
       <span class="wz-continue">Continue to deploy</span>
     </div>
@@ -398,7 +409,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
 
   .wz-diagram {
     position: relative;
-    aspect-ratio: 945 / 560;
+    aspect-ratio: 946 / 485;
     overflow: hidden;
   }
   .wz-left {
@@ -518,13 +529,6 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
     display: none;
   }
 
-  .wz-hint {
-    position: absolute;
-    right: 1.25em;
-    bottom: 1em;
-    color: var(--wz-faint);
-    font-size: 0.95em;
-  }
 
   .wz-overview {
     display: grid;
@@ -734,7 +738,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
 
   @container (max-width: 520px) {
     .wz-in {
-      font-size: 0.75rem;
+      font-size: 0.8rem;
     }
 
     .wz-top {
@@ -743,11 +747,15 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
       padding: 0.9em 1.1em;
     }
 
+    /* A phone shows what a reader decides on: the estimate, three resources with their code lines, the save action. */
     .wz-steps,
     .wz-running,
     .wz-bar__words,
     .wz-bar .wz-faint,
-    .wz-title .wz-faint {
+    .wz-title .wz-faint,
+    .wz-left,
+    .wz-traffic,
+    .wz-row--more {
       display: none;
     }
 

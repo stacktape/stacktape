@@ -18,7 +18,7 @@ const DOCS: Record<string, { label: string; href: string }> = {
   secures: { label: 'Guardrails', href: 'https://docs.stacktape.com/guardrails/overview' },
   incidents: { label: 'Incidents', href: 'https://docs.stacktape.com/observability/incidents' },
   costs: { label: 'Costs', href: 'https://docs.stacktape.com/managing-costs/overview' },
-  'expert-help': { label: 'Pricing', href: '/pricing' }
+  'expert-help': { label: 'Book a 30-minute call', href: 'https://cal.com/stacktape/30min' }
 };
 const ROWS = SECTION_PACKS.map((pack, index) => ({ pack, index, Picture: pictureFor(pack.name) }));
 const pad = (index: number) => String(index + 1).padStart(2, '0');
@@ -26,6 +26,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
 
 <div class="b-steps site-frame" data-steps>
   <nav class="b-steps__rail" aria-label="Steps">
+    <p class="b-steps__jump">Jump to a step</p>
     <ol>
       {
         SECTION_PACKS.map((pack, index) => (
@@ -33,6 +34,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
             <a class="b-steps__link" href={`#${pack.id}`} data-step-link={pack.id}>
               <span class="b-steps__num">{pad(index)}</span>
               <span class="b-steps__name">{pack.title}</span>
+              <span class="b-steps__short">{pack.name}</span>
             </a>
           </li>
         ))
@@ -60,8 +62,13 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
       ])
     );
     const sections = Array.from(steps.querySelectorAll<HTMLElement>('section[id]'));
+    const list = steps.querySelector<HTMLElement>('.b-steps__rail ol');
     let frame = 0;
-    /** The current step is the last one whose top has passed the middle of the window. */
+    let shown: string | undefined;
+    /**
+     * The current step is the last one whose top has passed the middle of the window. On a narrow screen the rail is a
+     * strip that scrolls sideways, so it scrolls the current step into view.
+     */
     const update = () => {
       frame = 0;
       const middle = window.innerHeight / 2;
@@ -70,6 +77,11 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
         if (key === current) link.setAttribute('aria-current', 'step');
         else link.removeAttribute('aria-current');
       }
+      const link = current === undefined ? undefined : links.get(current);
+      if (current !== shown && link && list && list.scrollWidth > list.clientWidth) {
+        list.scrollTo({ left: link.offsetLeft - list.offsetLeft, behavior: 'smooth' });
+      }
+      shown = current;
     };
     window.addEventListener(
       'scroll',
@@ -169,13 +181,66 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
     min-width: 0;
   }
 
+  .b-steps__jump,
+  .b-steps__short {
+    display: none;
+  }
+
+  /*
+   * Narrower screens have no room for the rail beside the steps. It becomes a strip under the site header that scrolls
+   * sideways: each step by its short name, the current one on tape.
+   */
   @media (max-width: 64rem) {
     .b-steps {
       grid-template-columns: minmax(0, 1fr);
+      gap: 0;
     }
 
     .b-steps__rail {
+      position: sticky;
+      z-index: 5;
+      top: 4.25rem;
+      display: flex;
+      align-items: center;
+      gap: var(--brand-space-3);
+      margin-top: var(--brand-space-6);
+      padding-block: var(--brand-space-2);
+      border-bottom: 1px solid var(--brand-border);
+      background: var(--brand-page);
+    }
+
+    .b-steps__jump {
+      display: block;
+      flex: none;
+      color: var(--brand-muted);
+      font-size: var(--brand-type-xs);
+    }
+
+    .b-steps__rail ol {
+      position: static;
+      display: flex;
+      gap: var(--brand-space-1);
+      min-width: 0;
+      overflow-x: auto;
+      border-left: 0;
+      scrollbar-width: none;
+    }
+
+    .b-steps__link {
+      grid-template-columns: auto auto;
+      gap: var(--brand-space-2);
+      padding: 0.35rem 0.75rem;
+      white-space: nowrap;
+    }
+
+    .b-steps__name {
       display: none;
+    }
+
+    .b-steps__short {
+      display: inline;
+      font-family: var(--brand-font-heading);
+      font-weight: var(--brand-weight-label);
     }
   }
 </style>

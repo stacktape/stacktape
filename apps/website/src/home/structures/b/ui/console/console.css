@@ -99,22 +99,16 @@
 }
 
 .cn-logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.14em;
-  width: 11.7em;
+  display: block;
   flex: none;
-  font: 700 1.25em / 1 var(--brand-font-heading);
-  letter-spacing: -0.03em;
+  width: 13.1em;
 }
 
-.cn-logo b {
-  padding: 0.17em 0.36em 0.21em;
-  background: var(--cn-teal-tape);
-  box-shadow: var(--cn-edge-teal);
-  clip-path: var(--brand-tape-clip);
-  color: #fff;
-  font-weight: inherit;
+/* The long logo, the same artwork as the site header's. */
+.cn-logo img {
+  display: block;
+  width: auto;
+  height: 1.75em;
 }
 
 .cn-crumbs {
@@ -211,6 +205,8 @@
 }
 
 .cn-side {
+  contain: size;
+  overflow: hidden;
   display: grid;
   align-content: start;
   gap: 0.15em;
@@ -269,6 +265,7 @@
 
 .cn-page {
   min-width: 0;
+  min-height: 30em;
   padding: 1.9em 2.4em 2.4em;
 }
 
@@ -429,23 +426,11 @@
   background: var(--cn-red);
 }
 
-.cn-dot--purple {
-  background: var(--cn-purple);
-}
-
-.cn-dot--amber {
-  background: var(--cn-amber);
-}
-
 .cn-status {
   display: inline-flex;
   align-items: center;
   gap: 0.55em;
   white-space: nowrap;
-}
-
-.cn-status--purple {
-  color: #c08ae0;
 }
 
 .cn-status--red {
@@ -458,21 +443,6 @@
   color: var(--cn-soft);
   font-family: var(--brand-font-mono);
   font-size: 0.88em;
-}
-
-.cn-progress {
-  position: relative;
-  display: block;
-  height: 0.45em;
-  overflow: hidden;
-  background: var(--cn-line);
-}
-
-.cn-progress > i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: var(--cn-done, 50%);
-  background: var(--cn-purple);
 }
 
 .cn-table {
@@ -538,6 +508,10 @@
 
   .cn-logo {
     width: auto;
+  }
+
+  .cn-logo img {
+    height: 1.5em;
   }
 
   .cn-page {
