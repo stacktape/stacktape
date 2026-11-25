@@ -1,32 +1,11 @@
 ---
 import { CommandBox } from '../../../brand/CommandBox';
-import './font.css';
-import Costs from './console/Costs.astro';
-import './console/console.css';
-import Deploy from './console/Deploy.astro';
-import Incidents from './console/Incidents.astro';
-import Overview from './console/Overview.astro';
-import Security from './console/Security.astro';
-import Uptime from './console/Uptime.astro';
-import { SCREENS } from './screens';
 
 type Props = { subheadline?: string };
 
 const {
   subheadline = 'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.'
 } = Astro.props;
-
-/** The Console screens behind the tabs, rebuilt in HTML from the real Console. */
-const CONSOLE = {
-  infrastructure: Overview,
-  deploys: Deploy,
-  monitoring: Uptime,
-  incidents: Incidents,
-  security: Security,
-  costs: Costs
-};
-
-
 ---
 
 <section class="h5" aria-labelledby="h5-title">
@@ -37,6 +16,10 @@ const CONSOLE = {
     </h1>
     <div class="h5__words">
       <p class="h5__lead">{subheadline}</p>
+      <p class="h5__open">
+        <span class="h5__label">Open source</span>
+        <span>The MIT-licensed CLI deploys CloudFormation stacks in your AWS account. No Stacktape account required.</span>
+      </p>
     </div>
     <section class="h5__setup" id="install" aria-labelledby="h5-setup">
       <h2 id="h5-setup" class="h5__setup-title">
@@ -50,101 +33,38 @@ const CONSOLE = {
       <CommandBox client:load preselect={false} />
     </section>
   </div>
-
-  <div class="h5__product">
-    <p class="h5__open">
-      <span class="h5__label">Open source</span>
-      The MIT-licensed CLI deploys CloudFormation stacks in your AWS account. No Stacktape account required.
-    </p>
-    <div class="h5__strip" role="tablist" aria-label="What Stacktape runs for you" data-h5-tabs>
-      {
-        SCREENS.map((screen, at) => (
-          <button
-            type="button"
-            role="tab"
-            class="h5__tab"
-            id={`h5-tab-${screen.file}`}
-            aria-controls={`h5-screen-${screen.file}`}
-            aria-selected={at === 0 ? 'true' : 'false'}
-            tabindex={at === 0 ? 0 : -1}
-          >
-            {screen.tab}
-          </button>
-        ))
-      }
-    </div>
-    <div class="h5__window">
-      {
-        SCREENS.map((screen, at) => {
-          const Screen = CONSOLE[screen.file];
-          return (
-            <div
-              id={`h5-screen-${screen.file}`}
-              class="h5__screen"
-              role="tabpanel"
-              aria-labelledby={`h5-tab-${screen.file}`}
-              hidden={at > 0}
-            >
-              <div role="img" aria-label={screen.description}>
-                <Screen />
-              </div>
-            </div>
-          );
-        })
-      }
-    </div>
-  </div>
-
 </section>
-
-<script>
-  import './tabs';
-</script>
 
 <style>
   .h5 {
-    --h5-serif: 'H5 Newsreader', Georgia, 'Times New Roman', serif;
     --h5-soft: color-mix(in srgb, var(--brand-text), transparent 22%);
-    --h5-rule: rgb(255 255 255 / 8%);
-    /* The site header's content width, so the window and the trust row line up with the logo and the header's links. */
+    /* The site header's content width, so the hero lines up with the logo and the header's links. */
     --h5-frame: min(var(--site-width, 76rem), 100% - 2 * var(--brand-space-5));
-    /*
-     * The Console's tape tabs (brand-identity session, tape_look.py tabs_css and final_looks.py fitting_clip): one
-     * strip torn into pieces. A piece's torn right end has the same teeth as the next piece's torn left end, so
-     * neighbours fit with an even gap; the two outer ends of the strip are cut straight. Five teeth per end keep the
-     * logo label's pitch (about 7 px) at this tab height.
-     */
-    --h5-tooth: 3.4px;
-    --h5-torn-right:
-      100% 0%, calc(100% - var(--h5-tooth)) 10%, 100% 20%, calc(100% - var(--h5-tooth)) 30%, 100% 40%,
-      calc(100% - var(--h5-tooth)) 50%, 100% 60%, calc(100% - var(--h5-tooth)) 70%, 100% 80%,
-      calc(100% - var(--h5-tooth)) 90%, 100% 100%;
-    --h5-torn-left:
-      var(--h5-tooth) 100%, 0% 90%, var(--h5-tooth) 80%, 0% 70%, var(--h5-tooth) 60%, 0% 50%, var(--h5-tooth) 40%,
-      0% 30%, var(--h5-tooth) 20%, 0% 10%, var(--h5-tooth) 0%;
-    border-block-end: 1px solid var(--h5-rule);
-    /* Near flat: the page's graphite, turning a shade towards the logo's teal behind the window. */
+    padding-block-end: clamp(3.5rem, 5vw, 6rem);
+    border-block-end: 1px solid rgb(255 255 255 / 8%);
+    /* Near flat: the page's graphite, turning a shade towards the logo's teal at the hero's lower edge. */
     background: linear-gradient(
       180deg,
-      var(--brand-page) 30%,
-      color-mix(in oklab, var(--brand-page), var(--brand-primary-bottom) 12%)
+      var(--brand-page) 35%,
+      color-mix(in oklab, var(--brand-page), var(--brand-primary-bottom) 10%)
     );
   }
 
   /*
-   * The top block: the headline across the frame, set like the logo, its second line printed on the logo's teal tape.
-   * Under it the subheadline, and beside that the Console's own "Run the setup wizard" card, which gives the command
-   * the surface it is designed to sit on. The card is wide enough for the longest one-line installer (Windows).
+   * The headline set like the logo, its second line printed on the logo's teal tape, with the subheadline and the
+   * open-source note under it; beside them the Console's own "Run the setup wizard" card, which gives the command the
+   * surface it is designed to sit on. Long one-line installers scroll inside the card's field, faded by the kit.
    */
   .h5__top {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) min(48rem, 56%);
-    grid-template-areas: 'title title' 'words setup';
-    align-items: start;
-    gap: clamp(2.5rem, 3.4vw, 4rem) clamp(2.5rem, 4vw, 5rem);
+    grid-template-columns: minmax(0, 1fr) clamp(30rem, 38vw, 38rem);
+    grid-template-areas: 'title setup' 'words setup';
+    grid-template-rows: auto 1fr;
+    align-items: center;
+    gap: clamp(2rem, 2.8vw, 3.25rem) clamp(3rem, 5.5vw, 7.5rem);
     inline-size: var(--h5-frame);
     margin: 0 auto;
-    padding-block-start: clamp(4rem, 6vw, 7.5rem);
+    padding-block-start: clamp(4.5rem, 6.5vw, 8.5rem);
   }
 
   .h5__title {
@@ -155,14 +75,10 @@ const CONSOLE = {
     gap: 0.06em;
     margin: 0;
     color: var(--brand-text);
-    font: 800 clamp(2.75rem, 1.2rem + 3.9vw, 7rem) / 1.02 var(--brand-font-heading);
+    font: 800 clamp(2.75rem, 1.2rem + 3.9vw, 6rem) / 1.02 var(--brand-font-heading);
     letter-spacing: -0.045em;
   }
 
-  /*
-   * The logo's label at headline size: white on the primary teal. At this size the label's four big teeth per end
-   * would read as broken (TASTE 7), so the ends tear in eight small teeth, about the logo's pitch scaled to the text.
-   */
   .h5__tape {
     --h5-headline-tooth: 0.055em;
     margin-inline-start: -0.12em;
@@ -211,6 +127,7 @@ const CONSOLE = {
 
   .h5__words {
     grid-area: words;
+    align-self: start;
   }
 
   .h5__lead {
@@ -222,6 +139,28 @@ const CONSOLE = {
     text-wrap: pretty;
   }
 
+  /* "Open source" on grey label tape, then one line: a fact under the subheadline, in the same column. */
+  .h5__open {
+    max-inline-size: 46rem;
+    margin: clamp(1.75rem, 2.4vw, 2.75rem) 0 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.6;
+    text-wrap: pretty;
+  }
+
+  /* The label runs in the line, so the sentence continues after it. */
+  .h5__label {
+    display: inline-block;
+    margin-inline-end: var(--brand-space-2);
+    padding: 0.2em 0.7em 0.25em;
+    background: var(--brand-control);
+    box-shadow: var(--brand-edge);
+    color: var(--brand-text);
+    font: 600 var(--brand-type-xs) / 1.3 var(--brand-font-heading);
+    clip-path: var(--brand-tape-clip);
+  }
+
   /*
    * The Console's card: its surface, a heading with the terminal icon, one sentence, the command. It is the header's
    * Get started target (#install), so the jump lands on its heading and sentence. The page's scroll padding (5rem on
@@ -230,7 +169,7 @@ const CONSOLE = {
   .h5__setup {
     grid-area: setup;
     scroll-margin-block-start: var(--brand-space-4);
-    padding: clamp(1.5rem, 2vw, 2.25rem);
+    padding: clamp(2rem, 2.8vw, 3.25rem);
     border: 1px solid rgb(255 255 255 / 7%);
     background: var(--brand-surface);
     box-shadow: 0 24px 60px rgb(0 0 0 / 35%);
@@ -258,123 +197,11 @@ const CONSOLE = {
   }
 
   .h5__setup-text {
-    margin: var(--brand-space-3) 0 var(--brand-space-5);
+    margin: var(--brand-space-3) 0 var(--brand-space-6);
     color: var(--brand-muted);
     font-size: var(--brand-type-sm);
     line-height: 1.55;
     text-wrap: pretty;
-  }
-
-  /* "Open source" on grey label tape, as a line over the Console window. */
-  .h5__open {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: var(--brand-space-2) var(--brand-space-3);
-    margin: 0 0 clamp(0.5rem, 0.8vw, 1rem);
-    color: var(--brand-muted);
-    font-size: var(--brand-type-sm);
-    text-align: center;
-  }
-
-  .h5__label {
-    padding: 0.2em 0.7em 0.25em;
-    background: var(--brand-control);
-    box-shadow: var(--brand-edge);
-    color: var(--brand-text);
-    font: 600 var(--brand-type-xs) / 1.3 var(--brand-font-heading);
-    clip-path: var(--brand-tape-clip);
-  }
-
-  /* The product: the Console's tab strip, and under it the real Console window. */
-  /* The product, with room around the Open source line and between the tabs and the window. */
-  .h5__product {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: clamp(1.25rem, 1.5vw, 1.75rem);
-    inline-size: var(--h5-frame);
-    margin: clamp(3.5rem, 5vw, 6.25rem) auto 0;
-  }
-
-  .h5__strip {
-    display: flex;
-    max-inline-size: 100%;
-    padding: 3px;
-    border: 1px solid var(--brand-border);
-    border-radius: var(--brand-radius);
-    background: var(--brand-inset);
-  }
-
-  .h5__tab {
-    position: relative;
-    isolation: isolate;
-    flex: none;
-    block-size: 2.4em;
-    padding: 0 1.5em;
-    border: 0;
-    background: none;
-    color: var(--brand-muted);
-    font: 500 clamp(0.875rem, 0.8rem + 0.18vw, 1.0625rem) / 1 var(--brand-font-heading);
-    cursor: pointer;
-  }
-
-  /* The piece of tape. The button itself is not cut, so its focus ring stays whole. */
-  .h5__tab::before {
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    content: '';
-    clip-path: polygon(var(--h5-torn-right), var(--h5-torn-left));
-    pointer-events: none;
-  }
-
-  .h5__tab:first-child::before {
-    clip-path: polygon(0% 0%, var(--h5-torn-right), 0% 100%);
-  }
-
-  .h5__tab:last-child::before {
-    clip-path: polygon(100% 0%, 100% 100%, var(--h5-torn-left));
-  }
-
-  .h5__tab:hover:not([aria-selected='true'])::before {
-    background: rgb(255 255 255 / 4.5%);
-  }
-
-  .h5__tab[aria-selected='true'] {
-    color: var(--brand-text);
-  }
-
-  /* The Console's grey tape: the secondary control's surface with its light top edge. */
-  .h5__tab[aria-selected='true']::before {
-    background: var(--stp-control-surface, var(--brand-control));
-    box-shadow: var(--brand-edge);
-  }
-
-  /* Outside the piece, so the ring never hides the torn ends. */
-  .h5__tab:focus-visible {
-    z-index: 1;
-    outline: 2px solid var(--brand-focus);
-    outline-offset: 1px;
-  }
-
-  /* The window is the container the rebuilt Console scales to: it is laid out in Console pixels of `100cqw / 1280`. */
-  .h5__window {
-    container: h5-console / inline-size;
-    inline-size: 100%;
-    border: 1px solid rgb(255 255 255 / 11%);
-    border-radius: var(--brand-radius);
-    background: var(--brand-inset);
-    box-shadow: 0 34px 80px rgb(0 0 0 / 42%);
-  }
-
-  .h5__screen {
-    border-radius: inherit;
-  }
-
-  .h5__screen[hidden] {
-    display: none;
   }
 
   @media (max-width: 64rem) {
@@ -385,95 +212,45 @@ const CONSOLE = {
     }
 
     .h5__setup {
-      max-inline-size: 48rem;
+      max-inline-size: 40rem;
     }
   }
 
   @media (max-width: 40rem) {
     .h5 {
       --h5-frame: calc(100% - 2 * var(--brand-space-4));
-    }
-
-    /*
-     * On a phone the Console comes right after the words, so the first screen shows what Stacktape did; the setup card
-     * follows the window. The header's Get started button jumps to it (#install). The top block's parts join the
-     * hero's own column for that.
-     */
-    .h5 {
-      display: flex;
-      flex-direction: column;
+      padding-block-end: 0;
     }
 
     .h5__top {
-      display: contents;
-    }
-
-    .h5__title,
-    .h5__words {
-      inline-size: var(--h5-frame);
-      margin-inline: auto;
+      gap: var(--brand-space-5);
+      padding-block-start: var(--brand-space-7);
     }
 
     .h5__title {
-      margin-block-start: var(--brand-space-6);
       font-size: 2.45rem;
-    }
-
-    .h5__words {
-      margin-block-start: var(--brand-space-5);
     }
 
     .h5__lead {
       font-size: 1rem;
     }
 
-    .h5__product {
-      order: 1;
-    }
-
-    /* The card runs edge to edge, so the command gets the phone's whole width. */
-    .h5__setup {
-      order: 2;
-      margin-block-start: var(--brand-space-6);
-      padding: var(--brand-space-5) var(--brand-space-4);
-      border-inline: 0;
-    }
-
-    .h5__setup-text {
-      margin-block-end: var(--brand-space-4);
-    }
-
     .h5__open {
+      margin-block-start: var(--brand-space-5);
       font-size: var(--brand-type-xs);
     }
 
-    .h5__product {
-      margin-block-start: var(--brand-space-6);
-      gap: var(--brand-space-3);
+    /* The card runs edge to edge as the hero's last band, so the command gets the phone's whole width. */
+    .h5__setup {
+      margin-block-start: var(--brand-space-3);
+      margin-inline: calc(-1 * var(--brand-space-4));
+      padding: var(--brand-space-6) var(--brand-space-4);
+      border-inline: 0;
+      border-block-end: 0;
     }
 
-    /* Six tabs do not fit one row on a phone: two rows of three, each row a strip cut straight at its outer ends. */
-    .h5__strip {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      row-gap: 3px;
-      align-self: stretch;
+    .h5__setup-text {
+      margin-block-end: var(--brand-space-5);
     }
-
-    .h5__tab {
-      block-size: 2.25rem;
-      padding-inline: 0.25rem;
-      font-size: 0.8125rem;
-    }
-
-    .h5__tab:nth-child(3n + 1)::before {
-      clip-path: polygon(0% 0%, var(--h5-torn-right), 0% 100%);
-    }
-
-    .h5__tab:nth-child(3n)::before {
-      clip-path: polygon(100% 0%, 100% 100%, var(--h5-torn-left));
-    }
-
   }
-
 </style>
