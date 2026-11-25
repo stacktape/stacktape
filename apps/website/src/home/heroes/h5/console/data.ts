@@ -3,7 +3,8 @@
  * structure B steps that reuse this data, tell one story: release "Show order totals in the cart" went out at 10:12,
  * order totals threw a TypeError for empty carts from 10:16, the API error-rate incident opened at 10:17, the
  * api-health check was down from 10:18 to 10:23, and the fix a41c9e2 deployed at 11:04. Now one incident is open: the
- * homepage's TLS certificate expires on 9 December. Every figure below agrees with the others.
+ * homepage's TLS certificate expires on 9 December. Every figure below agrees with the others. Relative times are
+ * counted from 13:06 and rounded to the nearest unit, as the structure B steps count them: 10:17 is "3h ago".
  */
 
 export const ORG = 'Acme';
@@ -105,39 +106,40 @@ export const DEPLOY_FACTS = [
 ] as const;
 
 /**
- * Uptime: 24 hourly bars, oldest first, the last one ending now. The config gives every stage api-health and homepage
+ * Uptime: 24 hourly bars, oldest first, one per clock hour; the last is the current hour, so 10:00 is bar 20. The config gives every stage api-health and homepage
  * checks (every 5 min outside production) and production a checkout-page check, all three every minute. api-health
  * on production was down from 10:18 to 10:23: 5 failed probes of 1,440. Three one-minute and eight five-minute checks
  * make 6,624 probes a day, so 5 failures leave 99.92 % available. The certificate expires on 9 December, 13 full days
  * from now. The list shows the first eight checks.
  */
 export const UPTIME = { checks: 11, available: '99.92%' };
-const check = (name: string, stage: string, url: string, latency: string, every = 'every 5 min') => ({
+const check = (name: string, stage: string, url: string, latency: string, checked: string, every = 'every 5 min') => ({
   name,
   stage,
   url,
   down: [] as number[],
   availability: '100%',
   latency,
+  checked,
   every,
   warning: ''
 });
 export const CHECKS = [
   {
-    ...check('api-health', 'production', 'api.acme-shop.com/health', '92 ms', 'every 1 min'),
-    down: [21],
+    ...check('api-health', 'production', 'api.acme-shop.com/health', '92 ms', '41s ago', 'every 1 min'),
+    down: [20],
     availability: '99.65%'
   },
   {
-    ...check('homepage', 'production', 'acme-shop.com', '64 ms', 'every 1 min'),
+    ...check('homepage', 'production', 'acme-shop.com', '64 ms', '12s ago', 'every 1 min'),
     warning: 'TLS certificate expires in 13d'
   },
-  check('checkout-page', 'production', 'acme-shop.com/checkout', '71 ms', 'every 1 min'),
-  check('api-health', 'staging', 'api.staging.acme-shop.com/health', '88 ms'),
-  check('homepage', 'staging', 'staging.acme-shop.com', '69 ms'),
-  check('api-health', 'pr-218', 'api.pr-218.acme-shop.com/health', '95 ms'),
-  check('homepage', 'pr-218', 'pr-218.acme-shop.com', '72 ms'),
-  check('api-health', 'dev-maya', 'api.dev-maya.acme-shop.com/health', '90 ms')
+  check('checkout-page', 'production', 'acme-shop.com/checkout', '71 ms', '33s ago', 'every 1 min'),
+  check('api-health', 'staging', 'api.staging.acme-shop.com/health', '88 ms', '2m ago'),
+  check('homepage', 'staging', 'staging.acme-shop.com', '69 ms', '4m ago'),
+  check('api-health', 'pr-218', 'api.pr-218.acme-shop.com/health', '95 ms', '1m ago'),
+  check('homepage', 'pr-218', 'pr-218.acme-shop.com', '72 ms', '3m ago'),
+  check('api-health', 'dev-maya', 'api.dev-maya.acme-shop.com/health', '90 ms', '2m ago')
 ];
 
 /** Resolution reasons as the Console's list words them: recovered signals, or a person who resolved it. */
@@ -158,7 +160,7 @@ export const INCIDENTS = [
     detail: "3 failing signals · TypeError: Cannot read properties of undefined (reading 'total')",
     status: 'Resolved',
     by: 'recovered on its own',
-    opened: '2h ago'
+    opened: '3h ago'
   },
   {
     severity: 'Error',
