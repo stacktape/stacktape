@@ -39,6 +39,9 @@ const SUPPORT = [
   { plan: 'Flexible', help: 'A shared Slack channel with the founders' },
   { plan: 'Enterprise', help: 'Up to 24×7 premium support' }
 ];
+/* Facts that repeat the step's own line (from the hero's steps) are left out. */
+const REPEATS: Record<string, string> = { designs: 'docs/cli/init.mdx:47-48', packages: 'docs/packaging/overview.mdx:37' };
+const facts = pack.facts.filter((fact) => fact.source !== REPEATS[pack.id]);
 const packaging = bars('packaging', 'empty-cache', 'lambda-25');
 const wide = picture ? picture.desktop.small.width / picture.desktop.small.height > 2.5 : false;
 ---
@@ -105,7 +108,7 @@ const wide = picture ? picture.desktop.small.width / picture.desktop.small.heigh
         </div>
       )
     }
-    {picture ? <ul>{pack.facts.map((fact) => <li>{fact.text.replaceAll('`', '')}</li>)}</ul> : null}
+    {picture || pack.id === 'packages' ? <ul>{facts.map((fact) => <li>{fact.text.replaceAll('`', '')}</li>)}</ul> : null}
   </div>
 </div>
 
