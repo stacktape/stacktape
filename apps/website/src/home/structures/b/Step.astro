@@ -45,10 +45,17 @@ const words = (text: string) => codeParts(text);
 </section>
 
 <style>
+  /*
+   * A step never makes the page scroll sideways: a picture wider than the step at some width is cut at the step's edge
+   * instead. `clip` keeps the vertical axis visible and creates no scroll container.
+   */
   .b-step {
     display: grid;
     gap: clamp(1.75rem, 1.25rem + 1.25vw, 2.75rem);
     padding-block: clamp(3rem, 2rem + 2.5vw, 5rem);
+    overflow-x: clip;
+    /* Within the page's side gutter, so the pictures keep their shadows. */
+    overflow-clip-margin: var(--brand-space-4);
   }
 
   .b-step__head {
