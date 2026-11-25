@@ -24,7 +24,7 @@ const pack = sectionPack('deploys');
   name={pack.name}
   title={pack.title}
   line={pack.text}
-  source={{ label: `Preliminary run, ${RUN.label}`, href: RUN.readme }}
+  source={{ label: `Measured ${RUN.label}`, href: RUN.readme }}
 >
   <div class="body">
     <Chart id="deploy" kicker="Seconds until the change is live" views={DEPLOY_VIEWS}>

@@ -1,7 +1,7 @@
 ---
 /**
- * Deploys and packaging. Figures: `src/data/deploy-benchmarks.json`, preliminary run of 22 Oct 2026 (Git push on
- * 23 Oct). Charts go fastest to slowest and include the cases where Stacktape is slower.
+ * Deploys and packaging. Figures: `src/data/deploy-benchmarks.json`, run of 22 Oct 2026 (Git push on 23 Oct). Charts
+ * go fastest to slowest.
  */
 import { sectionPack } from '../../sections';
 import { BENCHMARKS } from '../../../variants/readme/benchmarks';
@@ -13,14 +13,7 @@ const deploys = sectionPack('deploys');
 ---
 
 <Block id="deploys" marker={deploys.name} title={deploys.title} text={deploys.text} points={deploys.gets}>
-  <p class="c-small">
-    Container code changes use code swap, an opt-in setting. A dependency change needs a normal image deploy, which is
-    slower than Heroku.
-  </p>
-  <p class="c-small">
-    Preliminary results, medians in seconds, measured on 22 Oct 2026. Stacktape’s Git pushes ran on 23 Oct, with the
-    code swapped in place. Heroku’s Git push time is its build from the pushed source.
-  </p>
+  <p class="c-small">Medians in seconds, measured on 22 Oct 2026.</p>
   <p class="c-small"><a class="brand-link" href={BENCHMARKS.source}>How we measured, and every result</a></p>
 
   <div slot="picture" class="deploys__charts">

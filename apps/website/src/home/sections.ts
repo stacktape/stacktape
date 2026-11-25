@@ -171,11 +171,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'designs',
     name: 'Designs',
     title: 'Designs the stack your app needs',
-    text: 'Stacktape reads your repository and proposes the AWS setup your app needs. The wizard shows each resource’s estimated cost and marks the charges that depend on usage.',
+    text: 'Stacktape reads your code and proposes the AWS setup it needs. You see every resource and its estimated monthly cost before anything deploys.',
     gets: [
-      'Claude Code or Codex reads your code, or Stacktape reads only your manifests and deployment files. You save the result as a YAML or TypeScript config and deploy when you choose.',
-      'You need an AWS account to deploy. AWS bills you directly at AWS prices.',
-      'Init can read an existing Render manifest or Docker Compose file and propose a separate AWS stack from it.'
+      'Already on Render or Docker Compose? Init reads those files and proposes a matching AWS stack.',
+      'You get one YAML or TypeScript file in your repo.'
     ],
     picture: {
       desktop: crop(designsSmall, designsLarge, designsSmallPng, designsLargePng),
@@ -201,11 +200,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'packages',
     name: 'Packages',
     title: 'Packages it',
-    text: 'Stacktape builds your Lambda packages and container images in parallel. A deploy reuses the builds whose inputs haven’t changed.',
+    text: 'Stacktape builds every function and container image in parallel and skips what hasn’t changed. No Dockerfile needed for Node.js, Python, Go, Java, Ruby, PHP, .NET or Rust.',
     gets: [
-      'You don’t need a Dockerfile for Node.js, Python, Go, Java, Ruby, PHP, .NET or Rust.',
-      'For a Python Lambda, Stacktape builds the dependencies in AWS’s image for that Lambda runtime.',
-      `Our test Node.js service produced a ${nodeImage.stacktape} MB image with Stacktape and an ${nodeImage.others} MB image with SST or AWS CDK.`
+      'Python Lambdas build in AWS’s own Lambda image, so native packages work.',
+      `Our test Node.js service ships as a ${nodeImage.stacktape} MB image, against ${nodeImage.others} MB with SST or AWS CDK.`
     ],
     figure: packaging.figure,
     picture: {
@@ -218,7 +216,7 @@ export const SECTION_PACKS: SectionPack[] = [
     sources: [
       'The README page’s section 02, approved by the owner (origin/main apps/website/src/variants/readme/data.ts).',
       'docs/packaging/overview.mdx:36-37 (js-bundle; Lambda buildpack on the runtime’s build image), :72-74 (container buildpacks incl. PHP, Dockerfile), :108 (cache by input checksum), :126-130 (languages)',
-      'bench packaging / empty-cache / lambda-25, preliminary run of 22 Oct 2026; AWS CDK is the next fastest tool',
+      'bench packaging / empty-cache / lambda-25, run of 22 Oct 2026; AWS CDK is the next fastest tool',
       'bench image-size / default-image / container-node (default image, without code swap), run of 22 Oct 2026'
     ],
     doNotClaim: [
@@ -232,16 +230,15 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'deploys',
     name: 'Deploys',
     title: 'Deploys it',
-    text: 'Run `stacktape deploy` from your terminal or CI. You can also connect a Git branch to deploy on push.',
+    text: 'Run `stacktape deploy` from your terminal or CI, or just push to a branch. Lambda code changes skip CloudFormation and go live in seconds.',
     gets: [
-      'In the Stacktape Console, our web app, a branch rule can deploy every push or create a preview stage for each matching pull request. It works with GitHub, GitLab and Bitbucket.',
-      'Configure a release command to run migrations. If it fails, the rollout stops. `stacktape rollback` restores an earlier release.',
-      '`stacktape dev` runs your containers locally against the stack’s AWS resources, so you don’t redeploy for every edit.'
+      'Each pull request can get its own preview stage.',
+      '`stacktape dev` runs your containers locally against the real stack, so you stop redeploying to test.'
     ],
     figure: deploying.figure,
     picture: null,
     sources: [
-      'bench lambda-deploy / handler / lambda-25, preliminary run of 22 Oct 2026; SST is the next fastest tool',
+      'bench lambda-deploy / handler / lambda-25, run of 22 Oct 2026; SST is the next fastest tool',
       'docs/ci-cd-and-gitops/gitops-with-console.mdx:10-19 (Git deployment rules per branch on GitHub, GitLab, Bitbucket: push to branch, pull request opened; runner in your AWS account), :117 (delete on close is an option)',
       'docs/deployment-and-lifecycle/release-commands.mdx:10 (runs on each deploy), :43 (a failure stops the deploy; old code keeps serving)',
       'docs/deployment-and-lifecycle/deploying-stacks.mdx:159, :163-170 (confirmation before a protected stateful resource is replaced; CI fails closed without --yes)',
@@ -261,11 +258,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'monitors',
     name: 'Monitors',
     title: 'Monitors it',
-    text: 'Open a trace to see which calls took time and where the request failed. Traces stay in your AWS account.',
+    text: 'Open a trace to see which call was slow and where the request broke. Traces live in your AWS account.',
     gets: [
-      'Supported Lambda functions are traced without code changes. For a container, Stacktape adds an OpenTelemetry collector to the task, and your app sends spans to it with the OpenTelemetry SDK.',
-      'The Console also shows each stack’s CloudWatch logs and metrics. Error tracking groups runtime errors from supported Lambda functions and Node.js services built with Stacktape’s bundler, without an SDK.',
-      'Uptime checks probe your public URLs from several AWS regions, and browser tests can run your checkout on a schedule. Both run in your AWS account.'
+      'Node.js, Python, Java and .NET Lambdas are traced without code changes.',
+      'Logs, metrics, errors and uptime checks live in the same Console.'
     ],
     picture: {
       desktop: crop(monitorsSmall, monitorsLarge, monitorsSmallPng, monitorsLargePng),
@@ -296,11 +292,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'secures',
     name: 'Secures',
     title: 'Secures it',
-    text: 'Stacktape flags exposed databases and vulnerable packages. You can block a deploy that would make a database public.',
+    text: 'Stacktape flags public databases and vulnerable packages after every deploy. A guardrail can stop a deploy that would expose a database.',
     gets: [
-      'Scanning is on by default and rechecks your packages every night. Guardrails can also limit deploys to approved regions.',
-      'Add a queue to a worker’s `connectTo` list. Stacktape grants the worker access and supplies the queue URL.',
-      'Store passwords and API keys in AWS Secrets Manager and reference them from your config.'
+      '`connectTo: [jobQueue]` gives the worker its IAM permissions and the queue URL.',
+      'Keep secrets in AWS Secrets Manager, out of your config.'
     ],
     picture: {
       desktop: crop(securesSmall, securesLarge, securesSmallPng, securesLargePng),
@@ -327,11 +322,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'incidents',
     name: 'Incidents',
     title: 'Handles incidents',
-    text: 'Stacktape groups related errors, alarms and failed checks into one incident, with the release that was running. In the Stacktape Slack app, your team can acknowledge it or, with rollback access, roll back.',
+    text: 'Related errors, alarms and failed checks become one incident, tied to the release that was live. Acknowledge it or roll back straight from Slack.',
     gets: [
-      'On request, a coding agent investigates, or proposes a fix as a pull request for a connected GitHub repository. It deploys nothing.',
-      'Investigations run in your AWS account. The agent inspects AWS through read-only tools.',
-      'Connect your organization’s Anthropic, OpenAI or xAI key to get automatic incident summaries.'
+      'On request, a coding agent investigates and opens a fix PR on GitHub. It never deploys.',
+      'With your Anthropic, OpenAI or xAI key, every incident gets a short AI summary.'
     ],
     picture: null,
     sources: [
@@ -350,11 +344,8 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'costs',
     name: 'Costs',
     title: 'Tracks costs',
-    text: 'The Console shows what each project, stage and resource cost, updated daily from your AWS cost reports. A budget alerts you when actual or forecast spend crosses your threshold.',
-    gets: [
-      'Each stage also shows costs not tied to one resource, such as data transfer.',
-      'A budget watches a whole AWS account. Choose Show drivers on its Slack alert to see which stacks spent the most and how that compares with last month.'
-    ],
+    text: 'See what each project, stage and resource costs, updated daily. Budgets alert you when spend or the forecast crosses your limit.',
+    gets: ['In Slack, Show drivers names the stacks that spent the most this month.'],
     picture: {
       desktop: crop(costsSmall, costsLarge, costsSmallPng, costsLargePng),
       phone: crop(costsPhoneSmall, costsPhoneLarge, costsPhoneSmallPng, costsPhoneLargePng),
@@ -379,7 +370,7 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'expert-help',
     name: 'Help',
     title: 'Talk to us when you get stuck',
-    text: 'On Flexible, your team gets a shared Slack channel with the Stacktape founders. Ask us about a deploy, an AWS bill or a feature you need.',
+    text: 'On Flexible, your team shares a Slack channel with the founders who build Stacktape.',
     gets: [],
     picture: null,
     sources: ['apps/website/src/pages/pricing.astro:47 (a shared Slack channel with the founders on Flexible)'],

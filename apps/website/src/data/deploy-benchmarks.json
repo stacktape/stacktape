@@ -1,5 +1,5 @@
 {
-  "status": "Preliminary results",
+  "status": "Benchmark results",
   "source": "https://github.com/stacktape/deploy-benchmarks",
   "issues": "https://github.com/stacktape/deploy-benchmarks/issues",
   "runs": [

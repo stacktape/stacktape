@@ -34,34 +34,34 @@ const OPEN_BY_DEFAULT = 2;
 const QUESTIONS: Question[] = [
   {
     q: 'Why not Heroku or Render?',
-    a: `Your app runs in your own AWS account at AWS prices, and you can add CloudFormation resources and CDK constructs to the generated stack. You still get push-to-deploy and pull request previews. In our preliminary Git push benchmark of 22–23 October 2026, a warm Node.js code change took ${pushSeconds('stacktape')} seconds with Stacktape and code swap turned on, ${pushSeconds('heroku')} seconds on Heroku and ${pushSeconds('render')} seconds on Render. Heroku was faster for Python.`,
+    a: `Your app runs in your own AWS account at AWS prices, with CloudFormation and CDK when you need more. Push-to-deploy and PR previews still work. A warm Git push of our Node.js test service went live in ${pushSeconds('stacktape')} s with code swap, against ${pushSeconds('heroku')} s on Heroku and ${pushSeconds('render')} s on Render.`,
     link: { label: 'Git push results on GitHub', href: runReadme('2026-10-23') }
   },
   {
     q: 'Why not hire a DevOps engineer?',
-    a: 'Your developers get deploy pipelines, permissions, monitoring and incident alerts without building them. Your team still owns the AWS account, approves changes and responds to incidents. On Flexible, you can ask the founders in Slack when you get stuck.'
+    a: 'Your developers get pipelines, permissions, monitoring and incident alerts on day one. On Flexible, the founders answer your AWS questions in Slack.'
   },
   {
     q: 'What does it cost?',
-    a: 'The CLI is free. The Console is free up to $200 a month of managed AWS spend. The first time you go over, you have seven days to upgrade. After that, new deploys of Console-connected stacks pause until you upgrade or the next month starts, and your running apps are not affected. Flexible costs 19–25% of the whole managed spend, $250 a month at $1,000, for the whole team.',
+    a: 'The CLI is free, and so is the Console up to $200 a month of managed AWS spend. Above that, Flexible costs 19–25% of it, $250 a month at $1,000, never per seat. Running apps are never paused.',
     link: { label: 'Pricing', href: '/pricing' }
   },
   {
     q: 'Are we locked in?',
-    a: 'Your AWS resources run in your account as standard CloudFormation stacks, and the Stacktape config stays in your repository. The open-source CLI (MIT) deploys with your own AWS credentials, without the Console. To deploy that way, first replace a Stacktape-provided domain with your own and remove Console-only settings such as uptime checks. Deploy history, error tracking and incidents live in the Console.',
+    a: 'Your resources are standard CloudFormation stacks in your AWS account, and they keep running if you stop paying. The MIT-licensed CLI deploys them without the Console.',
     link: { label: 'Using the CLI without an account', href: 'https://docs.stacktape.com/getting-started/open-source-cli' }
   },
   {
     q: 'Will it scale with us?',
-    a: 'Your app runs on AWS services such as Lambda, ECS Fargate and Aurora. For a container service, you set the minimum and maximum number of containers and the CPU or memory level that adds more. Lambda functions scale on their own. Stacktape is AWS only and needs no Kubernetes.'
+    a: 'Your app runs on Lambda, ECS Fargate and Aurora, and you set how far each container service scales. There’s no Kubernetes cluster and no server to patch.'
   },
   {
     q: 'Can our database stay private?',
-    a: 'Yes. By default, an RDS database accepts connections from anywhere with valid credentials. With `scoping-workloads-in-vpc`, only the services that list it in `connectTo` and the IP addresses you allow can reach it. Add a bastion host if your team needs a tunnel. Aurora Serverless v2 always requires a VPC mode.'
+    a: 'Yes. With `scoping-workloads-in-vpc`, only the services that list it in `connectTo` can reach it, and your team connects through a bastion host.'
   },
   {
     q: 'What leaves our AWS account?',
-    a: 'Application logs, build artifacts and application secrets stay in your account. The Console receives error details and short log excerpts with recognized sensitive patterns masked, plus metrics, check results and security findings. Dependency scans send package names and versions to OSV.dev. Init sends the generated config and region to Stacktape for pricing. During init, Claude Code or Codex sends the files it reads to its provider, while Files only scans locally. With incident AI on, the provider receives the incident evidence, and an investigating agent sends the code and command output it reads to its provider.',
+    a: 'Logs, build artifacts and secrets stay in your account. The Console receives errors with masked log excerpts, metrics, check results and security findings, and init sends Stacktape only the generated config for pricing.',
     link: {
       label: 'What leaves your AWS account',
       href: 'https://docs.stacktape.com/observability/error-tracking#what-leaves-your-aws-account'
@@ -69,7 +69,7 @@ const QUESTIONS: Question[] = [
   },
   {
     q: 'What if we need something Stacktape doesn’t support?',
-    a: 'You can override properties of the CloudFormation resources Stacktape generates, such as a Lambda function’s reserved concurrency. You can also add raw CloudFormation resources or AWS CDK constructs to the same stack.'
+    a: 'Add raw CloudFormation resources or AWS CDK constructs to the same stack, or override what Stacktape generates, such as a Lambda’s reserved concurrency.'
   }
 ];
 ---
