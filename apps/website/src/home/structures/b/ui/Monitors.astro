@@ -2,243 +2,316 @@
 import Window from './console/Window.astro';
 
 /**
- * Error tracking in the Console (apps/console/ui IssuesPage), filtered to acme-shop production, at the hero's time,
- * 13:06 (heroes/h5/console/data.ts). The organization's four open errors are all on production, as the hero's stage
- * overview and sidebar count them (COUNTS.errors): the TypeError, the payment error and two worker errors. Rows are in
- * the page's default order, last seen first. The hero's incident is the last: the 10:12 release broke order totals for
- * empty carts, 56 events from 10:16 until the 11:04 fix, so it was last seen two hours ago and stays open until someone
- * resolves it.
- * The API and the worker are packaged with `js-bundle`, the packaging whose errors Stacktape reads from the logs
- * without an SDK (docs/observability/error-tracking.mdx, "What reports errors").
+ * One request's trace in the Console (apps/console/ui TraceDetailPage): a `GET /cart` on acme-shop's production API at
+ * 10:16, four minutes after the 10:12 release that broke order totals for empty carts (heroes/h5/console/data.ts). The
+ * waterfall shows the request's steps, the API's Redis read and two Postgres queries, and the request failing with the
+ * TypeError behind the hero's incident, in `orderTotals` (totals.ts:18). The failing step is selected, as the page
+ * selects it on opening. The owner asked for traces instead of error tracking here (25 Nov).
  *
- * A phone shows two issues in full, the hero's TypeError among them: message, source line, events and last seen.
+ * The API is a container: Stacktape adds an OpenTelemetry collector to the task and the app's OpenTelemetry SDK sends
+ * its spans there (docs/observability/tracing.mdx, "Container services"). The sidebar is the hero's 13:06.
+ *
+ * A phone shows the failure and the waterfall; the selected step's panel is for wider screens.
  */
-const ISSUES = [
-  {
-    type: 'PaymentProviderError',
-    message: 'POST https://api.payments.example/v1/charges answered 502 Bad Gateway',
-    resource: 'worker',
-    frame: 'chargeOrder',
-    file: 'charge.ts:41',
-    events: 9,
-    since: '1h ago',
-    last: '12m ago'
-  },
-  {
-    type: 'Error',
-    message: 'connect ETIMEDOUT [redacted:ip]:6379',
-    resource: 'worker',
-    events: 6,
-    since: '5h ago',
-    last: '41m ago',
-    wide: true
-  },
-  {
-    type: 'Error',
-    message: 'Image resize for product 18342 timed out after 30000 ms',
-    resource: 'worker',
-    frame: 'resizeProductImage',
-    file: 'images.ts:19',
-    events: 3,
-    since: '1d ago',
-    last: '1h ago',
-    wide: true
-  },
-  {
-    type: 'TypeError',
-    message: "Cannot read properties of undefined (reading 'total')",
-    resource: 'api',
-    frame: 'orderTotals',
-    file: 'totals.ts:18',
-    events: 56,
-    since: '3h ago',
-    last: '2h ago'
-  }
+const TOTAL = 46;
+const STEPS = [
+  { name: 'GET /cart', depth: 0, start: 0, ms: 46, error: true },
+  { name: 'Redis GET', depth: 1, start: 2, ms: 1.1 },
+  { name: 'PostgreSQL SELECT cart_items', depth: 1, start: 4, ms: 15 },
+  { name: 'PostgreSQL SELECT tax_rates', depth: 1, start: 20, ms: 11 }
 ];
-const TABS = [
-  { name: 'Open', count: 4, selected: true },
-  { name: 'Resolved', count: 11 },
-  { name: 'Ignored', count: 1, wide: true },
-  { name: 'All', count: 16, wide: true }
+const FACTS = [
+  ['Took', '46 ms, 100% of the request'],
+  ['Service', 'api'],
+  ['HTTP', 'GET 500'],
+  ['Started', 'Nov 25, 2026, 10:16']
 ];
+const at = (ms: number) => `${(ms / TOTAL) * 100}%`;
+const duration = (ms: number) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.round(ms)} ms`);
 ---
 
 <Window
-  label="Error tracking in the Stacktape Console, filtered to acme-shop production: four open issues grouped from runtime errors in the API and worker services, last seen first. One is TypeError: Cannot read properties of undefined (reading 'total') in orderTotals, totals.ts line 18, 56 events since 3 hours ago, last seen 2 hours ago."
-  page="Error tracking"
-  current="errors"
+  label="A trace in the Stacktape Console: GET /cart on acme-shop's production API at 10:16, failed with error 500 after 46 ms. Its steps are a Redis read and two Postgres queries; the request failed with TypeError: Cannot read properties of undefined (reading 'total') in orderTotals, totals.ts line 18."
+  page="Traces"
+  current="traces"
   openErrors={4}
   organization={false}
 >
-  <div class="mn-head">
-    <h3 class="cn-h1">Error tracking</h3>
-    <span class="cn-button cn-wide">Settings</span>
+  <p class="tr-crumbs cn-muted">Traces</p>
+  <div class="tr-head">
+    <h3 class="cn-h1">GET /cart</h3>
+    <span class="cn-muted">api in acme-shop / production</span>
+    <span class="cn-status cn-status--red"><i class="cn-dot cn-dot--red"></i>Error <span class="cn-muted">500</span></span>
+    <span class="tr-related cn-wide">
+      <span class="cn-muted">Related</span>
+      <span>Traces</span>
+      <span>Metrics</span>
+      <span>Errors</span>
+    </span>
   </div>
 
-  <div class="cn-panel mn-list">
-    <div class="mn-filters">
-      <span class="cn-segments">
-        {
-          TABS.map((tab) => (
-            <span aria-selected={tab.selected ? 'true' : 'false'} class:list={{ 'cn-wide': tab.wide }}>
-              {tab.name} <small>{tab.count}</small>
-            </span>
-          ))
-        }
-      </span>
-      <span class="mn-field mn-search cn-wide">Search errors</span>
-      <span class="mn-field cn-wide"><span class="cn-muted">Project</span> acme-shop</span>
-      <span class="mn-field mn-stage"><span class="cn-muted">Stage</span> production</span>
+  <div class="cn-panel tr-failure">
+    <span class="cn-dot cn-dot--red"></span>
+    <div>
+      <p class="tr-failure__where">Failed in GET /cart</p>
+      <p class="cn-muted">TypeError: Cannot read properties of undefined (reading 'total')</p>
     </div>
-    <div class="cn-table" style="--cn-columns: minmax(0, 1fr) 9.5em 6.5em 1.2em 0.6em">
-      <div class="cn-table__head">
-        <span>Error</span>
-        <span class="cn-right">Events</span>
-        <span>Last seen ↓</span>
-        <span class="cn-wide"></span>
+    <span class="tr-logs cn-wide">Logs of this request</span>
+  </div>
+
+  <div class="tr-main">
+    <div class="cn-panel tr-waterfall">
+      <div class="tr-row tr-row--head">
+        <span><b>4 steps</b> <span class="cn-muted">46 ms in all</span></span>
+        <span class="tr-axis cn-muted">
+          <span>0</span>
+          <span>23 ms</span>
+          <span>46 ms</span>
+        </span>
         <span></span>
       </div>
       {
-        ISSUES.map((issue) => (
-          <div class:list={['mn-row', { 'cn-wide': issue.wide }]}>
-            <span class="mn-issue">
-              <span class="mn-message">
-                {issue.type ? <b>{issue.type}: </b> : null}
-                {issue.message}
-              </span>
-              <span class="cn-sub">
-                acme-shop / production · <span class="cn-link">{issue.resource}</span>
-                {issue.frame ? (
-                  <>
-                    {' · '}
-                    <span class="cn-mono">{issue.frame}</span> <span class="cn-mono cn-faint">{issue.file}</span>
-                  </>
-                ) : null}
-              </span>
+        STEPS.map((step) => (
+          <div class:list={['tr-row', { 'is-error': step.error, 'is-selected': step.error }]}>
+            <span class="tr-name" style={`--tr-depth: ${step.depth}`}>
+              <i class:list={['cn-dot', { 'cn-dot--red': step.error }]} />
+              {step.name}
             </span>
-            <span class="cn-right mn-count">
-              <b class="mn-events">{issue.events}</b> <span class="cn-muted mn-since">since {issue.since}</span>
+            <span class="tr-track">
+              <i style={`left: ${at(step.start)}; width: max(3px, ${at(step.ms)})`} />
             </span>
-            <span class="cn-status mn-last">
-              <i class="cn-dot cn-dot--red" />
-              {issue.last}
-            </span>
-            <span class="cn-wide mn-more">···</span>
-            <span class="cn-chevron" />
+            <span class="tr-time">{duration(step.ms)}</span>
           </div>
         ))
       }
+      <p class="tr-id cn-muted">
+        Trace ID <span class="cn-mono">4f0c2a9e81d3b6e7c5a2f19d07b8e3c4</span>
+      </p>
+    </div>
+
+    <div class="cn-panel tr-step">
+      <p class="tr-step__title">GET /cart</p>
+      <p class="cn-muted">Request: GET /cart</p>
+      <p class="tr-step__label">This step failed with</p>
+      <p class="tr-step__error">
+        <span><b>TypeError:</b> Cannot read properties of undefined (reading 'total')</span>
+        <span class="cn-mono">at orderTotals (src/orders/totals.ts:18:34)</span>
+      </p>
+      <dl class="tr-facts">
+        {
+          FACTS.map(([label, value]) => (
+            <>
+              <dt class="cn-muted">{label}</dt>
+              <dd>{value}</dd>
+            </>
+          ))
+        }
+      </dl>
+      <p class="tr-more cn-muted">Technical details</p>
     </div>
   </div>
 </Window>
 
 <style>
-  .mn-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .mn-list {
-    margin-top: 1.4em;
-  }
-
-  .mn-filters {
+  .tr-head {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6em;
-    padding: 0.7em;
-    border-bottom: 1px solid var(--cn-line-soft);
+    align-items: baseline;
+    gap: 0.4em 0.9em;
+    margin-top: 0.35em;
   }
 
-  .mn-field {
+  .tr-related {
+    display: flex;
+    gap: 1.25em;
+    margin-left: auto;
+  }
+
+  .tr-failure {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75em;
+    margin-top: 1.4em;
+    padding: 0.95em 1.25em;
+  }
+
+  .tr-failure__where {
+    color: var(--cn-red);
+    font-weight: 600;
+  }
+
+  .tr-logs {
+    margin-left: auto;
+    align-self: center;
+    white-space: nowrap;
+  }
+
+  .tr-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 19em);
+    align-items: start;
+    gap: 1em;
+    margin-top: 1em;
+  }
+
+  .tr-row {
+    display: grid;
+    grid-template-columns: minmax(0, 18em) minmax(0, 1fr) 4.5em;
+    align-items: center;
+    gap: 1em;
+    padding: 0.7em 1.25em;
+    border-top: 1px solid var(--cn-line-soft);
+  }
+
+  .tr-row--head {
+    border-top: 0;
+    padding-block: 1em 0.75em;
+  }
+
+  .tr-row.is-selected {
+    background: rgb(255 255 255 / 3%);
+  }
+
+  .tr-name {
     display: flex;
     align-items: center;
-    gap: 0.5em;
-    height: 2.8em;
-    padding: 0 1em;
-    border: 1px solid var(--cn-line);
-    background: var(--cn-page);
-    white-space: nowrap;
-  }
-
-  .mn-search {
-    flex: 1;
-    min-width: 7em;
-    overflow: hidden;
-    color: var(--cn-faint);
-  }
-
-  .mn-issue {
+    gap: 0.6em;
     min-width: 0;
-  }
-
-  .mn-message {
-    display: block;
+    padding-left: calc(var(--tr-depth) * 1em);
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
-  .mn-message b {
-    font-weight: 700;
+  .is-error .tr-name {
+    font-weight: 600;
   }
 
-  .mn-events {
-    font-weight: 700;
-  }
-
-  .mn-since {
+  .tr-axis {
+    display: flex;
+    justify-content: space-between;
     font-size: 0.92em;
   }
 
-  .mn-more {
-    color: var(--cn-muted);
-    letter-spacing: 0.05em;
+  .tr-track {
+    position: relative;
+    height: 0.9em;
   }
 
-  /* A phone: the message on up to two lines, its source line, then the events and when it was last seen. */
+  .tr-track i {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--cn-teal);
+  }
+
+  .is-error .tr-track i {
+    background: var(--cn-red);
+  }
+
+  .tr-time {
+    color: var(--cn-soft);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .tr-id {
+    padding: 0.9em 1.25em 1.1em;
+    border-top: 1px solid var(--cn-line-soft);
+    font-size: 0.92em;
+  }
+
+  .tr-id .cn-mono {
+    margin-left: 0.5em;
+    color: var(--cn-soft);
+  }
+
+  .tr-step {
+    display: grid;
+    gap: 0.35em;
+    padding: 1.1em 1.25em 1.25em;
+  }
+
+  .tr-step__title {
+    color: var(--cn-red);
+    font-size: 1.08em;
+    font-weight: 600;
+  }
+
+  .tr-step__label {
+    margin-top: 0.6em !important;
+    color: var(--cn-muted);
+    font-size: 0.92em;
+  }
+
+  .tr-step__error {
+    display: grid;
+    gap: 0.3em;
+    padding: 0.7em 0.8em;
+    border-left: 2px solid var(--cn-red);
+    background: rgb(235 97 97 / 8%);
+  }
+
+  .tr-step__error .cn-mono {
+    color: var(--cn-muted);
+  }
+
+  .tr-facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.45em 1em;
+    margin-top: 0.7em !important;
+  }
+
+  .tr-facts dd {
+    margin: 0;
+  }
+
+  .tr-more {
+    margin-top: 0.5em !important;
+  }
+
+  @container (max-width: 860px) {
+    .tr-main {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .tr-step {
+      display: none;
+    }
+  }
+
   @container (max-width: 520px) {
-    .mn-list .cn-table__head {
+    .tr-row {
+      grid-template-columns: minmax(0, 1fr) 3.75em;
+      grid-template-areas: 'name time' 'track track';
+      gap: 0.4em 0.75em;
+      padding-inline: 0.9em;
+    }
+
+    .tr-name {
+      grid-area: name;
+    }
+
+    .tr-track {
+      grid-area: track;
+    }
+
+    .tr-time {
+      grid-area: time;
+    }
+
+    .tr-row--head .tr-axis,
+    .tr-row--head > :last-child {
       display: none;
     }
 
-    .mn-list .mn-row {
-      grid-template-columns: auto minmax(0, 1fr);
-      grid-template-areas: 'issue issue' 'count last';
-      gap: 0.5em 1.25em;
+    .tr-failure {
+      padding-inline: 0.9em;
     }
 
-    .mn-issue {
-      grid-area: issue;
-    }
-
-    .mn-message {
-      display: -webkit-box;
-      white-space: normal;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-    }
-
-    .mn-issue .cn-sub {
-      white-space: normal;
-    }
-
-    .mn-count {
-      grid-area: count;
-      text-align: left;
-    }
-
-    .mn-last {
-      grid-area: last;
-    }
-
-    .mn-row .cn-chevron {
+    .tr-id {
       display: none;
-    }
-
-    .mn-stage {
-      flex: 1;
     }
   }
 </style>
