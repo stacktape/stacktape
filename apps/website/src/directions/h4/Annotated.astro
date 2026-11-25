@@ -129,7 +129,7 @@ const head = (note: (typeof notes)[number]) => {
   .h4-art__dispenser {
     position: absolute;
     z-index: 5;
-    left: -4.5%;
+    left: -3%;
     bottom: -16%;
     inline-size: 40%;
   }
@@ -137,6 +137,7 @@ const head = (note: (typeof notes)[number]) => {
   .h4-art__dispenser :global(svg) {
     inline-size: 100%;
     block-size: auto;
+    filter: drop-shadow(0 1.4rem 1.6rem rgb(0 0 0 / 42%));
   }
 
   .h4-art__pencil {

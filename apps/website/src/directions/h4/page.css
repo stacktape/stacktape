@@ -20,7 +20,7 @@
   /* The one warm accent: the dispenser's body and the pencil of the notes. */
   --h4-sand: #e4d6bd;
   --h4-sand-muted: #b9ab93;
-  --h4-width: min(110rem, 100% - 2 * var(--h4-gutter));
+  --h4-width: min(118rem, 100% - 2 * var(--h4-gutter));
   --h4-gutter: clamp(1rem, 4vw, 4rem);
   scroll-padding-top: 5rem;
 }

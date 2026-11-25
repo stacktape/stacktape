@@ -119,6 +119,9 @@ const footShadowFar = add({ x: 200, y: 300 }, at(0.5));
       <stop offset="0" stop-color="#000" stop-opacity="0.55"></stop>
       <stop offset="1" stop-color="#000" stop-opacity="0"></stop>
     </radialGradient>
+    <clipPath id="h4-wall-clip">
+      <path d={wall}></path>
+    </clipPath>
     <g id="h4-mark">
       <polygon points="0,13 16,21.5 0,30 -16,21.5" fill="currentColor"></polygon>
       <polygon
@@ -188,6 +191,9 @@ const footShadowFar = add({ x: 200, y: 300 }, at(0.5));
   </g>
 
   <path d={wall} fill="url(#h4-wall)"></path>
+  <g clip-path="url(#h4-wall-clip)">
+    <path d={wall} transform="translate(1.5 3)" fill="none" stroke="var(--h4-sand-top)" stroke-width="3"></path>
+  </g>
   <path d={wall} fill="none" stroke="var(--h4-sand-edge)" stroke-width="1.5" stroke-linejoin="round"></path>
   <path d="M 58 300 L 350 300 Q 364 300 367 287 L 368.5 280 L 40 280 Q 44 300 58 300 Z" fill="var(--h4-foot)"></path>
 
