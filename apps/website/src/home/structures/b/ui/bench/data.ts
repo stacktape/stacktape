@@ -5,7 +5,7 @@
  */
 import { BENCHMARKS, findGroup, toolName } from '../../../../benchmarks';
 
-export type Bar = { label: string; seconds: number; us: boolean; note?: string };
+export type Bar = { tool: string; label: string; seconds: number; us: boolean; note?: string };
 
 /**
  * One benchmark group's bars, fastest first. `notes` puts a line under a tool's bar, e.g. how it deployed; `labels`
@@ -22,6 +22,7 @@ export const barsOf = (
     .group.values.toSorted((left, right) => left.median - right.median)
     .map((value) => {
       const bar: Bar = {
+        tool: value.tool,
         label: labels[value.tool] ?? toolName(BENCHMARKS, value.tool),
         seconds: value.median,
         us: value.tool === 'stacktape'

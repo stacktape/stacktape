@@ -33,23 +33,12 @@ const DOCS: Record<string, { label: string; href: string }> = {
   costs: { label: 'Costs', href: 'https://docs.stacktape.com/managing-costs/overview' },
   'expert-help': { label: 'Book a technical demo', href: 'https://cal.com/stacktape/30min' }
 };
-/** On a phone, the label above each picture: which product screen it is. */
-const SHOWS: Record<string, string> = {
-  designs: 'Setup wizard · Review',
-  packages: 'Benchmark · packaging',
-  deploys: 'Benchmark · deploys',
-  monitors: 'Stacktape Console · Traces',
-  secures: 'Stacktape Console · Security',
-  incidents: 'Stacktape Console · Incident at 10:35',
-  costs: 'Stacktape Console · Costs',
-  'expert-help': 'Slack · shared channel, an example'
-};
 const ROWS = SECTION_PACKS.map((pack, index) => ({ pack, index, Picture: PICTURES[pack.id] }));
 const pad = (index: number) => String(index + 1).padStart(2, '0');
 ---
 
 <div class="b-steps site-frame" data-steps>
-  <nav class="b-steps__rail" aria-label="Steps">
+  <nav class="b-steps__rail home-wide" aria-label="Steps">
     <p class="b-steps__jump">Jump to a step</p>
     <ol>
       {
@@ -69,7 +58,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
   <div class="b-steps__body">
     {
       ROWS.map(({ pack, index, Picture }) => (
-        <Step pack={pack} index={index} docs={DOCS[pack.id]} shows={SHOWS[pack.id]}>
+        <Step pack={pack} index={index} docs={DOCS[pack.id]} total={SECTION_PACKS.length}>
           <Picture />
         </Step>
       ))
@@ -95,6 +84,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
      */
     const update = () => {
       frame = 0;
+      if (!list?.clientWidth) return;
       const middle = window.innerHeight / 2;
       const current = sections.findLast((section) => section.getBoundingClientRect().top < middle)?.id;
       for (const [key, link] of links) {
@@ -102,8 +92,9 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
         else link.removeAttribute('aria-current');
       }
       const link = current === undefined ? undefined : links.get(current);
-      if (current !== shown && link && list && list.scrollWidth > list.clientWidth) {
-        list.scrollTo({ left: link.offsetLeft - list.offsetLeft, behavior: 'smooth' });
+      if (current !== shown && list.scrollWidth > list.clientWidth) {
+        const left = link ? link.offsetLeft - list.offsetLeft : 0;
+        list.scrollTo({ left, behavior: 'instant' });
       }
       shown = current;
     };
@@ -114,6 +105,7 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
       },
       { passive: true }
     );
+    window.addEventListener('resize', update);
     update();
   }
 </script>
@@ -272,6 +264,11 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
       display: inline;
       font-family: var(--brand-font-heading);
       font-weight: var(--brand-weight-label);
+    }
+  }
+  @media (max-width: 40rem) {
+    .b-steps {
+      width: 100%;
     }
   }
 </style>

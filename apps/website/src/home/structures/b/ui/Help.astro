@@ -1,4 +1,5 @@
 ---
+import PhoneBar from './phone/PhoneBar.astro';
 import './phone/phone.css';
 /*
  * Where help comes from, in two parts. First a crop of the Console's top bar with the Help menu open under Help, as
@@ -117,13 +118,13 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
   role="img"
   aria-label="An example support conversation in a shared Slack channel: Maya Chen from Acme asks which IPs their payment provider should allowlist for the worker. Stacktape answers with the two settings that send the worker's traffic through one Elastic IP per availability zone."
 >
-  <div aria-hidden="true" class="hlp-ph">
-    <p class="hlp-ph__channel"># support-acme-shop</p>
+  <PhoneBar title="Slack · #support-acme-shop · Example" />
+  <div aria-hidden="true" class="ph-body hlp-ph">
     <div class="hlp-ph__msg">
       <span class="hlp-ph__face brand-round">MC</span>
       <div>
         <p><b>Maya Chen</b> <span class="ph-muted">Acme</span></p>
-        <p>Our payment provider wants to allowlist the IPs our worker calls them from. Which IPs do we give them?</p>
+        <p>Which worker IPs should our payment provider allowlist?</p>
       </div>
     </div>
     <div class="hlp-ph__msg">
@@ -131,8 +132,8 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
       <div>
         <p><b>Stacktape</b> <span class="ph-muted">founder</span></p>
         <p>
-          Set <code>usePrivateSubnetsWithNAT: true</code> on the worker and <code>nat: ha-ec2</code>. Its traffic then
-          leaves through one Elastic IP per zone. Give the provider both.
+          Set <code>usePrivateSubnetsWithNAT: true</code> on the worker and <code>nat: ha-ec2</code>.
+          Give them the Elastic IP from each zone.
         </p>
       </div>
     </div>
@@ -146,23 +147,18 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
     gap: 0.9rem;
   }
 
-  .hlp-ph__channel {
-    padding-bottom: 0.7rem;
-    border-bottom: 1px solid var(--brand-border);
-    font-weight: 700;
-  }
-
   .hlp-ph__msg {
     display: grid;
     grid-template-columns: 2.25rem minmax(0, 1fr);
     gap: 0.7rem;
-    font-size: 0.9rem;
+    font-size: var(--home-caption);
   }
 
   .hlp-ph__msg code {
     padding: 0 0.2em;
     background: rgb(255 255 255 / 7%);
-    font: 0.85em var(--brand-font-mono);
+    font: var(--brand-type-xs) var(--brand-font-mono);
+    overflow-wrap: anywhere;
   }
 
   .hlp-ph__face {
@@ -171,7 +167,7 @@ const tornBottom = `polygon(0 0, 100% 0, ${teeth.join(', ')}, 0 calc(100% - 3.4p
     width: 2.25rem;
     height: 2.25rem;
     border-radius: 50%;
-    background: #2c3333;
+    background: var(--brand-control);
     font-size: 0.8rem;
     font-weight: 700;
   }

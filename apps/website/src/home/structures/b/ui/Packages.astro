@@ -1,5 +1,6 @@
 ---
 import Chart from './bench/Chart.astro';
+import PhoneChart from './bench/PhoneChart.astro';
 import { barsOf, runOf, slowest } from './bench/data';
 
 /**
@@ -21,17 +22,19 @@ const small = slowest(one, five);
 const run = runOf(0);
 ---
 
-<figure class="bn">
+<figure class="bn home-wide">
   <div class="bn-main">
     <div class="bn-stat">
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
       <p class="bn-stat__what">to package 25 Lambda functions from an empty build cache</p>
       <a class="brand-link bn-stat__run" href={run.link}>Median of 10 runs, {run.label}</a>
     </div>
-    <Chart size="large" bars={large} scale={30} ticks={[0, 10, 20, 30]} phoneTicks={[0, 15, 30]} />
+    <Chart size="large" bars={large} scale={30} ticks={[0, 10, 20, 30]} />
   </div>
   <div class="bn-more">
     <Chart title="1 function" detail="Empty build cache" bars={one} scale={small} />
     <Chart title="5 functions" detail="Empty build cache" bars={five} scale={small} />
   </div>
 </figure>
+
+<PhoneChart bars={large} competitor={{ tool: 'cdk', name: 'AWS CDK' }} task="to package 25 Lambda functions with an empty build cache" />

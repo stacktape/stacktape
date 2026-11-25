@@ -48,6 +48,30 @@ const current = (href: string) => (path === href ? 'page' : path.startsWith(`${h
   </div>
 </header>
 
+<script>
+  const menu = document.querySelector<HTMLDetailsElement>('.s-b .brand-header .menu');
+  if (menu) {
+    const phone = window.matchMedia('(max-width: 40rem)');
+    phone.addEventListener('change', () => { menu.open = false; });
+    document.addEventListener('click', (event) => {
+      if (phone.matches && menu.open && event.target instanceof Element && !event.target.closest('.menu summary, .menu nav')) {
+        menu.open = false;
+      }
+    });
+    menu.addEventListener('focusout', (event) => {
+      if (phone.matches && menu.open && !(event.relatedTarget instanceof Node && menu.contains(event.relatedTarget))) {
+        menu.open = false;
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (phone.matches && menu.open && event.key === 'Escape') {
+        menu.open = false;
+        menu.querySelector('summary')?.focus();
+      }
+    });
+  }
+</script>
+
 <style>
   .brand-header {
     position: sticky;
@@ -147,6 +171,55 @@ const current = (href: string) => (path === href ? 'page' : path.startsWith(`${h
 
     .menu {
       display: block;
+    }
+  }
+  @media (max-width: 40rem) {
+    :global(.s-b) .header-inner {
+      min-height: calc(3.5rem - 1px);
+    }
+
+    :global(.s-b) .brand-header:not([data-past-install]) :global(.brand-button) {
+      display: none;
+    }
+
+    :global(.s-b) .menu {
+      position: static;
+    }
+
+    :global(.s-b) .menu summary {
+      border: 0;
+    }
+
+    :global(.s-b) .menu[open]::before {
+      position: fixed;
+      inset: 3.5rem 0 0;
+      background: color-mix(in srgb, var(--brand-inset), transparent 25%);
+      content: '';
+    }
+
+    :global(.s-b) .menu nav {
+      inset: 100% 0 auto;
+      max-height: calc(100dvh - 3.5rem);
+      min-width: 0;
+      padding: var(--brand-space-2) var(--site-gutter) var(--brand-space-5);
+      overflow-y: auto;
+      border-inline: 0;
+      font-size: 1.0625rem;
+    }
+
+    :global(.s-b) .menu nav a {
+      display: flex;
+      align-items: center;
+      min-height: 3.25rem;
+      padding: var(--brand-space-2) 0;
+      border-bottom: 1px solid var(--brand-border);
+      color: var(--brand-text);
+    }
+
+    :global(.s-b) .menu nav a:last-child {
+      justify-content: center;
+      margin-top: var(--brand-space-4);
+      border: 1px solid var(--brand-muted);
     }
   }
 </style>

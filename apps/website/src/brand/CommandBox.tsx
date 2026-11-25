@@ -88,6 +88,8 @@ type Props = {
   id?: string;
   /** Preselect the visitor's installer when their platform is detected. Off keeps npm selected. */
   preselect?: boolean;
+  /** Show the npm command on its own. */
+  single?: boolean;
 };
 
 /**
@@ -95,7 +97,7 @@ type Props = {
  * tabs above a large, quiet command field with a labelled Copy button. Each tab shows one command, the one Copy puts on
  * the clipboard.
  */
-export function CommandBox({ label = 'Install', hint = false, id, preselect = true }: Props) {
+export function CommandBox({ label = 'Install', hint = false, id, preselect = true, single = false }: Props) {
   const [current, setCurrent] = useState<CommandId>('npx');
   const [state, setState] = useState<CopyState>('idle');
   const [status, setStatus] = useState('');
@@ -107,7 +109,7 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
   const command = entry.command;
 
   useEffect(() => {
-    if (!preselect) return;
+    if (!preselect || single) return;
     let cancelled = false;
     const select = async () => {
       const platform = await detectInstallPlatform();
@@ -118,7 +120,7 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
     return () => {
       cancelled = true;
     };
-  }, [preselect]);
+  }, [preselect, single]);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
@@ -165,28 +167,30 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
 
   return (
     <div className={`brand-command brand-command--${state}`} id={id}>
-      <Tabs
-        appearance="segmented"
-        ariaLabel={`${label}: how to run the Stacktape CLI`}
-        className="brand-tabs brand-command__tabs"
-        onValueChange={switchTo}
-        size="small"
-        // The operating systems form an unnamed group after a divider: their installers need no Node.js.
-        tabs={COMMANDS.map((tab) => ({
-          value: tab.id,
-          label: tab.label,
-          panelId,
-          group: 'installer' in tab ? '' : undefined
-        }))}
-        value={current}
-        width="fit"
-      />
+      {!single && (
+        <Tabs
+          appearance="segmented"
+          ariaLabel={`${label}: how to run the Stacktape CLI`}
+          className="brand-tabs brand-command__tabs"
+          onValueChange={switchTo}
+          size="small"
+          // The operating systems form an unnamed group after a divider: their installers need no Node.js.
+          tabs={COMMANDS.map((tab) => ({
+            value: tab.id,
+            label: tab.label,
+            panelId,
+            group: 'installer' in tab ? '' : undefined
+          }))}
+          value={current}
+          width="fit"
+        />
+      )}
       <div
         aria-label={`${entry.label} command`}
         className="brand-command__field"
         id={panelId}
         ref={fieldRef}
-        role="tabpanel"
+        role={single ? 'group' : 'tabpanel'}
       >
         <CommandWords command={command} powershell={entry.id === 'windows'} />
         <Button
