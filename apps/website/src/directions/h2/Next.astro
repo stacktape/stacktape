@@ -2,6 +2,7 @@
 import Tape from '../../brand/Tape.astro';
 import reviewLarge from './shots/review-2880.webp';
 import reviewSmall from './shots/review-1440.webp';
+import reviewPhone from './shots/review-phone.webp';
 
 /** Three facts a CTO can check, right under the hero. */
 const FACTS = [
@@ -49,7 +50,9 @@ const FACTS = [
       </p>
     </div>
     <figure class="h2-designs__window">
-      <img
+      <picture>
+        <source media="(max-width: 40rem)" srcset={reviewPhone.src} width={reviewPhone.width} height={reviewPhone.height} />
+        <img
         src={reviewSmall.src}
         srcset={`${reviewSmall.src} 1440w, ${reviewLarge.src} 2880w`}
         sizes="(min-width: 84rem) 84rem, 100vw"
@@ -59,15 +62,15 @@ const FACTS = [
         loading="lazy"
         decoding="async"
       />
+      </picture>
     </figure>
   </div>
 </section>
 
 <style>
   .h2-facts__list {
-    display: flex;
-    justify-content: center;
-    gap: var(--brand-space-7);
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     padding: var(--brand-space-5) 0;
     border-block: 1px solid var(--brand-border);
     list-style: none;
@@ -75,13 +78,20 @@ const FACTS = [
 
   .h2-facts li {
     display: grid;
+    justify-items: center;
+    align-content: start;
     gap: var(--brand-space-1);
-    max-inline-size: 22rem;
+    padding-inline: var(--brand-space-6);
     font-size: var(--brand-type-sm);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  .h2-facts li + li {
+    border-inline-start: 1px solid var(--brand-border);
   }
 
   .h2-facts a {
-    justify-self: start;
     color: var(--brand-text);
     font-weight: var(--brand-weight-label);
     text-decoration-color: var(--brand-border);
@@ -123,16 +133,34 @@ const FACTS = [
     box-shadow: 0 40px 90px rgb(0 0 0 / 45%);
   }
 
+  .h2-designs__window picture,
   .h2-designs__window img {
     display: block;
     inline-size: 100%;
     block-size: auto;
   }
 
+  @media (max-width: 40rem) {
+    .h2-designs__window {
+      max-inline-size: 24rem;
+      margin-inline: auto;
+    }
+  }
+
   @media (max-width: 56rem) {
     .h2-facts__list {
-      flex-direction: column;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--brand-space-4);
+    }
+
+    .h2-facts li {
+      padding-inline: 0;
+    }
+
+    .h2-facts li + li {
+      padding-block-start: var(--brand-space-4);
+      border-block-start: 1px solid var(--brand-border);
+      border-inline-start: 0;
     }
   }
 </style>

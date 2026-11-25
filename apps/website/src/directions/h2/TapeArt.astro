@@ -121,8 +121,8 @@ const TONES: Record<Tone, { top: string; bottom: string; ink: string }> = {
           >
             <defs>
               <symbol id={`h2-mark-${scene.id}-${depth}`} viewBox="0 0 64 64">
-                <polygon points="32,30 48,38.5 32,47 16,38.5" />
-                <polygon points="32,23.5 48,32 32,40.5 16,32" />
+                <polygon points="16,38.5 20.2,36.2 32,42.5 43.8,36.2 48,38.5 32,47" />
+                <polygon points="16,32 20.2,29.7 32,36 43.8,29.7 48,32 32,40.5" />
                 <polygon points="32,17 48,25.5 32,34 16,25.5" />
               </symbol>
               <filter
@@ -264,6 +264,7 @@ const TONES: Record<Tone, { top: string; bottom: string; ink: string }> = {
     inline-size: 104%;
     block-size: 104%;
     transition: transform 900ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    will-change: transform;
   }
 
   .h2-art__layer--far {
