@@ -116,6 +116,16 @@ const proof = [
     }
   }
 
+  /* A soft shade behind the words, so the sky's brush strokes never cross the headline at full strength. */
+  .atmo::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    content: '';
+    background: radial-gradient(ellipse 46% 26% at 50% 15%, rgb(9 16 16 / 50%), transparent 100%);
+    pointer-events: none;
+  }
+
   .atmo__copy {
     display: grid;
     justify-items: center;
@@ -407,14 +417,15 @@ const proof = [
 
     .atmo__tabs {
       position: static;
-      flex-wrap: wrap;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       margin-block-start: var(--brand-space-5);
       transform: none;
     }
 
     .atmo__tabs button {
-      padding: 0.5rem 0.7rem;
+      padding: 0.55rem 0.25rem;
+      font-size: var(--brand-type-xs);
     }
 
     .atmo__proof {

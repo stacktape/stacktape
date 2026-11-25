@@ -20,7 +20,7 @@ import Tape from '../../brand/Tape.astro';
     <img
       src="/d/h3/review-1200.webp"
       srcset="/d/h3/review-1200.webp 1200w, /d/h3/review-2400.webp 2400w"
-      sizes="(min-width: 72rem) 50rem, 92vw"
+      sizes="(min-width: 72rem) 70rem, 92vw"
       width="2400"
       height="1500"
       loading="lazy"
@@ -33,11 +33,12 @@ import Tape from '../../brand/Tape.astro';
 <style>
   .first {
     display: grid;
-    grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 28rem) minmax(0, 1fr);
     align-items: center;
     gap: clamp(2.5rem, 6vw, 7rem);
-    inline-size: var(--h3-measure);
-    margin: clamp(6rem, 10vw, 11rem) auto clamp(6rem, 8vw, 9rem);
+    inline-size: var(--h3-frame);
+    margin: clamp(6rem, 9vw, 10rem) auto clamp(6rem, 8vw, 9rem);
+    padding-inline: var(--brand-space-2);
   }
 
   .first__text {
