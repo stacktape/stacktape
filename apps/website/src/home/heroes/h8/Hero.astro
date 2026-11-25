@@ -1,0 +1,437 @@
+---
+/**
+ * Hero h8, "Three layers": H1's world made readable. Three stacked sheets are the three layers Stacktape handles: the
+ * app's resources in the visitor's AWS account (official AWS icons), Stacktape packaging and deploying it, and the
+ * Console watching it. Every thing has a plain label; arrows show only where code, requests and data flow. The geometry
+ * and the words are in scene.ts.
+ */
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { CommandBox } from '../../../brand/CommandBox';
+import Tape from '../../../brand/Tape.astro';
+import newsreader from './fonts/newsreader-latin.woff2?url';
+import newsreaderItalic from './fonts/newsreader-latin-italic.woff2?url';
+import { sheets, symbols, viewBox } from './scene';
+
+type Props = { subheadline?: string };
+
+const {
+  subheadline = 'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.'
+} = Astro.props;
+
+const box = `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`;
+---
+
+<link rel="preload" href={newsreader} as="font" type="font/woff2" crossorigin />
+<link rel="preload" href={newsreaderItalic} as="font" type="font/woff2" crossorigin />
+<section class="h8" aria-labelledby="h8-title">
+  <div class="h8__frame site-frame">
+    <div class="h8__text">
+      <div class="h8__copy">
+        <h1 class="h8__title" id="h8-title"><span>AWS DevOps,</span> <em>fully automated.</em></h1>
+        <p class="h8__sub">{subheadline}</p>
+      </div>
+      <div class="h8__start">
+        <CommandBox client:load id="install" preselect={false} />
+        <div class="h8__more">
+          <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com">Read the docs</ButtonLink>
+          <p class="h8__own">
+            Runs in your AWS account on standard CloudFormation. Stop using Stacktape and your app keeps running.
+          </p>
+        </div>
+      </div>
+    </div>
+    <figure class="h8__art">
+      <div
+        class="h8__scene"
+        style={`--h8-aspect: ${(viewBox.width / viewBox.height).toFixed(3)}`}
+        role="img"
+        aria-label="Three stacked layers. Bottom, your AWS account runs your app: your users reach CloudFront, which serves website files from S3 and sends API requests to ECS Fargate; the API uses RDS Postgres and Redis, and a Lambda function runs scheduled jobs against the database. Middle, Stacktape takes your repo, packages it into zips and images and deploys it with CloudFormation, with pull request previews, secrets in Secrets Manager and organisation-wide guardrails. Top, the Console turns monitoring into incidents and alerts you on Slack or email, and tracks costs against budgets."
+      >
+        <svg viewBox={box} aria-hidden="true">
+          <defs>
+            <Fragment set:html={symbols} />
+            <marker id="h8-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto">
+              <path class="h8-arrowhead" d="M1 1.2 8.4 5 1 8.8" />
+            </marker>
+            <clipPath id="h8-tile" clipPathUnits="objectBoundingBox">
+              <rect width="1" height="1" rx="0.12" />
+            </clipPath>
+          </defs>
+          {
+            sheets.map((sheet) => (
+              <g class="h8-sheet" data-layer={sheet.id} style={`--h8-layer: ${sheet.index}`}>
+                <polygon class="h8-sheet__left" points={sheet.sideLeft} />
+                <polygon class="h8-sheet__right" points={sheet.sideRight} />
+                <polygon class="h8-sheet__top" points={sheet.top} />
+                <polyline class="h8-sheet__edge" points={sheet.edge} />
+                {sheet.flows.map((d) => (
+                  <path class="h8-flow" d={d} marker-end="url(#h8-arrow)" />
+                ))}
+                {sheet.items.map((item) => (
+                  <g class="h8-item" data-item={item.id}>
+                    {item.pad && <polygon class="h8-item__pad" points={item.pad} />}
+                    <use
+                      href={item.href}
+                      x={item.icon.x}
+                      y={item.icon.y}
+                      width={item.icon.size}
+                      height={item.icon.size}
+                      clip-path="url(#h8-tile)"
+                    />
+                    <text class="h8-item__label" x={item.label.x} y={item.label.y}>
+                      <tspan class="h8-item__name" x={item.label.x}>
+                        {item.name}
+                      </tspan>
+                      <tspan class="h8-item__short" x={item.label.x}>
+                        {item.short}
+                      </tspan>
+                      {item.role && (
+                        <tspan class="h8-item__role" x={item.label.x} dy="1.3em">
+                          {item.role}
+                        </tspan>
+                      )}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            ))
+          }
+        </svg>
+        <ul class="h8__layers" aria-hidden="true">
+          {
+            sheets.map((sheet) => (
+              <li style={`left: ${sheet.at.left}%; top: ${sheet.at.top}%`}>
+                <Tape>{sheet.label}</Tape>
+                <span>{sheet.caption}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<style>
+  /* Newsreader (SIL OFL, licence in fonts/), loaded only by this hero. */
+  @font-face {
+    font-weight: 200 800;
+    font-style: normal;
+    font-family: 'Stacktape H8 Newsreader';
+    font-display: swap;
+    src: url('./fonts/newsreader-latin.woff2') format('woff2');
+  }
+
+  @font-face {
+    font-weight: 200 800;
+    font-style: italic;
+    font-family: 'Stacktape H8 Newsreader';
+    font-display: swap;
+    src: url('./fonts/newsreader-latin-italic.woff2') format('woff2');
+  }
+
+  .h8 {
+    --h8-display: 'Stacktape H8 Newsreader', Georgia, serif;
+    --h8-sheet-top: #202828;
+    --h8-sheet-left: #1a2121;
+    --h8-sheet-right: #121818;
+    --h8-sheet-edge: #3a4544;
+    --h8-flow: var(--brand-teal);
+
+    display: grid;
+    align-items: center;
+    min-block-size: clamp(40rem, 100svh - 4.5rem, 72rem);
+    padding-block: clamp(2rem, 5svh, 4.5rem);
+    background: var(--brand-page);
+  }
+
+  /* Copy and command on the left, the picture on the right. The picture may reach past the site frame. */
+  .h8__frame {
+    display: grid;
+    grid-template-columns: minmax(0, clamp(30rem, 22rem + 10vw, 35rem)) minmax(0, 1fr);
+    column-gap: clamp(2rem, 3vw, 5rem);
+    align-items: center;
+  }
+
+  .h8__title {
+    font-family: var(--h8-display);
+    font-size: clamp(2.875rem, 1.6rem + 3.2vw, 5.75rem);
+    font-weight: 560;
+    line-height: 0.98;
+    letter-spacing: -0.022em;
+  }
+
+  .h8__title span,
+  .h8__title em {
+    display: block;
+    white-space: nowrap;
+  }
+
+  .h8__title em {
+    color: var(--brand-teal);
+    font-weight: 500;
+  }
+
+  .h8__sub {
+    margin-block-start: clamp(1.25rem, 1rem + 0.7vw, 1.875rem);
+    color: #c4cdcb;
+    font-size: clamp(1.0625rem, 0.98rem + 0.3vw, 1.3125rem);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+
+  .h8__start {
+    display: grid;
+    gap: var(--brand-space-4);
+    margin-block-start: clamp(1.75rem, 1.4rem + 1.2vw, 2.75rem);
+  }
+
+  .h8__start :global(#install) {
+    scroll-margin-block-start: 6rem;
+  }
+
+  .h8__more {
+    display: flex;
+    gap: var(--brand-space-4);
+    align-items: center;
+  }
+
+  .h8__more :global(.brand-button) {
+    flex: none;
+  }
+
+  .h8__own {
+    max-inline-size: 26rem;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+    line-height: 1.45;
+  }
+
+  /*
+   * The picture: three layer sheets. It reaches past the site frame towards the window's edge and keeps room on its
+   * right for the layer captions.
+   */
+  .h8__art {
+    --h8-caption-room: clamp(13rem, 5rem + 10vw, 22rem);
+
+    display: grid;
+    justify-items: center;
+    margin: 0 min(0rem, var(--brand-space-6) - (100vw - var(--site-width, 76rem)) / 2) 0 0;
+    padding: var(--brand-space-7) var(--h8-caption-room) 0 0;
+  }
+
+  .h8__scene {
+    position: relative;
+    inline-size: min(100%, (100svh - 13rem) * var(--h8-aspect));
+  }
+
+  .h8__scene svg {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    overflow: visible;
+  }
+
+  .h8-sheet__top {
+    fill: var(--h8-sheet-top);
+  }
+
+  /* On load the layers settle onto each other, bottom first: your AWS account, then Stacktape, then the Console. */
+  @media (prefers-reduced-motion: no-preference) {
+    .h8-sheet {
+      animation: h8-settle 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      animation-delay: calc(0.15s + var(--h8-layer) * 0.14s);
+    }
+  }
+
+  @keyframes h8-settle {
+    from {
+      opacity: 0;
+      translate: 0 -28px;
+    }
+  }
+
+  .h8-sheet__left {
+    fill: var(--h8-sheet-left);
+  }
+
+  .h8-sheet__right {
+    fill: var(--h8-sheet-right);
+  }
+
+  .h8-sheet__edge {
+    fill: none;
+    stroke: var(--h8-sheet-edge);
+    stroke-width: 1;
+    stroke-linejoin: round;
+  }
+
+  .h8-flow {
+    fill: none;
+    stroke: var(--h8-flow);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  .h8-arrowhead {
+    fill: none;
+    stroke: var(--h8-flow);
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .h8-item__pad {
+    fill: rgb(0 0 0 / 28%);
+  }
+
+  /* Label sizes are in the drawing's units; the steps keep them about 12 to 15 px on screen as the drawing scales. */
+  .h8-item__label {
+    font-family: var(--brand-font-body);
+    font-size: 15px;
+    text-anchor: middle;
+  }
+
+  .h8-item__name {
+    fill: var(--brand-text);
+    font-weight: 600;
+  }
+
+  .h8-item__role {
+    fill: var(--brand-muted);
+  }
+
+  .h8-item__short {
+    display: none;
+    fill: var(--brand-text);
+    font-weight: 600;
+  }
+
+  /* Each layer's tape label and caption, right of its sheet. */
+  .h8__layers {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .h8__layers li {
+    position: absolute;
+    display: grid;
+    justify-items: start;
+    gap: var(--brand-space-1);
+    inline-size: calc(var(--h8-caption-room) - var(--brand-space-5));
+    margin-inline-start: var(--brand-space-5);
+    translate: 0 -50%;
+    color: var(--brand-muted);
+    font-size: clamp(0.875rem, 0.7rem + 0.32vw, 1.1875rem);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  /* A short rule ties each caption to its sheet's corner. */
+  .h8__layers li::before {
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: calc(-1 * var(--brand-space-4));
+    inline-size: var(--brand-space-3);
+    border-block-start: 1px solid var(--h8-sheet-edge);
+    content: '';
+  }
+
+  .h8__layers :global(.tape) {
+    font-size: 0.95em;
+  }
+
+  @media (min-width: 100rem) {
+    .h8-item__label {
+      font-size: 12.5px;
+    }
+  }
+
+  @media (min-width: 140rem) {
+    .h8-item__label {
+      font-size: 11px;
+    }
+  }
+
+  /* Narrow screens: one column, the command before the picture so it shows on a phone's first screen. */
+  @media (max-width: 64rem) {
+    .h8 {
+      min-block-size: 0;
+      padding-block: var(--brand-space-6) var(--brand-space-7);
+    }
+
+    .h8__frame {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .h8__art {
+      margin: var(--brand-space-7) 0 0;
+    }
+
+    .h8__scene {
+      inline-size: 100%;
+    }
+  }
+
+  /*
+   * Phones: the drawing loses the empty tips of its sheets so the icons and labels are larger, and the layer captions
+   * list under it, top sheet first.
+   */
+  @media (max-width: 37.5rem) {
+    .h8 {
+      overflow-x: clip;
+    }
+
+    .h8__more {
+      flex-direction: column-reverse;
+      align-items: flex-start;
+    }
+
+    .h8__art {
+      --h8-caption-room: 0rem;
+
+      justify-items: start;
+    }
+
+    .h8__scene {
+      inline-size: 113%;
+      margin-inline-start: -5%;
+    }
+
+    .h8__layers {
+      display: flex;
+      flex-direction: column-reverse;
+      gap: var(--brand-space-4);
+      /* The drawing is 113% wide and starts 5% left of the column; the list starts back on the column's edge. */
+      margin: var(--brand-space-5) 0 0 calc(5% / 1.13);
+      padding-inline-end: var(--brand-space-4);
+    }
+
+    .h8__layers li {
+      position: static;
+      inline-size: auto;
+      margin: 0;
+      translate: none;
+    }
+
+    .h8__layers li::before {
+      display: none;
+    }
+
+    /* Larger letters need a little more room below the arrows that leave each icon. */
+    .h8-item__label {
+      font-size: 20px;
+      translate: 0 7px;
+    }
+
+    .h8-item__name,
+    .h8-item__role {
+      display: none;
+    }
+
+    .h8-item__short {
+      display: inline;
+    }
+  }
+</style>

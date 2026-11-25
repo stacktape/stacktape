@@ -1,15 +1,15 @@
 ---
+import { codeParts } from '../../code-text';
+
 type Props = {
   /** The headline fact, set large. */
   figure?: { value: string; label: string };
-  facts: { text: string }[];
+  facts: readonly string[];
   /** Lay the facts out in a row instead of a column. */
   row?: boolean;
 };
 
 const { figure, facts, row = false } = Astro.props;
-/** Backticks in a fact mark code, as in the section packs. */
-const parts = (text: string) => text.split('`').map((part, index) => ({ part, code: index % 2 === 1 }));
 ---
 
 <div class:list={['facts', row && 'facts--row']}>
@@ -23,7 +23,7 @@ const parts = (text: string) => text.split('`').map((part, index) => ({ part, co
   }
   {
     facts.map((fact) => (
-      <p class="fact">{parts(fact.text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
+      <p class="fact">{codeParts(fact).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
     ))
   }
 </div>

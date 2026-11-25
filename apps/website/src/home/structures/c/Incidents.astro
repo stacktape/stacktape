@@ -2,26 +2,22 @@
 /** Monitoring and incidents as one block: what breaks, and what the team sees when it does. */
 import Block from './Block.astro';
 import incident from './incident.webp';
+import { sectionPack } from '../../sections';
 import { pack } from './packs';
 
 /** On phones the incident screen is unreadable, so the monitors pack's phone crop stands in. */
-const phone = pack('monitors').picture.phone;
+const monitors = pack('monitors');
+const { phone } = monitors.picture;
+const incidents = sectionPack('incidents');
 ---
 
 <Block
   id="incidents"
   marker="Monitoring and incidents"
-  problem="Without a DevOps engineer, monitoring is the job nobody gets to."
-  title="Monitoring comes with the stack. No extra vendor."
+  title={`${monitors.title} and ${incidents.title.toLowerCase()}`}
+  text={monitors.text}
 >
-  <p>
-    With the Console, error tracking is on by default. Related errors, alarms and failed checks become one incident, with
-    the release that was live when it opened.
-  </p>
-  <p class="c-small">
-    Tracing is one config property and an uptime check is a URL in the config. Connect Slack to acknowledge, mute or
-    roll back from the incident card.
-  </p>
+  <p>{incidents.text}</p>
 
   <figure slot="picture" class="incidents__picture">
     <picture>
@@ -43,8 +39,8 @@ const phone = pack('monitors').picture.phone;
     </picture>
     <figcaption class="c-muted">
       <span class="incidents__wide"
-        >Every incident gets an AI assessment on your organization's Anthropic, OpenAI or xAI key. Investigations and fixes
-        run when you ask, on that key or your own subscription. Nothing is deployed.</span
+        >An incident with its signals, the release that was live and an AI assessment on your organization’s AI key. Fix
+        with AI opens a draft pull request and deploys nothing.</span
       >
       <span class="incidents__narrow">Requests and errors for the last 24 hours, in the Console.</span>
     </figcaption>

@@ -1,23 +1,36 @@
 ---
-/** One capability block: the problem it removes, what Stacktape does, then the picture. */
+/** One capability block: the section pack's title, text and points, any notes in the slot, then the picture. */
 import Tape from '../../../brand/Tape.astro';
+import { codeParts } from '../../code-text';
 
 type Props = {
   id: string;
   marker: string;
-  problem: string;
   title: string;
+  text: string;
+  points?: readonly string[];
 };
 
-const { id, marker, problem, title } = Astro.props;
+const { id, marker, title, text, points = [] } = Astro.props;
 ---
 
 <section class="site-frame c-section block" id={id} aria-labelledby={`${id}-title`}>
   <div class="c-intro">
     <Tape variant="marker">{marker}</Tape>
-    <p class="block__problem">{problem}</p>
     <h2 class="c-h2" id={`${id}-title`}>{title}</h2>
-    <div class="block__body"><slot /></div>
+    <div class="block__body">
+      <p class="block__text">{codeParts(text).map(({ part, code }) => (code ? <code>{part}</code> : part))}</p>
+      {
+        points.length > 0 && (
+          <ul class="block__points">
+            {points.map((point) => (
+              <li>{codeParts(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>
+            ))}
+          </ul>
+        )
+      }
+      <slot />
+    </div>
   </div>
   <div class="block__picture">
     <slot name="picture" />
@@ -39,11 +52,28 @@ const { id, marker, problem, title } = Astro.props;
     }
   }
 
-  .block__problem {
-    margin: var(--brand-space-2) 0 0;
-    color: var(--brand-muted);
+  .block__text {
+    color: var(--brand-text);
     font-size: var(--brand-type-lead);
+  }
+
+  .block__points {
+    display: grid;
+    gap: var(--brand-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .block__points li {
+    padding-block-start: var(--brand-space-2);
+    border-block-start: 1px solid var(--brand-border);
     text-wrap: pretty;
+  }
+
+  .block__body code {
+    color: var(--brand-text);
+    font: 0.9em var(--brand-font-mono);
   }
 
   .block__body {

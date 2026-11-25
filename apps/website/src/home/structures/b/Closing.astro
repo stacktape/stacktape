@@ -5,9 +5,12 @@ import { CommandBox } from '../../../brand/CommandBox';
 
 <section class="b-closing site-frame" aria-labelledby="b-closing-title">
   <div class="b-closing__copy">
-    <p class="b-closing__marker"><Tape variant="marker">09 Your app</Tape><span>Your turn</span></p>
-    <h2 id="b-closing-title">Try it on your repo.</h2>
-    <p class="b-closing__line">Run one command. Review the setup and what it costs before anything is created.</p>
+    <p class="b-closing__marker"><Tape variant="marker">09 Try it</Tape></p>
+    <h2 id="b-closing-title">Try it on your repository</h2>
+    <p class="b-closing__line">
+      <code>stacktape init</code> reads your code and opens the proposed setup in your browser. Nothing is created in AWS
+      until you click Deploy.
+    </p>
   </div>
   <div class="b-closing__start">
     <CommandBox client:visible label="Start in your repo" preselect={false} />
@@ -29,12 +32,7 @@ import { CommandBox } from '../../../brand/CommandBox';
   }
 
   .b-closing__marker {
-    display: flex;
-    align-items: center;
-    gap: var(--brand-space-3);
     margin-bottom: var(--brand-space-5);
-    color: var(--brand-muted);
-    font-size: var(--brand-type-sm);
   }
 
   h2 {
@@ -47,6 +45,11 @@ import { CommandBox } from '../../../brand/CommandBox';
     margin-top: var(--brand-space-4);
     color: var(--brand-muted);
     font-size: var(--brand-type-lead);
+  }
+
+  .b-closing__line code {
+    color: var(--brand-text);
+    font: 0.9em var(--brand-font-mono);
   }
 
   .b-closing__start {

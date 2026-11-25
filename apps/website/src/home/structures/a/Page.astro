@@ -27,16 +27,11 @@ const deployConfirm = {
   phone: { small: deployConfirmPhoneSmall, large: deployConfirmPhoneLarge },
   alt: 'The init wizard’s Deploy step: the AWS account, region and stage it deploys to, secrets saved in AWS Secrets Manager, and what the deploy creates with an estimated $32 a month.'
 };
-/* Error tracking is on by default only with the Console (docs/observability/error-tracking.mdx:34). */
-const errorTracking = {
-  value: 'On by default',
-  label: 'With the Console, error tracking is on for every stage and wired into each stack when it deploys.'
-};
 ---
 
 <BaseLayout
   title="Stacktape: AWS DevOps, fully automated"
-  description="Stacktape reads your repository, designs the AWS infrastructure and runs it in your own AWS account."
+  description="Stacktape reads your repository, designs the AWS infrastructure, deploys it to your own AWS account and keeps it running."
   noindex={!isHome}
   htmlClass="brand structure-a"
 >
@@ -45,31 +40,13 @@ const errorTracking = {
   <main>
     <div class="hero-slot"><slot name="hero" /></div>
     <Proof />
-    <PackSection
-      pack="designs"
-      index={1}
-      line="You see each resource and its estimated monthly cost, and nothing is created until you click Deploy."
-      picture={deployConfirm}
-      skipFacts={[1]}
-    />
+    <PackSection pack="designs" index={1} picture={deployConfirm} />
     <Packages />
     <Deploys />
-    <PackSection
-      pack="monitors"
-      index={4}
-      line="Logs and metrics come with every stack. With the Console, error tracking is on by default."
-      figure={errorTracking}
-      flip
-    />
-    <PackSection
-      pack="secures"
-      index={5}
-      title="Least access by default. Rules checked before deploy."
-      layout="wide"
-      skipFacts={[0]}
-    />
+    <PackSection pack="monitors" index={4} flip />
+    <PackSection pack="secures" index={5} layout="wide" />
     <Incidents />
-    <PackSection pack="costs" index={7} layout="wide" skipFacts={[0]} />
+    <PackSection pack="costs" index={7} layout="wide" />
     <Help />
     <Customers />
     <Closing />

@@ -2,7 +2,7 @@
 import Deploy from './Deploy.astro';
 import Incident from './Incident.astro';
 import { STEPS } from '../../heroes/b/steps';
-import { SECTION_PACKS } from '../../sections';
+import { sectionPack } from '../../sections';
 import PackVisual from './PackVisual.astro';
 import Step from './Step.astro';
 
@@ -16,8 +16,8 @@ const DOCS: Record<string, { label: string; href: string }> = {
   costs: { label: 'Costs', href: 'https://docs.stacktape.com/managing-costs/overview' },
   'expert-help': { label: 'Pricing', href: '/pricing' }
 };
-/** Each step with its section pack; Deploys and Incidents have their own sections instead. */
-const ROWS = STEPS.map((step, index) => ({ step, index, pack: SECTION_PACKS.find((pack) => pack.id === step.id) }));
+/** Each step with its section pack. Deploys and Incidents show their own screens instead of the pack's picture. */
+const ROWS = STEPS.map((step, index) => ({ step, index, pack: sectionPack(step.id) }));
 const pad = (index: number) => String(index + 1).padStart(2, '0');
 ---
 
@@ -43,9 +43,8 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
   <div class="b-steps__body">
     {
       ROWS.map(({ step, index, pack }) => (
-        <Step step={step} index={index} docs={DOCS[step.id]}>
-          {step.id === 'deploys' ? <Deploy /> : step.id === 'incidents' ? <Incident /> : null}
-          {pack ? <PackVisual pack={pack} /> : null}
+        <Step step={step} title={pack.title} text={pack.text} index={index} docs={DOCS[step.id]}>
+          {step.id === 'deploys' ? <Deploy /> : step.id === 'incidents' ? <Incident /> : <PackVisual pack={pack} />}
         </Step>
       ))
     }

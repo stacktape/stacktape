@@ -1,4 +1,5 @@
 ---
+import { sectionPack } from '../../sections';
 import Facts from './Facts.astro';
 import Section from './Section.astro';
 import Shot from './Shot.astro';
@@ -7,23 +8,15 @@ import incidentPhoneLarge from './shots/incident-phone-large.webp';
 import incidentPhoneSmall from './shots/incident-phone-small.webp';
 import incidentSmall from './shots/incident-1224.webp';
 
-/* Sources: docs/observability/incidents.mdx:16-23, alert-channels.mdx:38, incident-ai.mdx:12-14. */
-const figure = {
-  value: 'One incident',
-  label: 'for the errors, alarms, failing checks, unhealthy stacks and expiring certificates that belong together.'
-};
-const facts = [
-  { text: 'Connect a Slack channel, then acknowledge, mute, resolve or roll back to the release before, from the card.' },
-  { text: 'With your own AI key, each incident gets an assessment. Fix with AI opens a draft pull request and deploys nothing.' }
-];
+const pack = sectionPack('incidents');
 ---
 
 <Section
   id="incidents"
   index={6}
-  name="Incidents"
-  title="One incident per problem, handled from Slack."
-  line="Errors, alarms and failed checks from one bad release arrive as one incident in your Slack channel."
+  name={pack.name}
+  title={pack.title}
+  line={pack.text}
 >
   <div class="body">
     <Shot
@@ -32,7 +25,7 @@ const facts = [
       alt="An incident in the Stacktape Console: API error rate above 5% on checkout-api production, with an AI assessment and a draft fix opened as a pull request."
       sizes="(min-width: 92rem) 58rem, (min-width: 64rem) 64vw, 94vw"
     />
-    <Facts {figure} {facts} />
+    <Facts facts={pack.gets} />
   </div>
 </Section>
 

@@ -1,30 +1,28 @@
 ---
-import { SECTION_PACKS } from '../../sections';
+import { sectionPack } from '../../sections';
 import { PACKAGING_VIEWS, RUN } from './bench';
 import Chart from './Chart.astro';
 import Facts from './Facts.astro';
 import Section from './Section.astro';
 import Shot from './Shot.astro';
 
-const pack = SECTION_PACKS.find((candidate) => candidate.id === 'packages');
-if (!pack?.picture || !pack.figure.bars) throw new Error('The packages pack is incomplete');
-const cdk = pack.figure.bars.find((bar) => bar.tool === 'AWS CDK');
-if (!cdk) throw new Error('The packages pack has no AWS CDK value');
+const pack = sectionPack('packages');
 const { picture } = pack;
+if (!picture) throw new Error('The packages pack has no picture');
 ---
 
 <Section
   id="packages"
   index={2}
   name={pack.name}
-  title={`${pack.title}.`}
-  line={`Same functions, empty build cache: AWS CDK takes ${cdk.seconds.toFixed(1)} s.`}
+  title={pack.title}
+  line={pack.text}
   source={{ label: `Preliminary run, ${RUN.label}`, href: '/benchmarks' }}
 >
   <div class="body">
     <Chart id="packaging" kicker="Seconds to package" views={PACKAGING_VIEWS}>
-      Median of 10 runs, lower is better, on a dedicated EC2 machine. After a source change, every tool takes about the
-      same time.{' '}<a class="brand-link" href="/benchmarks">All results</a>
+      Median of 10 runs on a dedicated EC2 machine, lower is better. After a change to the source, every tool takes
+      about the same time.{' '}<a class="brand-link" href="/benchmarks">All results</a>
     </Chart>
     <div class="side">
       <Shot
@@ -33,7 +31,7 @@ const { picture } = pack;
         alt={picture.alt}
         sizes="(min-width: 92rem) 50rem, (min-width: 64rem) 56vw, 94vw"
       />
-      <Facts facts={pack.facts} />
+      <Facts facts={pack.gets} />
     </div>
   </div>
 </Section>
