@@ -3,6 +3,8 @@ import Facts from './Facts.astro';
 import Section from './Section.astro';
 import Shot from './Shot.astro';
 import incidentLarge from './shots/incident-2448.webp';
+import incidentPhoneLarge from './shots/incident-phone-large.webp';
+import incidentPhoneSmall from './shots/incident-phone-small.webp';
 import incidentSmall from './shots/incident-1224.webp';
 
 /* Sources: docs/observability/incidents.mdx:16-23, alert-channels.mdx:38, incident-ai.mdx:12-14. */
@@ -26,6 +28,7 @@ const facts = [
   <div class="body">
     <Shot
       desktop={{ small: incidentSmall, large: incidentLarge }}
+      phone={{ small: incidentPhoneSmall, large: incidentPhoneLarge }}
       alt="An incident in the Stacktape Console: API error rate above 5% on checkout-api production, with an AI assessment and a draft fix opened as a pull request."
       sizes="(min-width: 92rem) 58rem, (min-width: 64rem) 64vw, 94vw"
     />

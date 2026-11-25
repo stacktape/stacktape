@@ -5,6 +5,8 @@ import Chart from './Chart.astro';
 import Section from './Section.astro';
 import Shot from './Shot.astro';
 import previewLarge from './shots/preview-2448.webp';
+import previewPhoneLarge from './shots/preview-phone-large.webp';
+import previewPhoneSmall from './shots/preview-phone-small.webp';
 import previewSmall from './shots/preview-1224.webp';
 
 const seconds = (comparison: string, view: string, app: string, tool: string) => {
@@ -32,6 +34,7 @@ const seconds = (comparison: string, view: string, app: string, tool: string) =>
     <figure class="shot">
       <Shot
         desktop={{ small: previewSmall, large: previewLarge }}
+        phone={{ small: previewPhoneSmall, large: previewPhoneLarge }}
         alt="The Stacktape Console showing pr-421, a pull request's preview stage: healthy, deployed an hour ago, with its requests, failures and latency."
         sizes="(min-width: 92rem) 52rem, (min-width: 64rem) 56vw, 94vw"
         fill

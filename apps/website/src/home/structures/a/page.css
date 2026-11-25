@@ -4,6 +4,11 @@
   --sa-section-gap: clamp(6rem, 9vw, 10rem);
 }
 
+/* A hero with its own trust row (h3 marks it) replaces the structure's proof row. */
+.structure-a:has([data-hero-trust]) .sa-proof {
+  display: none;
+}
+
 /* Anchors land below the sticky header with room to spare. */
 .structure-a [id] {
   scroll-margin-top: 6rem;

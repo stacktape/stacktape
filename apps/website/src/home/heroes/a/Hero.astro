@@ -17,7 +17,7 @@ type Props = {
 };
 
 const {
-  subheadline = 'Stacktape reads your repo, then builds and runs its AWS infrastructure the way a senior DevOps team would.'
+  subheadline = 'Stacktape reads your repo, proposes the AWS setup with its estimated cost, and deploys it to your account once you approve.'
 } = Astro.props;
 
 /**
@@ -215,7 +215,7 @@ const depths = [selected, ...sheets.map((sheet) => sheet.id).filter((sheetId) =>
     color: var(--brand-muted);
     font-size: 1.25rem;
     line-height: 1.5;
-    text-wrap: pretty;
+    text-wrap: balance;
   }
 
   .action {
@@ -367,43 +367,23 @@ const depths = [selected, ...sheets.map((sheet) => sheet.id).filter((sheetId) =>
     }
   }
 
-  /*
-   * Phones: the product follows the command box, so a readable crop is on the first screen.
-   * The docs link and the ownership line move under it.
-   */
+  /* Phones: the command, the docs link and the ownership line first, then the product with its tabs above it. */
   @media (max-width: 40rem) {
     .hero {
-      display: flex;
-      flex-direction: column;
-      gap: var(--brand-space-5);
       padding-block-start: var(--brand-space-6);
     }
 
-    .top {
-      display: contents;
-    }
-
-    .copy,
-    .action :global(.brand-command),
     .next {
-      inline-size: min(var(--site-width, 76rem), calc(100% - 2 * var(--site-gutter, var(--brand-space-4))));
-      margin-inline: auto;
-    }
-
-    .action {
-      display: contents;
-    }
-
-    .action :global(.brand-command) {
-      order: 1;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--brand-space-3);
     }
 
     .product {
       display: flex;
       flex-direction: column;
       gap: var(--brand-space-3);
-      order: 2;
-      margin-block-start: 0;
+      margin-block-start: var(--brand-space-6);
     }
 
     .bar {
@@ -416,12 +396,6 @@ const depths = [selected, ...sheets.map((sheet) => sheet.id).filter((sheetId) =>
 
     .caption {
       order: 2;
-    }
-
-    .next {
-      flex-direction: column;
-      align-items: flex-start;
-      order: 3;
     }
 
     .lead {

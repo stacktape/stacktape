@@ -12,10 +12,26 @@ import PackSection from './PackSection.astro';
 import Packages from './Packages.astro';
 import Proof from './Proof.astro';
 import './page.css';
+import deployConfirmPhoneLarge from './shots/deploy-confirm-phone-large.webp';
+import deployConfirmPhoneSmall from './shots/deploy-confirm-phone-small.webp';
+import deployConfirmLarge from './shots/deploy-confirm-large.webp';
+import deployConfirmSmall from './shots/deploy-confirm-small.webp';
 
 const isHome = Astro.url.pathname === '/';
 /* Previews keep their own links on the page; the home page links to itself. */
 const homeHref = isHome ? '/' : Astro.url.pathname;
+
+/* The wizard's Deploy step, so the section shows a different screen from the heroes' Review step. */
+const deployConfirm = {
+  desktop: { small: deployConfirmSmall, large: deployConfirmLarge },
+  phone: { small: deployConfirmPhoneSmall, large: deployConfirmPhoneLarge },
+  alt: 'The init wizard’s Deploy step: the AWS account, region and stage it deploys to, secrets saved in AWS Secrets Manager, and what the deploy creates with an estimated $32 a month.'
+};
+/* Error tracking is on by default only with the Console (docs/observability/error-tracking.mdx:34). */
+const errorTracking = {
+  value: 'On by default',
+  label: 'With the Console, error tracking is on for every stage and wired into each stack when it deploys.'
+};
 ---
 
 <BaseLayout
@@ -32,15 +48,17 @@ const homeHref = isHome ? '/' : Astro.url.pathname;
     <PackSection
       pack="designs"
       index={1}
-      line="Every resource shows why it’s there, the code behind it and its estimated monthly cost."
-      skipFacts={[0]}
+      line="You see each resource and its estimated monthly cost, and nothing is created until you click Deploy."
+      picture={deployConfirm}
+      skipFacts={[1]}
     />
     <Packages />
     <Deploys />
     <PackSection
       pack="monitors"
       index={4}
-      line="Logs, metrics and error tracking come with every stack. Tracing and uptime checks are a few config lines."
+      line="Logs and metrics come with every stack. With the Console, error tracking is on by default."
+      figure={errorTracking}
       flip
     />
     <PackSection

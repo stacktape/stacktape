@@ -1,4 +1,5 @@
 ---
+import type { ImageMetadata } from 'astro';
 import { SECTION_PACKS } from '../../sections';
 import Facts from './Facts.astro';
 import Section from './Section.astro';
@@ -16,16 +17,23 @@ type Props = {
   flip?: boolean;
   /** Pack facts to leave out, by position, when they repeat the section's line. */
   skipFacts?: number[];
+  /** Replaces the pack's headline fact, when the pack's wording overstates it. */
+  figure?: { value: string; label: string };
+  /** Replaces the pack's picture, when the hero already shows it. */
+  picture?: {
+    desktop: { small: ImageMetadata; large: ImageMetadata };
+    phone: { small: ImageMetadata; large: ImageMetadata };
+    alt: string;
+  };
 };
 
-const { pack: packId, index, title, line, layout = 'side', flip = false, skipFacts = [] } = Astro.props;
+const { pack: packId, index, title, line, layout = 'side', flip = false, skipFacts = [], figure } = Astro.props;
 const pack = SECTION_PACKS.find((candidate) => candidate.id === packId);
 if (!pack?.picture) throw new Error(`Section pack ${packId} has no picture`);
-const { picture } = pack;
-const shot = {
-  desktop: { small: picture.desktop.small, large: picture.desktop.large },
-  phone: { small: picture.phone.small, large: picture.phone.large },
-  alt: picture.alt
+const shot = Astro.props.picture ?? {
+  desktop: { small: pack.picture.desktop.small, large: pack.picture.desktop.large },
+  phone: { small: pack.picture.phone.small, large: pack.picture.phone.large },
+  alt: pack.picture.alt
 };
 ---
 
@@ -36,7 +44,7 @@ const shot = {
       sizes={layout === 'wide' ? '(min-width: 92rem) 88rem, 94vw' : '(min-width: 92rem) 58rem, (min-width: 64rem) 64vw, 94vw'}
     />
     <Facts
-      figure={pack.figure}
+      figure={figure ?? pack.figure}
       facts={pack.facts.filter((_, position) => !skipFacts.includes(position))}
       row={layout === 'wide'}
     />
