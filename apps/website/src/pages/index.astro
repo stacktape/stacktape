@@ -1,36 +1,20 @@
 ---
-/**
- * The homepage: the repository's README, rendered the way a developer reads one. A repo header, the
- * document in the middle, an "About" sidebar on the right. Stacktape is an open-source CLI; the
- * README is where developers already trust a tool, and the cover was made for it. Nothing moves; the
- * page is a document. The README's own constructs carry the copy: the title with its badges, a note
- * for v4, a bold tagline, a fenced code block to install, eight `###` sections each with a paragraph,
- * a list and a screenshot, blockquotes for the teams, and an About sidebar with what a CTO scans for.
- *
- * The other homepage studies stay reachable from `/studies`.
- */
-import BaseLayout from '../layouts/BaseLayout.astro';
-import { HEADLINE, SUBHEADLINE } from '../variants/readme/data';
-import Document from '../variants/readme/Document.astro';
-import Footer from '../variants/readme/Footer.astro';
-import Header from '../variants/readme/Header.astro';
-import Sidebar from '../variants/readme/Sidebar.astro';
-import '../variants/readme/readme.css';
+import { heroes } from '../home/heroes/registry';
+import { home } from '../home/home';
+import { structures } from '../home/structures/registry';
+
+const structure = structures.find(({ id }) => id === home.structure);
+const hero = heroes.find(({ id }) => id === home.hero);
+const [Structure, Hero] = structure && hero ? await Promise.all([structure.load(), hero.load()]) : [];
+const ReadmeHome = Structure && Hero ? undefined : (await import('../variants/readme/Home.astro')).default;
 ---
 
-<BaseLayout title={`Stacktape — ${HEADLINE}`} description={SUBHEADLINE} htmlClass="rm-html" noindex={false}>
-  <Fragment slot="head">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" />
-  </Fragment>
-
-  <div class="rm-root">
-    <Header />
-    <div class="rm-container rm-layout">
-      <main class="rm-main">
-        <Document />
-      </main>
-      <Sidebar />
-    </div>
-    <Footer />
-  </div>
-</BaseLayout>
+{
+  Structure && Hero ? (
+    <Structure>
+      <Hero slot="hero" />
+    </Structure>
+  ) : (
+    ReadmeHome && <ReadmeHome />
+  )
+}
