@@ -2,21 +2,23 @@
 import Window from './console/Window.astro';
 
 /**
- * Error tracking in the Console (apps/console/ui IssuesPage) for the Acme organization: runtime errors from the API
- * container and the queue worker, grouped into issues with where each happens, how often and when it was last seen.
- * No SDK in the code; the sidebar's Logs, Metrics, Traces, Uptime and Synthetics are the other monitoring pages.
+ * Error tracking in the Console (apps/console/ui IssuesPage) for the Acme organization: runtime errors from acme-shop's
+ * API and worker services, grouped into issues with where each happens, how often and when it was last seen. There is
+ * no SDK in the code. The TypeError behind the hero's 11:04 incident is resolved, so it is not in this Open list; a new
+ * one comes from the pr-218 preview stage. The sidebar's Logs, Metrics, Traces, Uptime and Synthetics are the other
+ * monitoring pages.
  */
 const ISSUES = [
   {
     type: 'TypeError',
-    message: "Cannot read properties of undefined (reading 'price')",
-    stage: 'production',
+    message: "Cannot read properties of null (reading 'sku')",
+    stage: 'pr-218',
     resource: 'api',
-    frame: 'applyDiscount',
-    file: 'discounts.ts:58',
-    events: 38,
-    since: '2h ago',
-    last: '3m ago'
+    frame: 'addToSavedCart',
+    file: 'savedCarts.ts:58',
+    events: 23,
+    since: '25m ago',
+    last: '4m ago'
   },
   {
     type: 'PaymentProviderError',
@@ -37,7 +39,7 @@ const ISSUES = [
     frame: 'createAccount',
     file: 'account.ts:27',
     events: 14,
-    since: '20m ago',
+    since: '40m ago',
     last: '18m ago'
   },
   {
@@ -50,9 +52,12 @@ const ISSUES = [
     last: '41m ago'
   },
   {
-    message: 'Task timed out after 30.00 seconds',
+    type: 'Error',
+    message: 'Image resize for product 18342 timed out after 30000 ms',
     stage: 'production',
     resource: 'worker',
+    frame: 'resizeProductImage',
+    file: 'images.ts:19',
     events: 3,
     since: '1d ago',
     last: '2h ago'
@@ -67,7 +72,7 @@ const TABS = [
 ---
 
 <Window
-  label="Error tracking in the Stacktape Console: five open issues in acme-shop, grouped from runtime errors in the API container and the queue worker, each with its stage, function and file line, the number of events and when it was last seen."
+  label="Error tracking in the Stacktape Console: five open issues in acme-shop, grouped from runtime errors in the API and worker services, each with its stage, function and file line, the number of events and when it was last seen."
   page="Error tracking"
   current="errors"
   openErrors={5}

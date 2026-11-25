@@ -13,13 +13,15 @@ import icons from './designs/icons.json';
  * @stacktape/ui-react, rendered once with `renderToStaticMarkup` under Bun for this config (the icon pack cannot load in
  * Astro's server renderer), so the page ships no script for them:
  *
- *   web: hosting-bucket (single-page app) · api: web-service, buildpack, 0.5 vCPU, 1 GB, connectTo db, cache, jobs ·
- *   worker: function, js-bundle, SQS event from jobs, joinDefaultVpc, connectTo db · jobs: sqs-queue ·
- *   db: relational-database, postgres 17, db.t4g.small, accessibilityMode vpc · cache: redis, valkey, cache.t4g.micro
+ *   web: hosting-bucket (single-page app) · api: web-service, buildpack, 0.5 vCPU, 1 GB, connectTo database, cache,
+ *   jobQueue · worker: worker-service, buildpack, 0.25 vCPU, 0.5 GB, connectTo jobQueue, database, cache ·
+ *   jobQueue: sqs-queue · database: relational-database, postgres 16, db.t4g.small, accessibilityMode vpc ·
+ *   cache: redis, valkey, cache.t4g.micro
  *
- * Prices are AWS list prices in eu-west-1, as the wizard's estimator uses: Postgres db.t4g.small with 20 GB gp3
- * ($26.28 + $2.54), a 0.5 vCPU / 1 GB Fargate task ($18.02), a cache.t4g.micro Valkey node ($11.10). Traffic adds HTTP
- * API requests at $1.11 per million.
+ * The names, region and resource types are those of the hero's Console (heroes/h5/console/data.ts): the page follows one
+ * app from this first Review to production. Prices are AWS list prices in us-east-1, as the wizard's estimator uses:
+ * Postgres db.t4g.small with 20 GB gp3 ($23.36 + $2.30), Fargate tasks of 0.5 vCPU / 1 GB ($18.02) and 0.25 vCPU /
+ * 0.5 GB ($9.01), a cache.t4g.micro Valkey node ($9.34). Traffic adds HTTP API requests at $1.00 per million.
  */
 const icon = (type: string) => (icons as Record<string, string>)[type] ?? '';
 
@@ -29,13 +31,13 @@ const ROWS = [
     type: 'relational-database',
     title: 'Postgres database',
     size: 'db.t4g.small · 20 GB',
-    price: '$29',
+    price: '$26',
     why: 'Postgres driver',
     where: 'api/package.json:21'
   },
   {
     type: 'web-service',
-    title: 'Node.js API',
+    title: 'API service',
     size: '0.5 vCPU · 1 GB',
     price: '$18',
     usage: true,
@@ -46,40 +48,49 @@ const ROWS = [
     type: 'redis',
     title: 'Redis cache',
     size: 'Valkey · cache.t4g.micro',
-    price: '$11',
+    price: '$9',
     why: 'Redis client',
     where: 'api/package.json:24'
   },
   {
-    type: 'function',
-    title: 'Queue worker',
-    size: '1024 MB',
-    why: 'SQS handler',
-    where: 'worker/src/handler.ts:6'
+    type: 'worker-service',
+    title: 'Worker service',
+    size: '0.25 vCPU · 0.5 GB',
+    price: '$9',
+    why: 'Queue consumer',
+    where: 'worker/src/index.ts:6'
   },
-  { type: 'sqs-queue', title: 'Job queue', size: 'SQS', why: 'SQS client', where: 'api/package.json:12' },
-  { type: 'hosting-bucket', title: 'React site', size: 'Vite build', why: 'Vite app', where: 'web/package.json:7' }
+  { type: 'hosting-bucket', title: 'Website', size: 'React, Vite build', why: 'Vite app', where: 'web/package.json:7' },
+  { type: 'sqs-queue', title: 'SQS queue', size: 'Standard queue', why: 'SQS client', where: 'api/package.json:12' }
 ];
 const TRAFFIC = [
-  { requests: '100K', total: '$58' },
-  { requests: '1M', total: '$59' },
-  { requests: '10M', total: '$69' }
+  { requests: '100K', total: '$62' },
+  { requests: '1M', total: '$63' },
+  { requests: '10M', total: '$72' }
 ];
 const STEPS = ['Analyze', 'Review', 'Deploy', 'Live'];
 /** The top of the generated stacktape.yml, with the editor's code lens beside each resource. */
 const YAML: Array<{ indent: number; key: string; value?: string; lens?: string }> = [
   { indent: 0, key: 'projectName', value: 'acme-shop' },
-  { indent: 0, key: 'region', value: 'eu-west-1' },
+  { indent: 0, key: 'region', value: 'us-east-1' },
   { indent: 0, key: 'resources' },
-  { indent: 1, key: 'db', lens: 'Postgres database · $29/mo' },
+  { indent: 1, key: 'database', lens: 'Postgres database · $26/mo' },
   { indent: 2, key: 'type', value: 'relational-database' },
   { indent: 2, key: 'properties' },
   { indent: 3, key: 'engine' },
   { indent: 4, key: 'type', value: 'postgres' },
   { indent: 3, key: 'accessibility' },
   { indent: 4, key: 'accessibilityMode', value: 'vpc' },
-  { indent: 1, key: 'api', lens: 'Node.js API · $18/mo + usage' },
-  { indent: 2, key: 'type', value: 'web-service' }
+  { indent: 1, key: 'api', lens: 'API service · $18/mo + usage' },
+  { indent: 2, key: 'type', value: 'web-service' },
+  { indent: 2, key: 'properties' },
+  { indent: 3, key: 'packaging' },
+  { indent: 4, key: 'type', value: 'buildpack' },
+  { indent: 4, key: 'properties' },
+  { indent: 5, key: 'entryfilePath', value: 'api/src/server.ts' },
+  { indent: 3, key: 'resources' },
+  { indent: 4, key: 'cpu', value: '0.5' },
+  { indent: 4, key: 'memory', value: '1024' }
 ];
 /** A resource's colour: its AWS category's, the same the diagram paints it in. */
 const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)?.category ?? 'compute'})`;
@@ -88,7 +99,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
 <div
   class="wz"
   role="img"
-  aria-label="The Stacktape init wizard's Review for acme-shop: a diagram of the React site, the Node.js API, the queue worker, Postgres, Redis and the job queue, an estimate of $58 a month plus usage, and each resource with the line of code it is there for."
+  aria-label="The Stacktape init wizard's Review for acme-shop: a diagram of the website, the API service, the worker service, the SQS queue, Postgres and Redis, an estimate of $62 a month plus usage, and each resource with the line of code it is there for."
 >
   <div class="wz-in" aria-hidden="true">
     <div class="wz-top">
@@ -110,7 +121,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
       <div class="wz-title">
         <div>
           <h3>acme-shop on AWS</h3>
-          <p>A React app with a Node.js API, using Postgres, Redis and an SQS queue.</p>
+          <p>A React app with a Node.js API and a queue worker, using Postgres and Redis.</p>
         </div>
         <p class="wz-faint">Analyzed by Claude Code · 23 files read</p>
       </div>
@@ -144,8 +155,8 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
         <div class="wz-panel wz-overview">
           <div class="wz-costs">
             <p class="wz-eyebrow">Estimated monthly cost</p>
-            <p class="wz-total"><b>$58</b> /month <span class="wz-usage">+ usage</span></p>
-            <p class="wz-faint">AWS list prices in eu-west-1</p>
+            <p class="wz-total"><b>$62</b> /month <span class="wz-usage">+ usage</span></p>
+            <p class="wz-faint">AWS list prices in us-east-1</p>
             <dl class="wz-traffic">
               <dt>With traffic</dt>
               {
@@ -170,9 +181,6 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
                     <span class="wz-row__name">
                       <strong>{row.title}</strong>
                       <small>{row.size}</small>
-                      <small class="wz-why">
-                        {row.why} <span>in {row.where}</span>
-                      </small>
                     </span>
                     {row.price ? (
                       <span class="wz-price">
@@ -185,6 +193,9 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
                       <span class="wz-price wz-price--muted">Pay per use</span>
                     )}
                     <span class="wz-chevron" />
+                    <small class="wz-why">
+                      {row.why} <span>in {row.where}</span>
+                    </small>
                   </li>
                 ))
               }
@@ -195,7 +206,7 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
     </div>
 
     <div class="wz-bar">
-      <p><b>$58</b> /month estimated AWS cost + usage</p>
+      <p><b>$62</b> /month estimated AWS cost + usage</p>
       <span class="wz-faint">Saves stacktape.yml</span>
       <span class="wz-continue">Continue to deploy</span>
     </div>
@@ -644,9 +655,15 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
     text-overflow: ellipsis;
   }
 
-  .wz-row__name .wz-why {
+  /* Why the resource is there: under its name and size, across the row. */
+  .wz-why {
+    grid-column: 2 / -1;
+    margin-top: -0.45em;
+    overflow: hidden;
     color: var(--wz-muted);
-    white-space: normal;
+    font-size: 0.96em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .wz-why span {

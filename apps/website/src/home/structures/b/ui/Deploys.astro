@@ -2,61 +2,56 @@
 import Window from './console/Window.astro';
 
 /**
- * acme-shop's production stage in the Console, Activity tab (apps/console/ui stage page): the project deploys on push
- * to main and gives pull requests their own preview stages (pr-142, pr-139 in the stage tabs). A push is rolling out,
- * the release before it is live, and older releases can be rolled back to. The live release is the deploy the Packages
- * picture opens.
+ * acme-shop's production stage in the Console, Activity tab (apps/console/ui stage page). The project deploys on push to
+ * main and gives pull requests their own preview stages (pr-218 among the stage tabs). The push the Packages picture
+ * opens is rolling out; the hero's 11:04 fix is live; the 10:12 release that broke order totals, and older ones, can be
+ * rolled back to. Names, stages and the account follow the hero's Console (heroes/h5/console/data.ts).
  */
-const STAGES = [
-  { name: 'production', selected: true },
-  { name: 'staging' },
-  { name: 'pr-142' },
-  { name: 'pr-139' }
-];
+const STAGES = [{ name: 'production', selected: true }, { name: 'staging' }, { name: 'pr-218' }, { name: 'dev-maya' }];
 const DEPLOYS = [
   {
     change: 'Add saved carts',
-    commit: '9b13f0e',
+    commit: '7d3b8f1',
     trigger: 'Push to main',
-    by: 'Marek Novak',
+    by: 'Maya Chen',
     status: 'running',
-    progress: 'Deploy: 3 of 9 resources',
-    done: 34,
+    progress: 'Deploy: 1 of 6 resources',
+    done: 40,
     duration: '—',
-    started: '31 s ago'
+    started: '1m ago'
   },
   {
-    change: 'Retry failed payment jobs',
-    commit: '4c7e2a9',
+    change: 'Fix order totals for empty carts',
+    commit: 'a41c9e2',
     trigger: 'Push to main',
-    by: 'Dana Okafor',
+    by: 'Maya Chen',
     status: 'live',
-    duration: '17 s',
-    started: '1h ago'
+    duration: '2 min 38 s',
+    started: '2h ago'
+  },
+  {
+    change: 'Read tax rates from Redis',
+    commit: '3e90b5c',
+    trigger: 'Push to main',
+    by: 'Tomas Berg',
+    duration: '2 min 51 s',
+    started: '3h ago',
+    rollback: true
   },
   {
     change: 'Show stock on product pages',
     commit: '8a41d07',
-    trigger: 'Push to main',
-    by: 'Marek Novak',
-    duration: '52 s',
+    trigger: 'Pull request #214',
+    by: 'Tomas Berg',
+    duration: '3 min 4 s',
     started: '1d ago',
-    rollback: true
-  },
-  {
-    change: 'Cache category pages in Redis',
-    commit: '5d0a9f3',
-    trigger: 'Pull request #137',
-    by: 'Dana Okafor',
-    duration: '48 s',
-    started: '3d ago',
     rollback: true
   }
 ];
 ---
 
 <Window
-  label="The production stage of acme-shop in the Stacktape Console. The project deploys on push to main and has preview stages pr-142 and pr-139 for pull requests. A push, Add saved carts, is deploying (3 of 9 resources); Retry failed payment jobs is live; older releases have Roll back to this."
+  label="The production stage of acme-shop in the Stacktape Console. The project deploys on push to main and gives pull requests preview stages such as pr-218. A push, Add saved carts, is deploying (1 of 6 resources); Fix order totals for empty carts is live; older releases have Roll back to this."
   page="acme-shop"
   pageMenu
   current="projects"
@@ -87,7 +82,7 @@ const DEPLOYS = [
       }
     </span>
     <span class="cn-button cn-wide">+ New stage</span>
-    <span class="dp-account cn-faint cn-wide">acme-production · eu-west-1</span>
+    <span class="dp-account cn-faint cn-wide">acme-production · us-east-1</span>
   </div>
 
   <div class="cn-tabs dp-tabs">
@@ -98,13 +93,13 @@ const DEPLOYS = [
     <span class="cn-wide">Diagram</span>
     <span class="cn-wide">Danger zone</span>
     <span class="cn-tabs__end cn-wide">
-      <span class="cn-muted dp-now">Running 4c7e2a9 on main · <span class="cn-link">View deploy</span></span>
+      <span class="cn-muted dp-now">Running a41c9e2 on main · <span class="cn-link">View deploy</span></span>
       <span class="cn-button cn-button--primary">Deploy stage</span>
     </span>
   </div>
 
   <div class="cn-panel dp-list">
-    <div class="cn-table" style="--cn-columns: minmax(0, 1.5fr) minmax(0, 1fr) 4.5em 5.5em 8.5em 0.6em">
+    <div class="cn-table" style="--cn-columns: minmax(0, 1.5fr) minmax(0, 1fr) 5.5em 5.5em 8.5em 0.6em">
       <div class="cn-table__head">
         <span>Change</span>
         <span>Status</span>

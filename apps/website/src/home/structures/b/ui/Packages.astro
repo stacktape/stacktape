@@ -2,43 +2,45 @@
 import Window from './console/Window.astro';
 
 /**
- * A finished deploy of acme-shop production in the Console (deployment detail, Logs tab, Steps): the Build & package
- * step open, with each workload's outcome in the CLI's own words (packages/packaging/src/runtime-contracts.ts
+ * A deploy of acme-shop production in the Console (deployment detail, Logs tab, Steps), with the Build & package step
+ * open. Each workload's outcome is in the CLI's own words (packages/packaging/src/runtime-contracts.ts
  * `packagingMessages`, and the PACKAGE_ARTIFACTS summary in apps/cli/src/domain/packaging-manager/index.ts).
  *
- * The change touched only the queue worker, so its Lambda bundle is built and the API's container image is reused.
- * Timings are those of a code change to one function; the benchmark figures beside the section are separate runs.
+ * It is the push after the hero's 11:04 fix (heroes/h5/console/data.ts): the change touched only the API, so its
+ * container image is built again on cached dependency layers and the worker's image is reused. The deploy itself is
+ * still rolling out; the Deploys picture lists it at the top of the stage's activity.
  */
-const TOTAL = 17;
+const TOTAL = 75;
 const STEPS = [
-  { name: 'Initialize', start: 0, seconds: 2 },
+  { name: 'Initialize', start: 0, seconds: 2, took: '2 s' },
   {
     name: 'Build & package',
     start: 2,
-    seconds: 2,
+    seconds: 21,
+    took: '21 s',
     open: true,
     children: [
       { name: 'Package artifacts', detail: 'Packaged 2 workloads · 1 built · 1 unchanged' },
-      { name: 'worker', detail: 'Lambda bundle · 1.9 MB (612 KB zipped)', code: true },
-      { name: 'api', detail: 'Unchanged (reused from previous deploy)', code: true }
+      { name: 'api', detail: 'Container image · 182 MB', code: true },
+      { name: 'worker', detail: 'Unchanged (reused from previous deploy)', code: true }
     ]
   },
-  { name: 'Upload artifacts', start: 4, seconds: 1 },
-  { name: 'Deploy', note: '1 of 9 resources', start: 5, seconds: 12 }
+  { name: 'Upload artifacts', start: 23, seconds: 6, took: '6 s' },
+  { name: 'Deploy', note: '1 of 6 resources', start: 29, seconds: 46, took: '46 s', running: true }
 ];
 const ABOUT = [
-  { label: 'Commit', value: '4c7e2a9', commit: true },
-  { label: 'Started by', value: 'Push to main · Dana Okafor' },
-  { label: 'Started', value: 'Nov 25, 2026, 13:02' },
-  { label: 'Took', value: '17 s' },
-  { label: 'Previous deploy', value: 'Show stock on product pages', link: true },
-  { label: 'Region', value: 'eu-west-1' }
+  { label: 'Commit', value: '7d3b8f1', commit: true },
+  { label: 'Started by', value: 'Push to main · Maya Chen' },
+  { label: 'Started', value: 'Nov 25, 2026, 12:58' },
+  { label: 'Running for', value: '1 min' },
+  { label: 'Last successful deploy', value: 'Fix order totals for empty carts', link: true },
+  { label: 'Region', value: 'us-east-1' }
 ];
 const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
 ---
 
 <Window
-  label="A finished deploy of acme-shop production in the Stacktape Console, 17 seconds in all. Build and package took 2 seconds: the queue worker's Lambda bundle was built (1.9 MB) and the API's container image was reused because it had not changed."
+  label="A deploy of acme-shop production in the Stacktape Console. Build and package took 21 seconds: the API's container image was built (182 MB) and the worker's image was reused because it had not changed. The deploy is updating 1 of 6 resources."
   page="acme-shop"
   pageMenu
   current="projects"
@@ -46,9 +48,9 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
 >
   <p class="pk-crumbs cn-muted">acme-shop <span>/</span> production <span>/</span> Activity</p>
   <div class="pk-title">
-    <h3 class="cn-h1">Retry failed payment jobs</h3>
+    <h3 class="cn-h1">Add saved carts</h3>
     <span class="cn-muted">Deploy</span>
-    <span class="cn-status"><i class="cn-dot"></i>Succeeded</span>
+    <span class="cn-status cn-status--purple"><i class="cn-dot cn-dot--purple"></i>In progress</span>
     <span class="cn-button pk-deploy cn-wide">Deploy stage</span>
   </div>
   <div class="cn-tabs pk-tabs">
@@ -67,16 +69,19 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
         {
           STEPS.map((step) => (
             <li class="pk-step">
-              <span class="pk-check" />
+              <span class:list={['pk-check', { 'is-running': step.running }]} />
               <span class:list={['pk-caret', { 'is-open': step.open }]} />
               <span class="pk-name">
                 <b>{step.name}</b>
                 {step.note ? <span class="cn-muted"> {step.note}</span> : null}
               </span>
               <span class="pk-bar cn-wide">
-                <i style={`left: ${at(step.start)}; width: max(0.5em, ${at(step.seconds)})`} />
+                <i
+                  class:list={{ 'is-running': step.running }}
+                  style={`left: ${at(step.start)}; width: max(0.5em, ${at(step.seconds)})`}
+                />
               </span>
-              <span class="pk-time">{step.seconds} s</span>
+              <span class="pk-time">{step.took}</span>
               {step.children ? (
                 <ul class="pk-children">
                   {step.children.map((child) => (
@@ -199,6 +204,21 @@ const at = (seconds: number) => `${(seconds / TOTAL) * 100}%`;
     border-bottom: 1.5px solid var(--cn-teal-text);
     transform: rotate(45deg);
     content: '';
+  }
+
+  /* The running step: the Console's spinner, an open teal ring, standing still; its bar is purple. */
+  .pk-check.is-running {
+    border-color: var(--cn-teal-text);
+    border-top-color: transparent;
+    transform: rotate(-30deg);
+  }
+
+  .pk-check.is-running::after {
+    display: none;
+  }
+
+  .pk-bar i.is-running {
+    background: var(--cn-purple);
   }
 
   .pk-caret {
