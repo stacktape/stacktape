@@ -10,14 +10,21 @@ import { barsOf, runOf, slowest } from './bench/data';
  * caveat notes removed (25 Nov, TASTE 39 and 41).
  *
  * Stacktape's container and Git push times use code swap, an opt-in setting for code changes, so those bars say
- * "code swap". Its Git push median is of 5 runs (23 October); Heroku's container and Git push times are one build from
- * the pushed source (`heroku builds:create`). The data file and the GitHub results hold those details.
+ * "code swap". Its Git push median is of 5 runs (23 October). Heroku's time is one build from the pushed source
+ * (`heroku builds:create`), shown once, in the container panel. The data file and the GitHub results hold the details.
  */
 /** Heroku's time is a build submitted from the pushed source with its CLI (`heroku builds:create`), so the bar says so. */
 const HEROKU = { heroku: 'Heroku CLI build' };
 const large = barsOf('lambda-deploy', 'handler', 'lambda-25');
 const container = barsOf('container-deploy', 'code-change', 'container-node', { stacktape: 'code swap' }, HEROKU);
-const pushNode = barsOf('git-push', 'warm', 'container-node', { stacktape: 'code swap' }, HEROKU);
+/**
+ * The Git push panel compares two real pushes, Stacktape and Render. Heroku's time in that data group is the same CLI
+ * build from source as in the container panel, so it stays there and leaves this one.
+ */
+const pushNode = barsOf('git-push', 'warm', 'container-node', { stacktape: 'code swap' }).filter(
+  (bar) => bar.label !== 'Heroku'
+);
+if (pushNode.length !== 2) throw new Error('The Git push panel should compare Stacktape and Render');
 const us = large.find((bar) => bar.us);
 if (!us) throw new Error('The Lambda deploy benchmark has no Stacktape value');
 const small = slowest(container, pushNode);

@@ -17,10 +17,13 @@ const FLEXIBLE_BANDS = [
 const flexibleRate = (spend: number) => FLEXIBLE_BANDS.find((band) => spend <= band.upTo)!.rate;
 const dollars = (amount: number) => `$${amount.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 
-const FLEXIBLE_EXAMPLES = [500, 1_000, 3_000, 8_000].map((spend) => {
-  const rate = flexibleRate(spend);
-  return { spend: dollars(spend), rate, fee: dollars((spend * rate) / 100) };
-});
+const flexibleFee = (spend: number) => dollars((spend * flexibleRate(spend)) / 100);
+
+const FLEXIBLE_EXAMPLES = [500, 1_000, 3_000, 8_000].map((spend) => ({
+  spend: dollars(spend),
+  rate: flexibleRate(spend),
+  fee: flexibleFee(spend)
+}));
 
 const PLANS: Plan[] = [
   {
@@ -40,13 +43,14 @@ const PLANS: Plan[] = [
   {
     name: 'Flexible',
     price: '19–25%',
-    note: 'Of managed AWS spend. No spend limit.',
+    note: `Of managed AWS spend, so ${flexibleFee(1_000)} on ${dollars(1_000)} a month. No spend limit.`,
     lines: [
       'Everything in Free',
       'Single sign-on (SAML or OIDC) and SCIM provisioning',
       'A shared Slack channel with the founders',
       'Your feature requests come first'
-    ]
+    ],
+    action: { label: 'See rates', href: '#flexible' }
   },
   {
     name: 'Enterprise',
@@ -64,8 +68,8 @@ const PLANS: Plan[] = [
 <PlainPage
   wide
   title="Pricing"
-  description="The Stacktape CLI is open source and free. The Console is free up to $200 a month of managed AWS spend, then a share of that spend. Never per seat."
-  lead="The CLI is free. Use the Console free up to $200 a month in managed AWS spend, then pay a share of that spend."
+  description="The Stacktape CLI is open source and free. The Console is free up to $200 a month of managed AWS spend, and Flexible costs 19–25% of it. Never per seat."
+  lead="The CLI is free. The Console is free up to $200 a month in managed AWS spend. Flexible costs 19–25% of it when you upgrade."
 >
   <section class="band" aria-labelledby="open-source">
     <div>

@@ -2,10 +2,11 @@
 import PlainPage from '../../components/PlainPage.astro';
 import { legacyPosts } from '../../content/legacy/posts';
 
-const POSTS = [
-  { href: '/blog/stacktape-v4', title: 'Stacktape v4: what changed', date: 'September 2026' },
-  ...legacyPosts.toReversed().map(({ slug, title, date }) => ({ href: `/blog/${slug}`, title, date }))
-];
+/*
+ * The "Stacktape v4: what changed" page (`stacktape-v4.astro`) is an unfinished draft: it stays reachable but
+ * `noindex` and off this list until the article is written.
+ */
+const POSTS = legacyPosts.toReversed().map(({ slug, title, date }) => ({ href: `/blog/${slug}`, title, date }));
 ---
 
 <PlainPage
@@ -26,10 +27,7 @@ const POSTS = [
       ))
     }
   </ul>
-  <p>
-    Release notes for every CLI version are in the
-    <a href="https://github.com/stacktape/stacktape/releases">changelog on GitHub</a>.
-  </p>
+  <p>CLI release notes are on <a href="https://github.com/stacktape/stacktape/releases">GitHub</a>.</p>
 </PlainPage>
 
 <style>
