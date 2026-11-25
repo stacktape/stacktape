@@ -4,8 +4,9 @@ import Window from './console/Window.astro';
 /**
  * acme-shop's production stage in the Console, Activity tab (apps/console/ui stage page). The project deploys on push to
  * main and gives pull requests their own preview stages (pr-218 among the stage tabs). The push the Packages picture
- * opens is rolling out; the hero's 11:04 fix is live; the 10:12 release that broke order totals, and older ones, can be
- * rolled back to. Names, stages and the account follow the hero's Console (heroes/h5/console/data.ts).
+ * opens is rolling out; the hero's 11:04 fix is live; the 10:12 release that broke order totals (v000041 in the
+ * Incidents picture) and older ones can be rolled back to. Names, stages and the account follow the hero's Console
+ * (heroes/h5/console/data.ts).
  */
 const STAGES = [{ name: 'production', selected: true }, { name: 'staging' }, { name: 'pr-218' }, { name: 'dev-maya', wide: true }];
 const DEPLOYS = [
@@ -30,7 +31,7 @@ const DEPLOYS = [
     started: '2h ago'
   },
   {
-    change: 'Read tax rates from Redis',
+    change: 'Show order totals in the cart',
     commit: '3e90b5c',
     trigger: 'Push to main',
     by: 'Tomas Berg',
