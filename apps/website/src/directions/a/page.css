@@ -10,6 +10,11 @@
   overflow-x: clip;
 }
 
+/* Anchors land below the sticky header (4 rem) with room to spare. */
+.direction-a [id] {
+  scroll-margin-top: 6rem;
+}
+
 .a-container {
   inline-size: min(var(--a-width), 100% - 2 * var(--a-gutter));
   margin-inline: auto;

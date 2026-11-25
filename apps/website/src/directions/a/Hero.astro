@@ -3,12 +3,18 @@ import { ButtonLink } from '@stacktape/ui-react/button';
 import { CommandBox } from '../../brand/CommandBox';
 import consoleLarge from './shots/console-2880.webp';
 import consoleSmall from './shots/console-1440.webp';
+import consolePhone from './shots/console-phone.webp';
 import reviewLarge from './shots/review-2880.webp';
+import reviewPhone from './shots/review-phone.webp';
 import reviewSmall from './shots/review-1440.webp';
 import scanLarge from './shots/scan-2880.webp';
+import scanPhone from './shots/scan-phone.webp';
 import scanSmall from './shots/scan-1440.webp';
 
-/** The three things the subheadline promises, each shown by the real product. Review is the first one shown. */
+/**
+ * The three things the subheadline promises, each shown by the real product. Review is the first one shown.
+ * Phones get a crop of the part that matters, because the whole window would be too small to read.
+ */
 const steps = [
   {
     id: 'reads',
@@ -17,16 +23,18 @@ const steps = [
     caption: 'The agent you already use reads the code on your machine. No source code goes to Stacktape.',
     alt: 'Stacktape init reading a Next.js project: the file tree on the left, the configuration being written on the right.',
     small: scanSmall,
-    large: scanLarge
+    large: scanLarge,
+    phone: scanPhone
   },
   {
     id: 'designs',
     short: 'Designs',
     rest: ' the setup',
-    caption: 'Every resource with its reason and monthly cost. Nothing is created until you confirm.',
+    caption: 'Every resource with its reason and estimated monthly cost. Nothing is created until you confirm.',
     alt: 'The init wizard’s Review step: an architecture diagram, an estimate of $32 a month, and the generated stacktape.yml.',
     small: reviewSmall,
-    large: reviewLarge
+    large: reviewLarge,
+    phone: reviewPhone
   },
   {
     id: 'runs',
@@ -35,7 +43,8 @@ const steps = [
     caption: 'The Stacktape Console: stages, deploys and every resource of the app in your AWS account.',
     alt: 'The Stacktape Console showing the storefront project’s staging stage as an architecture diagram.',
     small: consoleSmall,
-    large: consoleLarge
+    large: consoleLarge,
+    phone: consolePhone
   }
 ];
 const selected = 'designs';
@@ -46,8 +55,8 @@ const selected = 'designs';
     <div class="a-hero__copy">
       <h1 id="a-hero-title">AWS DevOps,<br /> fully automated.</h1>
       <p class="a-hero__lead">
-        Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, and runs it in
-        your own AWS account: deploys, monitoring, incidents, security and costs.
+        Stacktape's CLI reads your repository and designs the infrastructure like a senior DevOps team would. It
+        deploys to your AWS account, and the Console handles monitoring, incidents, security and costs.
       </p>
     </div>
     <div class="a-hero__action">
@@ -101,22 +110,31 @@ const selected = 'designs';
     <div class="a-frame a-hero__frame">
       {
         steps.map((step) => (
-          <img
+          <picture
             class="a-hero__shot"
             id={`a-shot-${step.id}`}
             role="tabpanel"
             aria-labelledby={`see-${step.id}`}
             data-panel={step.id}
             data-active={String(step.id === selected)}
-            src={step.small.src}
-            srcset={`${step.small.src} 1440w, ${step.large.src} 2880w`}
-            sizes="(min-width: 95rem) 90rem, 94vw"
-            width={step.small.width}
-            height={step.small.height}
-            alt={step.alt}
-            fetchpriority={step.id === selected ? 'high' : 'auto'}
-            decoding="async"
-          />
+          >
+            <source
+              media="(max-width: 40rem)"
+              srcset={step.phone.src}
+              width={step.phone.width}
+              height={step.phone.height}
+            />
+            <img
+              src={step.small.src}
+              srcset={`${step.small.src} 1440w, ${step.large.src} 2880w`}
+              sizes="(min-width: 95rem) 90rem, 94vw"
+              width={step.small.width}
+              height={step.small.height}
+              alt={step.alt}
+              fetchpriority={step.id === selected ? 'high' : 'auto'}
+              decoding="async"
+            />
+          </picture>
         ))
       }
     </div>
@@ -241,14 +259,60 @@ const selected = 'designs';
     }
   }
 
+  /*
+   * Phones: the picture follows the command box, so a readable crop of the product is on the first screen.
+   * The docs link and the ownership line move under the picture.
+   */
   @media (max-width: 40rem) {
-    .a-hero__lead {
-      font-size: var(--brand-type-lead);
+    .a-hero {
+      display: flex;
+      flex-direction: column;
+      gap: var(--brand-space-5);
+      inline-size: min(var(--a-width), 100% - 2 * var(--a-gutter));
+      margin-inline: auto;
+      padding-block-start: var(--brand-space-6);
+    }
+
+    .a-hero .a-container {
+      inline-size: auto;
+      margin-inline: 0;
+    }
+
+    .a-hero__top,
+    .a-hero__action,
+    .a-hero__bar {
+      display: contents;
+    }
+
+    .a-hero__action :global(.brand-command) {
+      order: 1;
+    }
+
+    .a-hero__product {
+      display: flex;
+      flex-direction: column;
+      gap: var(--brand-space-3);
+      order: 2;
+      margin-block-start: 0;
+    }
+
+    .a-hero__frame {
+      order: 1;
+    }
+
+    .a-hero__caption {
+      order: 2;
     }
 
     .a-hero__next {
       flex-direction: column;
       align-items: flex-start;
+      order: 3;
+    }
+
+    .a-hero__lead {
+      margin-block-start: var(--brand-space-4);
+      font-size: var(--brand-type-base);
     }
 
     .a-hero__tab-full {

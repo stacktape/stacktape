@@ -28,7 +28,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       index={1}
       name="Designs"
       title="Reads your repo and proposes the AWS setup."
-      line="You don't have to know AWS to start. Every resource shows why it's there, the line of code behind it and what it costs a month."
+      line="You don't have to know AWS to start. Every resource shows why it's there, the line of code behind it and its estimated monthly cost."
       picture="Init wizard: Decided for you and the config editor"
       flip
     />
@@ -38,6 +38,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       name="Packages"
       title="25 Lambda functions packaged in 3.8 seconds."
       line="CDK takes 17.6 s for the same functions. Python, Java, Go, Ruby, .NET and Rust build without a Dockerfile."
+      source={{ label: 'Empty build cache · preliminary run, 22 Oct 2026', href: '/benchmarks' }}
       picture="Deployment in progress, packaging step"
     />
     <Deploys />
@@ -46,7 +47,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       index={4}
       name="Monitors"
       title="Monitoring comes with the stack."
-      line="No second vendor to buy and wire up. Logs, metrics, traces, errors, uptime checks and browser tests work from the first deploy."
+      line="No second vendor to buy and wire up. Logs, metrics and error tracking are on for every stack. Tracing, uptime checks and scripted browser tests are added in the same config."
       picture="Error tracking and uptime checks"
     />
     <OutlineCapability

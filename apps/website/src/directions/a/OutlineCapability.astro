@@ -11,13 +11,24 @@ type Props = {
   picture: string;
   /** Puts the picture on the right, so sections alternate. */
   flip?: boolean;
+  /** Where the line's figures come from, shown under it. */
+  source?: { label: string; href: string };
 };
 
-const { id, index, name, title, line, picture, flip = false } = Astro.props;
+const { id, index, name, title, line, picture, flip = false, source } = Astro.props;
 ---
 
 <Capability {id} {index} {name} {title}>
-  <p slot="lead">{line}</p>
+  <Fragment slot="lead">
+    <p>{line}</p>
+    {
+      source && (
+        <a class="a-outline__source brand-link" href={source.href}>
+          {source.label}
+        </a>
+      )
+    }
+  </Fragment>
   <div class:list={['a-outline', flip && 'a-outline--flip']}>
     <div class="a-placeholder a-outline__picture">{picture}</div>
     <div class="a-placeholder a-outline__proof">Proof</div>
@@ -37,6 +48,11 @@ const { id, index, name, title, line, picture, flip = false } = Astro.props;
 
   .a-outline--flip .a-outline__picture {
     order: 2;
+  }
+
+  .a-outline__source {
+    justify-self: start;
+    font-size: var(--brand-type-sm);
   }
 
   .a-outline__picture {

@@ -26,7 +26,7 @@ const views = [
     id: 'push',
     label: 'Git push',
     title: 'From git push until the new code serves',
-    note: 'Build machine already running. Stacktape measured on 23 Oct.',
+    note: 'Stacktape on its Console runner with code swap (23 Oct). Heroku built from the pushed source and Render from a warm push, on their own machines (22 Oct).',
     groups: [
       findGroup('git-push', 'warm', 'container-node'),
       findGroup('git-push', 'warm', 'container-python'),
@@ -106,7 +106,8 @@ const run = BENCHMARKS.runs[0];
   </div>
 
   <p class="a-bench__foot">
-    Median times, lower is better. Preliminary run of {run.label} on a dedicated EC2 machine. Stacktape also loses one
+    Median times, lower is better. Preliminary run of {run.label}; Lambda and container deploys ran from a dedicated EC2
+    machine. Stacktape also loses one
     Lambda case: a shared-code change to 5 functions takes 17.3 s, CDK hotswap 16.4 s.{' '}
     <a class="brand-link" href="/benchmarks">All results</a>
   </p>
