@@ -1,5 +1,6 @@
 ---
 import { CommandBox } from '../../../brand/CommandBox';
+import MobileCommand from '../../../brand/MobileCommand.astro';
 
 const subheadline =
   'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.';
@@ -32,7 +33,7 @@ const subheadline =
         <CommandBox client:media="(width > 40rem)" preselect={false} />
       </div>
       <div class="home-phone" data-phone-install>
-        <CommandBox client:media="(max-width: 40rem)" single />
+        <MobileCommand />
         <p class="h5__hint">Preview your AWS setup and monthly cost from your app’s folder. Nothing deploys.</p>
       </div>
     </section>

@@ -49,22 +49,23 @@ const current = (href: string) => (path === href ? 'page' : path.startsWith(`${h
 </header>
 
 <script>
-  const menu = document.querySelector<HTMLDetailsElement>('.s-b .brand-header .menu');
+  const menu = document.querySelector<HTMLDetailsElement>('.brand-header .menu');
   if (menu) {
-    const phone = window.matchMedia('(max-width: 40rem)');
-    phone.addEventListener('change', () => { menu.open = false; });
+    for (const query of ['(max-width: 40rem)', '(max-width: 54rem)']) {
+      window.matchMedia(query).addEventListener('change', () => { menu.open = false; });
+    }
     document.addEventListener('click', (event) => {
-      if (phone.matches && menu.open && event.target instanceof Element && !event.target.closest('.menu summary, .menu nav')) {
+      if (menu.open && event.target instanceof Element && !event.target.closest('.menu summary, .menu nav')) {
         menu.open = false;
       }
     });
     menu.addEventListener('focusout', (event) => {
-      if (phone.matches && menu.open && !(event.relatedTarget instanceof Node && menu.contains(event.relatedTarget))) {
+      if (menu.open && !(event.relatedTarget instanceof Node && menu.contains(event.relatedTarget))) {
         menu.open = false;
       }
     });
     document.addEventListener('keydown', (event) => {
-      if (phone.matches && menu.open && event.key === 'Escape') {
+      if (menu.open && event.key === 'Escape') {
         menu.open = false;
         menu.querySelector('summary')?.focus();
       }

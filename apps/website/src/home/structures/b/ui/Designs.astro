@@ -62,28 +62,17 @@ const ROWS = [
 const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)?.category ?? 'compute'})`;
 ---
 
-<div
-  class="wz"
-  role="img"
-  aria-label="What stacktape init proposes for acme-shop: a diagram of the website, the API service, the worker service, the SQS queue, Postgres and Redis; an estimate of $194 a month plus usage; and each resource with the line of code it is there for and its price."
->
-  <div class="wz-in" aria-hidden="true">
-    <div class="wz-diagram ph-desktop">
+<div class="wz">
+  <div
+    class="ph-desktop"
+    role="img"
+    aria-label="Stacktape init proposes a website, an API service, a worker service, an SQS queue, Postgres and Redis for acme-shop. The monthly estimate is $194 plus usage. The review shows the source and price of each resource."
+  >
+    <div class="wz-diagram" inert>
       <div class="stp-diagram" set:html={diagram} />
     </div>
 
-    <div class="wz-phone ph-phone">
-      <PhoneBar title="Setup wizard · Review" />
-      <div class="wz-diagram wz-diagram--phone">
-        <div class="stp-diagram" set:html={phoneDiagram} />
-      </div>
-      <div class="wz-phone__total">
-        <p class="wz-figure"><b>$194</b> /month <span class="wz-usage">+ usage</span></p>
-        <p class="wz-faint">For these 6 resources, at AWS list prices in us‑east‑1</p>
-      </div>
-    </div>
-
-    <div class="wz-costs ph-desktop">
+    <div class="wz-costs" aria-hidden="true">
       <div class="wz-total">
         <p class="wz-eyebrow">Estimated monthly cost</p>
         <p class="wz-figure"><b>$194</b> /month <span class="wz-usage">+ usage</span></p>
@@ -116,6 +105,21 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
           ))
         }
       </ul>
+    </div>
+  </div>
+
+  <div
+    class="wz-phone ph-phone"
+    role="img"
+    aria-label="The setup wizard proposes a website, an API service, a worker service, an SQS queue, Postgres and Redis for acme-shop. The estimate is $194 a month plus usage in US East (N. Virginia)."
+  >
+    <PhoneBar title="Setup wizard · Review" />
+    <div class="wz-diagram wz-diagram--phone" inert>
+      <div class="stp-diagram" set:html={phoneDiagram} />
+    </div>
+    <div class="wz-phone__total">
+      <p class="wz-figure"><b>$194</b> /month <span class="wz-usage">+ usage</span></p>
+      <p class="wz-faint">For these 6 resources, at AWS list prices in us‑east‑1</p>
     </div>
   </div>
 </div>

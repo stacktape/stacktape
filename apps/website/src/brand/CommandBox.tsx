@@ -5,21 +5,13 @@ import { MorphIcon } from 'morphicons/react';
 import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import './command-box.css';
 import './controls.css';
+import { COPY_ICON, copyCommand } from './copy-command';
 import { COMMAND_HINT, COMMANDS } from './install-commands';
 
 type CommandId = (typeof COMMANDS)[number]['id'];
-type CopyState = 'idle' | 'copied' | 'failed';
+type CopyState = keyof typeof COPY_ICON;
 /** Which ends of a command too long for its field have more text past them. */
 type More = 'none' | 'start' | 'end' | 'both';
-
-// The Console's copy button icons (CopyButton.tsx): stroked outlines on a 24 px grid that morph into each other. The
-// check mark and the cross keep the button's own colour: a green check read as a status, and on the teal button a red
-// cross would be unreadable.
-const ICON_PATH: Record<CopyState, string> = {
-  idle: 'M4 9h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1zM9 9V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-5',
-  copied: 'M5.5 12.5l4.5 4.5 9-9',
-  failed: 'M7 7l10 10M17 7 7 17'
-};
 
 /**
  * The command as the eye reads it, like the Console's new project page: the prompt and the runner quiet, `stacktape`
@@ -88,8 +80,6 @@ type Props = {
   id?: string;
   /** Preselect the visitor's installer when their platform is detected. Off keeps npm selected. */
   preselect?: boolean;
-  /** Show the npm command on its own. */
-  single?: boolean;
 };
 
 /**
@@ -97,7 +87,7 @@ type Props = {
  * tabs above a large, quiet command field with a labelled Copy button. Each tab shows one command, the one Copy puts on
  * the clipboard.
  */
-export function CommandBox({ label = 'Install', hint = false, id, preselect = true, single = false }: Props) {
+export function CommandBox({ label = 'Install', hint = false, id, preselect = true }: Props) {
   const [current, setCurrent] = useState<CommandId>('npx');
   const [state, setState] = useState<CopyState>('idle');
   const [status, setStatus] = useState('');
@@ -109,7 +99,7 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
   const command = entry.command;
 
   useEffect(() => {
-    if (!preselect || single) return;
+    if (!preselect) return;
     let cancelled = false;
     const select = async () => {
       const platform = await detectInstallPlatform();
@@ -120,39 +110,23 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
     return () => {
       cancelled = true;
     };
-  }, [preselect, single]);
+  }, [preselect]);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  const settle = (next: CopyState, message: string, ms: number) => {
+  const copy = async () => {
+    const {
+      state: next,
+      message,
+      duration
+    } = await copyCommand(command, fieldRef.current?.querySelector('[data-cmd]'));
     setState(next);
     setStatus(message);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       setState('idle');
       setStatus('');
-    }, ms);
-  };
-
-  /** The fallback when the clipboard is unavailable: select what Copy would have taken. */
-  const selectCommand = () => {
-    const node = fieldRef.current?.querySelector('[data-cmd]');
-    const selection = window.getSelection();
-    if (!node || !selection) return;
-    const range = document.createRange();
-    range.selectNodeContents(node);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  };
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(command);
-      settle('copied', 'Copied to clipboard', 1500);
-    } catch {
-      selectCommand();
-      settle('failed', 'Clipboard unavailable. The command is selected: press Ctrl+C or Cmd+C.', 5000);
-    }
+    }, duration);
   };
 
   const switchTo = (value: CommandId) => {
@@ -167,30 +141,28 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
 
   return (
     <div className={`brand-command brand-command--${state}`} id={id}>
-      {!single && (
-        <Tabs
-          appearance="segmented"
-          ariaLabel={`${label}: how to run the Stacktape CLI`}
-          className="brand-tabs brand-command__tabs"
-          onValueChange={switchTo}
-          size="small"
-          // The operating systems form an unnamed group after a divider: their installers need no Node.js.
-          tabs={COMMANDS.map((tab) => ({
-            value: tab.id,
-            label: tab.label,
-            panelId,
-            group: 'installer' in tab ? '' : undefined
-          }))}
-          value={current}
-          width="fit"
-        />
-      )}
+      <Tabs
+        appearance="segmented"
+        ariaLabel={`${label}: how to run the Stacktape CLI`}
+        className="brand-tabs brand-command__tabs"
+        onValueChange={switchTo}
+        size="small"
+        // The operating systems form an unnamed group after a divider: their installers need no Node.js.
+        tabs={COMMANDS.map((tab) => ({
+          value: tab.id,
+          label: tab.label,
+          panelId,
+          group: 'installer' in tab ? '' : undefined
+        }))}
+        value={current}
+        width="fit"
+      />
       <div
         aria-label={`${entry.label} command`}
         className="brand-command__field"
         id={panelId}
         ref={fieldRef}
-        role={single ? 'group' : 'tabpanel'}
+        role="tabpanel"
       >
         <CommandWords command={command} powershell={entry.id === 'windows'} />
         <Button
@@ -198,7 +170,7 @@ export function CommandBox({ label = 'Install', hint = false, id, preselect = tr
           className="brand-button brand-command__copy"
           icon={
             <span className="brand-command__icon" data-copy-state={state}>
-              <MorphIcon icon={ICON_PATH[state]} reducedMotion="user" size={16} />
+              <MorphIcon icon={COPY_ICON[state]} reducedMotion="user" size={16} />
             </span>
           }
           onClick={copy}
