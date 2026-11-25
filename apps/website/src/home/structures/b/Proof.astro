@@ -1,17 +1,29 @@
 ---
-import { TESTIMONIALS } from '../../../variants/readme/data';
-
 /*
  * The old site's three quotes, word for word. The owner confirmed Trigger.dev's quote stays (25 Nov). Receipts leads:
  * its quote is the most specific and Receipts is still a customer; Trigger.dev has since left, so the title says
  * "have said" rather than implying all three use Stacktape today.
  */
-const ORDER = ['Henry Garrett', 'Rhys Williams', 'Eric Allam'];
-const QUOTES = ORDER.map((name) => {
-  const found = TESTIMONIALS.find((item) => item.name === name);
-  if (!found) throw new Error(`No testimonial from ${name}`);
-  return found;
-});
+const QUOTES = [
+  {
+    quote:
+      'Stacktape (the product) and Stacktape (the team) have helped us move extremely fast. They abstract away so much of the complexity of AWS, and let us focus on our application logic, instead of infrastructure configuration. The team is second to none, hopping in to be true partners with us on our development journey. We would not be where we are today without Stacktape.',
+    name: 'Henry Garrett',
+    role: 'Founding Engineer, Receipts'
+  },
+  {
+    quote:
+      "Stacktape has been a game-changer for Lastmyle, providing a secure and intuitive way to manage our AWS deployments. It's allowed our small team to efficiently handle environments using GitOps, all while keeping a tight rein on costs.",
+    name: 'Rhys Williams',
+    role: 'CTO & Founder, Lastmyle'
+  },
+  {
+    quote:
+      "As a startup founder & CTO, every hour is crucial. With Stacktape, we fast-tracked our AWS deployment process. Our development and production environments were operational in just two days. Stacktape's speed and efficiency have been game-changing for us",
+    name: 'Eric Allam',
+    role: 'CTO & Founder, Trigger.dev'
+  }
+];
 ---
 
 <section class="b-proof site-frame" aria-labelledby="b-proof-title">

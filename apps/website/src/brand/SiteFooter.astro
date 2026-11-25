@@ -2,13 +2,6 @@
 import Logo from './Logo.astro';
 import './site.css';
 
-type Props = {
-  /** The homepage address. Direction previews can pass their own route. */
-  homeHref?: string;
-};
-
-const { homeHref = '/' } = Astro.props;
-const designsHref = Astro.params.structure ? '#designs' : `${homeHref}#designs`;
 const docs = 'https://docs.stacktape.com';
 const github = 'https://github.com/stacktape/stacktape';
 const status = 'https://status.stacktape.com';
@@ -16,7 +9,7 @@ const columns = [
   {
     label: 'Product',
     links: [
-      ['How it works', designsHref],
+      ['How it works', '/#designs'],
       ['Pricing', '/pricing'],
       ['Starter projects', `${docs}/getting-started/starter-projects`],
       ['Changelog', `${github}/releases`],
@@ -59,7 +52,7 @@ const columns = [
 <footer class="brand-footer">
   <div class="site-frame">
     <div class="footer-main">
-      <a class="home" href={homeHref} aria-label="Stacktape home"><Logo alt="" /></a>
+      <a class="home" href="/" aria-label="Stacktape home"><Logo alt="" /></a>
       <nav aria-label="Footer">
         {
           columns.map(({ label, links }) => (

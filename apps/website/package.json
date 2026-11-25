@@ -13,7 +13,6 @@
   "dependencies": {
     "@astrojs/react": "6.0.2",
     "@stacktape/analytics": "workspace:*",
-    "@stacktape/config": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
     "@stacktape/ui-react": "workspace:*",
     "astro": "catalog:",

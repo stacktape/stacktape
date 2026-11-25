@@ -13,7 +13,7 @@ import Steps from './Steps.astro';
   title="Stacktape: AWS DevOps, fully automated"
   description="Stacktape reads your repository, designs the AWS infrastructure, deploys it to your own AWS account and keeps it running."
   htmlClass="brand s-b"
-  noindex={Astro.url.pathname !== '/'}
+  noindex={false}
 >
   <BrandHead slot="head" />
   <SiteHeader startHref="#install" />
@@ -24,7 +24,7 @@ import Steps from './Steps.astro';
     <Questions />
     <Closing />
   </main>
-  <SiteFooter homeHref={Astro.url.pathname} />
+  <SiteFooter />
 </BaseLayout>
 
 <style is:global>

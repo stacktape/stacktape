@@ -3,7 +3,7 @@
  * benchmark helpers: the published medians, never estimates. Each group's bars run fastest to slowest, with Stacktape
  * wherever its time puts it.
  */
-import { BENCHMARKS, findGroup, toolName } from '../../../../../variants/readme/benchmarks';
+import { BENCHMARKS, findGroup, toolName } from '../../../../benchmarks';
 
 export type Bar = { label: string; seconds: number; us: boolean; note?: string };
 

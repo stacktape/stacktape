@@ -1,22 +1,13 @@
-import { readFile, rm, writeFile } from 'node:fs/promises';
-
-const studies = ['d', 'hire', 'lens', 'session', 'sheet', 'stack', 'status', 'studies'];
+import { readFile, writeFile } from 'node:fs/promises';
 
 export const websitePublication = (stage) => ({
   name: 'website-publication',
   hooks: {
     'astro:build:done': async ({ dir, pages, logger }) => {
-      // The review hub runs the default Astro build with no stage. Deployments use the public build.
-      await Promise.all(
-        studies.flatMap((study) =>
-          [study, `${study}.html`].map((entry) => rm(new URL(entry, dir), { recursive: true, force: true }))
-        )
-      );
-
       const canonicalUrls = await Promise.all(
         pages.map(async ({ pathname }) => {
           const parts = pathname.split('/').filter(Boolean);
-          if (studies.includes(parts[0]) || parts[0] === '404') return;
+          if (parts[0] === '404') return;
           const html = await readFile(new URL([...parts, 'index.html'].join('/'), dir), 'utf8');
           return html.match(/<link rel="canonical" href="([^"]+)"/)?.[1];
         })
