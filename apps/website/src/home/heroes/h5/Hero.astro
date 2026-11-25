@@ -1,0 +1,429 @@
+---
+import { ButtonLink } from '@stacktape/ui-react/button';
+import { CommandBox } from '../../../brand/CommandBox';
+import './font.css';
+import { SCREENS } from './screens';
+
+type Props = { subheadline?: string };
+
+const {
+  subheadline = 'Stacktape reads your repository, designs the infrastructure like a senior DevOps team would, deploys it to your own AWS account and makes sure your app runs flawlessly forever after. It keeps you in the loop for any decision that requires human attention.'
+} = Astro.props;
+
+/** Every picture in `images/`, by file name. Plain files the build copies, so no image service is needed. */
+const pictures = import.meta.glob<string>('./images/*', { eager: true, query: '?url', import: 'default' });
+const url = (name: string) => {
+  const found = pictures[`./images/${name}`];
+  if (!found) throw new Error(`The H5 hero has no picture named ${name}.`);
+  return found;
+};
+
+const facts = [
+  { figure: 'MIT', note: 'Open-source CLI. Works without a Stacktape account.', href: 'https://github.com/stacktape/stacktape' },
+  { figure: '10.7 s', note: 'A Lambda change, live. CDK hotswap: 13.2 s. Preliminary run, 22 Oct 2026.', href: '/benchmarks' },
+  { figure: '$0', note: 'Stacktape fee while the stacks it manages spend up to $200 a month on AWS.', href: '/pricing' }
+];
+---
+
+<section class="h5" aria-labelledby="h5-title">
+  <div class="h5__intro">
+    <h1 id="h5-title" class="h5__serif h5__title">AWS DevOps, fully automated.</h1>
+    <p class="h5__lead">{subheadline}</p>
+    <div class="h5__actions">
+      <CommandBox client:load id="install" preselect={false} />
+      <ButtonLink variant="secondary" className="brand-button h5__docs" href="https://docs.stacktape.com"
+        >Read the docs</ButtonLink
+      >
+    </div>
+    <p class="h5__owned">
+      Runs in your AWS account on standard CloudFormation. Stop using Stacktape and your app keeps running.
+    </p>
+  </div>
+
+  <div class="h5__product">
+    <div class="h5__strip" role="tablist" aria-label="What Stacktape runs for you" data-h5-tabs>
+      {
+        SCREENS.map((screen, at) => (
+          <button
+            type="button"
+            role="tab"
+            class="h5__tab"
+            id={`h5-tab-${screen.file}`}
+            aria-controls={`h5-screen-${screen.file}`}
+            aria-selected={at === 0 ? 'true' : 'false'}
+            tabindex={at === 0 ? 0 : -1}
+          >
+            {screen.tab}
+          </button>
+        ))
+      }
+    </div>
+    <div class="h5__window">
+      {
+        SCREENS.map((screen, at) => (
+          <picture
+            id={`h5-screen-${screen.file}`}
+            role="tabpanel"
+            aria-labelledby={`h5-tab-${screen.file}`}
+            hidden={at > 0}
+          >
+            <source media="(max-width: 40rem)" srcset={url(`${screen.file}-phone.webp`)} width="960" height="600" />
+            <img
+              src={url(`${screen.file}-1280.webp`)}
+              srcset={`${url(`${screen.file}-1280.webp`)} 1280w, ${url(`${screen.file}-2560.webp`)} 2560w`}
+              sizes="(min-width: 90rem) 74rem, 92vw"
+              width="2560"
+              height="1369"
+              alt={screen.description}
+              loading={at === 0 ? 'eager' : 'lazy'}
+              fetchpriority={at === 0 ? 'high' : 'auto'}
+              decoding="async"
+            />
+          </picture>
+        ))
+      }
+    </div>
+  </div>
+
+  <ul class="h5__trust" aria-label="Customers and facts" data-hero-trust>
+    <li class="h5__customer">
+      <img src={url('receipts.svg')} alt="Receipts" width="214" height="42" class="h5__receipts" />
+    </li>
+    <li class="h5__customer">
+      <img src={url('lastmyle.webp')} alt="Lastmyle" width="200" height="45" />
+    </li>
+    {
+      facts.map((fact) => (
+        <li>
+          <a href={fact.href}>
+            <strong class="h5__serif">{fact.figure}</strong>
+            <span>{fact.note}</span>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</section>
+
+<script>
+  import './tabs';
+</script>
+
+<style>
+  .h5 {
+    --h5-serif: 'H5 Newsreader', Georgia, 'Times New Roman', serif;
+    --h5-soft: color-mix(in srgb, var(--brand-text), transparent 22%);
+    --h5-rule: rgb(255 255 255 / 8%);
+    /*
+     * The Console's tape tabs (brand-identity session, tape_look.py tabs_css and final_looks.py fitting_clip): one
+     * strip torn into pieces. A piece's torn right end has the same teeth as the next piece's torn left end, so
+     * neighbours fit with an even gap; the two outer ends of the strip are cut straight. Five teeth per end keep the
+     * logo label's pitch (about 7 px) at this tab height.
+     */
+    --h5-tooth: 3.4px;
+    --h5-torn-right:
+      100% 0%, calc(100% - var(--h5-tooth)) 10%, 100% 20%, calc(100% - var(--h5-tooth)) 30%, 100% 40%,
+      calc(100% - var(--h5-tooth)) 50%, 100% 60%, calc(100% - var(--h5-tooth)) 70%, 100% 80%,
+      calc(100% - var(--h5-tooth)) 90%, 100% 100%;
+    --h5-torn-left:
+      var(--h5-tooth) 100%, 0% 90%, var(--h5-tooth) 80%, 0% 70%, var(--h5-tooth) 60%, 0% 50%, var(--h5-tooth) 40%,
+      0% 30%, var(--h5-tooth) 20%, 0% 10%, var(--h5-tooth) 0%;
+    border-block-end: 1px solid var(--h5-rule);
+    background: var(--brand-page);
+  }
+
+  .h5__serif {
+    margin: 0;
+    font-family: var(--h5-serif);
+    font-weight: 500;
+    font-variation-settings: 'opsz' 72;
+    letter-spacing: -0.022em;
+    line-height: 1.02;
+    text-wrap: balance;
+  }
+
+  .h5__intro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: clamp(3rem, 3.6vw, 4.25rem) var(--brand-space-5) 0;
+    text-align: center;
+  }
+
+  .h5__title {
+    font-size: clamp(2.6rem, 1.3rem + 4vw, 6rem);
+  }
+
+  .h5__lead {
+    max-inline-size: min(64rem, 40rem + 16vw);
+    margin: clamp(1rem, 1.3vw, 1.5rem) 0 0;
+    color: var(--h5-soft);
+    font-size: clamp(1.05rem, 0.95rem + 0.4vw, 1.35rem);
+    line-height: 1.5;
+    text-wrap: balance;
+  }
+
+  /* The command box sits on the page's centre line, like the headline and the window; the docs button hangs beside it. */
+  .h5__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 36rem) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--brand-space-4);
+    inline-size: 100%;
+    margin-block-start: clamp(1.75rem, 2.2vw, 2.5rem);
+    text-align: start;
+  }
+
+  .h5__actions :global(.brand-command) {
+    grid-column: 2;
+  }
+
+  .h5__actions :global(.h5__docs) {
+    justify-self: start;
+  }
+
+  .h5__owned {
+    margin: var(--brand-space-4) 0 0;
+    color: var(--brand-muted);
+    font-size: var(--brand-type-sm);
+  }
+
+  /* The product: the Console's tab strip, and under it the real Console window. */
+  .h5__product {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--brand-space-4);
+    inline-size: min(74rem, 100% - 2 * clamp(1.25rem, 6vw, 8rem));
+    margin: clamp(3rem, 3.4vw, 4rem) auto 0;
+  }
+
+  .h5__strip {
+    display: flex;
+    max-inline-size: 100%;
+    padding: 3px;
+    border: 1px solid var(--brand-border);
+    border-radius: var(--brand-radius);
+    background: var(--brand-inset);
+  }
+
+  .h5__tab {
+    position: relative;
+    isolation: isolate;
+    flex: none;
+    block-size: 2.25rem;
+    padding: 0 1.4rem;
+    border: 0;
+    background: none;
+    color: var(--brand-muted);
+    font: 500 0.9375rem / 1 var(--brand-font-heading);
+    cursor: pointer;
+  }
+
+  /* The piece of tape. The button itself is not cut, so its focus ring stays whole. */
+  .h5__tab::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    content: '';
+    clip-path: polygon(var(--h5-torn-right), var(--h5-torn-left));
+    pointer-events: none;
+  }
+
+  .h5__tab:first-child::before {
+    border-start-start-radius: var(--brand-radius-small);
+    border-end-start-radius: var(--brand-radius-small);
+    clip-path: polygon(0% 0%, var(--h5-torn-right), 0% 100%);
+  }
+
+  .h5__tab:last-child::before {
+    border-start-end-radius: var(--brand-radius-small);
+    border-end-end-radius: var(--brand-radius-small);
+    clip-path: polygon(100% 0%, 100% 100%, var(--h5-torn-left));
+  }
+
+  .h5__tab:hover:not([aria-selected='true'])::before {
+    background: rgb(255 255 255 / 4.5%);
+  }
+
+  .h5__tab[aria-selected='true'] {
+    color: var(--brand-on-teal);
+  }
+
+  .h5__tab[aria-selected='true']::before {
+    background: var(--brand-primary);
+    box-shadow: var(--brand-edge-primary);
+  }
+
+  .h5__tab:focus-visible {
+    z-index: 1;
+    outline: 2px solid var(--brand-focus);
+    outline-offset: -2px;
+    border-radius: var(--brand-radius-small);
+  }
+
+  .h5__window {
+    inline-size: 100%;
+    border: 1px solid rgb(255 255 255 / 11%);
+    border-radius: var(--brand-radius);
+    background: var(--brand-inset);
+    box-shadow: 0 34px 80px rgb(0 0 0 / 42%);
+  }
+
+  .h5__window picture,
+  .h5__window img {
+    display: block;
+    inline-size: 100%;
+    block-size: auto;
+    border-radius: inherit;
+  }
+
+  .h5__window picture[hidden] {
+    display: none;
+  }
+
+  /* Customers and three facts, as a ruled row along the bottom of the hero. */
+  .h5__trust {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    margin: clamp(3.5rem, 4vw, 4.5rem) 0 0;
+    padding: 0 max(0rem, (100% - 110rem) / 2);
+    border-block-start: 1px solid var(--h5-rule);
+    background: var(--brand-inset);
+    list-style: none;
+  }
+
+  .h5__trust li {
+    display: grid;
+    min-block-size: 5.25rem;
+    border-inline-start: 1px solid var(--h5-rule);
+  }
+
+  .h5__trust li:first-child {
+    border-inline-start: 0;
+  }
+
+  .h5__customer {
+    place-items: center;
+  }
+
+  .h5__customer img {
+    inline-size: auto;
+    block-size: 1.75rem;
+    max-inline-size: 70%;
+    object-fit: contain;
+    filter: brightness(0) invert(1);
+    opacity: 0.72;
+  }
+
+  .h5__customer .h5__receipts {
+    block-size: 1.4rem;
+  }
+
+  /* A fact: its figure, and beside it one short line that says what the figure is and where it comes from. */
+  .h5__trust a {
+    display: grid;
+    grid-template-columns: auto minmax(0, 14rem);
+    place-content: center;
+    align-items: center;
+    column-gap: var(--brand-space-4);
+    padding: var(--brand-space-4) var(--brand-space-5);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .h5__trust a:is(:hover, :focus-visible) strong {
+    color: var(--brand-teal);
+  }
+
+  .h5__trust strong {
+    font-size: clamp(1.6rem, 1.2rem + 0.9vw, 2.25rem);
+  }
+
+  .h5__trust span {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
+    line-height: 1.45;
+  }
+
+  @media (max-width: 64rem) {
+    .h5__actions {
+      grid-template-columns: minmax(0, 1fr);
+      inline-size: min(36rem, 100%);
+    }
+
+    .h5__actions :global(.brand-command) {
+      grid-column: 1;
+    }
+
+    .h5__actions :global(.h5__docs) {
+      justify-self: center;
+    }
+
+    .h5__trust {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .h5__trust li {
+      min-block-size: 6rem;
+      border-block-start: 1px solid var(--h5-rule);
+    }
+
+    .h5__trust li:nth-child(odd) {
+      border-inline-start: 0;
+    }
+
+    .h5__trust li:nth-child(-n + 2) {
+      border-block-start: 0;
+    }
+
+    .h5__trust li:last-child {
+      grid-column: 1 / -1;
+      border-inline-start: 0;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .h5__intro {
+      padding: var(--brand-space-6) var(--brand-space-4) 0;
+    }
+
+    .h5__lead {
+      text-wrap: pretty;
+    }
+
+    .h5__actions {
+      margin-block-start: var(--brand-space-5);
+    }
+
+    .h5__product {
+      inline-size: calc(100% - 2 * var(--brand-space-4));
+      margin-block-start: var(--brand-space-7);
+      gap: var(--brand-space-3);
+    }
+
+    /* Six pieces of one strip in two rows of three would no longer be one strip, so the strip scrolls instead. */
+    .h5__strip {
+      align-self: stretch;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .h5__tab {
+      block-size: 2rem;
+      padding-inline: 0.9rem;
+      font-size: var(--brand-type-sm);
+    }
+
+    .h5__trust {
+      margin-block-start: var(--brand-space-7);
+    }
+
+    .h5__trust a {
+      grid-template-columns: minmax(0, 1fr);
+      row-gap: var(--brand-space-1);
+      padding-inline: var(--brand-space-4);
+      text-align: center;
+    }
+  }
+</style>
