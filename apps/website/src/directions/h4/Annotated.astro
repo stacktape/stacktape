@@ -20,23 +20,23 @@ const notes = [
   },
   {
     id: 'cost',
-    text: '$32 a month, before anything exists',
-    x: 38.5,
+    text: 'estimated $32 a month + usage',
+    x: 33.8,
     y: 11.6,
     turn: 1.6,
-    from: [39.6, 15.4],
+    from: [35, 15.4],
     via: [29.2, 16.5],
     to: [31.6, 25.4]
   },
   {
     id: 'config',
-    text: 'the config it wrote, in your repo',
-    x: 70.5,
-    y: 36,
-    turn: -1.8,
-    from: [73, 35.6],
-    via: [69.5, 31],
-    to: [68.6, 24]
+    text: 'preview of your stacktape.yml',
+    x: 72,
+    y: -3.6,
+    turn: -1.4,
+    from: [78.5, 1.5],
+    via: [72.5, 12.5],
+    to: [66, 19.4]
   }
 ] as const;
 
@@ -195,16 +195,12 @@ const head = (note: (typeof notes)[number]) => {
 
     .h4-art__dispenser {
       left: -3%;
-      bottom: -22%;
+      bottom: -13%;
       inline-size: 46%;
     }
 
     .h4-note--database {
       left: -2%;
-    }
-
-    .h4-art > figcaption {
-      margin-block-start: 4rem;
     }
   }
 
@@ -213,5 +209,11 @@ const head = (note: (typeof notes)[number]) => {
     color: var(--brand-muted);
     font-size: var(--brand-type-xs);
     text-align: end;
+  }
+
+  @media (max-width: 60rem) {
+    .h4-art figcaption {
+      margin-block-start: calc(9% + var(--brand-space-4));
+    }
   }
 </style>

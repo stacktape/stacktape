@@ -85,12 +85,12 @@ import Annotated from './Annotated.astro';
 
   @media (max-width: 60rem) {
     .h4-hero {
-      padding-block: var(--brand-space-6) var(--brand-space-8);
+      padding-block: var(--brand-space-4) var(--brand-space-8);
     }
 
     .h4-hero__grid {
       grid-template-columns: minmax(0, 1fr);
-      row-gap: var(--brand-space-7);
+      row-gap: var(--brand-space-6);
     }
 
     .h4-hero__copy {
@@ -99,6 +99,70 @@ import Annotated from './Annotated.astro';
 
     .h4-hero__next {
       flex-wrap: wrap;
+      row-gap: var(--brand-space-3);
+    }
+
+    .h4-hero__next p {
+      font-size: 0.8125rem;
+    }
+  }
+
+  /* Phones: the kit's box puts Copy on a row of its own. Here it sits beside the command, and the panel fits its lines. */
+  @media (max-width: 40rem) {
+    .h4-hero__copy :global(.brand-command) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__head) {
+      display: contents;
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__tabs) {
+      grid-column: 1 / -1;
+      grid-row: 1;
+      justify-self: stretch;
+      inline-size: auto;
+      padding: var(--brand-space-2);
+      border-bottom: 1px solid var(--brand-border);
+      border-start-start-radius: inherit;
+      border-start-end-radius: inherit;
+      background: var(--brand-surface);
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__arch) {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      justify-self: start;
+      margin: var(--brand-space-3) var(--brand-space-4) 0;
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__pre) {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      grid-template-columns: minmax(0, 1fr);
+      min-block-size: 0;
+    }
+
+    /* Only the command line makes room for Copy; the hint below it uses the full width. */
+    .h4-hero__copy :global(.brand-command .install-code__line:first-child) {
+      padding-inline-end: 8.25rem;
+    }
+
+    .h4-hero__copy :global(.brand-command .install-code__line:first-child .install-code__cmd) {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .h4-hero__copy :global(.brand-command .brand-button.install-code__copy) {
+      --stp-control-height: 2rem;
+      position: relative;
+      z-index: 1;
+      grid-column: 2;
+      grid-row: 3;
+      align-self: start;
+      margin: 0.45rem 0.6rem 0 0;
     }
   }
 </style>
