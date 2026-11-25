@@ -16,7 +16,9 @@ import Window from './console/Window.astro';
  * $256 on 22 November and AWS forecast $352.80 a day ago.
  */
 
+/** Four of acme-shop's five stages as tabs, as the hero's stage header shows them; production has an open incident. */
 const STAGE_TABS = ['production', 'staging', 'pr-218', 'dev-maya'];
+const STAGES = 5;
 
 /** `resource` is the Stacktape resource type the Console's ResourceIcon draws; null for costs outside resources. */
 const ROWS: { name: string; type: string; resource: string | null; share: number; october: string; november: string }[] = [
@@ -40,7 +42,7 @@ const ALERTS = [
   role="img"
   aria-label="The Costs tab of acme-shop’s production stage in the Stacktape Console: $286.40 so far in November, $350.69 by the end of the month at this pace, split by resource with the API service at 32%. Below it, the budget page of the production AWS account: AWS forecasts $352.80 of the $320.00 limit, and the alerts it sent at 80% and on the forecast."
 >
-  <Window label="The Costs tab of acme-shop’s production stage in the Stacktape Console" page="acme-shop" pageMenu current="projects" openErrors={5}>
+  <Window label="The Costs tab of acme-shop’s production stage in the Stacktape Console" page="acme-shop" pageMenu current="projects" openErrors={4}>
     <div class="cst__page">
       <div class="cst__project">
         <h3 class="cn-h1">acme-shop</h3>
@@ -53,12 +55,16 @@ const ALERTS = [
         <span class="cn-segments">
           {
             STAGE_TABS.map((stage, at) => (
-              <span class:list={{ 'cn-wide': stage === 'dev-maya' }} aria-selected={at === 0 ? 'true' : 'false'}>
-                <i class="cn-dot" />
+              <span class:list={{ 'cst__tab-4': at === 3 }} aria-selected={at === 0 ? 'true' : 'false'}>
+                <i class:list={['cn-dot', { cst__open: at === 0 }]} />
                 {stage}
               </span>
             ))
           }
+        </span>
+        <span class="cst__more">
+          <span class="cst__more-wide">{STAGES - 4} more</span><span class="cst__more-narrow">{STAGES - 3} more</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"></path></svg>
         </span>
         <span class="cn-button cn-wide">+ New stage</span>
         <span class="cst__account cn-faint cn-wide">acme-production · us-east-1</span>
@@ -210,6 +216,30 @@ const ALERTS = [
 
   .cst__account {
     margin-left: auto;
+  }
+
+  /* Production's dot: it has an open incident (the hero's certificate warning). */
+  .cst__open {
+    background: var(--cst-warn);
+  }
+
+  .cst__more {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    color: var(--stp-text-muted);
+  }
+
+  .cst__more svg {
+    width: 0.9em;
+    height: 0.9em;
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 2;
+  }
+
+  .cst__more-narrow {
+    display: none;
   }
 
   .cst__tabs {
@@ -452,12 +482,18 @@ const ALERTS = [
     }
   }
 
-  /* A phone: resource, share and this month's spend. */
+  /* A phone: three stage tabs, then resource, share and this month's spend. */
   @container cstp (max-width: 30rem) {
+    .cst__tab-4,
+    .cst__more-wide,
     .cst__month,
     .cst__grid > .cst__type,
     .cst__meter {
       display: none;
+    }
+
+    .cst__more-narrow {
+      display: inline;
     }
 
     .cst__grid {
