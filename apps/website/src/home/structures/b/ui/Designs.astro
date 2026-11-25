@@ -5,32 +5,32 @@ import { getResourceVisual } from '@stacktape/ui-react/resource-icon/catalog';
 import diagram from './designs/diagram.svg?raw';
 
 /**
- * The init wizard's Review for acme-shop (apps/init-ui/src/steps/ReviewStep.tsx and ReviewSettings.tsx on
- * ui/init-wizard-redesign): the diagram of what gets created, the monthly estimate, and a row per resource, most
- * expensive first, with its size, its price and the line of code it is there for (the wizard's EvidenceLine).
+ * What `stacktape init` proposes for acme-shop, simplified from the wizard's Review (apps/init-ui/src/steps/
+ * ReviewStep.tsx on ui/init-wizard-redesign): the diagram of what gets created, the monthly estimate, and each resource
+ * with the line of code it is there for and its price. The owner asked for a simpler picture than the real screen (25
+ * Nov), so the wizard's header, stepper, editor, traffic examples and bottom bar are left out.
  *
  * The row icons are the real ResourceIcon, rendered on the server. `designs/diagram.svg` is the real IsometricDiagram
  * from @stacktape/ui-react, rendered once with `renderToStaticMarkup` under Bun for this config, cropped to its content
- * with its labels 1.55× larger (as the wizard's minLabelSize does in a small frame), so the page ships no script for it:
+ * with its labels 1.3× larger (as the wizard's minLabelSize does in a small frame), so the page ships no script for it:
  *
  *   web: hosting-bucket (single-page app) · api: web-service, js-bundle, 1 vCPU, 2 GB, 2–4 instances, connectTo
  *   database, cache, jobQueue · worker: worker-service, js-bundle, 0.5 vCPU, 1 GB, 2 instances, connectTo jobQueue,
  *   database, cache · jobQueue: sqs-queue · database: relational-database, postgres 16, db.t4g.medium, 50 GB,
  *   accessibilityMode vpc · cache: redis, valkey, cache.t4g.small
  *
- * It is the config acme-shop runs in the hero's Console (heroes/h5/console/data.ts): the same names, region, resource
- * types and the worker's two running tasks. The estimate is its fixed monthly price at AWS list prices in us-east-1, as
- * the wizard's estimator computes it: Postgres db.t4g.medium with 50 GB gp3 ($47.45 + $5.75), two Fargate tasks of
- * 1 vCPU / 2 GB ($72.08) and two of 0.5 vCPU / 1 GB ($36.04), a cache.t4g.small Valkey node ($18.69): $180 a month.
- * Traffic adds HTTP API requests at $1.00 per million. Every resource's October bill in the hero (heroes/h5/console/
- * data.ts COSTS) is its estimate here plus what it used; the hero's $331.95 also holds $50.55 not tied to a resource.
+ * It is the config acme-shop runs in the hero's Console (heroes/h5/console/data.ts). The estimate is its fixed monthly
+ * price at AWS list prices in us-east-1, as the wizard's estimator computes it: Postgres db.t4g.medium with 50 GB gp3
+ * ($47.45 + $5.75), two Fargate tasks of 1 vCPU / 2 GB ($72.08) and two of 0.5 vCPU / 1 GB ($36.04), a cache.t4g.small
+ * Valkey node ($18.69): $180 a month. Every resource's October bill in the hero (heroes/h5/console/data.ts COSTS) is its
+ * estimate here plus what it used; the hero's $331.95 also holds $50.55 not tied to a resource.
+ *
+ * A phone shows the estimate and three resources, without the diagram.
  */
-/** The rows, most expensive first. `why` is what the line says and `where` the file and line, as EvidenceLine prints them. */
 const ROWS = [
   {
     type: 'web-service',
     title: 'API service',
-    size: '2 × 1 vCPU · 2 GB',
     price: '$72',
     usage: true,
     why: 'Fastify server',
@@ -40,67 +40,15 @@ const ROWS = [
   {
     type: 'relational-database',
     title: 'Postgres database',
-    size: 'db.t4g.medium · 50 GB',
     price: '$53',
     why: 'Postgres driver',
     where: 'api/package.json:21',
     phone: true
   },
-  {
-    type: 'worker-service',
-    title: 'Worker service',
-    size: '2 × 0.5 vCPU · 1 GB',
-    price: '$36',
-    why: 'Queue consumer',
-    where: 'worker/src/index.ts:6'
-  },
-  {
-    type: 'redis',
-    title: 'Redis cache',
-    size: 'Valkey · cache.t4g.small',
-    price: '$19',
-    why: 'Redis client',
-    where: 'api/package.json:24'
-  },
-  {
-    type: 'hosting-bucket',
-    title: 'Website',
-    size: 'React, Vite build',
-    why: 'Vite app',
-    where: 'web/package.json:7',
-    phone: true
-  },
-  { type: 'sqs-queue', title: 'SQS queue', size: 'Standard queue', why: 'SQS client', where: 'api/package.json:12' }
-];
-const TRAFFIC = [
-  { requests: '100K', total: '$180' },
-  { requests: '1M', total: '$181' },
-  { requests: '10M', total: '$190' }
-];
-const STEPS = ['Analyze', 'Review', 'Deploy', 'Live'];
-/** The top of the generated stacktape.yml, as the wizard writes it, with the editor's code lens beside each resource. */
-const YAML: Array<{ indent: number; key: string; value?: string; lens?: string }> = [
-  { indent: 0, key: 'projectName', value: 'acme-shop' },
-  { indent: 0, key: 'region', value: 'us-east-1' },
-  { indent: 0, key: 'resources' },
-  { indent: 1, key: 'database', lens: 'Postgres database · $53/mo' },
-  { indent: 2, key: 'type', value: 'relational-database' },
-  { indent: 2, key: 'properties' },
-  { indent: 3, key: 'credentials' },
-  { indent: 4, key: 'masterUserName', value: 'stacktape' },
-  { indent: 4, key: 'masterUserPassword', value: "$Secret('acme-shop-database.password')" },
-  { indent: 3, key: 'engine' },
-  { indent: 4, key: 'type', value: 'postgres' },
-  { indent: 4, key: 'properties' },
-  { indent: 5, key: 'version', value: '"16"' },
-  { indent: 5, key: 'storage' },
-  { indent: 6, key: 'initialSize', value: '50' },
-  { indent: 5, key: 'primaryInstance' },
-  { indent: 6, key: 'instanceSize', value: 'db.t4g.medium' },
-  { indent: 3, key: 'accessibility' },
-  { indent: 4, key: 'accessibilityMode', value: 'vpc' },
-  { indent: 1, key: 'api', lens: 'API service · $72/mo + usage' },
-  { indent: 2, key: 'type', value: 'web-service' }
+  { type: 'worker-service', title: 'Worker service', price: '$36', why: 'Queue consumer', where: 'worker/src/index.ts:6' },
+  { type: 'redis', title: 'Redis cache', price: '$19', why: 'Redis client', where: 'api/package.json:24' },
+  { type: 'hosting-bucket', title: 'Website', why: 'Vite app', where: 'web/package.json:7', phone: true },
+  { type: 'sqs-queue', title: 'SQS queue', why: 'SQS client', where: 'api/package.json:12' }
 ];
 /** A resource's colour: its AWS category's, the same the diagram paints it in. */
 const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)?.category ?? 'compute'})`;
@@ -109,525 +57,154 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
 <div
   class="wz"
   role="img"
-  aria-label="The Stacktape init wizard's Review for acme-shop: a diagram of the website, the API service, the worker service, the SQS queue, Postgres and Redis, an estimate of $180 a month plus usage for its production sizes, and each resource with the line of code it is there for."
+  aria-label="What stacktape init proposes for acme-shop: a diagram of the website, the API service, the worker service, the SQS queue, Postgres and Redis; an estimate of $180 a month plus usage; and each resource with the line of code it is there for and its price."
 >
   <div class="wz-in" aria-hidden="true">
-    <div class="wz-top">
-      <span class="wz-brand"><b>Stacktape</b><span>/</span>acme-shop</span>
-      <ol class="wz-steps">
+    <div class="wz-diagram">
+      <div class="stp-diagram" set:html={diagram} />
+    </div>
+
+    <div class="wz-side">
+      <div class="wz-total">
+        <p class="wz-eyebrow">Estimated monthly cost</p>
+        <p class="wz-figure"><b>$180</b> /month <span class="wz-usage">+ usage</span></p>
+        <p class="wz-faint">AWS list prices in us-east-1</p>
+      </div>
+      <ul class="wz-rows">
         {
-          STEPS.map((step, index) => (
-            <li data-state={index === 0 ? 'done' : index === 1 ? 'current' : undefined}>
-              <i />
-              {step}
+          ROWS.map((row) => (
+            <li class:list={['wz-row', { 'wz-row--more': !row.phone }]}>
+              <span class="wz-tile" style={`--wz-tone: ${tone(row.type)}`}>
+                <ResourceIcon resourceType={row.type} size={18} />
+              </span>
+              <span class="wz-row__name">
+                <strong>{row.title}</strong>
+                <small>
+                  {row.why} <span>in {row.where}</span>
+                </small>
+              </span>
+              {row.price ? (
+                <span class="wz-price">
+                  <span>
+                    <b>{row.price}</b>/mo
+                  </span>
+                  {row.usage ? <small>+ usage</small> : null}
+                </span>
+              ) : (
+                <span class="wz-price wz-price--muted">Pay per use</span>
+              )}
             </li>
           ))
         }
-      </ol>
-      <span class="wz-running"><i></i>Running on this machine</span>
-    </div>
-
-    <div class="wz-page">
-      <div class="wz-title">
-        <div>
-          <h3>acme-shop on AWS</h3>
-          <p>A React app with a Node.js API and a queue worker, using Postgres and Redis.</p>
-        </div>
-        <p class="wz-faint">Analyzed by Claude Code · 23 files read</p>
-      </div>
-
-      <div class="wz-main">
-        <div class="wz-left">
-          <div class="wz-panel wz-diagram">
-            <div class="stp-diagram" set:html={diagram} />
-          </div>
-          <div class="wz-panel wz-editor">
-            <div class="wz-editor__tabs">
-              <span aria-selected="true">stacktape.yml</span>
-              <span>Template</span>
-              <span class="wz-editor__lang"><b>YAML</b>TypeScript</span>
-            </div>
-            <ol class="wz-editor__code">
-              {
-                YAML.map((line) => (
-                  <li style={`--wz-indent: ${line.indent}`}>
-                    <span class="wz-key">{line.key}</span>
-                    {line.value ? <span class="wz-value">{`: ${line.value}`}</span> : ':'}
-                    {line.lens ? <span class="wz-lens">{line.lens}</span> : null}
-                  </li>
-                ))
-              }
-            </ol>
-          </div>
-        </div>
-
-        <div class="wz-panel wz-overview">
-          <div class="wz-costs">
-            <p class="wz-eyebrow">Estimated monthly cost</p>
-            <p class="wz-total"><b>$180</b> /month <span class="wz-usage">+ usage</span></p>
-            <p class="wz-faint">AWS list prices in us-east-1</p>
-            <dl class="wz-traffic">
-              <dt>With traffic</dt>
-              {
-                TRAFFIC.map((row) => (
-                  <dd>
-                    <span>{row.requests} requests a month</span>
-                    <span>≈ {row.total}/mo</span>
-                  </dd>
-                ))
-              }
-            </dl>
-          </div>
-          <div class="wz-group">
-            <p class="wz-eyebrow">Resources</p>
-            <ul class="wz-rows">
-              {
-                ROWS.map((row) => (
-                  <li class:list={['wz-row', { 'wz-row--more': !row.phone }]}>
-                    <span class="wz-tile" style={`--wz-tone: ${tone(row.type)}`}>
-                      <ResourceIcon resourceType={row.type} size={20} />
-                    </span>
-                    <span class="wz-row__name">
-                      <strong>{row.title}</strong>
-                      <small>{row.size}</small>
-                    </span>
-                    {row.price ? (
-                      <span class="wz-price">
-                        <span>
-                          <b>{row.price}</b> /mo
-                        </span>
-                        {row.usage ? <small>+ usage</small> : null}
-                      </span>
-                    ) : (
-                      <span class="wz-price wz-price--muted">Pay per use</span>
-                    )}
-                    <span class="wz-chevron" />
-                    <small class="wz-why">
-                      {row.why} <span>in {row.where}</span>
-                    </small>
-                  </li>
-                ))
-              }
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="wz-bar">
-      <p><b>$180</b> /month <span class="wz-bar__words">estimated AWS cost + usage</span></p>
-      <span class="wz-faint">Saves stacktape.yml</span>
-      <span class="wz-continue">Continue to deploy</span>
+      </ul>
     </div>
   </div>
 </div>
 
 <style>
-  /* The wizard's own tokens (apps/init-ui/src/styles.css), dark theme. */
   .wz {
-    --wz-chrome: rgb(17 22 22);
-    --wz-page: #141919;
-    --wz-panel: linear-gradient(180deg, rgb(33 39 39), rgb(29 35 35));
-    --wz-raised: rgb(38 45 45);
-    --wz-well: rgb(0 0 0 / 20%);
-    --wz-line: rgb(255 255 255 / 7%);
-    --wz-line-strong: rgb(255 255 255 / 13%);
-    --wz-text: #f1f6f6;
+    --wz-line: rgb(255 255 255 / 8%);
     --wz-strong: rgb(255 255 255 / 95%);
     --wz-muted: rgb(180 186 186);
-    --wz-subtle: rgb(150 158 158);
     --wz-faint: rgb(124 132 132);
-    --wz-brand: #36bebe;
-    --wz-ok: rgb(52 196 160);
 
     container-type: inline-size;
-    overflow: hidden;
     border: 1px solid var(--brand-border);
-    border-radius: var(--brand-radius);
-    background: var(--wz-page);
-    box-shadow: var(--brand-shadow);
-    color: var(--wz-text);
-    font: 500 0.8125rem / 1.45 var(--brand-font-heading);
+    background: var(--brand-inset);
+    color: var(--brand-text);
+    font: 500 0.875rem / 1.45 var(--brand-font-heading);
     font-variant-numeric: tabular-nums;
   }
 
-  .wz :is(h3, p, ul, ol, dl, dd) {
+  .wz :is(p, ul) {
     margin: 0;
     padding: 0;
   }
 
-  .wz :is(ul, ol) {
-    list-style: none;
-  }
-
-  .wz-faint {
-    color: var(--wz-faint);
-  }
-
-  .wz-top {
+  .wz-in {
     display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    gap: 1.5em;
-    height: 4.2em;
-    padding: 0 1.75em;
-    border-bottom: 1px solid var(--wz-line);
-    background: var(--wz-chrome);
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 27rem);
   }
 
-  .wz-brand {
-    display: flex;
-    gap: 0.6em;
-    color: var(--wz-muted);
-    font-size: 1.08em;
-  }
-
-  .wz-brand b {
-    color: var(--wz-strong);
-    font-weight: 700;
-  }
-
-  .wz-steps {
-    display: flex;
-    gap: 0;
-  }
-
-  .wz-steps li {
-    position: relative;
-    display: grid;
-    justify-items: center;
-    gap: 0.35em;
-    width: 7.5em;
-    color: var(--wz-faint);
-  }
-
-  .wz-steps li::before {
-    position: absolute;
-    top: 0.7em;
-    right: 50%;
-    left: -50%;
-    height: 2px;
-    background: var(--brand-border);
-    content: '';
-  }
-
-  .wz-steps li:first-child::before {
-    display: none;
-  }
-
-  .wz-steps li:is([data-state='done'], [data-state='current'])::before {
-    background: var(--wz-brand);
-  }
-
-  .wz-steps i {
-    position: relative;
-    width: 1.4em;
-    height: 1.4em;
-    border: 2px solid #3a4242;
-    border-radius: 50%;
-    background: var(--wz-chrome);
-  }
-
-  .wz-steps [data-state='done'] i {
-    border-color: var(--wz-brand);
-    background: var(--wz-brand);
-  }
-
-  .wz-steps [data-state='done'] i::after {
-    position: absolute;
-    top: 0.18em;
-    left: 0.36em;
-    width: 0.3em;
-    height: 0.55em;
-    border-right: 2px solid var(--wz-chrome);
-    border-bottom: 2px solid var(--wz-chrome);
-    transform: rotate(45deg);
-    content: '';
-  }
-
-  .wz-steps [data-state='current'] {
-    color: var(--wz-strong);
-    font-weight: 600;
-  }
-
-  .wz-steps [data-state='current'] i {
-    border-color: var(--wz-brand);
-    box-shadow: inset 0 0 0 0.22em var(--wz-chrome), inset 0 0 0 1em var(--wz-brand);
-  }
-
-  .wz-running {
-    display: flex;
-    align-items: center;
-    justify-self: end;
-    gap: 0.6em;
-    color: var(--wz-muted);
-  }
-
-  .wz-running i {
-    width: 0.5em;
-    height: 0.5em;
-    border-radius: 50%;
-    background: var(--wz-ok);
-  }
-
-  .wz-page {
-    display: grid;
-    gap: 1.25em;
-    padding: 1.6em 1.75em 1.75em;
-  }
-
-  .wz-title {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
-    justify-content: space-between;
-    gap: 0.5em 2em;
-  }
-
-  .wz-title h3 {
-    color: var(--wz-strong);
-    font: 600 1.9em / 1.2 var(--brand-font-heading);
-    letter-spacing: -0.02em;
-  }
-
-  .wz-title p:not(.wz-faint) {
-    margin-top: 0.3em;
-    color: var(--wz-muted);
-    font-size: 1.08em;
-  }
-
-  .wz-main {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 29em);
-    gap: 1.25em;
-  }
-
-  .wz-panel {
-    background: var(--wz-panel);
-    box-shadow: 0 2px 6px rgb(0 0 0 / 35%), inset 0 1px 0 rgb(255 255 255 / 9%);
-  }
-
+  /* The diagram fills its half; its toolbar (search, zoom) is for the Console, where a stage has many resources. */
   .wz-diagram {
     position: relative;
+    align-self: center;
     aspect-ratio: 946 / 485;
-    overflow: hidden;
-  }
-  .wz-left {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 1.25em;
-    min-width: 0;
+    margin: clamp(0.5rem, 0.25rem + 1vw, 1.25rem);
   }
 
-  .wz-editor {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .wz-editor__tabs {
-    display: flex;
-    align-items: center;
-    gap: 1.5em;
-    padding: 0 1em;
-    border-bottom: 1px solid var(--wz-line);
-    color: var(--wz-subtle);
-    font-size: 1.04em;
-  }
-
-  .wz-editor__tabs > span {
-    position: relative;
-    padding: 0.75em 0 0.8em;
-  }
-
-  .wz-editor__tabs [aria-selected='true'] {
-    color: var(--wz-strong);
-    font-weight: 600;
-  }
-
-  .wz-editor__tabs [aria-selected='true']::after {
-    position: absolute;
-    right: 0;
-    bottom: -1px;
-    left: 0;
-    height: 2px;
-    background: var(--wz-brand);
-    content: '';
-  }
-
-  .wz-editor__lang {
-    display: flex;
-    gap: 0.9em;
-    margin-left: auto;
-    padding: 0.25em 0.8em 0.25em 0.25em !important;
-    background: rgb(0 0 0 / 25%);
-    font-size: 0.9em;
-  }
-
-  .wz-editor__lang b {
-    padding: 0.2em 0.7em;
-    background: #2f3636;
-    color: var(--wz-strong);
-    font-weight: 600;
-  }
-
-  /* The file is as long as the room the resource list leaves, so it never makes the window taller. */
-  .wz-editor__code {
-    contain: size;
-    min-height: 0;
-    padding: 0.7em 0 !important;
-    overflow: hidden;
-    counter-reset: wz-line;
-    font: 400 0.98em / 1.75 var(--brand-font-mono);
-    mask-image: linear-gradient(180deg, #000 75%, transparent);
-  }
-
-  .wz-editor__code li {
-    display: flex;
-    align-items: baseline;
-    padding-left: calc(3.2em + var(--wz-indent) * 1.25em);
-    white-space: nowrap;
-    counter-increment: wz-line;
-  }
-
-  .wz-editor__code li::before {
-    position: absolute;
-    left: 0;
-    width: 2.2em;
-    color: var(--wz-faint);
-    text-align: right;
-    content: counter(wz-line);
-  }
-
-  .wz-editor__code li {
-    position: relative;
-  }
-
-  .wz-key {
-    color: #6fc7e0;
-  }
-
-  .wz-value {
-    color: #e5c07b;
-  }
-
-  .wz-lens {
-    margin-left: 1.25em;
-    color: var(--wz-muted);
-    font: 500 0.9em var(--brand-font-heading);
-  }
-
-
-  /* The diagram fills its panel; its toolbar (search, zoom) is for the Console, where a stage has many resources. */
+  /* The picture sits on the panel itself, without the Console's own canvas colour behind it. */
   .wz-diagram > :global(:first-child) {
     position: absolute;
     inset: 0;
+    background: none;
   }
 
-  .wz-diagram :global(:is([role='toolbar'], .iso-toolbar, .iso-controls)) {
-    display: none;
-  }
-
-
-  .wz-overview {
+  .wz-side {
     display: grid;
     align-content: start;
-  }
-
-  .wz-costs {
-    display: grid;
-    gap: 0.2em;
-    padding: 1.4em 1.4em 1.25em;
-    border-bottom: 1px solid var(--wz-line);
+    gap: 1.25rem;
+    padding: clamp(1.25rem, 0.75rem + 1.5vw, 2rem);
+    border-left: 1px solid var(--brand-border);
   }
 
   .wz-eyebrow {
-    color: var(--wz-subtle);
-    font-size: 0.85em;
+    color: var(--wz-faint);
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
-  .wz-total {
+  .wz-figure {
     display: flex;
     align-items: baseline;
-    gap: 0.35em;
-    margin-top: 0.3em !important;
+    gap: 0.35rem;
+    margin-top: 0.35rem !important;
     color: var(--wz-muted);
-    font-size: 1.08em;
   }
 
-  .wz-total b {
+  .wz-figure b {
     color: var(--wz-strong);
-    font-size: 2.3em;
+    font-size: 2.5rem;
     font-weight: 600;
     letter-spacing: -0.02em;
-    line-height: 1.15;
+    line-height: 1.1;
   }
 
   .wz-usage {
-    margin-left: 0.4em;
-    padding: 0.1em 0.65em;
-    background: rgb(255 255 255 / 6%);
-    font-size: 0.85em;
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.5rem;
+    background: rgb(255 255 255 / 7%);
+    font-size: 0.75rem;
   }
 
-  .wz-traffic {
-    display: grid;
-    gap: 0.1em;
-    margin-top: 0.9em !important;
-    padding: 0.75em 0.95em;
-    background: var(--wz-well);
-    box-shadow: inset 0 1px 3px rgb(0 0 0 / 30%);
-  }
-
-  .wz-traffic dt {
-    margin-bottom: 0.25em;
-    color: var(--wz-muted);
-    font-size: 0.92em;
-    font-weight: 600;
-  }
-
-  .wz-traffic dd {
-    display: flex;
-    justify-content: space-between;
-    color: var(--wz-subtle);
-    font-size: 0.96em;
-  }
-
-  .wz-traffic dd span + span {
-    color: var(--wz-text);
-  }
-
-  .wz-group {
-    display: grid;
-    gap: 0.75em;
-    padding: 1.25em 1.4em 1.4em;
+  .wz-faint {
+    color: var(--wz-faint);
+    font-size: 0.75rem;
   }
 
   .wz-rows {
     display: grid;
-    gap: 0.55em;
+    list-style: none;
   }
 
+  /* A row: the resource's icon, its name and the code line it is there for, and its price. */
   .wz-row {
     display: grid;
-    grid-template-columns: 2.9em minmax(0, 1fr) auto 0.6em;
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
     align-items: center;
-    gap: 0.9em;
-    padding: 0.7em 0.9em 0.7em 0.85em;
-    border: 1px solid var(--wz-line-strong);
-    background: var(--wz-raised);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 28%), inset 0 1px 0 rgb(255 255 255 / 5%);
+    gap: 0.85rem;
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--wz-line);
   }
 
   .wz-tile {
     display: grid;
     place-items: center;
-    width: 2.9em;
-    height: 2.9em;
+    width: 2.25rem;
+    height: 2.25rem;
     border: 1px solid color-mix(in srgb, var(--wz-tone), transparent 60%);
     background: color-mix(in srgb, var(--wz-tone), transparent 86%);
     color: var(--wz-tone);
@@ -640,30 +217,15 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
 
   .wz-row__name strong {
     color: var(--wz-strong);
-    font-size: 1.08em;
     font-weight: 600;
   }
 
   .wz-row__name small {
-    overflow: hidden;
-    color: var(--wz-subtle);
-    font-size: 0.96em;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  /* Why the resource is there: under its name and size, across the row. */
-  .wz-why {
-    grid-column: 2 / -1;
-    margin-top: -0.45em;
-    overflow: hidden;
     color: var(--wz-muted);
-    font-size: 0.96em;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    font-size: 0.8rem;
   }
 
-  .wz-why span {
+  .wz-row__name small span {
     color: var(--wz-faint);
   }
 
@@ -675,96 +237,40 @@ const tone = (type: string) => `var(--stp-aws-category-${getResourceVisual(type)
   }
 
   .wz-price b {
+    display: inline;
     color: var(--wz-strong);
-    font-size: 1.15em;
+    font-size: 1rem;
     font-weight: 600;
   }
 
   .wz-price small {
-    font-size: 0.88em;
+    font-size: 0.75rem;
   }
 
   .wz-price--muted {
-    font-size: 1.04em;
+    font-size: 0.8rem;
   }
 
-  .wz-chevron {
-    width: 0.5em;
-    height: 0.5em;
-    border-top: 1.5px solid var(--wz-muted);
-    border-right: 1.5px solid var(--wz-muted);
-    transform: rotate(45deg);
-  }
-
-  .wz-bar {
-    display: flex;
-    align-items: center;
-    gap: 1.5em;
-    padding: 1em 1.75em;
-    border-top: 1px solid var(--wz-line);
-    background: var(--wz-chrome);
-  }
-
-  .wz-bar p {
-    margin-right: auto;
-    color: var(--wz-muted);
-  }
-
-  .wz-bar b {
-    color: var(--wz-strong);
-    font-size: 1.55em;
-    font-weight: 600;
-  }
-
-  .wz-continue {
-    white-space: nowrap;
-    padding: 0.75em 1.25em;
-    background: linear-gradient(180deg, var(--brand-primary-top), var(--brand-primary-bottom));
-    box-shadow: var(--brand-edge-primary);
-    color: var(--brand-on-teal);
-    font-size: 1.05em;
-  }
-
-  /* Narrower windows: the resources go under the picture, as the wizard does below three columns. */
+  /* Narrower: the diagram above, the costs under it. A phone shows the costs and three resources only. */
   @container (max-width: 760px) {
-    .wz-main {
+    .wz-in {
       grid-template-columns: minmax(0, 1fr);
     }
 
-    .wz-editor {
-      display: none;
+    .wz-side {
+      border-top: 1px solid var(--brand-border);
+      border-left: 0;
     }
   }
 
   @container (max-width: 520px) {
-    .wz-in {
-      font-size: 0.8rem;
-    }
-
-    .wz-top {
-      grid-template-columns: minmax(0, 1fr);
-      height: auto;
-      padding: 0.9em 1.1em;
-    }
-
-    /* A phone shows what a reader decides on: the estimate, three resources with their code lines, the save action. */
-    .wz-steps,
-    .wz-running,
-    .wz-bar__words,
-    .wz-bar .wz-faint,
-    .wz-title .wz-faint,
-    .wz-left,
-    .wz-traffic,
+    .wz-diagram,
     .wz-row--more {
       display: none;
     }
 
-    .wz-page {
-      padding: 1.1em;
-    }
-
-    .wz-bar {
-      padding: 0.9em 1.1em;
+    .wz-side {
+      border-top: 0;
     }
   }
 </style>

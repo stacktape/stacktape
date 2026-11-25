@@ -1,42 +1,32 @@
 ---
-import Tape from '../../../../brand/Tape.astro';
 import Chart from './bench/Chart.astro';
 import { barsOf, runOf, slowest } from './bench/data';
 
 /**
  * Deploy speed from the deploy benchmarks (`src/data/deploy-benchmarks.json`): seconds until the changed code answers.
- * The headline is a code change to 25 Lambda functions from the command line. Then a container code change and a Git
- * push of a Node.js service, and the two cases where another tool is faster: a Git push of a Python service (Heroku)
- * and a shared-code change to 5 functions (CDK hotswap). Every tool's bar, fastest first; the run dates link to the
- * runs' results on GitHub.
+ * The headline is a code change to 25 Lambda functions from the command line; under it, a container code change and a
+ * Git push of a Node.js service. Every tool's bar, fastest first; the run dates link to the runs' results on GitHub.
+ * The owner had the cases where another tool is faster (a Python Git push, a 5-function shared-code change) and the
+ * footnote removed (25 Nov).
  *
- * Stacktape's container and Git push times use code swap, which is opt-in and covers code changes only, so the bar
- * says so. Heroku's container time and its Git push time are one measurement, a build from the pushed source
- * (`heroku builds:create`), so both bars say that. (Without code swap the data file's note gives Stacktape's image
- * deploy of the Node.js service as 40.1 s on 17 October, slower than Heroku's 26.6 s. The owner had the footnote that
- * said so removed; the bar's "code swap enabled" note stays.)
- *
- * A phone keeps the headline result and the two cases Stacktape loses; the two Node.js charts open from a native
- * disclosure, since the footnote talks about them.
+ * Stacktape's container and Git push times use code swap, which is opt-in and covers code changes only, so the bar says
+ * so. Heroku's container time and its Git push time are one measurement, a build from the pushed source (`heroku
+ * builds:create`), so both bars say that.
  */
 const SWAP = { stacktape: 'code swap enabled' };
-const FROM_SOURCE = { heroku: 'build from the pushed source', render: 'build from the pushed source' };
 const large = barsOf('lambda-deploy', 'handler', 'lambda-25');
 const container = barsOf('container-deploy', 'code-change', 'container-node', {
   ...SWAP,
   heroku: 'the same build from source as under Git push'
 });
-const pushNode = barsOf('git-push', 'warm', 'container-node', { ...SWAP, ...FROM_SOURCE });
-const pushPython = barsOf('git-push', 'warm', 'container-python', { ...SWAP, ...FROM_SOURCE });
-const shared = barsOf('lambda-deploy', 'shared', 'lambda-5');
+const pushNode = barsOf('git-push', 'warm', 'container-node', {
+  ...SWAP,
+  heroku: 'build from the pushed source',
+  render: 'build from the pushed source'
+});
 const us = large.find((bar) => bar.us);
 if (!us) throw new Error('The Lambda deploy benchmark has no Stacktape value');
-const small = slowest(container, pushNode, pushPython, shared);
-/** The two other wins: beside each other on a wide screen, behind a disclosure on a phone. */
-const WINS = [
-  { title: 'Containers', detail: 'A code change to a Node.js service', bars: container },
-  { title: 'Git push', detail: 'Node.js service, build machine already running', bars: pushNode }
-];
+const small = slowest(container, pushNode);
 const cli = runOf(0);
 const push = runOf(1);
 ---
@@ -54,18 +44,8 @@ const push = runOf(1);
     </div>
     <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} />
   </div>
-  <div class="bn-more bn-more--wins">
-    {WINS.map((chart) => <Chart {...chart} scale={small} />)}
-  </div>
-  <details class="bn-phone-more">
-    <summary>Node.js service: container code change and Git push</summary>
-    <div class="bn-more">
-      {WINS.map((chart) => <Chart {...chart} scale={small} />)}
-    </div>
-  </details>
   <div class="bn-more">
-    <p class="bn-more__label"><Tape tone="gray">Where Stacktape is slower</Tape></p>
-    <Chart title="Git push" detail="Python service, build machine already running" bars={pushPython} scale={small} />
-    <Chart title="Shared code" detail="A change to code that 5 functions import" bars={shared} scale={small} />
+    <Chart title="Containers" detail="A code change to a Node.js service" bars={container} scale={small} />
+    <Chart title="Git push" detail="Node.js service, build machine already running" bars={pushNode} scale={small} />
   </div>
 </figure>
