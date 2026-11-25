@@ -17,6 +17,9 @@ import Steps from './Steps.astro';
   htmlClass="brand b-page"
 >
   <BrandHead slot="head" />
+  <script is:inline slot="head">
+    if (matchMedia('(prefers-reduced-motion: no-preference)').matches) document.documentElement.classList.add('b-motion');
+  </script>
   <Header />
   <main>
     <Hero />

@@ -1,9 +1,10 @@
 ---
-import { Image } from 'astro:assets';
 import Tape from '../../brand/Tape.astro';
 import { bars, FIRST_RUN, runDate } from './bench';
 import Race from './Race.astro';
-import preview from './shots/deploys-preview-stage-tape-main.png';
+import Shot from './Shot.astro';
+import previewLarge from './shots/preview-main-2448.webp';
+import previewSmall from './shots/preview-main-1224.webp';
 
 const lambda = bars('lambda-deploy', 'handler', 'lambda-25');
 const container = bars('container-deploy', 'code-change', 'container-node');
@@ -82,47 +83,16 @@ const lead = (case_: typeof shared) => {
         <span class="b-frame__dots"><i></i><i></i><i></i></span>
         <span class="b-frame__where">console.stacktape.com · storefront · pr-421</span>
       </div>
-      <Image
+      <Shot
         class="b-preview__shot"
-        src={preview}
+        small={previewSmall}
+        large={previewLarge}
         alt="The storefront project in the Console with the pr-421 preview stage selected: healthy, deployed from feature/pr-421, with its requests and latency."
-        widths={[800, 1440, 2160]}
-        sizes="(min-width: 75rem) 52rem, 100vw"
-        loading="lazy"
+        sizes="(min-width: 90rem) 52rem, (min-width: 64rem) 60vw, 94vw"
       />
     </div>
   </div>
 </div>
-
-<script is:inline>
-  if (matchMedia('(prefers-reduced-motion: no-preference)').matches) document.documentElement.classList.add('b-motion');
-</script>
-
-<script>
-  for (const group of document.querySelectorAll<HTMLElement>('[data-races]')) {
-    const races = Array.from(group.querySelectorAll<HTMLElement>('[data-race]'));
-    const replay = group.querySelector<HTMLElement>('[data-replay]');
-    const run = () => {
-      for (const race of races) race.classList.remove('is-running');
-      void group.offsetWidth;
-      for (const race of races) race.classList.add('is-running');
-    };
-    if (!document.documentElement.classList.contains('b-motion')) continue;
-    if (replay) {
-      replay.hidden = false;
-      replay.querySelector('button')?.addEventListener('click', run);
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        observer.disconnect();
-        run();
-      },
-      { threshold: 0.35 }
-    );
-    observer.observe(group);
-  }
-</script>
 
 <style>
   .b-deploy {

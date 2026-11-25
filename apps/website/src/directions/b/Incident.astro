@@ -1,7 +1,8 @@
 ---
-import { Image } from 'astro:assets';
 import Tape from '../../brand/Tape.astro';
-import assessment from './shots/incidents-assessment-tape-main.png';
+import Shot from './Shot.astro';
+import assessmentLarge from './shots/incident-main-2448.webp';
+import assessmentSmall from './shots/incident-main-1224.webp';
 
 const SLACK_ACTIONS = ['Acknowledge', 'Mute', 'Resolve', 'Roll back'];
 ---
@@ -12,13 +13,12 @@ const SLACK_ACTIONS = ['Acknowledge', 'Mute', 'Resolve', 'Roll back'];
       <span class="b-frame__dots"><i></i><i></i><i></i></span>
       <span class="b-frame__where">console.stacktape.com · incidents · API error rate above 5%</span>
     </div>
-    <Image
+    <Shot
       class="b-incident__shot"
-      src={assessment}
+      small={assessmentSmall}
+      large={assessmentLarge}
       alt="An incident in the Console: API error rate above 5% on checkout-api production. The AI assessment names a TypeError and database timeouts; a draft fix by Claude Code is ready as pull request #318, not merged or deployed."
-      widths={[800, 1440, 2160]}
-      sizes="(min-width: 75rem) 52rem, 100vw"
-      loading="lazy"
+      sizes="(min-width: 90rem) 52rem, (min-width: 64rem) 60vw, 94vw"
     />
   </div>
 

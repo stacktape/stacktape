@@ -1,11 +1,15 @@
 import type { ImageMetadata } from 'astro';
-import costs from './shots/costs-by-stage-tape.png';
-import deploys from './shots/deploys-finished-tape.png';
-import designs from './shots/designs-review-wizard.png';
-import incidents from './shots/incidents-assessment-tape.png';
-import monitors from './shots/monitors-error-tracking-tape.png';
-import packages from './shots/packages-build-and-package-tape.png';
-import secures from './shots/secures-guardrails-tape.png';
+import { type Bar, bars } from './bench';
+import costsLarge from './shots/costs-2880.webp';
+import costsSmall from './shots/costs-1440.webp';
+import guardrailsLarge from './shots/guardrails-2880.webp';
+import guardrailsSmall from './shots/guardrails-1440.webp';
+import incidentLarge from './shots/incident-2880.webp';
+import incidentSmall from './shots/incident-1440.webp';
+import errorsLarge from './shots/errors-2880.webp';
+import errorsSmall from './shots/errors-1440.webp';
+import reviewLarge from './shots/review-2880.webp';
+import reviewSmall from './shots/review-1440.webp';
 
 /**
  * The eight capabilities, in the order one app meets them: from the first command in the repository to the
@@ -23,7 +27,9 @@ export type Step = {
   line: string;
   /** The line quotes a benchmark figure, so the caption links to the run. */
   bench?: boolean;
-  shot?: { src: ImageMetadata; alt: string };
+  shot?: { small: ImageMetadata; large: ImageMetadata; alt: string };
+  /** A benchmark shown instead of a screenshot: the demo data's own build and deploy times are not realistic. */
+  race?: { title: string; detail: string; bars: Bar[] };
 };
 
 export const STEPS: Step[] = [
@@ -36,7 +42,8 @@ export const STEPS: Step[] = [
     title: 'It starts from your code',
     line: 'Stacktape reads your repo and proposes each AWS resource, with the code line behind it and its monthly cost.',
     shot: {
-      src: designs,
+      small: reviewSmall,
+      large: reviewLarge,
       alt: 'The init wizard’s Review: a diagram of a Next.js site and its Postgres database, a $32 a month estimate and the generated stacktape.yml.'
     }
   },
@@ -44,28 +51,30 @@ export const STEPS: Step[] = [
     id: 'package',
     name: 'Package',
     when: 'First push',
-    where: 'console.stacktape.com  ·  staging deploy',
+    where: 'deploy benchmarks  ·  packaging',
     problem: 'AWS CDK, SST and Serverless take 17.6 to 28.4 seconds to package 25 Lambda functions.',
     title: '25 functions packaged in 3.8 seconds',
     line: 'Parallel builds made for Lambda. Python, Go, Java, Ruby, .NET and Rust need no Dockerfile.',
     bench: true,
-    shot: {
-      src: packages,
-      alt: 'A staging deploy in the Console with its Build and package step open, listing each packaged Lambda function.'
+    race: {
+      title: 'Package 25 Lambda functions',
+      detail: 'Empty build cache, median of 10 runs',
+      bars: bars('packaging', 'empty-cache', 'lambda-25')
     }
   },
   {
     id: 'deploy',
     name: 'Deploy',
     when: 'Seconds later',
-    where: 'console.stacktape.com  ·  production deploy',
+    where: 'deploy benchmarks  ·  Lambda deploy',
     problem: 'With AWS CDK, a code change to 25 Lambda functions takes over a minute to go live.',
     title: 'Push, and it’s live',
     line: 'A change to one Lambda function is live in 10.7 seconds. Every pull request can get its own preview.',
     bench: true,
-    shot: {
-      src: deploys,
-      alt: 'A finished production deploy in the Console, with its steps, durations, commit and release.'
+    race: {
+      title: 'Deploy a code change to one Lambda function',
+      detail: 'Until the new code answers, median of 10 runs',
+      bars: bars('lambda-deploy', 'handler', 'lambda-1')
     }
   },
   {
@@ -77,7 +86,8 @@ export const STEPS: Step[] = [
     title: 'Safe defaults, and rules you set',
     line: 'Each workload gets only the access it needs. Guardrails stop a public database or a wrong region before deploy.',
     shot: {
-      src: secures,
+      small: guardrailsSmall,
+      large: guardrailsLarge,
       alt: 'The Console’s guardrails page with organization rules and how each one is enforced.'
     }
   },
@@ -90,7 +100,8 @@ export const STEPS: Step[] = [
     title: 'Monitoring is already set up',
     line: 'Logs, metrics, traces, errors, uptime checks and browser tests come with the stack. No extra vendor.',
     shot: {
-      src: monitors,
+      small: errorsSmall,
+      large: errorsLarge,
       alt: 'Grouped application errors in the Console, with how often each happens and where.'
     }
   },
@@ -103,7 +114,8 @@ export const STEPS: Step[] = [
     title: 'One incident per problem, handled from Slack',
     line: 'Related errors, alarms and failed checks become one incident. Acknowledge, mute or roll back from Slack.',
     shot: {
-      src: incidents,
+      small: incidentSmall,
+      large: incidentLarge,
       alt: 'An incident in the Console: API error rate above 5%, with an AI assessment and a draft fix opened as a pull request.'
     }
   },
@@ -116,7 +128,8 @@ export const STEPS: Step[] = [
     title: 'See what every stage costs',
     line: 'Your AWS spend per project, stage and resource, updated daily. Budgets alert before the bill does.',
     shot: {
-      src: costs,
+      small: costsSmall,
+      large: costsLarge,
       alt: 'Monthly spend in the Console for one project, with a projection and a breakdown by stage.'
     }
   },

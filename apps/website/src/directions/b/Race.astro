@@ -11,13 +11,15 @@ type Props = {
   note?: string;
   /** Labels to show instead of the tool name, for example "Stacktape*". */
   rename?: Record<string, string>;
+  /** `large` stacks the caption over the bars and enlarges both, for a race that fills a picture. */
+  size?: 'normal' | 'large';
 };
 
-const { title, detail, bars, scale, note, rename = {} } = Astro.props;
+const { title, detail, bars, scale, note, rename = {}, size = 'normal' } = Astro.props;
 const figure = (seconds: number) => `${seconds.toFixed(1)} s`;
 ---
 
-<figure class="b-race" data-race>
+<figure class:list={['b-race', `b-race--${size}`]} data-race>
   <figcaption>
     <span class="b-race__title">{title}</span>
     <span class="b-race__detail">{detail}</span>
@@ -42,6 +44,33 @@ const figure = (seconds: number) => `${seconds.toFixed(1)} s`;
     }
   </ol>
 </figure>
+
+<script>
+  /* Each [data-races] group plays once when it comes into view. Home.astro sets b-motion before first paint. */
+  for (const group of document.querySelectorAll<HTMLElement>('[data-races]')) {
+    const races = Array.from(group.querySelectorAll<HTMLElement>('[data-race]'));
+    const replay = group.querySelector<HTMLElement>('[data-replay]');
+    const run = () => {
+      for (const race of races) race.classList.remove('is-running');
+      void group.offsetWidth;
+      for (const race of races) race.classList.add('is-running');
+    };
+    if (!document.documentElement.classList.contains('b-motion')) continue;
+    if (replay) {
+      replay.hidden = false;
+      replay.querySelector('button')?.addEventListener('click', run);
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        run();
+      },
+      { threshold: 0.35 }
+    );
+    observer.observe(group);
+  }
+</script>
 
 <style>
   .b-race {
@@ -156,9 +185,45 @@ const figure = (seconds: number) => `${seconds.toFixed(1)} s`;
     }
   }
 
+  .b-race--large {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--brand-space-6);
+  }
+
+  .b-race--large .b-race__title {
+    font-size: var(--brand-type-title);
+    letter-spacing: var(--brand-tracking-heading);
+  }
+
+  .b-race--large .b-race__detail {
+    font-size: var(--brand-type-sm);
+  }
+
+  .b-race--large .b-race__bars {
+    gap: var(--brand-space-4);
+  }
+
+  .b-race--large .b-race__bar {
+    grid-template-columns: 9rem minmax(0, 1fr);
+    font-size: var(--brand-type-lead);
+  }
+
+  .b-race--large .b-race__run {
+    height: 1rem;
+  }
+
+  .b-race--large .b-race__value {
+    font-size: var(--brand-type-sm);
+  }
+
   @media (max-width: 48rem) {
     .b-race {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    .b-race--large .b-race__bar {
+      grid-template-columns: 6.25rem minmax(0, 1fr);
+      font-size: var(--brand-type-sm);
     }
 
     .b-race__bar {

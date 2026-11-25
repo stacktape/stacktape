@@ -1,9 +1,10 @@
 ---
 import { ButtonLink } from '@stacktape/ui-react/button';
-import { Image } from 'astro:assets';
 import { CommandBox } from '../../brand/CommandBox';
 import './b.css';
 import { FIRST_RUN, runDate } from './bench';
+import Race from './Race.astro';
+import Shot from './Shot.astro';
 import { STEPS } from './steps';
 
 const pad = (index: number) => String(index + 1).padStart(2, '0');
@@ -87,15 +88,30 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
                 <span class="b-frame__where">{step.where}</span>
               </div>
               {step.shot ? (
-                <Image
+                <Shot
                   class="b-journey__shot"
-                  src={step.shot.src}
+                  small={step.shot.small}
+                  large={step.shot.large}
                   alt={step.shot.alt}
-                  widths={[800, 1224, 1800, 2448]}
-                  sizes="(min-width: 75rem) 68rem, 100vw"
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                  fetchpriority={index === 0 ? 'high' : undefined}
+                  sizes="(min-width: 90rem) 68rem, (min-width: 64rem) 72vw, 94vw"
+                  eager={index === 0}
                 />
+              ) : step.race ? (
+                <div class="b-journey__race" data-races>
+                  <Race
+                    title={step.race.title}
+                    detail={step.race.detail}
+                    bars={step.race.bars}
+                    scale={Math.max(...step.race.bars.map((bar) => bar.seconds))}
+                    size="large"
+                  />
+                  <p class="b-journey__race-foot">
+                    Preliminary run, {runDate(FIRST_RUN.date)}, on a dedicated EC2 c7i.2xlarge.{' '}
+                    <a class="brand-link" href="/benchmarks">
+                      All benchmarks
+                    </a>
+                  </p>
+                </div>
               ) : (
                 <div class="b-journey__help">
                   <p class="b-journey__help-big">A shared Slack channel with the founders who build Stacktape.</p>
@@ -245,6 +261,19 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
     aspect-ratio: 16 / 10;
     object-fit: cover;
     object-position: top left;
+  }
+
+  .b-journey__race {
+    display: grid;
+    align-content: center;
+    gap: var(--brand-space-8);
+    aspect-ratio: 16 / 10;
+    padding: clamp(1.5rem, 1rem + 3vw, 5rem);
+  }
+
+  .b-journey__race-foot {
+    color: var(--brand-muted);
+    font-size: var(--brand-type-xs);
   }
 
   .b-journey__help {
