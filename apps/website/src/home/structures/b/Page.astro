@@ -19,12 +19,12 @@ import Steps from './Steps.astro';
   <SiteHeader startHref="#install" />
   <main>
     <slot name="hero" />
-    <Proof />
     <Steps />
+    <Proof />
     <Questions />
     <Closing />
   </main>
-  <SiteFooter />
+  <SiteFooter homeHref={Astro.url.pathname} />
 </BaseLayout>
 
 <style is:global>

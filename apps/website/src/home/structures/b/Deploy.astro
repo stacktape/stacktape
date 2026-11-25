@@ -15,12 +15,12 @@ const pushDate = push.find((bar) => bar.tool === 'stacktape')?.date ?? FIRST_RUN
 /*
  * A dependency or configuration change can't use code swap. The data file gives Stacktape's normal image deploy
  * only in a note on container-deploy ("last measured on 17 October at 40.1, 47.6 and 57.6 s"), so the Node.js
- * figure is set here and the competitors come from the same case.
+ * figure is set here. It is compared only with Heroku's code-change deploy (22 Oct), and the chart names both
+ * workloads; the other tools' code-change times would not match it.
  */
 const IMAGE_DEPLOY_NODE = { tool: 'stacktape', label: 'Stacktape', seconds: 40.1, date: '2026-10-17' };
-const imageDeploy = [IMAGE_DEPLOY_NODE, ...container.filter((bar) => bar.tool !== 'stacktape')].toSorted(
-  (a, b) => a.seconds - b.seconds
-);
+const herokuCodeChange = container.filter((bar) => bar.tool === 'heroku');
+const imageDeploy = [IMAGE_DEPLOY_NODE, ...herokuCodeChange].toSorted((a, b) => a.seconds - b.seconds);
 const scale = Math.max(...[lambda, container, push, pushPython, shared, imageDeploy].flat().map((bar) => bar.seconds));
 /** How much faster the winner of a case we lose is, in seconds. */
 const lead = (case_: typeof shared) => {
@@ -67,9 +67,9 @@ const lead = (case_: typeof shared) => {
         scale={scale}
       />
       <Race
-        title="Dependency or config change"
-        detail={`A Node.js service without code swap. Heroku is ${lead(imageDeploy)} s faster`}
-        note={`Stacktape’s image deploy measured on ${runDate(IMAGE_DEPLOY_NODE.date)}.`}
+        title="Without code swap"
+        detail={`Node.js service. Heroku is ${lead(imageDeploy)} s faster`}
+        note={`Stacktape: its normal image deploy, used for a dependency or config change (${runDate(IMAGE_DEPLOY_NODE.date)}). Heroku: its code-change deploy (${runDate(FIRST_RUN.date)}).`}
         bars={imageDeploy}
         scale={scale}
       />
@@ -99,7 +99,7 @@ const lead = (case_: typeof shared) => {
     <div class="b-frame">
       <div class="b-frame__bar" aria-hidden="true">
         <span class="b-frame__dots"><i></i><i></i><i></i></span>
-        <span class="b-frame__where">console.stacktape.com · storefront · pr-421</span>
+        <span class="b-frame__where">Example: storefront · pr-421</span>
       </div>
       <Shot
         class="b-preview__shot"

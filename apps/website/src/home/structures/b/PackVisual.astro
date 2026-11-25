@@ -4,10 +4,8 @@ import { bars, FIRST_RUN, runDate } from '../../heroes/b/bench';
 import Race from '../../heroes/b/Race.astro';
 import Shot from '../../heroes/b/Shot.astro';
 import { SECTION_PACKS } from '../../sections';
-import scanLarge from './shots/scan-2880.webp';
-import scanSmall from './shots/scan-1440.webp';
-import scanPhoneLarge from './shots/scan-phone-800.webp';
-import scanPhoneSmall from './shots/scan-phone-400.webp';
+import editorLarge from './shots/editor-1114.webp';
+import editorSmall from './shots/editor-557.webp';
 
 /** The picture and the headline figure for one capability from the section packs. */
 type Props = { pack: (typeof SECTION_PACKS)[number] };
@@ -15,38 +13,52 @@ type Props = { pack: (typeof SECTION_PACKS)[number] };
 const { pack } = Astro.props;
 const { figure } = pack;
 /*
- * Hero B already shows the wizard's Review screen, the pack's picture for Designs, so this page shows the step
- * before it: the coding agent reading the repository.
+ * Heroes show the wizard's Review screen (hero b, the pack's picture for Designs) and its Analyze screen (hero a), so
+ * this page shows a different task: the generated config, open in the wizard's editor.
  */
+const editor = { small: editorSmall, large: editorLarge };
 const picture =
   pack.id === 'designs'
     ? {
-        desktop: { small: scanSmall, large: scanLarge },
-        phone: { small: scanPhoneSmall, large: scanPhoneLarge },
-        alt: 'The init wizard’s Analyze step: Claude Code reads the saas-starter repository, read-only, while stacktape.yml waits for the first finding.'
+        desktop: editor,
+        phone: editor,
+        alt: 'The generated stacktape.ts in the init wizard’s editor: a Postgres database with deletion protection, seven days of backups and a free-storage alarm, with no type errors.'
       }
     : pack.picture;
 
 /** Where each screen lives, for the window's title bar. */
 const WHERE: Record<string, string> = {
-  designs: 'stacktape init · wizard in your browser',
-  monitors: 'console.stacktape.com · metrics',
-  secures: 'console.stacktape.com · guardrails',
-  costs: 'console.stacktape.com · costs · storefront'
+  designs: 'Example: saas-starter · init wizard, config editor',
+  monitors: 'Example: Northwind Labs · metrics',
+  secures: 'Example: Northwind Labs · guardrails',
+  costs: 'Example: storefront · costs'
 };
 /* Support by plan, as `src/pages/pricing.astro` lists it (Flexible :47, Enterprise :58). */
 const SUPPORT = [
   { plan: 'Flexible', help: 'A shared Slack channel with the founders' },
   { plan: 'Enterprise', help: 'Up to 24×7 premium support' }
 ];
+/*
+ * The monitoring pack says error tracking is on for every stage; that holds with the Console only
+ * (docs/observability/error-tracking.mdx:34). The shared pack is the integrator's file, so the label is set here.
+ */
+const FIGURES: Record<string, { value: string; label: string }> = {
+  monitors: {
+    value: 'On by default with the Console',
+    label: 'Error tracking is wired into each stack when it deploys. Without the Console it is off.'
+  }
+};
 /* Facts that repeat the step's own line (from the hero's steps) are left out. */
 const REPEATS: Record<string, string> = { designs: 'docs/cli/init.mdx:47-48', packages: 'docs/packaging/overview.mdx:37' };
 const facts = pack.facts.filter((fact) => fact.source !== REPEATS[pack.id]);
 const packaging = bars('packaging', 'empty-cache', 'lambda-25');
-const wide = picture ? picture.desktop.small.width / picture.desktop.small.height > 2.5 : false;
+const ratio = picture ? picture.desktop.small.width / picture.desktop.small.height : 1;
+const wide = ratio > 2.5;
+/** A portrait picture would grow too tall in the wide column, so it gets an even split. */
+const tall = ratio < 1.2;
 ---
 
-<div class:list={['b-pack', { 'b-pack--wide': wide }]}>
+<div class:list={['b-pack', { 'b-pack--wide': wide, 'b-pack--tall': tall }]}>
   {
     pack.id === 'packages' ? (
       <div class="b-pack__bench" data-races>
@@ -103,8 +115,8 @@ const wide = picture ? picture.desktop.small.width / picture.desktop.small.heigh
     {
       pack.id === 'packages' || !picture ? null : (
         <div class="b-pack__figure">
-          <p class="b-pack__value">{figure.value}</p>
-          <p class="b-pack__label">{figure.label}</p>
+          <p class="b-pack__value">{(FIGURES[pack.id] ?? figure).value}</p>
+          <p class="b-pack__label">{(FIGURES[pack.id] ?? figure).label}</p>
         </div>
       )
     }
@@ -122,6 +134,10 @@ const wide = picture ? picture.desktop.small.width / picture.desktop.small.heigh
 
   .b-pack--wide {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .b-pack--tall {
+    grid-template-columns: minmax(0, 36rem) minmax(0, 1fr);
   }
 
   .b-pack--wide .b-pack__facts {

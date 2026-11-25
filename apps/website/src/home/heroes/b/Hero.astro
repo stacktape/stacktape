@@ -331,14 +331,71 @@ const pad = (index: number) => String(index + 1).padStart(2, '0');
     }
   }
 
-  /* On phones the picture comes first and the steps follow it, so the product shows before the selector. */
+  /*
+   * Phones: the command box, then the step chips directly above a compact preview, so the product starts on the
+   * first screen. "Read the docs" and the ownership line follow the preview.
+   */
   @media (max-width: 40rem) {
-    .b-journey__window {
-      order: -1;
+    .b-hero {
+      display: grid;
     }
 
+    .b-hero__top,
+    .b-hero__start {
+      display: contents;
+    }
+
+    h1 {
+      order: 1;
+    }
+
+    .b-hero__lead {
+      order: 2;
+      margin-top: var(--brand-space-4);
+    }
+
+    /* The island wrapper is display: contents, so the command box itself is the grid item. */
+    .b-hero__start :global(.brand-command) {
+      order: 3;
+      margin-top: var(--brand-space-5);
+    }
+
+    .b-journey {
+      order: 4;
+      gap: var(--brand-space-3);
+      margin-top: var(--brand-space-5);
+    }
+
+    .b-hero__more {
+      order: 5;
+      margin-top: var(--brand-space-6);
+    }
+
+    .b-hero__own {
+      order: 6;
+      margin-top: var(--brand-space-3);
+    }
+
+    .b-journey__intro,
+    .b-journey__line {
+      display: none;
+    }
+
+    .b-journey__panel {
+      gap: var(--brand-space-2);
+    }
+
+    /* Square and anchored top right: the Console's main area, without its sidebar. */
     .b-journey__shot {
+      aspect-ratio: 1;
+      object-fit: cover;
+      object-position: right top;
+    }
+
+    .b-journey__race,
+    .b-journey__help {
       aspect-ratio: auto;
+      padding: var(--brand-space-5);
     }
   }
 </style>
