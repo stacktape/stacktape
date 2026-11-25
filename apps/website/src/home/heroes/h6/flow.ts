@@ -73,3 +73,6 @@ export const rows: readonly Row[] = [
     icons: [['cache', 'database']]
   }
 ];
+
+/** The part lit before anyone points at the diagram: the clearest file-to-service pair. */
+export const lit = 'api';

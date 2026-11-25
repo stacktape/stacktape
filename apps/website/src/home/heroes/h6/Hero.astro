@@ -4,7 +4,7 @@ import { CommandBox } from '../../../brand/CommandBox';
 import Logo from '../../../brand/Logo.astro';
 import Tape from '../../../brand/Tape.astro';
 import '../../../brand/site.css';
-import { rows } from './flow';
+import { lit, rows } from './flow';
 import Glyph from './Glyph.astro';
 
 type Props = {
@@ -29,7 +29,7 @@ const {
     </div>
   </div>
 
-  <figure class="site-frame diagram" data-hero-h6>
+  <figure class="site-frame diagram" data-hero-h6 data-lit={lit}>
     <figcaption class="sr-only">
       How Stacktape works: it reads the files in your repository, writes a stacktape.yml with one resource for each
       part of your app, and deploys those resources as AWS services in your account. The Console then collects
@@ -43,7 +43,7 @@ const {
         </div>
         {
           rows.map((row) => (
-            <div class="cell" data-row={row.id}>
+            <div class:list={['cell', { 'is-on': row.id === lit }]} data-row={row.id}>
               <Glyph name="file" />
               <span class="text">
                 <code>{row.file}</code>
@@ -63,7 +63,7 @@ const {
 
       <div class="gutter g1" aria-hidden="true">
         <div class="step"><Tape variant="marker">stacktape init</Tape></div>
-        {rows.map((row) => <span class="link" data-row={row.id} />)}
+        {rows.map((row) => <span class:list={['link', { 'is-on': row.id === lit }]} data-row={row.id} />)}
         <div class="link link--back"><Tape tone="gray" variant="count">writes</Tape></div>
       </div>
 
@@ -74,7 +74,7 @@ const {
         </div>
         {
           rows.map((row) => (
-            <div class="cell" data-row={row.id}>
+            <div class:list={['cell', { 'is-on': row.id === lit }]} data-row={row.id}>
               <span class="yml">
                 {row.resources.map(([name, type]) => (
                   <code>
@@ -89,13 +89,13 @@ const {
           ))
         }
         <div class="foot">
-          <span class="note">A config file you review, edit and commit</span>
+          <span class="note">YAML or TypeScript, committed to your repo</span>
         </div>
       </div>
 
       <div class="gutter g2" aria-hidden="true">
         <div class="step"><Tape variant="marker">stacktape deploy</Tape></div>
-        {rows.map((row) => <span class="link" data-row={row.id} />)}
+        {rows.map((row) => <span class:list={['link', { 'is-on': row.id === lit }]} data-row={row.id} />)}
         <span />
       </div>
 
@@ -106,7 +106,7 @@ const {
         </div>
         {
           rows.map((row) => (
-            <div class="cell" data-row={row.id}>
+            <div class:list={['cell', { 'is-on': row.id === lit }]} data-row={row.id}>
               <span class="icons">
                 {row.icons.map(([glyph, category]) => (
                   <span class="tile" style={`--category: var(--stp-aws-category-${category})`}>
@@ -152,16 +152,20 @@ const {
 </section>
 
 <script>
-  /* Pointing at a part of the app lights up its file, its stacktape.yml lines and its AWS service together. */
+  /*
+   * One part of the app is lit across all three panels from the start. Pointing at another part lights its file,
+   * its stacktape.yml lines and its AWS service instead; leaving the diagram goes back to the first.
+   */
   for (const root of document.querySelectorAll<HTMLElement>('[data-hero-h6]')) {
     const parts = Array.from(root.querySelectorAll<HTMLElement>('[data-row]'));
     const light = (id: string | undefined) => {
       for (const part of parts) part.classList.toggle('is-on', part.dataset.row === id);
     };
     root.addEventListener('pointerover', (event) => {
-      light((event.target as HTMLElement).closest<HTMLElement>('[data-row]')?.dataset.row);
+      const row = (event.target as HTMLElement).closest<HTMLElement>('[data-row]')?.dataset.row;
+      if (row) light(row);
     });
-    root.addEventListener('pointerleave', () => light(undefined));
+    root.addEventListener('pointerleave', () => light(root.dataset.lit));
   }
 </script>
 
@@ -238,7 +242,7 @@ const {
 
   /* The diagram's type grows a little on wide screens; everything inside is sized in em from here. */
   .flow {
-    --gutter: 9.5rem;
+    --gutter: clamp(8.75rem, 4rem + 6vw, 9.5rem);
     --loop-gap: var(--brand-space-6);
     display: grid;
     grid-template-columns:
