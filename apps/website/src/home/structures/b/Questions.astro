@@ -34,38 +34,34 @@ const OPEN_BY_DEFAULT = 2;
 const QUESTIONS: Question[] = [
   {
     q: 'Why not Heroku or Render?',
-    a: `Your app runs in your own AWS account at AWS prices, with CloudFormation and CDK when you need more. Push-to-deploy and PR previews still work. A warm Git push of our Node.js test service went live in ${pushSeconds('stacktape')} s with code swap, against ${pushSeconds('heroku')} s on Heroku and ${pushSeconds('render')} s on Render.`,
+    a: `You get push-to-deploy and PR previews in your own AWS account, at AWS prices. A warm Node.js Git push went live in ${pushSeconds('stacktape')} s with Stacktape code swap, versus ${pushSeconds('render')} s on Render.`,
     link: { label: 'Git push results on GitHub', href: runReadme('2026-10-23') }
   },
   {
     q: 'Why not hire a DevOps engineer?',
-    a: 'Your developers get pipelines, permissions, monitoring and incident alerts on day one. On Flexible, the founders answer your AWS questions in Slack.'
+    a: 'Your developers deploy from their existing CI, route incident alerts, and add migrations that stop the rollout if they fail. On Flexible, the founders answer AWS questions in Slack.'
   },
   {
     q: 'What does it cost?',
-    a: 'The CLI is free, and so is the Console up to $200 a month of managed AWS spend. Above that, Flexible costs 19–25% of it, $250 a month at $1,000, never per seat. Running apps are never paused.',
+    a: 'The CLI is free, and so is the Console up to $200 a month of managed AWS spend. Flexible costs 19–25% of that spend ($250 at $1,000), with no seat fees. Over the free limit, only new Console deploys pause, after a one-time 7-day grace period.',
     link: { label: 'Pricing', href: '/pricing' }
   },
   {
     q: 'Are we locked in?',
-    a: 'Your resources are standard CloudFormation stacks in your AWS account, and they keep running if you stop paying. The MIT-licensed CLI deploys them without the Console.',
+    a: 'Cancel Stacktape and your stacks keep running in your AWS account. The free CLI keeps deploying them once you replace any Stacktape domain and drop Console-only settings.',
     link: { label: 'Using the CLI without an account', href: 'https://docs.stacktape.com/getting-started/open-source-cli' }
   },
   {
     q: 'Will it scale with us?',
-    a: 'Your app runs on Lambda, ECS Fargate and Aurora, and you set how far each container service scales. There’s no Kubernetes cluster and no server to patch.'
+    a: 'Lambda scales per request. Fargate containers scale on CPU or memory between the task counts you set, with no Kubernetes cluster to run.'
   },
   {
     q: 'Can our database stay private?',
-    a: 'Yes. With `scoping-workloads-in-vpc`, only the services that list it in `connectTo` can reach it, and your team connects through a bastion host.'
+    a: 'Yes. Give an RDS database private access (`scoping-workloads-in-vpc`) and list it in each service’s `connectTo`. Add a bastion if your team needs a tunnel.'
   },
   {
     q: 'What leaves our AWS account?',
-    a: 'Logs, build artifacts and secrets stay in your account. The Console receives errors with masked log excerpts, metrics, check results and security findings, and init sends Stacktape only the generated config for pricing.',
-    link: {
-      label: 'What leaves your AWS account',
-      href: 'https://docs.stacktape.com/observability/error-tracking#what-leaves-your-aws-account'
-    }
+    a: 'Application logs, build artifacts and app secrets stay in your AWS account. The Console stores errors with filtered log excerpts, metrics, check results and security findings. OSV.dev gets package names for vulnerability checks, and AI tools send what they read to your chosen provider.'
   },
   {
     q: 'What if we need something Stacktape doesn’t support?',

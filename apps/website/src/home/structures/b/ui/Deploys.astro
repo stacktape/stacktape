@@ -13,9 +13,11 @@ import { barsOf, runOf, slowest } from './bench/data';
  * "code swap". Its Git push median is of 5 runs (23 October); Heroku's container and Git push times are one build from
  * the pushed source (`heroku builds:create`). The data file and the GitHub results hold those details.
  */
+/** Heroku's time is a build submitted from the pushed source with its CLI (`heroku builds:create`), so the bar says so. */
+const HEROKU = { heroku: 'Heroku CLI build' };
 const large = barsOf('lambda-deploy', 'handler', 'lambda-25');
-const container = barsOf('container-deploy', 'code-change', 'container-node', { stacktape: 'code swap' });
-const pushNode = barsOf('git-push', 'warm', 'container-node', { stacktape: 'code swap' });
+const container = barsOf('container-deploy', 'code-change', 'container-node', { stacktape: 'code swap' }, HEROKU);
+const pushNode = barsOf('git-push', 'warm', 'container-node', { stacktape: 'code swap' }, HEROKU);
 const us = large.find((bar) => bar.us);
 if (!us) throw new Error('The Lambda deploy benchmark has no Stacktape value');
 const small = slowest(container, pushNode);

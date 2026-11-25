@@ -171,11 +171,8 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'designs',
     name: 'Designs',
     title: 'Designs the stack your app needs',
-    text: 'Stacktape reads your code and proposes the AWS setup it needs. You see every resource and its estimated monthly cost before anything deploys.',
-    gets: [
-      'Already on Render or Docker Compose? Init reads those files and proposes a matching AWS stack.',
-      'You get one YAML or TypeScript file in your repo.'
-    ],
+    text: 'Stacktape reads your code and picks the AWS resources it needs, from Fargate services to RDS and SQS. Change any default and save it as one YAML or TypeScript file.',
+    gets: ['Init can start from your Render Blueprint or Docker Compose file.'],
     picture: {
       desktop: crop(designsSmall, designsLarge, designsSmallPng, designsLargePng),
       phone: crop(designsPhoneSmall, designsPhoneLarge, designsPhoneSmallPng, designsPhoneLargePng),
@@ -200,10 +197,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'packages',
     name: 'Packages',
     title: 'Packages it',
-    text: 'Stacktape builds every function and container image in parallel and skips what hasn’t changed. No Dockerfile needed for Node.js, Python, Go, Java, Ruby, PHP, .NET or Rust.',
+    text: 'Stacktape builds functions and container images in parallel and reuses what hasn’t changed. No Dockerfile needed for Node.js, Python, Go, Java, Ruby, PHP, .NET or Rust.',
     gets: [
-      'Python Lambdas build in AWS’s own Lambda image, so native packages work.',
-      `Our test Node.js service ships as a ${nodeImage.stacktape} MB image, against ${nodeImage.others} MB with SST or AWS CDK.`
+      'Python dependencies build in AWS’s build image for your Lambda runtime.',
+      `In our benchmark, the default Node.js image was ${nodeImage.stacktape} MB compressed, versus ${nodeImage.others} MB with SST or AWS CDK.`
     ],
     figure: packaging.figure,
     picture: {
@@ -230,10 +227,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'deploys',
     name: 'Deploys',
     title: 'Deploys it',
-    text: 'Run `stacktape deploy` from your terminal or CI, or just push to a branch. Lambda code changes skip CloudFormation and go live in seconds.',
+    text: `Deploy from your terminal or CI, or push to a connected branch. In our CLI test, 25 updated Lambda handlers were serving requests in ${deploying.seconds} seconds.`,
     gets: [
-      'Each pull request can get its own preview stage.',
-      '`stacktape dev` runs your containers locally against the real stack, so you stop redeploying to test.'
+      'Turn on preview stages for pull requests from branches in your repo.',
+      '`stacktape dev` runs containers locally against your AWS dev stack.'
     ],
     figure: deploying.figure,
     picture: null,
@@ -258,10 +255,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'monitors',
     name: 'Monitors',
     title: 'Monitors it',
-    text: 'Open a trace to see which call was slow and where the request broke. Traces live in your AWS account.',
+    text: 'Turn on tracing to see which call failed or took the longest. Traces stay in your AWS account.',
     gets: [
-      'Node.js, Python, Java and .NET Lambdas are traced without code changes.',
-      'Logs, metrics, errors and uptime checks live in the same Console.'
+      'Supported Lambda runtimes are instrumented without code changes.',
+      'Logs, metrics, errors and multi-region uptime checks are in the same Console.'
     ],
     picture: {
       desktop: crop(monitorsSmall, monitorsLarge, monitorsSmallPng, monitorsLargePng),
@@ -292,10 +289,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'secures',
     name: 'Secures',
     title: 'Secures it',
-    text: 'Stacktape flags public databases and vulnerable packages after every deploy. A guardrail can stop a deploy that would expose a database.',
+    text: 'The Console flags plain-text secrets, public databases and vulnerable packages, and rechecks packages every night. A guardrail can block a deploy that would make a database public.',
     gets: [
       '`connectTo: [jobQueue]` gives the worker its IAM permissions and the queue URL.',
-      'Keep secrets in AWS Secrets Manager, out of your config.'
+      'Secrets live in AWS Secrets Manager, referenced with `$Secret()`.'
     ],
     picture: {
       desktop: crop(securesSmall, securesLarge, securesSmallPng, securesLargePng),
@@ -322,10 +319,10 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'incidents',
     name: 'Incidents',
     title: 'Handles incidents',
-    text: 'Related errors, alarms and failed checks become one incident, tied to the release that was live. Acknowledge it or roll back straight from Slack.',
+    text: 'Related errors, alarms and failed checks become one incident, tied to the live release. Acknowledge it or roll back from Slack.',
     gets: [
-      'On request, a coding agent investigates and opens a fix PR on GitHub. It never deploys.',
-      'With your Anthropic, OpenAI or xAI key, every incident gets a short AI summary.'
+      'Ask an agent to investigate, or to open a fix PR on GitHub that your team reviews.',
+      'Connect an Anthropic, OpenAI or xAI key for automatic incident summaries.'
     ],
     picture: null,
     sources: [
@@ -344,8 +341,8 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'costs',
     name: 'Costs',
     title: 'Tracks costs',
-    text: 'See what each project, stage and resource costs, updated daily. Budgets alert you when spend or the forecast crosses your limit.',
-    gets: ['In Slack, Show drivers names the stacks that spent the most this month.'],
+    text: 'See what each project, stage and resource costs, updated daily. Budgets alert on actual or forecast AWS account spend.',
+    gets: ['Choose Show drivers on a Slack budget alert to see the five costliest stacks.'],
     picture: {
       desktop: crop(costsSmall, costsLarge, costsSmallPng, costsLargePng),
       phone: crop(costsPhoneSmall, costsPhoneLarge, costsPhoneSmallPng, costsPhoneLargePng),
@@ -370,7 +367,7 @@ export const SECTION_PACKS: SectionPack[] = [
     id: 'expert-help',
     name: 'Help',
     title: 'Talk to us when you get stuck',
-    text: 'On Flexible, your team shares a Slack channel with the founders who build Stacktape.',
+    text: 'On Flexible, your team gets a shared Slack channel with the founders. Ask us about networking, IAM or your AWS bill.',
     gets: [],
     picture: null,
     sources: ['apps/website/src/pages/pricing.astro:47 (a shared Slack channel with the founders on Flexible)'],
