@@ -25,9 +25,9 @@ export const barsOf = (comparison: string, view: string, app: string, notes: Rec
 /** The slowest bar among several groups, so groups shown side by side share one scale. */
 export const slowest = (...groups: Bar[][]) => Math.max(...groups.flat().map((bar) => bar.seconds));
 
-/** A run's date as the data writes it, e.g. "22 October 2026". */
-export const runLabel = (index: number) => {
+/** A run: its date as the data writes it ("22 October 2026") and its results section in the public repository. */
+export const runOf = (index: number) => {
   const run = BENCHMARKS.runs[index];
   if (!run) throw new Error(`The benchmark data has no run ${index}`);
-  return run.label;
+  return { label: run.label, link: run.readme };
 };

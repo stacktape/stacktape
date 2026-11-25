@@ -85,9 +85,48 @@
   font: 0.95em var(--brand-font-mono);
 }
 
-.bn-foot b {
-  color: var(--brand-text);
+.bn-foot .brand-link {
   font-weight: var(--brand-weight-label);
+}
+
+/* On a phone, the charts that wide screens show side by side behind one disclosure row. */
+.bn-phone-more {
+  display: none;
+  border-top: 1px solid var(--brand-border);
+}
+
+.bn-phone-more summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--brand-space-3);
+  padding: var(--brand-space-4) clamp(1.5rem, 1rem + 2vw, 2.75rem);
+  font: var(--brand-weight-label) var(--brand-type-sm) / 1.4 var(--brand-font-heading);
+  list-style: none;
+  cursor: pointer;
+}
+
+.bn-phone-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.bn-phone-more summary::after {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 1.5px solid var(--brand-muted);
+  border-bottom: 1.5px solid var(--brand-muted);
+  transform: rotate(45deg) translateY(-0.15rem);
+  content: '';
+}
+
+.bn-phone-more[open] summary::after {
+  transform: rotate(-135deg) translateY(-0.15rem);
+}
+
+.bn-phone-more .bn-more {
+  padding-top: 0;
+  border-top: 0;
 }
 
 /* ── One chart ─────────────────────────────────────────────────────────────────────────────── */
@@ -235,9 +274,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* A phone keeps the headline result and the cases Stacktape loses; the other wins would only lengthen the step. */
+  /* A phone keeps the headline result and the cases Stacktape loses; the other wins open from a disclosure. */
   .bn-more--wins {
     display: none;
+  }
+
+  .bn-phone-more {
+    display: block;
   }
 
   .bn-main {

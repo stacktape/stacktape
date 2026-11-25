@@ -1,7 +1,7 @@
 ---
 import Tape from '../../../../brand/Tape.astro';
 import Chart from './bench/Chart.astro';
-import { barsOf, runLabel, slowest } from './bench/data';
+import { barsOf, runOf, slowest } from './bench/data';
 
 /**
  * Deploy speed from the deploy benchmarks (`src/data/deploy-benchmarks.json`): seconds until the changed code answers.
@@ -14,7 +14,8 @@ import { barsOf, runLabel, slowest } from './bench/data';
  * (`heroku builds:create`), so both bars say that. Without code swap the data file's note gives Stacktape's image
  * deploy of the Node.js service as 40.1 s on 17 October, slower than Heroku's 26.6 s; the footnote says so.
  *
- * A phone keeps the headline result and the two cases Stacktape loses.
+ * A phone keeps the headline result and the two cases Stacktape loses; the two Node.js charts open from a native
+ * disclosure, since the footnote talks about them.
  */
 const SWAP = { stacktape: 'code swap enabled' };
 const FROM_SOURCE = { heroku: 'build from the pushed source', render: 'build from the pushed source' };
@@ -29,21 +30,33 @@ const shared = barsOf('lambda-deploy', 'shared', 'lambda-5');
 const us = large.find((bar) => bar.us);
 if (!us) throw new Error('The Lambda deploy benchmark has no Stacktape value');
 const small = slowest(container, pushNode, pushPython, shared);
+/** The two other wins: beside each other on a wide screen, behind a disclosure on a phone. */
+const WINS = [
+  { title: 'Containers', detail: 'A code change to a Node.js service', bars: container },
+  { title: 'Git push', detail: 'Node.js service, build machine already running', bars: pushNode }
+];
+const cli = runOf(0);
+const push = runOf(1);
 ---
 
 <figure class="bn">
   <div class="bn-main">
     <div class="bn-stat">
       <p class="bn-stat__value">{us.seconds.toFixed(1)}<small>s</small></p>
-      <p class="bn-stat__what">from <code>stacktape deploy</code> until a code change to 25 Lambda functions answers</p>
+      <p class="bn-stat__what">to deploy updated handlers to 25 Lambda functions and get a response from the new code</p>
       <p class="bn-stat__how">Median of 10 runs; lower is better.</p>
     </div>
     <Chart size="large" bars={large} scale={80} ticks={[0, 20, 40, 60, 80]} />
   </div>
   <div class="bn-more bn-more--wins">
-    <Chart title="Containers" detail="A code change to a Node.js service" bars={container} scale={small} />
-    <Chart title="Git push" detail="Node.js service, build machine already running" bars={pushNode} scale={small} />
+    {WINS.map((chart) => <Chart {...chart} scale={small} />)}
   </div>
+  <details class="bn-phone-more">
+    <summary>Node.js service: container code change and Git push</summary>
+    <div class="bn-more">
+      {WINS.map((chart) => <Chart {...chart} scale={small} />)}
+    </div>
+  </details>
   <div class="bn-more">
     <p class="bn-more__label"><Tape tone="gray">Where Stacktape is slower</Tape></p>
     <Chart title="Git push" detail="Python service, build machine already running" bars={pushPython} scale={small} />
@@ -51,8 +64,10 @@ const small = slowest(container, pushNode, pushPython, shared);
   </div>
   <figcaption class="bn-foot">
     <span>
-      <b>Preliminary runs, {runLabel(0)},</b> on a dedicated EC2 c7i.2xlarge in eu-west-1. Stacktape's Git pushes ran on
-      its build runner on {runLabel(1)}, median of 5 to 6 runs; Heroku and Render built from the pushed source.
+      <a class="brand-link" href={cli.link}>Preliminary runs, {cli.label}</a>, on a dedicated EC2 c7i.2xlarge in
+      eu-west-1. Stacktape's Git pushes ran on its build runner on{' '}
+      <a class="brand-link" href={push.link}>{push.label}</a>, median of 5 to 6 runs; Heroku and Render built from the
+      pushed source.
     </span>
     <span>
       Code swap is an opt-in setting for code changes only. Without it, the Node.js service's image deploy took 40.1 s
