@@ -1,0 +1,77 @@
+---
+import { Button } from '@stacktape/ui-react/button';
+import { COPY_ICON } from './copy-command';
+import { COMMANDS } from './install-commands';
+import './command-box.css';
+import './controls.css';
+
+const { label, command } = COMMANDS[0];
+const runnerEnd = command.indexOf(' ');
+---
+
+<div class="brand-command" data-mobile-command data-state="idle">
+  <div class="brand-command__field" role="group" aria-label={`${label} command`}>
+    <code class="brand-command__words">
+      <span class="brand-command__prompt" aria-hidden="true">$</span>
+      <span class="brand-command__text" data-cmd><span class="brand-command__word">{command.slice(0, runnerEnd)}</span>{' '}<span class="brand-command__word--bright">{command.slice(runnerEnd + 1)}</span></span>
+    </code>
+    <Button aria-label={`Copy: ${command}`} className="brand-button brand-command__copy" variant="primary">
+      <span class="brand-command__icon" slot="icon" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          {Object.entries(COPY_ICON).map(([state, path]) => <path data-icon={state} d={path} />)}
+        </svg>
+      </span>
+      <span class="brand-command__labels" aria-hidden="true">
+        <span data-copy-label="idle">Copy</span>
+        <span data-copy-label="copied">Copied</span>
+      </span>
+    </Button>
+  </div>
+  <p aria-live="polite" class="sr-only"></p>
+</div>
+
+<script>
+  import { copyCommand } from './copy-command';
+
+  for (const box of document.querySelectorAll<HTMLElement>('[data-mobile-command]')) {
+    const text = box.querySelector('[data-cmd]');
+    const button = box.querySelector('button');
+    const status = box.querySelector('[aria-live]');
+    if (!text || !button || !status) continue;
+
+    let timer: number | undefined;
+    button.addEventListener('click', async () => {
+      const { state, message, duration } = await copyCommand(text.textContent, text);
+      box.dataset.state = state;
+      status.textContent = message;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        box.dataset.state = 'idle';
+        status.textContent = '';
+      }, duration);
+    });
+  }
+</script>
+
+<style>
+  [data-mobile-command]:not([data-state='copied']) [data-copy-label='copied'],
+  [data-state='copied'] [data-copy-label='idle'] {
+    visibility: hidden;
+  }
+
+  [data-icon] {
+    opacity: 0;
+  }
+
+  [data-state='idle'] [data-icon='idle'],
+  [data-state='copied'] [data-icon='copied'],
+  [data-state='failed'] [data-icon='failed'] {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    [data-icon] {
+      transition: opacity 120ms ease-out;
+    }
+  }
+</style>

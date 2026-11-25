@@ -1,6 +1,7 @@
 ---
 import Tape from '../../../brand/Tape.astro';
 import { CommandBox } from '../../../brand/CommandBox';
+import MobileCommand from '../../../brand/MobileCommand.astro';
 import { COMMANDS } from '../../../brand/install-commands';
 import { WIZARD_PRIVACY } from '../../sections';
 
@@ -20,7 +21,7 @@ const shareText = `Run this in your app’s folder to preview your AWS setup:\n\
     <a class="brand-link brand-link--muted" href="https://console.stacktape.com">Already using Stacktape? Open the Console</a>
   </div>
   <div class="b-closing__start home-phone">
-    <CommandBox client:media="(max-width: 40rem)" single />
+    <MobileCommand />
     <div class="b-closing__actions">
       <button class="b-closing__secondary" type="button" data-share-setup={shareText} hidden>Share setup command</button>
       <a class="brand-link b-closing__secondary" href="https://console.stacktape.com">Open the Console</a>

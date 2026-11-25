@@ -216,7 +216,7 @@ const FRAMES = [
 <div
   class="ph ph-phone"
   role="img"
-  aria-label="At 10:35, before the 11:04 fix: an incident in the Stacktape Console, API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened. A draft fix is ready as pull request #219."
+  aria-label="At 10:35, before the 11:04 fix: an incident in the Stacktape Console, API error rate above 5% on acme-shop / production, critical, 2 of 3 signals failing. The likely cause is release v000041, deployed 5 minutes before the incident opened. Draft pull request #219 returns a zero total for an empty cart."
 >
   <PhoneBar title="acme-shop / production · Incidents" />
   <div aria-hidden="true" class="ph-body inc-ph">
@@ -238,7 +238,7 @@ const FRAMES = [
     </div>
     <div class="inc-ph__fix">
       <p><b>Draft fix · PR #219</b> <span class="ph-muted">Open</span></p>
-      <p class="ph-mono">orderTotals · totals.ts:18</p>
+      <p>Return a zero total for an empty cart</p>
     </div>
   </div>
 </div>
@@ -375,8 +375,8 @@ const FRAMES = [
 
   .inc__slack-actions > .is-go {
     border-color: transparent;
-    background: var(--stp-status-success);
-    color: #fff;
+    background: var(--brand-primary-bottom);
+    color: var(--brand-on-teal);
   }
 
   .inc__slack .inc__slack-menu {

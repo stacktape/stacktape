@@ -57,8 +57,9 @@ const PLANS: Plan[] = [
     price: 'Custom',
     note: 'For data residency',
     lines: [
-      'A single-tenant Console in your own AWS account and region',
-      'Single sign-on and SCIM provisioning'
+      'Everything in Flexible',
+      'A single-tenant Console in your AWS account and region',
+      'Up to 24×7 premium support'
     ],
     action: { label: 'Book a call', href: 'https://cal.com/stacktape/30min' }
   }
@@ -78,8 +79,8 @@ const PLANS: Plan[] = [
         <Tape>Open source (MIT)</Tape>
       </div>
       <p>
-        Deploy, update, roll back and delete stacks, run dev mode, and read logs and secrets in your own AWS account
-        with your own AWS credentials. No Stacktape service sits in the path of your deploys.
+        Deploy, update, roll back and delete stacks, run dev mode, and read logs and secrets in your own AWS account.
+        You can use the CLI with just your AWS credentials.
       </p>
     </div>
     <ButtonLink variant="secondary" className="brand-button" href="https://docs.stacktape.com/getting-started/open-source-cli">
@@ -169,14 +170,13 @@ const PLANS: Plan[] = [
   <section class="details prose" aria-labelledby="free-limit">
     <h2 id="free-limit">When a Free organization passes $200</h2>
     <p>
-      The first time an organization goes over the limit, deploys keep working for 7 days and Owners and Admins are told
-      by email and in the Console. After those 7 days, new deploys pause until you upgrade or the next calendar month
-      starts. This grace period happens once per organization; in a later month, deploys pause as soon as the limit is
-      passed.
+      The first time an organization goes over the limit, it has a 7-day grace period. Stacktape notifies Owners and
+      Admins by email and in the Console. After those seven days, new deploys and new <code>stacktape dev</code> sessions
+      pause for that organization, including deploys from the CLI. They resume when you upgrade or the next calendar
+      month starts. In later months, the pause starts as soon as the organization passes the limit.
     </p>
     <p>
-      A pause never touches running infrastructure. Deleting and rolling back stacks and the rest of the Console keep
-      working, and upgrading lifts the pause at once.
+      Running infrastructure stays up. You can still delete or roll back stacks and use the rest of the Console.
     </p>
   </section>
 

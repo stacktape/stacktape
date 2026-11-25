@@ -84,7 +84,8 @@ export const SECTION_PACKS: SectionPack[] = [
     name: 'Incidents',
     title: 'Handles incidents',
     text: 'Related errors, alarms and failed checks become one incident, tied to the live release. Acknowledge it or roll back from Slack.',
-    phoneText: 'Related errors, alarms and failed checks become one incident, tied to the live release.',
+    phoneText:
+      'Stacktape groups failures by incident and shows which release was running. Ask its agent to open a fix for your team to review.',
     gets: [
       'Ask an agent to investigate, or to open a fix PR on GitHub that your team reviews.',
       'Connect an Anthropic, OpenAI or xAI key for automatic incident summaries.'
