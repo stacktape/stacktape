@@ -31,12 +31,12 @@ type Question = { q: string; a: string; link?: { label: string; href: string } }
 const QUESTIONS: Question[] = [
   {
     q: 'Why not Heroku or Render?',
-    a: `Your app runs in your own AWS account at AWS prices, and you can add any AWS resource through CloudFormation or CDK. You still get push-to-deploy and pull request previews. In our preliminary Git push benchmark of 22–23 October 2026, a warm Node.js code change took ${pushSeconds('stacktape')} seconds with Stacktape and code swap turned on, ${pushSeconds('heroku')} seconds on Heroku and ${pushSeconds('render')} seconds on Render. Heroku was faster for Python.`,
+    a: `Your app runs in your own AWS account at AWS prices, and you can add CloudFormation resources and CDK constructs to the generated stack. You still get push-to-deploy and pull request previews. In our preliminary Git push benchmark of 22–23 October 2026, a warm Node.js code change took ${pushSeconds('stacktape')} seconds with Stacktape and code swap turned on, ${pushSeconds('heroku')} seconds on Heroku and ${pushSeconds('render')} seconds on Render. Heroku was faster for Python.`,
     link: { label: 'Git push results on GitHub', href: runReadme('2026-10-23') }
   },
   {
     q: 'Why not hire a DevOps engineer?',
-    a: 'Stacktape gives your developers the deploy pipelines, permissions, monitoring, incident alerts and cost tracking a DevOps engineer would otherwise set up. Your team still owns the AWS account, approves changes and responds to incidents. On Flexible, you can ask the founders in Slack when you get stuck.'
+    a: 'Your developers get deploy pipelines, permissions, monitoring and incident alerts without building them. Your team still owns the AWS account, approves changes and responds to incidents. On Flexible, you can ask the founders in Slack when you get stuck.'
   },
   {
     q: 'What does it cost?',
@@ -58,7 +58,7 @@ const QUESTIONS: Question[] = [
   },
   {
     q: 'What leaves our AWS account?',
-    a: 'Application logs, build artifacts and application secrets stay in your account. The Console receives error details and short log excerpts with recognized sensitive patterns masked, plus metrics, check results and security findings. Dependency scans send package names and versions to OSV.dev. Init sends the generated config and region to Stacktape for pricing. If you turn on incident AI, its provider receives the incident evidence. A coding agent can also send source files and command output to its provider.',
+    a: 'Application logs, build artifacts and application secrets stay in your account. The Console receives error details and short log excerpts with recognized sensitive patterns masked, plus metrics, check results and security findings. Dependency scans send package names and versions to OSV.dev. Init sends the generated config and region to Stacktape for pricing. During init, Claude Code or Codex sends the files it reads to its provider, while Files only scans locally. With incident AI on, the provider receives the incident evidence, and an investigating agent sends the code and command output it reads to its provider.',
     link: {
       label: 'What leaves your AWS account',
       href: 'https://docs.stacktape.com/observability/error-tracking#what-leaves-your-aws-account'
