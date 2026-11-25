@@ -6,7 +6,6 @@
  * fonts through the `head` slot, and sets its own root class.
  */
 import PlausibleAnalytics from '../components/PlausibleAnalytics.astro';
-import PostHogAnalytics from '../components/PostHogAnalytics.astro';
 import '../styles/global.css';
 
 type Props = {
@@ -41,7 +40,6 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://stacktape.c
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <slot name="head" />
     <PlausibleAnalytics />
-    <PostHogAnalytics />
   </head>
   <body>
     <slot />
