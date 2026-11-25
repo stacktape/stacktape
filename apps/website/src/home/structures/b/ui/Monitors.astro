@@ -66,8 +66,8 @@ const ISSUES = [
 const TABS = [
   { name: 'Open', count: 5, selected: true },
   { name: 'Resolved', count: 12 },
-  { name: 'Ignored', count: 1 },
-  { name: 'All', count: 18 }
+  { name: 'Ignored', count: 1, wide: true },
+  { name: 'All', count: 18, wide: true }
 ];
 ---
 
@@ -87,7 +87,7 @@ const TABS = [
       <span class="cn-segments">
         {
           TABS.map((tab) => (
-            <span aria-selected={tab.selected ? 'true' : 'false'}>
+            <span aria-selected={tab.selected ? 'true' : 'false'} class:list={{ 'cn-wide': tab.wide }}>
               {tab.name} <small>{tab.count}</small>
             </span>
           ))
@@ -164,7 +164,6 @@ const TABS = [
     height: 2.8em;
     padding: 0 1em;
     border: 1px solid var(--cn-line);
-    border-radius: 6px;
     background: var(--cn-page);
     white-space: nowrap;
   }

@@ -163,7 +163,6 @@
   height: 2.6em;
   padding: 0 0.5em 0 0.9em;
   border: 1px solid var(--cn-line);
-  border-radius: 6px;
   background: var(--cn-page);
   color: var(--cn-faint);
 }
@@ -172,7 +171,6 @@
   margin-left: auto;
   padding: 0.05em 0.35em;
   border: 1px solid var(--cn-line);
-  border-radius: 3px;
   font: inherit;
   font-size: 0.85em;
 }
@@ -183,7 +181,6 @@
   gap: 0.5em;
   height: 2.6em;
   padding: 0 1em;
-  border-radius: 6px;
   background: var(--cn-grey-tape);
   box-shadow: var(--cn-edge);
   color: var(--cn-text);
@@ -328,7 +325,6 @@
   display: inline-flex;
   gap: 0.25em;
   padding: 0.25em;
-  border-radius: 7px;
   background: var(--cn-well);
 }
 
@@ -416,7 +412,6 @@
 .cn-panel {
   overflow: hidden;
   border: 1px solid var(--cn-line-soft);
-  border-radius: 9px;
   background: var(--cn-panel);
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 4%);
 }
@@ -459,7 +454,6 @@
 
 .cn-commit {
   padding: 0.1em 0.45em;
-  border-radius: 3px;
   background: #2c3232;
   color: var(--cn-soft);
   font-family: var(--brand-font-mono);
@@ -471,7 +465,6 @@
   display: block;
   height: 0.45em;
   overflow: hidden;
-  border-radius: 1em;
   background: var(--cn-line);
 }
 
@@ -479,7 +472,6 @@
   position: absolute;
   inset: 0 auto 0 0;
   width: var(--cn-done, 50%);
-  border-radius: inherit;
   background: var(--cn-purple);
 }
 

@@ -5,7 +5,7 @@ import type { SECTION_PACKS } from '../../sections';
 
 /**
  * One section: its number, title and text from the section pack, the measured figure when the text quotes one, the
- * docs link, the picture (the slot), and the pack's three points under it.
+ * docs link, the picture (the slot), and the pack's one to three points under it.
  */
 type Props = {
   pack: (typeof SECTION_PACKS)[number];
@@ -58,9 +58,15 @@ const words = (text: string) => codeParts(text);
     </div>
   </header>
   <slot />
-  <ul class="b-step__points">
-    {pack.gets.map((point) => <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>)}
-  </ul>
+  {
+    pack.gets.length > 0 ? (
+      <ul class="b-step__points" style={`--b-points: ${pack.gets.length}`}>
+        {pack.gets.map((point) => (
+          <li>{words(point).map(({ part, code }) => (code ? <code>{part}</code> : part))}</li>
+        ))}
+      </ul>
+    ) : null
+  }
 </section>
 
 <style>
@@ -140,7 +146,6 @@ const words = (text: string) => codeParts(text);
   .b-step__figure li i {
     width: var(--b-bar);
     height: 0.5rem;
-    border-radius: 2px;
     background: var(--brand-border);
   }
 
@@ -159,10 +164,17 @@ const words = (text: string) => codeParts(text);
     background: var(--brand-teal);
   }
 
+  /*
+   * The points share a row of three equal columns: two points take two of them and one point one, from the left, so a
+   * point is never wider than a third and no empty column keeps a rule.
+   */
   .b-step__points {
+    --b-gap: clamp(1.5rem, 1rem + 2vw, 3rem);
+
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--brand-space-5) clamp(1.5rem, 1rem + 2vw, 3rem);
+    grid-template-columns: repeat(var(--b-points), minmax(0, 1fr));
+    width: calc((100% - 2 * var(--b-gap)) * var(--b-points) / 3 + (var(--b-points) - 1) * var(--b-gap));
+    gap: var(--brand-space-5) var(--b-gap);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -181,6 +193,10 @@ const words = (text: string) => codeParts(text);
     .b-step__head,
     .b-step__points {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    .b-step__points {
+      width: auto;
     }
   }
 </style>
