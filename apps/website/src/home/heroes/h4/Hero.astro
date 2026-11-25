@@ -198,5 +198,29 @@ const {
       align-self: start;
       margin: 0.45rem 0.6rem 0 0;
     }
+
+    /* Installer tabs: Copy joins the architecture row, and the full command scrolls instead of being cut. */
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .install-code__arch) {
+      grid-column: 1;
+      align-self: center;
+    }
+
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .brand-button.install-code__copy) {
+      grid-row: 2;
+      align-self: center;
+      margin: var(--brand-space-3) var(--brand-space-3) 0 0;
+    }
+
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .install-code__pre) {
+      grid-template-columns: max-content;
+    }
+
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .install-code__line:first-child) {
+      padding-inline-end: 0;
+    }
+
+    .h4-hero__copy :global(.brand-command:has(.install-code__arch) .install-code__line:first-child .install-code__cmd) {
+      overflow: visible;
+    }
   }
 </style>
